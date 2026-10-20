@@ -23,7 +23,8 @@ public record AiPromptVersionResponse(
         @Schema(description = "관리자용 메모. 없으면 null입니다.", nullable = true)
         String memo,
         UUID createdByAdminId,
-        Instant createdAt) {
+        Instant createdAt
+) {
 
     public static AiPromptVersionResponse from(VersionResult result) {
         return new AiPromptVersionResponse(
@@ -37,7 +38,8 @@ public record AiPromptVersionResponse(
                 result.outputSchemaVersion(),
                 result.memo(),
                 result.createdByAdminId(),
-                result.createdAt());
+                result.createdAt()
+        );
     }
 
     public record ParametersResponse(
@@ -45,14 +47,16 @@ public record AiPromptVersionResponse(
             Integer maxOutputTokens,
             @Schema(description = "생략했으면 null이며 모델 기본값을 사용합니다.", nullable = true)
             ReasoningEffort reasoningEffort,
-            Double distinctivePerspectiveThreshold) {
+            Double distinctivePerspectiveThreshold
+    ) {
 
         private static ParametersResponse from(AiPromptParameters parameters) {
             return new ParametersResponse(
                     parameters.imageDetail(),
                     parameters.maxOutputTokens(),
                     parameters.reasoningEffort(),
-                    parameters.distinctivePerspectiveThreshold());
+                    parameters.distinctivePerspectiveThreshold()
+            );
         }
     }
 }

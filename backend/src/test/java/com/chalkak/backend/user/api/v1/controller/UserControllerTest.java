@@ -69,12 +69,31 @@ class UserControllerTest {
         // Given
         UUID postId = UUID.randomUUID();
         UUID topicId = UUID.randomUUID();
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 1, 20, USER_ID))
-                .willReturn(new AuthorPostListResult(1, 20, false,
+        given(postQueryService.getAuthorPosts(
+                AUTHOR_ID,
+                1,
+                20,
+                USER_ID
+        ))
+                .willReturn(new AuthorPostListResult(
+                        1,
+                        20,
+                        false,
                         List.of(new AuthorPostListResult.PostSummary(
-                                postId, "https://cdn.example.com/original.webp", null,
-                                new AuthorPostListResult.TopicSummary(topicId, "오늘의 하늘",
-                                        LocalDate.of(2026, 4, 1))))));
+                                postId,
+                                "https://cdn.example.com/original.webp",
+                                null,
+                                new AuthorPostListResult.TopicSummary(
+                                        topicId,
+                                        "오늘의 하늘",
+                                        LocalDate.of(
+                                                2026,
+                                                4,
+                                                1
+                                        )
+                                )
+                        ))
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID))
@@ -100,8 +119,18 @@ class UserControllerTest {
     @DisplayName("요청한 페이지와 크기를 전달하고 다음 페이지 여부를 응답한다")
     void getAuthorPosts_secondPage_returnsPaginationMetadata() throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 2, 1, USER_ID))
-                .willReturn(new AuthorPostListResult(2, 1, true, List.of()));
+        given(postQueryService.getAuthorPosts(
+                AUTHOR_ID,
+                2,
+                1,
+                USER_ID
+        ))
+                .willReturn(new AuthorPostListResult(
+                        2,
+                        1,
+                        true,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID)
@@ -130,8 +159,18 @@ class UserControllerTest {
     @DisplayName("허용 범위의 조회 개수를 서비스에 전달한다")
     void getAuthorPosts_validPageSize_passesRequestedSize(int pageSize) throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 1, pageSize, USER_ID))
-                .willReturn(new AuthorPostListResult(1, pageSize, false, List.of()));
+        given(postQueryService.getAuthorPosts(
+                AUTHOR_ID,
+                1,
+                pageSize,
+                USER_ID
+        ))
+                .willReturn(new AuthorPostListResult(
+                        1,
+                        pageSize,
+                        false,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/users/{userId}/posts", AUTHOR_ID)
@@ -168,7 +207,12 @@ class UserControllerTest {
     @DisplayName("작성자를 찾을 수 없으면 공통 404 응답을 반환한다")
     void getAuthorPosts_missingAuthor_returnsNotFound() throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 1, 20, USER_ID))
+        given(postQueryService.getAuthorPosts(
+                AUTHOR_ID,
+                1,
+                20,
+                USER_ID
+        ))
                 .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다."));
 
         // When & Then
@@ -183,7 +227,12 @@ class UserControllerTest {
     @DisplayName("조회자 인증 예외를 공통 401 응답으로 변환한다")
     void getAuthorPosts_invalidViewer_returnsUnauthorized() throws Exception {
         // Given
-        given(postQueryService.getAuthorPosts(AUTHOR_ID, 1, 20, USER_ID))
+        given(postQueryService.getAuthorPosts(
+                AUTHOR_ID,
+                1,
+                20,
+                USER_ID
+        ))
                 .willThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
 
         // When & Then
@@ -277,7 +326,11 @@ class UserControllerTest {
         UUID uploadId = UUID.randomUUID();
         String uploadUrl = "https://s3.example.com/presigned";
         given(userService.createSignatureUpload(userId))
-                .willReturn(new SignatureImageUpload(uploadId, uploadUrl, 300L));
+                .willReturn(new SignatureImageUpload(
+                        uploadId,
+                        uploadUrl,
+                        300L
+                ));
 
         // When & Then
         mockMvc.perform(post("/api/v1/users/me/signature/uploads"))

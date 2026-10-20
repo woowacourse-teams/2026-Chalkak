@@ -45,13 +45,21 @@ class AuthOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.components.schemas.SocialLoginRequest.required",
-                        hasItems("provider", "idToken", "rawNonce")))
+                        hasItems(
+                                "provider",
+                                "idToken",
+                                "rawNonce"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.SocialLoginRequest.properties"
                         + ".rawNonce.description")
                         .value(containsString("SHA-256 소문자 hex")))
                 .andExpect(jsonPath(
                         "$.components.schemas.SocialSignupSignatureUploadRequest.required",
-                        hasItems("provider", "idToken", "rawNonce")))
+                        hasItems(
+                                "provider",
+                                "idToken",
+                                "rawNonce"
+                        )))
                 .andExpect(jsonPath(
                         "$.components.schemas.SocialSignupSignatureUploadRequest.properties"
                                 + ".rawNonce.description")

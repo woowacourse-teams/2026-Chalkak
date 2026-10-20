@@ -22,15 +22,32 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
             int page,
             int pageSize
     ) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize, toSort(sort));
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                toSort(sort)
+        );
         Slice<AdminFeedbackSummaryProjection> result = repository.findFeedbacks(pageable);
-        return new AdminPage<>(result.getContent(), page, pageSize, result.hasNext());
+        return new AdminPage<>(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     private Sort toSort(AdminFeedbackSort sort) {
         if (sort == AdminFeedbackSort.CREATED_AT_ASC) {
-            return Sort.by(Sort.Direction.ASC, "createdAt", "id");
+            return Sort.by(
+                    Sort.Direction.ASC,
+                    "createdAt",
+                    "id"
+            );
         }
-        return Sort.by(Sort.Direction.DESC, "createdAt", "id");
+        return Sort.by(
+                Sort.Direction.DESC,
+                "createdAt",
+                "id"
+        );
     }
 }

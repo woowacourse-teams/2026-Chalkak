@@ -7,7 +7,8 @@ public record BannerPage(
         List<Banner> items,
         int currentPage,
         int pageSize,
-        boolean hasNext) {
+        boolean hasNext
+) {
 
     public BannerPage {
         items = List.copyOf(items);

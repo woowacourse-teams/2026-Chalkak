@@ -37,14 +37,19 @@ public class SocialLoginService {
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
                 idToken,
-                rawNonce);
+                rawNonce
+        );
 
         Optional<SocialLoginSuccess> loginSuccess = existingSocialAccountLoginProcessor
                 .processIfExists(identity);
         if (loginSuccess.isPresent()) {
             return toLoginSuccess(loginSuccess.get());
         }
-        prepareAppleSignup(identity, authorizationCode, rawNonce);
+        prepareAppleSignup(
+                identity,
+                authorizationCode,
+                rawNonce
+        );
         return SocialLoginResult.signUpRequired();
     }
 
@@ -52,7 +57,8 @@ public class SocialLoginService {
         return SocialLoginResult.loginSuccess(
                 success.userId(),
                 success.accessToken(),
-                success.refreshToken());
+                success.refreshToken()
+        );
     }
 
     /**
@@ -78,7 +84,11 @@ public class SocialLoginService {
         }
         appleSignupAuthorizationService.store(
                 identity,
-                exchangeAuthorization(identity, authorizationCode, rawNonce));
+                exchangeAuthorization(
+                        identity,
+                        authorizationCode,
+                        rawNonce
+                ));
     }
 
     private String exchangeAuthorization(
@@ -91,7 +101,8 @@ public class SocialLoginService {
         VerifiedSocialIdentity exchangedIdentity = socialIdentityVerifier.verify(
                 SocialProvider.APPLE,
                 exchangeResult.idToken(),
-                rawNonce);
+                rawNonce
+        );
         validateSameSubject(identity, exchangedIdentity);
 
         return authorizationCipher.encrypt(exchangeResult.refreshToken());

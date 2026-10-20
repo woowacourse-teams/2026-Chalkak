@@ -5,7 +5,8 @@ import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import java.time.Duration;
 
 /**
- * 생성 성공 결과. {@code rawOutput}은 모델이 돌려준 output_text 그대로이며, 검증을 거친 {@code output}과 달리 가공하지 않는다.
+ * 생성 성공 결과. {@code rawOutput}은 모델이 돌려준 output_text 그대로이며, 검증을 거친
+ * {@code output}과 달리 가공하지 않는다.
  */
 public record AiReviewGeneration(
         AiReviewResult result,
@@ -25,7 +26,8 @@ public record AiReviewGeneration(
     }
 
     /**
-     * OpenAI가 보고한 토큰 사용량. 각 값이 null이면 OpenAI가 해당 사용량을 주지 않은 것이고, 0은 실제로 0이라고 보고한 값이다.
+     * OpenAI가 보고한 토큰 사용량. 각 값이 null이면 OpenAI가 해당 사용량을 주지 않은 것이고, 0은 실제로 0이라고 보고한
+     * 값이다.
      */
     public record Usage(
             Integer inputTokens,

@@ -44,8 +44,16 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     private static final UUID UNKNOWN_POST_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b658499");
 
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
-    private static final LocalDate SECOND_TOPIC_DATE = LocalDate.of(2026, 8, 13);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            12
+    );
+    private static final LocalDate SECOND_TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            13
+    );
     private static final Instant SECOND_POST_CREATED_AT = Instant.parse("2026-08-13T04:30:00Z");
     private static final Instant SECOND_POST_DELETED_AT = Instant.parse("2026-08-13T06:00:00Z");
 
@@ -73,7 +81,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 SECOND_POST_ID,
-                USER_ID);
+                USER_ID
+        );
     }
 
     @Test
@@ -95,7 +104,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                1);
+                1
+        );
 
         // Then
         assertThat(result.currentPage()).isEqualTo(1);
@@ -125,7 +135,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                 Instant.parse("2026-08-13T05:00:00Z"),
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                20);
+                20
+        );
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -150,7 +161,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                         null,
                         AdminPostSort.CREATED_AT_DESC,
                         1,
-                        20));
+                        20
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -172,7 +184,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                         Instant.parse("2026-08-13T04:00:00Z"),
                         AdminPostSort.CREATED_AT_DESC,
                         1,
-                        20));
+                        20
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -193,7 +206,8 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                         null,
                         AdminPostSort.CREATED_AT_DESC,
                         Integer.MAX_VALUE,
-                        100));
+                        100
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -222,7 +236,11 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
         assertThat(result.photo().thumbnailImageUrl()).isEqualTo(SECOND_THUMBNAIL_IMAGE_URL);
         assertThat(result.photo().metadata()).containsEntry("width", 2048);
         assertThat(result.photo().metadata())
-                .doesNotContainKeys("location", "capturedAt", "metaAttributes");
+                .doesNotContainKeys(
+                        "location",
+                        "capturedAt",
+                        "metaAttributes"
+                );
         assertThat(result.imageUpload().uploadId()).isEqualTo(SECOND_POST_IMAGE_UPLOAD_ID);
         assertThat(result.imageUpload().status()).isEqualTo(PostImageUploadStatus.REJECTED);
         assertThat(result.imageUpload().rejectionReason()).isEqualTo("CORRUPTED_IMAGE");
@@ -242,75 +260,91 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     }
 
     private void insertUsers() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, 'admin-post-user-1@example.com', 'ACTIVE',
-                    'chalkak/dev/admin-posts/signature-1.webp',
-                    'chalkak/dev/admin-posts/signature-thumbnail-1.webp',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                ), (
-                    ?, 'admin-post-user-2@example.com', 'BANNED',
-                    'chalkak/dev/admin-posts/signature-2.webp',
-                    'chalkak/dev/admin-posts/signature-thumbnail-2.webp',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, USER_ID, SECOND_USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            signature_thumbnail_storage_key, created_at, updated_at
+                        ) VALUES (
+                            ?, 'admin-post-user-1@example.com', 'ACTIVE',
+                            'chalkak/dev/admin-posts/signature-1.webp',
+                            'chalkak/dev/admin-posts/signature-thumbnail-1.webp',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        ), (
+                            ?, 'admin-post-user-2@example.com', 'BANNED',
+                            'chalkak/dev/admin-posts/signature-2.webp',
+                            'chalkak/dev/admin-posts/signature-thumbnail-2.webp',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                USER_ID,
+                SECOND_USER_ID
+        );
     }
 
     private void insertTopics() {
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    ?, '첫 번째 관리자 조회 주제', ?,
-                    '2026-08-12T00:00:00Z', '2026-08-13T00:00:00Z',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                ), (
-                    ?, '두 번째 관리자 조회 주제', ?,
-                    '2026-08-13T00:00:00Z', '2026-08-14T00:00:00Z',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, TOPIC_ID, TOPIC_DATE, SECOND_TOPIC_ID, SECOND_TOPIC_DATE);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                        ) VALUES (
+                            ?, '첫 번째 관리자 조회 주제', ?,
+                            '2026-08-12T00:00:00Z', '2026-08-13T00:00:00Z',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        ), (
+                            ?, '두 번째 관리자 조회 주제', ?,
+                            '2026-08-13T00:00:00Z', '2026-08-14T00:00:00Z',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                TOPIC_ID,
+                TOPIC_DATE,
+                SECOND_TOPIC_ID,
+                SECOND_TOPIC_DATE
+        );
     }
 
     private void insertPhotos() {
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, 'chalkak/dev/admin-posts/original-1.webp',
-                    'chalkak/dev/admin-posts/thumbnail-1.webp',
-                    CAST('{"width": 1024, "height": 768}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                ), (
-                    ?, ?, ?, CAST('{"width":2048,"height":1536,"byteSize":812345,
-                    "location":{"latitude":37.5665,"longitude":126.978},
-                    "capturedAt":"2026-08-13T11:02:31+09:00",
-                    "metaAttributes":{"cameraModel":"private-device"}}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, PHOTO_ID, SECOND_PHOTO_ID, SECOND_ORIGINAL_STORAGE_KEY,
-                SECOND_THUMBNAIL_STORAGE_KEY);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, 'chalkak/dev/admin-posts/original-1.webp',
+                            'chalkak/dev/admin-posts/thumbnail-1.webp',
+                            CAST('{"width": 1024, "height": 768}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        ), (
+                            ?, ?, ?, CAST('{"width":2048,"height":1536,"byteSize":812345,
+                            "location":{"latitude":37.5665,"longitude":126.978},
+                            "capturedAt":"2026-08-13T11:02:31+09:00",
+                            "metaAttributes":{"cameraModel":"private-device"}}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                PHOTO_ID,
+                SECOND_PHOTO_ID,
+                SECOND_ORIGINAL_STORAGE_KEY,
+                SECOND_THUMBNAIL_STORAGE_KEY
+        );
     }
 
     private void insertPosts() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, post_image_upload_id,
-                    title, moderation_status,
-                    moderated_at, created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, ?, ?, ?, NULL, '검수 대기', 'PENDING', NULL,
-                    '2026-08-12T03:30:00Z', '2026-08-12T03:30:00Z', NULL
-                ), (
-                    ?, ?, ?, ?, ?, '삭제된 작품', 'REJECTED',
-                    '2026-08-13T05:00:00Z', ?, '2026-08-13T05:00:00Z', ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, post_image_upload_id,
+                            title, moderation_status,
+                            moderated_at, created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, ?, ?, ?, NULL, '검수 대기', 'PENDING', NULL,
+                            '2026-08-12T03:30:00Z', '2026-08-12T03:30:00Z', NULL
+                        ), (
+                            ?, ?, ?, ?, ?, '삭제된 작품', 'REJECTED',
+                            '2026-08-13T05:00:00Z', ?, '2026-08-13T05:00:00Z', ?
+                        )
+                        """,
                 POST_ID,
                 USER_ID,
                 TOPIC_ID,
@@ -321,19 +355,24 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                 SECOND_PHOTO_ID,
                 SECOND_POST_IMAGE_UPLOAD_ID,
                 Timestamp.from(SECOND_POST_CREATED_AT),
-                Timestamp.from(SECOND_POST_DELETED_AT));
+                Timestamp.from(SECOND_POST_DELETED_AT)
+        );
     }
 
     private void insertPostImageUpload() {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, rejection_reason, image_metadata,
-                    expires_at, claimed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, 'REJECTED', 'CORRUPTED_IMAGE', NULL,
-                    '2026-08-13T05:30:00Z', '2026-08-13T04:30:00Z',
-                    '2026-08-13T04:00:00Z', '2026-08-13T04:20:00Z'
-                )
-                """, SECOND_POST_IMAGE_UPLOAD_ID, SECOND_USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, rejection_reason, image_metadata,
+                            expires_at, claimed_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, 'REJECTED', 'CORRUPTED_IMAGE', NULL,
+                            '2026-08-13T05:30:00Z', '2026-08-13T04:30:00Z',
+                            '2026-08-13T04:00:00Z', '2026-08-13T04:20:00Z'
+                        )
+                        """,
+                SECOND_POST_IMAGE_UPLOAD_ID,
+                SECOND_USER_ID
+        );
     }
 }

@@ -15,16 +15,13 @@ public interface AiReviewJpaRepository extends JpaRepository<AiReview, UUID> {
 
     // 네이티브로 넣으므로 영속성 컨텍스트가 비어 있는 상태로 이어서 읽도록 비운다.
     @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(
-            value = """
-                    INSERT INTO ai_reviews (post_id, user_id, prompt_version_id, status, attempt,
-                        request_id, requested_at)
-                    VALUES (:postId, :userId, :promptVersionId, :status, :attempt,
-                        :requestId, :requestedAt)
-                    ON CONFLICT (post_id) DO NOTHING
-                    """,
-            nativeQuery = true
-    )
+    @Query(value = """
+            INSERT INTO ai_reviews (post_id, user_id, prompt_version_id, status, attempt,
+                request_id, requested_at)
+            VALUES (:postId, :userId, :promptVersionId, :status, :attempt,
+                :requestId, :requestedAt)
+            ON CONFLICT (post_id) DO NOTHING
+            """, nativeQuery = true)
     int insertIfAbsent(
             @Param("postId") UUID postId,
             @Param("userId") UUID userId,
@@ -37,17 +34,14 @@ public interface AiReviewJpaRepository extends JpaRepository<AiReview, UUID> {
 
     Optional<AiReview> findByPostId(UUID postId);
 
-    @Query(
-            value = """
-                    SELECT * FROM ai_reviews
-                    WHERE status = 'QUEUED'
-                        OR (status = 'PROCESSING' AND lease_expires_at < :now)
-                    ORDER BY requested_at, id
-                    LIMIT 1
-                    FOR UPDATE SKIP LOCKED
-                    """,
-            nativeQuery = true
-    )
+    @Query(value = """
+            SELECT * FROM ai_reviews
+            WHERE status = 'QUEUED'
+                OR (status = 'PROCESSING' AND lease_expires_at < :now)
+            ORDER BY requested_at, id
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
     Optional<AiReview> findClaimableForUpdate(@Param("now") Instant now);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

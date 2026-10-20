@@ -34,7 +34,12 @@ public class AdminUserStatusService {
             UserStatus status,
             String reason
     ) {
-        String normalizedReason = validateAndNormalize(userId, adminId, status, reason);
+        String normalizedReason = validateAndNormalize(
+                userId,
+                adminId,
+                status,
+                reason
+        );
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -50,7 +55,8 @@ public class AdminUserStatusService {
                 user.getId(),
                 normalizedReason,
                 beforeState,
-                afterState));
+                afterState
+        ));
 
         return new AdminUserStatusResult(user.getId(), user.getStatus());
     }

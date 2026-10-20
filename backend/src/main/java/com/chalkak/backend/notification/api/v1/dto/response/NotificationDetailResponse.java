@@ -25,6 +25,7 @@ public record NotificationDetailResponse(
                 result.originalImageUrl(),
                 result.rejectionReason(),
                 result.readAt(),
-                result.createdAt());
+                result.createdAt()
+        );
     }
 }

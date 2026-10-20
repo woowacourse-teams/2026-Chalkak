@@ -18,9 +18,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class AdminAuditSnapshotTest {
 
     @Test
-    @DisplayName(
-            "허용한 상태 값은 문자열 형식으로 정규화하고 불변 복사한다"
-    )
+    @DisplayName("허용한 상태 값은 문자열 형식으로 정규화하고 불변 복사한다")
     void from_safeScalarValues_createsImmutableSnapshot() {
         // Given
         Map<String, Object> source = new LinkedHashMap<>();
@@ -91,8 +89,10 @@ class AdminAuditSnapshotTest {
     void from_immutableNumber_createsSnapshot() {
         // When
         AdminAuditSnapshot snapshot = AdminAuditSnapshot.from(Map.of(
-                "count", 1,
-                "score", new BigDecimal("1.5")
+                "count",
+                1,
+                "score",
+                new BigDecimal("1.5")
         ));
 
         // Then

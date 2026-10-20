@@ -92,7 +92,8 @@ class SocialSignupRetryTest extends IntegrationTestSupport {
                         uploadId,
                         "retry@chalkak.test",
                         TOKEN_ID,
-                        Instant.now().plus(Duration.ofMinutes(5))));
+                        Instant.now().plus(Duration.ofMinutes(5))
+                ));
         given(signatureImageStorage.toStorageKeys(uploadId))
                 .willReturn(new SignatureStorageKeys(
                         "signatures/original/" + uploadId + ".png",
@@ -119,7 +120,8 @@ class SocialSignupRetryTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM consumed_signup_tokens WHERE jti = ?",
                 Integer.class,
-                TOKEN_ID);
+                TOKEN_ID
+        );
     }
 
     private void cleanUp() {

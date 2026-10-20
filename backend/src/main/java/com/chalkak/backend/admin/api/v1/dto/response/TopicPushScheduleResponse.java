@@ -15,10 +15,15 @@ public record TopicPushScheduleResponse(
                 example = "09:00:00")
         LocalTime sendTime,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt
+) {
 
     public static TopicPushScheduleResponse from(TopicPushScheduleResult result) {
-        return new TopicPushScheduleResponse(result.scheduleId(), result.sendTime(),
-                result.createdAt(), result.updatedAt());
+        return new TopicPushScheduleResponse(
+                result.scheduleId(),
+                result.sendTime(),
+                result.createdAt(),
+                result.updatedAt()
+        );
     }
 }

@@ -29,5 +29,9 @@ public interface AiPromptVersionRepository {
     /**
      * 용도의 버전을 큰 번호부터 페이지 단위로 조회한다. page는 1부터 시작한다.
      */
-    AiPromptVersionPage findByType(AiPromptType type, int page, int pageSize);
+    AiPromptVersionPage findByType(
+            AiPromptType type,
+            int page,
+            int pageSize
+    );
 }

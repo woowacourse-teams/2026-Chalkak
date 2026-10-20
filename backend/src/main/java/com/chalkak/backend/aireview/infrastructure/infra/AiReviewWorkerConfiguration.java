@@ -50,9 +50,16 @@ public class AiReviewWorkerConfiguration {
     ) {
         validateLease(properties.leaseDuration(), openAiProperties);
         return new AiReviewWorkerService(
-                reviewRepository, promptVersionRepository, postRepository, aiReviewGenerator,
-                requestFactory, transactionManager, clock,
-                properties.leaseDuration(), properties.maxClaims());
+                reviewRepository,
+                promptVersionRepository,
+                postRepository,
+                aiReviewGenerator,
+                requestFactory,
+                transactionManager,
+                clock,
+                properties.leaseDuration(),
+                properties.maxClaims()
+        );
     }
 
     // 스케줄링을 끈 환경(테스트)에서는 폴러를 만들지 않고 서비스 메서드를 직접 부른다.
@@ -62,7 +69,11 @@ public class AiReviewWorkerConfiguration {
             AiReviewWorkerService service,
             AiReviewWorkerProperties properties
     ) {
-        return new AiReviewWorker(service, properties.concurrency(), SHUTDOWN_GRACE);
+        return new AiReviewWorker(
+                service,
+                properties.concurrency(),
+                SHUTDOWN_GRACE
+        );
     }
 
     // 임대가 호출 제한 시간보다 짧으면 호출이 끝나기 전에 다른 워커가 같은 행을 다시 가져가 OpenAI를 두 번 호출한다.

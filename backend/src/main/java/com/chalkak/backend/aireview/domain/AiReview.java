@@ -113,17 +113,25 @@ public class AiReview {
     }
 
     /**
-     * 워커가 이 행을 가져간다. 대기 중이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도 번호가 늘고 줄지 않는다.
-     * 시도 번호가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고 처리하지 않고 실패로 끝낸다(시도 번호는 늘리지 않는다).
+     * 워커가 이 행을 가져간다. 대기 중이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도 번호가 늘고 줄지 않는다. 시도
+     * 번호가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고 처리하지 않고 실패로 끝낸다(시도 번호는 늘리지 않는다).
      *
      * @return 처리해야 하면 true, 상한을 넘어 실패로 끝냈으면 false
      */
-    public boolean claim(Instant now, Instant leaseExpiresAt, int maxClaims) {
+    public boolean claim(
+            Instant now,
+            Instant leaseExpiresAt,
+            int maxClaims
+    ) {
         if (!isClaimableAt(now)) {
             throw new IllegalStateException("가져갈 수 없는 AI 리뷰입니다. 상태: " + status);
         }
         if (attempt + 1 > maxClaims) {
-            finish(Status.FAILED, FailureReason.LEASE_EXHAUSTED.name(), now);
+            finish(
+                    Status.FAILED,
+                    FailureReason.LEASE_EXHAUSTED.name(),
+                    now
+            );
             return false;
         }
         attempt++;
@@ -153,7 +161,11 @@ public class AiReview {
         this.result = result;
         this.output = output;
         record(invocation);
-        finish(Status.COMPLETED, null, now);
+        finish(
+                Status.COMPLETED,
+                null,
+                now
+        );
         return true;
     }
 
@@ -162,12 +174,21 @@ public class AiReview {
      *
      * @return 반영했으면 true, 늦은 워커라 반영하지 않았으면 false
      */
-    public boolean fail(int attempt, String errorCode, Invocation invocation, Instant now) {
+    public boolean fail(
+            int attempt,
+            String errorCode,
+            Invocation invocation,
+            Instant now
+    ) {
         if (!isProcessingAttempt(attempt)) {
             return false;
         }
         record(invocation);
-        finish(Status.FAILED, errorCode, now);
+        finish(
+                Status.FAILED,
+                errorCode,
+                now
+        );
         return true;
     }
 
@@ -189,7 +210,11 @@ public class AiReview {
         openaiResponseId = invocation.openaiResponseId();
     }
 
-    private void finish(Status terminalStatus, String errorCode, Instant now) {
+    private void finish(
+            Status terminalStatus,
+            String errorCode,
+            Instant now
+    ) {
         status = terminalStatus;
         this.errorCode = errorCode;
         leaseExpiresAt = null;
@@ -200,20 +225,14 @@ public class AiReview {
      * 서버 안에서 쓰는 처리 단계.
      */
     public enum Status {
-        QUEUED,
-        PROCESSING,
-        COMPLETED,
-        FAILED
+        QUEUED, PROCESSING, COMPLETED, FAILED
     }
 
     /**
      * 워커가 직접 정하는 실패 사유. 생성기 실패는 생성기의 실패 유형 이름을 그대로 오류 코드로 저장한다.
      */
     public enum FailureReason {
-        POST_UNAVAILABLE,
-        PROMPT_VERSION_UNAVAILABLE,
-        LEASE_EXHAUSTED,
-        UNEXPECTED_ERROR
+        POST_UNAVAILABLE, PROMPT_VERSION_UNAVAILABLE, LEASE_EXHAUSTED, UNEXPECTED_ERROR
     }
 
     /**
@@ -228,6 +247,13 @@ public class AiReview {
             String openaiResponseId
     ) {
 
-        public static final Invocation NONE = new Invocation(null, null, null, null, null, null);
+        public static final Invocation NONE = new Invocation(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 }

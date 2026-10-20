@@ -34,7 +34,8 @@ class PostAiReviewOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(PATH + ".post.responses.length()").value(6))
                 .andExpect(jsonPath(PATH + ".post.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/PostAiReviewResponse"))
-                .andExpect(jsonPath(PATH + ".post.responses['202'].content['application/json'].schema['$ref']")
+                .andExpect(jsonPath(
+                        PATH + ".post.responses['202'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/PostAiReviewResponse"))
                 .andExpect(jsonPath(PATH + ".post.responses['400'].content['application/json']"
                         + ".schema['$ref']").value("#/components/schemas/ErrorResponse"))
@@ -69,7 +70,11 @@ class PostAiReviewOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.length()")
                         .value(4))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.status.enum")
-                        .value(containsInAnyOrder("PROCESSING", "COMPLETED", "FAILED")))
+                        .value(containsInAnyOrder(
+                                "PROCESSING",
+                                "COMPLETED",
+                                "FAILED"
+                        )))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.requestedAt")
                         .exists())
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.completedAt")
@@ -81,8 +86,9 @@ class PostAiReviewOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.length()").value(4))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.overallScore.type")
                         .value("number"))
-                .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.criteria.items['$ref']")
-                        .value("#/components/schemas/PostAiReviewCriterion"))
+                .andExpect(
+                        jsonPath(SCHEMAS + ".PostAiReviewResult.properties.criteria.items['$ref']")
+                                .value("#/components/schemas/PostAiReviewCriterion"))
                 .andExpect(jsonPath(
                         SCHEMAS + ".PostAiReviewResult.properties.distinctivePerspective.type")
                         .value("boolean"))

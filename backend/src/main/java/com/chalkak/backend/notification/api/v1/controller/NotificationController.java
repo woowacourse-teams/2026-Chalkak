@@ -36,7 +36,10 @@ public class NotificationController implements NotificationApiDocs {
     ) {
         return ResponseEntity.ok(NotificationListResponse.from(
                 notificationService.getNotifications(
-                        loginUser.userId(), request.page(), request.pageSize())));
+                        loginUser.userId(),
+                        request.page(),
+                        request.pageSize()
+                )));
     }
 
     @Override

@@ -19,12 +19,15 @@ public record AiPromptPreviewResponse(
         Result result,
         @Schema(description = "프롬프트 튜닝용 모델 원점수. 실패하면 null입니다.", nullable = true)
         Output output,
-        @Schema(description = "OpenAI가 응답 본문을 준 경우의 토큰 사용량. HTTP 오류·시간 초과면 null이고, 항목 값이 null이면 OpenAI가 주지 않은 것입니다.", nullable = true)
+        @Schema(
+                description = "OpenAI가 응답 본문을 준 경우의 토큰 사용량. HTTP 오류·시간 초과면 null이고, 항목 값이 null이면 OpenAI가 주지 않은 것입니다.",
+                nullable = true)
         UsageResponse usage,
         @Schema(description = "OpenAI 호출 지연시간(ms). 응답 본문을 받지 못하면 null입니다.", nullable = true)
         Long latencyMs,
         @Schema(description = "OpenAI 응답 ID. 응답 본문을 받지 못하면 null입니다.", nullable = true)
-        String responseId) {
+        String responseId
+) {
 
     public static AiPromptPreviewResponse from(PreviewResult preview) {
         return new AiPromptPreviewResponse(
@@ -35,28 +38,39 @@ public record AiPromptPreviewResponse(
                 preview.output() == null ? null : Output.from(preview.output()),
                 preview.usage() == null ? null : UsageResponse.from(preview.usage()),
                 preview.latencyMs(),
-                preview.responseId());
+                preview.responseId()
+        );
     }
 
     public record Result(
             double overallScore,
             List<Criterion> criteria,
             boolean distinctivePerspective,
-            String feedback) {
+            String feedback
+    ) {
 
         private static Result from(AiReviewResult result) {
             return new Result(
                     result.overallScore(),
                     result.criteria().stream().map(Criterion::from).toList(),
                     result.distinctivePerspective(),
-                    result.feedback());
+                    result.feedback()
+            );
         }
     }
 
-    public record Criterion(String key, String label, double score) {
+    public record Criterion(
+            String key,
+            String label,
+            double score
+    ) {
 
         private static Criterion from(AiReviewResult.Criterion criterion) {
-            return new Criterion(criterion.key(), criterion.label(), criterion.score());
+            return new Criterion(
+                    criterion.key(),
+                    criterion.label(),
+                    criterion.score()
+            );
         }
     }
 
@@ -71,14 +85,16 @@ public record AiPromptPreviewResponse(
             Integer inputTokens,
             Integer cachedInputTokens,
             Integer outputTokens,
-            Integer reasoningTokens) {
+            Integer reasoningTokens
+    ) {
 
         private static UsageResponse from(Usage usage) {
             return new UsageResponse(
                     usage.inputTokens(),
                     usage.cachedInputTokens(),
                     usage.outputTokens(),
-                    usage.reasoningTokens());
+                    usage.reasoningTokens()
+            );
         }
     }
 }

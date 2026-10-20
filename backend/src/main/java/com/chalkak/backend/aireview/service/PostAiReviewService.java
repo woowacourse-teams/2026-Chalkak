@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 작성자가 본인 게시물의 AI 리뷰를 요청하고 조회한다. 요청은 대기열에 한 행을 넣을 뿐이며 OpenAI는 호출하지 않는다.
  *
- * <p>작성자가 아니거나 공개 조건을 만족하지 않는 게시물은 리뷰 존재 여부를 숨기려고 게시물이 없는 것과 같게 404로 응답한다.
+ * <p>
+ * 작성자가 아니거나 공개 조건을 만족하지 않는 게시물은 리뷰 존재 여부를 숨기려고 게시물이 없는 것과 같게 404로 응답한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -60,7 +61,12 @@ public class PostAiReviewService {
     private ReviewResult createReview(UUID userId, UUID postId) {
         AiPromptVersion version = getUsableLatestVersion();
         AiReview requested = AiReview.request(
-                postId, userId, version.getId(), currentRequestId.resolve(), clock.instant());
+                postId,
+                userId,
+                version.getId(),
+                currentRequestId.resolve(),
+                clock.instant()
+        );
         int inserted = aiReviewRepository.insertIfAbsent(requested);
         AiReview review = aiReviewRepository.findByPostId(postId).orElseThrow();
         if (inserted == 1) {
@@ -115,7 +121,8 @@ public class PostAiReviewService {
                     ApiStatus.from(review.getStatus()),
                     review.getRequestedAt(),
                     review.getCompletedAt(),
-                    review.getResult());
+                    review.getResult()
+            );
         }
 
         public boolean isInProgress() {
@@ -127,9 +134,7 @@ public class PostAiReviewService {
      * 앱에 노출하는 상태. 대기와 처리 중은 앱이 구분할 필요가 없어 하나로 합친다.
      */
     public enum ApiStatus {
-        PROCESSING,
-        COMPLETED,
-        FAILED;
+        PROCESSING, COMPLETED, FAILED;
 
         static ApiStatus from(AiReview.Status status) {
             if (status == AiReview.Status.COMPLETED) {

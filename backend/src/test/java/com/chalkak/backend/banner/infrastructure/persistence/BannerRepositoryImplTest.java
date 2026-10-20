@@ -52,13 +52,19 @@ class BannerRepositoryImplTest {
     private static Stream<DataIntegrityViolationException> unrelatedErrors() {
         ServerErrorMessage otherConstraint = mock(ServerErrorMessage.class);
         given(otherConstraint.getConstraint()).willReturn("ck_banners_title_not_blank");
-        return Stream.of(new DataIntegrityViolationException("other"),
+        return Stream.of(
+                new DataIntegrityViolationException("other"),
                 new DataIntegrityViolationException("other", new PSQLException(otherConstraint)),
-                new DataIntegrityViolationException("other", new PSQLException("error", null)));
+                new DataIntegrityViolationException("other", new PSQLException("error", null))
+        );
     }
 
     private Banner banner() {
-        return Banner.create("제목", "부제목", "https://chalkak.vercel.app/event",
-                "https://cdn.example.com/banner.png");
+        return Banner.create(
+                "제목",
+                "부제목",
+                "https://chalkak.vercel.app/event",
+                "https://cdn.example.com/banner.png"
+        );
     }
 }

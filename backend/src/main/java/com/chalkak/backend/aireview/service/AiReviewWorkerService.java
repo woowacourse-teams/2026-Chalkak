@@ -30,9 +30,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 대기열의 AI 리뷰 한 건을 가져가 처리한다. 행을 잠가 가져가는 짧은 트랜잭션과 결과를 반영하는 짧은 트랜잭션 사이에서 OpenAI를
  * 호출하므로 호출하는 동안 DB 연결과 행 잠금을 잡지 않는다.
  *
- * <p>가져간 행은 임대 시간 안에 끝내야 한다. 워커가 죽거나 종료되면 행은 처리 중으로 남고 임대가 끝난 뒤 다시 가져간다.
- * 그래서 종료·interrupt·DB 오류처럼 호출 결과를 알 수 없는 상황에서는 실패를 쓰지 않고 행을 그대로 둔다.
- * 반복해서 워커를 멈추게 하는 행은 가져간 횟수 상한에서 실패로 끝난다.
+ * <p>
+ * 가져간 행은 임대 시간 안에 끝내야 한다. 워커가 죽거나 종료되면 행은 처리 중으로 남고 임대가 끝난 뒤 다시 가져간다. 그래서
+ * 종료·interrupt·DB 오류처럼 호출 결과를 알 수 없는 상황에서는 실패를 쓰지 않고 행을 그대로 둔다. 반복해서 워커를 멈추게 하는
+ * 행은 가져간 횟수 상한에서 실패로 끝난다.
  */
 public class AiReviewWorkerService {
 
@@ -89,7 +90,8 @@ public class AiReviewWorkerService {
     /**
      * 가져간 행 하나를 끝까지 처리한다. 예상 가능한 실패는 모두 행의 상태로 기록하며, 결과를 알 수 없는 경우에는 행을 처리 중으로 둔다.
      *
-     * @param stopping 애플리케이션 종료가 시작됐는지. interrupt 표시는 라이브러리가 지울 수 있어 이 값도 함께 본다.
+     * @param stopping
+     *            애플리케이션 종료가 시작됐는지. interrupt 표시는 라이브러리가 지울 수 있어 이 값도 함께 본다.
      */
     public void process(Claim claim, BooleanSupplier stopping) {
         // 사진과 주제를 함께 읽어 오므로 트랜잭션이 없어도 OpenAI를 호출하는 동안 DB 연결을 잡지 않는다.
@@ -98,17 +100,28 @@ public class AiReviewWorkerService {
         try {
             Optional<Post> post = postRepository.findVisibleById(claim.postId());
             if (post.isEmpty()) {
-                applyFailure(claim, FailureReason.POST_UNAVAILABLE.name(), Invocation.NONE);
+                applyFailure(
+                        claim,
+                        FailureReason.POST_UNAVAILABLE.name(),
+                        Invocation.NONE
+                );
                 return;
             }
             if (!aiReviewGenerator.canRun(version)) {
-                applyFailure(claim, FailureReason.PROMPT_VERSION_UNAVAILABLE.name(),
-                        Invocation.NONE);
+                applyFailure(
+                        claim,
+                        FailureReason.PROMPT_VERSION_UNAVAILABLE.name(),
+                        Invocation.NONE
+                );
                 return;
             }
             request = requestFactory.create(version.toDraft(), post.get());
         } catch (RuntimeException exception) {
-            abandon(claim, PREPARE_FAILED, exception);
+            abandon(
+                    claim,
+                    PREPARE_FAILED,
+                    exception
+            );
             return;
         }
 
@@ -116,12 +129,20 @@ public class AiReviewWorkerService {
         try {
             generation = aiReviewGenerator.generate(request);
         } catch (AiReviewGenerationException exception) {
-            handleGenerationFailure(claim, stopping,
-                    exception.getFailureType().name(), toInvocation(exception.findAttempt()));
+            handleGenerationFailure(
+                    claim,
+                    stopping,
+                    exception.getFailureType().name(),
+                    toInvocation(exception.findAttempt())
+            );
             return;
         } catch (RuntimeException exception) {
-            handleGenerationFailure(claim, stopping,
-                    FailureReason.UNEXPECTED_ERROR.name(), Invocation.NONE);
+            handleGenerationFailure(
+                    claim,
+                    stopping,
+                    FailureReason.UNEXPECTED_ERROR.name(),
+                    Invocation.NONE
+            );
             return;
         }
         applyCompletion(claim, generation);
@@ -131,10 +152,18 @@ public class AiReviewWorkerService {
      * 처리를 끝내지 못한 채 행을 처리 중으로 남긴다. 임대가 끝나면 다른 워커가 다시 가져간다.
      */
     public void abandon(Claim claim, String reason) {
-        abandon(claim, reason, null);
+        abandon(
+                claim,
+                reason,
+                null
+        );
     }
 
-    public void abandon(Claim claim, String reason, RuntimeException exception) {
+    public void abandon(
+            Claim claim,
+            String reason,
+            RuntimeException exception
+    ) {
         LoggingEventBuilder event = AI_REVIEW_LOG.atWarn()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
                 .addKeyValue(LogFields.EVENT, "review_abandoned")
@@ -156,10 +185,18 @@ public class AiReviewWorkerService {
             AiReview review = found.get();
             AiPromptVersion version = promptVersionRepository.findById(review.getPromptVersionId())
                     .orElseThrow();
-            if (review.claim(now, now.plus(leaseDuration), maxClaims)) {
+            if (review.claim(
+                    now,
+                    now.plus(leaseDuration),
+                    maxClaims
+            )) {
                 return new Claim(
-                        review.getId(), review.getAttempt(), review.getPostId(),
-                        review.getUserId(), version);
+                        review.getId(),
+                        review.getAttempt(),
+                        review.getPostId(),
+                        review.getUserId(),
+                        version
+                );
             }
             logFinished(review, version);
             found = reviewRepository.findClaimableForUpdate(now);
@@ -178,18 +215,35 @@ public class AiReviewWorkerService {
             abandon(claim, SHUTDOWN);
             return;
         }
-        applyFailure(claim, errorCode, invocation);
+        applyFailure(
+                claim,
+                errorCode,
+                invocation
+        );
     }
 
     private void applyCompletion(Claim claim, AiReviewGeneration generation) {
         Invocation invocation = toInvocation(Optional.of(generation.attempt()));
         apply(claim, review -> review.complete(
-                claim.attempt(), generation.result(), generation.rawOutput(), invocation, clock.instant()));
+                claim.attempt(),
+                generation.result(),
+                generation.rawOutput(),
+                invocation,
+                clock.instant()
+        ));
     }
 
-    private void applyFailure(Claim claim, String errorCode, Invocation invocation) {
+    private void applyFailure(
+            Claim claim,
+            String errorCode,
+            Invocation invocation
+    ) {
         apply(claim, review -> review.fail(
-                claim.attempt(), errorCode, invocation, clock.instant()));
+                claim.attempt(),
+                errorCode,
+                invocation,
+                clock.instant()
+        ));
     }
 
     private void apply(Claim claim, Predicate<AiReview> transition) {
@@ -201,7 +255,11 @@ public class AiReviewWorkerService {
                 return transition.test(review) ? review : null;
             });
         } catch (RuntimeException exception) {
-            abandon(claim, DB_ERROR, exception);
+            abandon(
+                    claim,
+                    DB_ERROR,
+                    exception
+            );
             return;
         }
         if (applied == null) {
@@ -223,7 +281,8 @@ public class AiReviewWorkerService {
                 usage.outputTokens(),
                 usage.reasoningTokens(),
                 attempt.latency().toMillis(),
-                attempt.responseId());
+                attempt.responseId()
+        );
     }
 
     private void logFinished(AiReview review, AiPromptVersion version) {
@@ -244,12 +303,36 @@ public class AiReviewWorkerService {
                 .addKeyValue("totalMs",
                         Duration.between(review.getRequestedAt(), review.getCompletedAt())
                                 .toMillis());
-        event = addIfPresent(event, "latencyMs", review.getLatencyMs());
-        event = addIfPresent(event, "inputTokens", review.getInputTokens());
-        event = addIfPresent(event, "cachedInputTokens", review.getCachedInputTokens());
-        event = addIfPresent(event, "outputTokens", review.getOutputTokens());
-        event = addIfPresent(event, "reasoningTokens", review.getReasoningTokens());
-        event = addIfPresent(event, LogFields.ERROR_CODE, review.getErrorCode());
+        event = addIfPresent(
+                event,
+                "latencyMs",
+                review.getLatencyMs()
+        );
+        event = addIfPresent(
+                event,
+                "inputTokens",
+                review.getInputTokens()
+        );
+        event = addIfPresent(
+                event,
+                "cachedInputTokens",
+                review.getCachedInputTokens()
+        );
+        event = addIfPresent(
+                event,
+                "outputTokens",
+                review.getOutputTokens()
+        );
+        event = addIfPresent(
+                event,
+                "reasoningTokens",
+                review.getReasoningTokens()
+        );
+        event = addIfPresent(
+                event,
+                LogFields.ERROR_CODE,
+                review.getErrorCode()
+        );
         event.log(completed ? "AI 리뷰 완료" : "AI 리뷰 실패");
     }
 
@@ -264,7 +347,11 @@ public class AiReviewWorkerService {
                 .log("AI 리뷰 늦은 반영 무시");
     }
 
-    private LoggingEventBuilder addIfPresent(LoggingEventBuilder event, String key, Object value) {
+    private LoggingEventBuilder addIfPresent(
+            LoggingEventBuilder event,
+            String key,
+            Object value
+    ) {
         if (value == null) {
             return event;
         }

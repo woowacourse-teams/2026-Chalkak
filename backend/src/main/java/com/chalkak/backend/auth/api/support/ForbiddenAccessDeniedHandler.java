@@ -35,6 +35,7 @@ public class ForbiddenAccessDeniedHandler implements AccessDeniedHandler {
                 response,
                 HttpStatus.FORBIDDEN,
                 ErrorCode.FORBIDDEN,
-                "접근 권한이 없습니다.");
+                "접근 권한이 없습니다."
+        );
     }
 }

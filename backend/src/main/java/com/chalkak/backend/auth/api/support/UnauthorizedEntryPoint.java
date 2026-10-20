@@ -41,6 +41,7 @@ public class UnauthorizedEntryPoint implements AuthenticationEntryPoint {
                 response,
                 HttpStatus.UNAUTHORIZED,
                 ErrorCode.UNAUTHORIZED,
-                "유효하지 않은 인증 정보입니다.");
+                "유효하지 않은 인증 정보입니다."
+        );
     }
 }

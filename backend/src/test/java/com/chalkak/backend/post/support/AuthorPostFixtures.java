@@ -14,10 +14,15 @@ public final class AuthorPostFixtures {
 
     public static UUID createUser(JdbcTemplate jdbcTemplate) {
         UUID id = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO users (id, email, status, signature_original_storage_key)
-                VALUES (?, ?, 'ACTIVE', ?)
-                """, id, id + "@author-post.test", "chalkak/test/signatures/" + id + ".png");
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (id, email, status, signature_original_storage_key)
+                        VALUES (?, ?, 'ACTIVE', ?)
+                        """,
+                id,
+                id + "@author-post.test",
+                "chalkak/test/signatures/" + id + ".png"
+        );
         return id;
     }
 
@@ -31,21 +36,37 @@ public final class AuthorPostFixtures {
         UUID topicId = UUID.randomUUID();
         UUID photoId = UUID.randomUUID();
         ZoneId kst = ZoneId.of("Asia/Seoul");
-        jdbcTemplate.update("""
-                INSERT INTO topics (id, title, topic_date, starts_at, ends_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, topicId, "주제 " + topicDate, topicDate,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (id, title, topic_date, starts_at, ends_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                topicId,
+                "주제 " + topicDate,
+                topicDate,
                 Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
-                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant()));
-        jdbcTemplate.update("""
-                INSERT INTO photos (id, original_storage_key, thumbnail_storage_key)
-                VALUES (?, ?, ?)
-                """, photoId, "chalkak/test/posts/" + postId + ".webp",
-                "chalkak/test/posts/" + postId + "-thumbnail.webp");
-        jdbcTemplate.update("""
-                INSERT INTO posts (id, user_id, topic_id, photo_id, moderation_status)
-                VALUES (?, ?, ?, ?, ?::moderation_status)
-                """, postId, authorId, topicId, photoId, status.name());
+                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant())
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (id, original_storage_key, thumbnail_storage_key)
+                        VALUES (?, ?, ?)
+                        """,
+                photoId,
+                "chalkak/test/posts/" + postId + ".webp",
+                "chalkak/test/posts/" + postId + "-thumbnail.webp"
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, moderation_status)
+                        VALUES (?, ?, ?, ?, ?::moderation_status)
+                        """,
+                postId,
+                authorId,
+                topicId,
+                photoId,
+                status.name()
+        );
         return postId;
     }
 }

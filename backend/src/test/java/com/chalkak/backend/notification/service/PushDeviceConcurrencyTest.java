@@ -114,7 +114,11 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
     }
 
     private Runnable registering(Login login, String token) {
-        return () -> pushDeviceService.register(login.userId(), login.sessionId(), token);
+        return () -> pushDeviceService.register(
+                login.userId(),
+                login.sessionId(),
+                token
+        );
     }
 
     private void runConcurrently(Runnable first, Runnable second) throws Exception {
@@ -136,9 +140,13 @@ class PushDeviceConcurrencyTest extends IntegrationTestSupport {
     }
 
     private String findActiveToken(UUID sessionId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT fcm_token FROM push_devices WHERE session_id = ?
-                """, String.class, sessionId);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT fcm_token FROM push_devices WHERE session_id = ?
+                        """,
+                String.class,
+                sessionId
+        );
     }
 
     private int countDevices() {

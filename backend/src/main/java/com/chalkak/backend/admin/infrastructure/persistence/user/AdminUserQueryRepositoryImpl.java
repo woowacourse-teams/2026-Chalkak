@@ -26,9 +26,18 @@ public class AdminUserQueryRepositoryImpl implements AdminUserQueryRepository {
             int page,
             int pageSize
     ) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize, toSort(criteria.sort()));
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                toSort(criteria.sort())
+        );
         Slice<AdminUserSummaryProjection> result = repository.findUsers(criteria, pageable);
-        return new AdminPage<>(result.getContent(), page, pageSize, result.hasNext());
+        return new AdminPage<>(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     @Override
@@ -38,8 +47,16 @@ public class AdminUserQueryRepositoryImpl implements AdminUserQueryRepository {
 
     private Sort toSort(AdminUserSort sort) {
         if (sort == AdminUserSort.CREATED_AT_ASC) {
-            return Sort.by(Sort.Direction.ASC, "createdAt", "id");
+            return Sort.by(
+                    Sort.Direction.ASC,
+                    "createdAt",
+                    "id"
+            );
         }
-        return Sort.by(Sort.Direction.DESC, "createdAt", "id");
+        return Sort.by(
+                Sort.Direction.DESC,
+                "createdAt",
+                "id"
+        );
     }
 }

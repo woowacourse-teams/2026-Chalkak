@@ -7,8 +7,9 @@ import java.util.List;
 /**
  * 사진 리뷰 프롬프트가 모델에게 요구하는 출력(스키마 버전 1). 종합 점수와 독특한 시각 여부는 모델이 아니라 서버가 계산한다.
  *
- * <p>모델 출력은 사용자 입력이 아니므로 검증 실패를 IllegalArgumentException으로 던지고, 어댑터가 INVALID_OUTPUT으로 변환한다.
- * 관리자가 입력한 프롬프트 초안의 검증 실패는 BusinessException을 쓴다.
+ * <p>
+ * 모델 출력은 사용자 입력이 아니므로 검증 실패를 IllegalArgumentException으로 던지고, 어댑터가
+ * INVALID_OUTPUT으로 변환한다. 관리자가 입력한 프롬프트 초안의 검증 실패는 BusinessException을 쓴다.
  */
 public record PhotoReviewOutput(
         double compositionScore,
@@ -63,9 +64,14 @@ public record PhotoReviewOutput(
         double overall = composition;
         return new AiReviewResult(
                 overall,
-                List.of(new AiReviewResult.Criterion(COMPOSITION_KEY, COMPOSITION_LABEL, composition)),
+                List.of(new AiReviewResult.Criterion(
+                        COMPOSITION_KEY,
+                        COMPOSITION_LABEL,
+                        composition
+                )),
                 themeExpressionScore >= distinctivePerspectiveThreshold,
-                feedback);
+                feedback
+        );
     }
 
     private static double round(double score) {

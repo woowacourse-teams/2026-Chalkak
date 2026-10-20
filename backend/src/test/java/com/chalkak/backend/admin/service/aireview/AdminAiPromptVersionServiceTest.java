@@ -53,10 +53,12 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() {
         MDC.put(LogFields.REQUEST_ID, requestId.toString());
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, 'prompt-version-manager', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, ADMIN_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, 'prompt-version-manager', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                ADMIN_ID);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
     }
 
@@ -88,15 +90,28 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     void createVersion_validInput_persistsAllColumns() {
         // When
         VersionResult result = versionService.createVersion(ADMIN_ID, new CreateCommand(
-                AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}", MODEL,
-                ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5, "첫 실험"));
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "주제는 {{topicTitle}}",
+                MODEL,
+                ImageDetail.LOW,
+                700,
+                ReasoningEffort.HIGH,
+                6.5,
+                "첫 실험"
+        ));
         entityManager.flush();
         entityManager.clear();
 
         // Then
         AiPromptVersion stored = entityManager.find(AiPromptVersion.class, result.id());
         assertThat(stored.getParameters())
-                .isEqualTo(new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5));
+                .isEqualTo(new AiPromptParameters(
+                        ImageDetail.LOW,
+                        700,
+                        ReasoningEffort.HIGH,
+                        6.5
+                ));
         assertThat(stored.getUserPromptTemplate()).isEqualTo("주제는 {{topicTitle}}");
         assertThat(stored.getCreatedAt()).isEqualTo(result.createdAt());
         assertThat(result.createdAt()).isNotNull();
@@ -106,7 +121,8 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
         assertThat(result.createdByAdminId()).isEqualTo(ADMIN_ID);
         assertThat(jdbcTemplate.queryForMap(
                 "SELECT type, version, model, memo, output_schema_version, created_by_admin_id "
-                        + "FROM ai_prompt_versions WHERE id = ?", result.id()))
+                        + "FROM ai_prompt_versions WHERE id = ?",
+                result.id()))
                 .containsEntry("type", "PHOTO_REVIEW")
                 .containsEntry("version", 1)
                 .containsEntry("model", MODEL)
@@ -114,7 +130,10 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
                 .containsEntry("created_by_admin_id", ADMIN_ID);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT parameters ->> 'distinctivePerspectiveThreshold' FROM ai_prompt_versions "
-                        + "WHERE id = ?", String.class, result.id())).isEqualTo("6.5");
+                        + "WHERE id = ?",
+                String.class,
+                result.id()
+        )).isEqualTo("6.5");
     }
 
     @Test
@@ -126,8 +145,8 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        AiPromptParameters stored =
-                entityManager.find(AiPromptVersion.class, result.id()).getParameters();
+        AiPromptParameters stored = entityManager.find(AiPromptVersion.class, result.id())
+                .getParameters();
         assertThat(stored.imageDetail()).isEqualTo(ImageDetail.HIGH);
         assertThat(stored.maxOutputTokens()).isEqualTo(8000);
         assertThat(stored.reasoningEffort()).isNull();
@@ -140,8 +159,17 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     void createVersion_unsupportedModel_throwsWithoutSaving() {
         // Given
         given(aiReviewGenerator.supportsModel("unknown-model")).willReturn(false);
-        CreateCommand command = new CreateCommand(AiPromptType.PHOTO_REVIEW, "시스템",
-                "{{topicTitle}}", "unknown-model", null, null, null, null, null);
+        CreateCommand command = new CreateCommand(
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "{{topicTitle}}",
+                "unknown-model",
+                null,
+                null,
+                null,
+                null,
+                null
+        );
 
         // When & Then
         assertThatThrownBy(() -> versionService.createVersion(ADMIN_ID, command))
@@ -161,8 +189,9 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> versionService.createVersion(ADMIN_ID, command))
-                .isInstanceOfSatisfying(BusinessException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR));
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.BUSINESS_ERROR));
         assertThat(countVersions()).isZero();
         assertThat(countAudits()).isZero();
     }
@@ -171,8 +200,17 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     @DisplayName("허용되지 않은 템플릿 변수면 400이고 아무것도 저장하지 않는다")
     void createVersion_invalidTemplateVariable_throwsWithoutSaving() {
         // Given
-        CreateCommand command = new CreateCommand(AiPromptType.PHOTO_REVIEW, "시스템",
-                "{{userId}}", MODEL, null, null, null, null, null);
+        CreateCommand command = new CreateCommand(
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "{{userId}}",
+                MODEL,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
 
         // When & Then
         assertThatThrownBy(() -> versionService.createVersion(ADMIN_ID, command))
@@ -215,17 +253,32 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        VersionListResult list = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 20);
+        VersionListResult list = versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                1,
+                20
+        );
 
         // Then
         assertThat(list.currentPage()).isEqualTo(1);
         assertThat(list.pageSize()).isEqualTo(20);
         assertThat(list.hasNext()).isFalse();
         assertThat(list.promptVersions()).extracting(VersionSummary::version)
-                .containsExactly(3, 2, 1);
+                .containsExactly(
+                        3,
+                        2,
+                        1
+                );
         assertThat(list.promptVersions().get(0)).isEqualTo(new VersionSummary(
-                third.id(), AiPromptType.PHOTO_REVIEW, 3, MODEL, third.outputSchemaVersion(), null,
-                ADMIN_ID, third.createdAt()));
+                third.id(),
+                AiPromptType.PHOTO_REVIEW,
+                3,
+                MODEL,
+                third.outputSchemaVersion(),
+                null,
+                ADMIN_ID,
+                third.createdAt()
+        ));
         assertThat(list.promptVersions().get(1).memo()).isEqualTo("둘째 메모");
     }
 
@@ -240,8 +293,16 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        VersionListResult first = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 2);
-        VersionListResult second = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 2, 2);
+        VersionListResult first = versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                1,
+                2
+        );
+        VersionListResult second = versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                2,
+                2
+        );
 
         // Then
         assertThat(first.hasNext()).isTrue();
@@ -257,7 +318,11 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     @DisplayName("버전이 없으면 빈 목록이다")
     void getVersions_noVersion_returnsEmpty() {
         // When
-        VersionListResult list = versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 20);
+        VersionListResult list = versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                1,
+                20
+        );
 
         // Then
         assertThat(list.promptVersions()).isEmpty();
@@ -269,7 +334,11 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     @DisplayName("페이지 범위를 벗어나면 400 비즈니스 예외다")
     void getVersions_invalidPaging_throws(int page, int pageSize) {
         // When & Then
-        assertThatThrownBy(() -> versionService.getVersions(AiPromptType.PHOTO_REVIEW, page, pageSize))
+        assertThatThrownBy(() -> versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                page,
+                pageSize
+        ))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
                     assertThat(exception.getMessage()).isEqualTo("조회 조건이 올바르지 않습니다.");
@@ -281,8 +350,16 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     void getVersion_existing_returnsFullVersion() {
         // Given
         VersionResult created = versionService.createVersion(ADMIN_ID, new CreateCommand(
-                AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}", MODEL,
-                ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5, "첫 실험"));
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "주제는 {{topicTitle}}",
+                MODEL,
+                ImageDetail.LOW,
+                700,
+                ReasoningEffort.HIGH,
+                6.5,
+                "첫 실험"
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -294,7 +371,12 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
         assertThat(found.systemPrompt()).isEqualTo("시스템");
         assertThat(found.userPromptTemplate()).isEqualTo("주제는 {{topicTitle}}");
         assertThat(found.parameters())
-                .isEqualTo(new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5));
+                .isEqualTo(new AiPromptParameters(
+                        ImageDetail.LOW,
+                        700,
+                        ReasoningEffort.HIGH,
+                        6.5
+                ));
     }
 
     @Test
@@ -309,19 +391,32 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     }
 
     private CreateCommand command(String systemPrompt, String memo) {
-        return new CreateCommand(AiPromptType.PHOTO_REVIEW, systemPrompt, "{{topicTitle}}", MODEL,
-                null, null, null, null, memo);
+        return new CreateCommand(
+                AiPromptType.PHOTO_REVIEW,
+                systemPrompt,
+                "{{topicTitle}}",
+                MODEL,
+                null,
+                null,
+                null,
+                null,
+                memo
+        );
     }
 
     private int countVersions() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ai_prompt_versions WHERE created_by_admin_id = ?",
-                Integer.class, ADMIN_ID);
+                Integer.class,
+                ADMIN_ID
+        );
     }
 
     private int countAudits() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE actor_admin_id = ?",
-                Integer.class, ADMIN_ID);
+                Integer.class,
+                ADMIN_ID
+        );
     }
 }

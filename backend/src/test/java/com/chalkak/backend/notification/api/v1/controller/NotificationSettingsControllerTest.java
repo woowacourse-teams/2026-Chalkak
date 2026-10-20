@@ -129,7 +129,11 @@ class NotificationSettingsControllerTest {
     void updateSettings_invalidUser_returnsUnauthorized() throws Exception {
         // Given
         willThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."))
-                .given(notificationSettingsService).updateSettings(USER_ID, false, null);
+                .given(notificationSettingsService).updateSettings(
+                        USER_ID,
+                        false,
+                        null
+                );
 
         // When & Then
         mockMvc.perform(patch("/api/v1/notification-settings")

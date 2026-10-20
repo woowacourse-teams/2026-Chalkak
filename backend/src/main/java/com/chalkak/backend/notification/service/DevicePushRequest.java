@@ -7,5 +7,6 @@ public record DevicePushRequest(
         String token,
         String title,
         String body,
-        Instant expiresAt) {
+        Instant expiresAt
+) {
 }

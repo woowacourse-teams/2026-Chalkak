@@ -69,8 +69,14 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
                 sessionId,
                 generated.tokenHash(),
                 expiresAt,
-                absoluteExpiresAt));
-        return toIssuedRefreshToken(generated, now, expiresAt, sessionId);
+                absoluteExpiresAt
+        ));
+        return toIssuedRefreshToken(
+                generated,
+                now,
+                expiresAt,
+                sessionId
+        );
     }
 
     /**
@@ -173,10 +179,16 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
         refreshTokenRepository.save(createSuccessor(
                 consumed,
                 generated.tokenHash(),
-                expiresAt));
+                expiresAt
+        ));
         return new TokenRefreshResult(
                 issueAccessToken(consumed),
-                toIssuedRefreshToken(generated, now, expiresAt, consumed.getSessionId()));
+                toIssuedRefreshToken(
+                        generated,
+                        now,
+                        expiresAt,
+                        consumed.getSessionId()
+                ));
     }
 
     /**
@@ -211,7 +223,8 @@ public abstract class RefreshTokenService<O, T extends RefreshToken> {
         return new IssuedRefreshToken(
                 generated.value(),
                 Duration.between(now, expiresAt),
-                sessionId);
+                sessionId
+        );
     }
 
     /** 실패 원인을 구분해 알리면 토큰 대입 공격에 힌트를 주므로, 모든 거절을 같은 응답으로 묶는다. */

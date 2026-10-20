@@ -75,14 +75,16 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
                     POST_ID,
                     MODERATOR_ADMIN_ID,
                     ModerationStatus.APPROVED,
-                    null);
+                    null
+            );
             return new OperationAttempt(SUCCESS, result);
         };
         Callable<OperationAttempt> delete = () -> {
             adminPostCommandService.deletePost(
                     POST_ID,
                     DELETING_ADMIN_ID,
-                    "운영 정책 위반");
+                    "운영 정책 위반"
+            );
             return new OperationAttempt(SUCCESS, null);
         };
 
@@ -172,35 +174,49 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
     }
 
     private PostState findPostState() {
-        return jdbcTemplate.queryForObject("""
-                SELECT CAST(post.moderation_status AS TEXT), post.moderated_at,
-                       post.deleted_at, photo.deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, (resultSet, rowNumber) -> new PostState(
-                resultSet.getString(1),
-                instant(resultSet.getTimestamp(2)),
-                instant(resultSet.getTimestamp(3)),
-                instant(resultSet.getTimestamp(4))), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT CAST(post.moderation_status AS TEXT), post.moderated_at,
+                               post.deleted_at, photo.deleted_at
+                        FROM posts post
+                        JOIN photos photo ON photo.id = post.photo_id
+                        WHERE post.id = ?
+                        """,
+                (resultSet, rowNumber) -> new PostState(
+                        resultSet.getString(1),
+                        instant(resultSet.getTimestamp(2)),
+                        instant(resultSet.getTimestamp(3)),
+                        instant(resultSet.getTimestamp(4))
+                ),
+                POST_ID
+        );
     }
 
     private int countAudits(String action) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM admin_audit_logs
-                WHERE target_id = ?
-                  AND action = CAST(? AS admin_action)
-                """, Integer.class, POST_ID, action);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM admin_audit_logs
+                        WHERE target_id = ?
+                          AND action = CAST(? AS admin_action)
+                        """,
+                Integer.class,
+                POST_ID,
+                action
+        );
     }
 
     private String findDeletionAuditBeforeStatus() {
-        return jdbcTemplate.queryForObject("""
-                SELECT before_state ->> 'moderationStatus'
-                FROM admin_audit_logs
-                WHERE target_id = ?
-                  AND action = CAST('POST_DELETED' AS admin_action)
-                """, String.class, POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT before_state ->> 'moderationStatus'
+                        FROM admin_audit_logs
+                        WHERE target_id = ?
+                          AND action = CAST('POST_DELETED' AS admin_action)
+                        """,
+                String.class,
+                POST_ID
+        );
     }
 
     private void cleanUp() {
@@ -215,17 +231,22 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
         jdbcTemplate.update(
                 "DELETE FROM admins WHERE id IN (?, ?)",
                 MODERATOR_ADMIN_ID,
-                DELETING_ADMIN_ID);
+                DELETING_ADMIN_ID
+        );
     }
 
     private void insertAdmin(UUID adminId, String username) {
-        jdbcTemplate.update("""
-                INSERT INTO admins (
-                    id, username, password, created_at, updated_at
-                ) VALUES (
-                    ?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, adminId, username);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (
+                            id, username, password, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                adminId,
+                username
+        );
     }
 
     private void insertUser() {
@@ -257,41 +278,57 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
     }
 
     private void insertPhoto() {
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, CAST('{}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, PHOTO_ID, ORIGINAL_STORAGE_KEY, THUMBNAIL_STORAGE_KEY);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, CAST('{}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                PHOTO_ID,
+                ORIGINAL_STORAGE_KEY,
+                THUMBNAIL_STORAGE_KEY
+        );
     }
 
     private void insertUpload() {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, image_metadata,
-                    expires_at, claimed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, UPLOAD_ID, USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, image_metadata,
+                            expires_at, claimed_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                UPLOAD_ID,
+                USER_ID
+        );
     }
 
     private void insertPendingPost() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, post_image_upload_id,
-                    title, moderation_status, moderated_at,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, '삭제 경합', CAST('PENDING' AS moderation_status), NULL,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, USER_ID, TOPIC_ID, PHOTO_ID, UPLOAD_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, post_image_upload_id,
+                            title, moderation_status, moderated_at,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, '삭제 경합', CAST('PENDING' AS moderation_status), NULL,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID,
+                UPLOAD_ID
+        );
     }
 
     private Instant instant(Timestamp timestamp) {
@@ -315,6 +352,7 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
             String moderationStatus,
             Instant moderatedAt,
             Instant postDeletedAt,
-            Instant photoDeletedAt) {
+            Instant photoDeletedAt
+    ) {
     }
 }

@@ -15,7 +15,8 @@ public record AdminTopicDetail(
         TopicPhase phase,
         PostCounts postCounts,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt
+) {
 
     public static AdminTopicDetail from(AdminTopicProjection topic, Instant now) {
         TopicPhase phase = new com.chalkak.backend.topic.domain.ParticipationPeriod(
@@ -31,14 +32,17 @@ public record AdminTopicDetail(
                 new PostCounts(
                         topic.pendingPostCount(),
                         topic.approvedPostCount(),
-                        topic.rejectedPostCount()),
+                        topic.rejectedPostCount()
+                ),
                 topic.createdAt(),
-                topic.updatedAt());
+                topic.updatedAt()
+        );
     }
 
     public record PostCounts(
             long pending,
             long approved,
-            long rejected) {
+            long rejected
+    ) {
     }
 }

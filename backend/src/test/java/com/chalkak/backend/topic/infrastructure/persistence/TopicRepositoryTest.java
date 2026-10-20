@@ -25,7 +25,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class TopicRepositoryTest {
 
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            12
+    );
 
     @Autowired
     private TopicRepository topicRepository;
@@ -91,7 +95,11 @@ class TopicRepositoryTest {
     @DisplayName("주제가 없는 날짜는 조회하지 않는다")
     void findActiveByTopicDate_noTopicOnDate_returnsEmpty() {
         // Given
-        LocalDate dateWithoutTopic = LocalDate.of(2026, 8, 13);
+        LocalDate dateWithoutTopic = LocalDate.of(
+                2026,
+                8,
+                13
+        );
 
         // When
         Optional<Topic> result = topicRepository.findActiveByTopicDate(dateWithoutTopic);

@@ -54,7 +54,11 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
         fixture = new AiReviewFixture(jdbcTemplate);
         fixture.clean();
         fixture.insertPublicPost();
-        fixture.insertPromptVersion(1, MODEL, "1");
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                "1"
+        );
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
         willCallRealMethod().given(aiReviewGenerator).canRun(any());
         appender.start();
@@ -84,12 +88,13 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
             ready.await(10, TimeUnit.SECONDS);
             start.countDown();
             for (Future<ReviewResult> future : futures) {
-                assertThat(future.get(20, TimeUnit.SECONDS).status()).isEqualTo(ApiStatus.PROCESSING);
+                assertThat(future.get(20, TimeUnit.SECONDS).status())
+                        .isEqualTo(ApiStatus.PROCESSING);
             }
         }
         assertThat(fixture.countReviews()).isEqualTo(1);
-        assertThat(appender.list).singleElement().satisfies(event ->
-                assertThat(event.getKeyValuePairs().toString())
+        assertThat(appender.list).singleElement()
+                .satisfies(event -> assertThat(event.getKeyValuePairs().toString())
                         .contains("event=\"review_requested\""));
     }
 

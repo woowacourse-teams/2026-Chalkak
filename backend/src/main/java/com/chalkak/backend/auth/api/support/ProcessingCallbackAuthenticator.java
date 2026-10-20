@@ -14,14 +14,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 이미지 처리 Lambda 콜백의 HMAC 인증기. 서명 대상 경로에 콜백 종류가 들어가므로 사인 콜백 서명을 포스트
- * 콜백에 재사용할 수 없다.
+ * 이미지 처리 Lambda 콜백의 HMAC 인증기. 서명 대상 경로에 콜백 종류가 들어가므로 사인 콜백 서명을 포스트 콜백에 재사용할 수
+ * 없다.
  *
- * <p>서명 대상에 이 서버의 환경도 넣는다. dev와 prod가 같은 비밀키를 쓰는 동안에는, 환경을 묶지 않으면
- * dev용으로 만든 서명이 바이트 단위로 prod에서도 그대로 유효하다.
+ * <p>
+ * 서명 대상에 이 서버의 환경도 넣는다. dev와 prod가 같은 비밀키를 쓰는 동안에는, 환경을 묶지 않으면 dev용으로 만든 서명이
+ * 바이트 단위로 prod에서도 그대로 유효하다.
  *
- * <p>본문 해시는 <b>수신 바이트</b>로 계산해야 한다. 역직렬화 후 재직렬화한 문자열은 공백과 키 순서가 달라져
- * 서명이 어긋나고, 문자열로 디코딩했다 다시 인코딩한 바이트도 원문과 같다는 보장이 없다.
+ * <p>
+ * 본문 해시는 <b>수신 바이트</b>로 계산해야 한다. 역직렬화 후 재직렬화한 문자열은 공백과 키 순서가 달라져 서명이 어긋나고, 문자열로
+ * 디코딩했다 다시 인코딩한 바이트도 원문과 같다는 보장이 없다.
  */
 @Component
 public class ProcessingCallbackAuthenticator {
@@ -63,7 +65,11 @@ public class ProcessingCallbackAuthenticator {
             throw unauthorized();
         }
 
-        byte[] expected = sign(timestamp, path, rawBody);
+        byte[] expected = sign(
+                timestamp,
+                path,
+                rawBody
+        );
         byte[] provided = decodeSignature(signature);
         if (!MessageDigest.isEqual(expected, provided)) {
             throw unauthorized();
@@ -78,7 +84,11 @@ public class ProcessingCallbackAuthenticator {
         }
     }
 
-    private byte[] sign(String timestamp, String path, byte[] rawBody) {
+    private byte[] sign(
+            String timestamp,
+            String path,
+            byte[] rawBody
+    ) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(secret, HMAC_ALGORITHM));

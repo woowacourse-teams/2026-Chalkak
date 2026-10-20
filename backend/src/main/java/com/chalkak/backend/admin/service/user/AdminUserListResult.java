@@ -12,7 +12,8 @@ public record AdminUserListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<UserSummary> users) {
+        List<UserSummary> users
+) {
 
     public static AdminUserListResult from(AdminPage<AdminUserSummaryProjection> page) {
         return new AdminUserListResult(
@@ -21,7 +22,8 @@ public record AdminUserListResult(
                 page.hasNext(),
                 page.items().stream()
                         .map(UserSummary::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     public record UserSummary(
@@ -33,7 +35,8 @@ public record AdminUserListResult(
             AdminUserPostCounts postCounts,
             Instant createdAt,
             Instant updatedAt,
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
 
         private static UserSummary from(AdminUserSummaryProjection user) {
             return new UserSummary(
@@ -45,10 +48,12 @@ public record AdminUserListResult(
                     new AdminUserPostCounts(
                             user.pendingPostCount(),
                             user.approvedPostCount(),
-                            user.rejectedPostCount()),
+                            user.rejectedPostCount()
+                    ),
                     user.createdAt(),
                     user.updatedAt(),
-                    user.deletedAt());
+                    user.deletedAt()
+            );
         }
     }
 

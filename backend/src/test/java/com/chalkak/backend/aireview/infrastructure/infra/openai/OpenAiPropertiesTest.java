@@ -23,7 +23,12 @@ class OpenAiPropertiesTest {
     void create_validValues_succeeds() {
         // When & Then
         assertThatCode(() -> new OpenAiProperties(
-                "test-key", BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(60), MODELS))
+                "test-key",
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(60),
+                MODELS
+        ))
                 .doesNotThrowAnyException();
     }
 
@@ -34,7 +39,12 @@ class OpenAiPropertiesTest {
     void create_blankApiKey_throwsException(String apiKey) {
         // When & Then
         assertThatThrownBy(() -> new OpenAiProperties(
-                apiKey, BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(60), MODELS))
+                apiKey,
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(60),
+                MODELS
+        ))
                 .isInstanceOf(RuntimeException.class);
     }
 
@@ -43,7 +53,12 @@ class OpenAiPropertiesTest {
     void create_zeroConnectTimeout_throwsException() {
         // When & Then
         assertThatThrownBy(() -> new OpenAiProperties(
-                "test-key", BASE_URL, Duration.ZERO, Duration.ofSeconds(60), MODELS))
+                "test-key",
+                BASE_URL,
+                Duration.ZERO,
+                Duration.ofSeconds(60),
+                MODELS
+        ))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -52,7 +67,12 @@ class OpenAiPropertiesTest {
     void create_negativeReadTimeout_throwsException() {
         // When & Then
         assertThatThrownBy(() -> new OpenAiProperties(
-                "test-key", BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(-1), MODELS))
+                "test-key",
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(-1),
+                MODELS
+        ))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -61,10 +81,20 @@ class OpenAiPropertiesTest {
     void create_emptyAllowedModels_throwsException() {
         // When & Then
         assertThatThrownBy(() -> new OpenAiProperties(
-                "test-key", BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(60), null))
+                "test-key",
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(60),
+                null
+        ))
                 .isInstanceOf(RuntimeException.class);
         assertThatThrownBy(() -> new OpenAiProperties(
-                "test-key", BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(60), List.of()))
+                "test-key",
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(60),
+                List.of()
+        ))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -73,8 +103,12 @@ class OpenAiPropertiesTest {
     void create_blankAllowedModel_throwsException() {
         // When & Then
         assertThatThrownBy(() -> new OpenAiProperties(
-                "test-key", BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(60),
-                List.of("gpt-6.1-sol", " ")))
+                "test-key",
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(60),
+                List.of("gpt-6.1-sol", " ")
+        ))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -83,7 +117,12 @@ class OpenAiPropertiesTest {
     void toString_doesNotExposeApiKey() {
         // Given
         OpenAiProperties properties = new OpenAiProperties(
-                "sk-secret-value", BASE_URL, Duration.ofSeconds(5), Duration.ofSeconds(60), MODELS);
+                "sk-secret-value",
+                BASE_URL,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(60),
+                MODELS
+        );
 
         // When & Then
         assertThat(properties.toString()).doesNotContain("sk-secret-value");

@@ -55,7 +55,8 @@ public class PostQueryService {
                 post,
                 imageUrlProvider,
                 postLikeRepository.countByPostId(postId),
-                postLikeRepository.existsByPostIdAndUserId(postId, userId));
+                postLikeRepository.existsByPostIdAndUserId(postId, userId)
+        );
     }
 
     public AuthorPostListResult getAuthorPosts(
@@ -70,10 +71,15 @@ public class PostQueryService {
         }
 
         return AuthorPostListResult.fromPostSlice(
-                postRepository.findVisibleRecentByAuthorId(authorId, page, pageSize),
+                postRepository.findVisibleRecentByAuthorId(
+                        authorId,
+                        page,
+                        pageSize
+                ),
                 page,
                 pageSize,
-                imageUrlProvider);
+                imageUrlProvider
+        );
     }
 
     /**
@@ -101,9 +107,14 @@ public class PostQueryService {
         List<Post> posts = postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
                 userId,
                 yearMonth.atDay(1),
-                yearMonth.atEndOfMonth());
+                yearMonth.atEndOfMonth()
+        );
 
-        return PostCalendarResult.from(yearMonth, posts, imageUrlProvider);
+        return PostCalendarResult.from(
+                yearMonth,
+                posts,
+                imageUrlProvider
+        );
     }
 
     public List<YearMonth> getMyPostCalendarMonths(UUID userId) {
@@ -119,19 +130,39 @@ public class PostQueryService {
             int pageSize,
             Optional<UUID> userId
     ) {
-        validateRandomSeedCombination(sort, randomSeed, page);
+        validateRandomSeedCombination(
+                sort,
+                randomSeed,
+                page
+        );
         validateTopicDate(topicDate);
         userId.ifPresent(this::validateUser);
 
         Topic topic = getActiveTopic(topicDate);
         if (sort == PostSort.RANDOM) {
-            return getRandomPosts(topic, randomSeed, page, pageSize, userId);
+            return getRandomPosts(
+                    topic,
+                    randomSeed,
+                    page,
+                    pageSize,
+                    userId
+            );
         }
         if (sort == PostSort.POPULAR) {
-            return getPopularPosts(topic, page, pageSize, userId);
+            return getPopularPosts(
+                    topic,
+                    page,
+                    pageSize,
+                    userId
+            );
         }
 
-        return getRecentPosts(topic, page, pageSize, userId);
+        return getRecentPosts(
+                topic,
+                page,
+                pageSize,
+                userId
+        );
     }
 
     private PostListResult getRandomPosts(
@@ -148,14 +179,16 @@ public class PostQueryService {
                 topic.getId(),
                 effectiveRandomSeed,
                 page - 1,
-                pageSize);
+                pageSize
+        );
 
         return createPostListResult(
                 postSlice,
                 page,
                 pageSize,
                 effectiveRandomSeed,
-                userId);
+                userId
+        );
     }
 
     private PostListResult getPopularPosts(
@@ -167,14 +200,16 @@ public class PostQueryService {
         PostSlice postSlice = postRepository.findVisiblePopularByTopicId(
                 topic.getId(),
                 page - 1,
-                pageSize);
+                pageSize
+        );
 
         return createPostListResult(
                 postSlice,
                 page,
                 pageSize,
                 null,
-                userId);
+                userId
+        );
     }
 
     private PostListResult getRecentPosts(
@@ -186,14 +221,16 @@ public class PostQueryService {
         PostSlice postSlice = postRepository.findVisibleRecentByTopicId(
                 topic.getId(),
                 page - 1,
-                pageSize);
+                pageSize
+        );
 
         return createPostListResult(
                 postSlice,
                 page,
                 pageSize,
                 null,
-                userId);
+                userId
+        );
     }
 
     private PostListResult createPostListResult(
@@ -215,7 +252,8 @@ public class PostQueryService {
                     imageUrlProvider,
                     Map.of(),
                     Set.of(),
-                    userId);
+                    userId
+            );
         }
 
         Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
@@ -234,7 +272,8 @@ public class PostQueryService {
                 imageUrlProvider,
                 likeCounts,
                 likedPostIds,
-                userId);
+                userId
+        );
     }
 
     private Topic getOpenTopic(Instant now) {

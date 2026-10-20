@@ -68,15 +68,19 @@ class PostModerationPendingLogTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, TOPIC_ID);
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, image_metadata, expires_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('ISSUED' AS post_image_upload_status), NULL,
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, UPLOAD_ID, USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, image_metadata, expires_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('ISSUED' AS post_image_upload_status), NULL,
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                UPLOAD_ID,
+                USER_ID
+        );
         given(postImageStorage.toOriginalStorageKey(UPLOAD_ID))
                 .willReturn("chalkak/posts/test/original/" + UPLOAD_ID + ".webp");
         given(postImageStorage.toThumbnailStorageKey(UPLOAD_ID))
@@ -96,14 +100,24 @@ class PostModerationPendingLogTest extends IntegrationTestSupport {
     @DisplayName("이미지 완료 콜백이 게시물을 PENDING으로 전환하면 검수 대기 로그를 한 건 남긴다")
     void completePostImageProcessing_validatingPost_logsPending() {
         // Given
-        UUID postId = postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, "대기 로그")
+        UUID postId = postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                UPLOAD_ID,
+                "대기 로그"
+        )
                 .postId();
         assertThat(appender.list).isEmpty();
 
         // When
         postCommandService.completePostImageProcessing(
                 UPLOAD_ID,
-                Map.of("width", 4032, "height", 3024));
+                Map.of(
+                        "width",
+                        4032,
+                        "height",
+                        3024
+                ));
 
         // Then
         assertThat(appender.list).hasSize(1);

@@ -46,10 +46,22 @@ public class AiPromptVersionRepositoryImpl implements AiPromptVersionRepository 
     }
 
     @Override
-    public AiPromptVersionPage findByType(AiPromptType type, int page, int pageSize) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize,
-                Sort.by(Sort.Direction.DESC, "version"));
+    public AiPromptVersionPage findByType(
+            AiPromptType type,
+            int page,
+            int pageSize
+    ) {
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                Sort.by(Sort.Direction.DESC, "version")
+        );
         Slice<AiPromptVersion> result = jpaRepository.findByType(type, pageable);
-        return new AiPromptVersionPage(result.getContent(), page, pageSize, result.hasNext());
+        return new AiPromptVersionPage(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 }

@@ -51,24 +51,31 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 ADMIN_ID,
                 UserStatus.BANNED,
-                "  " + REASON + "  ");
+                "  " + REASON + "  "
+        );
         entityManager.flush();
         entityManager.clear();
 
         // Then
         assertThat(result).isEqualTo(new AdminUserStatusResult(USER_ID, UserStatus.BANNED));
         assertThat(findUserStatus()).isEqualTo("BANNED");
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM admin_audit_logs
-                WHERE actor_admin_id = ?
-                  AND action = CAST('USER_BANNED' AS admin_action)
-                  AND target_type = CAST('USER' AS admin_target_type)
-                  AND target_id = ?
-                  AND reason = ?
-                  AND before_state ->> 'status' = 'ACTIVE'
-                  AND after_state ->> 'status' = 'BANNED'
-                """, Integer.class, ADMIN_ID, USER_ID, REASON)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM admin_audit_logs
+                        WHERE actor_admin_id = ?
+                          AND action = CAST('USER_BANNED' AS admin_action)
+                          AND target_type = CAST('USER' AS admin_target_type)
+                          AND target_id = ?
+                          AND reason = ?
+                          AND before_state ->> 'status' = 'ACTIVE'
+                          AND after_state ->> 'status' = 'BANNED'
+                        """,
+                Integer.class,
+                ADMIN_ID,
+                USER_ID,
+                REASON
+        )).isEqualTo(1);
     }
 
     @Test
@@ -82,20 +89,25 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 ADMIN_ID,
                 UserStatus.ACTIVE,
-                "이의 신청 검토 완료");
+                "이의 신청 검토 완료"
+        );
         entityManager.flush();
         entityManager.clear();
 
         // Then
         assertThat(result.status()).isEqualTo(UserStatus.ACTIVE);
         assertThat(findUserStatus()).isEqualTo("ACTIVE");
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM admin_audit_logs
-                WHERE target_id = ?
-                  AND action = CAST('USER_UNBANNED' AS admin_action)
-                  AND before_state ->> 'status' = 'BANNED'
-                  AND after_state ->> 'status' = 'ACTIVE'
-                """, Integer.class, USER_ID)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM admin_audit_logs
+                        WHERE target_id = ?
+                          AND action = CAST('USER_UNBANNED' AS admin_action)
+                          AND before_state ->> 'status' = 'BANNED'
+                          AND after_state ->> 'status' = 'ACTIVE'
+                        """,
+                Integer.class,
+                USER_ID
+        )).isEqualTo(1);
     }
 
     @Test
@@ -108,7 +120,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         ADMIN_ID,
                         UserStatus.ACTIVE,
-                        REASON));
+                        REASON
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED);
@@ -129,7 +142,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         ADMIN_ID,
                         UserStatus.BANNED,
-                        REASON));
+                        REASON
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -146,7 +160,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                         UNKNOWN_USER_ID,
                         ADMIN_ID,
                         UserStatus.BANNED,
-                        REASON));
+                        REASON
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -162,7 +177,8 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         ADMIN_ID,
                         UserStatus.BANNED,
-                        "  "));
+                        "  "
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -171,29 +187,36 @@ class AdminUserStatusServiceTest extends IntegrationTestSupport {
     }
 
     private void insertUser(String status, String deletedAt) {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, 'status-target@example.com', CAST(? AS user_status),
-                    'signatures/status-target', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    CAST(? AS timestamptz)
-                )
-                """, USER_ID, status, deletedAt);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, 'status-target@example.com', CAST(? AS user_status),
+                            'signatures/status-target', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                            CAST(? AS timestamptz)
+                        )
+                        """,
+                USER_ID,
+                status,
+                deletedAt
+        );
     }
 
     private String findUserStatus() {
         return jdbcTemplate.queryForObject(
                 "SELECT CAST(status AS TEXT) FROM users WHERE id = ?",
                 String.class,
-                USER_ID);
+                USER_ID
+        );
     }
 
     private int countAuditLogs() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
                 Integer.class,
-                USER_ID);
+                USER_ID
+        );
     }
 }

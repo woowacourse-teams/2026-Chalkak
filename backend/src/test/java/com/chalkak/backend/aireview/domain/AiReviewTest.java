@@ -13,8 +13,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -22,8 +20,8 @@ class AiReviewTest {
 
     private static final UUID POST_ID = UUID.fromString("019a0000-0000-7000-8000-000000000001");
     private static final UUID USER_ID = UUID.fromString("019a0000-0000-7000-8000-000000000002");
-    private static final UUID PROMPT_VERSION_ID =
-            UUID.fromString("019a0000-0000-7000-8000-000000000003");
+    private static final UUID PROMPT_VERSION_ID = UUID
+            .fromString("019a0000-0000-7000-8000-000000000003");
     private static final UUID REQUEST_ID = UUID.fromString("019a0000-0000-7000-8000-000000000004");
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
 
@@ -34,7 +32,12 @@ class AiReviewTest {
     void request_newReview_startsQueued() {
         // When
         AiReview review = AiReview.request(
-                POST_ID, USER_ID, PROMPT_VERSION_ID, REQUEST_ID, REQUESTED_AT);
+                POST_ID,
+                USER_ID,
+                PROMPT_VERSION_ID,
+                REQUEST_ID,
+                REQUESTED_AT
+        );
 
         // Then
         assertThat(review.getPostId()).isEqualTo(POST_ID);
@@ -54,28 +57,49 @@ class AiReviewTest {
         // Given
         AiReviewResult result = new AiReviewResult(
                 7.5,
-                List.of(new Criterion("COMPOSITION", "구도", 7.5)),
+                List.of(new Criterion(
+                        "COMPOSITION",
+                        "구도",
+                        7.5
+                )),
                 true,
-                "구도가 좋습니다.");
+                "구도가 좋습니다."
+        );
 
         // When
         String json = jsonMapper.writeValueAsString(result);
-        Map<String, Object> tree = jsonMapper.readValue(json, new TypeReference<>() { });
+        Map<String, Object> tree = jsonMapper.readValue(json, new TypeReference<>() {
+        });
         List<Map<String, Object>> criteria = jsonMapper.convertValue(
-                tree.get("criteria"), new TypeReference<>() { });
+                tree.get("criteria"), new TypeReference<>() {
+                });
 
         // Then
         assertThat(tree.keySet()).containsExactlyInAnyOrder(
-                "overallScore", "criteria", "distinctivePerspective", "feedback");
-        assertThat(criteria.get(0).keySet()).containsExactlyInAnyOrder("key", "label", "score");
+                "overallScore",
+                "criteria",
+                "distinctivePerspective",
+                "feedback"
+        );
+        assertThat(criteria.get(0).keySet()).containsExactlyInAnyOrder(
+                "key",
+                "label",
+                "score"
+        );
         assertThat(jsonMapper.readValue(json, AiReviewResult.class)).isEqualTo(result);
     }
 
     private static final Instant NOW = Instant.parse("2026-10-20T05:01:00Z");
     private static final Instant LEASE_END = Instant.parse("2026-10-20T05:03:00Z");
     private static final int MAX_CLAIMS = 3;
-    private static final Invocation INVOCATION =
-            new Invocation(1200, 0, 300, 64, 21_000L, "resp_abc");
+    private static final Invocation INVOCATION = new Invocation(
+            1200,
+            0,
+            300,
+            64,
+            21_000L,
+            "resp_abc"
+    );
 
     @Test
     @DisplayName("대기 행을 가져가면 처리 중이 되고 시도 횟수·임대 만료·첫 시작 시각이 정해진다")
@@ -84,7 +108,11 @@ class AiReviewTest {
         AiReview review = queuedReview();
 
         // When
-        boolean claimed = review.claim(NOW, LEASE_END, MAX_CLAIMS);
+        boolean claimed = review.claim(
+                NOW,
+                LEASE_END,
+                MAX_CLAIMS
+        );
 
         // Then
         assertThat(claimed).isTrue();
@@ -103,7 +131,11 @@ class AiReviewTest {
         Instant later = LEASE_END.plusSeconds(1);
 
         // When
-        boolean claimed = review.claim(later, later.plusSeconds(120), MAX_CLAIMS);
+        boolean claimed = review.claim(
+                later,
+                later.plusSeconds(120),
+                MAX_CLAIMS
+        );
 
         // Then
         assertThat(claimed).isTrue();
@@ -119,14 +151,32 @@ class AiReviewTest {
         // Given
         AiReview processing = processingReview();
         AiReview completed = processingReview();
-        completed.complete(1, storedResult(), output(), INVOCATION, NOW);
+        completed.complete(
+                1,
+                storedResult(),
+                output(),
+                INVOCATION,
+                NOW
+        );
 
         // When & Then
-        assertThatThrownBy(() -> processing.claim(LEASE_END.minusSeconds(1), LEASE_END, MAX_CLAIMS))
+        assertThatThrownBy(() -> processing.claim(
+                LEASE_END.minusSeconds(1),
+                LEASE_END,
+                MAX_CLAIMS
+        ))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> processing.claim(LEASE_END, LEASE_END.plusSeconds(120), MAX_CLAIMS))
+        assertThatThrownBy(() -> processing.claim(
+                LEASE_END,
+                LEASE_END.plusSeconds(120),
+                MAX_CLAIMS
+        ))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> completed.claim(NOW, LEASE_END, MAX_CLAIMS))
+        assertThatThrownBy(() -> completed.claim(
+                NOW,
+                LEASE_END,
+                MAX_CLAIMS
+        ))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -137,12 +187,20 @@ class AiReviewTest {
         AiReview review = queuedReview();
         Instant claimedAt = NOW;
         for (int count = 1; count <= MAX_CLAIMS; count++) {
-            review.claim(claimedAt, claimedAt.plusSeconds(120), MAX_CLAIMS);
+            review.claim(
+                    claimedAt,
+                    claimedAt.plusSeconds(120),
+                    MAX_CLAIMS
+            );
             claimedAt = claimedAt.plusSeconds(121);
         }
 
         // When
-        boolean claimed = review.claim(claimedAt, claimedAt.plusSeconds(120), MAX_CLAIMS);
+        boolean claimed = review.claim(
+                claimedAt,
+                claimedAt.plusSeconds(120),
+                MAX_CLAIMS
+        );
 
         // Then
         assertThat(claimed).isFalse();
@@ -163,7 +221,13 @@ class AiReviewTest {
         Instant completedAt = NOW.plusSeconds(21);
 
         // When
-        boolean applied = review.complete(1, storedResult(), output(), INVOCATION, completedAt);
+        boolean applied = review.complete(
+                1,
+                storedResult(),
+                output(),
+                INVOCATION,
+                completedAt
+        );
 
         // Then
         assertThat(applied).isTrue();
@@ -188,7 +252,12 @@ class AiReviewTest {
         AiReview review = processingReview();
 
         // When
-        boolean applied = review.fail(1, "INVALID_OUTPUT", INVOCATION, NOW);
+        boolean applied = review.fail(
+                1,
+                "INVALID_OUTPUT",
+                INVOCATION,
+                NOW
+        );
 
         // Then
         assertThat(applied).isTrue();
@@ -210,7 +279,12 @@ class AiReviewTest {
         AiReview review = processingReview();
 
         // When
-        review.fail(1, FailureReason.POST_UNAVAILABLE.name(), Invocation.NONE, NOW);
+        review.fail(
+                1,
+                FailureReason.POST_UNAVAILABLE.name(),
+                Invocation.NONE,
+                NOW
+        );
 
         // Then
         assertThat(review.getStatus()).isEqualTo(Status.FAILED);
@@ -227,11 +301,26 @@ class AiReviewTest {
     void completeAndFail_staleAttempt_changesNothing() {
         // Given
         AiReview review = processingReview();
-        review.claim(LEASE_END.plusSeconds(1), LEASE_END.plusSeconds(121), MAX_CLAIMS);
+        review.claim(
+                LEASE_END.plusSeconds(1),
+                LEASE_END.plusSeconds(121),
+                MAX_CLAIMS
+        );
 
         // When
-        boolean completed = review.complete(1, storedResult(), output(), INVOCATION, NOW);
-        boolean failed = review.fail(1, "TIMEOUT", Invocation.NONE, NOW);
+        boolean completed = review.complete(
+                1,
+                storedResult(),
+                output(),
+                INVOCATION,
+                NOW
+        );
+        boolean failed = review.fail(
+                1,
+                "TIMEOUT",
+                Invocation.NONE,
+                NOW
+        );
 
         // Then
         assertThat(completed).isFalse();
@@ -249,11 +338,28 @@ class AiReviewTest {
     void completeAndFail_terminalReview_changesNothing() {
         // Given
         AiReview review = processingReview();
-        review.complete(1, storedResult(), output(), INVOCATION, NOW);
+        review.complete(
+                1,
+                storedResult(),
+                output(),
+                INVOCATION,
+                NOW
+        );
 
         // When
-        boolean completed = review.complete(1, storedResult(), output(), INVOCATION, NOW.plusSeconds(5));
-        boolean failed = review.fail(1, "TIMEOUT", Invocation.NONE, NOW.plusSeconds(5));
+        boolean completed = review.complete(
+                1,
+                storedResult(),
+                output(),
+                INVOCATION,
+                NOW.plusSeconds(5)
+        );
+        boolean failed = review.fail(
+                1,
+                "TIMEOUT",
+                Invocation.NONE,
+                NOW.plusSeconds(5)
+        );
 
         // Then
         assertThat(completed).isFalse();
@@ -264,21 +370,36 @@ class AiReviewTest {
     }
 
     private AiReview queuedReview() {
-        return AiReview.request(POST_ID, USER_ID, PROMPT_VERSION_ID, REQUEST_ID, REQUESTED_AT);
+        return AiReview.request(
+                POST_ID,
+                USER_ID,
+                PROMPT_VERSION_ID,
+                REQUEST_ID,
+                REQUESTED_AT
+        );
     }
 
     private AiReview processingReview() {
         AiReview review = queuedReview();
-        review.claim(NOW, LEASE_END, MAX_CLAIMS);
+        review.claim(
+                NOW,
+                LEASE_END,
+                MAX_CLAIMS
+        );
         return review;
     }
 
     private AiReviewResult storedResult() {
         return new AiReviewResult(
                 7.5,
-                List.of(new Criterion("COMPOSITION", "구도", 7.5)),
+                List.of(new Criterion(
+                        "COMPOSITION",
+                        "구도",
+                        7.5
+                )),
                 true,
-                "구도가 좋습니다.");
+                "구도가 좋습니다."
+        );
     }
 
     private String output() {

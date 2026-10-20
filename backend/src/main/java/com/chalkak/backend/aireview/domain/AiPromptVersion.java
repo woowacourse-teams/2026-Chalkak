@@ -48,8 +48,7 @@ public class AiPromptVersion {
     @Column(name = "system_prompt", nullable = false, updatable = false, columnDefinition = "text")
     private String systemPrompt;
 
-    @Column(name = "user_prompt_template", nullable = false, updatable = false,
-            columnDefinition = "text")
+    @Column(name = "user_prompt_template", nullable = false, updatable = false, columnDefinition = "text")
     private String userPromptTemplate;
 
     @Column(nullable = false, updatable = false, length = MAX_MODEL_LENGTH)
@@ -59,8 +58,7 @@ public class AiPromptVersion {
     @Column(nullable = false, updatable = false, columnDefinition = "jsonb")
     private AiPromptParameters parameters;
 
-    @Column(name = "output_schema_version", nullable = false, updatable = false,
-            length = MAX_OUTPUT_SCHEMA_VERSION_LENGTH)
+    @Column(name = "output_schema_version", nullable = false, updatable = false, length = MAX_OUTPUT_SCHEMA_VERSION_LENGTH)
     private String outputSchemaVersion;
 
     @Column(updatable = false, length = MAX_MEMO_LENGTH)
@@ -103,7 +101,13 @@ public class AiPromptVersion {
     }
 
     public AiPromptDraft toDraft() {
-        return new AiPromptDraft(type, systemPrompt, userPromptTemplate, model, parameters);
+        return new AiPromptDraft(
+                type,
+                systemPrompt,
+                userPromptTemplate,
+                model,
+                parameters
+        );
     }
 
     private static String normalizeMemo(String memo) {

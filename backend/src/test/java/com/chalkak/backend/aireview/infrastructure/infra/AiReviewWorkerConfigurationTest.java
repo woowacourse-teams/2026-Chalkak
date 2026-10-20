@@ -33,8 +33,12 @@ class AiReviewWorkerConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(AiReviewWorkerConfiguration.class)
             .withBean(OpenAiProperties.class, () -> new OpenAiProperties(
-                    "test-key", URI.create("https://api.openai.test/v1"), Duration.ofSeconds(5),
-                    Duration.ofSeconds(60), List.of("gpt-6.1-sol")))
+                    "test-key",
+                    URI.create("https://api.openai.test/v1"),
+                    Duration.ofSeconds(5),
+                    Duration.ofSeconds(60),
+                    List.of("gpt-6.1-sol")
+            ))
             .withBean(AiReviewRepository.class, () -> mock(AiReviewRepository.class))
             .withBean(AiPromptVersionRepository.class,
                     () -> mock(AiPromptVersionRepository.class))
@@ -69,8 +73,8 @@ class AiReviewWorkerConfigurationTest {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(AiReviewWorkerService.class);
             assertThat(context).hasSingleBean(AiReviewWorker.class);
-            ThreadPoolTaskScheduler scheduler =
-                    context.getBean("aiReviewWorkerScheduler", ThreadPoolTaskScheduler.class);
+            ThreadPoolTaskScheduler scheduler = context.getBean("aiReviewWorkerScheduler",
+                    ThreadPoolTaskScheduler.class);
             assertThat(scheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isEqualTo(1);
             assertThat(scheduler.getThreadNamePrefix()).isEqualTo("ai-review-poll-");
             AiReviewWorkerProperties properties = context.getBean(AiReviewWorkerProperties.class);

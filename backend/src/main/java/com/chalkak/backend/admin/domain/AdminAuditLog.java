@@ -29,8 +29,7 @@ import org.hibernate.type.SqlTypes;
 public class AdminAuditLog {
 
     private static final int MAX_REASON_LENGTH = 500;
-    private static final String INVALID_AUDIT_LOG_MESSAGE =
-            "관리자 감사 로그 정보가 올바르지 않습니다.";
+    private static final String INVALID_AUDIT_LOG_MESSAGE = "관리자 감사 로그 정보가 올바르지 않습니다.";
 
     @Id
     @Generated
@@ -43,22 +42,12 @@ public class AdminAuditLog {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(
-            name = "action",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "admin_action"
-    )
+    @Column(name = "action", nullable = false, updatable = false, columnDefinition = "admin_action")
     private AdminAction action;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(
-            name = "target_type",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "admin_target_type"
-    )
+    @Column(name = "target_type", nullable = false, updatable = false, columnDefinition = "admin_target_type")
     private AdminTargetType targetType;
 
     @Column(name = "target_id", nullable = false, updatable = false)
@@ -68,22 +57,12 @@ public class AdminAuditLog {
     private String reason;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(
-            name = "before_state",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "jsonb"
-    )
+    @Column(name = "before_state", nullable = false, updatable = false, columnDefinition = "jsonb")
     @Getter(AccessLevel.NONE)
     private Map<String, Object> beforeState;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(
-            name = "after_state",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "jsonb"
-    )
+    @Column(name = "after_state", nullable = false, updatable = false, columnDefinition = "jsonb")
     @Getter(AccessLevel.NONE)
     private Map<String, Object> afterState;
 
@@ -114,7 +93,13 @@ public class AdminAuditLog {
                 occurredAt,
                 requestId
         );
-        validateAction(actorAdminId, action, targetType, beforeState, afterState);
+        validateAction(
+                actorAdminId,
+                action,
+                targetType,
+                beforeState,
+                afterState
+        );
         String normalizedReason = normalizeReason(action, reason);
 
         AdminAuditLog auditLog = new AdminAuditLog();
@@ -171,7 +156,11 @@ public class AdminAuditLog {
             AdminAuditSnapshot afterState
     ) {
         if (!action.isForTarget(targetType)
-                || !action.isValidStateChange(actorAdminId, beforeState, afterState)) {
+                || !action.isValidStateChange(
+                        actorAdminId,
+                        beforeState,
+                        afterState
+                )) {
             throw invalidAuditLogException();
         }
     }

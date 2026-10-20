@@ -27,7 +27,11 @@ import org.springframework.test.web.servlet.MockMvc;
 class TopicControllerTest {
 
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            12
+    );
 
     @Autowired
     private MockMvc mockMvc;

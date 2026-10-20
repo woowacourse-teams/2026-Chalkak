@@ -56,7 +56,12 @@ class PostAiReviewControllerTest {
     void request_processing_returnsAcceptedWithoutResult() throws Exception {
         // Given
         given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(
-                new ReviewResult(ApiStatus.PROCESSING, REQUESTED_AT, null, null));
+                new ReviewResult(
+                        ApiStatus.PROCESSING,
+                        REQUESTED_AT,
+                        null,
+                        null
+                ));
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
@@ -96,7 +101,11 @@ class PostAiReviewControllerTest {
     void request_failed_returnsOkWithoutResult() throws Exception {
         // Given
         given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(new ReviewResult(
-                ApiStatus.FAILED, REQUESTED_AT, COMPLETED_AT, null));
+                ApiStatus.FAILED,
+                REQUESTED_AT,
+                COMPLETED_AT,
+                null
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
@@ -113,7 +122,12 @@ class PostAiReviewControllerTest {
     void get_processing_returnsOk() throws Exception {
         // Given
         given(postAiReviewService.get(USER_ID, POST_ID)).willReturn(
-                new ReviewResult(ApiStatus.PROCESSING, REQUESTED_AT, null, null));
+                new ReviewResult(
+                        ApiStatus.PROCESSING,
+                        REQUESTED_AT,
+                        null,
+                        null
+                ));
 
         // When & Then
         mockMvc.perform(get(PATH, POST_ID))
@@ -202,8 +216,20 @@ class PostAiReviewControllerTest {
     }
 
     private ReviewResult completed() {
-        return new ReviewResult(ApiStatus.COMPLETED, REQUESTED_AT, COMPLETED_AT,
-                new AiReviewResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
-                        "구도가 좋습니다."));
+        return new ReviewResult(
+                ApiStatus.COMPLETED,
+                REQUESTED_AT,
+                COMPLETED_AT,
+                new AiReviewResult(
+                        7.5,
+                        List.of(new Criterion(
+                                "COMPOSITION",
+                                "구도",
+                                7.5
+                        )),
+                        true,
+                        "구도가 좋습니다."
+                )
+        );
     }
 }

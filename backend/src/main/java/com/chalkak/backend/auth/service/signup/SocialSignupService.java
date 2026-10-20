@@ -62,7 +62,8 @@ public class SocialSignupService {
         VerifiedSocialIdentity identity = socialIdentityVerifier.verify(
                 provider,
                 idToken,
-                rawNonce);
+                rawNonce
+        );
         validateNewSocialAccount(identity);
 
         UUID uploadId = UUID.randomUUID();
@@ -116,7 +117,8 @@ public class SocialSignupService {
         SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 verifiedToken.provider(),
-                subjectHmac));
+                subjectHmac
+        ));
         appleSignupAuthorizationService.saveIfApple(verifiedToken, socialAccount);
 
         return toSignupResult(user);
@@ -131,7 +133,8 @@ public class SocialSignupService {
         return new SocialSignupResult(
                 user.getId(),
                 accessTokenIssuer.issueForSession(user.getId(), refreshToken.sessionId()),
-                refreshToken);
+                refreshToken
+        );
     }
 
     private User getExistingUser(SocialAccount socialAccount) {

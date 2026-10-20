@@ -15,14 +15,23 @@ import org.springframework.test.util.ReflectionTestUtils;
 class AiPromptVersionTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000688");
-    private static final AiPromptParameters PARAMETERS =
-            new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5);
+    private static final AiPromptParameters PARAMETERS = new AiPromptParameters(
+            ImageDetail.LOW,
+            700,
+            ReasoningEffort.HIGH,
+            6.5
+    );
 
     @Test
     @DisplayName("버전 생성은 초안 값과 유형의 출력 스키마 버전을 그대로 담는다")
     void create_validDraft_keepsDraftAndSchemaVersion() {
         // When
-        AiPromptVersion version = AiPromptVersion.create(draft(), 3, "메모", ADMIN_ID);
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                3,
+                "메모",
+                ADMIN_ID
+        );
 
         // Then
         assertThat(version.getType()).isEqualTo(AiPromptType.PHOTO_REVIEW);
@@ -41,8 +50,18 @@ class AiPromptVersionTest {
     @DisplayName("메모는 앞뒤 공백을 제거하고 비어 있으면 null로 저장한다")
     void create_blankMemo_storesNull() {
         // When & Then
-        assertThat(AiPromptVersion.create(draft(), 1, "  ", ADMIN_ID).getMemo()).isNull();
-        assertThat(AiPromptVersion.create(draft(), 1, " 메모 ", ADMIN_ID).getMemo())
+        assertThat(AiPromptVersion.create(
+                draft(),
+                1,
+                "  ",
+                ADMIN_ID
+        ).getMemo()).isNull();
+        assertThat(AiPromptVersion.create(
+                draft(),
+                1,
+                " 메모 ",
+                ADMIN_ID
+        ).getMemo())
                 .isEqualTo("메모");
     }
 
@@ -50,13 +69,33 @@ class AiPromptVersionTest {
     @DisplayName("메모 길이는 앞뒤 공백을 제거한 뒤 유니코드 코드포인트 500개까지 받는다")
     void create_memoLength_validatesLimitByCodePoints() {
         // When & Then
-        assertThatCode(() -> AiPromptVersion.create(draft(), 1, "가".repeat(500), ADMIN_ID))
+        assertThatCode(() -> AiPromptVersion.create(
+                draft(),
+                1,
+                "가".repeat(500),
+                ADMIN_ID
+        ))
                 .doesNotThrowAnyException();
-        assertThatCode(() -> AiPromptVersion.create(draft(), 1, "😀".repeat(500), ADMIN_ID))
+        assertThatCode(() -> AiPromptVersion.create(
+                draft(),
+                1,
+                "😀".repeat(500),
+                ADMIN_ID
+        ))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, "😀".repeat(501), ADMIN_ID))
+        assertThatThrownBy(() -> AiPromptVersion.create(
+                draft(),
+                1,
+                "😀".repeat(501),
+                ADMIN_ID
+        ))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, "가".repeat(501), ADMIN_ID))
+        assertThatThrownBy(() -> AiPromptVersion.create(
+                draft(),
+                1,
+                "가".repeat(501),
+                ADMIN_ID
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -65,8 +104,17 @@ class AiPromptVersionTest {
     void create_memoWithSurroundingWhitespace_countsAfterStrip() {
         // When
         AiPromptVersion trimmed = AiPromptVersion.create(
-                draft(), 1, " " + "가".repeat(500) + " ", ADMIN_ID);
-        AiPromptVersion blank = AiPromptVersion.create(draft(), 1, " ".repeat(501), ADMIN_ID);
+                draft(),
+                1,
+                " " + "가".repeat(500) + " ",
+                ADMIN_ID
+        );
+        AiPromptVersion blank = AiPromptVersion.create(
+                draft(),
+                1,
+                " ".repeat(501),
+                ADMIN_ID
+        );
 
         // Then
         assertThat(trimmed.getMemo()).isEqualTo("가".repeat(500));
@@ -77,11 +125,26 @@ class AiPromptVersionTest {
     @DisplayName("버전이 1 미만이거나 초안·관리자가 없으면 거절한다")
     void create_invalidArguments_throwsBusinessException() {
         // When & Then
-        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 0, null, ADMIN_ID))
+        assertThatThrownBy(() -> AiPromptVersion.create(
+                draft(),
+                0,
+                null,
+                ADMIN_ID
+        ))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> AiPromptVersion.create(null, 1, null, ADMIN_ID))
+        assertThatThrownBy(() -> AiPromptVersion.create(
+                null,
+                1,
+                null,
+                ADMIN_ID
+        ))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, null, null))
+        assertThatThrownBy(() -> AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                null
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -89,7 +152,12 @@ class AiPromptVersionTest {
     @DisplayName("출력 스키마 버전이 유형의 현재 버전과 같으면 호환된다")
     void hasCurrentOutputSchema_sameSchemaVersion_returnsTrue() {
         // Given
-        AiPromptVersion version = AiPromptVersion.create(draft(), 1, null, ADMIN_ID);
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                ADMIN_ID
+        );
 
         // When & Then
         assertThat(version.hasCurrentOutputSchema()).isTrue();
@@ -99,8 +167,17 @@ class AiPromptVersionTest {
     @DisplayName("출력 스키마 버전이 유형의 현재 버전과 다르면 호환되지 않는다")
     void hasCurrentOutputSchema_differentSchemaVersion_returnsFalse() {
         // Given
-        AiPromptVersion version = AiPromptVersion.create(draft(), 1, null, ADMIN_ID);
-        ReflectionTestUtils.setField(version, "outputSchemaVersion", "0");
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                ADMIN_ID
+        );
+        ReflectionTestUtils.setField(
+                version,
+                "outputSchemaVersion",
+                "0"
+        );
 
         // When & Then
         assertThat(version.hasCurrentOutputSchema()).isFalse();
@@ -110,14 +187,24 @@ class AiPromptVersionTest {
     @DisplayName("버전에서 만든 초안은 버전을 만든 초안과 같은 값이다")
     void toDraft_createdVersion_returnsSameDraft() {
         // Given
-        AiPromptVersion version = AiPromptVersion.create(draft(), 1, "메모", ADMIN_ID);
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                "메모",
+                ADMIN_ID
+        );
 
         // When & Then
         assertThat(version.toDraft()).isEqualTo(draft());
     }
 
     private AiPromptDraft draft() {
-        return new AiPromptDraft(AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}",
-                "gpt-6.1-sol", PARAMETERS);
+        return new AiPromptDraft(
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "주제는 {{topicTitle}}",
+                "gpt-6.1-sol",
+                PARAMETERS
+        );
     }
 }

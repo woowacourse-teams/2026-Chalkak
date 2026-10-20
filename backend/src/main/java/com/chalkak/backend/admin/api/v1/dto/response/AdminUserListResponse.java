@@ -22,7 +22,8 @@ public record AdminUserListResponse(
                 result.hasNext(),
                 result.users().stream()
                         .map(UserResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     @Schema(name = "AdminUserListItem")
@@ -39,7 +40,8 @@ public record AdminUserListResponse(
             Instant createdAt,
             Instant updatedAt,
             @Schema(nullable = true)
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
 
         private static UserResponse from(AdminUserListResult.UserSummary user) {
             return new UserResponse(
@@ -51,7 +53,8 @@ public record AdminUserListResponse(
                     AdminUserPostCountsResponse.from(user.postCounts()),
                     user.createdAt(),
                     user.updatedAt(),
-                    user.deletedAt());
+                    user.deletedAt()
+            );
         }
     }
 

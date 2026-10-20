@@ -15,12 +15,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * 폴러 하나가 대기열에서 행을 하나씩 가져가 가상 스레드에 넘긴다. 처리 중인 건이 {@code concurrency}에 이르면 더 가져가지 않으며,
- * 이 상한은 서버 자원이 아니라 OpenAI의 분당 요청·토큰 한도를 지키기 위한 것이다.
+ * 폴러 하나가 대기열에서 행을 하나씩 가져가 가상 스레드에 넘긴다. 처리 중인 건이 {@code concurrency}에 이르면 더 가져가지
+ * 않으며, 이 상한은 서버 자원이 아니라 OpenAI의 분당 요청·토큰 한도를 지키기 위한 것이다.
  *
- * <p>빈이 소멸할 때 {@link #stop()}이 불린다. 새 건을 가져가지 않고 진행 중인 처리를 유예 시간까지 기다린 뒤 interrupt하며, 끝나지
- * 못한 행은 처리 중으로 남아 임대가 끝난 뒤 다시 가져간다. 이 빈은 서비스·저장소를 거쳐 데이터 소스에 의존하므로 데이터 소스보다
- * 먼저 소멸한다.
+ * <p>
+ * 빈이 소멸할 때 {@link #stop()}이 불린다. 새 건을 가져가지 않고 진행 중인 처리를 유예 시간까지 기다린 뒤
+ * interrupt하며, 끝나지 못한 행은 처리 중으로 남아 임대가 끝난 뒤 다시 가져간다. 이 빈은 서비스·저장소를 거쳐 데이터 소스에
+ * 의존하므로 데이터 소스보다 먼저 소멸한다.
  */
 public class AiReviewWorker {
 
@@ -34,7 +35,11 @@ public class AiReviewWorker {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private volatile boolean stopping;
 
-    public AiReviewWorker(AiReviewWorkerService service, int concurrency, Duration shutdownGrace) {
+    public AiReviewWorker(
+            AiReviewWorkerService service,
+            int concurrency,
+            Duration shutdownGrace
+    ) {
         this.service = service;
         this.permits = new Semaphore(concurrency);
         this.shutdownGrace = shutdownGrace;
@@ -97,7 +102,11 @@ public class AiReviewWorker {
         try {
             service.process(claim, () -> stopping);
         } catch (RuntimeException exception) {
-            service.abandon(claim, AiReviewWorkerService.UNEXPECTED, exception);
+            service.abandon(
+                    claim,
+                    AiReviewWorkerService.UNEXPECTED,
+                    exception
+            );
         } finally {
             permits.release();
         }

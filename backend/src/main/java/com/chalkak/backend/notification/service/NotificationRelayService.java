@@ -68,11 +68,21 @@ public class NotificationRelayService {
         }
         if (notification.isPushExpired(now)) {
             notification.expirePublication();
-            logResult(notification, "EXPIRED", null, null);
+            logResult(
+                    notification,
+                    "EXPIRED",
+                    null,
+                    null
+            );
             return true;
         }
         PushMessage message = createPushMessage(notification);
-        logResult(notification, "REQUESTED", null, null);
+        logResult(
+                notification,
+                "REQUESTED",
+                null,
+                null
+        );
         PushPublicationResult result = pushMessagePublisher.publish(message);
         applyPublicationResult(notification, result);
         return true;
@@ -80,9 +90,15 @@ public class NotificationRelayService {
 
     private PushMessage createPushMessage(Notification notification) {
         return new PushMessage(
-                notification.getEventKey(), notification.getId(), notification.getUserId(),
-                notification.getType(), notification.getSourceType(), notification.getSourceId(),
-                notification.getCreatedAt(), notification.getPushExpiresAt());
+                notification.getEventKey(),
+                notification.getId(),
+                notification.getUserId(),
+                notification.getType(),
+                notification.getSourceType(),
+                notification.getSourceId(),
+                notification.getCreatedAt(),
+                notification.getPushExpiresAt()
+        );
     }
 
     private void applyPublicationResult(
@@ -92,7 +108,12 @@ public class NotificationRelayService {
         Instant attemptedAt = clock.instant();
         if (result.isAccepted()) {
             notification.markPublished(attemptedAt);
-            logResult(notification, "SQS_ACCEPTED", result.messageId(), null);
+            logResult(
+                    notification,
+                    "SQS_ACCEPTED",
+                    result.messageId(),
+                    null
+            );
             return;
         }
         if (result.retryable()) {
@@ -101,11 +122,21 @@ public class NotificationRelayService {
             if (result.isAcceptanceUnknown()) {
                 publicationResult = "SQS_UNKNOWN";
             }
-            logResult(notification, publicationResult, null, result.errorCode());
+            logResult(
+                    notification,
+                    publicationResult,
+                    null,
+                    result.errorCode()
+            );
             return;
         }
         notification.failPublication();
-        logResult(notification, "FAILED", null, result.errorCode());
+        logResult(
+                notification,
+                "FAILED",
+                null,
+                result.errorCode()
+        );
     }
 
     private void logResult(

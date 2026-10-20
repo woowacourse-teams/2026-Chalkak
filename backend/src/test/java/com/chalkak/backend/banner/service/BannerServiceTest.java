@@ -45,10 +45,17 @@ class BannerServiceTest extends IntegrationTestSupport {
         Banner newerSecond = saveBanner("newer-second");
         Instant oldTime = Instant.parse("2026-10-18T00:00:00Z");
         Instant newTime = oldTime.plusSeconds(60);
-        jdbcTemplate.update("UPDATE banners SET created_at = ? WHERE id = ?",
-                Timestamp.from(oldTime), older.getId());
-        jdbcTemplate.update("UPDATE banners SET created_at = ? WHERE id IN (?, ?)",
-                Timestamp.from(newTime), newerFirst.getId(), newerSecond.getId());
+        jdbcTemplate.update(
+                "UPDATE banners SET created_at = ? WHERE id = ?",
+                Timestamp.from(oldTime),
+                older.getId()
+        );
+        jdbcTemplate.update(
+                "UPDATE banners SET created_at = ? WHERE id IN (?, ?)",
+                Timestamp.from(newTime),
+                newerFirst.getId(),
+                newerSecond.getId()
+        );
         entityManager.flush();
         entityManager.clear();
         List<UUID> expectedNewer = List.of(newerFirst.getId(), newerSecond.getId()).stream()
@@ -134,7 +141,11 @@ class BannerServiceTest extends IntegrationTestSupport {
     }
 
     private Banner saveBanner(String name) {
-        return bannerRepository.save(Banner.create(name, "부제목", "https://example.com/" + name,
-                "https://example.com/thumbnail.png"));
+        return bannerRepository.save(Banner.create(
+                name,
+                "부제목",
+                "https://example.com/" + name,
+                "https://example.com/thumbnail.png"
+        ));
     }
 }

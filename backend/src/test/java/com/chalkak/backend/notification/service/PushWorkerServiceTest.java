@@ -87,13 +87,30 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 photoId);
         jdbc.update(
                 "INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status) VALUES (?,?,?,?, 'APPROVED')",
-                POST_ID, USER_ID, topicId, photoId);
+                POST_ID,
+                USER_ID,
+                topicId,
+                photoId
+        );
         message = new TransactionTemplate(manager).execute(status -> {
             Notification notification = notifications
-                    .save(Notification.approved(USER_ID, POST_ID, UUID.randomUUID(), NOW, true));
-            return new PushMessage(notification.getEventKey(), notification.getId(), USER_ID,
-                    notification.getType(), notification.getSourceType(), POST_ID, NOW,
-                    NOW.plusSeconds(1800));
+                    .save(Notification.approved(
+                            USER_ID,
+                            POST_ID,
+                            UUID.randomUUID(),
+                            NOW,
+                            true
+                    ));
+            return new PushMessage(
+                    notification.getEventKey(),
+                    notification.getId(),
+                    USER_ID,
+                    notification.getType(),
+                    notification.getSourceType(),
+                    POST_ID,
+                    NOW,
+                    NOW.plusSeconds(1800)
+            );
         });
         deviceId = addDevice("worker-token");
         sender = mock(DevicePushSender.class);
@@ -308,14 +325,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         given(sender.send(any())).willAnswer(call -> {
             jdbc.update(
                     "UPDATE push_devices SET fcm_token='updated-token',fcm_token_hash=? WHERE id=?",
-                    new FcmToken("updated-token").getHash(), deviceId);
+                    new FcmToken("updated-token").getHash(),
+                    deviceId
+            );
             return DevicePushResult.invalidToken("UNREGISTERED");
         });
         // When
         worker(NOW).process(message);
         // Then
-        assertThat(jdbc.queryForObject("SELECT fcm_token FROM push_devices WHERE id=?",
-                String.class, deviceId)).isEqualTo("updated-token");
+        assertThat(jdbc.queryForObject(
+                "SELECT fcm_token FROM push_devices WHERE id=?",
+                String.class,
+                deviceId
+        )).isEqualTo("updated-token");
     }
 
     @ParameterizedTest
@@ -329,18 +351,32 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
-        assertThat(jdbc.queryForObject("SELECT fcm_token FROM push_devices WHERE id=?",
-                String.class, deviceId)).isEqualTo("worker-token");
-        assertThat(jdbc.queryForObject("SELECT fcm_token_hash FROM push_devices WHERE id=?",
-                String.class, deviceId)).isEqualTo(new FcmToken("worker-token").getHash());
+        assertThat(jdbc.queryForObject(
+                "SELECT fcm_token FROM push_devices WHERE id=?",
+                String.class,
+                deviceId
+        )).isEqualTo("worker-token");
+        assertThat(jdbc.queryForObject(
+                "SELECT fcm_token_hash FROM push_devices WHERE id=?",
+                String.class,
+                deviceId
+        )).isEqualTo(new FcmToken("worker-token").getHash());
     }
 
     @Test
     @DisplayName("다른 사건이나 임의로 연장한 기한의 메시지는 발송하지 않는다")
     void process_tamperedMessage_doesNotSend() {
         // Given
-        PushMessage invalid = new PushMessage(UUID.randomUUID(), message.notificationId(), USER_ID,
-                message.type(), message.sourceType(), POST_ID, NOW, NOW.plusSeconds(3600));
+        PushMessage invalid = new PushMessage(
+                UUID.randomUUID(),
+                message.notificationId(),
+                USER_ID,
+                message.type(),
+                message.sourceType(),
+                POST_ID,
+                NOW,
+                NOW.plusSeconds(3600)
+        );
         // When & Then
         assertThat(worker(NOW).process(invalid).retryable()).isFalse();
         verifyNoInteractions(sender);
@@ -351,9 +387,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("발송 전용 조회에서도 원래 사건 시각보다 앞서거나 뒤선 메시지는 발송하지 않는다")
     void process_mismatchedOccurrenceTime_doesNotSend(long seconds) {
         // Given
-        PushMessage invalid = new PushMessage(message.eventId(), message.notificationId(), USER_ID,
-                message.type(), message.sourceType(), POST_ID, NOW.plusSeconds(seconds),
-                message.expiresAt());
+        PushMessage invalid = new PushMessage(
+                message.eventId(),
+                message.notificationId(),
+                USER_ID,
+                message.type(),
+                message.sourceType(),
+                POST_ID,
+                NOW.plusSeconds(seconds),
+                message.expiresAt()
+        );
         // When
         PushProcessingResult result = worker(NOW).process(invalid);
         // Then
@@ -394,9 +437,13 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         verify(sender).send(request.capture());
         assertThat(appender.list).allSatisfy(event -> {
             String logged = event.getFormattedMessage() + event.getKeyValuePairs();
-            assertThat(logged).doesNotContain(request.getValue().token(),
+            assertThat(logged).doesNotContain(
+                    request.getValue().token(),
                     request.getValue().title(),
-                    request.getValue().body(), "worker@example.com", "worker/original");
+                    request.getValue().body(),
+                    "worker@example.com",
+                    "worker/original"
+            );
             assertThat(event.getThrowableProxy()).isNull();
         });
     }
@@ -410,8 +457,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     private PushWorkerService worker(Instant now) {
-        return new PushWorkerService(notifications, topics, posts, devices, sessions, sender,
-                Clock.fixed(now, ZoneOffset.UTC), manager);
+        return new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(now, ZoneOffset.UTC),
+                manager
+        );
     }
 
     private void rejectDeviceDeletion() {
@@ -431,11 +486,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         UUID sessionId = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO user_refresh_tokens(user_id,session_id,token_hash,expires_at,absolute_expires_at) VALUES (?,?,?,?,?)",
-                USER_ID, sessionId, new FcmToken(UUID.randomUUID().toString()).getHash(),
-                Timestamp.from(NOW.plusSeconds(3600)), Timestamp.from(NOW.plusSeconds(7200)));
+                USER_ID,
+                sessionId,
+                new FcmToken(UUID.randomUUID().toString()).getHash(),
+                Timestamp.from(NOW.plusSeconds(3600)),
+                Timestamp.from(NOW.plusSeconds(7200))
+        );
         return new TransactionTemplate(manager).execute(status -> {
-            PushDevice device = new PushDevice(users.findById(USER_ID).orElseThrow(), sessionId,
-                    new FcmToken(token), NOW.plusSeconds(1));
+            PushDevice device = new PushDevice(
+                    users.findById(USER_ID).orElseThrow(),
+                    sessionId,
+                    new FcmToken(token),
+                    NOW.plusSeconds(1)
+            );
             devices.save(device);
             return device.getId();
         });

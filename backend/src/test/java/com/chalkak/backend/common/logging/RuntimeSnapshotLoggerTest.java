@@ -37,7 +37,14 @@ class RuntimeSnapshotLoggerTest {
     @DisplayName("스냅샷의 값을 type=runtime key-value로 담은 INFO 로그 1건을 남긴다")
     void logSnapshot_allValuesPresent_logsOneRuntimeEvent() {
         // Given
-        given(reader.read()).willReturn(new RuntimeSnapshot(400L, 1_000L, 42L, 40, 3, 1));
+        given(reader.read()).willReturn(new RuntimeSnapshot(
+                400L,
+                1_000L,
+                42L,
+                40,
+                3,
+                1
+        ));
 
         // When
         snapshotLogger.logSnapshot();
@@ -59,7 +66,14 @@ class RuntimeSnapshotLoggerTest {
     @DisplayName("측정하지 못한 값은 0으로 채우지 않고 key-value에서 뺀다")
     void logSnapshot_absentValues_omitsKeys() {
         // Given
-        given(reader.read()).willReturn(new RuntimeSnapshot(400L, null, null, 40, null, null));
+        given(reader.read()).willReturn(new RuntimeSnapshot(
+                400L,
+                null,
+                null,
+                40,
+                null,
+                null
+        ));
 
         // When
         snapshotLogger.logSnapshot();
@@ -68,7 +82,11 @@ class RuntimeSnapshotLoggerTest {
         assertThat(appender.list).hasSize(1);
         assertThat(appender.list.getFirst().getKeyValuePairs())
                 .extracting(pair -> pair.key)
-                .containsExactly("type", "heapUsedBytes", "threads");
+                .containsExactly(
+                        "type",
+                        "heapUsedBytes",
+                        "threads"
+                );
     }
 
     private Object keyValue(ILoggingEvent event, String key) {

@@ -8,7 +8,8 @@ import java.time.Instant;
 import java.util.List;
 
 public record PostAiReviewResponse(
-        @Schema(description = "리뷰 진행 상태. 앱은 HTTP 상태 코드가 아니라 이 값으로 분기한다.",
+        @Schema(
+                description = "리뷰 진행 상태. 앱은 HTTP 상태 코드가 아니라 이 값으로 분기한다.",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         ApiStatus status,
         @Schema(description = "최초 요청 시각(UTC)", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -24,7 +25,8 @@ public record PostAiReviewResponse(
                 reviewResult.status(),
                 reviewResult.requestedAt(),
                 reviewResult.completedAt(),
-                reviewResult.result() == null ? null : Result.from(reviewResult.result()));
+                reviewResult.result() == null ? null : Result.from(reviewResult.result())
+        );
     }
 
     @Schema(name = "PostAiReviewResult")
@@ -43,7 +45,8 @@ public record PostAiReviewResponse(
                     result.overallScore(),
                     result.criteria().stream().map(Criterion::from).toList(),
                     result.distinctivePerspective(),
-                    result.feedback());
+                    result.feedback()
+            );
         }
     }
 
@@ -58,7 +61,11 @@ public record PostAiReviewResponse(
     ) {
 
         private static Criterion from(AiReviewResult.Criterion criterion) {
-            return new Criterion(criterion.key(), criterion.label(), criterion.score());
+            return new Criterion(
+                    criterion.key(),
+                    criterion.label(),
+                    criterion.score()
+            );
         }
     }
 }

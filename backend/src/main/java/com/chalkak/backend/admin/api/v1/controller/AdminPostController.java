@@ -50,7 +50,8 @@ public class AdminPostController implements AdminPostApiDocs {
                 request.createdAtTo(),
                 request.sort(),
                 request.page(),
-                request.pageSize());
+                request.pageSize()
+        );
 
         return ResponseEntity.ok(AdminPostListResponse.from(result));
     }
@@ -78,7 +79,8 @@ public class AdminPostController implements AdminPostApiDocs {
                 CanonicalUuidParser.parse(postId),
                 authenticatedAdmin.adminId(),
                 request.status(),
-                request.rejectionReason());
+                request.rejectionReason()
+        );
 
         return ResponseEntity.ok(AdminPostModerationResponse.from(result));
     }
@@ -93,7 +95,8 @@ public class AdminPostController implements AdminPostApiDocs {
         adminPostCommandService.deletePost(
                 CanonicalUuidParser.parse(postId),
                 authenticatedAdmin.adminId(),
-                request.reason());
+                request.reason()
+        );
 
         return ResponseEntity.noContent().build();
     }

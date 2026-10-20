@@ -45,7 +45,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * OpenAI 호출 중 DB 연결을 잡지 않도록 테스트 클래스에 @Transactional을 쓰지 않고 DatabaseCleaner로 정리한다.
+ * OpenAI 호출 중 DB 연결을 잡지 않도록 테스트 클래스에 @Transactional을 쓰지 않고 DatabaseCleaner로
+ * 정리한다.
  */
 class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
 
@@ -75,7 +76,13 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() {
         new DatabaseCleaner(jdbcTemplate).clean();
-        insertFixture("APPROVED", false, false, false, false);
+        insertFixture(
+                "APPROVED",
+                false,
+                false,
+                false,
+                false
+        );
         given(imageUrlProvider.getUrl(STORAGE_KEY)).willReturn(IMAGE_URL);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
         appender.start();
@@ -104,12 +111,21 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
         assertThat(result.failureType()).isNull();
         assertThat(result.retryable()).isNull();
         assertThat(result.result()).isEqualTo(generation.result());
-        assertThat(result.output()).isEqualTo(new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다."));
-        assertThat(result.usage()).isEqualTo(new Usage(1200, 300, 85, 40));
+        assertThat(result.output()).isEqualTo(new PhotoReviewOutput(
+                8.72,
+                8.0,
+                "구도가 좋습니다."
+        ));
+        assertThat(result.usage()).isEqualTo(new Usage(
+                1200,
+                300,
+                85,
+                40
+        ));
         assertThat(result.latencyMs()).isEqualTo(1234L);
         assertThat(result.responseId()).isEqualTo("resp_1");
-        ArgumentCaptor<AiReviewGenerationRequest> captor =
-                ArgumentCaptor.forClass(AiReviewGenerationRequest.class);
+        ArgumentCaptor<AiReviewGenerationRequest> captor = ArgumentCaptor
+                .forClass(AiReviewGenerationRequest.class);
         verify(aiReviewGenerator).generate(captor.capture());
         assertThat(captor.getValue().imageUrl()).isEqualTo(IMAGE_URL);
         assertThat(captor.getValue().topicTitle()).isEqualTo(TOPIC_TITLE);
@@ -139,7 +155,13 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     void preview_notApprovedPost_throwsNotFound(String status) {
         // Given
         new DatabaseCleaner(jdbcTemplate).clean();
-        insertFixture(status, false, false, false, false);
+        insertFixture(
+                status,
+                false,
+                false,
+                false,
+                false
+        );
 
         // When & Then
         assertNotFoundWithoutCall();
@@ -151,8 +173,13 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     void preview_deletedRelation_throwsNotFound(String deleted) {
         // Given
         new DatabaseCleaner(jdbcTemplate).clean();
-        insertFixture("APPROVED", deleted.equals("post"), deleted.equals("topic"),
-                deleted.equals("photo"), deleted.equals("author"));
+        insertFixture(
+                "APPROVED",
+                deleted.equals("post"),
+                deleted.equals("topic"),
+                deleted.equals("photo"),
+                deleted.equals("author")
+        );
 
         // When & Then
         assertNotFoundWithoutCall();
@@ -163,8 +190,16 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     void preview_missingPost_throwsNotFound() {
         // When & Then
         assertThatThrownBy(() -> service.preview(ADMIN_ID, new PreviewCommand(
-                AiPromptType.PHOTO_REVIEW, SYSTEM_PROMPT, "주제: {{topicTitle}}", MODEL,
-                null, null, null, null, UUID.randomUUID())))
+                AiPromptType.PHOTO_REVIEW,
+                SYSTEM_PROMPT,
+                "주제: {{topicTitle}}",
+                MODEL,
+                null,
+                null,
+                null,
+                null,
+                UUID.randomUUID()
+        )))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -203,8 +238,16 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     @DisplayName("응답 본문을 받은 뒤 실패하면 200 결과로 실패 유형 재시도 여부 사용량을 반환한다")
     void preview_incompleteWithAttempt_returnsFailureOutcomeWithUsage() {
         // Given
-        Attempt attempt = new Attempt(new Usage(1000, 10, 16000, 15900), Duration.ofMillis(900),
-                "resp_9");
+        Attempt attempt = new Attempt(
+                new Usage(
+                        1000,
+                        10,
+                        16000,
+                        15900
+                ),
+                Duration.ofMillis(900),
+                "resp_9"
+        );
         given(aiReviewGenerator.generate(any())).willThrow(
                 new AiReviewGenerationException(FailureType.INCOMPLETE, attempt));
 
@@ -217,7 +260,12 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
         assertThat(result.retryable()).isFalse();
         assertThat(result.result()).isNull();
         assertThat(result.output()).isNull();
-        assertThat(result.usage()).isEqualTo(new Usage(1000, 10, 16000, 15900));
+        assertThat(result.usage()).isEqualTo(new Usage(
+                1000,
+                10,
+                16000,
+                15900
+        ));
         assertThat(result.latencyMs()).isEqualTo(900L);
         assertThat(result.responseId()).isEqualTo("resp_9");
     }
@@ -267,13 +315,25 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(appender.list).singleElement().satisfies(event -> {
             String keyValues = event.getKeyValuePairs().toString();
-            assertThat(keyValues).contains("type=\"ai_review\"", "event=\"preview\"",
-                    "adminId=\"" + ADMIN_ID + "\"", "model=\"" + MODEL + "\"", "succeeded=\"true\"",
-                    "latencyMs=\"1234\"", "inputTokens=\"1200\"", "cachedInputTokens=\"300\"",
-                    "outputTokens=\"85\"", "reasoningTokens=\"40\"");
+            assertThat(keyValues).contains(
+                    "type=\"ai_review\"",
+                    "event=\"preview\"",
+                    "adminId=\"" + ADMIN_ID + "\"",
+                    "model=\"" + MODEL + "\"",
+                    "succeeded=\"true\"",
+                    "latencyMs=\"1234\"",
+                    "inputTokens=\"1200\"",
+                    "cachedInputTokens=\"300\"",
+                    "outputTokens=\"85\"",
+                    "reasoningTokens=\"40\""
+            );
             String everything = event.getFormattedMessage() + keyValues;
-            assertThat(everything).doesNotContain(SYSTEM_PROMPT, IMAGE_URL, TOPIC_TITLE,
-                    "구도가 좋습니다.");
+            assertThat(everything).doesNotContain(
+                    SYSTEM_PROMPT,
+                    IMAGE_URL,
+                    TOPIC_TITLE,
+                    "구도가 좋습니다."
+            );
         });
     }
 
@@ -302,15 +362,41 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     }
 
     private PreviewCommand command(String model, String template) {
-        return new PreviewCommand(AiPromptType.PHOTO_REVIEW, SYSTEM_PROMPT, template, model,
-                ImageDetail.HIGH, 8000, null, null, POST_ID);
+        return new PreviewCommand(
+                AiPromptType.PHOTO_REVIEW,
+                SYSTEM_PROMPT,
+                template,
+                model,
+                ImageDetail.HIGH,
+                8000,
+                null,
+                null,
+                POST_ID
+        );
     }
 
     private AiReviewGeneration successGeneration() {
-        PhotoReviewOutput output = new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다.");
+        PhotoReviewOutput output = new PhotoReviewOutput(
+                8.72,
+                8.0,
+                "구도가 좋습니다."
+        );
         AiReviewResult result = output.toResult(7.0);
-        return new AiReviewGeneration(result, output, "{}",
-                new Attempt(new Usage(1200, 300, 85, 40), Duration.ofMillis(1234), "resp_1"));
+        return new AiReviewGeneration(
+                result,
+                output,
+                "{}",
+                new Attempt(
+                        new Usage(
+                                1200,
+                                300,
+                                85,
+                                40
+                        ),
+                        Duration.ofMillis(1234),
+                        "resp_1"
+                )
+        );
     }
 
     private void insertFixture(
@@ -327,25 +413,42 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
                 VALUES (?, 'ai-preview@example.com', 'ACTIVE', 'chalkak/test/sign.png',
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
                 """.formatted(authorDeleted ? deletedAt : "NULL"), USER_ID);
-        jdbcTemplate.update("""
-                INSERT INTO topics (id, title, topic_date, starts_at, ends_at,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, CURRENT_DATE + 301, '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
-                """.formatted(topicDeleted ? deletedAt : "NULL"), TOPIC_ID, TOPIC_TITLE);
-        jdbcTemplate.update("""
-                INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, 'chalkak/test/ai-preview/thumb.webp',
-                    CAST('{"width":1024,"height":768}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
-                """.formatted(photoDeleted ? deletedAt : "NULL"), PHOTO_ID, STORAGE_KEY);
-        jdbcTemplate.update("""
-                INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
-                    moderation_status, moderated_at, created_at, updated_at, deleted_at)
-                VALUES (?, ?, ?, ?, NULL, '미리보기 대상', CAST(? AS moderation_status),
-                    NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
-                """.formatted(postDeleted ? deletedAt : "NULL"),
-                POST_ID, USER_ID, TOPIC_ID, PHOTO_ID, status);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (id, title, topic_date, starts_at, ends_at,
+                            created_at, updated_at, deleted_at)
+                        VALUES (?, ?, CURRENT_DATE + 301, '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
+                        """
+                        .formatted(topicDeleted ? deletedAt : "NULL"),
+                TOPIC_ID,
+                TOPIC_TITLE
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at, deleted_at)
+                        VALUES (?, ?, 'chalkak/test/ai-preview/thumb.webp',
+                            CAST('{"width":1024,"height":768}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
+                        """
+                        .formatted(photoDeleted ? deletedAt : "NULL"),
+                PHOTO_ID,
+                STORAGE_KEY
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
+                            moderation_status, moderated_at, created_at, updated_at, deleted_at)
+                        VALUES (?, ?, ?, ?, NULL, '미리보기 대상', CAST(? AS moderation_status),
+                            NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
+                        """
+                        .formatted(postDeleted ? deletedAt : "NULL"),
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID,
+                status
+        );
     }
 }

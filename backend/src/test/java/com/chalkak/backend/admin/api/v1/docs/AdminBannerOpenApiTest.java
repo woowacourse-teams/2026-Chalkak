@@ -27,15 +27,30 @@ class AdminBannerOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(PATH + ".post.responses.keys()")
-                        .value(containsInAnyOrder("201", "400", "401", "403")))
+                        .value(containsInAnyOrder(
+                                "201",
+                                "400",
+                                "401",
+                                "403"
+                        )))
                 .andExpect(jsonPath(PATH + ".post.security[0].adminAccessToken").isArray())
                 .andExpect(jsonPath(PATH + ".post.parameters").doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AdminBannerRequest.required")
-                        .value(containsInAnyOrder("title", "subtitle", "webViewUrl",
-                                "thumbnailUrl")))
+                        .value(containsInAnyOrder(
+                                "title",
+                                "subtitle",
+                                "webViewUrl",
+                                "thumbnailUrl"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.BannerResponse.properties.keys()")
-                        .value(containsInAnyOrder("id", "title", "subtitle", "webViewUrl",
-                                "thumbnailUrl", "createdAt")))
+                        .value(containsInAnyOrder(
+                                "id",
+                                "title",
+                                "subtitle",
+                                "webViewUrl",
+                                "thumbnailUrl",
+                                "createdAt"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.BannerResponse.properties.id.format")
                         .value("uuid"))
                 .andExpect(jsonPath(
@@ -62,7 +77,13 @@ class AdminBannerOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(path + ".responses.keys()")
-                        .value(containsInAnyOrder("204", "400", "401", "403", "404")))
+                        .value(containsInAnyOrder(
+                                "204",
+                                "400",
+                                "401",
+                                "403",
+                                "404"
+                        )))
                 .andExpect(jsonPath(path + ".security[0].adminAccessToken").isArray())
                 .andExpect(jsonPath(path + ".parameters[*].name")
                         .value(org.hamcrest.Matchers.contains("bannerId")))

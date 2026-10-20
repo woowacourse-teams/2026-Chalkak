@@ -15,8 +15,12 @@ class PushDeviceTest {
     void updateToken_newToken_preservesFirstRegistrationTime() {
         // given
         Instant registeredAt = Instant.parse("2026-09-30T00:00:00Z");
-        PushDevice device = new PushDevice(UserFixture.create(), UUID.randomUUID(),
-                new FcmToken("first-token"), registeredAt);
+        PushDevice device = new PushDevice(
+                UserFixture.create(),
+                UUID.randomUUID(),
+                new FcmToken("first-token"),
+                registeredAt
+        );
         Instant updatedAt = registeredAt.plusSeconds(60);
         FcmToken replacement = new FcmToken("replacement-token");
 

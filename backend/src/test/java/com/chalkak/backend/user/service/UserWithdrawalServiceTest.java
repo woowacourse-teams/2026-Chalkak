@@ -151,7 +151,11 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), "apple-device-token");
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                "apple-device-token"
+        );
         SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
         UUID socialAccountId = socialAccount.getId();
         saveAuthorization(socialAccount, ENCRYPTED_REFRESH_TOKEN);
@@ -250,7 +254,8 @@ class UserWithdrawalServiceTest extends IntegrationTestSupport {
         return socialAccountRepository.save(SocialAccount.create(
                 user,
                 provider,
-                subjectHmac(provider)));
+                subjectHmac(provider)
+        ));
     }
 
     private void saveAuthorization(

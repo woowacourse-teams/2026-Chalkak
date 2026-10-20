@@ -12,6 +12,10 @@ public record AiReviewResult(
         String feedback
 ) {
 
-    public record Criterion(String key, String label, double score) {
+    public record Criterion(
+            String key,
+            String label,
+            double score
+    ) {
     }
 }

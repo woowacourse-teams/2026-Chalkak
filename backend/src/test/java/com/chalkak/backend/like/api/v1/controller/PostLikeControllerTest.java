@@ -46,7 +46,11 @@ class PostLikeControllerTest {
     void likePost_validRequest_returnsLikedResponse() throws Exception {
         // Given
         given(postLikeService.likePost(POST_ID, USER_ID))
-                .willReturn(new PostLikeResult(POST_ID, 43L, true));
+                .willReturn(new PostLikeResult(
+                        POST_ID,
+                        43L,
+                        true
+                ));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}/likes", POST_ID))
@@ -64,7 +68,11 @@ class PostLikeControllerTest {
     void unlikePost_validRequest_returnsUnlikedResponse() throws Exception {
         // Given
         given(postLikeService.unlikePost(POST_ID, USER_ID))
-                .willReturn(new PostLikeResult(POST_ID, 42L, false));
+                .willReturn(new PostLikeResult(
+                        POST_ID,
+                        42L,
+                        false
+                ));
 
         // When & Then
         mockMvc.perform(delete("/api/v1/posts/{postId}/likes", POST_ID))

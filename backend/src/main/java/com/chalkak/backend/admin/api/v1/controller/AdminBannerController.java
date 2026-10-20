@@ -32,8 +32,13 @@ public class AdminBannerController implements AdminBannerApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @RequestBody AdminBannerRequest request
     ) {
-        BannerResult result = adminBannerService.createBanner(authenticatedAdmin.adminId(),
-                request.title(), request.subtitle(), request.webViewUrl(), request.thumbnailUrl());
+        BannerResult result = adminBannerService.createBanner(
+                authenticatedAdmin.adminId(),
+                request.title(),
+                request.subtitle(),
+                request.webViewUrl(),
+                request.thumbnailUrl()
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(BannerResponse.from(result));
     }
 

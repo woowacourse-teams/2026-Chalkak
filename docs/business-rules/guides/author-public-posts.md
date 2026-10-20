@@ -1,6 +1,30 @@
 # 작성자의 공개 사진 이어보기
 
-로그인한 회원은 작성자 ID로 공개 사진을 기본 20개씩 이어서 조회하고, 사진을 선택하면 기존 게시물 상세를 조회한다. 최근 사진 조회는 [#680](https://github.com/woowacourse-teams/2026-Chalkak/issues/680), 페이지 번호 이어보기는 [#681](https://github.com/woowacourse-teams/2026-Chalkak/issues/681) 범위이며, 공개 조건은 [POST-007·POST-012](../rules/post.md)을 따른다.
+피드·상세에서 사인을 선택하면 해당 게시물의 `authorId`로 작성자의 공개 사진 목록에 진입한다. 로그인한 회원은 공개 사진을 기본 20개씩 이어서 조회하고, 사진을 선택하면 기존 게시물 상세를 조회한다. 최근 사진 조회는 [#680](https://github.com/woowacourse-teams/2026-Chalkak/issues/680), 페이지 번호 이어보기는 [#681](https://github.com/woowacourse-teams/2026-Chalkak/issues/681) 범위다. 피드·상세의 작성자 ID 제공은 [#682](https://github.com/woowacourse-teams/2026-Chalkak/issues/682) 범위이며, 공개 조건은 [POST-007·POST-012](../rules/post.md)을 따른다.
+
+## 사인 선택부터 작성자 목록 진입까지
+
+1. `GET /api/v1/posts?topicDate=2026-10-19`로 피드를 조회하거나, 로그인한 상태에서 `GET /api/v1/posts/{postId}`로 상세를 조회한다.
+2. 사인을 선택한 게시물의 `authorId`를 보관한다. 피드는 `posts[].authorId`, 상세는 최상위 `authorId`이며 사진 작성자의 UUID다. 로그인한 조회자의 ID, 게시물 `id`, 사인 이미지 URL과 구분한다.
+3. 비로그인 상태라면 먼저 로그인한 뒤 보관한 `authorId`로 목록을 연다. 피드는 비로그인도 `authorId`를 받지만 작성자 사진 목록과 상세는 로그인해야 한다. 목록 요청이 `401`이면 기존 인증 갱신·로그인 흐름을 따른다.
+4. `GET /api/v1/users/{authorId}/posts?page=1&pageSize=20`에 회원 access token을 전달해 목록을 조회한다. 이 URL의 `{authorId}` 자리는 API 정의의 `{userId}`이며, 선택한 사진 작성자의 ID로 채운다.
+5. 목록에서 사진을 선택하면 해당 항목의 `id`로 `GET /api/v1/posts/{postId}`를 호출한다. 다음 페이지는 아래 이어보기 계약을 사용한다.
+
+아래는 연결에 필요한 필드만 발췌한 예시다. 기존 피드·상세 필드와 피드의 페이지·정렬·randomSeed 계약은 그대로 유지한다.
+
+```json
+{
+  "posts": [
+    {
+      "id": "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
+      "authorId": "0198f6c1-62ba-7d30-8b12-0f733b6570a1",
+      "signatureOriginalImageUrl": "https://cdn.example.com/signatures/current.png"
+    }
+  ]
+}
+```
+
+`authorId`는 피드의 로그인 여부와 최신·인기·랜덤 정렬에 관계없이 제공한다. 서로 다른 작성자가 같은 사인 이미지를 사용해도 ID로 구분하며 사인 교체 후에도 같은 ID를 사용한다. 진입 게시물만 삭제됐다면 저장한 작성자 ID로 목록을 조회할 수 있지만, 작성자가 탈퇴하면 `404`다. 목록을 조회할 때 공개 사진이 남아 있지 않으면 `200`과 빈 목록을 받는다. 이메일 등 추가 회원 정보나 별도 프로필 응답은 제공하지 않는다.
 
 ## 목록 호출과 사진 표시
 
@@ -65,6 +89,6 @@ Authorization: Bearer {accessToken}
 
 목록 조회 후 사진이 삭제됐다면 상세 조회에서 기존 `404`가 발생할 수 있다. 오류 코드·HTTP 상태와 함께 어떤 요청이 실패했는지 구분한다. 정지된 조회자와 작성자는 탈퇴 여부 및 기존 공개 조건에 따라 조회할 수 있다.
 
-## 후속 연동 범위
+## 연동 적용 범위
 
-피드·상세 응답의 `authorId`와 사인 클릭 연결은 [#682](https://github.com/woowacourse-teams/2026-Chalkak/issues/682) 범위다. 해당 응답 필드를 현재 API가 이미 제공한다고 가정하지 않는다.
+백엔드는 작성자 ID와 공개 사진 목록·상세 API를 제공한다. 사인 터치 영역, 로그인 후 선택한 작성자로 복귀, 목록 화면과 스크롤·중복 표시 처리는 앱에서 연결한다. 이 설명서와 코드의 갱신이 운영 서버 배포 완료를 뜻하지 않으므로 실제 서버 적용 버전을 확인한 뒤 연동한다.

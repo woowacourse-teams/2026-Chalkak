@@ -61,7 +61,8 @@ public interface AdminTopicApiDocs {
     ResponseEntity<AdminTopicDetailResponse> updateTopic(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(schema = @Schema(type = "string", format = "uuid")) String topicId,
-            AdminTopicMutationRequest request);
+            AdminTopicMutationRequest request
+    );
 
     @Operation(summary = "관리자 주제 삭제")
     @ApiResponses({
@@ -73,5 +74,6 @@ public interface AdminTopicApiDocs {
     ResponseEntity<Void> deleteTopic(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(schema = @Schema(type = "string", format = "uuid")) String topicId,
-            AdminTopicDeletionRequest request);
+            AdminTopicDeletionRequest request
+    );
 }

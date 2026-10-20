@@ -44,7 +44,11 @@ class AiReviewGeneratorTest {
     void canRun_schemaMismatch_returnsFalse() {
         // Given
         AiPromptVersion version = version(SUPPORTED_MODEL);
-        ReflectionTestUtils.setField(version, "outputSchemaVersion", "0");
+        ReflectionTestUtils.setField(
+                version,
+                "outputSchemaVersion",
+                "0"
+        );
 
         // When & Then
         assertThat(generator.canRun(version)).isFalse();
@@ -62,8 +66,22 @@ class AiReviewGeneratorTest {
 
     private AiPromptVersion version(String model) {
         AiPromptDraft draft = new AiPromptDraft(
-                AiPromptType.PHOTO_REVIEW, "시스템", "주제는 {{topicTitle}}", model,
-                new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5));
-        return AiPromptVersion.create(draft, 1, null, UUID.randomUUID());
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "주제는 {{topicTitle}}",
+                model,
+                new AiPromptParameters(
+                        ImageDetail.LOW,
+                        700,
+                        ReasoningEffort.HIGH,
+                        6.5
+                )
+        );
+        return AiPromptVersion.create(
+                draft,
+                1,
+                null,
+                UUID.randomUUID()
+        );
     }
 }

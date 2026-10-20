@@ -1,6 +1,5 @@
 package com.chalkak.backend.aireview.service;
 
-import static com.chalkak.backend.aireview.service.AiReviewFixture.ADMIN_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.MODEL;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.OTHER_USER_ID;
@@ -88,8 +87,16 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("처음 요청하면 최신 프롬프트 버전을 고정한 대기 행을 만들고 처리 중으로 응답한다")
     void request_firstTime_createsQueuedRowWithLatestVersion() {
         // Given
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
-        UUID latestVersionId = fixture.insertPromptVersion(2, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
+        UUID latestVersionId = fixture.insertPromptVersion(
+                2,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
 
         // When
         ReviewResult result = service.request(AUTHOR_ID, POST_ID);
@@ -113,7 +120,11 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("요청이 새 행을 만들 때만 요청 로그를 남기고 프롬프트·이미지·주제는 남기지 않는다")
     void request_firstTime_logsRequestedEventOnce() {
         // Given
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
 
         // When
         service.request(AUTHOR_ID, POST_ID);
@@ -123,12 +134,21 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         String reviewId = jdbcTemplate.queryForObject("SELECT id FROM ai_reviews", String.class);
         assertThat(appender.list).singleElement().satisfies(event -> {
             String keyValues = event.getKeyValuePairs().toString();
-            assertThat(keyValues).contains("type=\"ai_review\"", "event=\"review_requested\"",
-                    "aiReviewId=\"" + reviewId + "\"", "postId=\"" + POST_ID + "\"",
-                    "userId=\"" + AUTHOR_ID + "\"", "promptVersion=\"1\"",
-                    "model=\"" + MODEL + "\"");
+            assertThat(keyValues).contains(
+                    "type=\"ai_review\"",
+                    "event=\"review_requested\"",
+                    "aiReviewId=\"" + reviewId + "\"",
+                    "postId=\"" + POST_ID + "\"",
+                    "userId=\"" + AUTHOR_ID + "\"",
+                    "promptVersion=\"1\"",
+                    "model=\"" + MODEL + "\""
+            );
             assertThat(keyValues + event.getFormattedMessage())
-                    .doesNotContain("시스템", "노을", "original.webp");
+                    .doesNotContain(
+                            "시스템",
+                            "노을",
+                            "original.webp"
+                    );
         });
     }
 
@@ -136,7 +156,11 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("이미 요청했으면 같은 행을 돌려주고 행도 로그도 늘리지 않는다")
     void request_secondTime_returnsSameRow() {
         // Given
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
         ReviewResult first = service.request(AUTHOR_ID, POST_ID);
         appender.list.clear();
 
@@ -154,8 +178,16 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("완료된 리뷰를 요청하면 저장된 결과를 그대로 돌려준다")
     void request_completedReview_returnsStoredResult() {
         // Given
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
-        fixture.insertCompletedReview(versionId, REQUESTED_AT, COMPLETED_AT);
+        UUID versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
+        fixture.insertCompletedReview(
+                versionId,
+                REQUESTED_AT,
+                COMPLETED_AT
+        );
 
         // When
         ReviewResult result = service.request(AUTHOR_ID, POST_ID);
@@ -165,7 +197,15 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         assertThat(result.requestedAt()).isEqualTo(REQUESTED_AT);
         assertThat(result.completedAt()).isEqualTo(COMPLETED_AT);
         assertThat(result.result()).isEqualTo(new AiReviewResult(
-                7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true, "구도가 좋습니다."));
+                7.5,
+                List.of(new Criterion(
+                        "COMPOSITION",
+                        "구도",
+                        7.5
+                )),
+                true,
+                "구도가 좋습니다."
+        ));
         assertThat(fixture.countReviews()).isEqualTo(1);
     }
 
@@ -173,8 +213,16 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("실패한 리뷰를 요청하면 다시 만들지 않고 실패 상태를 결과 없이 돌려준다")
     void request_failedReview_returnsFailedWithoutResult() {
         // Given
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
-        fixture.insertFailedReview(versionId, REQUESTED_AT, COMPLETED_AT);
+        UUID versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
+        fixture.insertFailedReview(
+                versionId,
+                REQUESTED_AT,
+                COMPLETED_AT
+        );
 
         // When
         ReviewResult result = service.request(AUTHOR_ID, POST_ID);
@@ -190,9 +238,17 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("이미 리뷰가 있으면 기능이 꺼져 있어도 기존 상태를 돌려준다")
     void request_existingReviewWhileFeatureOff_returnsExistingState() {
         // Given
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        UUID versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
         fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        fixture.insertPromptVersion(2, MODEL, "0");
+        fixture.insertPromptVersion(
+                2,
+                MODEL,
+                "0"
+        );
 
         // When
         ReviewResult result = service.request(AUTHOR_ID, POST_ID);
@@ -206,8 +262,17 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("작성자가 아니면 리뷰 존재 여부를 숨기려고 게시물이 없는 것처럼 404다")
     void request_notAuthor_throwsNotFound() {
         // Given
-        fixture.insertUser(OTHER_USER_ID, "ai-review-other@example.com", "ACTIVE", false);
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertUser(
+                OTHER_USER_ID,
+                "ai-review-other@example.com",
+                "ACTIVE",
+                false
+        );
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
 
         // When & Then
         assertThatThrownBy(() -> service.request(OTHER_USER_ID, POST_ID))
@@ -222,7 +287,11 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("없는 게시물이면 404다")
     void request_unknownPost_throwsNotFound() {
         // Given
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
 
         // When & Then
         assertThatThrownBy(() -> service.request(AUTHOR_ID, UUID.randomUUID()))
@@ -250,9 +319,23 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     ) {
         // Given
         new DatabaseCleaner(jdbcTemplate).clean();
-        fixture.insertUser(AUTHOR_ID, "ai-review-author@example.com", "ACTIVE", authorDeleted);
-        fixture.insertPost(moderationStatus, postDeleted, topicDeleted, photoDeleted);
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertUser(
+                AUTHOR_ID,
+                "ai-review-author@example.com",
+                "ACTIVE",
+                authorDeleted
+        );
+        fixture.insertPost(
+                moderationStatus,
+                postDeleted,
+                topicDeleted,
+                photoDeleted
+        );
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
 
         // When & Then
         assertThatThrownBy(() -> service.request(AUTHOR_ID, POST_ID))
@@ -275,8 +358,16 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("최신 버전의 출력 스키마가 현재와 다르면 이전 버전이 호환돼도 400이다")
     void request_latestVersionIncompatible_doesNotFallBack() {
         // Given
-        fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
-        fixture.insertPromptVersion(2, MODEL, "0");
+        fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
+        fixture.insertPromptVersion(
+                2,
+                MODEL,
+                "0"
+        );
 
         // When & Then
         assertUnavailable();
@@ -286,7 +377,11 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("최신 버전의 모델이 허용되지 않으면 400이다")
     void request_unsupportedModel_throwsBusinessException() {
         // Given
-        fixture.insertPromptVersion(1, "gpt-unsupported", COMPATIBLE_SCHEMA);
+        fixture.insertPromptVersion(
+                1,
+                "gpt-unsupported",
+                COMPATIBLE_SCHEMA
+        );
 
         // When & Then
         assertUnavailable();
@@ -307,13 +402,21 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("조회는 대기 상태를 처리 중으로 완료 상태를 결과와 함께 돌려준다")
     void get_existingReview_returnsStateByStatus() {
         // Given
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        UUID versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
         fixture.insertQueuedReview(versionId, REQUESTED_AT);
 
         // When
         ReviewResult queued = service.get(AUTHOR_ID, POST_ID);
         jdbcTemplate.update("DELETE FROM ai_reviews");
-        fixture.insertCompletedReview(versionId, REQUESTED_AT, COMPLETED_AT);
+        fixture.insertCompletedReview(
+                versionId,
+                REQUESTED_AT,
+                COMPLETED_AT
+        );
         ReviewResult completed = service.get(AUTHOR_ID, POST_ID);
 
         // Then
@@ -329,8 +432,16 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("조회는 실패 상태를 결과 없이 돌려준다")
     void get_failedReview_returnsFailed() {
         // Given
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
-        fixture.insertFailedReview(versionId, REQUESTED_AT, COMPLETED_AT);
+        UUID versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
+        fixture.insertFailedReview(
+                versionId,
+                REQUESTED_AT,
+                COMPLETED_AT
+        );
 
         // When
         ReviewResult result = service.get(AUTHOR_ID, POST_ID);
@@ -344,8 +455,17 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     @DisplayName("작성자가 아니면 리뷰가 있어도 조회는 게시물 404다")
     void get_notAuthor_throwsNotFound() {
         // Given
-        fixture.insertUser(OTHER_USER_ID, "ai-review-other@example.com", "ACTIVE", false);
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        fixture.insertUser(
+                OTHER_USER_ID,
+                "ai-review-other@example.com",
+                "ACTIVE",
+                false
+        );
+        UUID versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
         fixture.insertQueuedReview(versionId, REQUESTED_AT);
 
         // When & Then

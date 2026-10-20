@@ -82,15 +82,21 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
                     CAST('{}' AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, PHOTO_ID);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '검수 대상', CAST('PENDING' AS moderation_status),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, USER_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '검수 대상', CAST('PENDING' AS moderation_status),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
     }
 
     @AfterEach
@@ -110,11 +116,14 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
                     POST_ID,
                     ADMIN_ID,
                     ModerationStatus.APPROVED,
-                    null);
+                    null
+            );
             entityManager.flush();
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT sqs_publish_status FROM notifications WHERE source_id = ?",
-                    String.class, POST_ID)).isEqualTo("PENDING");
+                    String.class,
+                    POST_ID
+            )).isEqualTo("PENDING");
             throw new IllegalStateException("검수 트랜잭션 롤백");
         })).isInstanceOf(IllegalStateException.class);
 
@@ -122,15 +131,18 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT CAST(moderation_status AS TEXT) FROM posts WHERE id = ?",
                 String.class,
-                POST_ID)).isEqualTo("PENDING");
+                POST_ID
+        )).isEqualTo("PENDING");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
                 Integer.class,
-                POST_ID)).isZero();
+                POST_ID
+        )).isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE source_type = 'POST' AND source_id = ?",
                 Integer.class,
-                POST_ID)).isZero();
+                POST_ID
+        )).isZero();
     }
 
     @Test
@@ -138,23 +150,37 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
     void moderate_committedTransaction_persistsPublicationWithPostAndAudit() {
         // When
         AdminPostModerationResult result = adminPostCommandService.moderate(
-                POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        );
 
         // Then
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT CAST(moderation_status AS TEXT) FROM posts WHERE id = ?",
-                String.class, POST_ID)).isEqualTo("APPROVED");
+                String.class,
+                POST_ID
+        )).isEqualTo("APPROVED");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
-                Integer.class, POST_ID)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM notifications WHERE source_id = ?
-                    AND sqs_publish_status = 'PENDING' AND next_attempt_at = created_at
-                    AND sqs_published_at IS NULL
-                """, Integer.class, POST_ID)).isEqualTo(1);
+                Integer.class,
+                POST_ID
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM notifications WHERE source_id = ?
+                            AND sqs_publish_status = 'PENDING' AND next_attempt_at = created_at
+                            AND sqs_published_at IS NULL
+                        """,
+                Integer.class,
+                POST_ID
+        )).isEqualTo(1);
         Instant createdAt = jdbcTemplate.queryForObject(
                 "SELECT created_at FROM notifications WHERE source_id = ?",
-                (row, rowNum) -> row.getTimestamp(1).toInstant(), POST_ID);
+                (row, rowNum) -> row.getTimestamp(1).toInstant(),
+                POST_ID
+        );
         assertThat(createdAt).isCloseTo(result.moderatedAt(), within(1, ChronoUnit.MICROS));
     }
 
@@ -166,11 +192,18 @@ class AdminPostNotificationTransactionTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(() -> notificationService.createForModeration(
-                post, UUID.randomUUID(), ModerationStatus.APPROVED, null, Instant.now()))
+                post,
+                UUID.randomUUID(),
+                ModerationStatus.APPROVED,
+                null,
+                Instant.now()
+        ))
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE source_type = 'POST' AND source_id = ?",
-                Integer.class, POST_ID)).isZero();
+                Integer.class,
+                POST_ID
+        )).isZero();
     }
 
     private void clean() {

@@ -203,32 +203,42 @@ class UserRefreshTokenConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void insertRefreshToken(String token, Instant rotatedAt) {
-        jdbcTemplate.update("""
-                INSERT INTO user_refresh_tokens (
-                    user_id, session_id, token_hash,
-                    expires_at, absolute_expires_at, rotated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO user_refresh_tokens (
+                            user_id, session_id, token_hash,
+                            expires_at, absolute_expires_at, rotated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
                 USER_ID,
                 SESSION_ID,
                 refreshTokenHasher.encode(token),
                 Timestamp.from(NOW.plus(Duration.ofDays(30))),
                 Timestamp.from(NOW.plus(Duration.ofDays(90))),
-                (rotatedAt == null) ? null : Timestamp.from(rotatedAt));
+                (rotatedAt == null) ? null : Timestamp.from(rotatedAt)
+        );
     }
 
     private int countLiveTokens() {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE session_id = ? AND revoked_at IS NULL
-                """, Integer.class, SESSION_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE session_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                SESSION_ID
+        );
     }
 
     private int countRevokedTokens() {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE session_id = ? AND revoked_at IS NOT NULL
-                """, Integer.class, SESSION_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE session_id = ? AND revoked_at IS NOT NULL
+                        """,
+                Integer.class,
+                SESSION_ID
+        );
     }
 
     private void cleanUp() {

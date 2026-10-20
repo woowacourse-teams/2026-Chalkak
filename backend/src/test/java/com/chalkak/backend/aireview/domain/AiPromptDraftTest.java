@@ -13,7 +13,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class AiPromptDraftTest {
 
-    private static final AiPromptParameters PARAMETERS = new AiPromptParameters(null, 500, null, null);
+    private static final AiPromptParameters PARAMETERS = new AiPromptParameters(
+            null,
+            500,
+            null,
+            null
+    );
 
     @Test
     @DisplayName("생성_허용된 topicTitle 변수만 쓰면_성공한다")
@@ -139,7 +144,8 @@ class AiPromptDraftTest {
                 "사진을 평가한다.",
                 "주제: {{topicTitle}}",
                 model,
-                PARAMETERS))
+                PARAMETERS
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -149,6 +155,7 @@ class AiPromptDraftTest {
                 systemPrompt,
                 template,
                 "gpt-5-mini",
-                PARAMETERS);
+                PARAMETERS
+        );
     }
 }

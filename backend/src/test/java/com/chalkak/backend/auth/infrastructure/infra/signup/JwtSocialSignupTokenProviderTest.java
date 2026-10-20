@@ -46,7 +46,8 @@ class JwtSocialSignupTokenProviderTest {
         VerifiedSocialIdentity identity = new VerifiedSocialIdentity(
                 SocialProvider.GOOGLE,
                 SUBJECT,
-                "user@chalkak.test");
+                "user@chalkak.test"
+        );
         UUID uploadId = UUID.randomUUID();
 
         // When
@@ -75,7 +76,8 @@ class JwtSocialSignupTokenProviderTest {
         VerifiedSocialIdentity identity = new VerifiedSocialIdentity(
                 SocialProvider.APPLE,
                 "apple-subject",
-                "user@privaterelay.appleid.com");
+                "user@privaterelay.appleid.com"
+        );
         UUID uploadId = UUID.randomUUID();
 
         // When
@@ -124,7 +126,8 @@ class JwtSocialSignupTokenProviderTest {
         VerifiedSocialIdentity identity = new VerifiedSocialIdentity(
                 SocialProvider.GOOGLE,
                 SUBJECT,
-                null);
+                null
+        );
 
         // When
         IssuedSocialSignupToken issuedToken = provider.issue(
@@ -179,7 +182,8 @@ class JwtSocialSignupTokenProviderTest {
                 clock,
                 "other-backend",
                 "chalkak-social-signup",
-                SECRET);
+                SECRET
+        );
         String token = issuer.issue(identity(), UUID.randomUUID()).value();
         JwtSocialSignupTokenProvider verifier = createProvider(clock);
 
@@ -196,7 +200,8 @@ class JwtSocialSignupTokenProviderTest {
                 clock,
                 "chalkak-backend",
                 "other-audience",
-                SECRET);
+                SECRET
+        );
         String token = issuer.issue(identity(), UUID.randomUUID()).value();
         JwtSocialSignupTokenProvider verifier = createProvider(clock);
 
@@ -255,7 +260,8 @@ class JwtSocialSignupTokenProviderTest {
                 "SOCIAL_SIGNUP",
                 true,
                 null,
-                NOW.plus(Duration.ofMinutes(30)));
+                NOW.plus(Duration.ofMinutes(30))
+        );
 
         // When & Then
         assertInvalidSignupToken(() -> provider.verify(token));
@@ -272,7 +278,8 @@ class JwtSocialSignupTokenProviderTest {
                 "SOCIAL_SIGNUP",
                 true,
                 NOW,
-                null);
+                null
+        );
 
         // When & Then
         assertInvalidSignupToken(() -> provider.verify(token));
@@ -289,7 +296,8 @@ class JwtSocialSignupTokenProviderTest {
                 "SOCIAL_SIGNUP",
                 true,
                 NOW.plusSeconds(31),
-                NOW.plus(Duration.ofMinutes(30)));
+                NOW.plus(Duration.ofMinutes(30))
+        );
 
         // When & Then
         assertInvalidSignupToken(() -> provider.verify(token));
@@ -300,7 +308,8 @@ class JwtSocialSignupTokenProviderTest {
                 clock,
                 "chalkak-backend",
                 "chalkak-social-signup",
-                SECRET);
+                SECRET
+        );
     }
 
     private JwtSocialSignupTokenProvider createProvider(
@@ -314,7 +323,8 @@ class JwtSocialSignupTokenProviderTest {
                         issuer,
                         audience,
                         Duration.ofMinutes(5),
-                        secret),
+                        secret
+                ),
                 clock);
     }
 
@@ -322,7 +332,8 @@ class JwtSocialSignupTokenProviderTest {
         return new VerifiedSocialIdentity(
                 SocialProvider.GOOGLE,
                 SUBJECT,
-                "user@chalkak.test");
+                "user@chalkak.test"
+        );
     }
 
     private String createSignedToken(String purpose, boolean includeUploadId) {
@@ -330,7 +341,8 @@ class JwtSocialSignupTokenProviderTest {
                 purpose,
                 includeUploadId,
                 NOW,
-                NOW.plus(Duration.ofMinutes(30)));
+                NOW.plus(Duration.ofMinutes(30))
+        );
     }
 
     private String createSignedToken(
@@ -344,7 +356,8 @@ class JwtSocialSignupTokenProviderTest {
                 includeUploadId,
                 issuedAt,
                 expiresAt,
-                SocialProvider.GOOGLE);
+                SocialProvider.GOOGLE
+        );
     }
 
     private String createSignedToken(

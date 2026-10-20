@@ -68,14 +68,30 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     void deleteUnusableTokens_unusableUserTokens_deletesOnlyThose() {
         // given
         User user = saveUser();
-        String absolutelyExpired = saveUserToken(user, NOW.minusSeconds(1), null, null);
+        String absolutelyExpired = saveUserToken(
+                user,
+                NOW.minusSeconds(1),
+                null,
+                null
+        );
         String longRevoked = saveUserToken(
                 user,
                 FAR_FUTURE,
                 null,
-                REVOKED_THRESHOLD.minusSeconds(1));
-        String live = saveUserToken(user, FAR_FUTURE, null, null);
-        String justRevoked = saveUserToken(user, FAR_FUTURE, null, NOW.minusSeconds(1));
+                REVOKED_THRESHOLD.minusSeconds(1)
+        );
+        String live = saveUserToken(
+                user,
+                FAR_FUTURE,
+                null,
+                null
+        );
+        String justRevoked = saveUserToken(
+                user,
+                FAR_FUTURE,
+                null,
+                NOW.minusSeconds(1)
+        );
 
         // when
         refreshTokenCleanupScheduler.deleteUnusableTokens();
@@ -93,7 +109,12 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     void deleteUnusableTokens_rotatedButNotAbsolutelyExpired_keepsReuseEvidence() {
         // given
         User user = saveUser();
-        String rotated = saveUserToken(user, FAR_FUTURE, NOW.minus(Duration.ofDays(40)), null);
+        String rotated = saveUserToken(
+                user,
+                FAR_FUTURE,
+                NOW.minus(Duration.ofDays(40)),
+                null
+        );
 
         // when
         refreshTokenCleanupScheduler.deleteUnusableTokens();
@@ -108,8 +129,18 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     void deleteUnusableTokens_tokensExactlyOnBoundary_areKept() {
         // given
         User user = saveUser();
-        String expiringNow = saveUserToken(user, NOW, null, null);
-        String revokedOnThreshold = saveUserToken(user, FAR_FUTURE, null, REVOKED_THRESHOLD);
+        String expiringNow = saveUserToken(
+                user,
+                NOW,
+                null,
+                null
+        );
+        String revokedOnThreshold = saveUserToken(
+                user,
+                FAR_FUTURE,
+                null,
+                REVOKED_THRESHOLD
+        );
 
         // when
         refreshTokenCleanupScheduler.deleteUnusableTokens();
@@ -125,15 +156,36 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
     void deleteUnusableTokens_unusableAdminTokens_deletesOnlyThose() {
         // given
         Admin admin = saveAdmin();
-        String absolutelyExpired = saveAdminToken(admin, NOW.minusSeconds(1), null, null);
+        String absolutelyExpired = saveAdminToken(
+                admin,
+                NOW.minusSeconds(1),
+                null,
+                null
+        );
         String longRevoked = saveAdminToken(
                 admin,
                 FAR_FUTURE,
                 null,
-                REVOKED_THRESHOLD.minusSeconds(1));
-        String live = saveAdminToken(admin, FAR_FUTURE, null, null);
-        String justRevoked = saveAdminToken(admin, FAR_FUTURE, null, NOW.minusSeconds(1));
-        String rotated = saveAdminToken(admin, FAR_FUTURE, NOW.minus(Duration.ofDays(40)), null);
+                REVOKED_THRESHOLD.minusSeconds(1)
+        );
+        String live = saveAdminToken(
+                admin,
+                FAR_FUTURE,
+                null,
+                null
+        );
+        String justRevoked = saveAdminToken(
+                admin,
+                FAR_FUTURE,
+                null,
+                NOW.minusSeconds(1)
+        );
+        String rotated = saveAdminToken(
+                admin,
+                FAR_FUTURE,
+                NOW.minus(Duration.ofDays(40)),
+                null
+        );
 
         // when
         refreshTokenCleanupScheduler.deleteUnusableTokens();
@@ -160,8 +212,13 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
                 sessionId,
                 tokenHash,
                 expiresAt(absoluteExpiresAt, rotatedAt),
-                absoluteExpiresAt);
-        applyLifecycle(refreshToken, rotatedAt, revokedAt);
+                absoluteExpiresAt
+        );
+        applyLifecycle(
+                refreshToken,
+                rotatedAt,
+                revokedAt
+        );
         userRefreshTokenRepository.save(refreshToken);
         flushAndClear();
         return tokenHash;
@@ -179,8 +236,13 @@ class RefreshTokenCleanupSchedulerTest extends IntegrationTestSupport {
                 UUID.randomUUID(),
                 tokenHash,
                 expiresAt(absoluteExpiresAt, rotatedAt),
-                absoluteExpiresAt);
-        applyLifecycle(refreshToken, rotatedAt, revokedAt);
+                absoluteExpiresAt
+        );
+        applyLifecycle(
+                refreshToken,
+                rotatedAt,
+                revokedAt
+        );
         adminRefreshTokenRepository.save(refreshToken);
         flushAndClear();
         return tokenHash;

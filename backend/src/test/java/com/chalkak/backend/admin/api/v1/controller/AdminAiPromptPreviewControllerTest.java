@@ -66,10 +66,27 @@ class AdminAiPromptPreviewControllerTest {
     @DisplayName("성공 결과는 200과 변환 결과 원본 점수 사용량을 직렬화한다")
     void preview_succeeded_serializesOutcome() throws Exception {
         // Given
-        PhotoReviewOutput output = new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다.");
+        PhotoReviewOutput output = new PhotoReviewOutput(
+                8.72,
+                8.0,
+                "구도가 좋습니다."
+        );
         AiReviewResult result = output.toResult(7.0);
         given(previewService.preview(eq(ADMIN_ID), any())).willReturn(new PreviewResult(
-                true, null, null, result, output, new Usage(1200, 300, 85, 40), 1234L, "resp_1"));
+                true,
+                null,
+                null,
+                result,
+                output,
+                new Usage(
+                        1200,
+                        300,
+                        85,
+                        40
+                ),
+                1234L,
+                "resp_1"
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(validBody()))
@@ -98,7 +115,15 @@ class AdminAiPromptPreviewControllerTest {
     void preview_failed_serializesFailureOutcome() throws Exception {
         // Given
         given(previewService.preview(eq(ADMIN_ID), any())).willReturn(new PreviewResult(
-                false, FailureType.TIMEOUT, true, null, null, null, null, null));
+                false,
+                FailureType.TIMEOUT,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(validBody()))
@@ -116,7 +141,15 @@ class AdminAiPromptPreviewControllerTest {
     void preview_validRequest_passesCommandToService() throws Exception {
         // Given
         given(previewService.preview(eq(ADMIN_ID), any())).willReturn(new PreviewResult(
-                false, FailureType.TIMEOUT, true, null, null, null, null, null));
+                false,
+                FailureType.TIMEOUT,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
 
         // When
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content("""
@@ -129,8 +162,16 @@ class AdminAiPromptPreviewControllerTest {
 
         // Then
         verify(previewService).preview(ADMIN_ID, new PreviewCommand(
-                AiPromptType.PHOTO_REVIEW, "시스템", "{{topicTitle}}", "gpt-6.1-sol",
-                ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5, POST_ID));
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "{{topicTitle}}",
+                "gpt-6.1-sol",
+                ImageDetail.LOW,
+                700,
+                ReasoningEffort.HIGH,
+                6.5,
+                POST_ID
+        ));
     }
 
     @Test
@@ -138,7 +179,15 @@ class AdminAiPromptPreviewControllerTest {
     void preview_withoutParameters_isAccepted() throws Exception {
         // Given
         given(previewService.preview(eq(ADMIN_ID), any())).willReturn(new PreviewResult(
-                false, FailureType.TIMEOUT, true, null, null, null, null, null));
+                false,
+                FailureType.TIMEOUT,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(validBody()))
@@ -176,7 +225,15 @@ class AdminAiPromptPreviewControllerTest {
     void preview_maxLengthSystemPrompt_isAccepted() throws Exception {
         // Given
         given(previewService.preview(eq(ADMIN_ID), any())).willReturn(new PreviewResult(
-                false, FailureType.TIMEOUT, true, null, null, null, null, null));
+                false,
+                FailureType.TIMEOUT,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(

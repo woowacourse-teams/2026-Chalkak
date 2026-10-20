@@ -31,8 +31,10 @@ import org.springframework.stereotype.Service;
 /**
  * 저장하지 않은 프롬프트 초안을 공개 게시물에 실행해 보는 관리자 미리보기.
  *
- * <p>OpenAI 호출은 수십 초가 걸릴 수 있으므로 이 클래스는 트랜잭션을 열지 않는다. 게시물 조회는 필요한 연관을 fetch join으로 한 번에
- * 읽어 오므로 OpenAI를 호출하는 동안 DB 연결을 잡고 있지 않다. 아무것도 저장하지 않으며 OpenAI 실패는 예외가 아니라 결과로 돌려준다.
+ * <p>
+ * OpenAI 호출은 수십 초가 걸릴 수 있으므로 이 클래스는 트랜잭션을 열지 않는다. 게시물 조회는 필요한 연관을 fetch join으로
+ * 한 번에 읽어 오므로 OpenAI를 호출하는 동안 DB 연결을 잡고 있지 않다. 아무것도 저장하지 않으며 OpenAI 실패는 예외가 아니라
+ * 결과로 돌려준다.
  */
 @Service
 @RequiredArgsConstructor
@@ -52,7 +54,11 @@ public class AdminAiPromptPreviewService {
         AiReviewGenerationRequest request = requestFactory.create(draft, post);
 
         PreviewResult result = generate(request);
-        logPreview(adminId, draft.model(), result);
+        logPreview(
+                adminId,
+                draft.model(),
+                result
+        );
         return result;
     }
 
@@ -74,7 +80,9 @@ public class AdminAiPromptPreviewService {
                         command.imageDetail(),
                         command.maxOutputTokens(),
                         command.reasoningEffort(),
-                        command.distinctivePerspectiveThreshold()));
+                        command.distinctivePerspectiveThreshold()
+                )
+        );
     }
 
     private void validateModel(String model) {
@@ -100,7 +108,11 @@ public class AdminAiPromptPreviewService {
      * 프롬프트·이미지 URL·주제·피드백은 남기지 않고 값이 있는 항목만 한 줄로 기록한다. OpenAI를 호출한 요청만 기록하며
      * 400/404로 거절한 요청은 기록하지 않는다.
      */
-    private void logPreview(UUID adminId, String model, PreviewResult result) {
+    private void logPreview(
+            UUID adminId,
+            String model,
+            PreviewResult result
+    ) {
         LoggingEventBuilder event = AI_REVIEW_LOG.atInfo()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
                 .addKeyValue(LogFields.EVENT, "preview")
@@ -115,15 +127,35 @@ public class AdminAiPromptPreviewService {
         }
         Usage usage = result.usage();
         if (usage != null) {
-            event = addIfPresent(event, "inputTokens", usage.inputTokens());
-            event = addIfPresent(event, "cachedInputTokens", usage.cachedInputTokens());
-            event = addIfPresent(event, "outputTokens", usage.outputTokens());
-            event = addIfPresent(event, "reasoningTokens", usage.reasoningTokens());
+            event = addIfPresent(
+                    event,
+                    "inputTokens",
+                    usage.inputTokens()
+            );
+            event = addIfPresent(
+                    event,
+                    "cachedInputTokens",
+                    usage.cachedInputTokens()
+            );
+            event = addIfPresent(
+                    event,
+                    "outputTokens",
+                    usage.outputTokens()
+            );
+            event = addIfPresent(
+                    event,
+                    "reasoningTokens",
+                    usage.reasoningTokens()
+            );
         }
         event.log("AI 프롬프트 미리보기");
     }
 
-    private LoggingEventBuilder addIfPresent(LoggingEventBuilder event, String key, Integer value) {
+    private LoggingEventBuilder addIfPresent(
+            LoggingEventBuilder event,
+            String key,
+            Integer value
+    ) {
         if (value == null) {
             return event;
         }
@@ -167,7 +199,8 @@ public class AdminAiPromptPreviewService {
                     generation.output(),
                     attempt.usage(),
                     attempt.latency().toMillis(),
-                    attempt.responseId());
+                    attempt.responseId()
+            );
         }
 
         private static PreviewResult fromFailure(AiReviewGenerationException exception) {
@@ -180,7 +213,8 @@ public class AdminAiPromptPreviewService {
                     null,
                     attempt == null ? null : attempt.usage(),
                     attempt == null ? null : attempt.latency().toMillis(),
-                    attempt == null ? null : attempt.responseId());
+                    attempt == null ? null : attempt.responseId()
+            );
         }
     }
 }

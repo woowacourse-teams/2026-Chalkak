@@ -13,7 +13,8 @@ public record AccessTokenProperties(
         @NotBlank String issuer,
         @NotBlank String audience,
         @NotNull Duration expiration,
-        @NotBlank @Pattern(regexp = "[0-9a-fA-F]{64}") String secret) {
+        @NotBlank @Pattern(regexp = "[0-9a-fA-F]{64}") String secret
+) {
 
     public AccessTokenProperties {
         if (expiration != null && !expiration.isPositive()) {

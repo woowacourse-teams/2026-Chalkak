@@ -45,23 +45,47 @@ public class AdminAiPromptVersionService {
         promptVersionRepository.lockType(draft.type());
         int version = promptVersionRepository.findMaxVersion(draft.type()) + 1;
         AiPromptVersion saved = promptVersionRepository.save(
-                AiPromptVersion.create(draft, version, command.memo(), adminId));
+                AiPromptVersion.create(
+                        draft,
+                        version,
+                        command.memo(),
+                        adminId
+                ));
         auditLogService.createAuditLog(new AdminAuditLogCommand(
-                adminId, AdminAction.AI_PROMPT_VERSION_CREATED, AdminTargetType.AI_PROMPT_VERSION,
-                saved.getId(), null, AdminAuditSnapshot.from(Map.of()),
-                AdminAuditSnapshot.from(Map.of("type", saved.getType(), "version", version))));
+                adminId,
+                AdminAction.AI_PROMPT_VERSION_CREATED,
+                AdminTargetType.AI_PROMPT_VERSION,
+                saved.getId(),
+                null,
+                AdminAuditSnapshot.from(Map.of()),
+                AdminAuditSnapshot.from(Map.of(
+                        "type",
+                        saved.getType(),
+                        "version",
+                        version
+                ))
+        ));
         return VersionResult.from(saved);
     }
 
     @Transactional(readOnly = true)
-    public VersionListResult getVersions(AiPromptType type, int page, int pageSize) {
+    public VersionListResult getVersions(
+            AiPromptType type,
+            int page,
+            int pageSize
+    ) {
         validatePagination(page, pageSize);
-        AiPromptVersionPage versions = promptVersionRepository.findByType(type, page, pageSize);
+        AiPromptVersionPage versions = promptVersionRepository.findByType(
+                type,
+                page,
+                pageSize
+        );
         return new VersionListResult(
                 versions.currentPage(),
                 versions.pageSize(),
                 versions.hasNext(),
-                versions.items().stream().map(VersionSummary::from).toList());
+                versions.items().stream().map(VersionSummary::from).toList()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -82,7 +106,9 @@ public class AdminAiPromptVersionService {
                         command.imageDetail(),
                         command.maxOutputTokens(),
                         command.reasoningEffort(),
-                        command.distinctivePerspectiveThreshold()));
+                        command.distinctivePerspectiveThreshold()
+                )
+        );
     }
 
     private void validatePagination(int page, int pageSize) {
@@ -140,7 +166,8 @@ public class AdminAiPromptVersionService {
                     promptVersion.getOutputSchemaVersion(),
                     promptVersion.getMemo(),
                     promptVersion.getCreatedByAdminId(),
-                    promptVersion.getCreatedAt());
+                    promptVersion.getCreatedAt()
+            );
         }
     }
 
@@ -170,7 +197,8 @@ public class AdminAiPromptVersionService {
                     promptVersion.getOutputSchemaVersion(),
                     promptVersion.getMemo(),
                     promptVersion.getCreatedByAdminId(),
-                    promptVersion.getCreatedAt());
+                    promptVersion.getCreatedAt()
+            );
         }
     }
 }

@@ -75,7 +75,10 @@ class FeedbackRepositoryTest {
 
         // Then
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM feedbacks WHERE user_id = ?", Long.class, USER_ID);
+                "SELECT COUNT(*) FROM feedbacks WHERE user_id = ?",
+                Long.class,
+                USER_ID
+        );
         assertThat(count).isEqualTo(2L);
     }
 }

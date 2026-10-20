@@ -44,7 +44,8 @@ public class AdminUserController implements AdminUserApiDocs {
                 request.email(),
                 request.sort(),
                 request.page(),
-                request.pageSize());
+                request.pageSize()
+        );
         return ResponseEntity.ok(AdminUserListResponse.from(result));
     }
 
@@ -70,7 +71,8 @@ public class AdminUserController implements AdminUserApiDocs {
                 CanonicalUuidParser.parse(userId),
                 authenticatedAdmin.adminId(),
                 request.status(),
-                request.reason());
+                request.reason()
+        );
         return ResponseEntity.ok(AdminUserStatusResponse.from(result));
     }
 }

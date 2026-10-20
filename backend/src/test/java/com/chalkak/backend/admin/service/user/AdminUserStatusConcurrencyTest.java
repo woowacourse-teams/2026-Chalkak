@@ -69,9 +69,17 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
     void updateStatus_concurrentBan_changesExactlyOnce() throws Exception {
         // Given
         Callable<AdminUserStatusResult> first = () -> adminUserStatusService.updateStatus(
-                USER_ID, FIRST_ADMIN_ID, UserStatus.BANNED, "첫 번째 차단 요청");
+                USER_ID,
+                FIRST_ADMIN_ID,
+                UserStatus.BANNED,
+                "첫 번째 차단 요청"
+        );
         Callable<AdminUserStatusResult> second = () -> adminUserStatusService.updateStatus(
-                USER_ID, SECOND_ADMIN_ID, UserStatus.BANNED, "두 번째 차단 요청");
+                USER_ID,
+                SECOND_ADMIN_ID,
+                UserStatus.BANNED,
+                "두 번째 차단 요청"
+        );
 
         // When
         List<StatusAttempt> attempts = runConcurrently(first, second);
@@ -96,7 +104,8 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
                         USER_ID,
                         UNKNOWN_ADMIN_ID,
                         UserStatus.BANNED,
-                        "외래키 실패 검증")));
+                        "외래키 실패 검증"
+                )));
 
         // Then
         assertThat(exception).isInstanceOf(DataIntegrityViolationException.class);
@@ -138,21 +147,27 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT CAST(status AS TEXT) FROM users WHERE id = ?",
                 String.class,
-                USER_ID);
+                USER_ID
+        );
     }
 
     private int countAuditLogs() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
                 Integer.class,
-                USER_ID);
+                USER_ID
+        );
     }
 
     private void insertAdmin(UUID id, String username) {
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, id, username);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                id,
+                username
+        );
     }
 
     private void cleanUp() {
@@ -162,7 +177,8 @@ class AdminUserStatusConcurrencyTest extends IntegrationTestSupport {
                 "DELETE FROM admins WHERE id IN (?, ?, ?)",
                 FIRST_ADMIN_ID,
                 SECOND_ADMIN_ID,
-                UNKNOWN_ADMIN_ID);
+                UNKNOWN_ADMIN_ID
+        );
     }
 
     private record StatusAttempt(

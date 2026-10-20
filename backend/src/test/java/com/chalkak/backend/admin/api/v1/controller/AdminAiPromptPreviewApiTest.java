@@ -83,10 +83,26 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
     void preview_adminToken_returnsOutcome() throws Exception {
         // Given
         insertApprovedPost();
-        PhotoReviewOutput output = new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다.");
+        PhotoReviewOutput output = new PhotoReviewOutput(
+                8.72,
+                8.0,
+                "구도가 좋습니다."
+        );
         given(aiReviewGenerator.generate(any())).willReturn(new AiReviewGeneration(
-                output.toResult(7.0), output, "{}",
-                new Attempt(new Usage(1200, null, 85, null), Duration.ofMillis(10), "resp_1")));
+                output.toResult(7.0),
+                output,
+                "{}",
+                new Attempt(
+                        new Usage(
+                                1200,
+                                null,
+                                85,
+                                null
+                        ),
+                        Duration.ofMillis(10),
+                        "resp_1"
+                )
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH)
@@ -130,7 +146,8 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
         return """
                 {"type":"PHOTO_REVIEW","systemPrompt":"시스템","userPromptTemplate":"주제: {{topicTitle}}",
                  "model":"%s","postId":"%s"}
-                """.formatted(model, postId);
+                """
+                .formatted(model, postId);
     }
 
     private void insertApprovedPost() {
@@ -140,11 +157,13 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
                 VALUES (?, 'ai-preview-api@example.com', 'ACTIVE', 'chalkak/test/sign.png',
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, USER_ID);
-        jdbcTemplate.update("""
-                INSERT INTO topics (id, title, topic_date, starts_at, ends_at, created_at, updated_at)
-                VALUES (?, '노을', CURRENT_DATE + 302, '2026-10-01T00:00:00Z',
-                    '2026-10-02T00:00:00Z', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, TOPIC_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (id, title, topic_date, starts_at, ends_at, created_at, updated_at)
+                        VALUES (?, '노을', CURRENT_DATE + 302, '2026-10-01T00:00:00Z',
+                            '2026-10-02T00:00:00Z', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                TOPIC_ID);
         jdbcTemplate.update("""
                 INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
                     created_at, updated_at)
@@ -153,11 +172,17 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
                     CAST('{"width":1024,"height":768}' AS jsonb),
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, PHOTO_ID);
-        jdbcTemplate.update("""
-                INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
-                    moderation_status, moderated_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, NULL, '미리보기 대상', 'APPROVED', NULL,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, POST_ID, USER_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
+                            moderation_status, moderated_at, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, NULL, '미리보기 대상', 'APPROVED', NULL,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
     }
 }

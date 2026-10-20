@@ -21,7 +21,8 @@ public record AdminUserDetailResponse(
         Instant createdAt,
         Instant updatedAt,
         @Schema(nullable = true)
-        Instant deletedAt) {
+        Instant deletedAt
+) {
 
     public static AdminUserDetailResponse from(AdminUserDetail user) {
         return new AdminUserDetailResponse(
@@ -34,7 +35,8 @@ public record AdminUserDetailResponse(
                 AdminUserPostCountsResponse.from(user.postCounts()),
                 user.createdAt(),
                 user.updatedAt(),
-                user.deletedAt());
+                user.deletedAt()
+        );
     }
 
     @Schema(name = "AdminUserSignature")

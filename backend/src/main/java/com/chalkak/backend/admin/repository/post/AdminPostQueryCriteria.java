@@ -12,5 +12,6 @@ public record AdminPostQueryCriteria(
         UUID userId,
         Instant createdAtFrom,
         Instant createdAtTo,
-        AdminPostSort sort) {
+        AdminPostSort sort
+) {
 }

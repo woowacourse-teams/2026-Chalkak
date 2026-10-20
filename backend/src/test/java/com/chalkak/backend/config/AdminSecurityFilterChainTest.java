@@ -142,7 +142,11 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
     @ParameterizedTest
     @MethodSource("protectedAdminMemberEndpoints")
     @DisplayName("모든 관리자 API는 회원을 거절하고 주제 푸시 설정·공지는 정상·정지·탈퇴 회원을 거절한다")
-    void adminEndpoints_memberState_returnsForbidden(String method, String path, String state)
+    void adminEndpoints_memberState_returnsForbidden(
+            String method,
+            String path,
+            String state
+    )
             throws Exception {
         // Given
         String token = createMemberToken(state);
@@ -171,7 +175,11 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                         {"metricDate":"2030-01-02"}
                         """))
                 .andExpect(status().isAccepted());
-        then(aggregationRunner).should().start(adminId, LocalDate.of(2030, 1, 2));
+        then(aggregationRunner).should().start(adminId, LocalDate.of(
+                2030,
+                1,
+                2
+        ));
     }
 
     @Test
@@ -277,13 +285,19 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
         if (state.equals("WITHDRAWN")) {
             userStatus = "ACTIVE";
         }
-        jdbcTemplate.update("""
-                INSERT INTO users (id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
-                """, userId, userId + "@security.test", userStatus, userId + "/signature.png",
-                state);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (id, email, status, signature_original_storage_key,
+                            created_at, updated_at, deleted_at)
+                        VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                            CASE WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP ELSE NULL END)
+                        """,
+                userId,
+                userId + "@security.test",
+                userStatus,
+                userId + "/signature.png",
+                state
+        );
         return accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
     }
 
@@ -296,9 +310,13 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     private void assertScheduleAuditActor(UUID adminId, String action) {
         entityManager.flush();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT actor_admin_id FROM admin_audit_logs WHERE action = CAST(? AS admin_action)
-                """, UUID.class, action)).isEqualTo(adminId);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT actor_admin_id FROM admin_audit_logs WHERE action = CAST(? AS admin_action)
+                        """,
+                UUID.class,
+                action
+        )).isEqualTo(adminId);
     }
 
     private IssuedTokens login(UUID adminId, String username) throws Exception {
@@ -355,7 +373,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/notices"),
                 Arguments.of("GET", "/api/v1/admin/notices/" + id),
                 Arguments.of("PUT", "/api/v1/admin/notices/" + id),
-                Arguments.of("DELETE", "/api/v1/admin/notices/" + id));
+                Arguments.of("DELETE", "/api/v1/admin/notices/" + id)
+        );
     }
 
     private static List<Arguments> protectedAdminMemberEndpoints() {
@@ -369,10 +388,18 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                     || path.startsWith("/api/v1/admin/ai-prompt-versions")
                     || path.startsWith("/api/v1/admin/notices")
                     || path.startsWith("/api/v1/admin/banners")) {
-                states = List.of("ACTIVE", "BANNED", "WITHDRAWN");
+                states = List.of(
+                        "ACTIVE",
+                        "BANNED",
+                        "WITHDRAWN"
+                );
             }
             for (String state : states) {
-                cases.add(Arguments.of(values[0], values[1], state));
+                cases.add(Arguments.of(
+                        values[0],
+                        values[1],
+                        state
+                ));
             }
         }
         return cases;

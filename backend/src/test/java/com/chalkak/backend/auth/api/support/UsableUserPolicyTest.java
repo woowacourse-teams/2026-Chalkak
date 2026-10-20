@@ -122,7 +122,8 @@ class UsableUserPolicyTest {
         Authentication anonymous = new AnonymousAuthenticationToken(
                 "key",
                 "anonymousUser",
-                List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS")));
+                List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
+        );
 
         // When & Then
         assertThatThrownBy(() -> policy.validateUsable(anonymous))

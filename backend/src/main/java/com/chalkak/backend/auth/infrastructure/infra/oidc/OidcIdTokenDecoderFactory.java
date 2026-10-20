@@ -58,13 +58,19 @@ final class OidcIdTokenDecoderFactory {
         DefaultResourceRetriever resourceRetriever = new DefaultResourceRetriever(
                 JWKSourceBuilder.DEFAULT_HTTP_CONNECT_TIMEOUT,
                 JWKSourceBuilder.DEFAULT_HTTP_READ_TIMEOUT,
-                JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT);
+                JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT
+        );
         resourceRetriever.setHeaders(Map.of(HttpHeaders.ACCEPT, List.of(JWK_SET_ACCEPT_TYPES)));
         return createDecoder(
                 provider,
                 issuer,
                 audience,
-                createJwkSource(provider, jwkSetUri, resourceRetriever));
+                createJwkSource(
+                        provider,
+                        jwkSetUri,
+                        resourceRetriever
+                )
+        );
     }
 
     static JwtDecoder createDecoder(
@@ -77,7 +83,8 @@ final class OidcIdTokenDecoderFactory {
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuer),
                 new OidcIdTokenAudienceValidator(provider, audience),
-                new OidcIdTokenClaimsValidator()));
+                new OidcIdTokenClaimsValidator()
+        ));
         return jwtDecoder;
     }
 
@@ -89,7 +96,8 @@ final class OidcIdTokenDecoderFactory {
         OidcJwkSetEventLogger eventLogger = new OidcJwkSetEventLogger(
                 provider,
                 JWK_SET_REFETCH_INTERVAL,
-                Clock.systemUTC());
+                Clock.systemUTC()
+        );
         return JWKSourceBuilder.<SecurityContext>create(toUrl(jwkSetUri), resourceRetriever)
                 .cache(
                         JWKSourceBuilder.DEFAULT_CACHE_TIME_TO_LIVE,

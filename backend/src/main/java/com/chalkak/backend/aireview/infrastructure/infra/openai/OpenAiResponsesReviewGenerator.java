@@ -48,7 +48,8 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * OpenAI Responses API의 Structured Outputs로 사진 리뷰를 생성한다.
  *
- * <p>요청·응답 본문과 API 키, 이미지 주소는 로그나 예외 메시지에 남기지 않는다.
+ * <p>
+ * 요청·응답 본문과 API 키, 이미지 주소는 로그나 예외 메시지에 남기지 않는다.
  */
 public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
 
@@ -63,7 +64,8 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private static final Set<String> REFUSED_ERROR_CODES = Set.of(
             "image_content_policy_violation",
             "bio_policy",
-            "misalignment_policy_violation");
+            "misalignment_policy_violation"
+    );
     // 프롬프트나 이미지 자체가 잘못된 경우라 재시도해도 같은 결과다. 목록에 없는 코드는 일시 장애로 본다.
     private static final Set<String> BAD_REQUEST_ERROR_CODES = Set.of(
             "invalid_prompt",
@@ -79,31 +81,54 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             "image_file_too_large",
             "unsupported_image_media_type",
             "empty_image_file",
-            "image_file_not_found");
+            "image_file_not_found"
+    );
     // 429여도 code 또는 type이 결제·한도 소진이면 기다려도 풀리지 않아 재시도 대상이 아니다.
     private static final Set<String> QUOTA_ERROR_CODES = Set.of(
             "insufficient_quota",
             "credit_balance_exhausted",
             "organization_spend_limit_exceeded",
             "project_spend_limit_exceeded",
-            "organization_usage_limit_exceeded");
+            "organization_usage_limit_exceeded"
+    );
 
     // OpenAI Structured Outputs 전용 스키마라 도메인이 아닌 이 어댑터가 정의한다.
     // strict 모드는 모든 필드를 required로 두고 additionalProperties를 막아야 한다.
     private static final Map<String, Object> PHOTO_REVIEW_SCHEMA = Map.of(
-            "type", "object",
-            "additionalProperties", false,
-            "required", List.of("composition", "theme_expression", "feedback"),
-            "properties", Map.of(
-                    "composition", Map.of(
-                            "type", "number",
-                            "minimum", PhotoReviewOutput.minScore(),
-                            "maximum", PhotoReviewOutput.maxScore()),
-                    "theme_expression", Map.of(
-                            "type", "number",
-                            "minimum", PhotoReviewOutput.minScore(),
-                            "maximum", PhotoReviewOutput.maxScore()),
-                    "feedback", Map.of("type", "string")));
+            "type",
+            "object",
+            "additionalProperties",
+            false,
+            "required",
+            List.of(
+                    "composition",
+                    "theme_expression",
+                    "feedback"
+            ),
+            "properties",
+            Map.of(
+                    "composition",
+                    Map.of(
+                            "type",
+                            "number",
+                            "minimum",
+                            PhotoReviewOutput.minScore(),
+                            "maximum",
+                            PhotoReviewOutput.maxScore()
+                    ),
+                    "theme_expression",
+                    Map.of(
+                            "type",
+                            "number",
+                            "minimum",
+                            PhotoReviewOutput.minScore(),
+                            "maximum",
+                            PhotoReviewOutput.maxScore()
+                    ),
+                    "feedback",
+                    Map.of("type", "string")
+            )
+    );
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -137,7 +162,11 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         String responseBody = send(body, startedAt);
 
         Duration latency = Duration.between(startedAt, clock.instant());
-        return parse(responseBody, latency, request.draft().parameters().distinctivePerspectiveThreshold());
+        return parse(
+                responseBody,
+                latency,
+                request.draft().parameters().distinctivePerspectiveThreshold()
+        );
     }
 
     @Override
@@ -161,15 +190,18 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                         new InputImage(
                                 "input_image",
                                 request.imageUrl(),
-                                lowerCase(parameters.imageDetail()))))),
+                                lowerCase(parameters.imageDetail())
+                        )))),
                 new TextOptions(new JsonSchemaFormat(
                         "json_schema",
                         "photo_review_v" + PhotoReviewOutput.schemaVersion(),
                         true,
-                        PHOTO_REVIEW_SCHEMA)),
+                        PHOTO_REVIEW_SCHEMA
+                )),
                 false,
                 parameters.maxOutputTokens(),
-                reasoning);
+                reasoning
+        );
     }
 
     private String send(ResponsesRequest body, Instant startedAt) {
@@ -188,7 +220,8 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                             })
                     .body(String.class);
         } catch (ResourceAccessException exception) {
-            throw new AiReviewGenerationException(transportFailureType(exception, startedAt), exception);
+            throw new AiReviewGenerationException(transportFailureType(exception, startedAt),
+                    exception);
         } catch (RestClientException exception) {
             throw new AiReviewGenerationException(transportFailureType(exception, startedAt));
         }
@@ -196,14 +229,22 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
 
     // Spring의 읽기 제한 시간은 본문을 읽는 중이면 스트림만 닫아 원인에 시간 초과 예외가 남지 않으므로 경과 시간도 본다.
     private FailureType transportFailureType(RestClientException exception, Instant startedAt) {
-        boolean deadlineExceeded =
-                Duration.between(startedAt, clock.instant()).compareTo(readTimeout) >= 0;
+        boolean deadlineExceeded = Duration.between(startedAt, clock.instant())
+                .compareTo(readTimeout) >= 0;
         return isTimeout(exception) || deadlineExceeded ? TIMEOUT : UPSTREAM_ERROR;
     }
 
-    private AiReviewGeneration parse(String responseBody, Duration latency, double threshold) {
+    private AiReviewGeneration parse(
+            String responseBody,
+            Duration latency,
+            double threshold
+    ) {
         ResponsesResponse response = readResponse(responseBody);
-        Attempt attempt = new Attempt(response.toUsage(), latency, response.id());
+        Attempt attempt = new Attempt(
+                response.toUsage(),
+                latency,
+                response.id()
+        );
         if (STATUS_INCOMPLETE.equals(response.status())) {
             throw new AiReviewGenerationException(INCOMPLETE, attempt);
         }
@@ -234,7 +275,8 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                 output.toResult(threshold),
                 output,
                 outputText,
-                attempt);
+                attempt
+        );
     }
 
     private ResponsesResponse readResponse(String responseBody) {
@@ -242,7 +284,8 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             throw new AiReviewGenerationException(INVALID_OUTPUT);
         }
         try {
-            ResponsesResponse response = objectMapper.readValue(responseBody, ResponsesResponse.class);
+            ResponsesResponse response = objectMapper.readValue(responseBody,
+                    ResponsesResponse.class);
             if (response == null) {
                 throw new AiReviewGenerationException(INVALID_OUTPUT);
             }
@@ -253,12 +296,13 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     }
 
     /**
-     * 모델 출력의 JSON 타입을 직접 확인한다. Jackson의 기본 변환은 "7" 같은 문자열도 숫자로 받아들일 수 있어서
-     * 두 점수 모두 변환 없이 숫자 노드만 허용한다.
+     * 모델 출력의 JSON 타입을 직접 확인한다. Jackson의 기본 변환은 "7" 같은 문자열도 숫자로 받아들일 수 있어서 두 점수 모두
+     * 변환 없이 숫자 노드만 허용한다.
      */
     private Optional<PhotoReviewOutput> readOutput(String outputText) {
         try {
-            PhotoReviewPayload payload = objectMapper.readValue(outputText, PhotoReviewPayload.class);
+            PhotoReviewPayload payload = objectMapper.readValue(outputText,
+                    PhotoReviewPayload.class);
             if (payload == null
                     || payload.composition() == null
                     || !payload.composition().isNumber()
@@ -271,7 +315,8 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             return Optional.of(new PhotoReviewOutput(
                     payload.composition().doubleValue(),
                     payload.themeExpression().doubleValue(),
-                    payload.feedback().stringValue()));
+                    payload.feedback().stringValue()
+            ));
         } catch (JacksonException | IllegalArgumentException exception) {
             return Optional.empty();
         }
@@ -316,7 +361,8 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
      */
     private ErrorBody readError(ClientHttpResponse response) {
         try {
-            ErrorEnvelope envelope = objectMapper.readValue(response.getBody(), ErrorEnvelope.class);
+            ErrorEnvelope envelope = objectMapper.readValue(response.getBody(),
+                    ErrorEnvelope.class);
             return envelope == null || envelope.error() == null
                     ? new ErrorBody(null, null)
                     : envelope.error();
@@ -400,20 +446,29 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                 return false;
             }
             return output.stream().anyMatch(item -> item == null
-                    || (item.content() != null && item.content().stream().anyMatch(Objects::isNull)));
+                    || (item.content() != null
+                            && item.content().stream().anyMatch(Objects::isNull)));
         }
 
         private Usage toUsage() {
             if (usage == null) {
-                return new Usage(null, null, null, null);
+                return new Usage(
+                        null,
+                        null,
+                        null,
+                        null
+                );
             }
             return new Usage(
                     usage.inputTokens(),
-                    usage.inputTokensDetails() == null ? null : usage.inputTokensDetails().cachedTokens(),
+                    usage.inputTokensDetails() == null
+                            ? null
+                            : usage.inputTokensDetails().cachedTokens(),
                     usage.outputTokens(),
                     usage.outputTokensDetails() == null
                             ? null
-                            : usage.outputTokensDetails().reasoningTokens());
+                            : usage.outputTokensDetails().reasoningTokens()
+            );
         }
 
         private List<ContentPart> contentParts() {
@@ -430,7 +485,11 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private record OutputItem(String type, List<ContentPart> content) {
     }
 
-    private record ContentPart(String type, String text, String refusal) {
+    private record ContentPart(
+            String type,
+            String text,
+            String refusal
+    ) {
     }
 
     private record UsageBody(

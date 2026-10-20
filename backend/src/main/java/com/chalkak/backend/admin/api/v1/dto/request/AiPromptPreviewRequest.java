@@ -34,5 +34,6 @@ public record AiPromptPreviewRequest(
                 description = "프롬프트를 실행할 공개 게시물 ID. 승인되었고 삭제되지 않은 게시물이어야 합니다.",
                 type = "string",
                 format = "uuid")
-        String postId) {
+        String postId
+) {
 }

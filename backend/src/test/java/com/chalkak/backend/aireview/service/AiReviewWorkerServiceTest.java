@@ -70,8 +70,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 워커는 행을 잠그고 가져가는 동안만 트랜잭션을 쓰고 OpenAI를 호출하는 동안은 쓰지 않으므로 테스트 클래스에 @Transactional을 쓰지 않고
- * 커밋된 행을 직접 정리한다.
+ * 워커는 행을 잠그고 가져가는 동안만 트랜잭션을 쓰고 OpenAI를 호출하는 동안은 쓰지 않으므로 테스트
+ * 클래스에 @Transactional을 쓰지 않고 커밋된 행을 직접 정리한다.
  */
 class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
@@ -122,7 +122,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         fixture = new AiReviewFixture(jdbcTemplate);
         fixture.clean();
         fixture.insertPublicPost();
-        versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
+        versionId = fixture.insertPromptVersion(
+                1,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
         given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(IMAGE_URL);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
         willCallRealMethod().given(aiReviewGenerator).canRun(any());
@@ -174,7 +178,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Given
         fixture.insertSecondPublicPost();
         UUID newer = fixture.insertQueuedReview(
-                SECOND_POST_ID, OTHER_USER_ID, versionId, REQUESTED_AT.plusSeconds(5));
+                SECOND_POST_ID,
+                OTHER_USER_ID,
+                versionId,
+                REQUESTED_AT.plusSeconds(5)
+        );
         UUID older = fixture.insertQueuedReview(versionId, REQUESTED_AT);
 
         // When & Then
@@ -211,7 +219,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         fixture.insertSecondPublicPost();
         UUID locked = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         UUID other = fixture.insertQueuedReview(
-                SECOND_POST_ID, OTHER_USER_ID, versionId, REQUESTED_AT.plusSeconds(5));
+                SECOND_POST_ID,
+                OTHER_USER_ID,
+                versionId,
+                REQUESTED_AT.plusSeconds(5)
+        );
         ExecutorService holder = Executors.newSingleThreadExecutor();
         CountDownLatch lockHeld = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -225,8 +237,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
         try {
             // When
-            Optional<Claim> claim =
-                    CompletableFuture.supplyAsync(service::claimNext).get(5, TimeUnit.SECONDS);
+            Optional<Claim> claim = CompletableFuture.supplyAsync(service::claimNext).get(5,
+                    TimeUnit.SECONDS);
 
             // Then
             assertThat(claim).map(Claim::reviewId).contains(other);
@@ -245,7 +257,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         fixture.insertSecondPublicPost();
         fixture.insertQueuedReview(versionId, REQUESTED_AT);
         fixture.insertQueuedReview(
-                SECOND_POST_ID, OTHER_USER_ID, versionId, REQUESTED_AT.plusSeconds(5));
+                SECOND_POST_ID,
+                OTHER_USER_ID,
+                versionId,
+                REQUESTED_AT.plusSeconds(5)
+        );
 
         // When
         List<Optional<Claim>> results = claimConcurrently(2);
@@ -262,10 +278,19 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Given
         fixture.insertSecondPublicPost();
         UUID exhausted = fixture.insertProcessingReview(
-                POST_ID, AUTHOR_ID, versionId, MAX_CLAIMS, REQUESTED_AT,
-                CLAIMED_AT.minusSeconds(1));
+                POST_ID,
+                AUTHOR_ID,
+                versionId,
+                MAX_CLAIMS,
+                REQUESTED_AT,
+                CLAIMED_AT.minusSeconds(1)
+        );
         UUID next = fixture.insertQueuedReview(
-                SECOND_POST_ID, OTHER_USER_ID, versionId, REQUESTED_AT.plusSeconds(5));
+                SECOND_POST_ID,
+                OTHER_USER_ID,
+                versionId,
+                REQUESTED_AT.plusSeconds(5)
+        );
 
         // When
         Optional<Claim> claim = service.claimNext();
@@ -280,9 +305,15 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(instant(row, "completed_at")).isEqualTo(CLAIMED_AT);
         verify(aiReviewGenerator, never()).generate(any());
         String keyValues = singleEventKeyValues("review_failed");
-        assertThat(keyValues).contains("aiReviewId=\"" + exhausted + "\"",
-                "errorCode=\"LEASE_EXHAUSTED\"", "promptVersion=\"1\"", "model=\"" + MODEL + "\"",
-                "attempt=\"" + MAX_CLAIMS + "\"", "queueWaitMs=\"0\"", "totalMs=\"10000\"");
+        assertThat(keyValues).contains(
+                "aiReviewId=\"" + exhausted + "\"",
+                "errorCode=\"LEASE_EXHAUSTED\"",
+                "promptVersion=\"1\"",
+                "model=\"" + MODEL + "\"",
+                "attempt=\"" + MAX_CLAIMS + "\"",
+                "queueWaitMs=\"0\"",
+                "totalMs=\"10000\""
+        );
     }
 
     @Test
@@ -333,8 +364,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         service.process(claim, () -> false);
 
         // Then
-        ArgumentCaptor<AiReviewGenerationRequest> captor =
-                ArgumentCaptor.forClass(AiReviewGenerationRequest.class);
+        ArgumentCaptor<AiReviewGenerationRequest> captor = ArgumentCaptor
+                .forClass(AiReviewGenerationRequest.class);
         verify(aiReviewGenerator).generate(captor.capture());
         assertThat(captor.getValue().imageUrl()).isEqualTo(IMAGE_URL);
         assertThat(captor.getValue().topicTitle()).isEqualTo(TOPIC_TITLE);
@@ -347,7 +378,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_newerVersionCreated_usesPinnedVersion() {
         // Given
         fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        fixture.insertPromptVersion(2, "gpt-6-luna", COMPATIBLE_SCHEMA);
+        fixture.insertPromptVersion(
+                2,
+                "gpt-6-luna",
+                COMPATIBLE_SCHEMA
+        );
         given(aiReviewGenerator.supportsModel("gpt-6-luna")).willReturn(true);
         given(aiReviewGenerator.generate(any())).willReturn(generation());
         Claim claim = service.claimNext().orElseThrow();
@@ -356,8 +391,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         service.process(claim, () -> false);
 
         // Then
-        ArgumentCaptor<AiReviewGenerationRequest> captor =
-                ArgumentCaptor.forClass(AiReviewGenerationRequest.class);
+        ArgumentCaptor<AiReviewGenerationRequest> captor = ArgumentCaptor
+                .forClass(AiReviewGenerationRequest.class);
         verify(aiReviewGenerator).generate(captor.capture());
         assertThat(captor.getValue().draft().model()).isEqualTo(MODEL);
     }
@@ -448,7 +483,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("고정한 버전의 출력 스키마가 현재와 다르면 호출하지 않고 PROMPT_VERSION_UNAVAILABLE로 실패시킨다")
     void process_incompatibleSchemaVersion_failsWithoutCalling() {
         // Given
-        UUID incompatible = fixture.insertPromptVersion(2, MODEL, "0");
+        UUID incompatible = fixture.insertPromptVersion(
+                2,
+                MODEL,
+                "0"
+        );
         UUID reviewId = fixture.insertQueuedReview(incompatible, REQUESTED_AT);
         Claim claim = service.claimNext().orElseThrow();
 
@@ -576,8 +615,16 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         given(failingPosts.findVisibleById(any()))
                 .willThrow(new DataAccessResourceFailureException("connection lost"));
         AiReviewWorkerService failingService = new AiReviewWorkerService(
-                reviewRepository, promptVersionRepository, failingPosts, aiReviewGenerator,
-                requestFactory, transactionManager, clock, LEASE, MAX_CLAIMS);
+                reviewRepository,
+                promptVersionRepository,
+                failingPosts,
+                aiReviewGenerator,
+                requestFactory,
+                transactionManager,
+                clock,
+                LEASE,
+                MAX_CLAIMS
+        );
         Claim claim = failingService.claimNext().orElseThrow();
 
         // When
@@ -607,15 +654,31 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Then
         ILoggingEvent event = singleEvent("review_completed");
         String keyValues = event.getKeyValuePairs().toString();
-        assertThat(keyValues).contains("type=\"ai_review\"", "aiReviewId=\"" + reviewId + "\"",
-                "postId=\"" + POST_ID + "\"", "userId=\"" + AUTHOR_ID + "\"",
-                "promptVersion=\"1\"", "model=\"" + MODEL + "\"", "attempt=\"1\"",
-                "queueWaitMs=\"10000\"", "latencyMs=\"21000\"", "totalMs=\"31000\"",
-                "inputTokens=\"1200\"", "cachedInputTokens=\"0\"", "outputTokens=\"300\"",
-                "reasoningTokens=\"64\"");
+        assertThat(keyValues).contains(
+                "type=\"ai_review\"",
+                "aiReviewId=\"" + reviewId + "\"",
+                "postId=\"" + POST_ID + "\"",
+                "userId=\"" + AUTHOR_ID + "\"",
+                "promptVersion=\"1\"",
+                "model=\"" + MODEL + "\"",
+                "attempt=\"1\"",
+                "queueWaitMs=\"10000\"",
+                "latencyMs=\"21000\"",
+                "totalMs=\"31000\"",
+                "inputTokens=\"1200\"",
+                "cachedInputTokens=\"0\"",
+                "outputTokens=\"300\"",
+                "reasoningTokens=\"64\""
+        );
         assertThat(keyValues).doesNotContain("errorCode");
         assertThat(keyValues + event.getFormattedMessage())
-                .doesNotContain(FEEDBACK, "시스템", "노을", "original.webp", IMAGE_URL);
+                .doesNotContain(
+                        FEEDBACK,
+                        "시스템",
+                        "노을",
+                        "original.webp",
+                        IMAGE_URL
+                );
     }
 
     @Test
@@ -632,15 +695,31 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
         // Then
         String keyValues = singleEventKeyValues("review_failed");
-        assertThat(keyValues).contains("errorCode=\"TIMEOUT\"", "attempt=\"1\"",
-                "queueWaitMs=\"10000\"", "totalMs=\"10000\"");
-        assertThat(keyValues).doesNotContain("inputTokens", "latencyMs", "outputTokens");
+        assertThat(keyValues).contains(
+                "errorCode=\"TIMEOUT\"",
+                "attempt=\"1\"",
+                "queueWaitMs=\"10000\"",
+                "totalMs=\"10000\""
+        );
+        assertThat(keyValues).doesNotContain(
+                "inputTokens",
+                "latencyMs",
+                "outputTokens"
+        );
     }
 
     private AiReviewWorkerService createService(AiReviewRepository repository) {
         return new AiReviewWorkerService(
-                repository, promptVersionRepository, postRepository, aiReviewGenerator,
-                requestFactory, transactionManager, clock, LEASE, MAX_CLAIMS);
+                repository,
+                promptVersionRepository,
+                postRepository,
+                aiReviewGenerator,
+                requestFactory,
+                transactionManager,
+                clock,
+                LEASE,
+                MAX_CLAIMS
+        );
     }
 
     private List<Optional<Claim>> claimConcurrently(int claimers) throws Exception {
@@ -664,13 +743,31 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     private AiReviewGeneration generation() {
-        PhotoReviewOutput output = new PhotoReviewOutput(7.46, 8.0, FEEDBACK);
+        PhotoReviewOutput output = new PhotoReviewOutput(
+                7.46,
+                8.0,
+                FEEDBACK
+        );
         AiReviewResult result = output.toResult(7.0);
-        return new AiReviewGeneration(result, output, RAW_OUTPUT, attempt());
+        return new AiReviewGeneration(
+                result,
+                output,
+                RAW_OUTPUT,
+                attempt()
+        );
     }
 
     private Attempt attempt() {
-        return new Attempt(new Usage(1200, 0, 300, 64), Duration.ofMillis(21_000), "resp_abc");
+        return new Attempt(
+                new Usage(
+                        1200,
+                        0,
+                        300,
+                        64
+                ),
+                Duration.ofMillis(21_000),
+                "resp_abc"
+        );
     }
 
     private Map<String, Object> findRow(UUID reviewId) {

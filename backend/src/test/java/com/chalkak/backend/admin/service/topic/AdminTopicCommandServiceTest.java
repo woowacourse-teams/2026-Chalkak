@@ -62,15 +62,25 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
         insertTopic(
                 BEFORE_TOPIC_ID,
                 "공개 전 주제",
-                LocalDate.of(2026, 8, 30),
+                LocalDate.of(
+                        2026,
+                        8,
+                        30
+                ),
                 Instant.parse("2026-08-29T15:00:00Z"),
-                Instant.parse("2026-08-30T15:00:00Z"));
+                Instant.parse("2026-08-30T15:00:00Z")
+        );
         insertTopic(
                 OPEN_TOPIC_ID,
                 "참여 중 주제",
-                LocalDate.of(2026, 8, 28),
+                LocalDate.of(
+                        2026,
+                        8,
+                        28
+                ),
                 Instant.parse("2026-08-27T15:00:00Z"),
-                Instant.parse("2026-08-28T15:00:00Z"));
+                Instant.parse("2026-08-28T15:00:00Z")
+        );
     }
 
     @Test
@@ -79,9 +89,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
         AdminTopicDetail result = adminTopicCommandService.createTopic(
                 ADMIN_ID,
                 "  새 주제  ",
-                LocalDate.of(2026, 8, 31),
+                LocalDate.of(
+                        2026,
+                        8,
+                        31
+                ),
                 Instant.parse("2026-08-30T15:00:00Z"),
-                Instant.parse("2026-08-31T15:00:00Z"));
+                Instant.parse("2026-08-31T15:00:00Z")
+        );
         flushAndClear();
 
         assertThat(result.title()).isEqualTo("새 주제");
@@ -97,9 +112,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                 () -> adminTopicCommandService.createTopic(
                         ADMIN_ID,
                         "중복 주제",
-                        LocalDate.of(2026, 8, 30),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                30
+                        ),
                         Instant.parse("2026-08-29T15:00:00Z"),
-                        Instant.parse("2026-08-30T15:00:00Z")));
+                        Instant.parse("2026-08-30T15:00:00Z")
+                ));
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
     }
@@ -113,9 +133,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                 () -> adminTopicCommandService.createTopic(
                         ADMIN_ID,
                         "겹치는 주제",
-                        LocalDate.of(2026, 8, 29),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                29
+                        ),
                         Instant.parse("2026-08-29T14:00:00Z"),
-                        Instant.parse("2026-08-29T16:00:00Z")));
+                        Instant.parse("2026-08-29T16:00:00Z")
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -129,9 +154,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
         AdminTopicDetail result = adminTopicCommandService.createTopic(
                 ADMIN_ID,
                 "사이 주제",
-                LocalDate.of(2026, 8, 29),
+                LocalDate.of(
+                        2026,
+                        8,
+                        29
+                ),
                 Instant.parse("2026-08-28T15:00:00Z"),
-                Instant.parse("2026-08-29T15:00:00Z"));
+                Instant.parse("2026-08-29T15:00:00Z")
+        );
 
         // Then
         assertThat(result.title()).isEqualTo("사이 주제");
@@ -149,9 +179,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
         AdminTopicDetail result = adminTopicCommandService.createTopic(
                 ADMIN_ID,
                 "새 주제",
-                LocalDate.of(2026, 8, 29),
+                LocalDate.of(
+                        2026,
+                        8,
+                        29
+                ),
                 Instant.parse("2026-08-29T14:00:00Z"),
-                Instant.parse("2026-08-29T16:00:00Z"));
+                Instant.parse("2026-08-29T16:00:00Z")
+        );
 
         // Then
         assertThat(result.title()).isEqualTo("새 주제");
@@ -163,9 +198,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> insertTopic(
                 UUID.fromString("0198fd20-0000-7000-8000-000000000014"),
                 "겹치는 주제",
-                LocalDate.of(2026, 8, 29),
+                LocalDate.of(
+                        2026,
+                        8,
+                        29
+                ),
                 Instant.parse("2026-08-29T14:00:00Z"),
-                Instant.parse("2026-08-29T16:00:00Z")))
+                Instant.parse("2026-08-29T16:00:00Z")
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -176,9 +216,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                 BEFORE_TOPIC_ID,
                 ADMIN_ID,
                 "수정한 주제",
-                LocalDate.of(2026, 8, 31),
+                LocalDate.of(
+                        2026,
+                        8,
+                        31
+                ),
                 Instant.parse("2026-08-30T15:00:00Z"),
-                Instant.parse("2026-08-31T15:00:00Z"));
+                Instant.parse("2026-08-31T15:00:00Z")
+        );
         flushAndClear();
 
         assertThat(result.title()).isEqualTo("수정한 주제");
@@ -192,9 +237,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
         insertTopic(
                 UUID.fromString("0198fd20-0000-7000-8000-000000000013"),
                 "다음 주제",
-                LocalDate.of(2026, 8, 31),
+                LocalDate.of(
+                        2026,
+                        8,
+                        31
+                ),
                 Instant.parse("2026-08-30T15:00:00Z"),
-                Instant.parse("2026-08-31T15:00:00Z"));
+                Instant.parse("2026-08-31T15:00:00Z")
+        );
 
         // When
         BusinessException exception = catchThrowableOfType(
@@ -203,9 +253,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                         BEFORE_TOPIC_ID,
                         ADMIN_ID,
                         "공개 전 주제",
-                        LocalDate.of(2026, 8, 30),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                30
+                        ),
                         Instant.parse("2026-08-29T15:00:00Z"),
-                        Instant.parse("2026-08-30T16:00:00Z")));
+                        Instant.parse("2026-08-30T16:00:00Z")
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -222,9 +277,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                         OPEN_TOPIC_ID,
                         ADMIN_ID,
                         "수정 시도",
-                        LocalDate.of(2026, 8, 29),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                29
+                        ),
                         Instant.parse("2026-08-28T15:00:00Z"),
-                        Instant.parse("2026-08-29T15:00:00Z")));
+                        Instant.parse("2026-08-29T15:00:00Z")
+                ));
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED);
     }
@@ -238,9 +298,14 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
                         OPEN_TOPIC_ID,
                         ADMIN_ID,
                         "수정 시도",
-                        LocalDate.of(2026, 8, 28),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                28
+                        ),
                         Instant.parse("2026-08-27T15:00:00Z"),
-                        Instant.parse("2026-08-30T15:00:00Z")));
+                        Instant.parse("2026-08-30T15:00:00Z")
+                ));
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED);
     }
@@ -248,13 +313,18 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("공개 전 주제를 사유와 함께 삭제하면 목록에서 제외하고 감사 로그를 남긴다")
     void deleteTopic_beforeOpen_softDeletesAndAudits() {
-        adminTopicCommandService.deleteTopic(BEFORE_TOPIC_ID, ADMIN_ID, "주제 편성 변경");
+        adminTopicCommandService.deleteTopic(
+                BEFORE_TOPIC_ID,
+                ADMIN_ID,
+                "주제 편성 변경"
+        );
         flushAndClear();
 
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT deleted_at IS NOT NULL FROM topics WHERE id = ?",
                 Boolean.class,
-                BEFORE_TOPIC_ID)).isTrue();
+                BEFORE_TOPIC_ID
+        )).isTrue();
         assertThat(countAudit(BEFORE_TOPIC_ID, "TOPIC_DELETED")).isEqualTo(1);
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
@@ -263,10 +333,15 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
     }
 
     private int countAudit(UUID topicId, String action) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM admin_audit_logs
-                WHERE target_id = ? AND CAST(action AS TEXT) = ?
-                """, Integer.class, topicId, action);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM admin_audit_logs
+                        WHERE target_id = ? AND CAST(action AS TEXT) = ?
+                        """,
+                Integer.class,
+                topicId,
+                action
+        );
     }
 
     private void insertTopic(
@@ -276,17 +351,19 @@ class AdminTopicCommandServiceTest extends IntegrationTestSupport {
             Instant startsAt,
             Instant endsAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at,
-                    created_at, updated_at, deleted_at
-                ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
+                        """,
                 id,
                 title,
                 topicDate,
                 Timestamp.from(startsAt),
-                Timestamp.from(endsAt));
+                Timestamp.from(endsAt)
+        );
     }
 
     private void flushAndClear() {

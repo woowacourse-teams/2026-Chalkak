@@ -127,7 +127,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         UUID userId = createUser();
         UUID postId = UUID.randomUUID();
         given(postLikeService.likePost(postId, userId))
-                .willReturn(new PostLikeResult(postId, 1L, true));
+                .willReturn(new PostLikeResult(
+                        postId,
+                        1L,
+                        true
+                ));
         String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
@@ -163,7 +167,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 new VerifiedSocialIdentity(
                         SocialProvider.GOOGLE,
                         "google-subject",
-                        "user@chalkak.test"),
+                        "user@chalkak.test"
+                ),
                 UUID.randomUUID())
                 .value();
 
@@ -177,7 +182,12 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("로그인 API는 토큰 없이 호출할 수 있다")
     void authApi_withoutToken_reachesController() throws Exception {
         // Given
-        given(socialLoginService.login(any(), any(), any(), any()))
+        given(socialLoginService.login(
+                any(),
+                any(),
+                any(),
+                any()
+        ))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -205,8 +215,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         given(userRefreshTokenService.refresh(any()))
                 .willReturn(new TokenRefreshResult(
                         new IssuedAccessToken("chalkak-access-token", Duration.ofMinutes(15)),
-                        new IssuedRefreshToken("chalkak-refresh-token", Duration.ofDays(30),
-                                UUID.randomUUID())));
+                        new IssuedRefreshToken(
+                                "chalkak-refresh-token",
+                                Duration.ofDays(30),
+                                UUID.randomUUID()
+                        )));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
@@ -246,8 +259,21 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("게시물 목록은 토큰 없이 조회할 수 있다")
     void posts_withoutToken_reachesController() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
-                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
+                .willReturn(new PostListResult(
+                        0,
+                        10,
+                        false,
+                        null,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", "2026-08-12"))
@@ -265,7 +291,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         // Given
         UUID userId = createUser();
         given(postQueryService.getMyPostCalendar(eq(userId), any()))
-                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+                .willReturn(new PostCalendarResult(
+                        2026,
+                        8,
+                        List.of()
+                ));
         String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
@@ -286,7 +316,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         // Given
         UUID adminId = UUID.randomUUID();
         given(postQueryService.getMyPostCalendar(eq(adminId), any()))
-                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+                .willReturn(new PostCalendarResult(
+                        2026,
+                        8,
+                        List.of()
+                ));
         String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
 
         // When & Then
@@ -322,8 +356,21 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("선택적 회원 인증에서도 관리자 JWT를 일반 사용자로 해석하지 않는다")
     void posts_adminToken_returnsForbidden() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
-                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
+                .willReturn(new PostListResult(
+                        0,
+                        10,
+                        false,
+                        null,
+                        List.of()
+                ));
         String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
 
         // When & Then
@@ -432,7 +479,14 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("공개 경로에서 예외가 나면 익명 요청도 500을 받는다")
     void publicPath_unhandledException_returnsInternalServerError() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
                 .willThrow(new IllegalStateException("예상하지 못한 장애"));
 
         // When & Then
@@ -580,8 +634,18 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         if (state.equals("BANNED")) {
             jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", viewerId);
         }
-        given(postQueryService.getAuthorPosts(authorId, 1, 20, viewerId))
-                .willReturn(new AuthorPostListResult(1, 20, false, List.of()));
+        given(postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        ))
+                .willReturn(new AuthorPostListResult(
+                        1,
+                        20,
+                        false,
+                        List.of()
+                ));
         String token = accessTokenProvider.issueForSession(viewerId, UUID.randomUUID()).value();
 
         // When & Then

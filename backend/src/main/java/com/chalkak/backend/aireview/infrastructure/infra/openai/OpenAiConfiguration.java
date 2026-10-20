@@ -47,6 +47,7 @@ public class OpenAiConfiguration {
                 restClient,
                 objectMapper,
                 clock,
-                properties);
+                properties
+        );
     }
 }

@@ -6,7 +6,8 @@ public record AdminPage<T>(
         List<T> items,
         int currentPage,
         int pageSize,
-        boolean hasNext) {
+        boolean hasNext
+) {
 
     public AdminPage {
         items = List.copyOf(items);

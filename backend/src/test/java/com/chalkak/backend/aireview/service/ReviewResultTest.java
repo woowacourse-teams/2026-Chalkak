@@ -7,7 +7,6 @@ import com.chalkak.backend.aireview.service.PostAiReviewService.ApiStatus;
 import com.chalkak.backend.aireview.service.PostAiReviewService.ReviewResult;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -35,7 +34,12 @@ class ReviewResultTest {
     @DisplayName("처리 중 상태일 때만 진행 중이다")
     void isInProgress_byStatus(ApiStatus status, boolean expected) {
         // Given
-        ReviewResult result = new ReviewResult(status, Instant.EPOCH, null, null);
+        ReviewResult result = new ReviewResult(
+                status,
+                Instant.EPOCH,
+                null,
+                null
+        );
 
         // When & Then
         assertThat(result.isInProgress()).isEqualTo(expected);

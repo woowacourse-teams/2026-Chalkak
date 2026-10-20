@@ -78,15 +78,21 @@ class AdminPostModerationLogTest extends IntegrationTestSupport {
                     CAST('{}' AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, PHOTO_ID);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '검수 대상', CAST('PENDING' AS moderation_status),
-                    CURRENT_TIMESTAMP - INTERVAL '90 seconds', CURRENT_TIMESTAMP
-                )
-                """, POST_ID, USER_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '검수 대상', CAST('PENDING' AS moderation_status),
+                            CURRENT_TIMESTAMP - INTERVAL '90 seconds', CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
         appender.start();
         moderationLogger.addAppender(appender);
     }
@@ -101,7 +107,12 @@ class AdminPostModerationLogTest extends IntegrationTestSupport {
     @DisplayName("관리자가 승인하면 approved 로그에 대기 시간을 초 단위로 남긴다")
     void moderate_approve_logsApprovedWithWaitSeconds() {
         // When
-        adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+        adminPostCommandService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        );
         entityManager.flush();
 
         // Then
@@ -118,7 +129,12 @@ class AdminPostModerationLogTest extends IntegrationTestSupport {
     @DisplayName("관리자가 반려하면 rejected 로그를 한 건 남긴다")
     void moderate_reject_logsRejected() {
         // When
-        adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.REJECTED, "부적절한 사진");
+        adminPostCommandService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.REJECTED,
+                "부적절한 사진"
+        );
 
         // Then
         assertThat(appender.list).hasSize(1);
@@ -131,11 +147,13 @@ class AdminPostModerationLogTest extends IntegrationTestSupport {
         Instant createdAt = jdbcTemplate.queryForObject(
                 "SELECT created_at FROM posts WHERE id = ?",
                 Timestamp.class,
-                POST_ID).toInstant();
+                POST_ID
+        ).toInstant();
         Instant moderatedAt = jdbcTemplate.queryForObject(
                 "SELECT moderated_at FROM posts WHERE id = ?",
                 Timestamp.class,
-                POST_ID).toInstant();
+                POST_ID
+        ).toInstant();
         return Duration.between(createdAt, moderatedAt).getSeconds();
     }
 

@@ -55,34 +55,41 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, 'ai-review-repository', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, ADMIN_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, 'ai-review-repository', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                ADMIN_ID);
         jdbcTemplate.update("""
                 INSERT INTO users (id, email, status, signature_original_storage_key,
                     created_at, updated_at)
                 VALUES (?, 'ai-review-repository@example.com', 'ACTIVE', 'chalkak/test/sign.png',
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, USER_ID);
-        jdbcTemplate.update("""
-                INSERT INTO topics (id, title, topic_date, starts_at, ends_at, created_at, updated_at)
-                VALUES ('019a0000-0000-7000-8000-0000000006b2', '노을', CURRENT_DATE + 303,
-                    '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """);
+        jdbcTemplate
+                .update("""
+                        INSERT INTO topics (id, title, topic_date, starts_at, ends_at, created_at, updated_at)
+                        VALUES ('019a0000-0000-7000-8000-0000000006b2', '노을', CURRENT_DATE + 303,
+                            '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """);
         jdbcTemplate.update("""
                 INSERT INTO photos (id, original_storage_key, created_at, updated_at)
                 VALUES ('019a0000-0000-7000-8000-0000000006c2', 'chalkak/test/ai-review/repo.webp',
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (id, user_id, topic_id, photo_id, moderation_status,
-                    created_at, updated_at)
-                VALUES (?, ?, '019a0000-0000-7000-8000-0000000006b2',
-                    '019a0000-0000-7000-8000-0000000006c2', 'APPROVED',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, POST_ID, USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, moderation_status,
+                            created_at, updated_at)
+                        VALUES (?, ?, '019a0000-0000-7000-8000-0000000006b2',
+                            '019a0000-0000-7000-8000-0000000006c2', 'APPROVED',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                POST_ID,
+                USER_ID
+        );
         promptVersionId = insertVersion(1);
     }
 
@@ -153,11 +160,17 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
     @DisplayName("처리 중인데 임대 만료 시각이 없으면 CHECK 제약이 거절한다")
     void processingWithoutLease_isRejectedByCheckConstraint() {
         // When & Then
-        assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO ai_reviews (post_id, user_id, prompt_version_id, status, attempt,
-                    request_id, requested_at)
-                VALUES (?, ?, ?, 'PROCESSING', 1, ?, CURRENT_TIMESTAMP)
-                """, POST_ID, USER_ID, promptVersionId, UUID.randomUUID()))
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        INSERT INTO ai_reviews (post_id, user_id, prompt_version_id, status, attempt,
+                            request_id, requested_at)
+                        VALUES (?, ?, ?, 'PROCESSING', 1, ?, CURRENT_TIMESTAMP)
+                        """,
+                POST_ID,
+                USER_ID,
+                promptVersionId,
+                UUID.randomUUID()
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_ai_reviews");
     }
@@ -204,22 +217,41 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         // Given
         reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
         AiReview review = reviewRepository.findClaimableForUpdate(REQUESTED_AT).orElseThrow();
-        String output =
-                "{\"composition\":7.46,\"theme_expression\":8,\"feedback\":\"좋습니다\"}";
+        String output = "{\"composition\":7.46,\"theme_expression\":8,\"feedback\":\"좋습니다\"}";
         Instant claimedAt = REQUESTED_AT.plusSeconds(5);
         Instant completedAt = REQUESTED_AT.plusSeconds(26);
 
         // When
-        review.claim(claimedAt, claimedAt.plusSeconds(120), 3);
+        review.claim(
+                claimedAt,
+                claimedAt.plusSeconds(120),
+                3
+        );
         entityManager.flush();
         Map<String, Object> processing = jdbcTemplate.queryForMap("SELECT * FROM ai_reviews");
         review.complete(
                 1,
-                new AiReviewResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
-                        "좋습니다"),
+                new AiReviewResult(
+                        7.5,
+                        List.of(new Criterion(
+                                "COMPOSITION",
+                                "구도",
+                                7.5
+                        )),
+                        true,
+                        "좋습니다"
+                ),
                 output,
-                new Invocation(1200, 0, 300, 64, 21_000L, "resp_abc"),
-                completedAt);
+                new Invocation(
+                        1200,
+                        0,
+                        300,
+                        64,
+                        21_000L,
+                        "resp_abc"
+                ),
+                completedAt
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -239,7 +271,8 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         assertThat(((Timestamp) row.get("started_at")).toInstant()).isEqualTo(claimedAt);
         assertThat(((Timestamp) row.get("completed_at")).toInstant()).isEqualTo(completedAt);
         AiReview reloaded = reviewRepository.findByPostId(POST_ID).orElseThrow();
-        assertThat(objectMapper.readTree(reloaded.getOutput())).isEqualTo(objectMapper.readTree(output));
+        assertThat(objectMapper.readTree(reloaded.getOutput()))
+                .isEqualTo(objectMapper.readTree(output));
         assertThat(reloaded.getResult().feedback()).isEqualTo("좋습니다");
     }
 
@@ -251,18 +284,29 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
     }
 
     private AiReview request(UUID requestId) {
-        return AiReview.request(POST_ID, USER_ID, promptVersionId, requestId, REQUESTED_AT);
+        return AiReview.request(
+                POST_ID,
+                USER_ID,
+                promptVersionId,
+                requestId,
+                REQUESTED_AT
+        );
     }
 
     private UUID insertVersion(int version) {
         UUID id = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO ai_prompt_versions (id, type, version, system_prompt,
-                    user_prompt_template, model, parameters, output_schema_version,
-                    created_by_admin_id, created_at)
-                VALUES (?, 'PHOTO_REVIEW', ?, '시스템', '{{topicTitle}}', 'gpt-6.1-sol',
-                    CAST('{"maxOutputTokens":700}' AS jsonb), '1', ?, CURRENT_TIMESTAMP)
-                """, id, version, ADMIN_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO ai_prompt_versions (id, type, version, system_prompt,
+                            user_prompt_template, model, parameters, output_schema_version,
+                            created_by_admin_id, created_at)
+                        VALUES (?, 'PHOTO_REVIEW', ?, '시스템', '{{topicTitle}}', 'gpt-6.1-sol',
+                            CAST('{"maxOutputTokens":700}' AS jsonb), '1', ?, CURRENT_TIMESTAMP)
+                        """,
+                id,
+                version,
+                ADMIN_ID
+        );
         return id;
     }
 }

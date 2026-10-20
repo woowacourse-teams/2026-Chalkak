@@ -25,7 +25,10 @@ public class AdminFeedbackQueryService {
         validatePagination(page, pageSize);
         return AdminFeedbackListResult.from(
                 adminFeedbackQueryRepository.findFeedbacks(
-                        sort == null ? AdminFeedbackSort.CREATED_AT_DESC : sort, page, pageSize));
+                        sort == null ? AdminFeedbackSort.CREATED_AT_DESC : sort,
+                        page,
+                        pageSize
+                ));
     }
 
     private void validatePagination(int page, int pageSize) {

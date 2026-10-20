@@ -17,8 +17,8 @@ public interface AiReviewRepository {
     Optional<AiReview> findByPostId(UUID postId);
 
     /**
-     * 가져갈 수 있는 가장 오래된 행 하나를 잠가서 읽는다. 다른 트랜잭션이 잠근 행은 건너뛰어 워커끼리 같은 행을 가져가지 않는다.
-     * 대기 중이거나 임대가 끝난 처리 중 행이 후보이며, 호출한 트랜잭션 안에서 바로 상태를 바꿔야 한다.
+     * 가져갈 수 있는 가장 오래된 행 하나를 잠가서 읽는다. 다른 트랜잭션이 잠근 행은 건너뛰어 워커끼리 같은 행을 가져가지 않는다. 대기
+     * 중이거나 임대가 끝난 처리 중 행이 후보이며, 호출한 트랜잭션 안에서 바로 상태를 바꿔야 한다.
      */
     Optional<AiReview> findClaimableForUpdate(Instant now);
 

@@ -62,7 +62,11 @@ class AiReviewWorkerTest {
     @DisplayName("동시에 처리하는 건은 설정한 수를 넘지 않고 끝나면 다음 건을 가져간다")
     void poll_manyClaimable_neverExceedsConcurrency() throws Exception {
         // Given
-        worker = new AiReviewWorker(service, 2, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                2,
+                GRACE
+        );
         given(service.claimNext()).willAnswer(invocation -> Optional.of(claim()));
         CountDownLatch started = new CountDownLatch(2);
         CountDownLatch release = new CountDownLatch(1);
@@ -94,7 +98,11 @@ class AiReviewWorkerTest {
     @DisplayName("가져갈 행이 없으면 자리를 돌려주고 멈췄다가 다음 주기에 다시 가져간다")
     void poll_noClaimable_releasesPermitAndStops() {
         // Given
-        worker = new AiReviewWorker(service, 1, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                1,
+                GRACE
+        );
         given(service.claimNext()).willReturn(Optional.empty());
 
         // When
@@ -110,7 +118,11 @@ class AiReviewWorkerTest {
     @DisplayName("처리가 예외로 끝나도 자리를 돌려주고 다음 건을 가져간다")
     void poll_processThrows_releasesPermit() throws Exception {
         // Given
-        worker = new AiReviewWorker(service, 1, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                1,
+                GRACE
+        );
         CountDownLatch processed = new CountDownLatch(1);
         given(service.claimNext()).willReturn(Optional.of(claim()), Optional.empty());
         doAnswer(invocation -> {
@@ -125,14 +137,22 @@ class AiReviewWorkerTest {
 
         // Then
         verify(service, times(2)).claimNext();
-        verify(service).abandon(any(), eq(AiReviewWorkerService.UNEXPECTED), any());
+        verify(service).abandon(
+                any(),
+                eq(AiReviewWorkerService.UNEXPECTED),
+                any()
+        );
     }
 
     @Test
     @DisplayName("가져오기가 실패해도 예외를 밖으로 던지지 않고 worker_poll_failed를 남긴 뒤 자리를 돌려준다")
     void poll_claimFails_logsAndReleasesPermit() {
         // Given
-        worker = new AiReviewWorker(service, 1, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                1,
+                GRACE
+        );
         given(service.claimNext()).willThrow(new IllegalStateException("db down"))
                 .willReturn(Optional.empty());
 
@@ -145,8 +165,11 @@ class AiReviewWorkerTest {
         assertThat(appender.list).singleElement().satisfies(event -> {
             assertThat(event.getLevel()).isEqualTo(Level.ERROR);
             assertThat(event.getKeyValuePairs().toString())
-                    .contains("type=\"ai_review\"", "event=\"worker_poll_failed\"",
-                            "errorCode=\"IllegalStateException\"");
+                    .contains(
+                            "type=\"ai_review\"",
+                            "event=\"worker_poll_failed\"",
+                            "errorCode=\"IllegalStateException\""
+                    );
             assertThat(event.getFormattedMessage()).doesNotContain("db down");
         });
     }
@@ -155,7 +178,11 @@ class AiReviewWorkerTest {
     @DisplayName("종료가 시작되면 새 건을 가져가지 않는다")
     void poll_afterStop_doesNotClaim() {
         // Given
-        worker = new AiReviewWorker(service, 2, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                2,
+                GRACE
+        );
         worker.stop();
 
         // When
@@ -169,7 +196,11 @@ class AiReviewWorkerTest {
     @DisplayName("종료하면 진행 중인 처리에 종료 신호를 알리고, 유예 시간이 지나면 interrupt한다")
     void stop_inFlightProcess_signalsStoppingThenInterrupts() throws Exception {
         // Given
-        worker = new AiReviewWorker(service, 1, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                1,
+                GRACE
+        );
         given(service.claimNext()).willReturn(Optional.of(claim()), Optional.empty());
         CountDownLatch started = new CountDownLatch(1);
         AtomicBoolean interrupted = new AtomicBoolean();
@@ -200,7 +231,11 @@ class AiReviewWorkerTest {
     @DisplayName("진행 중인 처리가 유예 시간 안에 끝나면 interrupt하지 않는다")
     void stop_processFinishesWithinGrace_doesNotInterrupt() throws Exception {
         // Given
-        worker = new AiReviewWorker(service, 1, Duration.ofSeconds(5));
+        worker = new AiReviewWorker(
+                service,
+                1,
+                Duration.ofSeconds(5)
+        );
         given(service.claimNext()).willReturn(Optional.of(claim()), Optional.empty());
         CountDownLatch started = new CountDownLatch(1);
         AtomicBoolean interrupted = new AtomicBoolean();
@@ -230,7 +265,11 @@ class AiReviewWorkerTest {
     @DisplayName("가져온 뒤 종료 경합으로 실행기가 거절하면 자리를 돌려주고 중단 처리를 알린다")
     void poll_executorRejects_releasesPermitAndLogsAbandoned() {
         // Given
-        worker = new AiReviewWorker(service, 1, GRACE);
+        worker = new AiReviewWorker(
+                service,
+                1,
+                GRACE
+        );
         Claim claim = claim();
         given(service.claimNext()).willAnswer(invocation -> {
             worker.stop();
@@ -246,7 +285,13 @@ class AiReviewWorkerTest {
     }
 
     private Claim claim() {
-        return new Claim(UUID.randomUUID(), 1, UUID.randomUUID(), UUID.randomUUID(), null);
+        return new Claim(
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null
+        );
     }
 
     // 자리가 돌아와야 다시 가져오기를 시도하므로, 호출 횟수가 늘 때까지 폴링해 반납을 행동으로 확인한다.

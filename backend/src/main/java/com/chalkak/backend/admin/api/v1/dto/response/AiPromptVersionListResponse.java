@@ -13,14 +13,16 @@ public record AiPromptVersionListResponse(
         int pageSize,
         boolean hasNext,
         @Schema(description = "version 내림차순(최신 먼저). 프롬프트 본문은 상세 조회로 확인합니다.")
-        List<PromptVersionItem> promptVersions) {
+        List<PromptVersionItem> promptVersions
+) {
 
     public static AiPromptVersionListResponse from(VersionListResult result) {
         return new AiPromptVersionListResponse(
                 result.currentPage(),
                 result.pageSize(),
                 result.hasNext(),
-                result.promptVersions().stream().map(PromptVersionItem::from).toList());
+                result.promptVersions().stream().map(PromptVersionItem::from).toList()
+        );
     }
 
     public record PromptVersionItem(
@@ -34,7 +36,8 @@ public record AiPromptVersionListResponse(
             @Schema(description = "관리자용 메모. 없으면 null입니다.", nullable = true)
             String memo,
             UUID createdByAdminId,
-            Instant createdAt) {
+            Instant createdAt
+    ) {
 
         private static PromptVersionItem from(VersionSummary summary) {
             return new PromptVersionItem(
@@ -45,7 +48,8 @@ public record AiPromptVersionListResponse(
                     summary.outputSchemaVersion(),
                     summary.memo(),
                     summary.createdByAdminId(),
-                    summary.createdAt());
+                    summary.createdAt()
+            );
         }
     }
 }

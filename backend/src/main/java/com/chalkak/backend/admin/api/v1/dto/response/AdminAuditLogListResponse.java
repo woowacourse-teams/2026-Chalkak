@@ -21,7 +21,8 @@ public record AdminAuditLogListResponse(
                 result.currentPage(),
                 result.pageSize(),
                 result.hasNext(),
-                result.auditLogs().stream().map(AuditLogResponse::from).toList());
+                result.auditLogs().stream().map(AuditLogResponse::from).toList()
+        );
     }
 
     public record AuditLogResponse(
@@ -42,10 +43,18 @@ public record AdminAuditLogListResponse(
 
         private static AuditLogResponse from(AdminAuditLogListResult.AuditLogSummary result) {
             return new AuditLogResponse(
-                    result.auditLogId(), result.actorAdminId(), result.actorUsername(),
-                    result.action(), result.targetType(), result.targetId(), result.reason(),
-                    result.beforeState(), result.afterState(), result.occurredAt(),
-                    result.requestId());
+                    result.auditLogId(),
+                    result.actorAdminId(),
+                    result.actorUsername(),
+                    result.action(),
+                    result.targetType(),
+                    result.targetId(),
+                    result.reason(),
+                    result.beforeState(),
+                    result.afterState(),
+                    result.occurredAt(),
+                    result.requestId()
+            );
         }
     }
 }
