@@ -54,6 +54,17 @@ chalkak:
       slack:
         connect-timeout: 2s
         read-timeout: 3s
+  ai-review:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      # 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다. 이미지 분석은 응답이 느려 읽기 제한을 길게 둔다.
+      base-url: https://api.openai.com/v1
+      connect-timeout: 5s
+      read-timeout: 60s
+      # 관리자 미리보기가 호출할 수 있는 모델. 환경마다 다른 값이 아니라 정책 값이라 환경변수로 두지 않는다.
+      allowed-models:
+        - gpt-6.1-sol
+        - gpt-6-luna
   auth:
     access-token:
       issuer: chalkak-backend

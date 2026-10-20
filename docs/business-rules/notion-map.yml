@@ -58,6 +58,7 @@ rule_pages:
       관리자 활동 기록: [ADMIN-006, ADMIN-007]
       검수 요청 알림: [ADMIN-008]
       피드백 조회: [ADMIN-009]
+      AI 프롬프트 미리보기: [ADMIN-010]
   docs/business-rules/rules/banner.md:
     domain: 배너
     pages:
