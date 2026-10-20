@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.remote
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.auth.AuthApi
 import com.stonefive.chalkak.data.remote.auth.RefreshApi
+import com.stonefive.chalkak.data.remote.banner.BannerApi
 import com.stonefive.chalkak.data.remote.feedback.FeedbackApi
 import com.stonefive.chalkak.data.remote.notification.NotificationApi
 import com.stonefive.chalkak.data.remote.post.PostApi
@@ -52,6 +53,17 @@ class NetworkModule(
         .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
         .build()
 
+    // Public banners must not attach session credentials or trigger token refresh.
+    internal val publicClient = OkHttpClient.Builder().build()
+
+    private val publicRetrofit = Retrofit
+        .Builder()
+        .baseUrl(httpsBaseUrl)
+        .client(publicClient)
+        .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
+        .build()
+
+    val bannerApi: BannerApi = publicRetrofit.create(BannerApi::class.java)
     val authApi: AuthApi = retrofit.create(AuthApi::class.java)
     val topicApi: TopicApi = retrofit.create(TopicApi::class.java)
     val postApi: PostApi = retrofit.create(PostApi::class.java)

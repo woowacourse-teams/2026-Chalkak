@@ -1,6 +1,8 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.Banner
+import com.stonefive.chalkak.domain.model.BannerPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -19,6 +21,7 @@ import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -423,22 +426,98 @@ class HomeViewModelTest {
         )
     }
 
+    @Test
+    fun `guest loads latest banner independently of failed rankings`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            todayFailure = HomeFailure.Network
+            bannerResult = HomeResult.Success(BannerPage(1, 1, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository, MutableStateFlow(UserSessionState.Guest))
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 1), repository.bannerQueries)
+        assertEquals(banner(), viewModel.uiState.value.banner)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+        assertEquals(0, repository.statusCalls)
+    }
+
+    @Test
+    fun `initial banner failure does not fail other home sections`() = runTest {
+        val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Failure(HomeFailure.Network) }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(null, viewModel.uiState.value.banner)
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.bannerStatus)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.trending.status)
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
+    }
+
+    @Test
+    fun `refresh preserves banner on failure and removes it on empty success`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 1, false, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(banner(), viewModel.uiState.value.banner)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(null, viewModel.uiState.value.banner)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+    }
+
+    @Test
+    fun `slow banner does not delay initial home readiness`() = runTest {
+        val repository = FakeHomeRepository().apply { bannerGate = CompletableDeferred() }
+        val viewModel = createViewModel(repository)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertEquals(HomeSectionStatus.Loading, viewModel.uiState.value.bannerStatus)
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+    }
+
+    @Test
+    fun `cancelled banner response cannot repopulate signed out home`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerGate = CompletableDeferred()
+            bannerResult = HomeResult.Success(BannerPage(1, 1, false, listOf(banner())))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        session.value = UserSessionState.SignedOut
+        runCurrent()
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(null, viewModel.uiState.value.banner)
+    }
+
     private fun createViewModel(
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
-    ) = HomeViewModel(repository, repository, session, dateProvider).also {
+    ) = HomeViewModel(repository, repository, session, repository, dateProvider).also {
         it.startPreloading()
     }
 }
 
 private class FakeHomeRepository :
     PostRepository,
-    PhotoUploadEntryRepository {
+    PhotoUploadEntryRepository,
+    BannerRepository {
     val contentQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val months = mutableListOf<YearMonth>()
     val details = mutableListOf<String>()
+    val bannerQueries = mutableListOf<Pair<Int, Int>>()
+    var bannerResult: HomeResult<BannerPage> = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
+    var bannerGate: CompletableDeferred<Unit>? = null
     var statusCalls = 0
     var records = emptyList<PostCalendarItem>()
     var calendarFailure = false
@@ -447,6 +526,15 @@ private class FakeHomeRepository :
     var yesterdayFailure: HomeFailure? = null
     var calendarGate: CompletableDeferred<Unit>? = null
     var uploadStatus: TodayPostStatusResult = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+
+    override suspend fun getBanners(
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<BannerPage> {
+        bannerQueries += page to pageSize
+        bannerGate?.let { gate -> withContext(NonCancellable) { gate.await() } }
+        return bannerResult
+    }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         contentQueries += query
@@ -513,4 +601,13 @@ private fun photo(id: String) = Post(
     contentDescription = "사진 $id",
     title = null,
     likeCount = 10,
+)
+
+private fun banner() = Banner(
+    id = "banner-id",
+    title = "서버 배너 제목",
+    subtitle = "서버 배너 설명",
+    webViewUrl = "https://example.com/issue",
+    thumbnailUrl = "https://example.com/banner.jpg",
+    createdAt = "2026-10-20T08:08:11.001Z",
 )

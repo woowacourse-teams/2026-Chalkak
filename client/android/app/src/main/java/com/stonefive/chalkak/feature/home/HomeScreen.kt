@@ -283,12 +283,15 @@ private fun HomeContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            item {
-                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
-                HomeIssueSection(
-                    onIssueClick = onIssueClick,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
-                )
+            if (uiState.banner != null || uiState.bannerStatus == HomeSectionStatus.Loading) {
+                item {
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                    HomeIssueSection(
+                        banner = uiState.banner,
+                        onIssueClick = onIssueClick,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                    )
+                }
             }
         }
     }

@@ -13,6 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
@@ -155,20 +156,45 @@ class HomeScreenTest {
     }
 
     @Test
-    fun issueShowsOneBetaCardAndInvokesOpenAction() {
+    fun issueShowsServerBannerAndInvokesOpenAction() {
         var openedPage: Pair<String, String>? = null
-        showHome(readyState(), onIssue = { title, url -> openedPage = title to url })
+        val banner = Banner(
+            id = "banner-id",
+            title = "서버에서 받은 제목",
+            subtitle = "서버에서 받은 설명",
+            webViewUrl = "https://example.com/issue",
+            thumbnailUrl = image(R.drawable.home_feed_photo),
+            createdAt = "2026-10-20T08:08:11.001Z",
+        )
+        showHome(
+            readyState().copy(banner = banner, bannerStatus = HomeSectionStatus.Ready),
+            onIssue = { title, url -> openedPage = title to url },
+        )
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(5)
         composeRule.onNodeWithText("ISSUE").assertIsDisplayed()
         composeRule
-            .onNodeWithContentDescription("함께 만들어주신 찰캌")
+            .onNodeWithContentDescription(banner.title)
             .assertIsDisplayed()
             .performClick()
         composeRule
             .onNodeWithContentDescription("지난 주 가장 인기있었던 사진")
             .assertDoesNotExist()
-        assertEquals("ISSUE" to "https://2026-chalkak-web.vercel.app/beta/beta.html", openedPage)
+        assertEquals("ISSUE" to banner.webViewUrl, openedPage)
         screenshot("home-issues")
+    }
+
+    @Test
+    fun emptyBannerHidesIssueSection() {
+        showHome(readyState().copy(banner = null, bannerStatus = HomeSectionStatus.Ready))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule.onNodeWithText("ISSUE").assertDoesNotExist()
+    }
+
+    @Test
+    fun failedBannerHidesIssueSection() {
+        showHome(readyState().copy(banner = null, bannerStatus = HomeSectionStatus.Error))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule.onNodeWithText("ISSUE").assertDoesNotExist()
     }
 
     private fun showHome(

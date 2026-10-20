@@ -16,6 +16,7 @@ import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -41,6 +42,7 @@ class HomeViewModel(
     private val repository: PostRepository,
     private val uploadEntryRepository: PhotoUploadEntryRepository,
     private val sessionState: StateFlow<UserSessionState>,
+    private val bannerRepository: BannerRepository,
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
@@ -121,8 +123,24 @@ class HomeViewModel(
                 launch { loadTodayRanking(date) }
                 launch { loadYesterdayRanking(date.minusDays(1)) }
                 launch { loadPersonalContent(date, authenticated) }
+                launch { loadBanner() }
             }
             _uiState.update { it.copy(isRefreshing = false) }
+        }
+    }
+
+    private suspend fun loadBanner() {
+        val result = request { bannerRepository.getBanners(page = 1, pageSize = 1) }
+        _uiState.update { state ->
+            when (result) {
+                is HomeResult.Success -> state.copy(
+                    banner = result.value.banners
+                        .firstOrNull(),
+                    bannerStatus = HomeSectionStatus.Ready,
+                )
+
+                is HomeResult.Failure -> state.copy(bannerStatus = HomeSectionStatus.Error)
+            }
         }
     }
 
@@ -278,6 +296,7 @@ class HomeViewModel(
                     repository = application.appContainer.postRepository,
                     uploadEntryRepository = application.appContainer.photoUploadEntryRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
+                    bannerRepository = application.appContainer.bannerRepository,
                 )
             }
         }

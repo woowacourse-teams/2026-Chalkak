@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.home
 
+import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import java.time.DayOfWeek
@@ -15,6 +16,8 @@ data class HomeUiState(
     val recordsStatus: HomeSectionStatus = HomeSectionStatus.Loading,
     val yesterday: HomeRankingState = HomeRankingState(),
     val trending: HomeRankingState = HomeRankingState(),
+    val banner: Banner? = null,
+    val bannerStatus: HomeSectionStatus = HomeSectionStatus.Loading,
     val isRefreshing: Boolean = false,
     val isAuthenticated: Boolean = false,
 )
