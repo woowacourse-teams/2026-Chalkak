@@ -8,6 +8,8 @@ import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerRepository;
+import com.chalkak.backend.banner.service.BannerResult;
+import com.chalkak.backend.banner.service.BannerService;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
@@ -25,6 +27,8 @@ class AdminBannerDeletionServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private AdminBannerService service;
+    @Autowired
+    private BannerService bannerService;
     @Autowired
     private BannerRepository repository;
     @Autowired
@@ -57,7 +61,7 @@ class AdminBannerDeletionServiceTest extends IntegrationTestSupport {
         // Then
         Banner deleted = entityManager.find(Banner.class, banner.getId());
         assertThat(deleted.getDeletedAt()).isNotNull();
-        assertThat(service.getBanners(1, 20).banners()).isEmpty();
+        assertThat(bannerService.getBanners(1, 20).banners()).isEmpty();
         assertThat(repository.existsByWebViewUrl(URL)).isFalse();
         AdminAuditLog audit = deletionAudit(banner.getId());
         assertThat(audit.getReason()).isNull();
@@ -106,14 +110,14 @@ class AdminBannerDeletionServiceTest extends IntegrationTestSupport {
         service.deleteBanner(old.getId(), adminId);
 
         // When
-        AdminBannerResult created = service.createBanner(adminId, "새 제목", "새 부제목", URL,
+        BannerResult created = service.createBanner(adminId, "새 제목", "새 부제목", URL,
                 "https://cdn.example.com/banner.png");
         entityManager.flush();
         entityManager.clear();
 
         // Then
         assertThat(created.id()).isNotEqualTo(old.getId());
-        assertThat(service.getBanners(1, 20).banners()).extracting(AdminBannerResult::id)
+        assertThat(bannerService.getBanners(1, 20).banners()).extracting(BannerResult::id)
                 .containsExactly(created.id());
     }
 

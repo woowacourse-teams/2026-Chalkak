@@ -73,7 +73,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.webViewUrl").value("https://chalkak.vercel.app/event"));
         entityManager.flush();
         entityManager.clear();
-        mockMvc.perform(get("/api/v1/admin/banners")
+        mockMvc.perform(get("/api/v1/banners")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.banners.length()").value(1))
@@ -93,7 +93,7 @@ class AdminBannerApiTest extends IntegrationTestSupport {
         String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
 
         // When & Then
-        mockMvc.perform(get("/api/v1/admin/banners")
+        mockMvc.perform(get("/api/v1/banners")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .param("page", Integer.toString(page))
                 .param("pageSize", Integer.toString(pageSize)))

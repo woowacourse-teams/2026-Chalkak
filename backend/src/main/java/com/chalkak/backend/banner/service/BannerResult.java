@@ -1,10 +1,10 @@
-package com.chalkak.backend.admin.service.banner;
+package com.chalkak.backend.banner.service;
 
 import com.chalkak.backend.banner.domain.Banner;
 import java.time.Instant;
 import java.util.UUID;
 
-public record AdminBannerResult(
+public record BannerResult(
         UUID id,
         String title,
         String subtitle,
@@ -12,8 +12,8 @@ public record AdminBannerResult(
         String thumbnailUrl,
         Instant createdAt) {
 
-    public static AdminBannerResult from(Banner banner) {
-        return new AdminBannerResult(banner.getId(), banner.getTitle(), banner.getSubtitle(),
+    public static BannerResult from(Banner banner) {
+        return new BannerResult(banner.getId(), banner.getTitle(), banner.getSubtitle(),
                 banner.getWebViewUrl(), banner.getThumbnailUrl(), banner.getCreatedAt());
     }
 }

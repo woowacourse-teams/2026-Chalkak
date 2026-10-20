@@ -8,6 +8,7 @@ import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerRepository;
+import com.chalkak.backend.banner.service.BannerResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
@@ -23,14 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AdminBannerService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final BannerRepository bannerRepository;
     private final AdminAuditLogService auditLogService;
     private final Clock clock;
 
     @Transactional
-    public AdminBannerResult createBanner(
+    public BannerResult createBanner(
             UUID adminId,
             String title,
             String subtitle,
@@ -44,13 +43,7 @@ public class AdminBannerService {
         auditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId, AdminAction.BANNER_CREATED, AdminTargetType.BANNER, saved.getId(), null,
                 AdminAuditSnapshot.from(Map.of()), afterState));
-        return AdminBannerResult.from(saved);
-    }
-
-    @Transactional(readOnly = true)
-    public AdminBannerListResult getBanners(int page, int pageSize) {
-        validatePagination(page, pageSize);
-        return AdminBannerListResult.from(bannerRepository.findBanners(page, pageSize));
+        return BannerResult.from(saved);
     }
 
     @Transactional
@@ -79,14 +72,6 @@ public class AdminBannerService {
         Map<String, Object> state = new LinkedHashMap<>(createBannerState(banner).values());
         state.put("deletedAt", banner.getDeletedAt());
         return AdminAuditSnapshot.from(state);
-    }
-
-    private void validatePagination(int page, int pageSize) {
-        long offset = ((long) page - 1) * pageSize;
-        if (page < 1 || pageSize < 1 || pageSize > MAX_PAGE_SIZE
-                || offset > Integer.MAX_VALUE) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "조회 조건이 올바르지 않습니다.");
-        }
     }
 
     private void validateDuplicateWebView(String webViewUrl) {
