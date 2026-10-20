@@ -15,7 +15,8 @@ public record PostListResult(
         int pageSize,
         boolean hasNext,
         String randomSeed,
-        List<PostSummary> posts) {
+        List<PostSummary> posts
+) {
 
     public static PostListResult from(
             PostSlice postSlice,
@@ -38,8 +39,10 @@ public record PostListResult(
                                 imageUrlProvider,
                                 likeCounts.getOrDefault(post.getId(), 0L),
                                 likedPostIds.contains(post.getId()),
-                                isAuthoredBy(post, viewerId)))
-                        .toList());
+                                isAuthoredBy(post, viewerId)
+                        ))
+                        .toList()
+        );
     }
 
     private static boolean isAuthoredBy(Post post, Optional<UUID> viewerId) {
@@ -59,7 +62,8 @@ public record PostListResult(
             Instant submittedAt,
             long likeCount,
             boolean isLiked,
-            boolean isMine) {
+            boolean isMine
+    ) {
 
         private static PostSummary fromPost(
                 Post post,
@@ -79,7 +83,8 @@ public record PostListResult(
                     post.getCreatedAt(),
                     likeCount,
                     isLiked,
-                    isMine);
+                    isMine
+            );
         }
     }
 }

@@ -25,7 +25,8 @@ public record PostListResponse(
                 result.randomSeed(),
                 result.posts().stream()
                         .map(PostResponse::fromPostListResult)
-                        .toList());
+                        .toList()
+        );
     }
 
     public record PostResponse(
@@ -58,7 +59,8 @@ public record PostListResponse(
                     post.submittedAt(),
                     post.likeCount(),
                     post.isLiked(),
-                    post.isMine());
+                    post.isMine()
+            );
         }
     }
 }

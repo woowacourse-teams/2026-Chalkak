@@ -29,7 +29,8 @@ public record PostDetailResponse(
                 detail.signatureOriginalImageUrl(),
                 detail.title(),
                 detail.likeCount(),
-                detail.isLiked());
+                detail.isLiked()
+        );
     }
 
     public record TopicResponse(
@@ -39,7 +40,11 @@ public record PostDetailResponse(
     ) {
 
         public static TopicResponse fromPostDetail(PostDetail.TopicDetail topic) {
-            return new TopicResponse(topic.id(), topic.title(), topic.topicDate());
+            return new TopicResponse(
+                    topic.id(),
+                    topic.title(),
+                    topic.topicDate()
+            );
         }
     }
 }
