@@ -81,8 +81,8 @@ function previewResult(body: Body, failureType: AiPromptFailureType | undefined)
   return {
     succeeded: true, failureType: null, retryable: null,
     result: {
-      overallScore: 7.8,
-      criteria: [{ key: "composition", label: "구도", score: output.compositionScore }, { key: "themeExpression", label: "주제 표현", score: output.themeExpressionScore }],
+      overallScore: output.compositionScore,
+      criteria: [{ key: "COMPOSITION", label: "구도", score: output.compositionScore }],
       distinctivePerspective: output.themeExpressionScore >= (threshold as number),
       feedback: "빛이 번지는 방향을 따라 시선이 자연스럽게 흐르는 사진이에요.\n주제를 한 걸음 더 가까이에서 담아 보면 이야기가 더 또렷해질 거예요.",
     },

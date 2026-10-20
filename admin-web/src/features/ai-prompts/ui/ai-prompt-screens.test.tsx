@@ -188,7 +188,7 @@ describe("AI prompt form", () => {
       posted(await request.json());
       return HttpResponse.json({
         succeeded: true, failureType: null, retryable: null,
-        result: { overallScore: 7.8, criteria: [{ key: "composition", label: "구도", score: 8.2 }, { key: "themeExpression", label: "주제 표현", score: 7.4 }], distinctivePerspective: true, feedback: "첫 줄\n둘째 줄" },
+        result: { overallScore: 8.2, criteria: [{ key: "COMPOSITION", label: "구도", score: 8.2 }], distinctivePerspective: true, feedback: "첫 줄\n둘째 줄" },
         output: { compositionScore: 8.2, themeExpressionScore: 7.4 },
         usage: { inputTokens: 1450, cachedInputTokens: null, outputTokens: 620, reasoningTokens: 410 }, latencyMs: 4200, responseId: "resp_1",
       });
@@ -207,7 +207,7 @@ describe("AI prompt form", () => {
       parameters: { imageDetail: "HIGH", maxOutputTokens: 4000, reasoningEffort: "LOW", distinctivePerspectiveThreshold: 6.5 }, postId: postIds.approved,
     });
     expect(within(result).getByText("미리보기 성공")).toBeInTheDocument();
-    expect(within(result).getByText("7.8")).toBeInTheDocument();
+    expect(within(result).getByText("종합 점수").nextSibling).toHaveTextContent("8.2");
     expect(within(result).getByText("구도").nextSibling).toHaveTextContent("8.2");
     expect(within(result).getByText("독특한 시각").nextSibling).toHaveTextContent("예");
     expect(within(result).getByText(/첫 줄/).textContent).toBe("첫 줄\n둘째 줄");
