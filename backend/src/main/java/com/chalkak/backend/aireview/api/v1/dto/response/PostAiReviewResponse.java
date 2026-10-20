@@ -1,7 +1,7 @@
 package com.chalkak.backend.aireview.api.v1.dto.response;
 
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
+import com.chalkak.backend.aireview.service.PostAiReviewService.ApiStatus;
 import com.chalkak.backend.aireview.service.PostAiReviewService.ReviewResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -38,7 +38,7 @@ public record PostAiReviewResponse(
             String feedback
     ) {
 
-        private static Result from(StoredResult result) {
+        private static Result from(AiReviewResult result) {
             return new Result(
                     result.overallScore(),
                     result.criteria().stream().map(Criterion::from).toList(),
@@ -57,7 +57,7 @@ public record PostAiReviewResponse(
             double score
     ) {
 
-        private static Criterion from(StoredResult.Criterion criterion) {
+        private static Criterion from(AiReviewResult.Criterion criterion) {
             return new Criterion(criterion.key(), criterion.label(), criterion.score());
         }
     }

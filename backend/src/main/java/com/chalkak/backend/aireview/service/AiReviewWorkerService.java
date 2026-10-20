@@ -5,7 +5,6 @@ import com.chalkak.backend.aireview.domain.AiReview;
 import com.chalkak.backend.aireview.domain.AiReview.FailureReason;
 import com.chalkak.backend.aireview.domain.AiReview.Invocation;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
 import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
@@ -102,7 +101,7 @@ public class AiReviewWorkerService {
                 applyFailure(claim, FailureReason.POST_UNAVAILABLE.name(), Invocation.NONE);
                 return;
             }
-            if (!version.isCompatibleWith() || !aiReviewGenerator.supportsModel(version.getModel())) {
+            if (!aiReviewGenerator.canRun(version)) {
                 applyFailure(claim, FailureReason.PROMPT_VERSION_UNAVAILABLE.name(),
                         Invocation.NONE);
                 return;
@@ -183,10 +182,9 @@ public class AiReviewWorkerService {
     }
 
     private void applyCompletion(Claim claim, AiReviewGeneration generation) {
-        StoredResult result = StoredResult.from(generation.result());
         Invocation invocation = toInvocation(Optional.of(generation.attempt()));
         apply(claim, review -> review.complete(
-                claim.attempt(), result, generation.rawOutput(), invocation, clock.instant()));
+                claim.attempt(), generation.result(), generation.rawOutput(), invocation, clock.instant()));
     }
 
     private void applyFailure(Claim claim, String errorCode, Invocation invocation) {

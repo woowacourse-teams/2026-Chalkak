@@ -7,7 +7,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -53,7 +52,7 @@ public class AiReview {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private StoredResult result;
+    private AiReviewResult result;
 
     /**
      * 모델이 돌려준 output_text를 검증·재해석하지 않고 담는다. jsonb라 공백과 키 순서는 정규화되지만 값은 바뀌지 않는다.
@@ -113,10 +112,6 @@ public class AiReview {
         return review;
     }
 
-    public ApiStatus getApiStatus() {
-        return status.toApiStatus();
-    }
-
     /**
      * 워커가 이 행을 가져간다. 대기 중이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도 번호가 늘고 줄지 않는다.
      * 시도 번호가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고 처리하지 않고 실패로 끝낸다(시도 번호는 늘리지 않는다).
@@ -147,7 +142,7 @@ public class AiReview {
      */
     public boolean complete(
             int attempt,
-            StoredResult result,
+            AiReviewResult result,
             String output,
             Invocation invocation,
             Instant now
@@ -208,25 +203,6 @@ public class AiReview {
         QUEUED,
         PROCESSING,
         COMPLETED,
-        FAILED;
-
-        public ApiStatus toApiStatus() {
-            if (this == COMPLETED) {
-                return ApiStatus.COMPLETED;
-            }
-            if (this == FAILED) {
-                return ApiStatus.FAILED;
-            }
-            return ApiStatus.PROCESSING;
-        }
-    }
-
-    /**
-     * 앱에 노출하는 상태. 대기와 처리 중은 앱이 구분할 필요가 없어 하나로 합친다.
-     */
-    public enum ApiStatus {
-        PROCESSING,
-        COMPLETED,
         FAILED
     }
 
@@ -253,30 +229,5 @@ public class AiReview {
     ) {
 
         public static final Invocation NONE = new Invocation(null, null, null, null, null, null);
-    }
-
-    /**
-     * 앱 응답 계약 그대로 저장한 결과. 필드 이름이 곧 API 계약이므로 바꾸지 않으며, 저장된 값을 다시 계산하지 않고 그대로 돌려준다.
-     */
-    public record StoredResult(
-            double overallScore,
-            List<Criterion> criteria,
-            boolean distinctivePerspective,
-            String feedback
-    ) {
-
-        public static StoredResult from(AiReviewResult result) {
-            return new StoredResult(
-                    result.overallScore(),
-                    result.criteria().stream()
-                            .map(criterion -> new Criterion(
-                                    criterion.key(), criterion.label(), criterion.score()))
-                            .toList(),
-                    result.distinctivePerspective(),
-                    result.feedback());
-        }
-
-        public record Criterion(String key, String label, double score) {
-        }
     }
 }

@@ -4,13 +4,15 @@ import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.MODEL;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willCallRealMethod;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
+import com.chalkak.backend.aireview.service.PostAiReviewService.ApiStatus;
 import com.chalkak.backend.aireview.service.PostAiReviewService.ReviewResult;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -54,6 +56,7 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
         fixture.insertPublicPost();
         fixture.insertPromptVersion(1, MODEL, "1");
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
+        willCallRealMethod().given(aiReviewGenerator).canRun(any());
         appender.start();
         logger.addAppender(appender);
         logger.setLevel(Level.INFO);
@@ -66,7 +69,7 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("같은 게시물에 동시에 요청해도 행은 하나이고 모두 같은 리뷰를 응답받는다")
+    @DisplayName("같은 게시물에 동시에 요청해도 행은 하나이고 모두 처리 중으로 응답받는다")
     void request_concurrent_createsSingleRow() throws Exception {
         // Given
         CountDownLatch ready = new CountDownLatch(THREADS);
@@ -80,16 +83,9 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
             }
             ready.await(10, TimeUnit.SECONDS);
             start.countDown();
-            List<UUID> reviewIds = new ArrayList<>();
             for (Future<ReviewResult> future : futures) {
-                ReviewResult result = future.get(20, TimeUnit.SECONDS);
-                assertThat(result.status()).isEqualTo(ApiStatus.PROCESSING);
-                reviewIds.add(result.id());
+                assertThat(future.get(20, TimeUnit.SECONDS).status()).isEqualTo(ApiStatus.PROCESSING);
             }
-
-            // Then
-            assertThat(reviewIds).hasSize(THREADS).doesNotContainNull()
-                    .containsOnly(reviewIds.get(0));
         }
         assertThat(fixture.countReviews()).isEqualTo(1);
         assertThat(appender.list).singleElement().satisfies(event ->

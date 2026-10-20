@@ -2,7 +2,6 @@ package com.chalkak.backend.aireview.api.v1.controller;
 
 import com.chalkak.backend.aireview.api.v1.docs.PostAiReviewApiDocs;
 import com.chalkak.backend.aireview.api.v1.dto.response.PostAiReviewResponse;
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
 import com.chalkak.backend.aireview.service.PostAiReviewService;
 import com.chalkak.backend.aireview.service.PostAiReviewService.ReviewResult;
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
@@ -36,9 +35,7 @@ public class PostAiReviewController implements PostAiReviewApiDocs {
     ) {
         UUID parsedPostId = CanonicalUuidParser.parse(postId);
         ReviewResult result = postAiReviewService.request(loginUser.userId(), parsedPostId);
-        HttpStatus status = result.status() == ApiStatus.PROCESSING
-                ? HttpStatus.ACCEPTED
-                : HttpStatus.OK;
+        HttpStatus status = result.isInProgress() ? HttpStatus.ACCEPTED : HttpStatus.OK;
 
         return ResponseEntity.status(status).body(PostAiReviewResponse.from(result));
     }

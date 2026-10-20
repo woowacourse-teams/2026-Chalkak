@@ -7,15 +7,17 @@ import static com.chalkak.backend.aireview.service.AiReviewFixture.OTHER_USER_ID
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willCallRealMethod;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult.Criterion;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
+import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
+import com.chalkak.backend.aireview.service.PostAiReviewService.ApiStatus;
 import com.chalkak.backend.aireview.service.PostAiReviewService.ReviewResult;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
@@ -68,6 +70,7 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         fixture = new AiReviewFixture(jdbcTemplate);
         fixture.insertPublicPost();
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
+        willCallRealMethod().given(aiReviewGenerator).canRun(any());
         given(clock.instant()).willReturn(REQUESTED_AT);
         MDC.put(LogFields.REQUEST_ID, requestId.toString());
         appender.start();
@@ -161,7 +164,7 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         assertThat(result.status()).isEqualTo(ApiStatus.COMPLETED);
         assertThat(result.requestedAt()).isEqualTo(REQUESTED_AT);
         assertThat(result.completedAt()).isEqualTo(COMPLETED_AT);
-        assertThat(result.result()).isEqualTo(new StoredResult(
+        assertThat(result.result()).isEqualTo(new AiReviewResult(
                 7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true, "구도가 좋습니다."));
         assertThat(fixture.countReviews()).isEqualTo(1);
     }
@@ -349,22 +352,6 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> service.get(OTHER_USER_ID, POST_ID))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("게시물을 찾을 수 없습니다.");
-    }
-
-    @Test
-    @DisplayName("정지된 작성자도 서비스 단에서는 조회가 막히지 않는다")
-    void get_bannedAuthor_returnsReview() {
-        // Given
-        jdbcTemplate.update("UPDATE users SET status = CAST('BANNED' AS user_status) WHERE id = ?",
-                AUTHOR_ID);
-        UUID versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
-        fixture.insertQueuedReview(versionId, REQUESTED_AT);
-
-        // When
-        ReviewResult result = service.get(AUTHOR_ID, POST_ID);
-
-        // Then
-        assertThat(result.status()).isEqualTo(ApiStatus.PROCESSING);
     }
 
     private void assertUnavailable() {

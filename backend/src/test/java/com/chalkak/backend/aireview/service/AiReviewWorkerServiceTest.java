@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -124,6 +125,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         versionId = fixture.insertPromptVersion(1, MODEL, COMPATIBLE_SCHEMA);
         given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(IMAGE_URL);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
+        willCallRealMethod().given(aiReviewGenerator).canRun(any());
         service = createService(reviewRepository);
         appender.start();
         logger.addAppender(appender);

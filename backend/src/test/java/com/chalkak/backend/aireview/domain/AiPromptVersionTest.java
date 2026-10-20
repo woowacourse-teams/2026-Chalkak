@@ -87,23 +87,23 @@ class AiPromptVersionTest {
 
     @Test
     @DisplayName("출력 스키마 버전이 유형의 현재 버전과 같으면 호환된다")
-    void isCompatibleWith_sameSchemaVersion_returnsTrue() {
+    void hasCurrentOutputSchema_sameSchemaVersion_returnsTrue() {
         // Given
         AiPromptVersion version = AiPromptVersion.create(draft(), 1, null, ADMIN_ID);
 
         // When & Then
-        assertThat(version.isCompatibleWith()).isTrue();
+        assertThat(version.hasCurrentOutputSchema()).isTrue();
     }
 
     @Test
     @DisplayName("출력 스키마 버전이 유형의 현재 버전과 다르면 호환되지 않는다")
-    void isCompatibleWith_differentSchemaVersion_returnsFalse() {
+    void hasCurrentOutputSchema_differentSchemaVersion_returnsFalse() {
         // Given
         AiPromptVersion version = AiPromptVersion.create(draft(), 1, null, ADMIN_ID);
         ReflectionTestUtils.setField(version, "outputSchemaVersion", "0");
 
         // When & Then
-        assertThat(version.isCompatibleWith()).isFalse();
+        assertThat(version.hasCurrentOutputSchema()).isFalse();
     }
 
     @Test

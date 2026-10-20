@@ -3,12 +3,10 @@ package com.chalkak.backend.aireview.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
 import com.chalkak.backend.aireview.domain.AiReview.FailureReason;
 import com.chalkak.backend.aireview.domain.AiReview.Invocation;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult.Criterion;
+import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -48,27 +46,13 @@ class AiReviewTest {
         assertThat(review.getAttempt()).isZero();
         assertThat(review.getResult()).isNull();
         assertThat(review.getCompletedAt()).isNull();
-        assertThat(review.getApiStatus()).isEqualTo(ApiStatus.PROCESSING);
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-            "QUEUED, PROCESSING",
-            "PROCESSING, PROCESSING",
-            "COMPLETED, COMPLETED",
-            "FAILED, FAILED"
-    })
-    @DisplayName("내부 대기·처리 상태는 모두 처리 중으로 노출하고 완료·실패는 그대로 노출한다")
-    void toApiStatus_mapsInternalStatus(Status status, ApiStatus expected) {
-        // When & Then
-        assertThat(status.toApiStatus()).isEqualTo(expected);
     }
 
     @Test
     @DisplayName("저장 결과는 API 계약의 필드 이름으로 직렬화되고 그대로 역직렬화된다")
-    void storedResult_roundTrip_keepsFixedFieldNames() throws Exception {
+    void reviewResult_roundTrip_keepsFixedFieldNames() throws Exception {
         // Given
-        StoredResult result = new StoredResult(
+        AiReviewResult result = new AiReviewResult(
                 7.5,
                 List.of(new Criterion("COMPOSITION", "구도", 7.5)),
                 true,
@@ -84,7 +68,7 @@ class AiReviewTest {
         assertThat(tree.keySet()).containsExactlyInAnyOrder(
                 "overallScore", "criteria", "distinctivePerspective", "feedback");
         assertThat(criteria.get(0).keySet()).containsExactlyInAnyOrder("key", "label", "score");
-        assertThat(jsonMapper.readValue(json, StoredResult.class)).isEqualTo(result);
+        assertThat(jsonMapper.readValue(json, AiReviewResult.class)).isEqualTo(result);
     }
 
     private static final Instant NOW = Instant.parse("2026-10-20T05:01:00Z");
@@ -279,20 +263,6 @@ class AiReviewTest {
         assertThat(review.getErrorCode()).isNull();
     }
 
-    @Test
-    @DisplayName("앱 결과 형태는 모델 결과의 점수·기준·시각 여부·피드백을 그대로 옮긴다")
-    void storedResult_fromReviewResult_copiesValues() {
-        // Given
-        AiReviewResult result = new AiReviewResult(
-                7.5,
-                List.of(new AiReviewResult.Criterion("COMPOSITION", "구도", 7.5)),
-                true,
-                "구도가 좋습니다.");
-
-        // When & Then
-        assertThat(StoredResult.from(result)).isEqualTo(storedResult());
-    }
-
     private AiReview queuedReview() {
         return AiReview.request(POST_ID, USER_ID, PROMPT_VERSION_ID, REQUEST_ID, REQUESTED_AT);
     }
@@ -303,8 +273,8 @@ class AiReviewTest {
         return review;
     }
 
-    private StoredResult storedResult() {
-        return new StoredResult(
+    private AiReviewResult storedResult() {
+        return new AiReviewResult(
                 7.5,
                 List.of(new Criterion("COMPOSITION", "구도", 7.5)),
                 true,

@@ -8,8 +8,8 @@ import com.chalkak.backend.aireview.domain.AiPromptVersion;
 import com.chalkak.backend.aireview.domain.AiReview;
 import com.chalkak.backend.aireview.domain.AiReview.Invocation;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult.Criterion;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
+import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
 import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -215,7 +215,7 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         Map<String, Object> processing = jdbcTemplate.queryForMap("SELECT * FROM ai_reviews");
         review.complete(
                 1,
-                new StoredResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
+                new AiReviewResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
                         "좋습니다"),
                 output,
                 new Invocation(1200, 0, 300, 64, 21_000L, "resp_abc"),

@@ -98,7 +98,7 @@ public class AiPromptVersion {
     /**
      * 이 버전이 모델에게 요구하는 출력 스키마가 서버가 지금 해석할 수 있는 버전인지 확인한다.
      */
-    public boolean isCompatibleWith() {
+    public boolean hasCurrentOutputSchema() {
         return outputSchemaVersion.equals(type.outputSchemaVersion());
     }
 

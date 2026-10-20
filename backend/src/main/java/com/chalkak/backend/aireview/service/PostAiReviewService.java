@@ -3,8 +3,7 @@ package com.chalkak.backend.aireview.service;
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.aireview.domain.AiPromptVersion;
 import com.chalkak.backend.aireview.domain.AiReview;
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.common.logging.CurrentRequestId;
@@ -75,8 +74,7 @@ public class PostAiReviewService {
      */
     private AiPromptVersion getUsableLatestVersion() {
         return promptVersionRepository.findLatestByType(AiPromptType.PHOTO_REVIEW)
-                .filter(AiPromptVersion::isCompatibleWith)
-                .filter(version -> aiReviewGenerator.supportsModel(version.getModel()))
+                .filter(aiReviewGenerator::canRun)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.BUSINESS_ERROR,
                         "지금은 AI 리뷰를 요청할 수 없습니다."));
@@ -106,20 +104,41 @@ public class PostAiReviewService {
      * 요청·조회 결과. 앱에는 내부 대기와 처리 중을 합친 상태만 노출하고, 결과는 완료일 때만 있다.
      */
     public record ReviewResult(
-            UUID id,
             ApiStatus status,
             Instant requestedAt,
             Instant completedAt,
-            StoredResult result
+            AiReviewResult result
     ) {
 
         private static ReviewResult from(AiReview review) {
             return new ReviewResult(
-                    review.getId(),
-                    review.getApiStatus(),
+                    ApiStatus.from(review.getStatus()),
                     review.getRequestedAt(),
                     review.getCompletedAt(),
                     review.getResult());
+        }
+
+        public boolean isInProgress() {
+            return status == ApiStatus.PROCESSING;
+        }
+    }
+
+    /**
+     * 앱에 노출하는 상태. 대기와 처리 중은 앱이 구분할 필요가 없어 하나로 합친다.
+     */
+    public enum ApiStatus {
+        PROCESSING,
+        COMPLETED,
+        FAILED;
+
+        static ApiStatus from(AiReview.Status status) {
+            if (status == AiReview.Status.COMPLETED) {
+                return COMPLETED;
+            }
+            if (status == AiReview.Status.FAILED) {
+                return FAILED;
+            }
+            return PROCESSING;
         }
     }
 }

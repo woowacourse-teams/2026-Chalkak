@@ -10,10 +10,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.aireview.domain.AiReview.ApiStatus;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult;
-import com.chalkak.backend.aireview.domain.AiReview.StoredResult.Criterion;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
+import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
 import com.chalkak.backend.aireview.service.PostAiReviewService;
+import com.chalkak.backend.aireview.service.PostAiReviewService.ApiStatus;
 import com.chalkak.backend.aireview.service.PostAiReviewService.ReviewResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -40,7 +40,6 @@ class PostAiReviewControllerTest {
     private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570a1";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
-    private static final UUID REVIEW_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
     private static final Instant COMPLETED_AT = Instant.parse("2026-10-20T05:00:21Z");
     private static final String PATH = "/api/v1/posts/{postId}/ai-review";
@@ -57,7 +56,7 @@ class PostAiReviewControllerTest {
     void request_processing_returnsAcceptedWithoutResult() throws Exception {
         // Given
         given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(
-                new ReviewResult(REVIEW_ID, ApiStatus.PROCESSING, REQUESTED_AT, null, null));
+                new ReviewResult(ApiStatus.PROCESSING, REQUESTED_AT, null, null));
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
@@ -97,7 +96,7 @@ class PostAiReviewControllerTest {
     void request_failed_returnsOkWithoutResult() throws Exception {
         // Given
         given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(new ReviewResult(
-                REVIEW_ID, ApiStatus.FAILED, REQUESTED_AT, COMPLETED_AT, null));
+                ApiStatus.FAILED, REQUESTED_AT, COMPLETED_AT, null));
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
@@ -114,7 +113,7 @@ class PostAiReviewControllerTest {
     void get_processing_returnsOk() throws Exception {
         // Given
         given(postAiReviewService.get(USER_ID, POST_ID)).willReturn(
-                new ReviewResult(REVIEW_ID, ApiStatus.PROCESSING, REQUESTED_AT, null, null));
+                new ReviewResult(ApiStatus.PROCESSING, REQUESTED_AT, null, null));
 
         // When & Then
         mockMvc.perform(get(PATH, POST_ID))
@@ -203,8 +202,8 @@ class PostAiReviewControllerTest {
     }
 
     private ReviewResult completed() {
-        return new ReviewResult(REVIEW_ID, ApiStatus.COMPLETED, REQUESTED_AT, COMPLETED_AT,
-                new StoredResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
+        return new ReviewResult(ApiStatus.COMPLETED, REQUESTED_AT, COMPLETED_AT,
+                new AiReviewResult(7.5, List.of(new Criterion("COMPOSITION", "구도", 7.5)), true,
                         "구도가 좋습니다."));
     }
 }
