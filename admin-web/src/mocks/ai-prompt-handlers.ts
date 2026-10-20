@@ -91,7 +91,10 @@ function previewResult(body: Body, failureType: AiPromptFailureType | undefined)
   };
 }
 
-export function createAiPromptHandlers(isPublicPost: (postId: string) => boolean) {
+export function createAiPromptHandlers(
+  record: (action: string, id: string, before: Record<string, unknown>, after: Record<string, unknown>) => void,
+  isPublicPost: (postId: string) => boolean,
+) {
   return [
     http.post("*/api/v1/admin/ai-prompt-previews", async ({ request }) => {
       const body = await request.json() as Body;
@@ -133,6 +136,7 @@ export function createAiPromptHandlers(isPublicPost: (postId: string) => boolean
         createdByAdminId: adminId, createdAt: new Date().toISOString(),
       };
       versions.unshift(version);
+      record("AI_PROMPT_VERSION_CREATED", version.promptVersionId, {}, { version: version.version, model: version.model });
       return HttpResponse.json(version, { status: 201 });
     }),
   ];

@@ -40,6 +40,7 @@ describe("AI prompt version list", () => {
     expect(within(rows[1]).queryByText("최신")).not.toBeInTheDocument();
     expect(screen.getByText(/PHOTO_REVIEW/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "새 버전 만들기" })).toHaveAttribute("href", "/ai-prompts/new");
+    expect(screen.getByRole("link", { name: "AI 프롬프트 처리 이력 →" })).toHaveAttribute("href", "/audit-logs?targetType=AI_PROMPT_VERSION");
   });
 
   it("does not mark the latest badge on later pages and paginates by hasNext", async () => {
