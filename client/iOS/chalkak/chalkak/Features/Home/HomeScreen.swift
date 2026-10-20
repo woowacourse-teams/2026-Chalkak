@@ -111,9 +111,10 @@ struct HomeScreen: View {
                 scrollToTop()
             }
             .onChange(of: viewModel.viewState.date) { _, _ in
-                feedbackPhase = .ready
-                isFeedbackExpanded = false
-                isFeedbackSheetPresented = false
+                resetFeedback()
+            }
+            .onChange(of: viewModel.viewState.hero) { _, _ in
+                resetFeedback()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -159,6 +160,12 @@ struct HomeScreen: View {
             return !photo.isPending
         }
         return false
+    }
+
+    private func resetFeedback() {
+        feedbackPhase = .ready
+        isFeedbackExpanded = false
+        isFeedbackSheetPresented = false
     }
 
     private func scrollToTop() {
