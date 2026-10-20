@@ -261,3 +261,86 @@ export interface AdminNoticeListResponse {
 }
 
 export type AdminNoticeInput = Pick<AdminNotice, "title" | "body" | "scheduledAt">;
+
+export type AiPromptType = "PHOTO_REVIEW";
+export type AiImageDetail = "LOW" | "HIGH" | "AUTO";
+export type AiReasoningEffort = "LOW" | "MEDIUM" | "HIGH";
+
+export interface AiPromptParametersInput {
+  imageDetail?: AiImageDetail;
+  maxOutputTokens?: number;
+  reasoningEffort?: AiReasoningEffort;
+  distinctivePerspectiveThreshold?: number;
+}
+
+export interface AiPromptVersionInput {
+  type: AiPromptType;
+  systemPrompt: string;
+  userPromptTemplate: string;
+  model: string;
+  parameters?: AiPromptParametersInput;
+}
+
+export interface AiPromptPreviewRequest extends AiPromptVersionInput {
+  postId: string;
+}
+
+export interface AiPromptVersionCreateRequest extends AiPromptVersionInput {
+  memo?: string;
+}
+
+export type AiPromptFailureType =
+  | "TIMEOUT" | "RATE_LIMITED" | "QUOTA_EXCEEDED" | "UPSTREAM_ERROR"
+  | "BAD_REQUEST" | "REFUSED" | "INCOMPLETE" | "INVALID_OUTPUT";
+
+export interface AiPromptPreviewResponse {
+  succeeded: boolean;
+  failureType: AiPromptFailureType | null;
+  retryable: boolean | null;
+  result: {
+    overallScore: number;
+    criteria: { key: string; label: string; score: number }[];
+    distinctivePerspective: boolean;
+    feedback: string;
+  } | null;
+  // Raw model scores, shown for tuning the distinctive-perspective threshold.
+  output: { compositionScore: number; themeExpressionScore: number } | null;
+  // A null token count means the model did not report it.
+  usage: {
+    inputTokens: number | null;
+    cachedInputTokens: number | null;
+    outputTokens: number | null;
+    reasoningTokens: number | null;
+  } | null;
+  latencyMs: number | null;
+  responseId: string | null;
+}
+
+export interface AiPromptVersionSummary {
+  promptVersionId: string;
+  type: AiPromptType;
+  version: number;
+  model: string;
+  outputSchemaVersion: string;
+  memo: string | null;
+  createdByAdminId: string;
+  createdAt: Instant;
+}
+
+export interface AiPromptVersionListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  promptVersions: AiPromptVersionSummary[];
+}
+
+export interface AiPromptVersionDetail extends AiPromptVersionSummary {
+  systemPrompt: string;
+  userPromptTemplate: string;
+  parameters: {
+    imageDetail: AiImageDetail;
+    maxOutputTokens: number;
+    reasoningEffort: AiReasoningEffort | null;
+    distinctivePerspectiveThreshold: number;
+  };
+}
