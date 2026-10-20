@@ -46,6 +46,8 @@ class AdminAiPromptVersionOpenApiTest extends IntegrationTestSupport {
                         .value(2000))
                 .andExpect(jsonPath(REQUEST + ".properties.model.maxLength").value(100))
                 .andExpect(jsonPath(REQUEST + ".properties.memo.maxLength").value(500))
+                .andExpect(jsonPath(REQUEST + ".properties.parameters['$ref']")
+                        .value("#/components/schemas/AiPromptParametersRequest"))
                 .andExpect(jsonPath("$.components.schemas.AiPromptVersionResponse.properties.keys()")
                         .value(containsInAnyOrder("promptVersionId", "type", "version",
                                 "systemPrompt", "userPromptTemplate", "model", "parameters",

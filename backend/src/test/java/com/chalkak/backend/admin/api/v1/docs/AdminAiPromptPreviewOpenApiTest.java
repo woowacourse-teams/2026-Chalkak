@@ -42,6 +42,9 @@ class AdminAiPromptPreviewOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.components.schemas.AiPromptPreviewRequest.properties.userPromptTemplate.maxLength")
                         .value(2000))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AiPromptPreviewRequest.properties.parameters['$ref']")
+                        .value("#/components/schemas/AiPromptParametersRequest"))
                 .andExpect(jsonPath("$.components.schemas.AiPromptPreviewResponse.properties.failureType.enum")
                         .value(containsInAnyOrder("TIMEOUT", "RATE_LIMITED", "QUOTA_EXCEEDED",
                                 "UPSTREAM_ERROR", "BAD_REQUEST", "REFUSED", "INCOMPLETE", "INVALID_OUTPUT")))

@@ -3,7 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminAiPromptVersionApiDocs;
-import com.chalkak.backend.admin.api.v1.dto.request.AiPromptPreviewRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.AiPromptParametersRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AiPromptVersionCreateRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AiPromptVersionListRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AiPromptVersionListResponse;
@@ -61,10 +61,8 @@ public class AdminAiPromptVersionController implements AdminAiPromptVersionApiDo
     }
 
     private CreateCommand toCommand(AiPromptVersionCreateRequest request) {
-        AiPromptPreviewRequest.Parameters parameters = request.parameters();
-        if (parameters == null) {
-            parameters = new AiPromptPreviewRequest.Parameters(null, null, null, null);
-        }
+        AiPromptParametersRequest parameters =
+                AiPromptParametersRequest.orDefaults(request.parameters());
         return new CreateCommand(
                 request.type(),
                 request.systemPrompt(),

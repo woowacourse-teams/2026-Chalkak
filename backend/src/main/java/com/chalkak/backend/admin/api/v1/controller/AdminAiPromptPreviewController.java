@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminAiPromptPreviewApiDocs;
+import com.chalkak.backend.admin.api.v1.dto.request.AiPromptParametersRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AiPromptPreviewRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AiPromptPreviewResponse;
 import com.chalkak.backend.admin.service.aireview.AdminAiPromptPreviewService;
@@ -35,10 +36,8 @@ public class AdminAiPromptPreviewController implements AdminAiPromptPreviewApiDo
     }
 
     private PreviewCommand toCommand(AiPromptPreviewRequest request) {
-        AiPromptPreviewRequest.Parameters parameters = request.parameters();
-        if (parameters == null) {
-            parameters = new AiPromptPreviewRequest.Parameters(null, null, null, null);
-        }
+        AiPromptParametersRequest parameters =
+                AiPromptParametersRequest.orDefaults(request.parameters());
         return new PreviewCommand(
                 request.type(),
                 request.systemPrompt(),

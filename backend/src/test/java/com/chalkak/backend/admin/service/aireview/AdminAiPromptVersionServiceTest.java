@@ -154,6 +154,20 @@ class AdminAiPromptVersionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("메모가 코드포인트 500개를 넘으면 400이고 아무것도 저장하지 않는다")
+    void createVersion_memoOverLimit_throwsWithoutSaving() {
+        // Given
+        CreateCommand command = command("시스템", "😀".repeat(501));
+
+        // When & Then
+        assertThatThrownBy(() -> versionService.createVersion(ADMIN_ID, command))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR));
+        assertThat(countVersions()).isZero();
+        assertThat(countAudits()).isZero();
+    }
+
+    @Test
     @DisplayName("허용되지 않은 템플릿 변수면 400이고 아무것도 저장하지 않는다")
     void createVersion_invalidTemplateVariable_throwsWithoutSaving() {
         // Given

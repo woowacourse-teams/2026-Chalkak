@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -213,17 +214,17 @@ class AdminAiPromptVersionControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 
-    @Test
-    @DisplayName("목록 조회 서비스의 비즈니스 예외는 400으로 변환한다")
-    void getVersions_invalidPaging_returnsBusinessError() throws Exception {
-        // Given
-        given(versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 101)).willThrow(
-                new BusinessException(ErrorCode.BUSINESS_ERROR, "조회 조건이 올바르지 않습니다."));
-
+    @ParameterizedTest
+    @CsvSource({"page, 0", "pageSize, 0", "pageSize, 101"})
+    @DisplayName("페이지 번호 0이나 페이지 크기 0·101은 서비스 호출 없이 400이다")
+    void getVersions_invalidPagination_returnsBadRequest(String name, String value)
+            throws Exception {
         // When & Then
-        mockMvc.perform(get(PATH).param("type", "PHOTO_REVIEW").param("pageSize", "101"))
+        mockMvc.perform(get(PATH).param("type", "PHOTO_REVIEW").param(name, value))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
+        verifyNoInteractions(versionService);
     }
 
     @Test
@@ -299,9 +300,7 @@ class AdminAiPromptVersionControllerTest {
         return Stream.of(
                 Arguments.of("\"시스템\"", "\"" + "가".repeat(50_001) + "\""),
                 Arguments.of("\"{{topicTitle}}\"", "\"" + "가".repeat(2_001) + "\""),
-                Arguments.of("\"gpt-6.1-sol\"", "\"" + "m".repeat(101) + "\""),
-                Arguments.of("\"gpt-6.1-sol\"",
-                        "\"gpt-6.1-sol\",\"memo\":\"" + "가".repeat(501) + "\""));
+                Arguments.of("\"gpt-6.1-sol\"", "\"" + "m".repeat(101) + "\""));
     }
 
     @Test
@@ -318,6 +317,29 @@ class AdminAiPromptVersionControllerTest {
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
+    }
+
+    @ParameterizedTest
+    @MethodSource("memosAcceptedByDomainRule")
+    @DisplayName("메모 길이는 DTO가 아니라 도메인 규칙(앞뒤 공백 제거 후 코드포인트 500)이 판단하므로 서비스까지 전달한다")
+    void createVersion_memoJudgedByDomain_reachesService(String memo) throws Exception {
+        // Given
+        given(versionService.createVersion(eq(ADMIN_ID), any())).willReturn(result());
+        String body = validBody().replace("\"gpt-6.1-sol\"",
+                "\"gpt-6.1-sol\",\"memo\":\"" + memo + "\"");
+
+        // When
+        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+
+        // Then
+        verify(versionService).createVersion(ADMIN_ID, new CreateCommand(
+                AiPromptType.PHOTO_REVIEW, "시스템", "{{topicTitle}}", "gpt-6.1-sol",
+                null, null, null, null, memo));
+    }
+
+    private static Stream<String> memosAcceptedByDomainRule() {
+        return Stream.of(" " + "가".repeat(500) + " ", "😀".repeat(251), " ".repeat(501));
     }
 
     @ParameterizedTest

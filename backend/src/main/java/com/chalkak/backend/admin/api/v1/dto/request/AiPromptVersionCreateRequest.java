@@ -1,6 +1,5 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
-import com.chalkak.backend.admin.api.v1.dto.request.AiPromptPreviewRequest.Parameters;
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -27,8 +26,11 @@ public record AiPromptVersionCreateRequest(
         String model,
         @Valid
         @Schema(description = "모델 호출 옵션. 생략하면 모든 항목이 기본값입니다.")
-        Parameters parameters,
-        @Size(max = 500)
-        @Schema(description = "관리자용 메모. 앞뒤 공백을 제거하며 비어 있으면 저장하지 않습니다. 최대 500자.", nullable = true)
+        AiPromptParametersRequest parameters,
+        @Schema(
+                description = "관리자용 메모. 앞뒤 공백을 제거하며 비어 있으면 저장하지 않습니다. "
+                        + "공백을 제거한 뒤 글자 수로 최대 500자입니다.",
+                maxLength = 500,
+                nullable = true)
         String memo) {
 }

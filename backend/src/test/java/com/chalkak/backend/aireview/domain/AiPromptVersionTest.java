@@ -46,13 +46,30 @@ class AiPromptVersionTest {
     }
 
     @Test
-    @DisplayName("메모가 500자를 넘으면 거절하고 500자까지는 받는다")
-    void create_memoLength_validatesLimit() {
+    @DisplayName("메모 길이는 앞뒤 공백을 제거한 뒤 유니코드 코드포인트 500개까지 받는다")
+    void create_memoLength_validatesLimitByCodePoints() {
         // When & Then
         assertThatCode(() -> AiPromptVersion.create(draft(), 1, "가".repeat(500), ADMIN_ID))
                 .doesNotThrowAnyException();
+        assertThatCode(() -> AiPromptVersion.create(draft(), 1, "😀".repeat(500), ADMIN_ID))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, "😀".repeat(501), ADMIN_ID))
+                .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> AiPromptVersion.create(draft(), 1, "가".repeat(501), ADMIN_ID))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("앞뒤 공백은 길이에 세지 않고 제거해 저장하며, 공백뿐인 긴 메모는 null이다")
+    void create_memoWithSurroundingWhitespace_countsAfterStrip() {
+        // When
+        AiPromptVersion trimmed = AiPromptVersion.create(
+                draft(), 1, " " + "가".repeat(500) + " ", ADMIN_ID);
+        AiPromptVersion blank = AiPromptVersion.create(draft(), 1, " ".repeat(501), ADMIN_ID);
+
+        // Then
+        assertThat(trimmed.getMemo()).isEqualTo("가".repeat(500));
+        assertThat(blank.getMemo()).isNull();
     }
 
     @Test
