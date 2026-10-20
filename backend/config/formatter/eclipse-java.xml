@@ -10,6 +10,9 @@
         <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
         <!-- "delcaration" is the official Eclipse option spelling, retained for compatibility. -->
         <setting id="org.eclipse.jdt.core.formatter.parentheses_positions_in_method_delcaration" value="preserve_positions"/>
+        <setting id="org.eclipse.jdt.core.formatter.parentheses_positions_in_method_invocation" value="preserve_positions"/>
+        <setting id="org.eclipse.jdt.core.formatter.parentheses_positions_in_enum_constant_declaration" value="preserve_positions"/>
+        <setting id="org.eclipse.jdt.core.formatter.parentheses_positions_in_record_declaration" value="preserve_positions"/>
         <setting id="org.eclipse.jdt.core.formatter.brace_position_for_type_declaration" value="end_of_line"/>
         <setting id="org.eclipse.jdt.core.formatter.brace_position_for_method_declaration" value="end_of_line"/>
         <setting id="org.eclipse.jdt.core.formatter.brace_position_for_constructor_declaration" value="end_of_line"/>

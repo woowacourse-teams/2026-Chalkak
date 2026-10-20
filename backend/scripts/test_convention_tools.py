@@ -6,6 +6,7 @@ backend에서 python3 scripts/test_convention_tools.py 로 실행한다.
 Gradle 의존성을 내려받을 네트워크와 JDK가 필요하다.
 """
 from pathlib import Path
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 
@@ -121,3 +122,80 @@ run('spotlessApply', True)
 assert dto.read_text() == dto_text
 assert formatted.read_text() == text
 print('PASS: DTO annotation line breaks and nested records remain stable on repeated formatting')
+
+# The parameter-count rule remains a manual team rule. These probes ensure that
+# formatting never destroys correctly written declarations/calls/ordinary records.
+formatted.write_text('''class LayoutProbe extends Parent {
+    LayoutProbe() {
+        this(
+                1,
+                2,
+                3
+        );
+    }
+
+    LayoutProbe(
+            int first,
+            int second,
+            int third
+    ) {
+        super(
+                first,
+                second,
+                third
+        );
+    }
+
+    void run() {
+        zero();
+        one(1);
+        two(1, 2);
+        call(
+                first,
+                nested(1, 2),
+                third
+        );
+        new Result(
+                first,
+                second,
+                third,
+                fourth
+        );
+    }
+}
+
+record InternalRecord<T>(
+        java.util.Map<String, T> first,
+        T second,
+        T third
+) {
+    record Nested(int first, int second) {}
+}
+
+enum EnumProbe {
+    SAMPLE(
+            1,
+            2,
+            3
+    );
+}
+''')
+run('spotlessApply', True)
+layout_text = formatted.read_text()
+for pattern in [
+    r'this\(\n\s*1,\n\s*2,\n\s*3\n\s*\)',
+    r'super\(\n\s*first,\n\s*second,\n\s*third\n\s*\)',
+    r'call\(\n\s*first,\n\s*nested\(1, 2\),\n\s*third\n\s*\)',
+    r'new Result\(\n\s*first,\n\s*second,\n\s*third,\n\s*fourth\n\s*\)',
+    r'T third\n\) \{',
+    r'SAMPLE\(\n\s*1,\n\s*2,\n\s*3\n\s*\)',
+]:
+    assert re.search(pattern, layout_text), (pattern, layout_text)
+for call in ['zero();', 'one(1);', 'two(1, 2);', 'nested(1, 2)']:
+    assert call in layout_text, layout_text
+assert 'record Nested(int first, int second) {' in layout_text, layout_text
+run('spotlessCheck', True)
+run('spotlessApply', True)
+assert formatted.read_text() == layout_text
+assert dto.read_text() == dto_text
+print('PASS: Calls, constructors, ordinary/nested records and enum arguments preserve closing-parenthesis lines')
