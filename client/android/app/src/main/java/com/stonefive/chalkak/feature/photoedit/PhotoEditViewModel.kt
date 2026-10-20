@@ -17,7 +17,9 @@ import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import kotlin.math.abs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,18 +46,20 @@ class PhotoEditViewModel(
     private val _uiState = MutableStateFlow(PhotoEditUiState(imageUri = imageUri, edit = initialEdit))
     val uiState: StateFlow<PhotoEditUiState> = _uiState.asStateFlow()
 
-    /** 자동 보정값을 구할 때 쓰는 사진. 불러오지 못하면 자동 보정은 아무것도 바꾸지 않는다. */
-    private val analysisSource = CompletableDeferred<PhotoPixels?>()
+    /**
+     * 자동 보정값을 구할 때 쓰는 사진. 불러오지 못하면 null이고, 그때 자동 보정은 아무것도 바꾸지 않는다.
+     * 편집을 끝내면 [releaseAnalysisSource]로 null로 바꾼다.
+     */
+    private var analysisSource: Deferred<PhotoPixels?> = viewModelScope.async {
+        imageRepository.loadPixels(imageUri, ANALYSIS_SOURCE_LONG_EDGE)
+    }
     private val analysisMutex = Mutex()
 
     private var analyzedGeometry: PhotoEdit? =
         initialEdit.geometry().takeIf { initialEdit.adjustmentLayers.automatic != null }
 
     init {
-        viewModelScope.launch {
-            analysisSource.complete(imageRepository.loadPixels(imageUri, ANALYSIS_SOURCE_LONG_EDGE))
-            refreshAutoAdjustments()
-        }
+        viewModelScope.launch { refreshAutoAdjustments() }
     }
 
     fun onImageLoaded(
@@ -184,7 +188,12 @@ class PhotoEditViewModel(
         viewModelScope.launch {
             if (_uiState.value.edit.adjustmentLayers.intensity > 0f) refreshAutoAdjustments()
             _uiState.update { it.copy(completedEdit = it.edit.normalized()) }
+            releaseAnalysisSource()
         }
+    }
+
+    fun onCancel() {
+        releaseAnalysisSource()
     }
 
     private fun setValue(
@@ -216,6 +225,13 @@ class PhotoEditViewModel(
             )
         }
         updateAdjustmentLayers { it.withAutomatic(automatic) }
+    }
+
+    // 편집 화면을 닫아도 이 ViewModel은 업로드 화면이 사라질 때까지 남는다. 다시 편집할 때마다 새 ViewModel이 생기므로,
+    // 분석용 사진(긴 변 1024px 이상, 수 MB)을 먼저 놓아 편집을 반복해도 메모리가 쌓이지 않게 한다.
+    private fun releaseAnalysisSource() {
+        analysisSource.cancel()
+        analysisSource = CompletableDeferred(value = null)
     }
 
     private fun PhotoEdit.geometry(): PhotoEdit =

@@ -69,8 +69,12 @@ fun PhotoEditRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentOnEditCompleted by rememberUpdatedState(onEditCompleted)
+    val cancel = {
+        viewModel.onCancel()
+        onEditCanceled()
+    }
 
-    BackHandler(onBack = onEditCanceled)
+    BackHandler(onBack = cancel)
     LightSystemBarIconsEffect()
 
     LaunchedEffect(uiState.completedEdit) {
@@ -79,7 +83,7 @@ fun PhotoEditRoute(
 
     PhotoEditScreen(
         uiState = uiState,
-        onCancelClick = onEditCanceled,
+        onCancelClick = cancel,
         onDoneClick = viewModel::onDoneClick,
         onTabSelect = viewModel::onTabSelect,
         onImageLoaded = viewModel::onImageLoaded,

@@ -321,6 +321,21 @@ class PhotoEditViewModelTest {
         assertEquals(0.55f / 0.75f, completed.crop.height, TOLERANCE)
     }
 
+    @Test
+    fun `완료하거나 취소하면 분석용 사진을 놓아 더는 다시 분석하지 않는다`() {
+        listOf(PhotoEditViewModel::onDoneClick, PhotoEditViewModel::onCancel).forEach { finish ->
+            val viewModel = loadedViewModel(pixels = halfDarkPixels())
+            viewModel.onAdjustItemSelect(PhotoAdjustItem.Auto)
+            val automatic = viewModel.uiState.value.edit.adjustmentLayers.automatic
+
+            finish(viewModel)
+            viewModel.onCropResize(CropCorner.BottomEnd, deltaX = -2000f, deltaY = 0f)
+            viewModel.onTabSelect(PhotoEditTab.Adjust)
+
+            assertEquals(automatic, viewModel.uiState.value.edit.adjustmentLayers.automatic)
+        }
+    }
+
     private fun outputAspectRatio(edit: PhotoEdit): Float {
         val rect = CropGeometry(4000f, 3000f).centeredRect(edit)
         return rect.width / rect.height
