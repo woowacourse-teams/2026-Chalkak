@@ -102,10 +102,25 @@ val architectureTest = tasks.register<Test>("architectureTest") {
     include("**/architecture/**")
 }
 
+val checkJavaLayout = tasks.register<Exec>("checkJavaLayout") {
+    group = "verification"
+    description = "Checks 3+ argument and parameter line breaks in production and test sources."
+    val launcher = javaToolchains.launcherFor(java.toolchain)
+    inputs.file("scripts/CheckJavaLayout.java")
+    inputs.files(fileTree("src/main/java"), fileTree("src/test/java"))
+    workingDir(projectDir)
+    commandLine(
+        launcher.get().executablePath.asFile.absolutePath,
+        "scripts/CheckJavaLayout.java",
+        "src/main/java",
+        "src/test/java",
+    )
+}
+
 tasks.register("checkConventions") {
     group = "verification"
     description = "Checks formatting, source conventions and architecture."
-    dependsOn("spotlessCheck", "checkstyleMain", architectureTest)
+    dependsOn("spotlessCheck", "checkstyleMain", architectureTest, checkJavaLayout)
 }
 
 val testEnvContract = tasks.register<Exec>("testEnvContract") {
@@ -138,11 +153,11 @@ tasks.withType<Test>().configureEach {
 }
 
 tasks.named<Test>("test") {
-    dependsOn(checkEnvContract)
+    dependsOn(checkEnvContract, checkJavaLayout)
     // Spring integration tests retain multiple application contexts in this worker JVM.
     maxHeapSize = "1g"
 }
 
 tasks.named("check") {
-    dependsOn(checkEnvContract)
+    dependsOn(checkEnvContract, checkJavaLayout)
 }

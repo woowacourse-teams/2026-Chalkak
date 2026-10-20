@@ -123,7 +123,7 @@ assert dto.read_text() == dto_text
 assert formatted.read_text() == text
 print('PASS: DTO annotation line breaks and nested records remain stable on repeated formatting')
 
-# The parameter-count rule remains a manual team rule. These probes ensure that
+# Parameter counts are checked separately by checkJavaLayout. These probes ensure
 # formatting never destroys correctly written declarations/calls/ordinary records.
 formatted.write_text('''class LayoutProbe extends Parent {
     LayoutProbe() {
@@ -199,3 +199,11 @@ run('spotlessApply', True)
 assert formatted.read_text() == layout_text
 assert dto.read_text() == dto_text
 print('PASS: Calls, constructors, ordinary/nested records and enum arguments preserve closing-parenthesis lines')
+
+result = subprocess.run(
+    ["python3", "-B", "-m", "unittest", "discover", "-s", "scripts", "-p", "check_java_layout_test.py"],
+    cwd=root, capture_output=True, text=True,
+)
+(probe / "java-layout-tests.log").write_text(result.stdout + result.stderr)
+assert result.returncode == 0, result.stdout + result.stderr
+print('PASS: AST layout checks reject unwrapped 3+ items and preserve 0-2 item boundaries in production/tests')
