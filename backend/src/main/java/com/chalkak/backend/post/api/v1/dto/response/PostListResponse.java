@@ -12,8 +12,7 @@ public record PostListResponse(
         boolean hasNext,
         @Schema(
                 description = "랜덤 정렬 결과를 유지하는 값으로 다음 페이지 요청에도 동일하게 전달",
-                nullable = true
-        )
+                nullable = true)
         String randomSeed,
         List<PostResponse> posts
 ) {
@@ -26,12 +25,13 @@ public record PostListResponse(
                 result.randomSeed(),
                 result.posts().stream()
                         .map(PostResponse::fromPostListResult)
-                        .toList()
-        );
+                        .toList());
     }
 
     public record PostResponse(
             UUID id,
+            @Schema(description = "사진 작성자의 회원 ID. 비로그인 응답에도 제공")
+            UUID authorId,
             String originalImageUrl,
             @Schema(description = "변환된 게시물 썸네일 URL", nullable = true)
             String thumbnailImageUrl,
@@ -49,6 +49,7 @@ public record PostListResponse(
         private static PostResponse fromPostListResult(PostListResult.PostSummary post) {
             return new PostResponse(
                     post.id(),
+                    post.authorId(),
                     post.originalImageUrl(),
                     post.thumbnailImageUrl(),
                     post.signatureOriginalImageUrl(),
@@ -57,8 +58,7 @@ public record PostListResponse(
                     post.submittedAt(),
                     post.likeCount(),
                     post.isLiked(),
-                    post.isMine()
-            );
+                    post.isMine());
         }
     }
 }

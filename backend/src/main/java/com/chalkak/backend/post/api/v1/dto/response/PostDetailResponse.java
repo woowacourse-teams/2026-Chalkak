@@ -7,6 +7,8 @@ import java.util.UUID;
 
 public record PostDetailResponse(
         UUID id,
+        @Schema(description = "사진 작성자의 회원 ID. 조회자의 ID와 구분")
+        UUID authorId,
         TopicResponse topic,
         String originalImageUrl,
         @Schema(description = "변환된 게시물 썸네일 URL", nullable = true)
@@ -20,14 +22,14 @@ public record PostDetailResponse(
     public static PostDetailResponse fromPostDetail(PostDetail detail) {
         return new PostDetailResponse(
                 detail.id(),
+                detail.authorId(),
                 TopicResponse.fromPostDetail(detail.topic()),
                 detail.originalImageUrl(),
                 detail.thumbnailImageUrl(),
                 detail.signatureOriginalImageUrl(),
                 detail.title(),
                 detail.likeCount(),
-                detail.isLiked()
-        );
+                detail.isLiked());
     }
 
     public record TopicResponse(

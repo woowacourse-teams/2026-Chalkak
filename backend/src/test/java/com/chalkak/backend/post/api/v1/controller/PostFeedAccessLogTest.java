@@ -208,7 +208,8 @@ class PostFeedAccessLogTest {
     }
 
     private PostListResult.PostSummary summary(UUID id) {
-        return new PostListResult.PostSummary(id, "private-photo", null, "signature", null,
+        return new PostListResult.PostSummary(id, UUID.randomUUID(), "private-photo", null,
+                "signature", null,
                 "private-title", Instant.parse("2026-08-12T03:30:00Z"), 43L, false, false);
     }
 

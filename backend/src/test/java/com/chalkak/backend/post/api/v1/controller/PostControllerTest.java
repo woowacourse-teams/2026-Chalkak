@@ -56,6 +56,7 @@ class PostControllerTest {
 
     private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570a1";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID PHOTO_UPLOAD_ID = UUID
@@ -84,6 +85,7 @@ class PostControllerTest {
                 null,
                 List.of(new PostListResult.PostSummary(
                         POST_ID,
+                        AUTHOR_ID,
                         "https://cdn.example.com/dev/posts/original.jpg",
                         "https://cdn.example.com/dev/posts/thumbnail.jpg",
                         "https://cdn.example.com/dev/signatures/signature.png",
@@ -114,6 +116,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.randomSeed").value(nullValue()))
                 .andExpect(jsonPath("$.topic").doesNotExist())
                 .andExpect(jsonPath("$.posts[0].id").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.posts[0].authorId").value(AUTHOR_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].originalImageUrl")
                         .value("https://cdn.example.com/dev/posts/original.jpg"))
                 .andExpect(jsonPath("$.posts[0].thumbnailImageUrl")
@@ -143,6 +146,7 @@ class PostControllerTest {
                 null,
                 List.of(new PostListResult.PostSummary(
                         POST_ID,
+                        USER_ID,
                         "https://cdn.example.com/dev/posts/original.jpg",
                         "https://cdn.example.com/dev/posts/thumbnail.jpg",
                         "https://cdn.example.com/dev/signatures/signature.png",
@@ -164,6 +168,7 @@ class PostControllerTest {
         mockMvc.perform(get("/api/v1/posts")
                 .queryParam("topicDate", "2026-08-12"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].authorId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
                 .andExpect(jsonPath("$.posts[0].isLiked").value(true))
                 .andExpect(jsonPath("$.posts[0].isMine").value(true));
@@ -342,6 +347,7 @@ class PostControllerTest {
         // Given
         PostDetail detail = new PostDetail(
                 POST_ID,
+                AUTHOR_ID,
                 new PostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
@@ -358,6 +364,7 @@ class PostControllerTest {
         mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.authorId").value(AUTHOR_ID.toString()))
                 .andExpect(jsonPath("$.topic.id").value(TOPIC_ID.toString()))
                 .andExpect(jsonPath("$.topic.title").value("오늘 가장 기억에 남은 순간"))
                 .andExpect(jsonPath("$.topic.topicDate").value("2026-08-12"))

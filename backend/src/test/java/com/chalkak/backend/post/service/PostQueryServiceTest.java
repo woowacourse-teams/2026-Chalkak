@@ -12,6 +12,7 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,33 +35,36 @@ import org.springframework.transaction.annotation.Transactional;
 class PostQueryServiceTest extends IntegrationTestSupport {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
-    private static final UUID SECOND_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
+    private static final UUID SECOND_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
-    private static final UUID SECOND_POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+    private static final UUID SECOND_POST_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
-    private static final UUID UNKNOWN_POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f7");
-    private static final UUID UNKNOWN_USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
+    private static final UUID UNKNOWN_POST_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f7");
+    private static final UUID UNKNOWN_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
     private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
 
     private static final String ORIGINAL_STORAGE_KEY = "chalkak/dev/posts/original.jpg";
     private static final String THUMBNAIL_STORAGE_KEY = "chalkak/dev/posts/thumbnail.jpg";
     private static final String SIGNATURE_STORAGE_KEY = "chalkak/dev/signatures/signature.png";
-    private static final String SIGNATURE_THUMBNAIL_STORAGE_KEY =
-            "chalkak/dev/signatures/signature-thumbnail.png";
+    private static final String SIGNATURE_THUMBNAIL_STORAGE_KEY = "chalkak/dev/signatures/signature-thumbnail.png";
 
     private static final String ORIGINAL_IMAGE_URL = "https://cdn.example.com/dev/posts/original.jpg";
     private static final String THUMBNAIL_IMAGE_URL = "https://cdn.example.com/dev/posts/thumbnail.jpg";
     private static final String SIGNATURE_IMAGE_URL = "https://cdn.example.com/dev/signatures/signature.png";
-    private static final String SIGNATURE_THUMBNAIL_IMAGE_URL =
-            "https://cdn.example.com/dev/signatures/signature-thumbnail.png";
+    private static final String SIGNATURE_THUMBNAIL_IMAGE_URL = "https://cdn.example.com/dev/signatures/signature-thumbnail.png";
 
     @Autowired
     private PostQueryService postQueryService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @MockitoBean
     private ImageUrlProvider imageUrlProvider;
@@ -107,20 +112,21 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP
                 )
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    '오늘의 순간',
-                    'APPROVED',
-                    '2026-08-12T03:30:00Z',
-                    CURRENT_TIMESTAMP
-                )
-                """);
+        jdbcTemplate
+                .update("""
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
+                            '오늘의 순간',
+                            'APPROVED',
+                            '2026-08-12T03:30:00Z',
+                            CURRENT_TIMESTAMP
+                        )
+                        """);
     }
 
     @Test
@@ -140,8 +146,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result).isEqualTo(new PostListResult(
@@ -151,6 +156,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 List.of(new PostListResult.PostSummary(
                         POST_ID,
+                        USER_ID,
                         ORIGINAL_IMAGE_URL,
                         THUMBNAIL_IMAGE_URL,
                         SIGNATURE_IMAGE_URL,
@@ -159,9 +165,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         Instant.parse("2026-08-12T03:30:00Z"),
                         0L,
                         false,
-                        false
-                ))
-        ));
+                        false))));
     }
 
     @Test
@@ -177,8 +181,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.of(USER_ID)
-        );
+                Optional.of(USER_ID));
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -200,8 +203,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -223,16 +225,14 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.of(USER_ID)
-        );
+                Optional.of(USER_ID));
 
         // Then
         assertThat(result.posts())
                 .extracting(PostListResult.PostSummary::id, PostListResult.PostSummary::isMine)
                 .containsExactlyInAnyOrder(
                         tuple(POST_ID, true),
-                        tuple(SECOND_POST_ID, false)
-                );
+                        tuple(SECOND_POST_ID, false));
     }
 
     @Test
@@ -248,8 +248,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result.posts()).extracting(PostListResult.PostSummary::isMine)
@@ -269,8 +268,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result.randomSeed()).isEqualTo("f4c3a091");
@@ -288,8 +286,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 "f4c3a091",
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result.randomSeed()).isEqualTo("f4c3a091");
@@ -306,8 +303,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 USER_ID,
                 POST_ID,
-                SECOND_USER_ID
-        );
+                SECOND_USER_ID);
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -316,8 +312,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result.posts()).extracting(PostListResult.PostSummary::id)
@@ -333,8 +328,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         // Given
         jdbcTemplate.update(
                 "UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?",
-                POST_ID
-        );
+                POST_ID);
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -343,8 +337,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty()
-        );
+                Optional.empty());
 
         // Then
         assertThat(result.hasNext()).isFalse();
@@ -366,9 +359,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         null,
                         1,
                         20,
-                        Optional.empty()
-                )
-        );
+                        Optional.empty()));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -392,9 +383,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         randomSeed,
                         page,
                         20,
-                        Optional.empty()
-                )
-        );
+                        Optional.empty()));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -416,9 +405,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         null,
                         1,
                         20,
-                        Optional.empty()
-                )
-        );
+                        Optional.empty()));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -441,18 +428,17 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(new PostDetail(
                 POST_ID,
+                USER_ID,
                 new PostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
-                        LocalDate.of(2026, 8, 12)
-                ),
+                        LocalDate.of(2026, 8, 12)),
                 ORIGINAL_IMAGE_URL,
                 THUMBNAIL_IMAGE_URL,
                 SIGNATURE_IMAGE_URL,
                 "오늘의 순간",
                 1L,
-                true
-        ));
+                true));
     }
 
     @Test
@@ -461,8 +447,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postQueryService.getPost(UNKNOWN_POST_ID, USER_ID)
-        );
+                () -> postQueryService.getPost(UNKNOWN_POST_ID, USER_ID));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -475,20 +460,114 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         // When
         UnauthorizedException exception = catchThrowableOfType(
                 UnauthorizedException.class,
-                () -> postQueryService.getPost(POST_ID, UNKNOWN_USER_ID)
-        );
+                () -> postQueryService.getPost(POST_ID, UNKNOWN_USER_ID));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
         assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
+    @ParameterizedTest
+    @CsvSource({"RECENT, false", "RECENT, true", "POPULAR, false", "POPULAR, true",
+            "RANDOM, false", "RANDOM, true"})
+    @DisplayName("모든 정렬의 로그인·비로그인 피드는 사인 URL이 같아도 실제 작성자 ID를 구분한다")
+    void getPosts_allSorts_returnsActualAuthorIds(PostSort sort, boolean authenticated) {
+        // Given
+        insertSecondVisiblePost();
+        given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
+        given(imageUrlProvider.getUrl("chalkak/dev/signatures/signature-2.png"))
+                .willReturn(SIGNATURE_IMAGE_URL);
+        String randomSeed = sort == PostSort.RANDOM ? "author-id-test" : null;
+        Optional<UUID> viewerId = authenticated ? Optional.of(USER_ID) : Optional.empty();
+
+        // When
+        PostListResult result = postQueryService.getPosts(
+                TOPIC_DATE, sort, randomSeed, 1, 20, viewerId);
+
+        // Then
+        assertThat(result.posts())
+                .extracting(PostListResult.PostSummary::id, PostListResult.PostSummary::authorId)
+                .containsExactlyInAnyOrder(tuple(POST_ID, USER_ID),
+                        tuple(SECOND_POST_ID, SECOND_USER_ID));
+        assertThat(result.posts()).extracting(PostListResult.PostSummary::signatureOriginalImageUrl)
+                .containsOnly(SIGNATURE_IMAGE_URL);
+        assertThat(result.randomSeed()).isEqualTo(randomSeed);
+        assertThat(result.currentPage()).isEqualTo(1);
+        assertThat(result.pageSize()).isEqualTo(20);
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("사인을 교체해도 피드·상세의 작성자 ID는 유지하고 현재 사인만 바뀐다")
+    void getPostsAndGetPost_changedSignature_preserveAuthorIdAndShowCurrentSignature() {
+        // Given
+        insertSecondVisiblePost();
+        String newSignatureKey = "chalkak/dev/signatures/new-signature.png";
+        String newSignatureUrl = "https://cdn.example.com/dev/signatures/new-signature.png";
+        given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
+        given(imageUrlProvider.getUrl(newSignatureKey)).willReturn(newSignatureUrl);
+        PostListResult beforeFeed = postQueryService.getPosts(
+                TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.of(SECOND_USER_ID));
+        PostDetail beforeDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
+        jdbcTemplate.update("""
+                UPDATE users
+                SET signature_original_storage_key = ?, signature_thumbnail_storage_key = ?
+                WHERE id = ?
+                """, newSignatureKey, "chalkak/dev/signatures/new-signature-thumbnail.png",
+                USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        PostListResult afterFeed = postQueryService.getPosts(
+                TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.of(SECOND_USER_ID));
+        PostDetail afterDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
+
+        // Then
+        assertThat(beforeFeed.posts()).extracting(PostListResult.PostSummary::id,
+                PostListResult.PostSummary::authorId,
+                PostListResult.PostSummary::signatureOriginalImageUrl)
+                .contains(tuple(POST_ID, USER_ID, SIGNATURE_IMAGE_URL));
+        assertThat(afterFeed.posts()).extracting(PostListResult.PostSummary::id,
+                PostListResult.PostSummary::authorId,
+                PostListResult.PostSummary::signatureOriginalImageUrl)
+                .contains(tuple(POST_ID, USER_ID, newSignatureUrl));
+        assertThat(beforeDetail.authorId()).isEqualTo(USER_ID);
+        assertThat(afterDetail.authorId()).isEqualTo(USER_ID).isNotEqualTo(SECOND_USER_ID);
+        assertThat(beforeDetail.signatureOriginalImageUrl()).isEqualTo(SIGNATURE_IMAGE_URL);
+        assertThat(afterDetail.signatureOriginalImageUrl()).isEqualTo(newSignatureUrl);
+    }
+
+    @Test
+    @DisplayName("진입 게시물이 삭제돼도 피드에서 받은 작성자 ID로 공개 사진 목록을 조회한다")
+    void getAuthorPosts_deletedEntryPost_keepsAuthorLookupAvailable() {
+        // Given
+        insertSecondVisiblePost();
+        PostListResult feed = postQueryService.getPosts(
+                TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.empty());
+        UUID authorId = feed.posts().stream().filter(post -> post.id().equals(POST_ID))
+                .findFirst().orElseThrow().authorId();
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20,
+                SECOND_USER_ID);
+
+        // Then
+        assertThat(authorId).isEqualTo(USER_ID);
+        assertThat(result.posts()).isEmpty();
+        assertThat(result.currentPage()).isEqualTo(1);
+        assertThat(result.hasNext()).isFalse();
+    }
+
     private void insertPostLike() {
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 POST_ID,
-                USER_ID
-        );
+                USER_ID);
     }
 
     private void insertSecondVisiblePost() {
@@ -538,7 +617,6 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         return Stream.of(
                 Arguments.of(PostSort.RECENT, "f4c3a091", 1),
                 Arguments.of(PostSort.RANDOM, null, 2),
-                Arguments.of(PostSort.POPULAR, "f4c3a091", 1)
-        );
+                Arguments.of(PostSort.POPULAR, "f4c3a091", 1));
     }
 }

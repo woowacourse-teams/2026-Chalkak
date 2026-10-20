@@ -8,14 +8,14 @@ import java.util.UUID;
 
 public record PostDetail(
         UUID id,
+        UUID authorId,
         TopicDetail topic,
         String originalImageUrl,
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
         String title,
         long likeCount,
-        boolean isLiked
-) {
+        boolean isLiked) {
 
     public static PostDetail from(
             Post post,
@@ -25,28 +25,26 @@ public record PostDetail(
     ) {
         return new PostDetail(
                 post.getId(),
+                post.getAuthor().getId(),
                 TopicDetail.from(post.getTopic()),
                 imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
                 imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                 imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),
                 post.getTitle(),
                 likeCount,
-                isLiked
-        );
+                isLiked);
     }
 
     public record TopicDetail(
             UUID id,
             String title,
-            LocalDate topicDate
-    ) {
+            LocalDate topicDate) {
 
         public static TopicDetail from(Topic topic) {
             return new TopicDetail(
                     topic.getId(),
                     topic.getTitle(),
-                    topic.getTopicDate()
-            );
+                    topic.getTopicDate());
         }
     }
 }
