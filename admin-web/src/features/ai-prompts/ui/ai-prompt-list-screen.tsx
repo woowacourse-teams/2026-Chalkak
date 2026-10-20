@@ -39,7 +39,7 @@ export function AiPromptListScreen() {
     <div className={styles.heading}><span>버전 최신순</span><Link href="/audit-logs?targetType=AI_PROMPT_VERSION">AI 프롬프트 처리 이력 →</Link></div>
     {query.isPending ? <LoadingSkeleton rows={3} /> : null}
     {query.isError ? <ErrorState description={query.error instanceof ApiError ? query.error.message : "AI 프롬프트 버전을 불러오지 못했습니다."} onRetry={() => { void query.refetch(); }} /> : null}
-    {!query.isError && query.data?.promptVersions.length === 0 ? <EmptyState title="만든 프롬프트 버전이 없습니다" description={page === 1 ? "버전이 하나도 없으면 사진 AI 리뷰 기능은 꺼진 상태입니다. 새 버전을 만들면 기능이 켜집니다." : "이전 페이지를 확인해 주세요."} /> : null}
+    {!query.isError && query.data?.promptVersions.length === 0 ? <EmptyState title="만든 프롬프트 버전이 없습니다" description={page === 1 ? "버전이 하나도 없으면 사진 AI 리뷰 기능은 꺼진 상태입니다." : "이전 페이지를 확인해 주세요."} /> : null}
     {!query.isError && query.data?.promptVersions.length ? <Table caption="AI 프롬프트 버전 목록" columns={columns} getRowKey={(row) => row.promptVersionId} rows={query.data.promptVersions} /> : null}
     {!query.isError && query.data ? <Pagination currentPage={query.data.currentPage} hasNext={query.data.hasNext} onPageChange={(next) => router.push(`/ai-prompts?page=${next}`)} /> : null}
   </div>;

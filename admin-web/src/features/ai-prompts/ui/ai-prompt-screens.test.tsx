@@ -62,7 +62,7 @@ describe("AI prompt version list", () => {
     server.use(http.get("*/api/v1/admin/ai-prompt-versions", () => HttpResponse.json({ currentPage: 1, pageSize: 20, hasNext: false, promptVersions: [] })));
     mount(<AiPromptListScreen />);
     expect(await screen.findByText("만든 프롬프트 버전이 없습니다")).toBeInTheDocument();
-    expect(screen.getByText(/기능은 꺼진 상태/)).toBeInTheDocument();
+    expect(screen.getByText("버전이 하나도 없으면 사진 AI 리뷰 기능은 꺼진 상태입니다.")).toBeInTheDocument();
   });
 
   it("shows load errors and retries", async () => {
