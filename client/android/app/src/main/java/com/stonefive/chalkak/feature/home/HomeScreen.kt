@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -222,7 +223,10 @@ private fun HomeFeedbackStartBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = ChalkakTheme.shapes.sheet,
+        // 화면 아래 끝과 좌우를 꽉 채우도록 위쪽 모서리만 둥글게 하고 기본 최대 너비(640dp) 제한을 푼다.
+        sheetMaxWidth = Dp.Unspecified,
+        shape = ChalkakTheme.shapes.sheet
+            .copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize),
         containerColor = ChalkakTheme.colors.surfaceElevated,
     ) {
         HomeFeedbackStartSheet(
