@@ -6,11 +6,13 @@ import android.graphics.Color
 import androidx.exifinterface.media.ExifInterface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.stonefive.chalkak.domain.model.CropWindow
-import com.stonefive.chalkak.domain.model.PhotoAdjustments
-import com.stonefive.chalkak.domain.model.PhotoEdit
-import com.stonefive.chalkak.domain.model.PhotoFilter
-import com.stonefive.chalkak.domain.model.PhotoToneCurve
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentScale
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.SrgbTransfer
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
@@ -157,12 +159,13 @@ class AndroidPostImageEncoderTest {
         val gray = Color.rgb(GRAY_LEVEL, GRAY_LEVEL, GRAY_LEVEL)
         val source = createJpeg(width = QUADRANT_SIZE, height = QUADRANT_SIZE) { _, _ -> gray }
         try {
-            val output = encodeToBitmap(source, PhotoEdit(adjustments = PhotoAdjustments(exposure = 0.4f)))
+            val edit = PhotoEdit(adjustmentLayers = PhotoAdjustmentLayers.manualOnly(PhotoAdjustments(exposure = 0.4f)))
+            val output = encodeToBitmap(source, edit)
             try {
                 // 선형 공간에서 2^(0.4 × 1.5)배 한 뒤 다시 감마 인코딩한 값.
-                val linear = PhotoToneCurve.linear(GRAY_LEVEL / 255.0) *
-                    2.0.pow(0.4 * PhotoToneCurve.EXPOSURE_RANGE_EV)
-                val brightened = (PhotoToneCurve.gamma(linear) * 255).roundToInt()
+                val linear = SrgbTransfer.linear(GRAY_LEVEL / 255.0) *
+                    2.0.pow(0.4 * PhotoAdjustmentScale.EXPOSURE_RANGE_EV)
+                val brightened = (SrgbTransfer.gamma(linear) * 255).roundToInt()
                 val center = output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2)
                 // 단색은 손실 압축에도 거의 그대로라 일반 색 허용치보다 좁게 본다.
                 assertTrue(
@@ -184,7 +187,7 @@ class AndroidPostImageEncoderTest {
             val edit = PhotoEdit(
                 crop = CropWindow(centerX = 0.25f, centerY = 0.25f, width = 0.5f, height = 0.5f),
                 filter = PhotoFilter.Warm,
-                adjustments = PhotoAdjustments(saturation = -1f),
+                adjustmentLayers = PhotoAdjustmentLayers.manualOnly(PhotoAdjustments(saturation = -1f)),
             )
             val output = encodeToBitmap(source, edit)
             try {
