@@ -179,7 +179,7 @@ export interface AdminAuditLogResponse {
   actorAdminId: string;
   actorUsername: string;
   action: string;
-  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE";
+  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER";
   targetId: string;
   reason: string | null;
   beforeState: Record<string, unknown>;

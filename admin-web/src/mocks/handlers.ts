@@ -1,3 +1,4 @@
+import { createBannerHandlers, resetBannerMocks } from "./banner-handlers";
 import { delay, http, HttpResponse } from "msw";
 import { noticeHandlers, resetNoticeMocks } from "./notice-handlers";
 
@@ -40,6 +41,7 @@ let scheduleStore = structuredClone(scheduleFixtures);
 
 export function resetMockData() {
   resetNoticeMocks();
+  resetBannerMocks();
   mockAdminSignedIn = false;
   auditStore = [];
   scheduleStore = structuredClone(scheduleFixtures);
@@ -263,6 +265,7 @@ async function saveSchedule(request: Request, scheduleId?: string) {
 
 export const handlers = [
   ...noticeHandlers,
+  ...createBannerHandlers((action, id, before, after) => recordAudit(action, "BANNER", id, null, before, after)),
   http.get(adminApi + "/topic-push-schedules", () => HttpResponse.json({ schedules: [...scheduleStore].sort((left, right) => left.sendTime.localeCompare(right.sendTime)) })),
   http.post(adminApi + "/topic-push-schedules", ({ request }) => saveSchedule(request)),
   http.put(adminApi + "/topic-push-schedules/:scheduleId", ({ request, params }) => saveSchedule(request, String(params.scheduleId))),

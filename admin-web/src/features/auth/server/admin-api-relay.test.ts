@@ -619,3 +619,40 @@ describe("notice relay", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+
+describe("banner relay", () => {
+  it("routes only banner list GET to the public backend path and forwards session auth", async () => {
+    fetchMock.mockResolvedValue(Response.json({ currentPage: 2, pageSize: 20, hasNext: false, banners: [] }));
+    const response = await relay("banners?page=2&pageSize=20", { cookie: token });
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith("https://backend.example.test/api/v1/banners?page=2&pageSize=20", expect.objectContaining({ method: "GET", cache: "no-store" }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+  });
+  it("posts banners to the admin backend path", async () => {
+    const body = { title: "제목", subtitle: "부제목", webViewUrl: "https://example.com/event", thumbnailUrl: "https://example.com/image.png" };
+    fetchMock.mockResolvedValue(Response.json({ id: resourceId, ...body }, { status: 201 }));
+    const response = await relay("banners", { method: "POST", body, cookie: token });
+    expect(response.status).toBe(201);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/banners`, expect.objectContaining({ method: "POST", body: JSON.stringify(body) }));
+  });
+  it("deletes banners without any upstream body or content type", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const response = await relay(`banners/${resourceId}`, { method: "DELETE", cookie: token });
+    expect(response.status).toBe(204);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/banners/${resourceId}`, expect.objectContaining({ method: "DELETE", body: undefined }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Content-Type")).toBeNull();
+  });
+  it("rejects delete bodies before contacting the backend", async () => {
+    expect((await relay(`banners/${resourceId}`, { method: "DELETE", body: { reason: "ignored" }, cookie: token })).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("requires the admin session even for the public upstream list", async () => {
+    expect((await relay("banners")).status).toBe(401); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("does not allow detail GET or update PUT", async () => {
+    expect((await relay(`banners/${resourceId}`, { cookie: token })).status).toBe(405);
+    expect((await relay(`banners/${resourceId}`, { method: "PUT", cookie: token, body: {} })).status).toBe(405);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
