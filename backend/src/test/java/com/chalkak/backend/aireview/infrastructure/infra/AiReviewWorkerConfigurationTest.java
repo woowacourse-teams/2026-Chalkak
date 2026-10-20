@@ -16,6 +16,8 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -88,41 +90,41 @@ class AiReviewWorkerConfigurationTest {
     @DisplayName("임대 시간이 연결+응답 제한 시간+20초보다 짧으면 시작하지 못한다")
     void configuration_leaseShorterThanCallTimeouts_failsFast() {
         // When & Then
-        contextRunner.withPropertyValues(ENABLED).withPropertyValues(YAML_VALUES)
-                .withPropertyValues("chalkak.ai-review.worker.lease-duration=84s")
-                .run(context -> {
-                    assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure()).rootCause()
-                            .isInstanceOf(IllegalArgumentException.class)
-                            .hasMessageContaining("임대 시간");
-                });
-        contextRunner.withPropertyValues(ENABLED).withPropertyValues(YAML_VALUES)
-                .withPropertyValues("chalkak.ai-review.worker.lease-duration=85s")
+        enabledRunner("chalkak.ai-review.worker.lease-duration=84s").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).rootCause()
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("임대 시간");
+        });
+        enabledRunner("chalkak.ai-review.worker.lease-duration=85s")
                 .run(context -> assertThat(context).hasNotFailed());
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "chalkak.ai-review.worker.concurrency=0",
+            "chalkak.ai-review.worker.max-claims=0"
+    })
     @DisplayName("동시 처리 수와 가져가기 상한은 1 이상이어야 한다")
-    void configuration_nonPositiveLimits_failsFast() {
+    void configuration_nonPositiveLimits_failsFast(String property) {
         // When & Then
-        contextRunner.withPropertyValues(ENABLED).withPropertyValues(YAML_VALUES)
-                .withPropertyValues("chalkak.ai-review.worker.concurrency=0")
-                .run(context -> assertThat(context).hasFailed());
-        contextRunner.withPropertyValues(ENABLED).withPropertyValues(YAML_VALUES)
-                .withPropertyValues("chalkak.ai-review.worker.max-claims=0")
-                .run(context -> assertThat(context).hasFailed());
+        enabledRunner(property).run(context -> assertThat(context).hasFailed());
     }
 
     @Test
     @DisplayName("스케줄링을 끄면 폴러는 만들지 않고 처리 서비스만 남긴다")
     void configuration_schedulingDisabled_doesNotCreatePoller() {
         // When & Then
-        contextRunner.withPropertyValues(ENABLED).withPropertyValues(YAML_VALUES)
-                .withPropertyValues("chalkak.scheduling.enabled=false")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(AiReviewWorkerService.class);
-                    assertThat(context).doesNotHaveBean(AiReviewWorker.class);
-                });
+        enabledRunner("chalkak.scheduling.enabled=false").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(AiReviewWorkerService.class);
+            assertThat(context).doesNotHaveBean(AiReviewWorker.class);
+        });
+    }
+
+    private ApplicationContextRunner enabledRunner(String property) {
+        return contextRunner.withPropertyValues(ENABLED)
+                .withPropertyValues(YAML_VALUES)
+                .withPropertyValues(property);
     }
 }

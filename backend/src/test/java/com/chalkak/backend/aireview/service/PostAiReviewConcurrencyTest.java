@@ -54,11 +54,7 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
         fixture = new AiReviewFixture(jdbcTemplate);
         fixture.clean();
         fixture.insertPublicPost();
-        fixture.insertPromptVersion(
-                1,
-                MODEL,
-                "1"
-        );
+        fixture.insertPromptVersion(1);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
         willCallRealMethod().given(aiReviewGenerator).canRun(any());
         appender.start();

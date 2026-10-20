@@ -25,12 +25,15 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 
 @WebMvcTest(PostAiReviewController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -42,6 +45,16 @@ class PostAiReviewControllerTest {
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
     private static final Instant COMPLETED_AT = Instant.parse("2026-10-20T05:00:21Z");
+    private static final AiReviewResult STORED = new AiReviewResult(
+            7.5,
+            List.of(new Criterion(
+                    "COMPOSITION",
+                    "구도",
+                    7.5
+            )),
+            true,
+            "구도가 좋습니다."
+    );
     private static final String PATH = "/api/v1/posts/{postId}/ai-review";
 
     @Autowired
@@ -50,42 +63,52 @@ class PostAiReviewControllerTest {
     @MockitoBean
     private PostAiReviewService postAiReviewService;
 
-    @Test
+    @ParameterizedTest
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("요청이 처리 중이면 202와 상태·요청 시각만 반환한다")
-    void request_processing_returnsAcceptedWithoutResult() throws Exception {
+    @CsvSource({
+            "PROCESSING, 202",
+            "COMPLETED, 200",
+            "FAILED, 200"
+    })
+    @DisplayName("요청은 처리 중이면 202, 완료·실패면 200이고 조회는 항상 200이며 응답 필드는 같다")
+    void requestAndGet_byStatus_returnsMatchingHttpStatus(
+            ApiStatus apiStatus,
+            int requestHttpStatus
+    ) throws Exception {
         // Given
-        given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(
-                new ReviewResult(
-                        ApiStatus.PROCESSING,
-                        REQUESTED_AT,
-                        null,
-                        null
-                ));
+        ReviewResult reviewResult = result(apiStatus);
+        given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(reviewResult);
+        given(postAiReviewService.get(USER_ID, POST_ID)).willReturn(reviewResult);
+        String completedAt = apiStatus == ApiStatus.PROCESSING ? null : "2026-10-20T05:00:21Z";
+        ResultMatcher resultMatcher = apiStatus == ApiStatus.COMPLETED
+                ? jsonPath("$.result.overallScore").value(7.5)
+                : jsonPath("$.result").value(nullValue());
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("PROCESSING"))
+                .andExpect(status().is(requestHttpStatus))
+                .andExpect(jsonPath("$.status").value(apiStatus.name()))
                 .andExpect(jsonPath("$.requestedAt").value("2026-10-20T05:00:00Z"))
-                .andExpect(jsonPath("$.completedAt").value(nullValue()))
-                .andExpect(jsonPath("$.result").value(nullValue()))
-                .andExpect(jsonPath("$.id").doesNotExist());
+                .andExpect(jsonPath("$.completedAt").value(completedAt))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andExpect(jsonPath("$.errorCode").doesNotExist())
+                .andExpect(resultMatcher);
+        mockMvc.perform(get(PATH, POST_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(apiStatus.name()))
+                .andExpect(resultMatcher);
     }
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("요청한 리뷰가 완료됐으면 200과 결과를 반환한다")
-    void request_completed_returnsOkWithResult() throws Exception {
+    @DisplayName("완료된 리뷰는 결과의 점수·항목·피드백을 반환하고 그 밖의 상태는 결과가 null이다")
+    void request_completed_returnsResult() throws Exception {
         // Given
-        given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(completed());
+        given(postAiReviewService.request(USER_ID, POST_ID))
+                .willReturn(result(ApiStatus.COMPLETED));
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.requestedAt").value("2026-10-20T05:00:00Z"))
-                .andExpect(jsonPath("$.completedAt").value("2026-10-20T05:00:21Z"))
                 .andExpect(jsonPath("$.result.overallScore").value(7.5))
                 .andExpect(jsonPath("$.result.criteria.length()").value(1))
                 .andExpect(jsonPath("$.result.criteria[0].key").value("COMPOSITION"))
@@ -93,61 +116,9 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.result.criteria[0].score").value(7.5))
                 .andExpect(jsonPath("$.result.distinctivePerspective").value(true))
                 .andExpect(jsonPath("$.result.feedback").value("구도가 좋습니다."));
-    }
-
-    @Test
-    @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("요청한 리뷰가 실패했으면 200과 실패 상태만 반환하고 사유는 노출하지 않는다")
-    void request_failed_returnsOkWithoutResult() throws Exception {
-        // Given
-        given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(new ReviewResult(
-                ApiStatus.FAILED,
-                REQUESTED_AT,
-                COMPLETED_AT,
-                null
-        ));
-
-        // When & Then
+        given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(result(ApiStatus.FAILED));
         mockMvc.perform(post(PATH, POST_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.completedAt").value("2026-10-20T05:00:21Z"))
-                .andExpect(jsonPath("$.result").value(nullValue()))
-                .andExpect(jsonPath("$.errorCode").doesNotExist());
-    }
-
-    @Test
-    @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("조회는 처리 중이어도 200이다")
-    void get_processing_returnsOk() throws Exception {
-        // Given
-        given(postAiReviewService.get(USER_ID, POST_ID)).willReturn(
-                new ReviewResult(
-                        ApiStatus.PROCESSING,
-                        REQUESTED_AT,
-                        null,
-                        null
-                ));
-
-        // When & Then
-        mockMvc.perform(get(PATH, POST_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PROCESSING"))
                 .andExpect(jsonPath("$.result").value(nullValue()));
-    }
-
-    @Test
-    @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("조회가 완료 상태이면 결과를 반환한다")
-    void get_completed_returnsResult() throws Exception {
-        // Given
-        given(postAiReviewService.get(USER_ID, POST_ID)).willReturn(completed());
-
-        // When & Then
-        mockMvc.perform(get(PATH, POST_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.result.overallScore").value(7.5));
     }
 
     @Test
@@ -215,21 +186,12 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.message").value("지금은 AI 리뷰를 요청할 수 없습니다."));
     }
 
-    private ReviewResult completed() {
+    private ReviewResult result(ApiStatus apiStatus) {
         return new ReviewResult(
-                ApiStatus.COMPLETED,
+                apiStatus,
                 REQUESTED_AT,
-                COMPLETED_AT,
-                new AiReviewResult(
-                        7.5,
-                        List.of(new Criterion(
-                                "COMPOSITION",
-                                "구도",
-                                7.5
-                        )),
-                        true,
-                        "구도가 좋습니다."
-                )
+                apiStatus == ApiStatus.PROCESSING ? null : COMPLETED_AT,
+                apiStatus == ApiStatus.COMPLETED ? STORED : null
         );
     }
 }

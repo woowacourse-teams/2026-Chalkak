@@ -164,14 +164,11 @@ public class AiReviewWorkerService {
             String reason,
             RuntimeException exception
     ) {
-        LoggingEventBuilder event = AI_REVIEW_LOG.atWarn()
-                .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
-                .addKeyValue(LogFields.EVENT, "review_abandoned")
-                .addKeyValue("aiReviewId", claim.reviewId())
-                .addKeyValue(LogFields.POST_ID, claim.postId())
-                .addKeyValue(LogFields.USER_ID, claim.userId())
-                .addKeyValue("attempt", claim.attempt())
-                .addKeyValue("reason", reason);
+        LoggingEventBuilder event = event(
+                AI_REVIEW_LOG.atWarn(),
+                "review_abandoned",
+                claim
+        ).addKeyValue("reason", reason);
         if (exception != null) {
             event = event.addKeyValue(LogFields.ERROR_CODE, exception.getClass().getSimpleName());
         }
@@ -190,13 +187,7 @@ public class AiReviewWorkerService {
                     now.plus(leaseDuration),
                     maxClaims
             )) {
-                return new Claim(
-                        review.getId(),
-                        review.getAttempt(),
-                        review.getPostId(),
-                        review.getUserId(),
-                        version
-                );
+                return toClaim(review, version);
             }
             logFinished(review, version);
             found = reviewRepository.findClaimableForUpdate(now);
@@ -288,15 +279,13 @@ public class AiReviewWorkerService {
     private void logFinished(AiReview review, AiPromptVersion version) {
         boolean completed = review.getStatus() == Status.COMPLETED;
         LoggingEventBuilder event = completed ? AI_REVIEW_LOG.atInfo() : AI_REVIEW_LOG.atWarn();
-        event = event
-                .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
-                .addKeyValue(LogFields.EVENT, completed ? "review_completed" : "review_failed")
-                .addKeyValue("aiReviewId", review.getId())
-                .addKeyValue(LogFields.POST_ID, review.getPostId())
-                .addKeyValue(LogFields.USER_ID, review.getUserId())
+        event = event(
+                event,
+                completed ? "review_completed" : "review_failed",
+                toClaim(review, version)
+        )
                 .addKeyValue("promptVersion", version.getVersion())
                 .addKeyValue("model", version.getModel())
-                .addKeyValue("attempt", review.getAttempt())
                 .addKeyValue("queueWaitMs",
                         Duration.between(review.getRequestedAt(), review.getStartedAt())
                                 .toMillis())
@@ -337,14 +326,36 @@ public class AiReviewWorkerService {
     }
 
     private void logStaleUpdate(Claim claim) {
-        AI_REVIEW_LOG.atWarn()
+        event(
+                AI_REVIEW_LOG.atWarn(),
+                "review_stale_update",
+                claim
+        ).log("AI 리뷰 늦은 반영 무시");
+    }
+
+    private Claim toClaim(AiReview review, AiPromptVersion version) {
+        return new Claim(
+                review.getId(),
+                review.getAttempt(),
+                review.getPostId(),
+                review.getUserId(),
+                version
+        );
+    }
+
+    /** 모든 이벤트가 공통으로 남기는 식별 필드를 붙인다. */
+    private LoggingEventBuilder event(
+            LoggingEventBuilder builder,
+            String name,
+            Claim claim
+    ) {
+        return builder
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
-                .addKeyValue(LogFields.EVENT, "review_stale_update")
+                .addKeyValue(LogFields.EVENT, name)
                 .addKeyValue("aiReviewId", claim.reviewId())
                 .addKeyValue(LogFields.POST_ID, claim.postId())
                 .addKeyValue(LogFields.USER_ID, claim.userId())
-                .addKeyValue("attempt", claim.attempt())
-                .log("AI 리뷰 늦은 반영 무시");
+                .addKeyValue("attempt", claim.attempt());
     }
 
     private LoggingEventBuilder addIfPresent(

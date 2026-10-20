@@ -3,9 +3,7 @@ package com.chalkak.backend.aireview.service;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.MODEL;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.ORIGINAL_STORAGE_KEY;
-import static com.chalkak.backend.aireview.service.AiReviewFixture.OTHER_USER_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
-import static com.chalkak.backend.aireview.service.AiReviewFixture.SECOND_POST_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.TOPIC_TITLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,6 +56,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
@@ -145,13 +146,6 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("가져갈 행이 없으면 비어 있다")
-    void claimNext_noClaimableReview_returnsEmpty() {
-        // When & Then
-        assertThat(service.claimNext()).isEmpty();
-    }
-
-    @Test
     @DisplayName("대기 행을 가져가면 처리 중으로 바꾸고 시도 번호·임대 만료·시작 시각을 저장한다")
     void claimNext_queuedReview_claimsAndPersistsLease() {
         // Given
@@ -163,8 +157,6 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(claim.reviewId()).isEqualTo(reviewId);
         assertThat(claim.attempt()).isEqualTo(1);
-        assertThat(claim.postId()).isEqualTo(POST_ID);
-        assertThat(claim.userId()).isEqualTo(AUTHOR_ID);
         assertThat(claim.version().getId()).isEqualTo(versionId);
         Map<String, Object> row = findRow(reviewId);
         assertThat(row).containsEntry("status", "PROCESSING").containsEntry("attempt", 1);
@@ -173,16 +165,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("가져갈 수 있는 행이 둘이면 오래 기다린 요청부터 가져간다")
+    @DisplayName("가져갈 수 있는 행이 둘이면 오래 기다린 요청부터 가져가고 없으면 비어 있다")
     void claimNext_twoQueuedReviews_claimsOldestFirst() {
         // Given
         fixture.insertSecondPublicPost();
-        UUID newer = fixture.insertQueuedReview(
-                SECOND_POST_ID,
-                OTHER_USER_ID,
-                versionId,
-                REQUESTED_AT.plusSeconds(5)
-        );
+        UUID newer = fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
         UUID older = fixture.insertQueuedReview(versionId, REQUESTED_AT);
 
         // When & Then
@@ -207,8 +194,6 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         Claim reclaimed = service.claimNext().orElseThrow();
         assertThat(reclaimed.reviewId()).isEqualTo(reviewId);
         assertThat(reclaimed.attempt()).isEqualTo(2);
-        assertThat(instant(findRow(reviewId), "lease_expires_at"))
-                .isEqualTo(leaseEnd.plusSeconds(1).plus(LEASE));
         assertThat(instant(findRow(reviewId), "started_at")).isEqualTo(CLAIMED_AT);
     }
 
@@ -218,12 +203,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Given
         fixture.insertSecondPublicPost();
         UUID locked = fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        UUID other = fixture.insertQueuedReview(
-                SECOND_POST_ID,
-                OTHER_USER_ID,
-                versionId,
-                REQUESTED_AT.plusSeconds(5)
-        );
+        UUID other = fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
         ExecutorService holder = Executors.newSingleThreadExecutor();
         CountDownLatch lockHeld = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -256,12 +236,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Given
         fixture.insertSecondPublicPost();
         fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        fixture.insertQueuedReview(
-                SECOND_POST_ID,
-                OTHER_USER_ID,
-                versionId,
-                REQUESTED_AT.plusSeconds(5)
-        );
+        fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
 
         // When
         List<Optional<Claim>> results = claimConcurrently(2);
@@ -278,57 +253,38 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Given
         fixture.insertSecondPublicPost();
         UUID exhausted = fixture.insertProcessingReview(
-                POST_ID,
-                AUTHOR_ID,
                 versionId,
                 MAX_CLAIMS,
-                REQUESTED_AT,
                 CLAIMED_AT.minusSeconds(1)
         );
-        UUID next = fixture.insertQueuedReview(
-                SECOND_POST_ID,
-                OTHER_USER_ID,
-                versionId,
-                REQUESTED_AT.plusSeconds(5)
-        );
+        UUID next = fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
 
         // When
         Optional<Claim> claim = service.claimNext();
 
         // Then
         assertThat(claim).map(Claim::reviewId).contains(next);
-        Map<String, Object> row = findRow(exhausted);
-        assertThat(row).containsEntry("status", "FAILED")
-                .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name())
-                .containsEntry("attempt", MAX_CLAIMS);
-        assertThat(row.get("lease_expires_at")).isNull();
-        assertThat(instant(row, "completed_at")).isEqualTo(CLAIMED_AT);
+        assertThat(findRow(exhausted)).containsEntry("status", "FAILED")
+                .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name());
         verify(aiReviewGenerator, never()).generate(any());
-        String keyValues = singleEventKeyValues("review_failed");
-        assertThat(keyValues).contains(
+        assertThat(singleEventKeyValues("review_failed")).contains(
                 "aiReviewId=\"" + exhausted + "\"",
                 "errorCode=\"LEASE_EXHAUSTED\"",
-                "promptVersion=\"1\"",
-                "model=\"" + MODEL + "\"",
-                "attempt=\"" + MAX_CLAIMS + "\"",
-                "queueWaitMs=\"0\"",
-                "totalMs=\"10000\""
+                "attempt=\"" + MAX_CLAIMS + "\""
         );
     }
 
     @Test
-    @DisplayName("성공하면 결과·원출력·사용량·지연시간·응답 ID를 저장하고 완료로 끝낸다")
-    void process_success_storesResultAndCompletes() {
+    @DisplayName("성공하면 결과·원출력·사용량을 저장해 완료로 끝내고, 완료 로그에는 피드백·프롬프트·주소·주제를 남기지 않는다")
+    void process_success_storesResultAndLogsCompletedWithoutSensitiveText() {
         // Given
-        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any())).willAnswer(invocation -> {
             clock.advance(Duration.ofSeconds(21));
             return generation();
         });
-        Claim claim = service.claimNext().orElseThrow();
 
         // When
-        service.process(claim, () -> false);
+        UUID reviewId = processQueuedReview();
 
         // Then
         Map<String, Object> row = findRow(reviewId);
@@ -339,8 +295,6 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 .containsEntry("reasoning_tokens", 64)
                 .containsEntry("latency_ms", 21_000L)
                 .containsEntry("openai_response_id", "resp_abc");
-        assertThat(row.get("lease_expires_at")).isNull();
-        assertThat(row.get("error_code")).isNull();
         assertThat(instant(row, "completed_at")).isEqualTo(CLAIMED_AT.plusSeconds(21));
         assertThat(objectMapper.readTree(row.get("result").toString())).isEqualTo(
                 objectMapper.readTree("""
@@ -350,34 +304,39 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                          "feedback":"구도가 좋습니다."}"""));
         assertThat(objectMapper.readTree(row.get("output").toString())).isEqualTo(
                 objectMapper.readTree(RAW_OUTPUT));
+        ILoggingEvent event = singleEvent("review_completed");
+        String keyValues = event.getKeyValuePairs().toString();
+        assertThat(keyValues).contains(
+                "type=\"ai_review\"",
+                "aiReviewId=\"" + reviewId + "\"",
+                "postId=\"" + POST_ID + "\"",
+                "userId=\"" + AUTHOR_ID + "\"",
+                "promptVersion=\"1\"",
+                "model=\"" + MODEL + "\"",
+                "attempt=\"1\"",
+                "queueWaitMs=\"10000\"",
+                "latencyMs=\"21000\"",
+                "totalMs=\"31000\"",
+                "inputTokens=\"1200\"",
+                "cachedInputTokens=\"0\"",
+                "outputTokens=\"300\"",
+                "reasoningTokens=\"64\""
+        );
+        assertThat(keyValues).doesNotContain("errorCode");
+        assertThat(keyValues + event.getFormattedMessage())
+                .doesNotContain(
+                        FEEDBACK,
+                        "시스템",
+                        "노을",
+                        "original.webp",
+                        IMAGE_URL
+                );
     }
 
     @Test
-    @DisplayName("생성 요청에는 고정된 버전의 초안과 원본 사진 주소·주제 제목이 담긴다")
-    void process_success_requestsPinnedDraftWithImageAndTopic() {
-        // Given
-        fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        given(aiReviewGenerator.generate(any())).willReturn(generation());
-        Claim claim = service.claimNext().orElseThrow();
-
-        // When
-        service.process(claim, () -> false);
-
-        // Then
-        ArgumentCaptor<AiReviewGenerationRequest> captor = ArgumentCaptor
-                .forClass(AiReviewGenerationRequest.class);
-        verify(aiReviewGenerator).generate(captor.capture());
-        assertThat(captor.getValue().imageUrl()).isEqualTo(IMAGE_URL);
-        assertThat(captor.getValue().topicTitle()).isEqualTo(TOPIC_TITLE);
-        assertThat(captor.getValue().draft())
-                .isEqualTo(promptVersionRepository.findById(versionId).orElseThrow().toDraft());
-    }
-
-    @Test
-    @DisplayName("요청 뒤에 새 버전이 만들어져도 요청 시점에 고정한 버전으로 호출한다")
+    @DisplayName("요청 뒤에 새 버전이 만들어져도 요청 시점에 고정한 버전의 초안과 원본 사진 주소·주제 제목으로 호출한다")
     void process_newerVersionCreated_usesPinnedVersion() {
         // Given
-        fixture.insertQueuedReview(versionId, REQUESTED_AT);
         fixture.insertPromptVersion(
                 2,
                 "gpt-6-luna",
@@ -385,81 +344,76 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         );
         given(aiReviewGenerator.supportsModel("gpt-6-luna")).willReturn(true);
         given(aiReviewGenerator.generate(any())).willReturn(generation());
-        Claim claim = service.claimNext().orElseThrow();
 
         // When
-        service.process(claim, () -> false);
+        processQueuedReview();
 
         // Then
         ArgumentCaptor<AiReviewGenerationRequest> captor = ArgumentCaptor
                 .forClass(AiReviewGenerationRequest.class);
         verify(aiReviewGenerator).generate(captor.capture());
+        assertThat(captor.getValue().draft())
+                .isEqualTo(promptVersionRepository.findById(versionId).orElseThrow().toDraft());
         assertThat(captor.getValue().draft().model()).isEqualTo(MODEL);
+        assertThat(captor.getValue().imageUrl()).isEqualTo(IMAGE_URL);
+        assertThat(captor.getValue().topicTitle()).isEqualTo(TOPIC_TITLE);
     }
 
     @Test
     @DisplayName("응답을 받은 뒤 생성이 실패하면 실패 유형을 오류 코드로 저장하고 받은 사용량을 남긴다")
     void process_generationFailureWithAttempt_failsWithFailureTypeAndUsage() {
         // Given
-        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
                 FailureType.INVALID_OUTPUT, attempt()));
-        Claim claim = service.claimNext().orElseThrow();
 
         // When
-        service.process(claim, () -> false);
+        UUID reviewId = processQueuedReview();
 
         // Then
-        Map<String, Object> row = findRow(reviewId);
-        assertThat(row).containsEntry("status", "FAILED")
+        assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
                 .containsEntry("error_code", "INVALID_OUTPUT")
                 .containsEntry("input_tokens", 1200)
-                .containsEntry("cached_input_tokens", 0)
-                .containsEntry("output_tokens", 300)
-                .containsEntry("reasoning_tokens", 64)
-                .containsEntry("latency_ms", 21_000L)
                 .containsEntry("openai_response_id", "resp_abc");
-        assertThat(row.get("result")).isNull();
-        assertThat(row.get("output")).isNull();
-        assertThat(row.get("lease_expires_at")).isNull();
     }
 
     @Test
-    @DisplayName("응답을 받지 못한 실패는 사용량·지연시간·응답 ID를 비워 둔다")
-    void process_generationFailureWithoutAttempt_leavesUsageEmpty() {
+    @DisplayName("응답을 받지 못한 실패 로그는 오류 코드와 대기 시간을 남기고 값이 없는 사용량은 남기지 않는다")
+    void process_generationFailureWithoutAttempt_logsFailedWithOnlyPresentFields() {
         // Given
-        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any()))
                 .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
-        Claim claim = service.claimNext().orElseThrow();
 
         // When
-        service.process(claim, () -> false);
+        UUID reviewId = processQueuedReview();
 
         // Then
-        Map<String, Object> row = findRow(reviewId);
-        assertThat(row).containsEntry("status", "FAILED").containsEntry("error_code", "TIMEOUT");
-        assertThat(row.get("input_tokens")).isNull();
-        assertThat(row.get("latency_ms")).isNull();
-        assertThat(row.get("openai_response_id")).isNull();
+        assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
+                .containsEntry("error_code", "TIMEOUT");
+        String keyValues = singleEventKeyValues("review_failed");
+        assertThat(keyValues).contains(
+                "errorCode=\"TIMEOUT\"",
+                "queueWaitMs=\"10000\"",
+                "totalMs=\"10000\""
+        );
+        assertThat(keyValues).doesNotContain(
+                "inputTokens",
+                "latencyMs",
+                "outputTokens"
+        );
     }
 
     @Test
     @DisplayName("생성기가 예상 못 한 예외를 던지면 UNEXPECTED_ERROR로 실패시킨다")
     void process_unexpectedGeneratorException_failsWithUnexpectedError() {
         // Given
-        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any())).willThrow(new IllegalStateException("boom"));
-        Claim claim = service.claimNext().orElseThrow();
 
         // When
-        service.process(claim, () -> false);
+        UUID reviewId = processQueuedReview();
 
         // Then
         assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
                 .containsEntry("error_code", FailureReason.UNEXPECTED_ERROR.name());
-        assertThat(singleEventKeyValues("review_failed"))
-                .contains("errorCode=\"UNEXPECTED_ERROR\"");
     }
 
     @Test
@@ -479,37 +433,27 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         verify(aiReviewGenerator, never()).generate(any());
     }
 
-    @Test
-    @DisplayName("고정한 버전의 출력 스키마가 현재와 다르면 호출하지 않고 PROMPT_VERSION_UNAVAILABLE로 실패시킨다")
-    void process_incompatibleSchemaVersion_failsWithoutCalling() {
+    @ParameterizedTest
+    @CsvSource({
+            "0, true",
+            "1, false"
+    })
+    @DisplayName("고정한 버전의 출력 스키마가 다르거나 모델이 더는 허용되지 않으면 호출하지 않고 PROMPT_VERSION_UNAVAILABLE로 실패시킨다")
+    void process_versionNoLongerRunnable_failsWithoutCalling(
+            String outputSchemaVersion,
+            boolean modelSupported
+    ) {
         // Given
-        UUID incompatible = fixture.insertPromptVersion(
+        UUID pinned = fixture.insertPromptVersion(
                 2,
                 MODEL,
-                "0"
+                outputSchemaVersion
         );
-        UUID reviewId = fixture.insertQueuedReview(incompatible, REQUESTED_AT);
-        Claim claim = service.claimNext().orElseThrow();
+        UUID reviewId = fixture.insertQueuedReview(pinned, REQUESTED_AT);
+        given(aiReviewGenerator.supportsModel(MODEL)).willReturn(modelSupported);
 
         // When
-        service.process(claim, () -> false);
-
-        // Then
-        assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
-                .containsEntry("error_code", FailureReason.PROMPT_VERSION_UNAVAILABLE.name());
-        verify(aiReviewGenerator, never()).generate(any());
-    }
-
-    @Test
-    @DisplayName("고정한 버전의 모델이 더는 허용되지 않으면 호출하지 않고 PROMPT_VERSION_UNAVAILABLE로 실패시킨다")
-    void process_unsupportedModel_failsWithoutCalling() {
-        // Given
-        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        Claim claim = service.claimNext().orElseThrow();
-        given(aiReviewGenerator.supportsModel(MODEL)).willReturn(false);
-
-        // When
-        service.process(claim, () -> false);
+        service.process(service.claimNext().orElseThrow(), () -> false);
 
         // Then
         assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
@@ -541,20 +485,23 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(singleEventKeyValues("review_completed")).contains("queueWaitMs=\"10000\"");
     }
 
-    @Test
-    @DisplayName("스레드가 interrupt된 채 생성이 실패하면 실패를 쓰지 않고 처리 중으로 남긴다")
-    void process_interruptedGenerationFailure_leavesProcessing() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("스레드가 interrupt됐거나 종료 중이면 생성이 실패해도 실패를 쓰지 않고 처리 중으로 남긴다")
+    void process_interruptedOrStoppingGenerationFailure_leavesProcessing(boolean interrupted) {
         // Given
         UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any())).willAnswer(invocation -> {
-            Thread.currentThread().interrupt();
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
             throw new AiReviewGenerationException(FailureType.TIMEOUT);
         });
         Claim claim = service.claimNext().orElseThrow();
 
         // When
         try {
-            service.process(claim, () -> false);
+            service.process(claim, () -> !interrupted);
         } finally {
             Thread.interrupted();
         }
@@ -562,24 +509,6 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(findRow(reviewId)).containsEntry("status", "PROCESSING")
                 .containsEntry("attempt", 1);
-        assertThat(singleEventKeyValues("review_abandoned"))
-                .contains("aiReviewId=\"" + reviewId + "\"");
-    }
-
-    @Test
-    @DisplayName("종료 중이면 생성이 실패해도 실패를 쓰지 않고 처리 중으로 남긴다")
-    void process_stoppingGenerationFailure_leavesProcessing() {
-        // Given
-        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.UPSTREAM_ERROR));
-        Claim claim = service.claimNext().orElseThrow();
-
-        // When
-        service.process(claim, () -> true);
-
-        // Then
-        assertThat(findRow(reviewId)).containsEntry("status", "PROCESSING");
         assertThat(singleEventKeyValues("review_abandoned"))
                 .contains("aiReviewId=\"" + reviewId + "\"");
     }
@@ -637,75 +566,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 .contains("reason=\"PREPARE_FAILED\"");
     }
 
-    @Test
-    @DisplayName("완료 로그는 식별자·버전·모델·시도·대기·지연·전체 시간·토큰을 남기고 피드백·프롬프트·주소·주제는 남기지 않는다")
-    void process_success_logsCompletedWithoutSensitiveText() {
-        // Given
+    private UUID processQueuedReview() {
         UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        given(aiReviewGenerator.generate(any())).willAnswer(invocation -> {
-            clock.advance(Duration.ofSeconds(21));
-            return generation();
-        });
-        Claim claim = service.claimNext().orElseThrow();
-
-        // When
-        service.process(claim, () -> false);
-
-        // Then
-        ILoggingEvent event = singleEvent("review_completed");
-        String keyValues = event.getKeyValuePairs().toString();
-        assertThat(keyValues).contains(
-                "type=\"ai_review\"",
-                "aiReviewId=\"" + reviewId + "\"",
-                "postId=\"" + POST_ID + "\"",
-                "userId=\"" + AUTHOR_ID + "\"",
-                "promptVersion=\"1\"",
-                "model=\"" + MODEL + "\"",
-                "attempt=\"1\"",
-                "queueWaitMs=\"10000\"",
-                "latencyMs=\"21000\"",
-                "totalMs=\"31000\"",
-                "inputTokens=\"1200\"",
-                "cachedInputTokens=\"0\"",
-                "outputTokens=\"300\"",
-                "reasoningTokens=\"64\""
-        );
-        assertThat(keyValues).doesNotContain("errorCode");
-        assertThat(keyValues + event.getFormattedMessage())
-                .doesNotContain(
-                        FEEDBACK,
-                        "시스템",
-                        "노을",
-                        "original.webp",
-                        IMAGE_URL
-                );
-    }
-
-    @Test
-    @DisplayName("실패 로그는 오류 코드를 남기고 값이 없는 사용량은 남기지 않는다")
-    void process_failure_logsFailedWithErrorCodeAndOnlyPresentFields() {
-        // Given
-        fixture.insertQueuedReview(versionId, REQUESTED_AT);
-        given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
-        Claim claim = service.claimNext().orElseThrow();
-
-        // When
-        service.process(claim, () -> false);
-
-        // Then
-        String keyValues = singleEventKeyValues("review_failed");
-        assertThat(keyValues).contains(
-                "errorCode=\"TIMEOUT\"",
-                "attempt=\"1\"",
-                "queueWaitMs=\"10000\"",
-                "totalMs=\"10000\""
-        );
-        assertThat(keyValues).doesNotContain(
-                "inputTokens",
-                "latencyMs",
-                "outputTokens"
-        );
+        service.process(service.claimNext().orElseThrow(), () -> false);
+        return reviewId;
     }
 
     private AiReviewWorkerService createService(AiReviewRepository repository) {

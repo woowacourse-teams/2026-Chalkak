@@ -9,16 +9,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * AI 리뷰 통합 테스트가 쓰는 DB 픽스처. 서비스를 거치지 않고 SQL로 직접 넣어 CHECK 제약을 만족하는 행을 만든다.
  */
-final class AiReviewFixture {
+public final class AiReviewFixture {
 
-    static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000689");
-    static final UUID AUTHOR_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006a1");
-    static final UUID OTHER_USER_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006a2");
-    static final UUID POST_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006d1");
-    static final UUID SECOND_POST_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006d2");
-    static final String ORIGINAL_STORAGE_KEY = "chalkak/test/ai-review/original.webp";
-    static final String MODEL = "gpt-6.1-sol";
-    static final String TOPIC_TITLE = "노을";
+    public static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000689");
+    public static final UUID AUTHOR_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006a1");
+    public static final UUID OTHER_USER_ID = UUID
+            .fromString("019a0000-0000-7000-8000-0000000006a2");
+    public static final UUID POST_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006d1");
+    public static final UUID SECOND_POST_ID = UUID
+            .fromString("019a0000-0000-7000-8000-0000000006d2");
+    public static final String ORIGINAL_STORAGE_KEY = "chalkak/test/ai-review/original.webp";
+    public static final String MODEL = "gpt-6.1-sol";
+    public static final String TOPIC_TITLE = "노을";
+    public static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
+    public static final Instant COMPLETED_AT = Instant.parse("2026-10-20T05:00:21Z");
 
     private static final UUID TOPIC_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006b1");
     private static final UUID PHOTO_ID = UUID.fromString("019a0000-0000-7000-8000-0000000006c1");
@@ -35,12 +39,12 @@ final class AiReviewFixture {
 
     private final JdbcTemplate jdbcTemplate;
 
-    AiReviewFixture(JdbcTemplate jdbcTemplate) {
+    public AiReviewFixture(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
     /** 작성자 회원, 승인된 공개 게시물, 관리자를 넣는다. */
-    void insertPublicPost() {
+    public void insertPublicPost() {
         insertAdmin();
         insertUser(
                 AUTHOR_ID,
@@ -57,36 +61,32 @@ final class AiReviewFixture {
     }
 
     /** 같은 주제에 다른 회원이 올린 두 번째 승인 게시물을 넣는다. insertPublicPost 뒤에 부른다. */
-    void insertSecondPublicPost() {
+    public void insertSecondPublicPost() {
+        insertOtherUser();
+        insertPhoto(
+                SECOND_PHOTO_ID,
+                "original-2.webp",
+                false
+        );
+        insertPostRow(
+                SECOND_POST_ID,
+                OTHER_USER_ID,
+                SECOND_PHOTO_ID,
+                "APPROVED",
+                false
+        );
+    }
+
+    public void insertOtherUser() {
         insertUser(
                 OTHER_USER_ID,
                 "ai-review-other@example.com",
                 "ACTIVE",
                 false
         );
-        jdbcTemplate.update("""
-                INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at)
-                VALUES (?, 'chalkak/test/ai-review/original-2.webp',
-                    'chalkak/test/ai-review/thumb-2.webp',
-                    CAST('{"width":1024,"height":768}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, SECOND_PHOTO_ID);
-        jdbcTemplate.update(
-                """
-                        INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
-                            moderation_status, moderated_at, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, NULL, '두 번째 리뷰 대상', CAST('APPROVED' AS moderation_status),
-                            NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """,
-                SECOND_POST_ID,
-                OTHER_USER_ID,
-                TOPIC_ID,
-                SECOND_PHOTO_ID
-        );
     }
 
-    void insertAdmin() {
+    public void insertAdmin() {
         jdbcTemplate.update(
                 """
                         INSERT INTO admins (id, username, password, created_at, updated_at)
@@ -95,7 +95,7 @@ final class AiReviewFixture {
                 ADMIN_ID);
     }
 
-    void insertUser(
+    public void insertUser(
             UUID id,
             String email,
             String status,
@@ -107,7 +107,7 @@ final class AiReviewFixture {
                             created_at, updated_at, deleted_at)
                         VALUES (?, ?, CAST(? AS user_status), ?,
                             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
-                        """.formatted(deleted ? DELETED_AT : "NULL"),
+                        """.formatted(deletedAt(deleted)),
                 id,
                 email,
                 status,
@@ -115,7 +115,7 @@ final class AiReviewFixture {
         );
     }
 
-    void insertPost(
+    public void insertPost(
             String moderationStatus,
             boolean postDeleted,
             boolean topicDeleted,
@@ -128,35 +128,33 @@ final class AiReviewFixture {
                         VALUES (?, ?, CURRENT_DATE + 302, '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z',
                             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
                         """
-                        .formatted(topicDeleted ? DELETED_AT : "NULL"),
+                        .formatted(deletedAt(topicDeleted)),
                 TOPIC_ID,
                 TOPIC_TITLE
         );
-        jdbcTemplate.update("""
-                INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, 'chalkak/test/ai-review/original.webp',
-                    'chalkak/test/ai-review/thumb.webp',
-                    CAST('{"width":1024,"height":768}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
-                """.formatted(photoDeleted ? DELETED_AT : "NULL"), PHOTO_ID);
-        jdbcTemplate.update(
-                """
-                        INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
-                            moderation_status, moderated_at, created_at, updated_at, deleted_at)
-                        VALUES (?, ?, ?, ?, NULL, '리뷰 대상', CAST(? AS moderation_status),
-                            NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
-                        """
-                        .formatted(postDeleted ? DELETED_AT : "NULL"),
+        insertPhoto(
+                PHOTO_ID,
+                "original.webp",
+                photoDeleted
+        );
+        insertPostRow(
                 POST_ID,
                 AUTHOR_ID,
-                TOPIC_ID,
                 PHOTO_ID,
-                moderationStatus
+                moderationStatus,
+                postDeleted
         );
     }
 
-    UUID insertPromptVersion(
+    public UUID insertPromptVersion(int version) {
+        return insertPromptVersion(
+                version,
+                MODEL,
+                "1"
+        );
+    }
+
+    public UUID insertPromptVersion(
             int version,
             String model,
             String outputSchemaVersion
@@ -181,7 +179,7 @@ final class AiReviewFixture {
         return id;
     }
 
-    UUID insertQueuedReview(UUID promptVersionId, Instant requestedAt) {
+    public UUID insertQueuedReview(UUID promptVersionId, Instant requestedAt) {
         return insertQueuedReview(
                 POST_ID,
                 AUTHOR_ID,
@@ -190,7 +188,17 @@ final class AiReviewFixture {
         );
     }
 
-    UUID insertQueuedReview(
+    /** 두 번째 게시물의 대기 행을 넣는다. */
+    public UUID insertSecondQueuedReview(UUID promptVersionId, Instant requestedAt) {
+        return insertQueuedReview(
+                SECOND_POST_ID,
+                OTHER_USER_ID,
+                promptVersionId,
+                requestedAt
+        );
+    }
+
+    public UUID insertQueuedReview(
             UUID postId,
             UUID userId,
             UUID promptVersionId,
@@ -213,85 +221,53 @@ final class AiReviewFixture {
         return id;
     }
 
-    UUID insertProcessingReview(
-            UUID postId,
-            UUID userId,
+    /** 첫 게시물의 처리 중 행을 넣는다. 시작 시각은 요청 시각과 같다. */
+    public UUID insertProcessingReview(
             UUID promptVersionId,
             int attempt,
-            Instant requestedAt,
             Instant leaseExpiresAt
     ) {
-        UUID id = UUID.randomUUID();
+        UUID id = insertQueuedReview(promptVersionId, REQUESTED_AT);
         jdbcTemplate.update(
                 """
-                        INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
-                            lease_expires_at, request_id, requested_at, started_at)
-                        VALUES (?, ?, ?, ?, 'PROCESSING', ?, ?, ?, ?, ?)
+                        UPDATE ai_reviews SET status = 'PROCESSING', attempt = ?, lease_expires_at = ?,
+                            started_at = requested_at
+                        WHERE id = ?
                         """,
-                id,
-                postId,
-                userId,
-                promptVersionId,
                 attempt,
                 Timestamp.from(leaseExpiresAt),
-                UUID.randomUUID(),
-                Timestamp.from(requestedAt),
-                Timestamp.from(requestedAt)
+                id
         );
         return id;
     }
 
-    UUID insertCompletedReview(
-            UUID promptVersionId,
-            Instant requestedAt,
-            Instant completedAt
-    ) {
-        UUID id = UUID.randomUUID();
+    /**
+     * 첫 게시물의 행을 status 상태로 넣는다. status는 QUEUED, COMPLETED, FAILED(TIMEOUT) 중 하나다.
+     */
+    public UUID insertReview(UUID promptVersionId, String status) {
+        UUID id = insertQueuedReview(promptVersionId, REQUESTED_AT);
+        if ("QUEUED".equals(status)) {
+            return id;
+        }
+        boolean completed = "COMPLETED".equals(status);
         jdbcTemplate.update(
                 """
-                        INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
-                            result, output, request_id, requested_at, started_at, completed_at)
-                        VALUES (?, ?, ?, ?, 'COMPLETED', 1, CAST(? AS jsonb), CAST(? AS jsonb), ?, ?, ?, ?)
+                        UPDATE ai_reviews SET status = ?, attempt = 1, started_at = requested_at,
+                            completed_at = ?, error_code = ?, result = CAST(? AS jsonb),
+                            output = CAST(? AS jsonb)
+                        WHERE id = ?
                         """,
-                id,
-                POST_ID,
-                AUTHOR_ID,
-                promptVersionId,
-                RESULT_JSON,
-                OUTPUT_JSON,
-                UUID.randomUUID(),
-                Timestamp.from(requestedAt),
-                Timestamp.from(requestedAt),
-                Timestamp.from(completedAt)
+                status,
+                Timestamp.from(COMPLETED_AT),
+                completed ? null : "TIMEOUT",
+                completed ? RESULT_JSON : null,
+                completed ? OUTPUT_JSON : null,
+                id
         );
         return id;
     }
 
-    UUID insertFailedReview(
-            UUID promptVersionId,
-            Instant requestedAt,
-            Instant completedAt
-    ) {
-        UUID id = UUID.randomUUID();
-        jdbcTemplate.update(
-                """
-                        INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
-                            error_code, request_id, requested_at, started_at, completed_at)
-                        VALUES (?, ?, ?, ?, 'FAILED', 1, 'TIMEOUT', ?, ?, ?, ?)
-                        """,
-                id,
-                POST_ID,
-                AUTHOR_ID,
-                promptVersionId,
-                UUID.randomUUID(),
-                Timestamp.from(requestedAt),
-                Timestamp.from(requestedAt),
-                Timestamp.from(completedAt)
-        );
-        return id;
-    }
-
-    int countReviews() {
+    public int countReviews() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ai_reviews", Integer.class);
     }
 
@@ -299,10 +275,56 @@ final class AiReviewFixture {
      * 커밋되는 테스트가 남긴 행을 지운다. ai_reviews는 DatabaseCleaner의 TRUNCATE ... CASCADE로 지워지고,
      * 프롬프트 버전과 관리자는 DatabaseCleaner 대상이 아니라 직접 지운다.
      */
-    void clean() {
+    public void clean() {
         new DatabaseCleaner(jdbcTemplate).clean();
         jdbcTemplate.update("DELETE FROM ai_prompt_versions WHERE created_by_admin_id = ?",
                 ADMIN_ID);
         jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ADMIN_ID);
+    }
+
+    private void insertPhoto(
+            UUID id,
+            String fileName,
+            boolean deleted
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at, deleted_at)
+                        VALUES (?, ?, ?, CAST('{"width":1024,"height":768}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
+                        """
+                        .formatted(deletedAt(deleted)),
+                id,
+                "chalkak/test/ai-review/" + fileName,
+                "chalkak/test/ai-review/thumb-" + fileName
+        );
+    }
+
+    private void insertPostRow(
+            UUID id,
+            UUID userId,
+            UUID photoId,
+            String moderationStatus,
+            boolean deleted
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, post_image_upload_id, title,
+                            moderation_status, moderated_at, created_at, updated_at, deleted_at)
+                        VALUES (?, ?, ?, ?, NULL, '리뷰 대상', CAST(? AS moderation_status),
+                            NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)
+                        """
+                        .formatted(deletedAt(deleted)),
+                id,
+                userId,
+                TOPIC_ID,
+                photoId,
+                moderationStatus
+        );
+    }
+
+    private String deletedAt(boolean deleted) {
+        return deleted ? DELETED_AT : "NULL";
     }
 }

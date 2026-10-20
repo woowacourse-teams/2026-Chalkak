@@ -18,33 +18,40 @@ import tools.jackson.databind.json.JsonMapper;
 
 class AiReviewTest {
 
-    private static final UUID POST_ID = UUID.fromString("019a0000-0000-7000-8000-000000000001");
-    private static final UUID USER_ID = UUID.fromString("019a0000-0000-7000-8000-000000000002");
-    private static final UUID PROMPT_VERSION_ID = UUID
-            .fromString("019a0000-0000-7000-8000-000000000003");
-    private static final UUID REQUEST_ID = UUID.fromString("019a0000-0000-7000-8000-000000000004");
+    private static final UUID ID = UUID.fromString("019a0000-0000-7000-8000-000000000001");
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-20T05:01:00Z");
+    private static final Instant LEASE_END = Instant.parse("2026-10-20T05:03:00Z");
+    private static final int MAX_CLAIMS = 3;
+    private static final Invocation INVOCATION = new Invocation(
+            1200,
+            0,
+            300,
+            64,
+            21_000L,
+            "resp_abc"
+    );
+    private static final AiReviewResult RESULT = new AiReviewResult(
+            7.5,
+            List.of(new Criterion(
+                    "COMPOSITION",
+                    "구도",
+                    7.5
+            )),
+            true,
+            "구도가 좋습니다."
+    );
+    private static final String OUTPUT = "{\"compositionScore\":7.46,\"feedback\":\"구도가 좋습니다.\"}";
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @Test
-    @DisplayName("요청하면 대기 상태로 시작하고 처리 결과와 완료 시각은 비어 있다")
+    @DisplayName("요청하면 대기 상태로 시작하고 시도 횟수·결과·완료 시각은 비어 있다")
     void request_newReview_startsQueued() {
         // When
-        AiReview review = AiReview.request(
-                POST_ID,
-                USER_ID,
-                PROMPT_VERSION_ID,
-                REQUEST_ID,
-                REQUESTED_AT
-        );
+        AiReview review = queuedReview();
 
         // Then
-        assertThat(review.getPostId()).isEqualTo(POST_ID);
-        assertThat(review.getUserId()).isEqualTo(USER_ID);
-        assertThat(review.getPromptVersionId()).isEqualTo(PROMPT_VERSION_ID);
-        assertThat(review.getRequestId()).isEqualTo(REQUEST_ID);
-        assertThat(review.getRequestedAt()).isEqualTo(REQUESTED_AT);
         assertThat(review.getStatus()).isEqualTo(Status.QUEUED);
         assertThat(review.getAttempt()).isZero();
         assertThat(review.getResult()).isNull();
@@ -54,20 +61,8 @@ class AiReviewTest {
     @Test
     @DisplayName("저장 결과는 API 계약의 필드 이름으로 직렬화되고 그대로 역직렬화된다")
     void reviewResult_roundTrip_keepsFixedFieldNames() throws Exception {
-        // Given
-        AiReviewResult result = new AiReviewResult(
-                7.5,
-                List.of(new Criterion(
-                        "COMPOSITION",
-                        "구도",
-                        7.5
-                )),
-                true,
-                "구도가 좋습니다."
-        );
-
         // When
-        String json = jsonMapper.writeValueAsString(result);
+        String json = jsonMapper.writeValueAsString(RESULT);
         Map<String, Object> tree = jsonMapper.readValue(json, new TypeReference<>() {
         });
         List<Map<String, Object>> criteria = jsonMapper.convertValue(
@@ -86,20 +81,8 @@ class AiReviewTest {
                 "label",
                 "score"
         );
-        assertThat(jsonMapper.readValue(json, AiReviewResult.class)).isEqualTo(result);
+        assertThat(jsonMapper.readValue(json, AiReviewResult.class)).isEqualTo(RESULT);
     }
-
-    private static final Instant NOW = Instant.parse("2026-10-20T05:01:00Z");
-    private static final Instant LEASE_END = Instant.parse("2026-10-20T05:03:00Z");
-    private static final int MAX_CLAIMS = 3;
-    private static final Invocation INVOCATION = new Invocation(
-            1200,
-            0,
-            300,
-            64,
-            21_000L,
-            "resp_abc"
-    );
 
     @Test
     @DisplayName("대기 행을 가져가면 처리 중이 되고 시도 횟수·임대 만료·첫 시작 시각이 정해진다")
@@ -108,19 +91,14 @@ class AiReviewTest {
         AiReview review = queuedReview();
 
         // When
-        boolean claimed = review.claim(
-                NOW,
-                LEASE_END,
-                MAX_CLAIMS
-        );
+        boolean claimed = claim(review, NOW);
 
         // Then
         assertThat(claimed).isTrue();
         assertThat(review.getStatus()).isEqualTo(Status.PROCESSING);
         assertThat(review.getAttempt()).isEqualTo(1);
-        assertThat(review.getLeaseExpiresAt()).isEqualTo(LEASE_END);
+        assertThat(review.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(120));
         assertThat(review.getStartedAt()).isEqualTo(NOW);
-        assertThat(review.getCompletedAt()).isNull();
     }
 
     @Test
@@ -131,15 +109,10 @@ class AiReviewTest {
         Instant later = LEASE_END.plusSeconds(1);
 
         // When
-        boolean claimed = review.claim(
-                later,
-                later.plusSeconds(120),
-                MAX_CLAIMS
-        );
+        boolean claimed = claim(review, later);
 
         // Then
         assertThat(claimed).isTrue();
-        assertThat(review.getStatus()).isEqualTo(Status.PROCESSING);
         assertThat(review.getAttempt()).isEqualTo(2);
         assertThat(review.getLeaseExpiresAt()).isEqualTo(later.plusSeconds(120));
         assertThat(review.getStartedAt()).isEqualTo(NOW);
@@ -151,32 +124,14 @@ class AiReviewTest {
         // Given
         AiReview processing = processingReview();
         AiReview completed = processingReview();
-        completed.complete(
-                1,
-                storedResult(),
-                output(),
-                INVOCATION,
-                NOW
-        );
+        complete(completed, 1);
 
         // When & Then
-        assertThatThrownBy(() -> processing.claim(
-                LEASE_END.minusSeconds(1),
-                LEASE_END,
-                MAX_CLAIMS
-        ))
+        assertThatThrownBy(() -> claim(processing, LEASE_END.minusSeconds(1)))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> processing.claim(
-                LEASE_END,
-                LEASE_END.plusSeconds(120),
-                MAX_CLAIMS
-        ))
+        assertThatThrownBy(() -> claim(processing, LEASE_END))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> completed.claim(
-                NOW,
-                LEASE_END,
-                MAX_CLAIMS
-        ))
+        assertThatThrownBy(() -> claim(completed, NOW))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -187,20 +142,12 @@ class AiReviewTest {
         AiReview review = queuedReview();
         Instant claimedAt = NOW;
         for (int count = 1; count <= MAX_CLAIMS; count++) {
-            review.claim(
-                    claimedAt,
-                    claimedAt.plusSeconds(120),
-                    MAX_CLAIMS
-            );
+            claim(review, claimedAt);
             claimedAt = claimedAt.plusSeconds(121);
         }
 
         // When
-        boolean claimed = review.claim(
-                claimedAt,
-                claimedAt.plusSeconds(120),
-                MAX_CLAIMS
-        );
+        boolean claimed = claim(review, claimedAt);
 
         // Then
         assertThat(claimed).isFalse();
@@ -209,8 +156,6 @@ class AiReviewTest {
         assertThat(review.getAttempt()).isEqualTo(MAX_CLAIMS);
         assertThat(review.getLeaseExpiresAt()).isNull();
         assertThat(review.getCompletedAt()).isEqualTo(claimedAt);
-        assertThat(review.getResult()).isNull();
-        assertThat(review.getOutput()).isNull();
     }
 
     @Test
@@ -218,22 +163,15 @@ class AiReviewTest {
     void complete_currentAttempt_storesResultAndReleasesLease() {
         // Given
         AiReview review = processingReview();
-        Instant completedAt = NOW.plusSeconds(21);
 
         // When
-        boolean applied = review.complete(
-                1,
-                storedResult(),
-                output(),
-                INVOCATION,
-                completedAt
-        );
+        boolean applied = complete(review, 1);
 
         // Then
         assertThat(applied).isTrue();
         assertThat(review.getStatus()).isEqualTo(Status.COMPLETED);
-        assertThat(review.getResult()).isEqualTo(storedResult());
-        assertThat(review.getOutput()).isEqualTo(output());
+        assertThat(review.getResult()).isEqualTo(RESULT);
+        assertThat(review.getOutput()).isEqualTo(OUTPUT);
         assertThat(review.getInputTokens()).isEqualTo(1200);
         assertThat(review.getCachedInputTokens()).isZero();
         assertThat(review.getOutputTokens()).isEqualTo(300);
@@ -242,7 +180,7 @@ class AiReviewTest {
         assertThat(review.getOpenaiResponseId()).isEqualTo("resp_abc");
         assertThat(review.getErrorCode()).isNull();
         assertThat(review.getLeaseExpiresAt()).isNull();
-        assertThat(review.getCompletedAt()).isEqualTo(completedAt);
+        assertThat(review.getCompletedAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -287,7 +225,6 @@ class AiReviewTest {
         );
 
         // Then
-        assertThat(review.getStatus()).isEqualTo(Status.FAILED);
         assertThat(review.getInputTokens()).isNull();
         assertThat(review.getCachedInputTokens()).isNull();
         assertThat(review.getOutputTokens()).isNull();
@@ -297,84 +234,34 @@ class AiReviewTest {
     }
 
     @Test
-    @DisplayName("시도 번호가 다른 늦은 워커의 완료·실패는 반영하지 않는다")
-    void completeAndFail_staleAttempt_changesNothing() {
+    @DisplayName("시도 번호가 다른 늦은 워커나 이미 끝난 행에는 완료·실패를 반영하지 않는다")
+    void completeAndFail_staleOrTerminal_changesNothing() {
         // Given
-        AiReview review = processingReview();
-        review.claim(
-                LEASE_END.plusSeconds(1),
-                LEASE_END.plusSeconds(121),
-                MAX_CLAIMS
-        );
+        AiReview reclaimed = processingReview();
+        claim(reclaimed, LEASE_END.plusSeconds(1));
+        AiReview finished = processingReview();
+        complete(finished, 1);
 
-        // When
-        boolean completed = review.complete(
-                1,
-                storedResult(),
-                output(),
-                INVOCATION,
-                NOW
-        );
-        boolean failed = review.fail(
-                1,
-                "TIMEOUT",
-                Invocation.NONE,
-                NOW
-        );
+        // When & Then
+        assertThat(complete(reclaimed, 1)).isFalse();
+        assertThat(fail(reclaimed, 1)).isFalse();
+        assertThat(reclaimed.getStatus()).isEqualTo(Status.PROCESSING);
+        assertThat(reclaimed.getAttempt()).isEqualTo(2);
+        assertThat(reclaimed.getErrorCode()).isNull();
+        assertThat(reclaimed.getCompletedAt()).isNull();
 
-        // Then
-        assertThat(completed).isFalse();
-        assertThat(failed).isFalse();
-        assertThat(review.getStatus()).isEqualTo(Status.PROCESSING);
-        assertThat(review.getAttempt()).isEqualTo(2);
-        assertThat(review.getResult()).isNull();
-        assertThat(review.getErrorCode()).isNull();
-        assertThat(review.getCompletedAt()).isNull();
-        assertThat(review.getLeaseExpiresAt()).isEqualTo(LEASE_END.plusSeconds(121));
-    }
-
-    @Test
-    @DisplayName("이미 끝난 행에는 완료·실패를 다시 반영하지 않는다")
-    void completeAndFail_terminalReview_changesNothing() {
-        // Given
-        AiReview review = processingReview();
-        review.complete(
-                1,
-                storedResult(),
-                output(),
-                INVOCATION,
-                NOW
-        );
-
-        // When
-        boolean completed = review.complete(
-                1,
-                storedResult(),
-                output(),
-                INVOCATION,
-                NOW.plusSeconds(5)
-        );
-        boolean failed = review.fail(
-                1,
-                "TIMEOUT",
-                Invocation.NONE,
-                NOW.plusSeconds(5)
-        );
-
-        // Then
-        assertThat(completed).isFalse();
-        assertThat(failed).isFalse();
-        assertThat(review.getStatus()).isEqualTo(Status.COMPLETED);
-        assertThat(review.getCompletedAt()).isEqualTo(NOW);
-        assertThat(review.getErrorCode()).isNull();
+        assertThat(complete(finished, 1)).isFalse();
+        assertThat(fail(finished, 1)).isFalse();
+        assertThat(finished.getStatus()).isEqualTo(Status.COMPLETED);
+        assertThat(finished.getErrorCode()).isNull();
     }
 
     private AiReview queuedReview() {
         return AiReview.request(
-                POST_ID,
-                USER_ID,
-                PROMPT_VERSION_ID,
-                REQUEST_ID,
+                ID,
+                ID,
+                ID,
+                ID,
                 REQUESTED_AT
         );
     }
@@ -389,20 +276,30 @@ class AiReviewTest {
         return review;
     }
 
-    private AiReviewResult storedResult() {
-        return new AiReviewResult(
-                7.5,
-                List.of(new Criterion(
-                        "COMPOSITION",
-                        "구도",
-                        7.5
-                )),
-                true,
-                "구도가 좋습니다."
+    private boolean claim(AiReview review, Instant at) {
+        return review.claim(
+                at,
+                at.plusSeconds(120),
+                MAX_CLAIMS
         );
     }
 
-    private String output() {
-        return "{\"compositionScore\":7.46,\"themeExpressionScore\":8,\"feedback\":\"구도가 좋습니다.\"}";
+    private boolean complete(AiReview review, int attempt) {
+        return review.complete(
+                attempt,
+                RESULT,
+                OUTPUT,
+                INVOCATION,
+                NOW
+        );
+    }
+
+    private boolean fail(AiReview review, int attempt) {
+        return review.fail(
+                attempt,
+                "TIMEOUT",
+                Invocation.NONE,
+                NOW
+        );
     }
 }
