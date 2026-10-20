@@ -10,3 +10,13 @@
 - 관련 이슈·PR: [상위 #679](https://github.com/woowacourse-teams/2026-Chalkak/issues/679), [작성자 ID #682](https://github.com/woowacourse-teams/2026-Chalkak/issues/682), 선행 [#680](https://github.com/woowacourse-teams/2026-Chalkak/issues/680)·[#681](https://github.com/woowacourse-teams/2026-Chalkak/issues/681)
 
 피드는 비로그인으로 볼 수 있지만 작성자별 공개 사진 목록과 상세 조회는 로그인해야 한다. 공개 여부는 각 요청 시점의 승인·삭제·탈퇴 조건으로 판단한다. 작성자가 없거나 탈퇴하면 목록은 404이며, 진입 게시물만 삭제된 경우 작성자가 활성 상태라면 저장한 authorId로 목록 조회를 계속할 수 있다. 공개 사진이 하나도 남지 않으면 빈 목록을 반환한다.
+
+## 2026-10-20 리뷰에서 확인한 시간 정보 노출
+
+[PR #714 리뷰](https://github.com/woowacourse-teams/2026-Chalkak/pull/714#discussion_r4323304349)에서 UUIDv7 회원 ID에는 생성 시각 정보가 포함된다는 점을 확인했다. `User.id`는 데이터베이스의 `uuidv7()` 기본값으로 생성되므로 이 형식의 `authorId`를 받으면 ID 생성 시각을 추출해 가입 시점을 추정할 수 있다. 추출 시각이 정확한 가입 완료 시각과 일치함을 보장하지는 않는다. 이 영향은 10월 19일의 최초 합의에는 포함되지 않았으며, 리뷰 설명 후 사용자가 10월 20일에 추가로 허용했다.
+
+현재 ID를 유지하고 노출 가능성을 명시하는 방법, 비로그인 피드에서 ID를 제외하는 방법, 공개용 랜덤 UUID를 따로 두는 방법을 비교했다. 사용자는 현재의 작성자 ID와 비로그인 피드의 일정한 응답을 유지하면서 시간 정보 노출 가능성을 SIGN-005에 명시하는 안을 선택했다. 공개용 식별자나 마이그레이션은 추가하지 않는다. 생성 시각 노출을 숨긴 식별자가 필요해지면 이 선택을 다시 검토한다.
+
+[상세 응답 문서 리뷰](https://github.com/woowacourse-teams/2026-Chalkak/pull/714#discussion_r4323304356)도 반영해 POST-008의 적용 범위와 예외에 상세의 `authorId` 제공을 명시했다. 이미 합의·구현한 응답의 문서 누락 보완이며, 상세 조회의 로그인 조건과 API 동작은 변경하지 않는다.
+
+근거: [PostgreSQL UUID 함수](https://www.postgresql.org/docs/18/functions-uuid.html), [UUIDv7 형식(RFC 9562)](https://www.rfc-editor.org/rfc/rfc9562.html#section-5.7).
