@@ -1,7 +1,5 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
-import com.chalkak.backend.aireview.domain.AiPromptParameters.ImageDetail;
-import com.chalkak.backend.aireview.domain.AiPromptParameters.ReasoningEffort;
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -30,22 +28,11 @@ public record AiPromptPreviewRequest(
         String model,
         @Valid
         @Schema(description = "모델 호출 옵션. 생략하면 모든 항목이 기본값입니다.")
-        Parameters parameters,
+        AiPromptParametersRequest parameters,
         @NotBlank
         @Schema(
                 description = "프롬프트를 실행할 공개 게시물 ID. 승인되었고 삭제되지 않은 게시물이어야 합니다.",
                 type = "string",
                 format = "uuid")
         String postId) {
-
-    public record Parameters(
-            @Schema(description = "이미지 상세도. 생략하면 HIGH.")
-            ImageDetail imageDetail,
-            @Schema(description = "최대 출력 토큰(1~16000). 추론 토큰도 포함됩니다. 생략하면 8000.")
-            Integer maxOutputTokens,
-            @Schema(description = "추론 강도. 생략하면 모델 기본값을 사용합니다.")
-            ReasoningEffort reasoningEffort,
-            @Schema(description = "주제 표현 점수가 이 값 이상이면 독특한 시각으로 판정하는 기준(0~10). 생략하면 7.0.")
-            Double distinctivePerspectiveThreshold) {
-    }
 }

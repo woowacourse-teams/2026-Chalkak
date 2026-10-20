@@ -337,6 +337,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/topics"),
                 Arguments.of("POST", "/api/v1/admin/ai-prompt-previews"),
+                Arguments.of("POST", "/api/v1/admin/ai-prompt-versions"),
+                Arguments.of("GET", "/api/v1/admin/ai-prompt-versions"),
+                Arguments.of("GET", "/api/v1/admin/ai-prompt-versions/" + id),
                 Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("PUT", "/api/v1/admin/topic-push-schedules/" + id),
@@ -363,6 +366,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
             String path = (String) values[1];
             if (path.startsWith("/api/v1/admin/topic-push-schedules")
                     || path.startsWith("/api/v1/admin/ai-prompt-previews")
+                    || path.startsWith("/api/v1/admin/ai-prompt-versions")
                     || path.startsWith("/api/v1/admin/notices")
                     || path.startsWith("/api/v1/admin/banners")) {
                 states = List.of("ACTIVE", "BANNED", "WITHDRAWN");
