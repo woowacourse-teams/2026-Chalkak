@@ -2,6 +2,49 @@ import XCTest
 
 final class HomeScreenUITests: XCTestCase {
     @MainActor
+    func testMockFeedbackFlowOnApprovedPhoto() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview"]
+        app.launch()
+
+        let feedbackButton = app.buttons["이 사진, AI에게 피드백 받아보기"]
+        XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
+        feedbackButton.tap()
+        XCTAssertTrue(app.staticTexts["AI 피드백을 시작할까요?"].waitForExistence(timeout: 3))
+        captureScreenshot(app, named: "Home feedback sheet")
+
+        let sheetTitle = app.staticTexts["AI 피드백을 시작할까요?"]
+        let dragStart = sheetTitle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: -30))
+        dragStart.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        XCTAssertTrue(feedbackButton.wait(for: \.isHittable, toEqual: true, timeout: 3))
+        feedbackButton.tap()
+        app.buttons["분석 시작하기"].tap()
+
+        let completedButton = app.buttons["AI 피드백이 완료되었어요"]
+        XCTAssertTrue(completedButton.waitForExistence(timeout: 8))
+        completedButton.tap()
+        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "펼쳐짐"), object: completedButton)
+        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 3), .completed)
+        XCTAssertTrue(app.staticTexts["건물의 크기와 높이 차이가 잘 비교되는 구도예요"].exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).press(
+            forDuration: 0.1,
+            thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)),
+            withVelocity: .slow,
+            thenHoldForDuration: 0.2
+        )
+        captureScreenshot(app, named: "Home feedback expanded")
+        app.buttons["작가님의 해석이 돋보이는 작품이에요"].tap()
+        let interpretationTip = app.staticTexts["구도 점수와 별개로, 주제 해석이 특별한 사진이라는 의미예요."]
+        XCTAssertTrue(interpretationTip.waitForExistence(timeout: 3))
+        captureScreenshot(app, named: "Home feedback interpretation tip")
+        app.staticTexts["좋았던 점"].tap()
+        XCTAssertTrue(interpretationTip.waitForNonExistence(timeout: 3))
+        completedButton.tap()
+        XCTAssertFalse(app.staticTexts["건물의 크기와 높이 차이가 잘 비교되는 구도예요"].exists)
+    }
+
+    @MainActor
     func testHomeSectionsAndGuestPhotoEntry() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview"]
