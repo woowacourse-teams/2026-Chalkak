@@ -35,12 +35,13 @@
 | 관리자 | [admin.md](rules/admin.md) | 활성 |
 | 배너 | [banner.md](rules/banner.md) | 활성 |
 | 알림함 | [notification.md](rules/notification.md) | 활성 |
+| AI 리뷰 | [ai-review.md](rules/ai-review.md) | 활성 |
 
 새 도메인 문서는 [규칙 템플릿](rules/_template.md)을 복사해 만든다. 템플릿은 이후 규칙도 같은 형식으로 기록하기 위해 유지하며 현재 규칙이나 Notion 동기화 대상으로 보지 않는다.
 
 ## 앱 연동 안내
 
-알림함이나 푸시 기기 등록을 구현할 때는 현재 규칙과 함께 해당 연동 문서를 읽는다.
+알림함·푸시 기기 등록·AI 리뷰를 구현할 때는 현재 규칙과 함께 해당 연동 문서를 읽는다.
 
 | 작업 | 문서 |
 | --- | --- |
@@ -50,6 +51,7 @@
 | FCM 메시지 필드·플랫폼별 수신·클릭 후 화면 이동 | [Android·iOS 푸시 메시지 연동 계약](guides/notification-push-contract.md) |
 | 관리자 주제 푸시 설정 생성과 변경 적용 정책 | [주제 푸시 설정 연동 안내](guides/topic-push-schedules.md) |
 | 관리자 공지 등록·조회와 예약 시각 정책 | [관리자 공지 연동 안내](guides/admin-notices.md) |
+| 게시물 AI 리뷰 요청·결과 조회, 상태 분기와 폴링 | [AI 리뷰 연동 안내](guides/ai-review.md) |
 
 ## 변경 이유
 
