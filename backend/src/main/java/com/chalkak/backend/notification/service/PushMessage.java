@@ -13,5 +13,6 @@ public record PushMessage(
         NotificationSourceType sourceType,
         UUID sourceId,
         Instant occurredAt,
-        Instant expiresAt) {
+        Instant expiresAt
+) {
 }

@@ -17,10 +17,16 @@ public record TodayPostStatus(
         LocalDate topicDate,
         boolean isPosted,
         UUID postId,
-        ModerationStatus moderationStatus) {
+        ModerationStatus moderationStatus
+) {
 
     public static TodayPostStatus notPosted(LocalDate topicDate) {
-        return new TodayPostStatus(topicDate, false, null, null);
+        return new TodayPostStatus(
+                topicDate,
+                false,
+                null,
+                null
+        );
     }
 
     public static TodayPostStatus posted(LocalDate topicDate, Post post) {
@@ -28,6 +34,7 @@ public record TodayPostStatus(
                 topicDate,
                 true,
                 post.getId(),
-                post.getModerationStatus());
+                post.getModerationStatus()
+        );
     }
 }

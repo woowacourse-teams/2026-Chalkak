@@ -38,7 +38,8 @@ public class RuntimeSnapshotReader {
                 ManagementFactory.getMemoryMXBean(),
                 ManagementFactory.getGarbageCollectorMXBeans(),
                 ManagementFactory.getThreadMXBean(),
-                dataSource);
+                dataSource
+        );
     }
 
     // 테스트에서 관리 객체를 바꿔 넣기 위해 생성자를 하나 더 둔다.
@@ -63,7 +64,8 @@ public class RuntimeSnapshotReader {
                 gcTimeMsTotal(),
                 threadMXBean.getThreadCount(),
                 pool == null ? null : pool.getActiveConnections(),
-                pool == null ? null : pool.getThreadsAwaitingConnection());
+                pool == null ? null : pool.getThreadsAwaitingConnection()
+        );
     }
 
     private Long gcTimeMsTotal() {

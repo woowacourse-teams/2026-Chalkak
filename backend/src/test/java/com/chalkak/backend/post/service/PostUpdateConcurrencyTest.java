@@ -85,7 +85,11 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         Future<Void> update = executor.submit(() -> runNamed(UPDATE_THREAD, () -> {
-            postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목");
+            postCommandService.updatePost(
+                    AUTHOR_ID,
+                    POST_ID,
+                    "수정 제목"
+            );
             return null;
         }));
         await(updateLocked, "제목 수정이 게시물 락을 획득하지 못했습니다.");
@@ -94,7 +98,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                     POST_ID,
                     ADMIN_ID,
                     ModerationStatus.APPROVED,
-                    null);
+                    null
+            );
             return null;
         }));
 
@@ -142,13 +147,18 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                     POST_ID,
                     ADMIN_ID,
                     ModerationStatus.REJECTED,
-                    "운영 정책 위반");
+                    "운영 정책 위반"
+            );
             return null;
         }));
         await(moderationLocked, "검수 요청이 게시물 락을 획득하지 못했습니다.");
         Future<String> update = executor.submit(() -> runNamed(UPDATE_THREAD, () -> {
             try {
-                postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목");
+                postCommandService.updatePost(
+                        AUTHOR_ID,
+                        POST_ID,
+                        "수정 제목"
+                );
                 return "SUCCESS";
             } catch (BaseException exception) {
                 return exception.getErrorCode().name();
@@ -205,7 +215,11 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
         await(deletionLocked, "삭제 요청이 게시물 락을 획득하지 못했습니다.");
         Future<String> update = executor.submit(() -> runNamed(UPDATE_THREAD, () -> {
             try {
-                postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목");
+                postCommandService.updatePost(
+                        AUTHOR_ID,
+                        POST_ID,
+                        "수정 제목"
+                );
                 return "SUCCESS";
             } catch (BaseException exception) {
                 return exception.getMessage();
@@ -252,12 +266,20 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         Future<Void> firstUpdate = executor.submit(() -> runNamed(UPDATE_THREAD, () -> {
-            postCommandService.updatePost(AUTHOR_ID, POST_ID, "첫 번째 제목");
+            postCommandService.updatePost(
+                    AUTHOR_ID,
+                    POST_ID,
+                    "첫 번째 제목"
+            );
             return null;
         }));
         await(firstUpdateLocked, "첫 번째 제목 수정이 게시물 락을 획득하지 못했습니다.");
         Future<Void> secondUpdate = executor.submit(() -> runNamed(SECOND_UPDATE_THREAD, () -> {
-            postCommandService.updatePost(AUTHOR_ID, POST_ID, "두 번째 제목");
+            postCommandService.updatePost(
+                    AUTHOR_ID,
+                    POST_ID,
+                    "두 번째 제목"
+            );
             return null;
         }));
 
@@ -368,15 +390,21 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void insertPendingPost() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '기존 제목', CAST('PENDING' AS moderation_status),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, AUTHOR_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '기존 제목', CAST('PENDING' AS moderation_status),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                AUTHOR_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
     }
 
     @FunctionalInterface

@@ -12,5 +12,6 @@ public record AdminFeedbackSummaryProjection(
         String authorEmail,
         UserStatus authorStatus,
         String authorAppVersion,
-        Instant authorDeletedAt) {
+        Instant authorDeletedAt
+) {
 }

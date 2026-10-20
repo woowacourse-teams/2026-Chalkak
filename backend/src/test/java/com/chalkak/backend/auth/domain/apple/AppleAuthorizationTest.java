@@ -100,6 +100,10 @@ class AppleAuthorizationTest {
                 new SignatureStorageKeys(
                         "chalkak/signatures/dev/original/signature.png",
                         "chalkak/signatures/dev/thumbnail/signature.png"));
-        return SocialAccount.create(user, provider, SUBJECT_HMAC);
+        return SocialAccount.create(
+                user,
+                provider,
+                SUBJECT_HMAC
+        );
     }
 }

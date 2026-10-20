@@ -65,7 +65,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // Given
         LocalDate topicDate = LocalDate.now(KST);
         insertTopic(topicDate, OPEN);
-        insertPost(USER_ID, topicDate, moderationStatus, NOT_TIMED_OUT);
+        insertPost(
+                USER_ID,
+                topicDate,
+                moderationStatus,
+                NOT_TIMED_OUT
+        );
 
         // When
         TodayPostStatus status = postQueryService.getMyTodayPostStatus(USER_ID);
@@ -75,7 +80,8 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
                 topicDate,
                 true,
                 POST_ID,
-                moderationStatus));
+                moderationStatus
+        ));
     }
 
     @Test
@@ -84,7 +90,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // Given
         LocalDate topicDate = LocalDate.now(KST);
         insertTopic(topicDate, OPEN);
-        insertPost(USER_ID, topicDate, ModerationStatus.VALIDATING, TIMED_OUT);
+        insertPost(
+                USER_ID,
+                topicDate,
+                ModerationStatus.VALIDATING,
+                TIMED_OUT
+        );
 
         // When
         TodayPostStatus status = postQueryService.getMyTodayPostStatus(USER_ID);
@@ -99,7 +110,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // Given
         LocalDate topicDate = LocalDate.now(KST);
         insertTopic(topicDate, OPEN);
-        insertPost(USER_ID, topicDate, ModerationStatus.REJECTED, NOT_TIMED_OUT);
+        insertPost(
+                USER_ID,
+                topicDate,
+                ModerationStatus.REJECTED,
+                NOT_TIMED_OUT
+        );
 
         // When
         TodayPostStatus status = postQueryService.getMyTodayPostStatus(USER_ID);
@@ -114,7 +130,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // Given
         LocalDate topicDate = LocalDate.now(KST);
         insertTopic(topicDate, OPEN);
-        insertPost(USER_ID, topicDate, ModerationStatus.APPROVED, NOT_TIMED_OUT);
+        insertPost(
+                USER_ID,
+                topicDate,
+                ModerationStatus.APPROVED,
+                NOT_TIMED_OUT
+        );
         jdbcTemplate.update(
                 "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
                 POST_ID);
@@ -132,7 +153,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         // Given
         LocalDate topicDate = LocalDate.now(KST);
         insertTopic(topicDate, OPEN);
-        insertPost(OTHER_USER_ID, topicDate, ModerationStatus.APPROVED, NOT_TIMED_OUT);
+        insertPost(
+                OTHER_USER_ID,
+                topicDate,
+                ModerationStatus.APPROVED,
+                NOT_TIMED_OUT
+        );
 
         // When
         TodayPostStatus status = postQueryService.getMyTodayPostStatus(USER_ID);
@@ -149,7 +175,12 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
         LocalDate closedTopicDate = openTopicDate.minusDays(1);
         insertTopic(openTopicDate, OPEN);
         insertTopic(closedTopicDate, CLOSED);
-        insertPost(USER_ID, closedTopicDate, ModerationStatus.APPROVED, NOT_TIMED_OUT);
+        insertPost(
+                USER_ID,
+                closedTopicDate,
+                ModerationStatus.APPROVED,
+                NOT_TIMED_OUT
+        );
 
         // When
         TodayPostStatus status = postQueryService.getMyTodayPostStatus(USER_ID);
@@ -252,30 +283,38 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
     }
 
     private void insertUser(UUID userId, String slug) {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, ?, 'ACTIVE', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, 'ACTIVE', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
                 userId,
                 slug + "@example.com",
-                "chalkak/dev/signatures/" + slug + ".png");
+                "chalkak/dev/signatures/" + slug + ".png"
+        );
     }
 
     private void insertTopic(LocalDate topicDate, String participationPeriod) {
         String[] offsets = participationPeriod.split(", ");
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    ?, '오늘 작성 여부 주제', ?,
-                    CURRENT_TIMESTAMP + CAST(? AS INTERVAL),
-                    CURRENT_TIMESTAMP + CAST(? AS INTERVAL),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, topicId(topicDate), topicDate, offsets[0], offsets[1]);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                        ) VALUES (
+                            ?, '오늘 작성 여부 주제', ?,
+                            CURRENT_TIMESTAMP + CAST(? AS INTERVAL),
+                            CURRENT_TIMESTAMP + CAST(? AS INTERVAL),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                topicId(topicDate),
+                topicDate,
+                offsets[0],
+                offsets[1]
+        );
     }
 
     private void insertPost(
@@ -285,27 +324,33 @@ class PostTodayStatusServiceTest extends IntegrationTestSupport {
             String createdBefore
     ) {
         UUID photoId = UUID.nameUUIDFromBytes(("today-photo-" + authorId + topicDate).getBytes());
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, photoId, "chalkak/dev/posts/original/" + photoId + ".webp");
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?::moderation_status,
-                    CURRENT_TIMESTAMP - CAST(? AS INTERVAL), CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                photoId,
+                "chalkak/dev/posts/original/" + photoId + ".webp"
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?::moderation_status,
+                            CURRENT_TIMESTAMP - CAST(? AS INTERVAL), CURRENT_TIMESTAMP
+                        )
+                        """,
                 POST_ID,
                 authorId,
                 topicId(topicDate),
                 photoId,
                 moderationStatus.name(),
-                createdBefore);
+                createdBefore
+        );
     }
 
     private UUID topicId(LocalDate topicDate) {

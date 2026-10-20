@@ -69,9 +69,21 @@ class AdminBannerControllerTest {
     void createBanner_validRequest_returnsCreatedBanner() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-19T00:00:00Z");
-        given(adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL, THUMBNAIL))
-                .willReturn(new BannerResult(BANNER_ID, "제목", "부제목", URL, THUMBNAIL,
-                        createdAt));
+        given(adminBannerService.createBanner(
+                ADMIN_ID,
+                "제목",
+                "부제목",
+                URL,
+                THUMBNAIL
+        ))
+                .willReturn(new BannerResult(
+                        BANNER_ID,
+                        "제목",
+                        "부제목",
+                        URL,
+                        THUMBNAIL,
+                        createdAt
+                ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -108,8 +120,13 @@ class AdminBannerControllerTest {
     @DisplayName("중복 웹뷰 URL은 400과 기존 BUSINESS_ERROR 형식으로 반환한다")
     void createBanner_duplicateUrl_returnsBusinessError() throws Exception {
         // Given
-        given(adminBannerService.createBanner(any(), anyString(), anyString(), anyString(),
-                anyString()))
+        given(adminBannerService.createBanner(
+                any(),
+                anyString(),
+                anyString(),
+                anyString(),
+                anyString()
+        ))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "동일한 웹뷰 URL의 배너가 이미 존재합니다."));
 
@@ -156,7 +173,15 @@ class AdminBannerControllerTest {
     }
 
     private Map<String, String> validRequest() {
-        return new LinkedHashMap<>(Map.of("title", "제목", "subtitle", "부제목",
-                "webViewUrl", URL, "thumbnailUrl", THUMBNAIL));
+        return new LinkedHashMap<>(Map.of(
+                "title",
+                "제목",
+                "subtitle",
+                "부제목",
+                "webViewUrl",
+                URL,
+                "thumbnailUrl",
+                THUMBNAIL
+        ));
     }
 }

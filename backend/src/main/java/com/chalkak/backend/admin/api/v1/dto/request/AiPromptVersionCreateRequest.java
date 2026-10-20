@@ -32,5 +32,6 @@ public record AiPromptVersionCreateRequest(
                         + "공백을 제거한 뒤 글자 수로 최대 500자입니다.",
                 maxLength = 500,
                 nullable = true)
-        String memo) {
+        String memo
+) {
 }

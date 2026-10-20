@@ -54,7 +54,8 @@ public class AdminAuthenticationService {
                 admin.getId(),
                 admin.getUsername(),
                 accessToken,
-                refreshToken);
+                refreshToken
+        );
     }
 
     public CurrentAdminResult getCurrentAdmin(UUID adminId) {

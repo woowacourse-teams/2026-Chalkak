@@ -45,11 +45,18 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
     void insert_duplicateSession_rejectsSecondRow() {
         // given
         UUID sessionId = newSession();
-        insert(sessionId, "first-token", new FcmToken("first-token").getHash());
+        insert(
+                sessionId,
+                "first-token",
+                new FcmToken("first-token").getHash()
+        );
 
         // when & then
-        assertThatThrownBy(() -> insert(sessionId, "second-token",
-                new FcmToken("second-token").getHash()))
+        assertThatThrownBy(() -> insert(
+                sessionId,
+                "second-token",
+                new FcmToken("second-token").getHash()
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ux_push_devices_session");
     }
@@ -61,10 +68,18 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         UUID first = newSession();
         UUID second = newSession();
         String hash = new FcmToken("shared-token").getHash();
-        insert(first, "shared-token", hash);
+        insert(
+                first,
+                "shared-token",
+                hash
+        );
 
         // when & then
-        assertThatThrownBy(() -> insert(second, "shared-token", hash))
+        assertThatThrownBy(() -> insert(
+                second,
+                "shared-token",
+                hash
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ux_push_devices_fcm_token");
     }
@@ -76,18 +91,30 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         UUID first = newSession();
         UUID second = newSession();
         String hash = new FcmToken("shared-token").getHash();
-        insert(first, "shared-token", hash);
+        insert(
+                first,
+                "shared-token",
+                hash
+        );
         pushDeviceJpaRepository.deleteBySessionId(first);
         entityManager.flush();
         entityManager.clear();
 
         // when
-        insert(second, "shared-token", hash);
+        insert(
+                second,
+                "shared-token",
+                hash
+        );
 
         // then
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM push_devices WHERE fcm_token_hash = ?
-                """, Integer.class, hash)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM push_devices WHERE fcm_token_hash = ?
+                        """,
+                Integer.class,
+                hash
+        )).isEqualTo(1);
     }
 
     @ParameterizedTest
@@ -98,7 +125,11 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         UUID sessionId = newSession();
 
         // when & then
-        assertThatThrownBy(() -> insert(sessionId, token, hash))
+        assertThatThrownBy(() -> insert(
+                sessionId,
+                token,
+                hash
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -109,18 +140,24 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         // given
         UUID sessionId = newSession();
         UUID userId = jdbcTemplate.queryForObject(
-                "SELECT user_id FROM user_refresh_tokens WHERE session_id = ?", UUID.class,
-                sessionId);
+                "SELECT user_id FROM user_refresh_tokens WHERE session_id = ?",
+                UUID.class,
+                sessionId
+        );
         String token = "device-token";
 
         // when & then
-        assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
-                    registered_at, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, column.equals("user_id") ? null : userId,
-                column.equals("session_id") ? null : sessionId, token,
-                new FcmToken(token).getHash()))
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
+                            registered_at, updated_at)
+                        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                column.equals("user_id") ? null : userId,
+                column.equals("session_id") ? null : sessionId,
+                token,
+                new FcmToken(token).getHash()
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining(column);
     }
@@ -133,12 +170,22 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
         return sessionId;
     }
 
-    private void insert(UUID sessionId, String token, String hash) {
-        jdbcTemplate.update("""
-                INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
-                    registered_at, updated_at)
-                VALUES ((SELECT user_id FROM user_refresh_tokens WHERE session_id = ? LIMIT 1),
-                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, sessionId, sessionId, token, hash);
+    private void insert(
+            UUID sessionId,
+            String token,
+            String hash
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO push_devices (user_id, session_id, fcm_token, fcm_token_hash,
+                            registered_at, updated_at)
+                        VALUES ((SELECT user_id FROM user_refresh_tokens WHERE session_id = ? LIMIT 1),
+                            ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                sessionId,
+                sessionId,
+                token,
+                hash
+        );
     }
 }

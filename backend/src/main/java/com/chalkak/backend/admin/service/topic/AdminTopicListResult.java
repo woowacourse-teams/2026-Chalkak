@@ -6,5 +6,6 @@ public record AdminTopicListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AdminTopicDetail> topics) {
+        List<AdminTopicDetail> topics
+) {
 }

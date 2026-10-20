@@ -74,13 +74,20 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
             ModerationStatus status) {
         // Given
         insertPost(ModerationStatus.PENDING, null);
-        jdbcTemplate.update("UPDATE posts SET created_at = ? WHERE id = ?",
-                Timestamp.from(NOW.minusSeconds(60)), POST_ID);
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = ? WHERE id = ?",
+                Timestamp.from(NOW.minusSeconds(60)),
+                POST_ID
+        );
         String rejectionReason = status == ModerationStatus.REJECTED ? "운영 정책 위반" : null;
 
         // When
         AdminPostModerationResult result = adminPostCommandService.moderate(
-                POST_ID, ADMIN_ID, status, rejectionReason);
+                POST_ID,
+                ADMIN_ID,
+                status,
+                rejectionReason
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -89,15 +96,29 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         assertThat(findPost().moderatedAt()).isEqualTo(NOW);
         Instant notificationCreatedAt = jdbcTemplate.queryForObject(
                 "SELECT created_at FROM notifications WHERE source_id = ?",
-                (row, rowNum) -> row.getTimestamp(1).toInstant(), POST_ID);
+                (row, rowNum) -> row.getTimestamp(1).toInstant(),
+                POST_ID
+        );
         assertThat(notificationCreatedAt).isEqualTo(NOW);
 
         given(clock.instant()).willReturn(NOW.plus(Duration.ofDays(30)).minusSeconds(1));
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications()).hasSize(1);
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications()).hasSize(1);
         given(clock.instant()).willReturn(NOW.plus(Duration.ofDays(30)));
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications()).hasSize(1);
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications()).hasSize(1);
         given(clock.instant()).willReturn(NOW.plus(Duration.ofDays(30)).plusSeconds(1));
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications()).isEmpty();
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications()).isEmpty();
     }
 
     @Test
@@ -111,7 +132,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null);
+                null
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -132,7 +154,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                 "POST_APPROVED",
                 "APPROVED",
                 result.moderatedAt(),
-                null);
+                null
+        );
     }
 
     @Test
@@ -142,7 +165,12 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         insertPost(ModerationStatus.PENDING, null);
 
         // When
-        adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+        adminPostCommandService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -169,7 +197,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE id = ?",
                 Integer.class,
-                notification.get("event_key"))).isEqualTo(1);
+                notification.get("event_key")
+        )).isEqualTo(1);
     }
 
     @Test
@@ -183,7 +212,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                "  운영 정책 위반  ");
+                "  운영 정책 위반  "
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -204,7 +234,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                 "POST_REJECTED",
                 "REJECTED",
                 result.moderatedAt(),
-                "운영 정책 위반");
+                "운영 정책 위반"
+        );
     }
 
     @Test
@@ -218,7 +249,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                "  운영 정책 위반  ");
+                "  운영 정책 위반  "
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -263,20 +295,33 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
     ) {
         // Given
         insertPost(ModerationStatus.PENDING, null);
-        jdbcTemplate.update("""
-                UPDATE users SET moderation_push_enabled = ?, topic_push_enabled = false,
-                    status = CAST(? AS user_status), deleted_at = ? WHERE id = ?
-                """, pushEnabled, userStatus, withdrawn ? Timestamp.from(NOW) : null, USER_ID);
+        jdbcTemplate.update(
+                """
+                        UPDATE users SET moderation_push_enabled = ?, topic_push_enabled = false,
+                            status = CAST(? AS user_status), deleted_at = ? WHERE id = ?
+                        """,
+                pushEnabled,
+                userStatus,
+                withdrawn ? Timestamp.from(NOW) : null,
+                USER_ID
+        );
 
         // When
-        adminPostCommandService.moderate(POST_ID, ADMIN_ID, status,
-                status == ModerationStatus.REJECTED ? "운영 정책 위반" : null);
+        adminPostCommandService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                status,
+                status == ModerationStatus.REJECTED ? "운영 정책 위반" : null
+        );
         entityManager.flush();
         entityManager.clear();
 
         // Then
         UUID notificationId = jdbcTemplate.queryForObject(
-                "SELECT id FROM notifications WHERE source_id = ?", UUID.class, POST_ID);
+                "SELECT id FROM notifications WHERE source_id = ?",
+                UUID.class,
+                POST_ID
+        );
         Notification loaded = entityManager.find(Notification.class, notificationId);
         assertThat(loaded.getPublishStatus()).isEqualTo(expectedStatus);
         assertThat(loaded.getNextAttemptAt()).isEqualTo(
@@ -299,23 +344,35 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
     void moderate_duplicateEventKey_rejectsDuplicateNotification() {
         // Given
         insertPost(ModerationStatus.PENDING, null);
-        adminPostCommandService.moderate(POST_ID, ADMIN_ID, ModerationStatus.APPROVED, null);
+        adminPostCommandService.moderate(
+                POST_ID,
+                ADMIN_ID,
+                ModerationStatus.APPROVED,
+                null
+        );
         entityManager.flush();
         UUID eventKey = jdbcTemplate.queryForObject(
                 "SELECT event_key FROM notifications WHERE source_type = 'POST' AND source_id = ?",
                 UUID.class,
-                POST_ID);
+                POST_ID
+        );
 
         // When & Then
-        assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO notifications (
-                    id, user_id, source_type, source_id, event_key, type, title, body, created_at,
-                    sqs_publish_status
-                ) VALUES (
-                    ?, ?, 'POST', ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP,
-                    'NOT_REQUIRED'
-                )
-                """, UUID.randomUUID(), USER_ID, POST_ID, eventKey))
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (
+                            id, user_id, source_type, source_id, event_key, type, title, body, created_at,
+                            sqs_publish_status
+                        ) VALUES (
+                            ?, ?, 'POST', ?, ?, 'POST_APPROVED', '중복', '중복', CURRENT_TIMESTAMP,
+                            'NOT_REQUIRED'
+                        )
+                        """,
+                UUID.randomUUID(),
+                USER_ID,
+                POST_ID,
+                eventKey
+        ))
                 .hasMessageContaining("ux_notifications_user_event");
     }
 
@@ -328,7 +385,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                         POST_ID,
                         ADMIN_ID,
                         ModerationStatus.APPROVED,
-                        null),
+                        null
+                ),
                 NotFoundException.class);
 
         // Then
@@ -354,7 +412,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                         POST_ID,
                         ADMIN_ID,
                         ModerationStatus.APPROVED,
-                        null),
+                        null
+                ),
                 BusinessException.class);
 
         // Then
@@ -381,7 +440,8 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
                         POST_ID,
                         ADMIN_ID,
                         ModerationStatus.REJECTED,
-                        "운영 정책 위반"),
+                        "운영 정책 위반"
+                ),
                 NotFoundException.class);
 
         // Then
@@ -411,47 +471,57 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
     }
 
     private PostModerationRow findPost() {
-        return jdbcTemplate.queryForObject("""
-                SELECT CAST(moderation_status AS TEXT), moderated_at
-                FROM posts
-                WHERE id = ?
-                """, (resultSet, rowNumber) -> new PostModerationRow(
-                resultSet.getString(1),
-                instant(resultSet.getTimestamp(2))), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT CAST(moderation_status AS TEXT), moderated_at
+                        FROM posts
+                        WHERE id = ?
+                        """,
+                (resultSet, rowNumber) -> new PostModerationRow(
+                        resultSet.getString(1),
+                        instant(resultSet.getTimestamp(2))),
+                POST_ID
+        );
     }
 
     private ModerationAuditRow findSingleAuditLog() {
-        return jdbcTemplate.queryForObject("""
-                SELECT CAST(action AS TEXT), actor_admin_id,
-                       CAST(target_type AS TEXT), target_id, reason,
-                       before_state ->> 'moderationStatus',
-                       before_state ->> 'moderatedAt',
-                       after_state ->> 'moderationStatus',
-                       after_state ->> 'moderatedAt',
-                       after_state ->> 'moderatedBy',
-                       request_id
-                FROM admin_audit_logs
-                WHERE target_type = CAST('POST' AS admin_target_type)
-                  AND target_id = ?
-                """, (resultSet, rowNumber) -> new ModerationAuditRow(
-                resultSet.getString(1),
-                resultSet.getObject(2, UUID.class),
-                resultSet.getString(3),
-                resultSet.getObject(4, UUID.class),
-                resultSet.getString(5),
-                resultSet.getString(6),
-                resultSet.getString(7),
-                resultSet.getString(8),
-                resultSet.getString(9),
-                resultSet.getString(10),
-                resultSet.getObject(11, UUID.class)), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT CAST(action AS TEXT), actor_admin_id,
+                               CAST(target_type AS TEXT), target_id, reason,
+                               before_state ->> 'moderationStatus',
+                               before_state ->> 'moderatedAt',
+                               after_state ->> 'moderationStatus',
+                               after_state ->> 'moderatedAt',
+                               after_state ->> 'moderatedBy',
+                               request_id
+                        FROM admin_audit_logs
+                        WHERE target_type = CAST('POST' AS admin_target_type)
+                          AND target_id = ?
+                        """,
+                (resultSet, rowNumber) -> new ModerationAuditRow(
+                        resultSet.getString(1),
+                        resultSet.getObject(2, UUID.class),
+                        resultSet.getString(3),
+                        resultSet.getObject(4, UUID.class),
+                        resultSet.getString(5),
+                        resultSet.getString(6),
+                        resultSet.getString(7),
+                        resultSet.getString(8),
+                        resultSet.getString(9),
+                        resultSet.getString(10),
+                        resultSet.getObject(11, UUID.class)
+                ),
+                POST_ID
+        );
     }
 
     private int countAuditLogs() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
                 Integer.class,
-                POST_ID);
+                POST_ID
+        );
     }
 
     private void insertAdmin() {
@@ -507,21 +577,23 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
             ModerationStatus moderationStatus,
             Instant moderatedAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, moderated_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '검수 대상', CAST(? AS moderation_status), ?,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, moderated_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '검수 대상', CAST(? AS moderation_status), ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
                 POST_ID,
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_ID,
                 moderationStatus.name(),
-                timestamp(moderatedAt));
+                timestamp(moderatedAt)
+        );
     }
 
     private Timestamp timestamp(Instant instant) {
@@ -554,6 +626,7 @@ class AdminPostCommandModerationTest extends IntegrationTestSupport {
             String afterStatus,
             String afterModeratedAt,
             String afterModeratedBy,
-            UUID requestId) {
+            UUID requestId
+    ) {
     }
 }

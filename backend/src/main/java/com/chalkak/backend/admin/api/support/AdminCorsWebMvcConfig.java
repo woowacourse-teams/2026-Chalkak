@@ -37,11 +37,13 @@ public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
                         HttpMethod.PUT.name(),
                         HttpMethod.PATCH.name(),
                         HttpMethod.DELETE.name(),
-                        HttpMethod.OPTIONS.name())
+                        HttpMethod.OPTIONS.name()
+                )
                 .allowedHeaders(
                         HttpHeaders.AUTHORIZATION,
                         HttpHeaders.CONTENT_TYPE,
-                        HttpHeaders.ACCEPT)
+                        HttpHeaders.ACCEPT
+                )
                 .exposedHeaders(LogFields.REQUEST_ID_HEADER)
                 .allowCredentials(false)
                 .maxAge(3_600);
@@ -54,7 +56,8 @@ public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
                 .allowedHeaders(
                         HttpHeaders.AUTHORIZATION,
                         HttpHeaders.CONTENT_TYPE,
-                        HttpHeaders.ACCEPT)
+                        HttpHeaders.ACCEPT
+                )
                 .exposedHeaders(LogFields.REQUEST_ID_HEADER)
                 .allowCredentials(false)
                 .maxAge(3_600);

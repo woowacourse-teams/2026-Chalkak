@@ -74,9 +74,23 @@ class AdminAiPromptVersionControllerTest {
     void createVersion_valid_returnsCreated() throws Exception {
         // Given
         given(versionService.createVersion(eq(ADMIN_ID), any())).willReturn(new VersionResult(
-                VERSION_ID, AiPromptType.PHOTO_REVIEW, 3, "시스템", "{{topicTitle}}", "gpt-6.1-sol",
-                new AiPromptParameters(ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5), "1",
-                "메모", ADMIN_ID, Instant.parse("2026-10-19T01:00:00Z")));
+                VERSION_ID,
+                AiPromptType.PHOTO_REVIEW,
+                3,
+                "시스템",
+                "{{topicTitle}}",
+                "gpt-6.1-sol",
+                new AiPromptParameters(
+                        ImageDetail.LOW,
+                        700,
+                        ReasoningEffort.HIGH,
+                        6.5
+                ),
+                "1",
+                "메모",
+                ADMIN_ID,
+                Instant.parse("2026-10-19T01:00:00Z")
+        ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(validBody()))
@@ -114,8 +128,16 @@ class AdminAiPromptVersionControllerTest {
 
         // Then
         verify(versionService).createVersion(ADMIN_ID, new CreateCommand(
-                AiPromptType.PHOTO_REVIEW, "시스템", "{{topicTitle}}", "gpt-6.1-sol",
-                ImageDetail.LOW, 700, ReasoningEffort.HIGH, 6.5, "메모"));
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "{{topicTitle}}",
+                "gpt-6.1-sol",
+                ImageDetail.LOW,
+                700,
+                ReasoningEffort.HIGH,
+                6.5,
+                "메모"
+        ));
     }
 
     @Test
@@ -130,18 +152,42 @@ class AdminAiPromptVersionControllerTest {
 
         // Then
         verify(versionService).createVersion(ADMIN_ID, new CreateCommand(
-                AiPromptType.PHOTO_REVIEW, "시스템", "{{topicTitle}}", "gpt-6.1-sol",
-                null, null, null, null, null));
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "{{topicTitle}}",
+                "gpt-6.1-sol",
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
     }
 
     @Test
     @DisplayName("목록은 기본 페이지로 조회하고 본문 없이 요약과 페이지 메타데이터를 반환한다")
     void getVersions_defaultParameters_returnsSummaries() throws Exception {
         // Given
-        given(versionService.getVersions(AiPromptType.PHOTO_REVIEW, 1, 20))
-                .willReturn(new VersionListResult(1, 20, true, List.of(new VersionSummary(
-                        VERSION_ID, AiPromptType.PHOTO_REVIEW, 3, "gpt-6.1-sol", "1", "메모",
-                        ADMIN_ID, Instant.parse("2026-10-19T01:00:00Z")))));
+        given(versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                1,
+                20
+        ))
+                .willReturn(new VersionListResult(
+                        1,
+                        20,
+                        true,
+                        List.of(new VersionSummary(
+                                VERSION_ID,
+                                AiPromptType.PHOTO_REVIEW,
+                                3,
+                                "gpt-6.1-sol",
+                                "1",
+                                "메모",
+                                ADMIN_ID,
+                                Instant.parse("2026-10-19T01:00:00Z")
+                        ))
+                ));
 
         // When & Then
         mockMvc.perform(get(PATH).param("type", "PHOTO_REVIEW"))
@@ -168,12 +214,21 @@ class AdminAiPromptVersionControllerTest {
     @DisplayName("명시한 페이지와 크기로 빈 목록을 조회할 수 있다")
     void getVersions_explicitParameters_returnsEmptyPage() throws Exception {
         // Given
-        given(versionService.getVersions(AiPromptType.PHOTO_REVIEW, 2, 100))
-                .willReturn(new VersionListResult(2, 100, false, List.of()));
+        given(versionService.getVersions(
+                AiPromptType.PHOTO_REVIEW,
+                2,
+                100
+        ))
+                .willReturn(new VersionListResult(
+                        2,
+                        100,
+                        false,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get(PATH).param("type", "PHOTO_REVIEW").param("page", "2")
-                        .param("pageSize", "100"))
+                .param("pageSize", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentPage").value(2))
                 .andExpect(jsonPath("$.pageSize").value(100))
@@ -300,7 +355,8 @@ class AdminAiPromptVersionControllerTest {
         return Stream.of(
                 Arguments.of("\"시스템\"", "\"" + "가".repeat(50_001) + "\""),
                 Arguments.of("\"{{topicTitle}}\"", "\"" + "가".repeat(2_001) + "\""),
-                Arguments.of("\"gpt-6.1-sol\"", "\"" + "m".repeat(101) + "\""));
+                Arguments.of("\"gpt-6.1-sol\"", "\"" + "m".repeat(101) + "\"")
+        );
     }
 
     @Test
@@ -334,12 +390,24 @@ class AdminAiPromptVersionControllerTest {
 
         // Then
         verify(versionService).createVersion(ADMIN_ID, new CreateCommand(
-                AiPromptType.PHOTO_REVIEW, "시스템", "{{topicTitle}}", "gpt-6.1-sol",
-                null, null, null, null, memo));
+                AiPromptType.PHOTO_REVIEW,
+                "시스템",
+                "{{topicTitle}}",
+                "gpt-6.1-sol",
+                null,
+                null,
+                null,
+                null,
+                memo
+        ));
     }
 
     private static Stream<String> memosAcceptedByDomainRule() {
-        return Stream.of(" " + "가".repeat(500) + " ", "😀".repeat(251), " ".repeat(501));
+        return Stream.of(
+                " " + "가".repeat(500) + " ",
+                "😀".repeat(251),
+                " ".repeat(501)
+        );
     }
 
     @ParameterizedTest
@@ -374,9 +442,24 @@ class AdminAiPromptVersionControllerTest {
     }
 
     private VersionResult result() {
-        return new VersionResult(VERSION_ID, AiPromptType.PHOTO_REVIEW, 1, "시스템",
-                "{{topicTitle}}", "gpt-6.1-sol", new AiPromptParameters(null, null, null, null),
-                "1", null, ADMIN_ID, Instant.parse("2026-10-19T01:00:00Z"));
+        return new VersionResult(
+                VERSION_ID,
+                AiPromptType.PHOTO_REVIEW,
+                1,
+                "시스템",
+                "{{topicTitle}}",
+                "gpt-6.1-sol",
+                new AiPromptParameters(
+                        null,
+                        null,
+                        null,
+                        null
+                ),
+                "1",
+                null,
+                ADMIN_ID,
+                Instant.parse("2026-10-19T01:00:00Z")
+        );
     }
 
     private String validBody() {

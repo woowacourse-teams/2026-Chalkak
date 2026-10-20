@@ -53,6 +53,7 @@ public record PostListResult(
 
     public record PostSummary(
             UUID id,
+            UUID authorId,
             String originalImageUrl,
             String thumbnailImageUrl,
             String signatureOriginalImageUrl,
@@ -73,6 +74,7 @@ public record PostListResult(
         ) {
             return new PostSummary(
                     post.getId(),
+                    post.getAuthor().getId(),
                     imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
                     imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                     imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),

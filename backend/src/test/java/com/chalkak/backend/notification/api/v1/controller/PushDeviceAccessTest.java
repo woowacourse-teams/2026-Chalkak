@@ -56,15 +56,21 @@ class PushDeviceAccessTest extends IntegrationTestSupport {
         // When & Then
         register(authorization, "first-token");
         UUID deviceId = jdbcTemplate.queryForObject(
-                "SELECT id FROM push_devices WHERE session_id = ?", UUID.class,
-                refreshToken.sessionId());
+                "SELECT id FROM push_devices WHERE session_id = ?",
+                UUID.class,
+                refreshToken.sessionId()
+        );
         register(authorization, "updated-token");
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT id FROM push_devices WHERE session_id = ?", UUID.class,
-                refreshToken.sessionId())).isEqualTo(deviceId);
+                "SELECT id FROM push_devices WHERE session_id = ?",
+                UUID.class,
+                refreshToken.sessionId()
+        )).isEqualTo(deviceId);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT fcm_token FROM push_devices WHERE session_id = ?", String.class,
-                refreshToken.sessionId())).isEqualTo("updated-token");
+                "SELECT fcm_token FROM push_devices WHERE session_id = ?",
+                String.class,
+                refreshToken.sessionId()
+        )).isEqualTo("updated-token");
     }
 
     @Test

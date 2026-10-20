@@ -181,9 +181,14 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         UUID expired = saveNotification(NOW, true);
         jdbcTemplate.update(
                 "UPDATE notifications SET sqs_publish_status = 'PUBLISHED', next_attempt_at = NULL, sqs_published_at = ? WHERE id = ?",
-                java.sql.Timestamp.from(NOW), published);
-        jdbcTemplate.update("UPDATE notifications SET next_attempt_at = ? WHERE id = ?",
-                java.sql.Timestamp.from(NOW.plusSeconds(1)), future);
+                java.sql.Timestamp.from(NOW),
+                published
+        );
+        jdbcTemplate.update(
+                "UPDATE notifications SET next_attempt_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(NOW.plusSeconds(1)),
+                future
+        );
         jdbcTemplate.update(
                 "UPDATE notifications SET sqs_publish_status = 'FAILED', next_attempt_at = NULL WHERE id = ?",
                 failed);
@@ -205,8 +210,13 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
     void publishPendingNotifications_uncommittedNotification_doesNotPublish() {
         // Given & When
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            repository.save(Notification.approved(USER_ID, UUID.randomUUID(), UUID.randomUUID(),
-                    NOW, true));
+            repository.save(Notification.approved(
+                    USER_ID,
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                    NOW,
+                    true
+            ));
             entityManager.flush();
             relay(NOW).publishPendingNotifications();
             status.setRollbackOnly();
@@ -341,27 +351,41 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
     }
 
     private NotificationRelayService relay(Instant now) {
-        return new NotificationRelayService(repository, publisher, Clock.fixed(now, ZoneOffset.UTC),
-                transactionManager);
+        return new NotificationRelayService(
+                repository,
+                publisher,
+                Clock.fixed(now, ZoneOffset.UTC),
+                transactionManager
+        );
     }
 
     private UUID saveNotification(Instant occurredAt, boolean pushEnabled) {
         return new TransactionTemplate(transactionManager).execute(status -> repository.save(
-                Notification.approved(USER_ID, UUID.randomUUID(), UUID.randomUUID(), occurredAt,
-                        pushEnabled))
+                Notification.approved(
+                        USER_ID,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        occurredAt,
+                        pushEnabled
+                ))
                 .getId());
     }
 
     private String getStatus(UUID id) {
         return jdbcTemplate.queryForObject(
-                "SELECT sqs_publish_status FROM notifications WHERE id = ?", String.class, id);
+                "SELECT sqs_publish_status FROM notifications WHERE id = ?",
+                String.class,
+                id
+        );
     }
 
     private Instant getTime(UUID id, String column) {
-        return jdbcTemplate.queryForObject("SELECT " + column + " FROM notifications WHERE id = ?",
+        return jdbcTemplate.queryForObject(
+                "SELECT " + column + " FROM notifications WHERE id = ?",
                 (row, rowNumber) -> row.getTimestamp(1) == null
                         ? null
                         : row.getTimestamp(1).toInstant(),
-                id);
+                id
+        );
     }
 }

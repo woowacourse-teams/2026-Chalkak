@@ -19,8 +19,8 @@ class ProcessingCallbackAuthenticatorTest {
     private static final String AUDIENCE = "dev";
     private static final String SECRET = "test-callback-secret-with-enough-length";
 
-    private final ProcessingCallbackAuthenticator authenticator =
-            new ProcessingCallbackAuthenticator(SECRET, AUDIENCE);
+    private final ProcessingCallbackAuthenticator authenticator = new ProcessingCallbackAuthenticator(
+            SECRET, AUDIENCE);
 
     private static String signaturePath(UUID uploadId, String result) {
         return "/internal/v1/signature-processing/" + uploadId + "/" + result;
@@ -32,10 +32,19 @@ class ProcessingCallbackAuthenticatorTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String signature = sign(uploadId, "complete", timestamp);
+        String signature = sign(
+                uploadId,
+                "complete",
+                timestamp
+        );
 
         // When & Then
-        assertThatCode(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, signature))
+        assertThatCode(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                signature
+        ))
                 .doesNotThrowAnyException();
     }
 
@@ -47,7 +56,12 @@ class ProcessingCallbackAuthenticatorTest {
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, "invalid"))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                "invalid"
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -57,10 +71,19 @@ class ProcessingCallbackAuthenticatorTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().minusSeconds(301).getEpochSecond());
-        String signature = sign(uploadId, "complete", timestamp);
+        String signature = sign(
+                uploadId,
+                "complete",
+                timestamp
+        );
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, signature))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                signature
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -71,7 +94,12 @@ class ProcessingCallbackAuthenticatorTest {
         UUID uploadId = UUID.randomUUID();
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, null, "v1=00"))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                null,
+                "v1=00"
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -83,7 +111,12 @@ class ProcessingCallbackAuthenticatorTest {
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
 
         // When & Then
-        assertThatThrownBy(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, null))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                null
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -93,10 +126,19 @@ class ProcessingCallbackAuthenticatorTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().minusSeconds(299).getEpochSecond());
-        String signature = sign(uploadId, "complete", timestamp);
+        String signature = sign(
+                uploadId,
+                "complete",
+                timestamp
+        );
 
         // When & Then
-        assertThatCode(() -> authenticator.authenticate(signaturePath(uploadId, "complete"), null, timestamp, signature))
+        assertThatCode(() -> authenticator.authenticate(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp,
+                signature
+        ))
                 .doesNotThrowAnyException();
     }
 
@@ -108,7 +150,11 @@ class ProcessingCallbackAuthenticatorTest {
         String path = "/internal/v1/post-image-processing/" + uploadId + "/complete";
         String rawBody = "{\"width\":4032,\"height\":3024}";
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String signature = sign(path, rawBody, timestamp);
+        String signature = sign(
+                path,
+                rawBody,
+                timestamp
+        );
 
         // When & Then
         assertThatCode(() -> authenticator.authenticate(
@@ -129,16 +175,19 @@ class ProcessingCallbackAuthenticatorTest {
         String sentBody = "{\"width\":4032,\"height\":3024}";
         String reserializedBody = "{\"width\": 4032, \"height\": 3024}";
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String signature = sign(path, sentBody, timestamp);
+        String signature = sign(
+                path,
+                sentBody,
+                timestamp
+        );
 
         // When & Then
-        assertThatThrownBy(() ->
-                authenticator.authenticate(
-                        path,
-                        reserializedBody.getBytes(StandardCharsets.UTF_8),
-                        timestamp,
-                        signature
-                ))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                path,
+                reserializedBody.getBytes(StandardCharsets.UTF_8),
+                timestamp,
+                signature
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -148,20 +197,40 @@ class ProcessingCallbackAuthenticatorTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String signature = sign(signaturePath(uploadId, "complete"), null, timestamp);
+        String signature = sign(
+                signaturePath(uploadId, "complete"),
+                null,
+                timestamp
+        );
         String postPath = "/internal/v1/post-image-processing/" + uploadId + "/complete";
 
         // When & Then
-        assertThatThrownBy(() ->
-                authenticator.authenticate(postPath, null, timestamp, signature))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                postPath,
+                null,
+                timestamp,
+                signature
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
-    private String sign(UUID uploadId, String result, String timestamp) {
-        return sign(signaturePath(uploadId, result), null, timestamp);
+    private String sign(
+            UUID uploadId,
+            String result,
+            String timestamp
+    ) {
+        return sign(
+                signaturePath(uploadId, result),
+                null,
+                timestamp
+        );
     }
 
-    private String sign(String path, String rawBody, String timestamp) {
+    private String sign(
+            String path,
+            String rawBody,
+            String timestamp
+    ) {
         return signBytes(
                 path,
                 (rawBody == null) ? null : rawBody.getBytes(StandardCharsets.UTF_8),
@@ -169,7 +238,11 @@ class ProcessingCallbackAuthenticatorTest {
         );
     }
 
-    private String signBytes(String path, byte[] rawBody, String timestamp) {
+    private String signBytes(
+            String path,
+            byte[] rawBody,
+            String timestamp
+    ) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
@@ -192,10 +265,19 @@ class ProcessingCallbackAuthenticatorTest {
         String path = "/internal/v1/post-image-processing/" + UUID.randomUUID() + "/complete";
         byte[] rawBody = {(byte) 0xC3, 0x28};
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String signature = signBytes(path, rawBody, timestamp);
+        String signature = signBytes(
+                path,
+                rawBody,
+                timestamp
+        );
 
         // When & Then
-        assertThatCode(() -> authenticator.authenticate(path, rawBody, timestamp, signature))
+        assertThatCode(() -> authenticator.authenticate(
+                path,
+                rawBody,
+                timestamp,
+                signature
+        ))
                 .doesNotThrowAnyException();
     }
 
@@ -207,11 +289,19 @@ class ProcessingCallbackAuthenticatorTest {
         byte[] sentBody = {(byte) 0xC3, 0x28};
         byte[] tamperedBody = {(byte) 0xE0, 0x28};
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String signature = signBytes(path, sentBody, timestamp);
+        String signature = signBytes(
+                path,
+                sentBody,
+                timestamp
+        );
 
         // When & Then
-        assertThatThrownBy(() ->
-                authenticator.authenticate(path, tamperedBody, timestamp, signature))
+        assertThatThrownBy(() -> authenticator.authenticate(
+                path,
+                tamperedBody,
+                timestamp,
+                signature
+        ))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -221,7 +311,11 @@ class ProcessingCallbackAuthenticatorTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().getEpochSecond() + 60);
-        String signature = sign(uploadId, "complete", timestamp);
+        String signature = sign(
+                uploadId,
+                "complete",
+                timestamp
+        );
 
         // When & Then
         assertThatThrownBy(() -> authenticator.authenticate(
@@ -238,7 +332,11 @@ class ProcessingCallbackAuthenticatorTest {
         // Given
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().getEpochSecond() + 10);
-        String signature = sign(uploadId, "complete", timestamp);
+        String signature = sign(
+                uploadId,
+                "complete",
+                timestamp
+        );
 
         // When & Then
         assertThatCode(() -> authenticator.authenticate(
@@ -253,11 +351,15 @@ class ProcessingCallbackAuthenticatorTest {
     @DisplayName("다른 환경을 대상으로 만든 서명은 거부한다")
     void authenticate_signatureForAnotherEnvironment_throwsUnauthorizedException() {
         // Given
-        ProcessingCallbackAuthenticator prodAuthenticator =
-                new ProcessingCallbackAuthenticator(SECRET, "prod");
+        ProcessingCallbackAuthenticator prodAuthenticator = new ProcessingCallbackAuthenticator(
+                SECRET, "prod");
         UUID uploadId = UUID.randomUUID();
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String devSignature = sign(uploadId, "complete", timestamp);
+        String devSignature = sign(
+                uploadId,
+                "complete",
+                timestamp
+        );
 
         // When & Then
         assertThatThrownBy(() -> prodAuthenticator.authenticate(

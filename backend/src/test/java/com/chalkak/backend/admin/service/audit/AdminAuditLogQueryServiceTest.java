@@ -45,19 +45,44 @@ class AdminAuditLogQueryServiceTest {
                 TARGET_ID,
                 FROM,
                 TO,
-                AdminAuditLogSort.OCCURRED_AT_ASC);
+                AdminAuditLogSort.OCCURRED_AT_ASC
+        );
         AdminAuditLogSummaryProjection projection = new AdminAuditLogSummaryProjection(
-                UUID.randomUUID(), ADMIN_ID, "operator", AdminAction.POST_REJECTED,
-                AdminTargetType.POST, TARGET_ID, "정책 위반",
+                UUID.randomUUID(),
+                ADMIN_ID,
+                "operator",
+                AdminAction.POST_REJECTED,
+                AdminTargetType.POST,
+                TARGET_ID,
+                "정책 위반",
                 Map.of("moderationStatus", "PENDING"),
                 Map.of("moderationStatus", "REJECTED"),
-                TO, UUID.randomUUID());
-        given(repository.findAuditLogs(criteria, 2, 50))
-                .willReturn(new AdminPage<>(List.of(projection), 2, 50, false));
+                TO,
+                UUID.randomUUID()
+        );
+        given(repository.findAuditLogs(
+                criteria,
+                2,
+                50
+        ))
+                .willReturn(new AdminPage<>(
+                        List.of(projection),
+                        2,
+                        50,
+                        false
+                ));
 
         AdminAuditLogListResult result = service.getAuditLogs(
-                ADMIN_ID, AdminAction.POST_REJECTED, AdminTargetType.POST, TARGET_ID,
-                FROM, TO, AdminAuditLogSort.OCCURRED_AT_ASC, 2, 50);
+                ADMIN_ID,
+                AdminAction.POST_REJECTED,
+                AdminTargetType.POST,
+                TARGET_ID,
+                FROM,
+                TO,
+                AdminAuditLogSort.OCCURRED_AT_ASC,
+                2,
+                50
+        );
 
         assertThat(result.auditLogs()).singleElement().satisfies(log -> {
             assertThat(log.actorUsername()).isEqualTo("operator");
@@ -69,15 +94,31 @@ class AdminAuditLogQueryServiceTest {
     @Test
     void getAuditLogs_reversedPeriod_throwsBusinessException() {
         assertThatThrownBy(() -> service.getAuditLogs(
-                null, null, null, null, TO, FROM,
-                AdminAuditLogSort.OCCURRED_AT_DESC, 1, 20)).isInstanceOf(BusinessException.class);
+                null,
+                null,
+                null,
+                null,
+                TO,
+                FROM,
+                AdminAuditLogSort.OCCURRED_AT_DESC,
+                1,
+                20
+        )).isInstanceOf(BusinessException.class);
     }
 
     @Test
     void getAuditLogs_excessiveOffset_throwsBusinessException() {
         assertThatThrownBy(() -> service.getAuditLogs(
-                null, null, null, null, null, null,
-                AdminAuditLogSort.OCCURRED_AT_DESC, Integer.MAX_VALUE, 100))
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                AdminAuditLogSort.OCCURRED_AT_DESC,
+                Integer.MAX_VALUE,
+                100
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 }

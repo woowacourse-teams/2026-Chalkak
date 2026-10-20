@@ -36,8 +36,8 @@ public class AdminAiPromptPreviewController implements AdminAiPromptPreviewApiDo
     }
 
     private PreviewCommand toCommand(AiPromptPreviewRequest request) {
-        AiPromptParametersRequest parameters =
-                AiPromptParametersRequest.orDefaults(request.parameters());
+        AiPromptParametersRequest parameters = AiPromptParametersRequest
+                .orDefaults(request.parameters());
         return new PreviewCommand(
                 request.type(),
                 request.systemPrompt(),
@@ -47,6 +47,7 @@ public class AdminAiPromptPreviewController implements AdminAiPromptPreviewApiDo
                 parameters.maxOutputTokens(),
                 parameters.reasoningEffort(),
                 parameters.distinctivePerspectiveThreshold(),
-                CanonicalUuidParser.parse(request.postId()));
+                CanonicalUuidParser.parse(request.postId())
+        );
     }
 }

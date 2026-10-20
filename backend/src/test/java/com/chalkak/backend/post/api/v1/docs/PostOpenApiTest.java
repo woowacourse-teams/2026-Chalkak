@@ -22,6 +22,32 @@ class PostOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("피드·상세 문서는 실제 작성자의 UUID를 제공하고 회원의 다른 정보는 추가하지 않는다")
+    void userApiDocs_postResponses_exposeAuthorIdOnly() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostResponse.properties")
+                        .value(aMapWithSize(11)))
+                .andExpect(jsonPath("$.components.schemas.PostResponse.properties.authorId.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.PostResponse.properties.authorId.format")
+                        .value("uuid"))
+                .andExpect(jsonPath("$.components.schemas.PostDetailResponse.properties")
+                        .value(aMapWithSize(9)))
+                .andExpect(
+                        jsonPath("$.components.schemas.PostDetailResponse.properties.authorId.type")
+                                .value("string"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.PostDetailResponse.properties.authorId.format")
+                        .value("uuid"))
+                .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].get.security[0].accessToken")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].get.responses")
+                        .value(aMapWithSize(4)));
+    }
+
+    @Test
     @DisplayName("작성자 사진 조회 문서는 UUID·인증·최소 응답과 오류 계약을 제공한다")
     void userApiDocs_getAuthorPosts_exposesContract() throws Exception {
         // When & Then
@@ -51,7 +77,11 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder(100)))
                 .andExpect(
                         jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters[*].name")
-                                .value(containsInAnyOrder("userId", "page", "pageSize")))
+                                .value(containsInAnyOrder(
+                                        "userId",
+                                        "page",
+                                        "pageSize"
+                                )))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
                         + "[?(@.name == 'page')].in").value(containsInAnyOrder("query")))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
@@ -205,7 +235,11 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
                         + ".properties.moderationStatus.enum")
-                        .value(containsInAnyOrder("VALIDATING", "PENDING", "APPROVED")))
+                        .value(containsInAnyOrder(
+                                "VALIDATING",
+                                "PENDING",
+                                "APPROVED"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['401']")
@@ -223,8 +257,13 @@ class PostOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.parameters[*].name")
-                        .value(containsInAnyOrder("topicDate", "sort", "randomSeed", "page",
-                                "pageSize")))
+                        .value(containsInAnyOrder(
+                                "topicDate",
+                                "sort",
+                                "randomSeed",
+                                "page",
+                                "pageSize"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.requestBody").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security.length()").value(2))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[0]").value(anEmptyMap()))

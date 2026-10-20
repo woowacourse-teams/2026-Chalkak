@@ -80,8 +80,14 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
             AnalyticsProperties properties,
             Clock clock
     ) {
-        this(client, properties, clock, CloudWatchLogsAccessLogMetricsReader::sleep, POLL_INTERVAL,
-                MAX_WAIT);
+        this(
+                client,
+                properties,
+                clock,
+                CloudWatchLogsAccessLogMetricsReader::sleep,
+                POLL_INTERVAL,
+                MAX_WAIT
+        );
     }
 
     CloudWatchLogsAccessLogMetricsReader(
@@ -110,13 +116,31 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
             return Optional.empty();
         }
         Instant to = metricDate.plusDays(1).atStartOfDay(KST).toInstant();
-        List<ResultField> visitors = query(from, to, VISITORS_QUERY.formatted(excludedUserFilter));
-        List<ResultField> topicViewers = query(from, to,
-                TOPIC_VIEWERS_QUERY.formatted(excludedUserFilter));
-        List<ResultField> summary = query(from, to, REQUEST_SUMMARY_QUERY);
-        List<ResultField> server5xx = query(from, to, SERVER_5XX_QUERY);
-        List<ResultField> postCreations = query(from, to,
-                POST_CREATIONS_QUERY.formatted(excludedUserFilter));
+        List<ResultField> visitors = query(
+                from,
+                to,
+                VISITORS_QUERY.formatted(excludedUserFilter)
+        );
+        List<ResultField> topicViewers = query(
+                from,
+                to,
+                TOPIC_VIEWERS_QUERY.formatted(excludedUserFilter)
+        );
+        List<ResultField> summary = query(
+                from,
+                to,
+                REQUEST_SUMMARY_QUERY
+        );
+        List<ResultField> server5xx = query(
+                from,
+                to,
+                SERVER_5XX_QUERY
+        );
+        List<ResultField> postCreations = query(
+                from,
+                to,
+                POST_CREATIONS_QUERY.formatted(excludedUserFilter)
+        );
         return Optional.of(new AccessLogMetrics(
                 single(visitors, "visitors"),
                 single(topicViewers, "topicViewers"),
@@ -124,7 +148,8 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
                 single(server5xx, "server5xx"),
                 single(summary, "latencyAvg"),
                 single(summary, "latencyP95"),
-                single(postCreations, "postCreations")));
+                single(postCreations, "postCreations")
+        ));
     }
 
     /** 관측 시작일 이후이고 하루 전체가 로그 보존 기간 안에 드는 날짜인가. 하루가 일부만 만료돼도 지표가 모자라므로 없는 것으로 본다. */
@@ -181,7 +206,11 @@ public class CloudWatchLogsAccessLogMetricsReader implements AccessLogMetricsRea
             client.stopQuery(StopQueryRequest.builder().queryId(queryId).build());
         } catch (RuntimeException e) {
             // 시간 초과 예외를 던질 것이므로 중단 실패는 남기기만 한다.
-            log.warn("Logs Insights 쿼리 중단 실패: queryId={}", queryId, e);
+            log.warn(
+                    "Logs Insights 쿼리 중단 실패: queryId={}",
+                    queryId,
+                    e
+            );
         }
     }
 

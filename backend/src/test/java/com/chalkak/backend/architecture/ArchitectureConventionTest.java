@@ -31,7 +31,8 @@ class ArchitectureConventionTest {
                     .areAnnotatedWith(org.springframework.web.bind.annotation.RestController.class)
                     .should().resideInAnyPackage(
                             "com.chalkak.backend.*.api.v*.controller",
-                            "com.chalkak.backend.*.api.internal.v*.controller"));
+                            "com.chalkak.backend.*.api.internal.v*.controller")
+    );
 
     @Test
     @DisplayName("운영 코드의 요청 DTO와 계층 의존 규칙을 검사한다")

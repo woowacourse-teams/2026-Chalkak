@@ -47,7 +47,11 @@ import org.springframework.web.context.WebApplicationContext;
 @Import(GlobalExceptionHandler.class)
 class PostFeedAccessLogTest {
 
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            12
+    );
     private static final UUID FIRST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID SECOND_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d5");
 
@@ -86,8 +90,21 @@ class PostFeedAccessLogTest {
         // Given
         PostSort postSort = PostSort.from(sort);
         List<PostListResult.PostSummary> posts = List.of(summary(SECOND_ID), summary(FIRST_ID));
-        given(postQueryService.getPosts(TOPIC_DATE, postSort, null, 2, 20, Optional.empty()))
-                .willReturn(new PostListResult(2, 20, false, null, posts));
+        given(postQueryService.getPosts(
+                TOPIC_DATE,
+                postSort,
+                null,
+                2,
+                20,
+                Optional.empty()
+        ))
+                .willReturn(new PostListResult(
+                        2,
+                        20,
+                        false,
+                        null,
+                        posts
+                ));
 
         // When
         MvcResult result = mockMvc.perform(get("/api/v1/posts")
@@ -113,11 +130,19 @@ class PostFeedAccessLogTest {
         assertThat(event.getMDCPropertyMap()).containsEntry("requestId",
                 result.getResponse().getHeader("X-Request-Id"));
         assertThat(result.getResponse().getContentAsString())
-                .contains(SECOND_ID.toString(), FIRST_ID.toString(), "likeCount")
+                .contains(
+                        SECOND_ID.toString(),
+                        FIRST_ID.toString(),
+                        "likeCount"
+                )
                 .doesNotContain("postIds", "sort");
         for (org.slf4j.event.KeyValuePair pair : event.getKeyValuePairs()) {
             assertThat(String.valueOf(pair.value))
-                    .doesNotContain("private-title", "private-photo", "untrusted-input");
+                    .doesNotContain(
+                            "private-title",
+                            "private-photo",
+                            "untrusted-input"
+                    );
         }
     }
 
@@ -125,8 +150,21 @@ class PostFeedAccessLogTest {
     @DisplayName("기본 조건의 빈 피드는 recent와 기본 페이지 크기를 남긴다")
     void getPosts_emptyDefaultFeed_logsDefaultConditions() throws Exception {
         // Given
-        given(postQueryService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.empty()))
-                .willReturn(new PostListResult(1, 20, false, null, List.of()));
+        given(postQueryService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        ))
+                .willReturn(new PostListResult(
+                        1,
+                        20,
+                        false,
+                        null,
+                        List.of()
+                ));
 
         // When
         mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", TOPIC_DATE.toString()))
@@ -149,9 +187,21 @@ class PostFeedAccessLogTest {
             UUID id = UUID.randomUUID();
             posts.add(summary(id));
         }
-        given(postQueryService.getPosts(TOPIC_DATE, PostSort.RECENT, null, 1, 100,
-                Optional.empty()))
-                .willReturn(new PostListResult(1, 100, true, null, posts));
+        given(postQueryService.getPosts(
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                100,
+                Optional.empty()
+        ))
+                .willReturn(new PostListResult(
+                        1,
+                        100,
+                        true,
+                        null,
+                        posts
+                ));
 
         // When
         mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", TOPIC_DATE.toString())
@@ -189,9 +239,22 @@ class PostFeedAccessLogTest {
     @DisplayName("조회 서비스 실패 뒤 다음 성공 요청에도 이전 요청의 메타데이터가 섞이지 않는다")
     void getPosts_serviceFailsThenSucceeds_keepsRequestMetadataIsolated() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
                 .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "주제가 없습니다."))
-                .willReturn(new PostListResult(1, 20, false, null, List.of()));
+                .willReturn(new PostListResult(
+                        1,
+                        20,
+                        false,
+                        null,
+                        List.of()
+                ));
 
         // When
         mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", TOPIC_DATE.toString()))
@@ -208,8 +271,19 @@ class PostFeedAccessLogTest {
     }
 
     private PostListResult.PostSummary summary(UUID id) {
-        return new PostListResult.PostSummary(id, "private-photo", null, "signature", null,
-                "private-title", Instant.parse("2026-08-12T03:30:00Z"), 43L, false, false);
+        return new PostListResult.PostSummary(
+                id,
+                UUID.randomUUID(),
+                "private-photo",
+                null,
+                "signature",
+                null,
+                "private-title",
+                Instant.parse("2026-08-12T03:30:00Z"),
+                43L,
+                false,
+                false
+        );
     }
 
     private Object keyValue(ILoggingEvent event, String key) {
@@ -223,7 +297,13 @@ class PostFeedAccessLogTest {
 
     private void assertNoFeedMetadata(ILoggingEvent event) {
         for (org.slf4j.event.KeyValuePair pair : event.getKeyValuePairs()) {
-            assertThat(pair.key).isNotIn("topicDate", "sort", "page", "pageSize", "postIds");
+            assertThat(pair.key).isNotIn(
+                    "topicDate",
+                    "sort",
+                    "page",
+                    "pageSize",
+                    "postIds"
+            );
         }
     }
 }

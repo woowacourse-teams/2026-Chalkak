@@ -44,11 +44,17 @@ class BannerApiTest extends IntegrationTestSupport {
         Banner deleted = save("deleted");
         deleted.delete(Instant.now());
         entityManager.flush();
-        jdbcTemplate.update("UPDATE banners SET created_at = ? WHERE id = ?",
-                java.sql.Timestamp.from(Instant.parse("2026-10-18T00:00:00Z")), older.getId());
-        jdbcTemplate.update("UPDATE banners SET created_at = ? WHERE id IN (?, ?)",
-                java.sql.Timestamp.from(Instant.parse("2026-10-19T00:00:00Z")), first.getId(),
-                second.getId());
+        jdbcTemplate.update(
+                "UPDATE banners SET created_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(Instant.parse("2026-10-18T00:00:00Z")),
+                older.getId()
+        );
+        jdbcTemplate.update(
+                "UPDATE banners SET created_at = ? WHERE id IN (?, ?)",
+                java.sql.Timestamp.from(Instant.parse("2026-10-19T00:00:00Z")),
+                first.getId(),
+                second.getId()
+        );
         entityManager.clear();
         List<String> newest = List.of(first.getId().toString(), second.getId().toString()).stream()
                 .sorted(Comparator.reverseOrder()).toList();
@@ -95,7 +101,11 @@ class BannerApiTest extends IntegrationTestSupport {
     }
 
     private Banner save(String title) {
-        return repository.save(Banner.create(title, "부제목", "https://example.com/" + title,
-                "https://example.com/image.png"));
+        return repository.save(Banner.create(
+                title,
+                "부제목",
+                "https://example.com/" + title,
+                "https://example.com/image.png"
+        ));
     }
 }

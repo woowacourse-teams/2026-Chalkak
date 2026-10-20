@@ -108,8 +108,12 @@ class AdminBannerApiTest extends IntegrationTestSupport {
         Admin admin = adminRepository
                 .save(Admin.create("banner-delete-api", passwordEncoder.encode("test-password")));
         com.chalkak.backend.banner.domain.Banner banner = com.chalkak.backend.banner.domain.Banner
-                .create("제목", "부제목",
-                        "https://example.com/event", "https://example.com/image.png");
+                .create(
+                        "제목",
+                        "부제목",
+                        "https://example.com/event",
+                        "https://example.com/image.png"
+                );
         entityManager.persist(banner);
         entityManager.flush();
         String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
@@ -119,15 +123,21 @@ class AdminBannerApiTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isNoContent());
         entityManager.flush();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT actor_admin_id FROM admin_audit_logs
-                WHERE target_id = ? AND action = 'BANNER_DELETED'
-                """, UUID.class, banner.getId())).isEqualTo(admin.getId());
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT actor_admin_id FROM admin_audit_logs
+                        WHERE target_id = ? AND action = 'BANNER_DELETED'
+                        """,
+                UUID.class,
+                banner.getId()
+        )).isEqualTo(admin.getId());
         assertThat(jdbcTemplate.queryForObject(
                 """
                         SELECT reason FROM admin_audit_logs WHERE target_id = ? AND action = 'BANNER_DELETED'
                         """,
-                String.class, banner.getId())).isNull();
+                String.class,
+                banner.getId()
+        )).isNull();
     }
 
 }

@@ -78,7 +78,12 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
                 )
                 """, WITHDRAWN_USER_ID);
         given(postImageUploadIssuer.issue(any(UUID.class))).willReturn(
-                new PresignedPostImageUpload(UPLOAD_URL, 300L, "image/webp", 5_242_880L));
+                new PresignedPostImageUpload(
+                        UPLOAD_URL,
+                        300L,
+                        "image/webp",
+                        5_242_880L
+                ));
     }
 
     @Test
@@ -121,9 +126,13 @@ class PostImageUploadServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        Instant expiresAt = jdbcTemplate.queryForObject("""
-                SELECT expires_at FROM post_image_uploads WHERE id = ?
-                """, Instant.class, result.uploadId());
+        Instant expiresAt = jdbcTemplate.queryForObject(
+                """
+                        SELECT expires_at FROM post_image_uploads WHERE id = ?
+                        """,
+                Instant.class,
+                result.uploadId()
+        );
         assertThat(expiresAt).isCloseTo(
                 issuedAt.plus(PostImageUpload.CLAIM_TTL),
                 within(10, ChronoUnit.SECONDS));

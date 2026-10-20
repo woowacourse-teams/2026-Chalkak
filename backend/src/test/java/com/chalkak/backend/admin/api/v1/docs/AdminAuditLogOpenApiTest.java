@@ -26,16 +26,29 @@ class AdminAuditLogOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].get.parameters[*].name")
                         .value(containsInAnyOrder(
-                                "adminId", "action", "targetType", "targetId",
-                                "occurredFrom", "occurredTo", "sort", "page", "pageSize")))
+                                "adminId",
+                                "action",
+                                "targetType",
+                                "targetId",
+                                "occurredFrom",
+                                "occurredTo",
+                                "sort",
+                                "page",
+                                "pageSize"
+                        )))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/audit-logs'].get.parameters[?(@.name == 'targetType')].schema.enum[*]")
                         .value(hasItems("TOPIC_PUSH_SCHEDULE", "NOTICE")))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/audit-logs'].get.parameters[?(@.name == 'action')].schema.enum[*]")
-                        .value(hasItems("TOPIC_PUSH_SCHEDULE_CREATED",
-                                "TOPIC_PUSH_SCHEDULE_UPDATED", "TOPIC_PUSH_SCHEDULE_DELETED",
-                                "NOTICE_CREATED", "NOTICE_UPDATED", "NOTICE_DELETED")))
+                        .value(hasItems(
+                                "TOPIC_PUSH_SCHEDULE_CREATED",
+                                "TOPIC_PUSH_SCHEDULE_UPDATED",
+                                "TOPIC_PUSH_SCHEDULE_DELETED",
+                                "NOTICE_CREATED",
+                                "NOTICE_UPDATED",
+                                "NOTICE_DELETED"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].delete").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].get.responses['200']")

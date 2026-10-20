@@ -98,11 +98,19 @@ class JsonFileLogTest {
         request.setParameter("topicDate", "2026-08-12");
         request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
         request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
-                new FeedQueryLog("popular", 2, 20));
+                new FeedQueryLog(
+                        "popular",
+                        2,
+                        20
+                ));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         // When
-        new RequestIdFilter().doFilter(request, response, (req, res) -> response.setStatus(200));
+        new RequestIdFilter().doFilter(
+                request,
+                response,
+                (req, res) -> response.setStatus(200)
+        );
 
         // Then
         List<String> lines = Files.readAllLines(logFile);
@@ -188,6 +196,7 @@ class JsonFileLogTest {
         loggingSystem.initialize(
                 new LoggingInitializationContext(environment),
                 CONFIG_LOCATION,
-                null);
+                null
+        );
     }
 }

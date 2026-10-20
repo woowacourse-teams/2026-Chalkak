@@ -153,7 +153,8 @@ class RefreshTokenTest {
                 UUID.randomUUID(),
                 TOKEN_HASH,
                 expiresAt,
-                absoluteExpiresAt);
+                absoluteExpiresAt
+        );
     }
 
     private User createUser() {

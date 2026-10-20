@@ -7,12 +7,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record AdminUserPostCountsResponse(
         long pending,
         long approved,
-        long rejected) {
+        long rejected
+) {
 
     public static AdminUserPostCountsResponse from(AdminUserPostCounts postCounts) {
         return new AdminUserPostCountsResponse(
                 postCounts.pending(),
                 postCounts.approved(),
-                postCounts.rejected());
+                postCounts.rejected()
+        );
     }
 }

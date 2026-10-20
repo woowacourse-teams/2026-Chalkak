@@ -54,7 +54,11 @@ class PushDeviceControllerTest {
                         """))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
-        verify(pushDeviceService).register(USER_ID, SESSION_ID, "fcm-token");
+        verify(pushDeviceService).register(
+                USER_ID,
+                SESSION_ID,
+                "fcm-token"
+        );
     }
 
     @ParameterizedTest
@@ -77,7 +81,11 @@ class PushDeviceControllerTest {
     void registerCurrentDevice_missingSession_returnsReauthenticationRequired() throws Exception {
         // Given
         willThrow(new UnauthorizedException(ErrorCode.REAUTHENTICATION_REQUIRED, "다시 로그인해 주세요."))
-                .given(pushDeviceService).register(USER_ID, null, "fcm-token");
+                .given(pushDeviceService).register(
+                        USER_ID,
+                        null,
+                        "fcm-token"
+                );
 
         // When & Then
         mockMvc.perform(put("/api/v1/push-devices/current")
@@ -96,7 +104,11 @@ class PushDeviceControllerTest {
     void registerCurrentDevice_withdrawnUser_returnsUnauthorized() throws Exception {
         // Given
         willThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "탈퇴한 회원입니다."))
-                .given(pushDeviceService).register(USER_ID, SESSION_ID, "fcm-token");
+                .given(pushDeviceService).register(
+                        USER_ID,
+                        SESSION_ID,
+                        "fcm-token"
+                );
 
         // When & Then
         mockMvc.perform(put("/api/v1/push-devices/current")

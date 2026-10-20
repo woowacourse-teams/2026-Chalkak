@@ -26,7 +26,11 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules'].get.responses.keys()")
-                        .value(containsInAnyOrder("200", "401", "403")))
+                        .value(containsInAnyOrder(
+                                "200",
+                                "401",
+                                "403"
+                        )))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules'].get.security[0].adminAccessToken")
                         .isArray())
@@ -56,7 +60,12 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                                 .isArray())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules'].post.responses.keys()")
-                        .value(containsInAnyOrder("201", "400", "401", "403")))
+                        .value(containsInAnyOrder(
+                                "201",
+                                "400",
+                                "401",
+                                "403"
+                        )))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules'].post.security[0].adminAccessToken")
                         .isArray())
@@ -95,7 +104,13 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.responses.keys()")
-                        .value(containsInAnyOrder("200", "400", "401", "403", "404")))
+                        .value(containsInAnyOrder(
+                                "200",
+                                "400",
+                                "401",
+                                "403",
+                                "404"
+                        )))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].put.security[0].adminAccessToken")
                         .isArray())
@@ -134,7 +149,13 @@ class AdminTopicPushScheduleOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.responses.keys()")
-                        .value(containsInAnyOrder("204", "400", "401", "403", "404")))
+                        .value(containsInAnyOrder(
+                                "204",
+                                "400",
+                                "401",
+                                "403",
+                                "404"
+                        )))
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/topic-push-schedules/{scheduleId}'].delete.security[0].adminAccessToken")
                         .isArray())

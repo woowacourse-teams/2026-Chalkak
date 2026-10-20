@@ -50,10 +50,16 @@ class NotificationJpaRepositoryTest extends IntegrationTestSupport {
                 topicId);
         jdbc.update("INSERT INTO photos(id,original_storage_key) VALUES (?, 'push/original')",
                 photoId);
-        jdbc.update("""
-                INSERT INTO posts(id, user_id, topic_id, photo_id, moderation_status)
-                VALUES (?, ?, ?, ?, 'APPROVED')
-                """, postId, userId, topicId, photoId);
+        jdbc.update(
+                """
+                        INSERT INTO posts(id, user_id, topic_id, photo_id, moderation_status)
+                        VALUES (?, ?, ?, ?, 'APPROVED')
+                        """,
+                postId,
+                userId,
+                topicId,
+                photoId
+        );
     }
 
     @ParameterizedTest
@@ -61,12 +67,23 @@ class NotificationJpaRepositoryTest extends IntegrationTestSupport {
     @DisplayName("삭제되지 않은 게시물의 본인 승인·반려 알림을 발송 검증용으로 조회한다")
     void findForPushByIdAndUserId_visiblePost_returnsNotification(String type) {
         // Given
-        Notification notification = Notification.approved(userId, postId, UUID.randomUUID(), NOW,
-                true);
+        Notification notification = Notification.approved(
+                userId,
+                postId,
+                UUID.randomUUID(),
+                NOW,
+                true
+        );
         if (type.equals("REJECTED")) {
             jdbc.update("UPDATE posts SET moderation_status='REJECTED' WHERE id=?", postId);
-            notification = Notification.rejected(userId, postId, UUID.randomUUID(), "반려 사유", NOW,
-                    true);
+            notification = Notification.rejected(
+                    userId,
+                    postId,
+                    UUID.randomUUID(),
+                    "반려 사유",
+                    NOW,
+                    true
+            );
         }
         notificationId = repository.save(notification).getId();
         entityManager.flush();
@@ -84,10 +101,20 @@ class NotificationJpaRepositoryTest extends IntegrationTestSupport {
     void findForPushByIdAndUserId_invisibleNotification_returnsEmpty(String state) {
         // Given
         notificationId = repository
-                .save(Notification.approved(userId, postId, UUID.randomUUID(), NOW, true)).getId();
+                .save(Notification.approved(
+                        userId,
+                        postId,
+                        UUID.randomUUID(),
+                        NOW,
+                        true
+                )).getId();
         entityManager.flush();
         if (state.equals("postDeleted")) {
-            jdbc.update("UPDATE posts SET deleted_at=? WHERE id=?", Timestamp.from(NOW), postId);
+            jdbc.update(
+                    "UPDATE posts SET deleted_at=? WHERE id=?",
+                    Timestamp.from(NOW),
+                    postId
+            );
         }
         if (state.equals("missingPost")) {
             jdbc.update("DELETE FROM posts WHERE id=?", postId);

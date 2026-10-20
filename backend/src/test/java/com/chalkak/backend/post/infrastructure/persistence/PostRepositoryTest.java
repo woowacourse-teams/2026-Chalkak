@@ -139,7 +139,11 @@ class PostRepositoryTest {
         insertSecondVisiblePost();
 
         // When
-        var result = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 1);
+        var result = postRepository.findVisibleRecentByTopicId(
+                TOPIC_ID,
+                0,
+                1
+        );
 
         // Then
         assertThat(result.posts()).extracting(Post::getId).containsExactly(SECOND_POST_ID);
@@ -157,12 +161,17 @@ class PostRepositoryTest {
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = '2026-08-12T02:00:00Z' WHERE id IN (?, ?)",
                 POST_ID,
-                SECOND_POST_ID);
+                SECOND_POST_ID
+        );
         entityManager.flush();
         entityManager.clear();
 
         // When
-        var result = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 20);
+        var result = postRepository.findVisibleRecentByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        );
 
         // Then
         assertThat(result.posts()).extracting(Post::getId)
@@ -178,7 +187,11 @@ class PostRepositoryTest {
         insertPostLikesForPopularOrder();
 
         // When
-        var result = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+        var result = postRepository.findVisiblePopularByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        );
 
         // Then
         assertThat(result.posts()).extracting(Post::getId)
@@ -196,7 +209,11 @@ class PostRepositoryTest {
         insertSecondVisiblePost();
 
         // When
-        var result = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+        var result = postRepository.findVisiblePopularByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        );
 
         // Then
         assertThat(result.posts()).extracting(Post::getId)
@@ -212,8 +229,16 @@ class PostRepositoryTest {
         insertPostLikesForPopularOrder();
 
         // When
-        var firstPage = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 1);
-        var secondPage = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 1, 1);
+        var firstPage = postRepository.findVisiblePopularByTopicId(
+                TOPIC_ID,
+                0,
+                1
+        );
+        var secondPage = postRepository.findVisiblePopularByTopicId(
+                TOPIC_ID,
+                1,
+                1
+        );
 
         // Then
         assertThat(firstPage.posts()).extracting(Post::getId).containsExactly(POST_ID);
@@ -230,12 +255,17 @@ class PostRepositoryTest {
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = '2026-08-12T02:00:00Z' WHERE id IN (?, ?)",
                 POST_ID,
-                SECOND_POST_ID);
+                SECOND_POST_ID
+        );
         entityManager.flush();
         entityManager.clear();
 
         // When
-        var result = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+        var result = postRepository.findVisiblePopularByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        );
 
         // Then
         assertThat(result.posts()).extracting(Post::getId)
@@ -261,13 +291,22 @@ class PostRepositoryTest {
         entityManager.clear();
 
         // When
-        var recentResult = postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 20);
+        var recentResult = postRepository.findVisibleRecentByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        );
         var randomResult = postRepository.findVisibleRandomByTopicId(
                 TOPIC_ID,
                 "f4c3a091",
                 0,
-                20);
-        var popularResult = postRepository.findVisiblePopularByTopicId(TOPIC_ID, 0, 20);
+                20
+        );
+        var popularResult = postRepository.findVisiblePopularByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        );
 
         // Then
         assertThat(recentResult.posts()).isEmpty();
@@ -285,8 +324,18 @@ class PostRepositoryTest {
         insertSecondVisiblePost();
 
         // When
-        var firstResult = postRepository.findVisibleRandomByTopicId(TOPIC_ID, "f4c3a091", 0, 20);
-        var secondResult = postRepository.findVisibleRandomByTopicId(TOPIC_ID, "f4c3a091", 0, 20);
+        var firstResult = postRepository.findVisibleRandomByTopicId(
+                TOPIC_ID,
+                "f4c3a091",
+                0,
+                20
+        );
+        var secondResult = postRepository.findVisibleRandomByTopicId(
+                TOPIC_ID,
+                "f4c3a091",
+                0,
+                20
+        );
 
         // Then
         assertThat(firstResult.posts()).extracting(Post::getId)
@@ -308,11 +357,22 @@ class PostRepositoryTest {
                 TOPIC_ID,
                 randomSeed,
                 0,
-                20);
+                20
+        );
 
         // When
-        var firstPage = postRepository.findVisibleRandomByTopicId(TOPIC_ID, randomSeed, 0, 1);
-        var secondPage = postRepository.findVisibleRandomByTopicId(TOPIC_ID, randomSeed, 1, 1);
+        var firstPage = postRepository.findVisibleRandomByTopicId(
+                TOPIC_ID,
+                randomSeed,
+                0,
+                1
+        );
+        var secondPage = postRepository.findVisibleRandomByTopicId(
+                TOPIC_ID,
+                randomSeed,
+                1,
+                1
+        );
 
         // Then
         assertThat(firstPage.posts()).extracting(Post::getId)
@@ -344,7 +404,8 @@ class PostRepositoryTest {
         jdbcTemplate.update(
                 "UPDATE posts SET moderation_status = ?::moderation_status WHERE id = ?",
                 moderationStatus,
-                POST_ID);
+                POST_ID
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -458,7 +519,13 @@ class PostRepositoryTest {
         User author = entityManager.find(User.class, USER_ID);
         Topic topic = entityManager.find(Topic.class, TOPIC_ID);
         Photo photo = Photo.createPhoto("chalkak/dev/posts/concurrent-original.png");
-        Post duplicatePost = Post.createPost(author, topic, photo, UUID.randomUUID(), null);
+        Post duplicatePost = Post.createPost(
+                author,
+                topic,
+                photo,
+                UUID.randomUUID(),
+                null
+        );
 
         // When & Then
         assertThatThrownBy(() -> postRepository.save(duplicatePost))
@@ -493,7 +560,13 @@ class PostRepositoryTest {
         User author = entityManager.find(User.class, secondUserId);
         Topic topic = entityManager.find(Topic.class, secondTopicId);
         Photo photo = Photo.createPhoto("chalkak/dev/posts/original.jpg");
-        Post duplicatePhotoPost = Post.createPost(author, topic, photo, UUID.randomUUID(), null);
+        Post duplicatePhotoPost = Post.createPost(
+                author,
+                topic,
+                photo,
+                UUID.randomUUID(),
+                null
+        );
 
         // When & Then
         assertThatThrownBy(() -> postRepository.save(duplicatePhotoPost))
@@ -519,8 +592,13 @@ class PostRepositoryTest {
                     User author = entityManager.find(User.class, authorId);
                     Topic topic = entityManager.find(Topic.class, topicId);
                     Photo photo = Photo.createPhoto(orphanStorageKey);
-                    Post duplicatePost = Post.createPost(author, topic, photo, UUID.randomUUID(),
-                            null);
+                    Post duplicatePost = Post.createPost(
+                            author,
+                            topic,
+                            photo,
+                            UUID.randomUUID(),
+                            null
+                    );
 
                     postRepository.save(duplicatePost);
                 }));
@@ -530,7 +608,8 @@ class PostRepositoryTest {
         Integer photoCount = transactionTemplate.execute(status -> jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM photos WHERE original_storage_key = ?",
                 Integer.class,
-                orphanStorageKey));
+                orphanStorageKey
+        ));
         assertThat(photoCount).isZero();
     }
 
@@ -562,13 +641,18 @@ class PostRepositoryTest {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, photoId);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    user_id, topic_id, photo_id, moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, authorId, topicId, photoId);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            user_id, topic_id, photo_id, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                authorId,
+                topicId,
+                photoId
+        );
     }
 
     private void insertSecondVisiblePost() {
@@ -625,7 +709,8 @@ class PostRepositoryTest {
                 POST_ID,
                 SECOND_USER_ID,
                 SECOND_POST_ID,
-                USER_ID);
+                USER_ID
+        );
         entityManager.flush();
         entityManager.clear();
     }

@@ -189,12 +189,26 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
     @DisplayName("알림 ID가 없거나 대상 종류가 공지가 아닌 공지 메시지는 보내지 않는다")
     void process_malformedNoticeMessage_skipsPush() {
         // Given
-        PushMessage withoutNotificationId = new PushMessage(message.eventId(), null,
-                message.userId(), message.type(), message.sourceType(), message.sourceId(),
-                message.occurredAt(), message.expiresAt());
-        PushMessage postSource = new PushMessage(message.eventId(), message.notificationId(),
-                message.userId(), message.type(), NotificationSourceType.POST, message.sourceId(),
-                message.occurredAt(), message.expiresAt());
+        PushMessage withoutNotificationId = new PushMessage(
+                message.eventId(),
+                null,
+                message.userId(),
+                message.type(),
+                message.sourceType(),
+                message.sourceId(),
+                message.occurredAt(),
+                message.expiresAt()
+        );
+        PushMessage postSource = new PushMessage(
+                message.eventId(),
+                message.notificationId(),
+                message.userId(),
+                message.type(),
+                NotificationSourceType.POST,
+                message.sourceId(),
+                message.occurredAt(),
+                message.expiresAt()
+        );
 
         // When
         worker(NOW).process(withoutNotificationId);
@@ -210,9 +224,16 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
     @DisplayName("다른 사건으로 조작한 공지 메시지는 보내지 않는다")
     void process_tamperedNoticeMessage_skipsPush() {
         // Given
-        PushMessage tampered = new PushMessage(UUID.randomUUID(), message.notificationId(),
-                message.userId(), message.type(), message.sourceType(), message.sourceId(),
-                message.occurredAt(), message.expiresAt());
+        PushMessage tampered = new PushMessage(
+                UUID.randomUUID(),
+                message.notificationId(),
+                message.userId(),
+                message.type(),
+                message.sourceType(),
+                message.sourceId(),
+                message.occurredAt(),
+                message.expiresAt()
+        );
 
         // When & Then
         assertSkipped(worker(NOW).process(tampered), "MESSAGE_MISMATCH");
@@ -238,16 +259,30 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
     // 실제 배포 경로로 공지 알림을 만들고, Relay가 발행하는 것과 같은 메시지를 구성한다.
     private PushMessage distributeNotice() {
         return new TransactionTemplate(manager).execute(status -> {
-            Notice notice = notices.saveAndFlush(Notice.create(TITLE, BODY, NOW, NOW));
+            Notice notice = notices.saveAndFlush(Notice.create(
+                    TITLE,
+                    BODY,
+                    NOW,
+                    NOW
+            ));
             notifications.createNoticeNotifications(notice, NOW);
             UUID notificationId = jdbc.queryForObject(
-                    "SELECT id FROM notifications WHERE user_id = ?", UUID.class, USER_ID);
+                    "SELECT id FROM notifications WHERE user_id = ?",
+                    UUID.class,
+                    USER_ID
+            );
             Notification notification = notifications
                     .findForPushByIdAndUserId(notificationId, USER_ID).orElseThrow();
-            return new PushMessage(notification.getEventKey(), notification.getId(), USER_ID,
-                    notification.getType(), notification.getSourceType(),
-                    notification.getSourceId(), notification.getCreatedAt(),
-                    notification.getPushExpiresAt());
+            return new PushMessage(
+                    notification.getEventKey(),
+                    notification.getId(),
+                    USER_ID,
+                    notification.getType(),
+                    notification.getSourceType(),
+                    notification.getSourceId(),
+                    notification.getCreatedAt(),
+                    notification.getPushExpiresAt()
+            );
         });
     }
 
@@ -255,11 +290,19 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         UUID sessionId = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO user_refresh_tokens(user_id,session_id,token_hash,expires_at,absolute_expires_at) VALUES (?,?,?,?,?)",
-                USER_ID, sessionId, new FcmToken(UUID.randomUUID().toString()).getHash(),
-                Timestamp.from(NOW.plusSeconds(3600)), Timestamp.from(NOW.plusSeconds(7200)));
+                USER_ID,
+                sessionId,
+                new FcmToken(UUID.randomUUID().toString()).getHash(),
+                Timestamp.from(NOW.plusSeconds(3600)),
+                Timestamp.from(NOW.plusSeconds(7200))
+        );
         new TransactionTemplate(manager).executeWithoutResult(status -> devices.save(
-                new PushDevice(users.findById(USER_ID).orElseThrow(), sessionId,
-                        new FcmToken("notice-token"), NOW.plusSeconds(1))));
+                new PushDevice(
+                        users.findById(USER_ID).orElseThrow(),
+                        sessionId,
+                        new FcmToken("notice-token"),
+                        NOW.plusSeconds(1)
+                )));
     }
 
     private List<Map<String, Object>> logsAtStage(String stage) {
@@ -271,7 +314,15 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
     }
 
     private PushWorkerService worker(Instant now) {
-        return new PushWorkerService(notifications, topics, posts, devices, sessions, sender,
-                Clock.fixed(now, ZoneOffset.UTC), manager);
+        return new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(now, ZoneOffset.UTC),
+                manager
+        );
     }
 }

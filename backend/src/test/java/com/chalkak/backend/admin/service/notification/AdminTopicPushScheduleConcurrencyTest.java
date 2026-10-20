@@ -187,9 +187,17 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         // When
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<?> first = executor
-                    .submit(() -> updateAfterBarrier(scheduleId, LocalTime.of(10, 0), barrier));
+                    .submit(() -> updateAfterBarrier(
+                            scheduleId,
+                            LocalTime.of(10, 0),
+                            barrier
+                    ));
             Future<?> second = executor
-                    .submit(() -> updateAfterBarrier(scheduleId, LocalTime.of(11, 0), barrier));
+                    .submit(() -> updateAfterBarrier(
+                            scheduleId,
+                            LocalTime.of(11, 0),
+                            barrier
+                    ));
             first.get(10, TimeUnit.SECONDS);
             second.get(10, TimeUnit.SECONDS);
         }
@@ -208,7 +216,9 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         assertThat(audits.get(1).get("after_time")).isEqualTo(
                 jdbcTemplate.queryForObject(
                         "SELECT to_char(send_time, 'HH24:MI:SS') FROM topic_push_schedules WHERE id = ?",
-                        String.class, scheduleId));
+                        String.class,
+                        scheduleId
+                ));
     }
 
     @ParameterizedTest
@@ -219,8 +229,11 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         UUID scheduleId = scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)).scheduleId();
         Runnable waitingOperation = () -> scheduleService.deleteSchedule(scheduleId, ADMIN_ID);
         if (operation.equals("UPDATE")) {
-            waitingOperation = () -> scheduleService.updateSchedule(scheduleId, ADMIN_ID,
-                    LocalTime.of(10, 0));
+            waitingOperation = () -> scheduleService.updateSchedule(
+                    scheduleId,
+                    ADMIN_ID,
+                    LocalTime.of(10, 0)
+            );
         }
 
         // When
@@ -234,10 +247,14 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         assertThat(scheduleRepository.findById(scheduleId)).isEmpty();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'TOPIC_PUSH_SCHEDULE_DELETED'",
-                Integer.class, scheduleId)).isEqualTo(1);
+                Integer.class,
+                scheduleId
+        )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'TOPIC_PUSH_SCHEDULE_UPDATED'",
-                Integer.class, scheduleId)).isZero();
+                Integer.class,
+                scheduleId
+        )).isZero();
     }
 
     @Test
@@ -248,7 +265,11 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
 
         // When
         NotFoundException failure = runWithWaitingOperation(
-                () -> scheduleService.updateSchedule(scheduleId, ADMIN_ID, LocalTime.of(10, 0)),
+                () -> scheduleService.updateSchedule(
+                        scheduleId,
+                        ADMIN_ID,
+                        LocalTime.of(10, 0)
+                ),
                 () -> scheduleService.deleteSchedule(scheduleId, ADMIN_ID));
 
         // Then
@@ -299,7 +320,9 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
                         await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(10))
                                 .until(() -> Boolean.TRUE.equals(jdbcTemplate.queryForObject(
                                         "SELECT cardinality(pg_blocking_pids(?)) > 0",
-                                        Boolean.class, waitingPid.get())));
+                                        Boolean.class,
+                                        waitingPid.get()
+                                )));
                         assertThat(future.isDone()).isFalse();
                         return future;
                     });
@@ -307,9 +330,17 @@ class AdminTopicPushScheduleConcurrencyTest extends IntegrationTestSupport {
         }
     }
 
-    private void updateAfterBarrier(UUID scheduleId, LocalTime sendTime, CyclicBarrier barrier) {
+    private void updateAfterBarrier(
+            UUID scheduleId,
+            LocalTime sendTime,
+            CyclicBarrier barrier
+    ) {
         awaitPrechecks(barrier);
-        scheduleService.updateSchedule(scheduleId, ADMIN_ID, sendTime);
+        scheduleService.updateSchedule(
+                scheduleId,
+                ADMIN_ID,
+                sendTime
+        );
     }
 
     private String updateAfterPrecheck(UUID scheduleId, CyclicBarrier barrier) {

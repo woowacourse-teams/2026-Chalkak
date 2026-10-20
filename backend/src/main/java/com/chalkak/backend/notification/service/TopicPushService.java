@@ -86,7 +86,12 @@ public class TopicPushService {
                         .log("주제 푸시 실행 생략");
                 return;
             }
-            publishTargets(schedule.getId(), eventId, scheduledAt, targets);
+            publishTargets(
+                    schedule.getId(),
+                    eventId,
+                    scheduledAt,
+                    targets
+            );
         } catch (RuntimeException exception) {
             log.atError().addKeyValue("type", "notification")
                     .addKeyValue("stage", "topic_execution_failed")
@@ -127,8 +132,16 @@ public class TopicPushService {
                 expired = targets.userIds().size() - accepted - failed - unknown;
                 break;
             }
-            PushMessage message = new PushMessage(eventId, null, userId, NotificationType.TOPIC,
-                    NotificationSourceType.TOPIC, targets.topicId(), scheduledAt, expiresAt);
+            PushMessage message = new PushMessage(
+                    eventId,
+                    null,
+                    userId,
+                    NotificationType.TOPIC,
+                    NotificationSourceType.TOPIC,
+                    targets.topicId(),
+                    scheduledAt,
+                    expiresAt
+            );
             PushPublicationResult result = publishMessage(message);
             if (result.isAccepted()) {
                 accepted++;

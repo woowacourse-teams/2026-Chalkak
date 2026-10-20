@@ -40,10 +40,12 @@ class AdminAiPromptVersionConcurrencyTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() {
         clean();
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, 'prompt-version-concurrency', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, ADMIN_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, 'prompt-version-concurrency', 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                ADMIN_ID);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
     }
 
@@ -64,7 +66,11 @@ class AdminAiPromptVersionConcurrencyTest extends IntegrationTestSupport {
         try (ExecutorService executor = Executors.newFixedThreadPool(THREADS)) {
             for (int index = 0; index < THREADS; index++) {
                 String systemPrompt = "동시 시스템 " + index;
-                futures.add(executor.submit(createAfterStart(ready, start, systemPrompt)));
+                futures.add(executor.submit(createAfterStart(
+                        ready,
+                        start,
+                        systemPrompt
+                )));
             }
             ready.await(10, TimeUnit.SECONDS);
             start.countDown();
@@ -74,26 +80,49 @@ class AdminAiPromptVersionConcurrencyTest extends IntegrationTestSupport {
             }
 
             // Then
-            assertThat(versions).containsExactlyInAnyOrder(1, 2, 3, 4, 5);
+            assertThat(versions).containsExactlyInAnyOrder(
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+            );
         }
         assertThat(jdbcTemplate.queryForList(
                 "SELECT version FROM ai_prompt_versions ORDER BY version", Integer.class))
-                .containsExactly(1, 2, 3, 4, 5);
+                .containsExactly(
+                        1,
+                        2,
+                        3,
+                        4,
+                        5
+                );
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'AI_PROMPT_VERSION_CREATED'
                 """, Integer.class)).isEqualTo(THREADS);
     }
 
     private Callable<VersionResult> createAfterStart(
-            CountDownLatch ready, CountDownLatch start, String systemPrompt) {
+            CountDownLatch ready,
+            CountDownLatch start,
+            String systemPrompt
+    ) {
         return () -> {
             MDC.put(LogFields.REQUEST_ID, UUID.randomUUID().toString());
             try {
                 ready.countDown();
                 start.await(10, TimeUnit.SECONDS);
                 return versionService.createVersion(ADMIN_ID, new CreateCommand(
-                        AiPromptType.PHOTO_REVIEW, systemPrompt, "{{topicTitle}}", MODEL,
-                        null, null, null, null, null));
+                        AiPromptType.PHOTO_REVIEW,
+                        systemPrompt,
+                        "{{topicTitle}}",
+                        MODEL,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                ));
             } finally {
                 MDC.remove(LogFields.REQUEST_ID);
             }
@@ -102,7 +131,8 @@ class AdminAiPromptVersionConcurrencyTest extends IntegrationTestSupport {
 
     private void clean() {
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE actor_admin_id = ?", ADMIN_ID);
-        jdbcTemplate.update("DELETE FROM ai_prompt_versions WHERE created_by_admin_id = ?", ADMIN_ID);
+        jdbcTemplate.update("DELETE FROM ai_prompt_versions WHERE created_by_admin_id = ?",
+                ADMIN_ID);
         jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ADMIN_ID);
     }
 }

@@ -24,8 +24,16 @@ import org.slf4j.LoggerFactory;
 /** DB 조회와 로그 조회를 Mock으로 대체해 로그 지표 관측 시작일, 교차 검증, 실패 전파를 검증한다. */
 class UserMetricsAggregationLogMetricsTest {
 
-    private static final LocalDate START_DATE = LocalDate.of(2026, 10, 2);
-    private static final LocalDate SUNDAY = LocalDate.of(2026, 10, 4);
+    private static final LocalDate START_DATE = LocalDate.of(
+            2026,
+            10,
+            2
+    );
+    private static final LocalDate SUNDAY = LocalDate.of(
+            2026,
+            10,
+            4
+    );
     private static final long DB_POSTS = 3L;
 
     private final UserMetricsRepository repository = mock(UserMetricsRepository.class);
@@ -34,8 +42,8 @@ class UserMetricsAggregationLogMetricsTest {
             repository,
             reader);
 
-    private final Logger aggregationLogger =
-            (Logger) LoggerFactory.getLogger("chalkak.aggregation");
+    private final Logger aggregationLogger = (Logger) LoggerFactory
+            .getLogger("chalkak.aggregation");
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
     @BeforeEach
@@ -62,7 +70,14 @@ class UserMetricsAggregationLogMetricsTest {
         assertThat(metrics.accessLogMetrics()).isNull();
         assertThat(appender.list).hasSize(1);
         assertThat(keys(appender.list.getFirst())).containsExactly(
-                "type", "metricDate", "dau", "posts", "wau", "eligibleUsers", "likesTotal");
+                "type",
+                "metricDate",
+                "dau",
+                "posts",
+                "wau",
+                "eligibleUsers",
+                "likesTotal"
+        );
     }
 
     @Test
@@ -80,9 +95,20 @@ class UserMetricsAggregationLogMetricsTest {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(keys(event)).containsExactly(
-                "type", "metricDate", "dau", "posts", "wau", "eligibleUsers", "likesTotal",
-                "visitors", "topicViewers", "requests", "server5xx",
-                "latencyAvgMs", "latencyP95Ms");
+                "type",
+                "metricDate",
+                "dau",
+                "posts",
+                "wau",
+                "eligibleUsers",
+                "likesTotal",
+                "visitors",
+                "topicViewers",
+                "requests",
+                "server5xx",
+                "latencyAvgMs",
+                "latencyP95Ms"
+        );
         assertThat(keyValue(event, "visitors")).isEqualTo(5L);
         assertThat(keyValue(event, "topicViewers")).isEqualTo(4L);
         assertThat(keyValue(event, "requests")).isEqualTo(120L);
@@ -145,7 +171,12 @@ class UserMetricsAggregationLogMetricsTest {
     void aggregate_sunday_logsRetentionKeys() {
         // Given
         when(repository.countPostAuthors(any(), any())).thenReturn(3L);
-        when(repository.countReturningPostAuthors(any(), any(), any(), any())).thenReturn(2L);
+        when(repository.countReturningPostAuthors(
+                any(),
+                any(),
+                any(),
+                any()
+        )).thenReturn(2L);
 
         // When
         service.aggregate(SUNDAY);
@@ -154,11 +185,26 @@ class UserMetricsAggregationLogMetricsTest {
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
         assertThat(keys(event)).containsExactly(
-                "type", "metricDate", "dau", "posts", "wau", "eligibleUsers", "likesTotal",
-                "retentionW1Cohort", "retentionW1Retained", "retentionW1Rate",
-                "retentionW2Cohort", "retentionW2Retained", "retentionW2Rate",
-                "retentionW3Cohort", "retentionW3Retained", "retentionW3Rate",
-                "retentionW4Cohort", "retentionW4Retained", "retentionW4Rate");
+                "type",
+                "metricDate",
+                "dau",
+                "posts",
+                "wau",
+                "eligibleUsers",
+                "likesTotal",
+                "retentionW1Cohort",
+                "retentionW1Retained",
+                "retentionW1Rate",
+                "retentionW2Cohort",
+                "retentionW2Retained",
+                "retentionW2Rate",
+                "retentionW3Cohort",
+                "retentionW3Retained",
+                "retentionW3Rate",
+                "retentionW4Cohort",
+                "retentionW4Retained",
+                "retentionW4Rate"
+        );
         assertThat(keyValue(event, "retentionW1Cohort")).isEqualTo(3L);
         assertThat(keyValue(event, "retentionW1Retained")).isEqualTo(2L);
         assertThat(keyValue(event, "retentionW1Rate")).isEqualTo(66.7);
@@ -181,7 +227,15 @@ class UserMetricsAggregationLogMetricsTest {
     }
 
     private AccessLogMetrics logMetrics(long postCreations) {
-        return new AccessLogMetrics(5, 4, 120, 2, 35, 210, postCreations);
+        return new AccessLogMetrics(
+                5,
+                4,
+                120,
+                2,
+                35,
+                210,
+                postCreations
+        );
     }
 
     private List<String> keys(ILoggingEvent event) {
@@ -192,7 +246,6 @@ class UserMetricsAggregationLogMetricsTest {
         return event.getKeyValuePairs().stream()
                 .filter(pair -> pair.key.equals(key))
                 .findFirst()
-                .orElseThrow()
-                .value;
+                .orElseThrow().value;
     }
 }

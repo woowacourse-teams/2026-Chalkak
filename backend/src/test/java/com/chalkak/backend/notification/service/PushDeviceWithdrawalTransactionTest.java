@@ -94,10 +94,16 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
         // Given
         User user = userRepository.save(UserFixture.create());
         SocialAccount account = socialAccountRepository.save(SocialAccount.create(
-                user, SocialProvider.GOOGLE,
-                fingerprintEncoder.encode(SocialProvider.GOOGLE, "rollback-subject")));
+                user,
+                SocialProvider.GOOGLE,
+                fingerprintEncoder.encode(SocialProvider.GOOGLE, "rollback-subject")
+        ));
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), "rollback-token");
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                "rollback-token"
+        );
         blockDeviceDeletion(issued.sessionId());
 
         // When & Then
@@ -108,7 +114,9 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
                 .isEqualTo(account.getId());
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM user_refresh_tokens WHERE session_id = ? AND revoked_at IS NULL",
-                Integer.class, issued.sessionId())).isEqualTo(1);
+                Integer.class,
+                issued.sessionId()
+        )).isEqualTo(1);
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
                 .getFcmToken())
                 .isEqualTo("rollback-token");
@@ -122,7 +130,11 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), "initial-token");
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                "initial-token"
+        );
         IssuedRefreshToken nextLogin = userRefreshTokenService.issue(user);
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         CountDownLatch firstCompleted = new CountDownLatch(1);
@@ -136,8 +148,11 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
                     userWithdrawalService.withdraw(user.getId());
                 }
                 if (!withdrawalFirst) {
-                    pushDeviceService.register(user.getId(), nextLogin.sessionId(),
-                            "initial-token");
+                    pushDeviceService.register(
+                            user.getId(),
+                            nextLogin.sessionId(),
+                            "initial-token"
+                    );
                 }
                 firstCompleted.countDown();
                 awaitCommit(firstCanCommit);
@@ -149,8 +164,11 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
                         secondBackendPid.complete(jdbcTemplate
                                 .queryForObject("SELECT pg_backend_pid()", Integer.class));
                         if (withdrawalFirst) {
-                            pushDeviceService.register(user.getId(), nextLogin.sessionId(),
-                                    "initial-token");
+                            pushDeviceService.register(
+                                    user.getId(),
+                                    nextLogin.sessionId(),
+                                    "initial-token"
+                            );
                         }
                         if (!withdrawalFirst) {
                             userWithdrawalService.withdraw(user.getId());
@@ -173,11 +191,15 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
             assertThat(result).isEqualTo(withdrawalFirst ? "UNAUTHORIZED" : "SUCCESS");
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM user_refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
-                    Integer.class, user.getId())).isZero();
+                    Integer.class,
+                    user.getId()
+            )).isZero();
             assertThat(userRepository.findActiveById(user.getId())).isEmpty();
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM push_devices WHERE user_id = ?",
-                    Integer.class, user.getId())).isZero();
+                    Integer.class,
+                    user.getId()
+            )).isZero();
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();
@@ -212,7 +234,10 @@ class PushDeviceWithdrawalTransactionTest extends IntegrationTestSupport {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
             Boolean blocked = jdbcTemplate.queryForObject(
-                    "SELECT cardinality(pg_blocking_pids(?)) > 0", Boolean.class, backendPid);
+                    "SELECT cardinality(pg_blocking_pids(?)) > 0",
+                    Boolean.class,
+                    backendPid
+            );
             if (Boolean.TRUE.equals(blocked)) {
                 return;
             }

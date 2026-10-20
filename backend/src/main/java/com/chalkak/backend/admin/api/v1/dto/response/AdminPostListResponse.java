@@ -23,7 +23,8 @@ public record AdminPostListResponse(
                 result.hasNext(),
                 result.posts().stream()
                         .map(PostResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     @Schema(name = "AdminPostListItem")
@@ -57,7 +58,8 @@ public record AdminPostListResponse(
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
-                    post.deletedAt());
+                    post.deletedAt()
+            );
         }
     }
 
@@ -79,7 +81,8 @@ public record AdminPostListResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.deletedAt());
+                    author.deletedAt()
+            );
         }
     }
 
@@ -94,7 +97,11 @@ public record AdminPostListResponse(
             if (topic == null) {
                 return null;
             }
-            return new TopicResponse(topic.topicId(), topic.title(), topic.topicDate());
+            return new TopicResponse(
+                    topic.topicId(),
+                    topic.title(),
+                    topic.topicDate()
+            );
         }
     }
 
@@ -113,7 +120,8 @@ public record AdminPostListResponse(
             return new PhotoResponse(
                     photo.photoId(),
                     photo.originalImageUrl(),
-                    photo.thumbnailImageUrl());
+                    photo.thumbnailImageUrl()
+            );
         }
     }
 }

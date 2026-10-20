@@ -152,16 +152,32 @@ class SqsPushServiceTest {
             heartbeatAction.set(call.getArgument(0));
             return future;
         })
-                .when(visibilityExecutor).scheduleAtFixedRate(any(Runnable.class), anyLong(),
+                .when(visibilityExecutor).scheduleAtFixedRate(
+                        any(Runnable.class),
                         anyLong(),
-                        any(TimeUnit.class));
+                        anyLong(),
+                        any(TimeUnit.class)
+                );
         service = mock(PushWorkerService.class);
         given(service.process(any())).willReturn(PushProcessingResult.completed());
-        worker = new SqsPushService(client, endpoint + "/000000000000/test", mapper, service,
-                Clock.fixed(NOW, ZoneOffset.UTC), visibilityExecutor);
-        push = new PushMessage(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                NotificationType.POST_APPROVED, NotificationSourceType.POST, UUID.randomUUID(), NOW,
-                NOW.plusSeconds(1800));
+        worker = new SqsPushService(
+                client,
+                endpoint + "/000000000000/test",
+                mapper,
+                service,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                visibilityExecutor
+        );
+        push = new PushMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NotificationType.POST_APPROVED,
+                NotificationSourceType.POST,
+                UUID.randomUUID(),
+                NOW,
+                NOW.plusSeconds(1800)
+        );
         message = Message.builder().messageId("sqs-id").receiptHandle("receipt-handle")
                 .attributes(Map.of(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT, "1"))
                 .body(mapper.writeValueAsString(push)).build();
@@ -202,7 +218,12 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("worker_received").getFirst())
                 .containsEntry("eventId", push.eventId()).containsEntry("userId", push.userId());
         assertThat(MDC.getCopyOfContextMap()).containsExactlyInAnyOrderEntriesOf(
-                Map.of("requestId", "previous-request", "sqsMessageId", "previous-message"));
+                Map.of(
+                        "requestId",
+                        "previous-request",
+                        "sqsMessageId",
+                        "previous-message"
+                ));
     }
 
     @Test
@@ -226,8 +247,11 @@ class SqsPushServiceTest {
         assertThat(appender.list).allSatisfy(event -> {
             assertThat(event.getFormattedMessage() + event.getKeyValuePairs()
                     + event.getMDCPropertyMap())
-                    .doesNotContain("private-json-token-secret", "private-exception-secret",
-                            "receipt-handle");
+                    .doesNotContain(
+                            "private-json-token-secret",
+                            "private-exception-secret",
+                            "receipt-handle"
+                    );
             assertThat(event.getThrowableProxy()).isNull();
         });
     }
@@ -352,8 +376,11 @@ class SqsPushServiceTest {
                 releaseSecond.countDown();
                 secondProcessing.get(5, TimeUnit.SECONDS);
                 extensions.values().forEach(Runnable::run);
-                assertThat(operations).containsExactly("AmazonSQS.DeleteMessage",
-                        "AmazonSQS.ChangeMessageVisibility", "AmazonSQS.DeleteMessage");
+                assertThat(operations).containsExactly(
+                        "AmazonSQS.DeleteMessage",
+                        "AmazonSQS.ChangeMessageVisibility",
+                        "AmazonSQS.DeleteMessage"
+                );
             } finally {
                 releaseSecond.countDown();
             }
@@ -407,9 +434,16 @@ class SqsPushServiceTest {
     }
 
     private Message secondMessage() {
-        PushMessage secondPush = new PushMessage(UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), NotificationType.POST_REJECTED, NotificationSourceType.POST,
-                UUID.randomUUID(), NOW, NOW.plusSeconds(1800));
+        PushMessage secondPush = new PushMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NotificationType.POST_REJECTED,
+                NotificationSourceType.POST,
+                UUID.randomUUID(),
+                NOW,
+                NOW.plusSeconds(1800)
+        );
         return message.toBuilder().messageId("second-sqs-id").receiptHandle("second-receipt")
                 .body(mapper.writeValueAsString(secondPush)).build();
     }
@@ -439,8 +473,12 @@ class SqsPushServiceTest {
         doAnswer(call -> {
             extensions.put(MDC.get("sqsMessageId"), call.getArgument(0));
             return mock(ScheduledFuture.class);
-        }).when(visibilityExecutor).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(),
-                any(TimeUnit.class));
+        }).when(visibilityExecutor).scheduleAtFixedRate(
+                any(Runnable.class),
+                anyLong(),
+                anyLong(),
+                any(TimeUnit.class)
+        );
         return extensions;
     }
 
@@ -467,9 +505,16 @@ class SqsPushServiceTest {
     @DisplayName("알림함 ID가 없는 주제 JSON도 공통 Worker에 전달하고 완료 결과이면 SQS에서 삭제한다")
     void process_topicMessageWithoutInboxId_passesToWorkerAndDeletes() throws Exception {
         // Given
-        PushMessage topic = new PushMessage(UUID.randomUUID(), null, UUID.randomUUID(),
-                NotificationType.TOPIC, NotificationSourceType.TOPIC, UUID.randomUUID(), NOW,
-                NOW.plusSeconds(1800));
+        PushMessage topic = new PushMessage(
+                UUID.randomUUID(),
+                null,
+                UUID.randomUUID(),
+                NotificationType.TOPIC,
+                NotificationSourceType.TOPIC,
+                UUID.randomUUID(),
+                NOW,
+                NOW.plusSeconds(1800)
+        );
         Message topicMessage = Message.builder().messageId("topic-sqs-id")
                 .receiptHandle("topic-receipt").body(mapper.writeValueAsString(topic)).build();
         // When
@@ -521,8 +566,14 @@ class SqsPushServiceTest {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("receive interrupted");
                 });
-        SqsPushService interruptedWorker = new SqsPushService(failingClient, "test", mapper,
-                service, Clock.fixed(NOW, ZoneOffset.UTC), mock(ScheduledExecutorService.class));
+        SqsPushService interruptedWorker = new SqsPushService(
+                failingClient,
+                "test",
+                mapper,
+                service,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                mock(ScheduledExecutorService.class)
+        );
         FutureTask<Boolean> polling = new FutureTask<>(() -> {
             interruptedWorker.poll();
             return Thread.currentThread().isInterrupted();
@@ -539,11 +590,16 @@ class SqsPushServiceTest {
     void poll_oneMessage_processesAndDeletesMessage() throws Exception {
         // Given
         receiveResponse = mapper.writeValueAsString(Map.of("Messages", List.of(Map.of(
-                "MessageId", message.messageId(),
-                "ReceiptHandle", message.receiptHandle(),
-                "MD5OfBody", HexFormat.of().formatHex(MessageDigest.getInstance("MD5")
+                "MessageId",
+                message.messageId(),
+                "ReceiptHandle",
+                message.receiptHandle(),
+                "MD5OfBody",
+                HexFormat.of().formatHex(MessageDigest.getInstance("MD5")
                         .digest(message.body().getBytes(StandardCharsets.UTF_8))),
-                "Body", message.body()))));
+                "Body",
+                message.body()
+        ))));
         // When
         worker.poll();
         // Then

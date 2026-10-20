@@ -48,18 +48,32 @@ class AuthorPostRepositoryTest {
         UUID authorId = createUser(jdbcTemplate);
         List<UUID> expectedIds = new ArrayList<>();
         for (int day = count - 1; day >= 0; day--) {
-            UUID postId = createPost(jdbcTemplate, authorId,
-                    LocalDate.of(2026, 4, 1).plusDays(day), ModerationStatus.APPROVED);
+            UUID postId = createPost(
+                    jdbcTemplate,
+                    authorId,
+                    LocalDate.of(
+                            2026,
+                            4,
+                            1
+                    ).plusDays(day),
+                    ModerationStatus.APPROVED
+            );
             expectedIds.add(postId);
-            jdbcTemplate.update("UPDATE posts SET created_at = ? WHERE id = ?",
+            jdbcTemplate.update(
+                    "UPDATE posts SET created_at = ? WHERE id = ?",
                     Timestamp.from(Instant.parse("2026-04-01T00:00:00Z").minusSeconds(day)),
-                    postId);
+                    postId
+            );
         }
         entityManager.flush();
         entityManager.clear();
 
         // When
-        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(
+                authorId,
+                1,
+                20
+        );
         List<Post> posts = slice.posts();
 
         // Then
@@ -80,16 +94,45 @@ class AuthorPostRepositoryTest {
     ) {
         // Given
         UUID authorId = createUser(jdbcTemplate);
-        UUID approvedId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
-        createPost(jdbcTemplate, authorId, LocalDate.of(2026, 4, 2), status);
-        createPost(jdbcTemplate, createUser(jdbcTemplate),
-                LocalDate.of(2026, 4, 3), ModerationStatus.APPROVED);
+        UUID approvedId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
+        createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        2
+                ),
+                status
+        );
+        createPost(
+                jdbcTemplate,
+                createUser(jdbcTemplate),
+                LocalDate.of(
+                        2026,
+                        4,
+                        3
+                ),
+                ModerationStatus.APPROVED
+        );
         entityManager.flush();
         entityManager.clear();
 
         // When
-        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(
+                authorId,
+                1,
+                20
+        );
         List<Post> posts = slice.posts();
 
         // Then
@@ -107,14 +150,26 @@ class AuthorPostRepositoryTest {
     void findVisibleRecentByAuthorId_deletedResource_returnsEmpty(String deletion) {
         // Given
         UUID authorId = createUser(jdbcTemplate);
-        UUID postId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
+        UUID postId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
         jdbcTemplate.update(deletion, postId);
         entityManager.flush();
         entityManager.clear();
 
         // When
-        PostSlice slice = postRepository.findVisibleRecentByAuthorId(authorId, 1, 20);
+        PostSlice slice = postRepository.findVisibleRecentByAuthorId(
+                authorId,
+                1,
+                20
+        );
         List<Post> posts = slice.posts();
 
         // Then

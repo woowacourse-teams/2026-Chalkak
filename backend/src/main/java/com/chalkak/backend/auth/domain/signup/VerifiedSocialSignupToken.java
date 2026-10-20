@@ -10,5 +10,6 @@ public record VerifiedSocialSignupToken(
         UUID uploadId,
         String email,
         String tokenId,
-        Instant expiresAt) {
+        Instant expiresAt
+) {
 }

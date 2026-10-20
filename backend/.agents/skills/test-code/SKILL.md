@@ -17,6 +17,8 @@ description: backend/src/test/java의 Java 테스트 코드를 생성·수정·�
 
 - Google Java Style 기반 팀 형식은 저장소 Spotless 설정을 따른다. `./gradlew spotlessCheck`로 확인하고 형식 수정 후 diff를 점검한다.
 - 테스트에는 운영 코드 전용 Checkstyle 규칙을 적용하지 않는다.
+- 메서드·생성자 선언과 호출, record 컴포넌트, enum 생성자 호출은 항목이 3개 이상이면 첫 항목부터 각 항목과 닫는 괄호를 별도 줄에 둔다. 0~2개는 이 규칙으로 줄바꿈을 강제하지 않는다.
+- 이 줄바꿈 규칙은 운영·테스트 코드에 동일하게 적용하며 `./gradlew checkJavaLayout`으로 검사한다. 어노테이션 속성·람다 매개변수·배열 초기화는 대상이 아니다. 포맷터는 작성한 줄바꿈을 보존하며 이 검사기는 누락을 보고한다.
 
 ## 테스트 유형
 

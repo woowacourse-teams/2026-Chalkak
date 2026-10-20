@@ -17,7 +17,8 @@ public record AdminUserDetail(
         AdminUserPostCounts postCounts,
         Instant createdAt,
         Instant updatedAt,
-        Instant deletedAt) {
+        Instant deletedAt
+) {
 
     public static AdminUserDetail from(
             AdminUserDetailProjection user,
@@ -32,11 +33,16 @@ public record AdminUserDetail(
                 status,
                 user.appVersion(),
                 user.socialProvider(),
-                Signature.from(user, status, imageUrlProvider),
+                Signature.from(
+                        user,
+                        status,
+                        imageUrlProvider
+                ),
                 postCounts(user),
                 user.createdAt(),
                 user.updatedAt(),
-                user.deletedAt());
+                user.deletedAt()
+        );
     }
 
     private static AdminUserPostCounts postCounts(
@@ -45,7 +51,8 @@ public record AdminUserDetail(
         return new AdminUserPostCounts(
                 user.pendingPostCount(),
                 user.approvedPostCount(),
-                user.rejectedPostCount());
+                user.rejectedPostCount()
+        );
     }
 
     public record Signature(

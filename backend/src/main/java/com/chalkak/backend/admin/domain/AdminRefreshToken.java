@@ -33,7 +33,12 @@ public class AdminRefreshToken extends RefreshToken {
     ) {
         AdminRefreshToken refreshToken = new AdminRefreshToken();
         refreshToken.validateAdmin(admin);
-        refreshToken.initialize(sessionId, tokenHash, expiresAt, absoluteExpiresAt);
+        refreshToken.initialize(
+                sessionId,
+                tokenHash,
+                expiresAt,
+                absoluteExpiresAt
+        );
         refreshToken.admin = admin;
         return refreshToken;
     }
@@ -48,7 +53,8 @@ public class AdminRefreshToken extends RefreshToken {
                 getSessionId(),
                 tokenHash,
                 expiresAt,
-                getAbsoluteExpiresAt());
+                getAbsoluteExpiresAt()
+        );
     }
 
     private void validateAdmin(Admin admin) {

@@ -89,6 +89,11 @@ class BannerRepositoryTest extends IntegrationTestSupport {
     }
 
     private Banner banner(String url) {
-        return Banner.create("제목", "부제목", url, "https://cdn.example.com/banner.png");
+        return Banner.create(
+                "제목",
+                "부제목",
+                url,
+                "https://cdn.example.com/banner.png"
+        );
     }
 }

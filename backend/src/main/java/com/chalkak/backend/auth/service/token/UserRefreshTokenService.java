@@ -41,7 +41,8 @@ public class UserRefreshTokenService
                 refreshTokenGenerator,
                 refreshTokenHasher,
                 refreshTokenPolicy,
-                clock);
+                clock
+        );
         this.accessTokenIssuer = accessTokenIssuer;
         this.pushDeviceService = pushDeviceService;
     }
@@ -59,7 +60,8 @@ public class UserRefreshTokenService
                 sessionId,
                 tokenHash,
                 expiresAt,
-                absoluteExpiresAt);
+                absoluteExpiresAt
+        );
     }
 
     @Override

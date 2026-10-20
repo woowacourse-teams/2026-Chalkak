@@ -134,7 +134,8 @@ class ConsumedSignupTokenRepositoryConcurrencyTest extends IntegrationTestSuppor
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM consumed_signup_tokens WHERE jti = ?",
                 Integer.class,
-                JTI);
+                JTI
+        );
     }
 
     private void cleanUp() {

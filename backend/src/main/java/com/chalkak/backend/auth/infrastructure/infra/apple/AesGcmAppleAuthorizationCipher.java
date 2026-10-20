@@ -97,7 +97,11 @@ public class AesGcmAppleAuthorizationCipher implements AppleAuthorizationCipher 
     private Cipher createCipher(int mode, byte[] iv) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
         GCMParameterSpec parameterSpec = new GCMParameterSpec(AUTHENTICATION_TAG_BIT_LENGTH, iv);
-        cipher.init(mode, secretKey, parameterSpec);
+        cipher.init(
+                mode,
+                secretKey,
+                parameterSpec
+        );
         return cipher;
     }
 
@@ -117,14 +121,26 @@ public class AesGcmAppleAuthorizationCipher implements AppleAuthorizationCipher 
 
     private byte[] extractIv(byte[] payload) {
         byte[] iv = new byte[IV_BYTE_LENGTH];
-        System.arraycopy(payload, 0, iv, 0, IV_BYTE_LENGTH);
+        System.arraycopy(
+                payload,
+                0,
+                iv,
+                0,
+                IV_BYTE_LENGTH
+        );
         return iv;
     }
 
     private byte[] extractEncrypted(byte[] payload) {
         int encryptedLength = payload.length - IV_BYTE_LENGTH;
         byte[] encrypted = new byte[encryptedLength];
-        System.arraycopy(payload, IV_BYTE_LENGTH, encrypted, 0, encryptedLength);
+        System.arraycopy(
+                payload,
+                IV_BYTE_LENGTH,
+                encrypted,
+                0,
+                encryptedLength
+        );
         return encrypted;
     }
 }

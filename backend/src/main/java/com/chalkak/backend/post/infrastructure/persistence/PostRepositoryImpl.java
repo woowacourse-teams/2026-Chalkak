@@ -27,7 +27,8 @@ public class PostRepositoryImpl implements PostRepository {
     private static final Set<String> DUPLICATE_CONSTRAINT_NAMES = Set.of(
             "ux_posts_user_topic_active",
             "ux_posts_photo_id",
-            "ux_photos_original_storage_key");
+            "ux_photos_original_storage_key"
+    );
     private static final Set<ModerationStatus> CALENDAR_MODERATION_STATUSES = Set.of(
             ModerationStatus.PENDING,
             ModerationStatus.APPROVED);
@@ -58,7 +59,8 @@ public class PostRepositoryImpl implements PostRepository {
         return postJpaRepository.findByAuthorIdAndTopicIdForUpdate(
                 authorId,
                 topicId,
-                ModerationStatus.REJECTED);
+                ModerationStatus.REJECTED
+        );
     }
 
     @Override
@@ -66,7 +68,8 @@ public class PostRepositoryImpl implements PostRepository {
         return postJpaRepository.findByAuthorIdAndTopicId(
                 authorId,
                 topicId,
-                ModerationStatus.REJECTED);
+                ModerationStatus.REJECTED
+        );
     }
 
     @Override
@@ -98,7 +101,8 @@ public class PostRepositoryImpl implements PostRepository {
         Slice<Post> result = postJpaRepository.findVisibleRecentByAuthorId(
                 authorId,
                 ModerationStatus.APPROVED,
-                PageRequest.of(page - 1, pageSize));
+                PageRequest.of(page - 1, pageSize)
+        );
 
         return new PostSlice(result.getContent(), result.hasNext());
     }
@@ -120,7 +124,8 @@ public class PostRepositoryImpl implements PostRepository {
                 authorId,
                 startDate,
                 endDate,
-                CALENDAR_MODERATION_STATUSES);
+                CALENDAR_MODERATION_STATUSES
+        );
     }
 
     @Override
@@ -143,12 +148,14 @@ public class PostRepositoryImpl implements PostRepository {
                 pageSize,
                 Sort.by(
                         Sort.Order.desc("createdAt"),
-                        Sort.Order.desc("id")));
+                        Sort.Order.desc("id"))
+        );
 
         Slice<Post> result = postJpaRepository.findVisibleByTopicId(
                 topicId,
                 ModerationStatus.APPROVED,
-                pageRequest);
+                pageRequest
+        );
 
         return new PostSlice(
                 result.getContent(),
@@ -166,7 +173,8 @@ public class PostRepositoryImpl implements PostRepository {
                 topicId,
                 ModerationStatus.APPROVED,
                 randomSeed,
-                PageRequest.of(page, pageSize));
+                PageRequest.of(page, pageSize)
+        );
 
         return new PostSlice(
                 result.getContent(),
@@ -182,7 +190,8 @@ public class PostRepositoryImpl implements PostRepository {
         Slice<Post> result = postJpaRepository.findVisiblePopularByTopicId(
                 topicId,
                 ModerationStatus.APPROVED,
-                PageRequest.of(page, pageSize));
+                PageRequest.of(page, pageSize)
+        );
 
         return new PostSlice(
                 result.getContent(),

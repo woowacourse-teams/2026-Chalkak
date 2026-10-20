@@ -93,10 +93,17 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         // Given
         AtomicInteger saveAttempts = new AtomicInteger();
         AtomicInteger duplicateSaveFailures = new AtomicInteger();
-        BannerRepository racingRepository = new RacingBannerRepository(bannerRepository,
-                new CountDownLatch(2), saveAttempts, duplicateSaveFailures);
-        AdminBannerService racingService = new AdminBannerService(racingRepository,
-                auditLogService, Clock.systemUTC());
+        BannerRepository racingRepository = new RacingBannerRepository(
+                bannerRepository,
+                new CountDownLatch(2),
+                saveAttempts,
+                duplicateSaveFailures
+        );
+        AdminBannerService racingService = new AdminBannerService(
+                racingRepository,
+                auditLogService,
+                Clock.systemUTC()
+        );
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             // When
             List<Future<String>> results = List.of(
@@ -164,9 +171,12 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
                 return bannerRepository.findBanners(page, pageSize);
             }
         };
-        AdminBannerService service = new AdminBannerService(lockingRepository, auditLogService,
+        AdminBannerService service = new AdminBannerService(
+                lockingRepository,
+                auditLogService,
                 Clock.fixed(java.time.Instant.parse("2026-10-19T01:00:00Z"),
-                        java.time.ZoneOffset.UTC));
+                        java.time.ZoneOffset.UTC)
+        );
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<?> first = executor.submit(() -> new TransactionTemplate(transactionManager)
                     .executeWithoutResult(status -> service.deleteBanner(id, ADMIN_ID)));
@@ -195,8 +205,11 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT reason FROM admin_audit_logs WHERE action = 'BANNER_DELETED'
                 """, String.class)).isNull();
-        assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
-                java.time.OffsetDateTime.class, id).toInstant())
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_at FROM banners WHERE id = ?",
+                java.time.OffsetDateTime.class,
+                id
+        ).toInstant())
                 .isEqualTo(java.time.Instant.parse("2026-10-19T01:00:00Z"));
     }
 
@@ -210,8 +223,11 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> adminBannerService.deleteBanner(id, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(jdbcTemplate.queryForObject("SELECT deleted_at FROM banners WHERE id = ?",
-                java.time.OffsetDateTime.class, id)).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_at FROM banners WHERE id = ?",
+                java.time.OffsetDateTime.class,
+                id
+        )).isNull();
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM admin_audit_logs WHERE action = 'BANNER_DELETED'
                 """, Integer.class)).isZero();
@@ -232,8 +248,13 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
     private String createInTransaction(AdminBannerService service) {
         try {
             new TransactionTemplate(transactionManager)
-                    .executeWithoutResult(status -> service.createBanner(ADMIN_ID, "제목", "부제목", URL,
-                            "https://cdn.example.com/banner.png"));
+                    .executeWithoutResult(status -> service.createBanner(
+                            ADMIN_ID,
+                            "제목",
+                            "부제목",
+                            URL,
+                            "https://cdn.example.com/banner.png"
+                    ));
             return "created";
         } catch (BusinessException exception) {
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -243,8 +264,13 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
     }
 
     private void createBanner(UUID adminId, String url) {
-        adminBannerService.createBanner(adminId, "제목", "부제목", url,
-                "https://cdn.example.com/banner.png");
+        adminBannerService.createBanner(
+                adminId,
+                "제목",
+                "부제목",
+                url,
+                "https://cdn.example.com/banner.png"
+        );
     }
 
     private int countBanners() {
@@ -266,7 +292,8 @@ class AdminBannerTransactionTest extends IntegrationTestSupport {
             BannerRepository delegate,
             CountDownLatch prechecks,
             AtomicInteger saveAttempts,
-            AtomicInteger duplicateSaveFailures) implements BannerRepository {
+            AtomicInteger duplicateSaveFailures
+    ) implements BannerRepository {
 
         @Override
         public boolean existsByWebViewUrl(String webViewUrl) {

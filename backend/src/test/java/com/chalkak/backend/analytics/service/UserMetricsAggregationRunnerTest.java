@@ -41,18 +41,25 @@ class UserMetricsAggregationRunnerTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("0198fd21-0000-7000-8000-000000000001");
     // UTC 2030-01-02 16:30은 KST 2030-01-03 01:30이다.
-    private static final Clock CLOCK =
-            Clock.fixed(Instant.parse("2030-01-02T16:30:00Z"), ZoneOffset.UTC);
-    private static final LocalDate YESTERDAY = LocalDate.of(2030, 1, 2);
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2030-01-02T16:30:00Z"),
+            ZoneOffset.UTC);
+    private static final LocalDate YESTERDAY = LocalDate.of(
+            2030,
+            1,
+            2
+    );
 
-    private final UserMetricsAggregationService aggregationService =
-            mock(UserMetricsAggregationService.class);
+    private final UserMetricsAggregationService aggregationService = mock(
+            UserMetricsAggregationService.class);
     // 바로 실행하지 않고 쌓아 두어 "진행 중" 상태를 만든다.
     private final List<Runnable> queuedTasks = new ArrayList<>();
-    private final UserMetricsAggregationRunner runner =
-            new UserMetricsAggregationRunner(aggregationService, queuedTasks::add, CLOCK);
-    private final Logger logger =
-            (Logger) LoggerFactory.getLogger(UserMetricsAggregationRunner.class);
+    private final UserMetricsAggregationRunner runner = new UserMetricsAggregationRunner(
+            aggregationService,
+            queuedTasks::add,
+            CLOCK
+    );
+    private final Logger logger = (Logger) LoggerFactory
+            .getLogger(UserMetricsAggregationRunner.class);
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
     @BeforeEach
@@ -157,8 +164,11 @@ class UserMetricsAggregationRunnerTest {
         TaskExecutor rejectingExecutor = task -> {
             throw rejected;
         };
-        UserMetricsAggregationRunner rejectingRunner =
-                new UserMetricsAggregationRunner(aggregationService, rejectingExecutor, CLOCK);
+        UserMetricsAggregationRunner rejectingRunner = new UserMetricsAggregationRunner(
+                aggregationService,
+                rejectingExecutor,
+                CLOCK
+        );
 
         // When & Then
         assertThatThrownBy(() -> rejectingRunner.start(ADMIN_ID, YESTERDAY)).isSameAs(rejected);
@@ -169,10 +179,18 @@ class UserMetricsAggregationRunnerTest {
     @DisplayName("오늘과 미래 날짜는 거절하고 어제는 허용한다")
     void start_todayAndFuture_throwsBusinessError() {
         // When & Then
-        assertThatThrownBy(() -> runner.start(ADMIN_ID, LocalDate.of(2030, 1, 3)))
+        assertThatThrownBy(() -> runner.start(ADMIN_ID, LocalDate.of(
+                2030,
+                1,
+                3
+        )))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ErrorCode.BUSINESS_ERROR));
-        assertThatThrownBy(() -> runner.start(ADMIN_ID, LocalDate.of(2030, 1, 4)))
+        assertThatThrownBy(() -> runner.start(ADMIN_ID, LocalDate.of(
+                2030,
+                1,
+                4
+        )))
                 .isInstanceOf(BusinessException.class);
         runner.start(ADMIN_ID, YESTERDAY);
         assertThat(queuedTasks).hasSize(1);
@@ -182,7 +200,11 @@ class UserMetricsAggregationRunnerTest {
     @DisplayName("거절된 날짜 요청은 진행 중 표시를 남기지 않는다")
     void start_futureDate_doesNotHoldGuard() {
         // Given
-        assertThatThrownBy(() -> runner.start(ADMIN_ID, LocalDate.of(2030, 1, 3)))
+        assertThatThrownBy(() -> runner.start(ADMIN_ID, LocalDate.of(
+                2030,
+                1,
+                3
+        )))
                 .isInstanceOf(BusinessException.class);
 
         // When
@@ -249,8 +271,11 @@ class UserMetricsAggregationRunnerTest {
         CountDownLatch go = new CountDownLatch(1);
         AtomicInteger rejected = new AtomicInteger();
         List<Runnable> tasks = Collections.synchronizedList(new ArrayList<>());
-        UserMetricsAggregationRunner concurrentRunner =
-                new UserMetricsAggregationRunner(aggregationService, tasks::add, CLOCK);
+        UserMetricsAggregationRunner concurrentRunner = new UserMetricsAggregationRunner(
+                aggregationService,
+                tasks::add,
+                CLOCK
+        );
         ExecutorService requests = Executors.newFixedThreadPool(requestCount);
 
         // When

@@ -93,7 +93,12 @@ public class Notification {
             Instant createdAt,
             boolean pushEnabled
     ) {
-        validateRequired(userId, postId, eventKey, createdAt);
+        validateRequired(
+                userId,
+                postId,
+                eventKey,
+                createdAt
+        );
         Notification notification = new Notification();
         notification.userId = userId;
         notification.sourceType = NotificationSourceType.POST;
@@ -115,7 +120,12 @@ public class Notification {
             Instant createdAt,
             boolean pushEnabled
     ) {
-        validateRequired(userId, postId, eventKey, createdAt);
+        validateRequired(
+                userId,
+                postId,
+                eventKey,
+                createdAt
+        );
         if (rejectionReason == null || rejectionReason.isBlank()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,

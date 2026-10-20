@@ -46,17 +46,35 @@ class AdminAuditLogQueryRepositoryTest {
         Admin actor = persistAdmin("audit-reader");
         Admin otherActor = persistAdmin("other-reader");
         UUID deletedTargetId = UUID.randomUUID();
-        persistApproved(actor.getId(), deletedTargetId, OCCURRED_AT);
-        persistApproved(otherActor.getId(), deletedTargetId, OCCURRED_AT);
-        persistApproved(actor.getId(), UUID.randomUUID(), OCCURRED_AT.minusSeconds(1));
+        persistApproved(
+                actor.getId(),
+                deletedTargetId,
+                OCCURRED_AT
+        );
+        persistApproved(
+                otherActor.getId(),
+                deletedTargetId,
+                OCCURRED_AT
+        );
+        persistApproved(
+                actor.getId(),
+                UUID.randomUUID(),
+                OCCURRED_AT.minusSeconds(1)
+        );
 
         AdminPage<AdminAuditLogSummaryProjection> result = repository.findAuditLogs(
                 new AdminAuditLogQueryCriteria(
-                        actor.getId(), AdminAction.POST_APPROVED, AdminTargetType.POST,
-                        deletedTargetId, OCCURRED_AT, OCCURRED_AT,
-                        AdminAuditLogSort.OCCURRED_AT_DESC),
+                        actor.getId(),
+                        AdminAction.POST_APPROVED,
+                        AdminTargetType.POST,
+                        deletedTargetId,
+                        OCCURRED_AT,
+                        OCCURRED_AT,
+                        AdminAuditLogSort.OCCURRED_AT_DESC
+                ),
                 1,
-                20);
+                20
+        );
 
         assertThat(result.items()).singleElement().satisfies(log -> {
             assertThat(log.actorAdminId()).isEqualTo(actor.getId());
@@ -71,19 +89,44 @@ class AdminAuditLogQueryRepositoryTest {
     void findAuditLogs_sameOccurredAt_usesIdForStablePagination() {
         Admin actor = persistAdmin("stable-reader");
         List<UUID> ids = List.of(
-                persistApproved(actor.getId(), UUID.randomUUID(), OCCURRED_AT).getId(),
-                persistApproved(actor.getId(), UUID.randomUUID(), OCCURRED_AT).getId(),
-                persistApproved(actor.getId(), UUID.randomUUID(), OCCURRED_AT).getId()).stream()
+                persistApproved(
+                        actor.getId(),
+                        UUID.randomUUID(),
+                        OCCURRED_AT
+                ).getId(),
+                persistApproved(
+                        actor.getId(),
+                        UUID.randomUUID(),
+                        OCCURRED_AT
+                ).getId(),
+                persistApproved(
+                        actor.getId(),
+                        UUID.randomUUID(),
+                        OCCURRED_AT
+                ).getId()
+        ).stream()
                 .sorted(Comparator.reverseOrder())
                 .toList();
         AdminAuditLogQueryCriteria criteria = new AdminAuditLogQueryCriteria(
-                null, null, null, null, null, null,
-                AdminAuditLogSort.OCCURRED_AT_DESC);
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                AdminAuditLogSort.OCCURRED_AT_DESC
+        );
 
-        AdminPage<AdminAuditLogSummaryProjection> first = repository.findAuditLogs(criteria, 1,
-                2);
-        AdminPage<AdminAuditLogSummaryProjection> second = repository.findAuditLogs(criteria,
-                2, 2);
+        AdminPage<AdminAuditLogSummaryProjection> first = repository.findAuditLogs(
+                criteria,
+                1,
+                2
+        );
+        AdminPage<AdminAuditLogSummaryProjection> second = repository.findAuditLogs(
+                criteria,
+                2,
+                2
+        );
 
         assertThat(first.items()).extracting(log -> log.auditLogId())
                 .containsExactly(ids.get(0), ids.get(1));
@@ -95,7 +138,11 @@ class AdminAuditLogQueryRepositoryTest {
     @Test
     void deleteActor_withAuditHistory_isRejectedToPreserveActorIdentity() {
         Admin actor = persistAdmin("protected-reader");
-        persistApproved(actor.getId(), UUID.randomUUID(), OCCURRED_AT);
+        persistApproved(
+                actor.getId(),
+                UUID.randomUUID(),
+                OCCURRED_AT
+        );
 
         entityManager.remove(actor);
 
@@ -110,7 +157,11 @@ class AdminAuditLogQueryRepositoryTest {
         return admin;
     }
 
-    private AdminAuditLog persistApproved(UUID actorAdminId, UUID targetId, Instant occurredAt) {
+    private AdminAuditLog persistApproved(
+            UUID actorAdminId,
+            UUID targetId,
+            Instant occurredAt
+    ) {
         Map<String, Object> beforeState = new LinkedHashMap<>();
         beforeState.put("moderationStatus", "PENDING");
         beforeState.put("moderatedAt", null);
@@ -122,11 +173,16 @@ class AdminAuditLogQueryRepositoryTest {
                 null,
                 AdminAuditSnapshot.from(beforeState),
                 AdminAuditSnapshot.from(Map.of(
-                        "moderationStatus", "APPROVED",
-                        "moderatedAt", occurredAt,
-                        "moderatedBy", actorAdminId)),
+                        "moderationStatus",
+                        "APPROVED",
+                        "moderatedAt",
+                        occurredAt,
+                        "moderatedBy",
+                        actorAdminId
+                )),
                 occurredAt,
-                UUID.randomUUID());
+                UUID.randomUUID()
+        );
         AdminAuditLog saved = repository.save(log);
         entityManager.flush();
         return saved;

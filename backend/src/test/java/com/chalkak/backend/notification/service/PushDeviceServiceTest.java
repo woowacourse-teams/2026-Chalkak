@@ -72,7 +72,10 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         DeviceRow row = findDevice(login.sessionId());
         assertThat(row.id()).isNotNull();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT user_id FROM push_devices WHERE id = ?", UUID.class, row.id()))
+                "SELECT user_id FROM push_devices WHERE id = ?",
+                UUID.class,
+                row.id()
+        ))
                 .isEqualTo(login.userId());
         assertThat(row.token()).isEqualTo("fcm-token");
         assertThat(row.hash()).isEqualTo(new FcmToken("fcm-token").getHash());
@@ -214,7 +217,9 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         register(existing, "shared-token");
         jdbcTemplate.update(
                 "UPDATE user_refresh_tokens SET " + column + " = ? WHERE session_id = ?",
-                Timestamp.from(NOW), invalid.sessionId());
+                Timestamp.from(NOW),
+                invalid.sessionId()
+        );
 
         // when & then
         assertReauthenticationRequired(invalid.userId(), invalid.sessionId());
@@ -233,11 +238,15 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         if (column.equals("absolute_expires_at")) {
             jdbcTemplate.update(
                     "UPDATE user_refresh_tokens SET expires_at = ? WHERE session_id = ?",
-                    Timestamp.from(expiry), login.sessionId());
+                    Timestamp.from(expiry),
+                    login.sessionId()
+            );
         }
         jdbcTemplate.update(
                 "UPDATE user_refresh_tokens SET " + column + " = ? WHERE session_id = ?",
-                Timestamp.from(expiry), login.sessionId());
+                Timestamp.from(expiry),
+                login.sessionId()
+        );
         given(clock.instant()).willReturn(expiry.minusNanos(1_000));
 
         // when
@@ -290,7 +299,11 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
 
         // when & then
         assertThatThrownBy(
-                () -> pushDeviceService.register(login.userId(), login.sessionId(), "fcm-token"))
+                () -> pushDeviceService.register(
+                        login.userId(),
+                        login.sessionId(),
+                        "fcm-token"
+                ))
                 .isInstanceOf(UnauthorizedException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.UNAUTHORIZED);
         assertThat(countDevices()).isZero();
@@ -304,12 +317,20 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
     }
 
     private void register(Login login, String token) {
-        pushDeviceService.register(login.userId(), login.sessionId(), token);
+        pushDeviceService.register(
+                login.userId(),
+                login.sessionId(),
+                token
+        );
         flushAndClear();
     }
 
     private void assertReauthenticationRequired(UUID userId, UUID sessionId) {
-        assertThatThrownBy(() -> pushDeviceService.register(userId, sessionId, "shared-token"))
+        assertThatThrownBy(() -> pushDeviceService.register(
+                userId,
+                sessionId,
+                "shared-token"
+        ))
                 .isInstanceOf(UnauthorizedException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.REAUTHENTICATION_REQUIRED);
     }
@@ -325,19 +346,27 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
 
     private boolean existsDeviceById(UUID deviceId) {
         return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM push_devices WHERE id = ?", Integer.class, deviceId) > 0;
+                "SELECT COUNT(*) FROM push_devices WHERE id = ?",
+                Integer.class,
+                deviceId
+        ) > 0;
     }
 
     private DeviceRow findDevice(String column, UUID value) {
-        return jdbcTemplate.queryForObject("""
-                SELECT id, fcm_token, fcm_token_hash, registered_at, updated_at
-                FROM push_devices WHERE %s = ?
-                """.formatted(column), (rs, rowNumber) -> new DeviceRow(
-                rs.getObject("id", UUID.class), rs.getString("fcm_token"),
-                rs.getString("fcm_token_hash"),
-                rs.getTimestamp("registered_at").toInstant(),
-                rs.getTimestamp("updated_at").toInstant()),
-                value);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT id, fcm_token, fcm_token_hash, registered_at, updated_at
+                        FROM push_devices WHERE %s = ?
+                        """.formatted(column),
+                (rs, rowNumber) -> new DeviceRow(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("fcm_token"),
+                        rs.getString("fcm_token_hash"),
+                        rs.getTimestamp("registered_at").toInstant(),
+                        rs.getTimestamp("updated_at").toInstant()
+                ),
+                value
+        );
     }
 
     private int countDevices() {
@@ -350,7 +379,12 @@ class PushDeviceServiceTest extends IntegrationTestSupport {
         }
     }
 
-    private record DeviceRow(UUID id, String token, String hash, Instant registeredAt,
-            Instant updatedAt) {
+    private record DeviceRow(
+            UUID id,
+            String token,
+            String hash,
+            Instant registeredAt,
+            Instant updatedAt
+    ) {
     }
 }

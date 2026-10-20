@@ -223,15 +223,21 @@ class AccessLogTest extends IntegrationTestSupport {
     }
 
     private void insertTopic(String topicDate) {
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    ?, '오늘 가장 기억에 남은 순간', CAST(? AS date),
-                    CAST(? AS timestamptz), CAST(? AS timestamptz),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, UUID.randomUUID(), topicDate, topicDate + "T00:00:00Z", topicDate + "T23:59:59Z");
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                        ) VALUES (
+                            ?, '오늘 가장 기억에 남은 순간', CAST(? AS date),
+                            CAST(? AS timestamptz), CAST(? AS timestamptz),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                UUID.randomUUID(),
+                topicDate,
+                topicDate + "T00:00:00Z",
+                topicDate + "T23:59:59Z"
+        );
     }
 
     private Object keyValue(ILoggingEvent event, String key) {

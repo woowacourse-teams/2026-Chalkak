@@ -45,7 +45,8 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
     private final List<Logger> loggers = List.of(
             (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class),
             (Logger) LoggerFactory.getLogger(UnauthorizedEntryPoint.class),
-            (Logger) LoggerFactory.getLogger(ForbiddenAccessDeniedHandler.class));
+            (Logger) LoggerFactory.getLogger(ForbiddenAccessDeniedHandler.class)
+    );
 
     @BeforeEach
     void attachAppender() {
@@ -184,9 +185,17 @@ class GlobalExceptionHandlerLogTest extends IntegrationTestSupport {
         // Then
         assertThat(appender.list).hasSize(2);
         for (ILoggingEvent event : appender.list) {
-            assertThat(event.getFormattedMessage()).doesNotContain(email, token, cookie);
+            assertThat(event.getFormattedMessage()).doesNotContain(
+                    email,
+                    token,
+                    cookie
+            );
             event.getKeyValuePairs().forEach(pair -> assertThat(String.valueOf(pair.value))
-                    .doesNotContain(email, token, cookie));
+                    .doesNotContain(
+                            email,
+                            token,
+                            cookie
+                    ));
             assertThat(event.getThrowableProxy()).isNull();
         }
     }

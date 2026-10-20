@@ -24,12 +24,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0199a002-0000-7000-8000-000000000001");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0199a002-0000-7000-8000-000000000002");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0199a002-0000-7000-8000-000000000003");
+    private static final UUID USER_ID = UUID.fromString("0199a002-0000-7000-8000-000000000001");
+    private static final UUID TOPIC_ID = UUID.fromString("0199a002-0000-7000-8000-000000000002");
+    private static final UUID UPLOAD_ID = UUID.fromString("0199a002-0000-7000-8000-000000000003");
 
     @Autowired
     private PostCommandService postCommandService;
@@ -106,8 +103,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 String.class,
                 result.postId()
         )).isEqualTo("PENDING");
-        then(notificationSender).should().send(argThat(message ->
-                message.actionUri().toString().endsWith("/posts/" + result.postId())
+        then(notificationSender).should().send(argThat(
+                message -> message.actionUri().toString().endsWith("/posts/" + result.postId())
         ));
     }
 
@@ -127,7 +124,12 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
         // When
         postCommandService.completePostImageProcessing(
                 UPLOAD_ID,
-                Map.of("width", 4032, "height", 3024)
+                Map.of(
+                        "width",
+                        4032,
+                        "height",
+                        3024
+                )
         );
 
         // Then
@@ -136,9 +138,9 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 String.class,
                 postId
         )).isEqualTo("PENDING");
-        then(notificationSender).should().send(argThat(message ->
-                message.actionUri().toString().endsWith("/posts/" + postId)
-        ));
+        then(notificationSender).should()
+                .send(argThat(message -> message.actionUri().toString().endsWith("/posts/" + postId)
+                ));
     }
 
     @Test
@@ -157,17 +159,27 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
         // When
         postCommandService.completePostImageProcessing(
                 UPLOAD_ID,
-                Map.of("width", 4032, "height", 3024)
+                Map.of(
+                        "width",
+                        4032,
+                        "height",
+                        3024
+                )
         );
         postCommandService.completePostImageProcessing(
                 UPLOAD_ID,
-                Map.of("width", 1, "height", 1)
+                Map.of(
+                        "width",
+                        1,
+                        "height",
+                        1
+                )
         );
 
         // Then
-        then(notificationSender).should(times(1)).send(argThat(message ->
-                message.actionUri().toString().endsWith("/posts/" + postId)
-        ));
+        then(notificationSender).should(times(1))
+                .send(argThat(message -> message.actionUri().toString().endsWith("/posts/" + postId)
+                ));
     }
 
     @Test
@@ -178,7 +190,12 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
 
         // When
         transactionTemplate.executeWithoutResult(status -> {
-            postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, "롤백 알림");
+            postCommandService.createPost(
+                    USER_ID,
+                    TOPIC_ID,
+                    UPLOAD_ID,
+                    "롤백 알림"
+            );
             status.setRollbackOnly();
         });
 
@@ -193,15 +210,21 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
     }
 
     private void insertUpload(String status, String imageMetadata) {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, image_metadata, expires_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST(? AS post_image_upload_status), CAST(? AS jsonb),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, UPLOAD_ID, USER_ID, status, imageMetadata);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, image_metadata, expires_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST(? AS post_image_upload_status), CAST(? AS jsonb),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                UPLOAD_ID,
+                USER_ID,
+                status,
+                imageMetadata
+        );
     }
 
 }

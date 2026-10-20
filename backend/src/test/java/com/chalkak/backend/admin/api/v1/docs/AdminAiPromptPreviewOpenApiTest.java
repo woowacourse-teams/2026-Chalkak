@@ -15,8 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class AdminAiPromptPreviewOpenApiTest extends IntegrationTestSupport {
 
-    private static final String OPERATION =
-            "$.paths['/api/v1/admin/ai-prompt-previews'].post";
+    private static final String OPERATION = "$.paths['/api/v1/admin/ai-prompt-previews'].post";
 
     @Autowired
     private MockMvc mockMvc;
@@ -28,14 +27,25 @@ class AdminAiPromptPreviewOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(OPERATION + ".responses.keys()")
-                        .value(containsInAnyOrder("200", "400", "401", "403", "404")))
+                        .value(containsInAnyOrder(
+                                "200",
+                                "400",
+                                "401",
+                                "403",
+                                "404"
+                        )))
                 .andExpect(jsonPath(OPERATION + ".security[0].adminAccessToken").isArray())
                 .andExpect(jsonPath(OPERATION
                         + ".requestBody.content['application/json'].schema['$ref']")
                         .value("#/components/schemas/AiPromptPreviewRequest"))
                 .andExpect(jsonPath("$.components.schemas.AiPromptPreviewRequest.required")
                         .value(containsInAnyOrder(
-                                "type", "systemPrompt", "userPromptTemplate", "model", "postId")))
+                                "type",
+                                "systemPrompt",
+                                "userPromptTemplate",
+                                "model",
+                                "postId"
+                        )))
                 .andExpect(jsonPath(
                         "$.components.schemas.AiPromptPreviewRequest.properties.systemPrompt.maxLength")
                         .value(50000))
@@ -45,12 +55,30 @@ class AdminAiPromptPreviewOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.components.schemas.AiPromptPreviewRequest.properties.parameters['$ref']")
                         .value("#/components/schemas/AiPromptParametersRequest"))
-                .andExpect(jsonPath("$.components.schemas.AiPromptPreviewResponse.properties.failureType.enum")
-                        .value(containsInAnyOrder("TIMEOUT", "RATE_LIMITED", "QUOTA_EXCEEDED",
-                                "UPSTREAM_ERROR", "BAD_REQUEST", "REFUSED", "INCOMPLETE", "INVALID_OUTPUT")))
-                .andExpect(jsonPath("$.components.schemas.AiPromptPreviewResponse.properties.keys()")
-                        .value(containsInAnyOrder("succeeded", "failureType", "retryable",
-                                "result", "output", "usage", "latencyMs", "responseId")));
+                .andExpect(jsonPath(
+                        "$.components.schemas.AiPromptPreviewResponse.properties.failureType.enum")
+                        .value(containsInAnyOrder(
+                                "TIMEOUT",
+                                "RATE_LIMITED",
+                                "QUOTA_EXCEEDED",
+                                "UPSTREAM_ERROR",
+                                "BAD_REQUEST",
+                                "REFUSED",
+                                "INCOMPLETE",
+                                "INVALID_OUTPUT"
+                        )))
+                .andExpect(
+                        jsonPath("$.components.schemas.AiPromptPreviewResponse.properties.keys()")
+                                .value(containsInAnyOrder(
+                                        "succeeded",
+                                        "failureType",
+                                        "retryable",
+                                        "result",
+                                        "output",
+                                        "usage",
+                                        "latencyMs",
+                                        "responseId"
+                                )));
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/ai-prompt-previews']").doesNotExist());

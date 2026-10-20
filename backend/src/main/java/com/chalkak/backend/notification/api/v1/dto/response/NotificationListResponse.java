@@ -22,7 +22,8 @@ public record NotificationListResponse(
                 result.hasNext(),
                 result.notifications().stream()
                         .map(NotificationSummaryResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     public record NotificationSummaryResponse(
@@ -52,7 +53,8 @@ public record NotificationListResponse(
                     summary.body(),
                     summary.thumbnailImageUrl(),
                     summary.readAt(),
-                    summary.createdAt());
+                    summary.createdAt()
+            );
         }
     }
 }

@@ -24,6 +24,7 @@ public record AdminPostModerationResponse(
                 result.moderationStatus(),
                 result.moderatedBy(),
                 result.moderatedAt(),
-                result.rejectionReason());
+                result.rejectionReason()
+        );
     }
 }

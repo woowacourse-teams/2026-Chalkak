@@ -55,10 +55,14 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
     void setUp() {
         cleanUp();
         transactionTemplate = new TransactionTemplate(transactionManager);
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, 'audit-service-admin', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, ACTOR_ADMIN_ID, PASSWORD_HASH);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, 'audit-service-admin', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                ACTOR_ADMIN_ID,
+                PASSWORD_HASH
+        );
         jdbcTemplate.update("""
                 INSERT INTO users (
                     id, email, status, signature_original_storage_key, created_at, updated_at
@@ -181,28 +185,32 @@ class AdminAuditLogServiceTest extends IntegrationTestSupport {
                 TARGET_USER_ID,
                 "운영 정책 위반",
                 AdminAuditSnapshot.from(Map.of("status", "ACTIVE")),
-                AdminAuditSnapshot.from(Map.of("status", "BANNED")));
+                AdminAuditSnapshot.from(Map.of("status", "BANNED"))
+        );
     }
 
     private String userStatus() {
         return jdbcTemplate.queryForObject(
                 "SELECT CAST(status AS TEXT) FROM users WHERE id = ?",
                 String.class,
-                TARGET_USER_ID);
+                TARGET_USER_ID
+        );
     }
 
     private int auditLogCount(UUID requestId) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE request_id = ?",
                 Integer.class,
-                requestId);
+                requestId
+        );
     }
 
     private void cleanUp() {
         jdbcTemplate.update(
                 "DELETE FROM admin_audit_logs WHERE actor_admin_id = ? OR target_id = ?",
                 ACTOR_ADMIN_ID,
-                TARGET_USER_ID);
+                TARGET_USER_ID
+        );
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", TARGET_USER_ID);
         jdbcTemplate.update("DELETE FROM admins WHERE id = ?", ACTOR_ADMIN_ID);
     }

@@ -61,17 +61,29 @@ public class PushWorkerService {
 
     public PushProcessingResult process(PushMessage message) {
         if (!isValidMessage(message)) {
-            logSkipped(message, null, "INVALID_MESSAGE");
+            logSkipped(
+                    message,
+                    null,
+                    "INVALID_MESSAGE"
+            );
             return PushProcessingResult.completed();
         }
         if (PushDeadlinePolicy.isExpiredAt(message.expiresAt(), clock.instant())) {
-            logSkipped(message, null, "EXPIRED");
+            logSkipped(
+                    message,
+                    null,
+                    "EXPIRED"
+            );
             return PushProcessingResult.completed();
         }
         List<UUID> deviceIds = transactionTemplate
                 .execute(status -> deviceRepository.findIdsByUserId(message.userId()));
         if (deviceIds.isEmpty()) {
-            logSkipped(message, null, "NO_DEVICES");
+            logSkipped(
+                    message,
+                    null,
+                    "NO_DEVICES"
+            );
         }
         Map<DevicePushResult.Status, Integer> counts = new EnumMap<>(DevicePushResult.Status.class);
         boolean accepted = false;
@@ -79,12 +91,21 @@ public class PushWorkerService {
         Duration retryAfter = Duration.ZERO;
         for (UUID deviceId : deviceIds) {
             DevicePushResult result = sendToDevice(message, deviceId);
-            counts.merge(result.status(), 1, Integer::sum);
+            counts.merge(
+                    result.status(),
+                    1,
+                    Integer::sum
+            );
             accepted = accepted || result.isAccepted();
             retryable = retryable || result.isRetryable();
             retryAfter = findLongestRetryAfter(retryAfter, result);
         }
-        logSummary(message, deviceIds.size(), counts, !accepted && retryable);
+        logSummary(
+                message,
+                deviceIds.size(),
+                counts,
+                !accepted && retryable
+        );
         if (accepted) {
             return PushProcessingResult.completed();
         }
@@ -109,7 +130,12 @@ public class PushWorkerService {
         try {
             return sendToCurrentDevice(message, deviceId);
         } catch (RuntimeException exception) {
-            logDeviceFailure(message, deviceId, "worker_device_failed", exception);
+            logDeviceFailure(
+                    message,
+                    deviceId,
+                    "worker_device_failed",
+                    exception
+            );
             return DevicePushResult.retryable(exception.getClass().getSimpleName());
         }
     }
@@ -124,12 +150,24 @@ public class PushWorkerService {
         }
         DevicePushResult result = sender.send(request);
         if (result.status() == DevicePushResult.Status.SKIPPED) {
-            logSkipped(message, deviceId, result.errorCode());
+            logSkipped(
+                    message,
+                    deviceId,
+                    result.errorCode()
+            );
             return result;
         }
-        logResult(message, deviceId, result);
+        logResult(
+                message,
+                deviceId,
+                result
+        );
         if (result.isInvalidToken()) {
-            deleteInvalidToken(message, deviceId, request);
+            deleteInvalidToken(
+                    message,
+                    deviceId,
+                    request
+            );
         }
         return result;
     }
@@ -144,7 +182,12 @@ public class PushWorkerService {
             transactionTemplate.executeWithoutResult(status -> deviceRepository
                     .deleteByIdAndTokenHash(deviceId, token.getHash()));
         } catch (RuntimeException exception) {
-            logDeviceFailure(message, deviceId, "worker_invalid_token_cleanup_failed", exception);
+            logDeviceFailure(
+                    message,
+                    deviceId,
+                    "worker_invalid_token_cleanup_failed",
+                    exception
+            );
         }
     }
 
@@ -156,18 +199,38 @@ public class PushWorkerService {
         PushDevice device = deviceRepository.findByIdAndUserId(deviceId, message.userId())
                 .orElse(null);
         if (device == null) {
-            return skipRequest(message, deviceId, "DEVICE_MISSING");
+            return skipRequest(
+                    message,
+                    deviceId,
+                    "DEVICE_MISSING"
+            );
         }
         User user = loginSessionService
-                .findUsableUser(message.userId(), device.getSessionId(), clock.instant())
+                .findUsableUser(
+                        message.userId(),
+                        device.getSessionId(),
+                        clock.instant()
+                )
                 .orElse(null);
         if (user == null) {
-            return skipRequest(message, deviceId, "LOGIN_UNUSABLE");
+            return skipRequest(
+                    message,
+                    deviceId,
+                    "LOGIN_UNUSABLE"
+            );
         }
         if (message.type() == NotificationType.TOPIC) {
-            return findTopicRequest(message, device, user);
+            return findTopicRequest(
+                    message,
+                    device,
+                    user
+            );
         }
-        return findNotificationRequest(message, device, user);
+        return findNotificationRequest(
+                message,
+                device,
+                user
+        );
     }
 
     private DevicePushRequest findTopicRequest(
@@ -176,23 +239,43 @@ public class PushWorkerService {
             User user
     ) {
         if (!user.isActive()) {
-            return skipRequest(message, device.getId(), "USER_INACTIVE");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "USER_INACTIVE"
+            );
         }
         if (!message.type().isPushEnabledFor(user)) {
-            return skipRequest(message, device.getId(), "PUSH_DISABLED");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "PUSH_DISABLED"
+            );
         }
         LocalDate today = LocalDate.ofInstant(clock.instant(), KST);
         Topic topic = topicRepository.findActiveByTopicDate(today).orElse(null);
         if (topic == null || !topic.getId().equals(message.sourceId())) {
-            return skipRequest(message, device.getId(), "TOPIC_UNAVAILABLE");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "TOPIC_UNAVAILABLE"
+            );
         }
         if (postRepository.findActiveByAuthorIdAndTopicId(user.getId(), topic.getId())
                 .isPresent()) {
-            return skipRequest(message, device.getId(), "ALREADY_PARTICIPATED");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "ALREADY_PARTICIPATED"
+            );
         }
-        return new DevicePushRequest(message, device.getFcmToken(), TOPIC_PUSH_TITLE,
+        return new DevicePushRequest(
+                message,
+                device.getFcmToken(),
+                TOPIC_PUSH_TITLE,
                 topic.getTitle(),
-                message.expiresAt());
+                message.expiresAt()
+        );
     }
 
     private DevicePushRequest findNotificationRequest(
@@ -201,28 +284,57 @@ public class PushWorkerService {
             User user
     ) {
         if (!message.type().isPushEnabledFor(user)) {
-            return skipRequest(message, device.getId(), "PUSH_DISABLED");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "PUSH_DISABLED"
+            );
         }
         Notification notification = notificationRepository
                 .findForPushByIdAndUserId(message.notificationId(), message.userId()).orElse(null);
         if (notification == null) {
-            return skipRequest(message, device.getId(), "NOTIFICATION_UNAVAILABLE");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "NOTIFICATION_UNAVAILABLE"
+            );
         }
         if (notification.getReadAt() != null) {
-            return skipRequest(message, device.getId(), "ALREADY_READ");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "ALREADY_READ"
+            );
         }
         if (notification.isPushExpired(clock.instant())) {
-            return skipRequest(message, device.getId(), "EXPIRED");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "EXPIRED"
+            );
         }
         if (!matches(message, notification)) {
-            return skipRequest(message, device.getId(), "MESSAGE_MISMATCH");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "MESSAGE_MISMATCH"
+            );
         }
         PublishStatus status = notification.getPublishStatus();
         if (status != PublishStatus.PENDING && status != PublishStatus.PUBLISHED) {
-            return skipRequest(message, device.getId(), "PUBLICATION_INACTIVE");
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "PUBLICATION_INACTIVE"
+            );
         }
-        return new DevicePushRequest(message, device.getFcmToken(), notification.getTitle(),
-                notification.getBody(), notification.getPushExpiresAt());
+        return new DevicePushRequest(
+                message,
+                device.getFcmToken(),
+                notification.getTitle(),
+                notification.getBody(),
+                notification.getPushExpiresAt()
+        );
     }
 
     private DevicePushRequest skipRequest(
@@ -230,7 +342,11 @@ public class PushWorkerService {
             UUID deviceId,
             String reason
     ) {
-        logSkipped(message, deviceId, reason);
+        logSkipped(
+                message,
+                deviceId,
+                reason
+        );
         return null;
     }
 

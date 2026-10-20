@@ -47,7 +47,11 @@ public class AdminAiPromptVersionController implements AdminAiPromptVersionApiDo
             @Valid @ModelAttribute AiPromptVersionListRequest request
     ) {
         return ResponseEntity.ok(AiPromptVersionListResponse.from(
-                versionService.getVersions(request.type(), request.page(), request.pageSize())));
+                versionService.getVersions(
+                        request.type(),
+                        request.page(),
+                        request.pageSize()
+                )));
     }
 
     @Override
@@ -61,8 +65,8 @@ public class AdminAiPromptVersionController implements AdminAiPromptVersionApiDo
     }
 
     private CreateCommand toCommand(AiPromptVersionCreateRequest request) {
-        AiPromptParametersRequest parameters =
-                AiPromptParametersRequest.orDefaults(request.parameters());
+        AiPromptParametersRequest parameters = AiPromptParametersRequest
+                .orDefaults(request.parameters());
         return new CreateCommand(
                 request.type(),
                 request.systemPrompt(),
@@ -72,6 +76,7 @@ public class AdminAiPromptVersionController implements AdminAiPromptVersionApiDo
                 parameters.maxOutputTokens(),
                 parameters.reasoningEffort(),
                 parameters.distinctivePerspectiveThreshold(),
-                request.memo());
+                request.memo()
+        );
     }
 }

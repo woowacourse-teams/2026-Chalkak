@@ -26,16 +26,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
 
-    private static final UUID AUTHOR_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575a1");
-    private static final UUID LIKER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575a2");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575b1");
-    private static final UUID PHOTO_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575c1");
-    private static final UUID POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575d1");
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575a1");
+    private static final UUID LIKER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575a2");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575b1");
+    private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575c1");
+    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6575d1");
 
     @Autowired
     private PostCommandService postCommandService;
@@ -233,18 +228,22 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void insertUsers() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    created_at, updated_at
-                ) VALUES
-                    (?, 'post-deletion-author@example.com', 'ACTIVE',
-                     'chalkak/signatures/deletion-author.webp',
-                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                    (?, 'post-deletion-liker@example.com', 'ACTIVE',
-                     'chalkak/signatures/deletion-liker.webp',
-                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, AUTHOR_ID, LIKER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            created_at, updated_at
+                        ) VALUES
+                            (?, 'post-deletion-author@example.com', 'ACTIVE',
+                             'chalkak/signatures/deletion-author.webp',
+                             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                            (?, 'post-deletion-liker@example.com', 'ACTIVE',
+                             'chalkak/signatures/deletion-liker.webp',
+                             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                AUTHOR_ID,
+                LIKER_ID
+        );
     }
 
     private void insertTopic() {
@@ -275,15 +274,21 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void insertApprovedPost() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, moderated_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '동시성 삭제 대상',
-                    'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, AUTHOR_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, moderated_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '동시성 삭제 대상',
+                            'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                AUTHOR_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
     }
 
     private void cleanUp() {
@@ -291,6 +296,10 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
         jdbcTemplate.update("DELETE FROM topics WHERE id = ?", TOPIC_ID);
-        jdbcTemplate.update("DELETE FROM users WHERE id IN (?, ?)", AUTHOR_ID, LIKER_ID);
+        jdbcTemplate.update(
+                "DELETE FROM users WHERE id IN (?, ?)",
+                AUTHOR_ID,
+                LIKER_ID
+        );
     }
 }

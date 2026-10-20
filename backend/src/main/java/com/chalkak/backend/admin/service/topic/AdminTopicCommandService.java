@@ -46,7 +46,8 @@ public class AdminTopicCommandService {
                 title,
                 topicDate,
                 new ParticipationPeriod(startsAt, endsAt),
-                now);
+                now
+        );
         validateDateAvailable(topicDate);
         validatePeriodAvailable(startsAt, endsAt);
         Topic saved = topicRepository.saveAndFlush(topic);
@@ -56,7 +57,8 @@ public class AdminTopicCommandService {
                 saved,
                 null,
                 AdminAuditSnapshot.from(Map.of()),
-                topicState(saved));
+                topicState(saved)
+        );
         return adminTopicQueryService.getTopic(saved.getId(), now);
     }
 
@@ -77,12 +79,17 @@ public class AdminTopicCommandService {
         topic.validateEditable(now);
         ParticipationPeriod participationPeriod = new ParticipationPeriod(startsAt, endsAt);
         validateDateAvailableExcludingId(topicDate, topicId);
-        validatePeriodAvailableExcludingId(startsAt, endsAt, topicId);
+        validatePeriodAvailableExcludingId(
+                startsAt,
+                endsAt,
+                topicId
+        );
         topic.update(
                 title,
                 topicDate,
                 participationPeriod,
-                now);
+                now
+        );
         Topic saved = topicRepository.saveAndFlush(topic);
         createAuditLog(
                 adminId,
@@ -90,12 +97,17 @@ public class AdminTopicCommandService {
                 saved,
                 null,
                 beforeState,
-                topicState(saved));
+                topicState(saved)
+        );
         return adminTopicQueryService.getTopic(saved.getId(), now);
     }
 
     @Transactional
-    public void deleteTopic(UUID topicId, UUID adminId, String reason) {
+    public void deleteTopic(
+            UUID topicId,
+            UUID adminId,
+            String reason
+    ) {
         validateIds(topicId, adminId);
         String normalizedReason = normalizeReason(reason);
         Topic topic = topicRepository.findActiveByIdForUpdate(topicId)
@@ -108,7 +120,8 @@ public class AdminTopicCommandService {
                 topic,
                 normalizedReason,
                 beforeState,
-                deletionState(topic));
+                deletionState(topic)
+        );
     }
 
     private void validateIds(UUID topicId, UUID adminId) {
@@ -152,7 +165,11 @@ public class AdminTopicCommandService {
             Instant endsAt,
             UUID topicId
     ) {
-        if (topicRepository.existsActiveOverlappingPeriodExcludingId(startsAt, endsAt, topicId)) {
+        if (topicRepository.existsActiveOverlappingPeriodExcludingId(
+                startsAt,
+                endsAt,
+                topicId
+        )) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "다른 주제의 참여 기간과 겹칩니다.");
@@ -185,15 +202,21 @@ public class AdminTopicCommandService {
                 topic.getId(),
                 reason,
                 beforeState,
-                afterState));
+                afterState
+        ));
     }
 
     private AdminAuditSnapshot topicState(Topic topic) {
         return AdminAuditSnapshot.from(Map.of(
-                "title", topic.getTitle(),
-                "topicDate", topic.getTopicDate(),
-                "startsAt", topic.getParticipationPeriod().getStartsAt(),
-                "endsAt", topic.getParticipationPeriod().getEndsAt()));
+                "title",
+                topic.getTitle(),
+                "topicDate",
+                topic.getTopicDate(),
+                "startsAt",
+                topic.getParticipationPeriod().getStartsAt(),
+                "endsAt",
+                topic.getParticipationPeriod().getEndsAt()
+        ));
     }
 
     private AdminAuditSnapshot deletionState(Topic topic) {
