@@ -34,9 +34,19 @@ public class AdminAuditLogQueryService {
         validatePagination(page, pageSize);
         validateOccurredAtRange(occurredFrom, occurredTo);
         AdminAuditLogQueryCriteria criteria = new AdminAuditLogQueryCriteria(
-                adminId, action, targetType, targetId, occurredFrom, occurredTo,
-                sort == null ? AdminAuditLogSort.OCCURRED_AT_DESC : sort);
-        return AdminAuditLogListResult.from(repository.findAuditLogs(criteria, page, pageSize));
+                adminId,
+                action,
+                targetType,
+                targetId,
+                occurredFrom,
+                occurredTo,
+                sort == null ? AdminAuditLogSort.OCCURRED_AT_DESC : sort
+        );
+        return AdminAuditLogListResult.from(repository.findAuditLogs(
+                criteria,
+                page,
+                pageSize
+        ));
     }
 
     private void validateOccurredAtRange(Instant from, Instant to) {

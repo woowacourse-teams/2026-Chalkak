@@ -95,15 +95,18 @@ class AppleClientSecretGeneratorTest {
                 "APPLEKEY01",
                 privateKeyBase64,
                 "https://appleid.apple.com/auth/token",
-                "https://appleid.apple.com/auth/revoke");
+                "https://appleid.apple.com/auth/revoke"
+        );
         AppleOidcProperties oidcProperties = new AppleOidcProperties(
                 "https://appleid.apple.com",
                 "https://appleid.apple.com/auth/keys",
-                "com.chalkak.ios");
+                "com.chalkak.ios"
+        );
         return new AppleClientSecretGenerator(
                 tokenProperties,
                 oidcProperties,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC)
+        );
     }
 
     private KeyPair generateEcKeyPair() throws Exception {

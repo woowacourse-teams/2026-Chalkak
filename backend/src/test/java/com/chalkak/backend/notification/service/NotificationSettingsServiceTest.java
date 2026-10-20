@@ -99,7 +99,11 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        notificationSettingsService.updateSettings(user.getId(), topic, moderation);
+        notificationSettingsService.updateSettings(
+                user.getId(),
+                topic,
+                moderation
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -108,7 +112,11 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 .isEqualTo(new NotificationSettingsResult(expectedTopic, expectedModeration));
 
         // When
-        notificationSettingsService.updateSettings(user.getId(), topic, moderation);
+        notificationSettingsService.updateSettings(
+                user.getId(),
+                topic,
+                moderation
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -122,7 +130,11 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
     void updateSettings_missingUser_throwsUnauthorizedException() {
         // When & Then
         assertThatThrownBy(
-                () -> notificationSettingsService.updateSettings(UUID.randomUUID(), false, null))
+                () -> notificationSettingsService.updateSettings(
+                        UUID.randomUUID(),
+                        false,
+                        null
+                ))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
@@ -139,7 +151,11 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(
-                () -> notificationSettingsService.updateSettings(user.getId(), false, null))
+                () -> notificationSettingsService.updateSettings(
+                        user.getId(),
+                        false,
+                        null
+                ))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));

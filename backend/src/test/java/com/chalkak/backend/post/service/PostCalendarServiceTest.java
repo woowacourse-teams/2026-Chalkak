@@ -59,14 +59,24 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 """, USER_ID);
         insertPost(
                 APPROVED_POST_ID,
-                LocalDate.of(2026, 8, 1),
+                LocalDate.of(
+                        2026,
+                        8,
+                        1
+                ),
                 ModerationStatus.APPROVED,
-                APPROVED_THUMBNAIL_KEY);
+                APPROVED_THUMBNAIL_KEY
+        );
         insertPost(
                 PENDING_POST_ID,
-                LocalDate.of(2026, 8, 31),
+                LocalDate.of(
+                        2026,
+                        8,
+                        31
+                ),
                 ModerationStatus.PENDING,
-                PENDING_THUMBNAIL_KEY);
+                PENDING_THUMBNAIL_KEY
+        );
     }
 
     @Test
@@ -89,15 +99,26 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 8,
                 List.of(
                         new PostCalendarResult.PostSummary(
-                                LocalDate.of(2026, 8, 1),
+                                LocalDate.of(
+                                        2026,
+                                        8,
+                                        1
+                                ),
                                 APPROVED_POST_ID,
                                 "https://cdn.example.com/posts/approved.webp",
-                                ModerationStatus.APPROVED),
+                                ModerationStatus.APPROVED
+                        ),
                         new PostCalendarResult.PostSummary(
-                                LocalDate.of(2026, 8, 31),
+                                LocalDate.of(
+                                        2026,
+                                        8,
+                                        31
+                                ),
                                 PENDING_POST_ID,
                                 "https://cdn.example.com/posts/pending.webp",
-                                ModerationStatus.PENDING))));
+                                ModerationStatus.PENDING
+                        ))
+        ));
     }
 
     @Test
@@ -109,7 +130,11 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 YearMonth.of(2026, 7));
 
         // Then
-        assertThat(result).isEqualTo(new PostCalendarResult(2026, 7, List.of()));
+        assertThat(result).isEqualTo(new PostCalendarResult(
+                2026,
+                7,
+                List.of()
+        ));
     }
 
     @Test
@@ -139,34 +164,45 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
         UUID topicId = UUID.nameUUIDFromBytes(("service-topic-" + topicDate).getBytes());
         UUID photoId = UUID.nameUUIDFromBytes(("service-photo-" + postId).getBytes());
         ZoneId kst = ZoneId.of("Asia/Seoul");
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    ?, '캘린더 서비스 주제', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                        ) VALUES (
+                            ?, '캘린더 서비스 주제', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
                 topicId,
                 topicDate,
                 Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
-                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant()));
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
+                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant())
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
                 photoId,
                 "chalkak/dev/posts/original/" + postId + ".webp",
-                thumbnailStorageKey);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?::moderation_status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, postId, USER_ID, topicId, photoId, moderationStatus.name());
+                thumbnailStorageKey
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?::moderation_status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                postId,
+                USER_ID,
+                topicId,
+                photoId,
+                moderationStatus.name()
+        );
     }
 
     @Test

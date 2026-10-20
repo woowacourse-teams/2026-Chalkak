@@ -40,7 +40,8 @@ final class OidcIdTokenClaimsValidator implements OAuth2TokenValidator<Jwt> {
         OAuth2Error error = new OAuth2Error(
                 OAuth2ErrorCodes.INVALID_TOKEN,
                 message,
-                null);
+                null
+        );
         return OAuth2TokenValidatorResult.failure(error);
     }
 }

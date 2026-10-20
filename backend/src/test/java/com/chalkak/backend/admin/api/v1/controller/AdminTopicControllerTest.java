@@ -46,7 +46,11 @@ class AdminTopicControllerTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("0198fd21-0000-7000-8000-000000000001");
     private static final UUID TOPIC_ID = UUID.fromString("0198fd21-0000-7000-8000-000000000002");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 30);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            30
+    );
     private static final Instant STARTS_AT = Instant.parse("2026-08-29T15:00:00Z");
     private static final Instant ENDS_AT = Instant.parse("2026-08-30T15:00:00Z");
 
@@ -72,15 +76,25 @@ class AdminTopicControllerTest {
     void getTopics_withFilters_returnsTopicPage() throws Exception {
         given(adminTopicQueryService.getTopics(
                 TopicPhase.BEFORE_OPEN,
-                LocalDate.of(2026, 8, 29),
-                LocalDate.of(2026, 8, 31),
+                LocalDate.of(
+                        2026,
+                        8,
+                        29
+                ),
+                LocalDate.of(
+                        2026,
+                        8,
+                        31
+                ),
                 AdminTopicSort.TOPIC_DATE_ASC,
                 2,
-                10)).willReturn(new AdminTopicListResult(
-                        2,
-                        10,
-                        false,
-                        List.of(detail("공개 전 주제"))));
+                10
+        )).willReturn(new AdminTopicListResult(
+                2,
+                10,
+                false,
+                List.of(detail("공개 전 주제"))
+        ));
 
         mockMvc.perform(get("/api/v1/admin/topics")
                 .queryParam("phase", "BEFORE_OPEN")
@@ -108,7 +122,8 @@ class AdminTopicControllerTest {
                 "새 주제",
                 TOPIC_DATE,
                 STARTS_AT,
-                ENDS_AT)).willReturn(detail("새 주제"));
+                ENDS_AT
+        )).willReturn(detail("새 주제"));
 
         mockMvc.perform(post("/api/v1/admin/topics")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -137,7 +152,8 @@ class AdminTopicControllerTest {
                 "수정 주제",
                 TOPIC_DATE,
                 STARTS_AT,
-                ENDS_AT)).willReturn(detail("수정 주제"));
+                ENDS_AT
+        )).willReturn(detail("수정 주제"));
 
         mockMvc.perform(put("/api/v1/admin/topics/{topicId}", TOPIC_ID)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -159,7 +175,8 @@ class AdminTopicControllerTest {
         then(adminTopicCommandService).should().deleteTopic(
                 TOPIC_ID,
                 ADMIN_ID,
-                "주제 편성 변경");
+                "주제 편성 변경"
+        );
     }
 
     @Test
@@ -188,9 +205,14 @@ class AdminTopicControllerTest {
                 STARTS_AT,
                 ENDS_AT,
                 TopicPhase.BEFORE_OPEN,
-                new AdminTopicDetail.PostCounts(1, 2, 0),
+                new AdminTopicDetail.PostCounts(
+                        1,
+                        2,
+                        0
+                ),
                 Instant.parse("2026-08-28T01:00:00Z"),
-                Instant.parse("2026-08-28T01:00:00Z"));
+                Instant.parse("2026-08-28T01:00:00Z")
+        );
     }
 
     private String validBody(String title) {

@@ -23,7 +23,8 @@ final class AdminAuditTransitionRules {
     private static final Set<String> POST_MODERATION_AFTER_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt",
-            "moderatedBy");
+            "moderatedBy"
+    );
     private static final Set<String> POST_DELETION_FIELDS = Set.of(
             "moderationStatus",
             "deletedAt");
@@ -32,28 +33,35 @@ final class AdminAuditTransitionRules {
     private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
             "title",
             "scheduledAt",
-            "bodySha256");
+            "bodySha256"
+    );
     private static final Set<String> DELETED_NOTICE_STATE_FIELDS = Set.of(
             "title",
             "scheduledAt",
             "bodySha256",
-            "deletedAt");
+            "deletedAt"
+    );
     private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
     private static final Set<String> BANNER_STATE_FIELDS = Set.of("titleSha256", "subtitleSha256");
     private static final Set<String> DELETED_BANNER_STATE_FIELDS = Set.of(
-            "titleSha256", "subtitleSha256", "deletedAt");
+            "titleSha256",
+            "subtitleSha256",
+            "deletedAt"
+    );
     private static final Set<String> AI_PROMPT_VERSION_STATE_FIELDS = Set.of("type", "version");
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
             "startsAt",
-            "endsAt");
+            "endsAt"
+    );
     private static final Set<String> DELETED_TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
             "startsAt",
             "endsAt",
-            "deletedAt");
+            "deletedAt"
+    );
 
     private AdminAuditTransitionRules() {
     }
@@ -67,7 +75,8 @@ final class AdminAuditTransitionRules {
                 actorAdminId,
                 beforeState,
                 afterState,
-                ModerationStatus.APPROVED);
+                ModerationStatus.APPROVED
+        );
     }
 
     static boolean isPostRejected(
@@ -79,7 +88,8 @@ final class AdminAuditTransitionRules {
                 actorAdminId,
                 beforeState,
                 afterState,
-                ModerationStatus.REJECTED);
+                ModerationStatus.REJECTED
+        );
     }
 
     static boolean isPostDeleted(
@@ -105,7 +115,8 @@ final class AdminAuditTransitionRules {
                 beforeState,
                 afterState,
                 UserStatus.ACTIVE,
-                UserStatus.BANNED);
+                UserStatus.BANNED
+        );
     }
 
     static boolean isUserUnbanned(
@@ -117,7 +128,8 @@ final class AdminAuditTransitionRules {
                 beforeState,
                 afterState,
                 UserStatus.BANNED,
-                UserStatus.ACTIVE);
+                UserStatus.ACTIVE
+        );
     }
 
     static boolean isTopicCreated(
@@ -301,11 +313,20 @@ final class AdminAuditTransitionRules {
                 && hasValue(
                         beforeState,
                         "moderationStatus",
-                        ModerationStatus.PENDING.name())
+                        ModerationStatus.PENDING.name()
+                )
                 && beforeState.value("moderatedAt") == null
-                && hasValue(afterState, "moderationStatus", decidedStatus.name())
+                && hasValue(
+                        afterState,
+                        "moderationStatus",
+                        decidedStatus.name()
+                )
                 && isInstant(afterState.value("moderatedAt"))
-                && hasValue(afterState, "moderatedBy", actorAdminId.toString());
+                && hasValue(
+                        afterState,
+                        "moderatedBy",
+                        actorAdminId.toString()
+                );
     }
 
     private static boolean isUserStatusChange(
@@ -316,8 +337,16 @@ final class AdminAuditTransitionRules {
     ) {
         return beforeState.hasExactlyFields(USER_STATUS_FIELDS)
                 && afterState.hasExactlyFields(USER_STATUS_FIELDS)
-                && hasValue(beforeState, "status", beforeStatus.name())
-                && hasValue(afterState, "status", afterStatus.name());
+                && hasValue(
+                        beforeState,
+                        "status",
+                        beforeStatus.name()
+                )
+                && hasValue(
+                        afterState,
+                        "status",
+                        afterStatus.name()
+                );
     }
 
     private static boolean isValidTopicState(

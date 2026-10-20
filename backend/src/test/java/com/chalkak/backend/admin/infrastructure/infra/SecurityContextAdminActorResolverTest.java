@@ -67,7 +67,13 @@ class SecurityContextAdminActorResolverTest {
                 now,
                 now.plusSeconds(3600),
                 Map.of("alg", "HS256"),
-                Map.of("sub", subjectId.toString(), "scope", scope.name()));
+                Map.of(
+                        "sub",
+                        subjectId.toString(),
+                        "scope",
+                        scope.name()
+                )
+        );
         JwtAuthenticationToken authentication = new JwtAuthenticationToken(
                 jwt,
                 List.of(new SimpleGrantedAuthority(scope.toAuthority())));

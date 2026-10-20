@@ -110,8 +110,13 @@ class AdminBannerDeletionServiceTest extends IntegrationTestSupport {
         service.deleteBanner(old.getId(), adminId);
 
         // When
-        BannerResult created = service.createBanner(adminId, "새 제목", "새 부제목", URL,
-                "https://cdn.example.com/banner.png");
+        BannerResult created = service.createBanner(
+                adminId,
+                "새 제목",
+                "새 부제목",
+                URL,
+                "https://cdn.example.com/banner.png"
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -122,7 +127,12 @@ class AdminBannerDeletionServiceTest extends IntegrationTestSupport {
     }
 
     private Banner banner() {
-        return Banner.create("제목", "부제목", URL, "https://cdn.example.com/banner.png");
+        return Banner.create(
+                "제목",
+                "부제목",
+                URL,
+                "https://cdn.example.com/banner.png"
+        );
     }
 
     private AdminAuditLog deletionAudit(UUID id) {

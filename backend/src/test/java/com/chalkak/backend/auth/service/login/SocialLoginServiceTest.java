@@ -111,7 +111,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         flushAndClear();
 
         // When
@@ -119,7 +120,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
@@ -137,7 +139,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         flushAndClear();
 
         // When
@@ -145,14 +148,16 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         assertThat(result.refreshToken().value()).isNotBlank();
         List<String> storedHashes = jdbcTemplate.queryForList(
                 "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
                 String.class,
-                user.getId());
+                user.getId()
+        );
         assertThat(storedHashes).hasSize(1);
         assertThat(storedHashes.getFirst())
                 .isNotEqualTo(result.refreshToken().value())
@@ -172,7 +177,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
@@ -190,7 +196,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         userWithdrawalService.withdraw(user.getId());
         flushAndClear();
 
@@ -199,7 +206,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
@@ -217,7 +225,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         user.ban();
         userWithdrawalService.withdraw(user.getId());
         flushAndClear();
@@ -227,7 +236,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null))
+                null
+        ))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("탈퇴한 차단 소셜 계정입니다.");
     }
@@ -245,7 +255,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         flushAndClear();
 
         // When
@@ -253,7 +264,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         Jwt jwt = accessTokenProvider.jwtDecoder()
@@ -274,7 +286,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         flushAndClear();
 
         // When
@@ -282,7 +295,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         Jwt jwt = accessTokenProvider.jwtDecoder()
@@ -304,7 +318,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
                 RAW_NONCE,
-                null);
+                null
+        );
 
         // Then
         assertThat(result.accessToken()).isNull();
@@ -502,7 +517,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.APPLE,
                 APPLE_ID_TOKEN,
                 RAW_NONCE,
-                AUTHORIZATION_CODE);
+                AUTHORIZATION_CODE
+        );
     }
 
     private void givenVerifiedAppleIdToken() {
@@ -533,7 +549,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         return new VerifiedSocialIdentity(
                 SocialProvider.APPLE,
                 subject,
-                "user@privaterelay.appleid.com");
+                "user@privaterelay.appleid.com"
+        );
     }
 
     private SocialAccount saveAppleSocialAccount(User user) {
@@ -541,7 +558,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.APPLE,
-                appleSubjectHmac()));
+                appleSubjectHmac()
+        ));
         flushAndClear();
         return socialAccount;
     }
@@ -553,7 +571,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
                 appleSubjectHmac(),
                 encryptedRefreshToken,
-                expiresAt));
+                expiresAt
+        ));
         flushAndClear();
     }
 
@@ -580,7 +599,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         return new VerifiedSocialIdentity(
                 SocialProvider.GOOGLE,
                 SUBJECT,
-                "user@chalkak.test");
+                "user@chalkak.test"
+        );
     }
 
     private String subjectHmac() {

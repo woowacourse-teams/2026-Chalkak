@@ -76,8 +76,12 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 .truncatedTo(ChronoUnit.MICROS);
 
         // When
-        AdminNoticeResult result = noticeService.createNotice(ADMIN_ID, " 서비스 점검 안내 ",
-                "10월 20일 02:00부터 점검합니다.", scheduledAt);
+        AdminNoticeResult result = noticeService.createNotice(
+                ADMIN_ID,
+                " 서비스 점검 안내 ",
+                "10월 20일 02:00부터 점검합니다.",
+                scheduledAt
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -101,9 +105,13 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         assertThat(auditLog.getTargetType()).isEqualTo(AdminTargetType.NOTICE);
         assertThat(auditLog.getBeforeState()).isEmpty();
         assertThat(auditLog.getAfterState()).containsExactlyInAnyOrderEntriesOf(Map.of(
-                "title", "서비스 점검 안내",
-                "scheduledAt", scheduledAt.toString(),
-                "bodySha256", sha256("10월 20일 02:00부터 점검합니다.")));
+                "title",
+                "서비스 점검 안내",
+                "scheduledAt",
+                scheduledAt.toString(),
+                "bodySha256",
+                sha256("10월 20일 02:00부터 점검합니다.")
+        ));
         assertThat(auditLog.getReason()).isNull();
         assertThat(auditLog.getRequestId()).isEqualTo(requestId);
     }
@@ -115,8 +123,12 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         String body = "비밀번호 정책 변경 안내 — password: 8자 이상\nhttps://cdn.example.com/banner.png";
 
         // When
-        AdminNoticeResult result = noticeService.createNotice(ADMIN_ID, "비밀번호 정책 변경 안내",
-                body, Instant.now());
+        AdminNoticeResult result = noticeService.createNotice(
+                ADMIN_ID,
+                "비밀번호 정책 변경 안내",
+                body,
+                Instant.now()
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -131,8 +143,12 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         Instant scheduledAt = Instant.now().minus(Duration.ofHours(1));
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.createNotice(ADMIN_ID, "서비스 점검 안내",
-                "점검합니다.", scheduledAt))
+        assertThatThrownBy(() -> noticeService.createNotice(
+                ADMIN_ID,
+                "서비스 점검 안내",
+                "점검합니다.",
+                scheduledAt
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
         assertThat(countRows("notices")).isZero();
@@ -143,8 +159,12 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
     @DisplayName("관리자 식별자가 없으면 거절하고 저장하지 않는다")
     void createNotice_nullAdminId_throwsWithoutPersisting() {
         // When & Then
-        assertThatThrownBy(() -> noticeService.createNotice(null, "서비스 점검 안내",
-                "점검합니다.", Instant.now()))
+        assertThatThrownBy(() -> noticeService.createNotice(
+                null,
+                "서비스 점검 안내",
+                "점검합니다.",
+                Instant.now()
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 식별자가 필요합니다.");
         assertThat(countRows("notices")).isZero();
@@ -228,8 +248,13 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 .truncatedTo(ChronoUnit.MICROS);
 
         // When
-        AdminNoticeResult result = noticeService.updateNotice(noticeId, ADMIN_ID,
-                " 점검 일정 변경 ", "10월 21일로 변경합니다.", scheduledAt);
+        AdminNoticeResult result = noticeService.updateNotice(
+                noticeId,
+                ADMIN_ID,
+                " 점검 일정 변경 ",
+                "10월 21일로 변경합니다.",
+                scheduledAt
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -246,13 +271,21 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         assertThat(auditLog.getActorAdminId()).isEqualTo(ADMIN_ID);
         assertThat(auditLog.getReason()).isNull();
         assertThat(auditLog.getBeforeState()).containsExactlyInAnyOrderEntriesOf(Map.of(
-                "title", "서비스 점검 안내",
-                "scheduledAt", "2026-10-19T09:00:00Z",
-                "bodySha256", sha256("점검합니다.")));
+                "title",
+                "서비스 점검 안내",
+                "scheduledAt",
+                "2026-10-19T09:00:00Z",
+                "bodySha256",
+                sha256("점검합니다.")
+        ));
         assertThat(auditLog.getAfterState()).containsExactlyInAnyOrderEntriesOf(Map.of(
-                "title", "점검 일정 변경",
-                "scheduledAt", scheduledAt.toString(),
-                "bodySha256", sha256("10월 21일로 변경합니다.")));
+                "title",
+                "점검 일정 변경",
+                "scheduledAt",
+                scheduledAt.toString(),
+                "bodySha256",
+                sha256("10월 21일로 변경합니다.")
+        ));
     }
 
     @Test
@@ -261,12 +294,20 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         // Given
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
         Instant scheduledAt = Instant.parse("2099-01-01T00:00:00Z");
-        jdbcTemplate.update("UPDATE notices SET scheduled_at = ? WHERE id = ?",
-                Timestamp.from(scheduledAt), noticeId);
+        jdbcTemplate.update(
+                "UPDATE notices SET scheduled_at = ? WHERE id = ?",
+                Timestamp.from(scheduledAt),
+                noticeId
+        );
 
         // When
-        AdminNoticeResult result = noticeService.updateNotice(noticeId, ADMIN_ID,
-                " 서비스 점검 안내 ", "점검합니다.", scheduledAt);
+        AdminNoticeResult result = noticeService.updateNotice(
+                noticeId,
+                ADMIN_ID,
+                " 서비스 점검 안내 ",
+                "점검합니다.",
+                scheduledAt
+        );
 
         // Then
         assertThat(result.title()).isEqualTo("서비스 점검 안내");
@@ -280,12 +321,20 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         // Given
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
         Instant scheduledAt = Instant.parse("2099-01-01T00:00:00.123456Z");
-        jdbcTemplate.update("UPDATE notices SET scheduled_at = ? WHERE id = ?",
-                Timestamp.from(scheduledAt), noticeId);
+        jdbcTemplate.update(
+                "UPDATE notices SET scheduled_at = ? WHERE id = ?",
+                Timestamp.from(scheduledAt),
+                noticeId
+        );
 
         // When
-        noticeService.updateNotice(noticeId, ADMIN_ID, "서비스 점검 안내", "점검합니다.",
-                scheduledAt.plusNanos(789));
+        noticeService.updateNotice(
+                noticeId,
+                ADMIN_ID,
+                "서비스 점검 안내",
+                "점검합니다.",
+                scheduledAt.plusNanos(789)
+        );
 
         // Then
         assertThat(countRows("admin_audit_logs")).isZero();
@@ -300,8 +349,13 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 noticeId);
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, ADMIN_ID, "점검 일정 변경",
-                "점검합니다.", Instant.parse("2026-10-19T09:00:00Z")))
+        assertThatThrownBy(() -> noticeService.updateNotice(
+                noticeId,
+                ADMIN_ID,
+                "점검 일정 변경",
+                "점검합니다.",
+                Instant.parse("2026-10-19T09:00:00Z")
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("배포된 공지는 수정할 수 없습니다.");
         entityManager.clear();
@@ -314,8 +368,13 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
     @DisplayName("없는 공지를 수정하면 찾을 수 없음 예외를 던진다")
     void updateNotice_unknownNotice_throwsNotFoundException() {
         // When & Then
-        assertThatThrownBy(() -> noticeService.updateNotice(UUID.randomUUID(), ADMIN_ID,
-                "점검 일정 변경", "점검합니다.", Instant.now()))
+        assertThatThrownBy(() -> noticeService.updateNotice(
+                UUID.randomUUID(),
+                ADMIN_ID,
+                "점검 일정 변경",
+                "점검합니다.",
+                Instant.now()
+        ))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("공지를 찾을 수 없습니다.");
     }
@@ -327,8 +386,13 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, null, "점검 일정 변경",
-                "점검합니다.", Instant.now()))
+        assertThatThrownBy(() -> noticeService.updateNotice(
+                noticeId,
+                null,
+                "점검 일정 변경",
+                "점검합니다.",
+                Instant.now()
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 식별자가 필요합니다.");
     }
@@ -340,7 +404,11 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
 
         // When
-        noticeService.deleteNotice(noticeId, ADMIN_ID, " 점검 일정 취소 ");
+        noticeService.deleteNotice(
+                noticeId,
+                ADMIN_ID,
+                " 점검 일정 취소 "
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -366,7 +434,11 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 noticeId);
 
         // When
-        noticeService.deleteNotice(noticeId, ADMIN_ID, "잘못 보낸 공지");
+        noticeService.deleteNotice(
+                noticeId,
+                ADMIN_ID,
+                "잘못 보낸 공지"
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -383,11 +455,18 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         // Given
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
         Instant deletedAt = Instant.parse("2026-10-13T00:00:00Z");
-        jdbcTemplate.update("UPDATE notices SET deleted_at = ? WHERE id = ?",
-                Timestamp.from(deletedAt), noticeId);
+        jdbcTemplate.update(
+                "UPDATE notices SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(deletedAt),
+                noticeId
+        );
 
         // When
-        noticeService.deleteNotice(noticeId, ADMIN_ID, "다시 삭제");
+        noticeService.deleteNotice(
+                noticeId,
+                ADMIN_ID,
+                "다시 삭제"
+        );
 
         // Then
         assertThat(noticeService.getNotice(noticeId).deletedAt()).isEqualTo(deletedAt);
@@ -403,7 +482,11 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.deleteNotice(noticeId, ADMIN_ID, reason))
+        assertThatThrownBy(() -> noticeService.deleteNotice(
+                noticeId,
+                ADMIN_ID,
+                reason
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 삭제 사유는 1자 이상 500자 이하여야 합니다.");
         assertThat(noticeService.getNotice(noticeId).deletedAt()).isNull();
@@ -417,10 +500,18 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         UUID accepted = insertNotice("삭제할 공지", "2026-10-12T00:00:00Z");
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.deleteNotice(rejected, ADMIN_ID, "가".repeat(501)))
+        assertThatThrownBy(() -> noticeService.deleteNotice(
+                rejected,
+                ADMIN_ID,
+                "가".repeat(501)
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 삭제 사유는 1자 이상 500자 이하여야 합니다.");
-        noticeService.deleteNotice(accepted, ADMIN_ID, " " + "가".repeat(500) + " ");
+        noticeService.deleteNotice(
+                accepted,
+                ADMIN_ID,
+                " " + "가".repeat(500) + " "
+        );
         assertThat(noticeService.getNotice(accepted).deletedAt()).isNotNull();
     }
 
@@ -428,8 +519,11 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
     @DisplayName("없는 공지를 삭제하면 찾을 수 없음 예외를 던진다")
     void deleteNotice_unknownNotice_throwsNotFoundException() {
         // When & Then
-        assertThatThrownBy(() -> noticeService.deleteNotice(UUID.randomUUID(), ADMIN_ID,
-                "점검 일정 취소"))
+        assertThatThrownBy(() -> noticeService.deleteNotice(
+                UUID.randomUUID(),
+                ADMIN_ID,
+                "점검 일정 취소"
+        ))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("공지를 찾을 수 없습니다.");
     }
@@ -443,8 +537,13 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
                 noticeId);
 
         // When & Then
-        assertThatThrownBy(() -> noticeService.updateNotice(noticeId, ADMIN_ID, "점검 일정 변경",
-                "점검합니다.", Instant.now()))
+        assertThatThrownBy(() -> noticeService.updateNotice(
+                noticeId,
+                ADMIN_ID,
+                "점검 일정 변경",
+                "점검합니다.",
+                Instant.now()
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("삭제된 공지는 수정할 수 없습니다.");
     }
@@ -455,8 +554,11 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
         // Given
         UUID noticeId = insertNotice("서비스 점검 안내", "2026-10-12T00:00:00Z");
         Instant deletedAt = Instant.parse("2026-10-13T00:00:00Z");
-        jdbcTemplate.update("UPDATE notices SET deleted_at = ? WHERE id = ?",
-                Timestamp.from(deletedAt), noticeId);
+        jdbcTemplate.update(
+                "UPDATE notices SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(deletedAt),
+                noticeId
+        );
 
         // When
         AdminNoticeListResult result = noticeService.getNotices(1, 20);
@@ -477,12 +579,18 @@ class AdminNoticeServiceTest extends IntegrationTestSupport {
     }
 
     private UUID insertNotice(String title, String createdAt) {
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
-                VALUES (?, '점검합니다.', '2026-10-19T09:00:00Z', CAST(? AS TIMESTAMPTZ),
-                    CAST(? AS TIMESTAMPTZ))
-                RETURNING id
-                """, UUID.class, title, createdAt, createdAt);
+        return jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                        VALUES (?, '점검합니다.', '2026-10-19T09:00:00Z', CAST(? AS TIMESTAMPTZ),
+                            CAST(? AS TIMESTAMPTZ))
+                        RETURNING id
+                        """,
+                UUID.class,
+                title,
+                createdAt,
+                createdAt
+        );
     }
 
     private String sha256(String value) throws NoSuchAlgorithmException {

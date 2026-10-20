@@ -11,8 +11,11 @@ public record BannerListResponse(
 ) {
 
     public static BannerListResponse from(BannerListResult result) {
-        return new BannerListResponse(result.currentPage(), result.pageSize(),
+        return new BannerListResponse(
+                result.currentPage(),
+                result.pageSize(),
                 result.hasNext(),
-                result.banners().stream().map(BannerResponse::from).toList());
+                result.banners().stream().map(BannerResponse::from).toList()
+        );
     }
 }

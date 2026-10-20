@@ -43,7 +43,8 @@ public class AdminRefreshTokenService
                 refreshTokenGenerator,
                 refreshTokenHasher,
                 refreshTokenPolicy,
-                clock);
+                clock
+        );
         this.accessTokenIssuer = accessTokenIssuer;
     }
 
@@ -60,7 +61,8 @@ public class AdminRefreshTokenService
                 sessionId,
                 tokenHash,
                 expiresAt,
-                absoluteExpiresAt);
+                absoluteExpiresAt
+        );
     }
 
     @Override

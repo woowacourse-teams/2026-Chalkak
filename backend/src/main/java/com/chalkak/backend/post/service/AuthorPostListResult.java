@@ -11,7 +11,8 @@ public record AuthorPostListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<PostSummary> posts) {
+        List<PostSummary> posts
+) {
 
     public static AuthorPostListResult fromPostSlice(
             PostSlice slice,
@@ -19,17 +20,22 @@ public record AuthorPostListResult(
             int pageSize,
             ImageUrlProvider imageUrlProvider
     ) {
-        return new AuthorPostListResult(currentPage, pageSize, slice.hasNext(),
+        return new AuthorPostListResult(
+                currentPage,
+                pageSize,
+                slice.hasNext(),
                 slice.posts().stream()
                         .map(post -> PostSummary.fromPost(post, imageUrlProvider))
-                        .toList());
+                        .toList()
+        );
     }
 
     public record PostSummary(
             UUID id,
             String originalImageUrl,
             String thumbnailImageUrl,
-            TopicSummary topic) {
+            TopicSummary topic
+    ) {
 
         private static PostSummary fromPost(Post post, ImageUrlProvider imageUrlProvider) {
             return new PostSummary(
@@ -39,10 +45,16 @@ public record AuthorPostListResult(
                     new TopicSummary(
                             post.getTopic().getId(),
                             post.getTopic().getTitle(),
-                            post.getTopic().getTopicDate()));
+                            post.getTopic().getTopicDate()
+                    )
+            );
         }
     }
 
-    public record TopicSummary(UUID id, String title, LocalDate topicDate) {
+    public record TopicSummary(
+            UUID id,
+            String title,
+            LocalDate topicDate
+    ) {
     }
 }

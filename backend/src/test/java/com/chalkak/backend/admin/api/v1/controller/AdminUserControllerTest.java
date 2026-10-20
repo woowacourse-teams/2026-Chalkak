@@ -85,16 +85,23 @@ class AdminUserControllerTest {
                         AdminUserStatus.ACTIVE,
                         "1.2.3",
                         SocialProvider.GOOGLE,
-                        new AdminUserPostCounts(1, 2, 0),
+                        new AdminUserPostCounts(
+                                1,
+                                2,
+                                0
+                        ),
                         CREATED_AT,
                         UPDATED_AT,
-                        null)));
+                        null
+                ))
+        );
         given(adminUserQueryService.getUsers(
                 AdminUserStatus.ACTIVE,
                 null,
                 AdminUserSort.CREATED_AT_DESC,
                 1,
-                20)).willReturn(result);
+                20
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/users"))
@@ -115,7 +122,8 @@ class AdminUserControllerTest {
                 null,
                 AdminUserSort.CREATED_AT_DESC,
                 1,
-                20);
+                20
+        );
     }
 
     @Test
@@ -127,7 +135,13 @@ class AdminUserControllerTest {
                 "withdrawn+",
                 AdminUserSort.CREATED_AT_ASC,
                 2,
-                50)).willReturn(new AdminUserListResult(2, 50, false, List.of()));
+                50
+        )).willReturn(new AdminUserListResult(
+                2,
+                50,
+                false,
+                List.of()
+        ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/users")
@@ -144,7 +158,8 @@ class AdminUserControllerTest {
                 "withdrawn+",
                 AdminUserSort.CREATED_AT_ASC,
                 2,
-                50);
+                50
+        );
     }
 
     @ParameterizedTest
@@ -179,10 +194,15 @@ class AdminUserControllerTest {
                 null,
                 SocialProvider.KAKAO,
                 new AdminUserDetail.Signature(null, null),
-                new AdminUserPostCounts(0, 0, 1),
+                new AdminUserPostCounts(
+                        0,
+                        0,
+                        1
+                ),
                 CREATED_AT,
                 UPDATED_AT,
-                UPDATED_AT);
+                UPDATED_AT
+        );
         given(adminUserQueryService.getUser(USER_ID)).willReturn(result);
 
         // When & Then
@@ -216,9 +236,10 @@ class AdminUserControllerTest {
                 USER_ID,
                 ADMIN_ID,
                 com.chalkak.backend.user.domain.UserStatus.BANNED,
-                "운영 정책 위반")).willReturn(new AdminUserStatusResult(
-                        USER_ID,
-                        com.chalkak.backend.user.domain.UserStatus.BANNED));
+                "운영 정책 위반"
+        )).willReturn(new AdminUserStatusResult(
+                USER_ID,
+                com.chalkak.backend.user.domain.UserStatus.BANNED));
 
         // When & Then
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
@@ -267,9 +288,10 @@ class AdminUserControllerTest {
                 USER_ID,
                 ADMIN_ID,
                 com.chalkak.backend.user.domain.UserStatus.ACTIVE,
-                "상태 확인")).willThrow(new BusinessException(
-                        ErrorCode.RESOURCE_STATE_CHANGED,
-                        "이미 활성 상태인 회원입니다."));
+                "상태 확인"
+        )).willThrow(new BusinessException(
+                ErrorCode.RESOURCE_STATE_CHANGED,
+                "이미 활성 상태인 회원입니다."));
 
         // When & Then
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)

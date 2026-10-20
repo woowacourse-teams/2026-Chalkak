@@ -18,7 +18,8 @@ public record AdminTopicDetailResponse(
         TopicPhase phase,
         AdminTopicPostCounts postCounts,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt
+) {
 
     public static AdminTopicDetailResponse from(AdminTopicDetail detail) {
         return new AdminTopicDetailResponse(
@@ -30,6 +31,7 @@ public record AdminTopicDetailResponse(
                 detail.phase(),
                 AdminTopicPostCounts.from(detail.postCounts()),
                 detail.createdAt(),
-                detail.updatedAt());
+                detail.updatedAt()
+        );
     }
 }

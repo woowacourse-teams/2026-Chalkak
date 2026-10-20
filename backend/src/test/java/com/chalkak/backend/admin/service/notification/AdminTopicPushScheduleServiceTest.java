@@ -75,7 +75,11 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(results).extracting(TopicPushScheduleResult::sendTime)
-                .containsExactly(LocalTime.of(8, 30), LocalTime.of(9, 0), LocalTime.of(18, 0));
+                .containsExactly(
+                        LocalTime.of(8, 30),
+                        LocalTime.of(9, 0),
+                        LocalTime.of(18, 0)
+                );
         assertThat(results).allSatisfy(result -> {
             assertThat(result.scheduleId()).isNotNull();
             assertThat(result.createdAt()).isNotNull();
@@ -168,7 +172,11 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
     void createSchedule_nonZeroSecond_doesNotQueryOrPersist() {
         // When & Then
         assertPreparedStatementCount(0, () -> assertThatThrownBy(
-                () -> scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0, 1)))
+                () -> scheduleService.createSchedule(ADMIN_ID, LocalTime.of(
+                        9,
+                        0,
+                        1
+                )))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
         assertThat(scheduleService.getSchedules()).isEmpty();
@@ -185,8 +193,15 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertPreparedStatementCount(1, () -> assertThatThrownBy(
-                () -> scheduleService.updateSchedule(original.scheduleId(), ADMIN_ID,
-                        LocalTime.of(18, 0, 1)))
+                () -> scheduleService.updateSchedule(
+                        original.scheduleId(),
+                        ADMIN_ID,
+                        LocalTime.of(
+                                18,
+                                0,
+                                1
+                        )
+                ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("주제 푸시 발송 시각은 분 단위의 KST 시각이어야 합니다."));
         entityManager.clear();
@@ -207,8 +222,11 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
                 .getCreatedAt();
 
         // When
-        TopicPushScheduleResult result = scheduleService.updateSchedule(original.scheduleId(),
-                ADMIN_ID, LocalTime.of(18, 30));
+        TopicPushScheduleResult result = scheduleService.updateSchedule(
+                original.scheduleId(),
+                ADMIN_ID,
+                LocalTime.of(18, 30)
+        );
         entityManager.clear();
 
         // Then
@@ -237,8 +255,11 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
                 LocalTime.of(9, 0));
 
         // When
-        TopicPushScheduleResult result = scheduleService.updateSchedule(original.scheduleId(),
-                ADMIN_ID, LocalTime.of(9, 0));
+        TopicPushScheduleResult result = scheduleService.updateSchedule(
+                original.scheduleId(),
+                ADMIN_ID,
+                LocalTime.of(9, 0)
+        );
 
         // Then
         assertThat(result).isEqualTo(original);
@@ -256,8 +277,11 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(
-                () -> scheduleService.updateSchedule(original.scheduleId(), ADMIN_ID,
-                        LocalTime.of(18, 0)))
+                () -> scheduleService.updateSchedule(
+                        original.scheduleId(),
+                        ADMIN_ID,
+                        LocalTime.of(18, 0)
+                ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("해당 시각의 주제 푸시 설정이 이미 존재합니다.");
         assertThat(scheduleService.getSchedules()).extracting(TopicPushScheduleResult::sendTime)
@@ -270,8 +294,11 @@ class AdminTopicPushScheduleServiceTest extends IntegrationTestSupport {
     void updateSchedule_missingSchedule_throwsNotFoundException() {
         // When & Then
         assertThatThrownBy(
-                () -> scheduleService.updateSchedule(UUID.randomUUID(), ADMIN_ID,
-                        LocalTime.of(9, 0)))
+                () -> scheduleService.updateSchedule(
+                        UUID.randomUUID(),
+                        ADMIN_ID,
+                        LocalTime.of(9, 0)
+                ))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("주제 푸시 설정을 찾을 수 없습니다.");
     }

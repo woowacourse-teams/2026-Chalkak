@@ -20,8 +20,8 @@ class PostLikeServiceTest extends IntegrationTestSupport {
 
     private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
-    private static final UUID UNKNOWN_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a3");
+    private static final UUID UNKNOWN_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a3");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 
     @Autowired
@@ -76,20 +76,21 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP
                 )
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    '오늘의 순간',
-                    'APPROVED',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
+        jdbcTemplate
+                .update("""
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                            '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
+                            '오늘의 순간',
+                            'APPROVED',
+                            CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP
+                        )
+                        """);
     }
 
     @Test
@@ -99,7 +100,11 @@ class PostLikeServiceTest extends IntegrationTestSupport {
         PostLikeResult result = postLikeService.likePost(POST_ID, USER_ID);
 
         // Then
-        assertThat(result).isEqualTo(new PostLikeResult(POST_ID, 1L, true));
+        assertThat(result).isEqualTo(new PostLikeResult(
+                POST_ID,
+                1L,
+                true
+        ));
         assertThat(countPostLikes()).isEqualTo(1L);
     }
 
@@ -113,7 +118,11 @@ class PostLikeServiceTest extends IntegrationTestSupport {
         PostLikeResult result = postLikeService.likePost(POST_ID, USER_ID);
 
         // Then
-        assertThat(result).isEqualTo(new PostLikeResult(POST_ID, 1L, true));
+        assertThat(result).isEqualTo(new PostLikeResult(
+                POST_ID,
+                1L,
+                true
+        ));
         assertThat(countPostLikes()).isEqualTo(1L);
     }
 
@@ -127,7 +136,11 @@ class PostLikeServiceTest extends IntegrationTestSupport {
         PostLikeResult result = postLikeService.unlikePost(POST_ID, USER_ID);
 
         // Then
-        assertThat(result).isEqualTo(new PostLikeResult(POST_ID, 0L, false));
+        assertThat(result).isEqualTo(new PostLikeResult(
+                POST_ID,
+                0L,
+                false
+        ));
         assertThat(countPostLikes()).isZero();
     }
 
@@ -138,7 +151,11 @@ class PostLikeServiceTest extends IntegrationTestSupport {
         PostLikeResult result = postLikeService.unlikePost(POST_ID, USER_ID);
 
         // Then
-        assertThat(result).isEqualTo(new PostLikeResult(POST_ID, 0L, false));
+        assertThat(result).isEqualTo(new PostLikeResult(
+                POST_ID,
+                0L,
+                false
+        ));
         assertThat(countPostLikes()).isZero();
     }
 

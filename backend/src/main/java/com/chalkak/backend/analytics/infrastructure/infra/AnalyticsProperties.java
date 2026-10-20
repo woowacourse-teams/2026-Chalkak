@@ -17,7 +17,8 @@ public record AnalyticsProperties(
         List<UUID> excludedUserIds,
         String logGroup,
         LocalDate logMetricsStartDate,
-        int logRetentionDays) {
+        int logRetentionDays
+) {
 
     public AnalyticsProperties {
         if (logRetentionDays <= 0) {

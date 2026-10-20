@@ -19,7 +19,8 @@ public record AdminAuditLogSummaryProjection(
         Map<String, Object> beforeState,
         Map<String, Object> afterState,
         Instant occurredAt,
-        UUID requestId) {
+        UUID requestId
+) {
 
     public AdminAuditLogSummaryProjection {
         beforeState = immutableCopy(beforeState);

@@ -42,7 +42,8 @@ public class AdminAuditLogService {
                 command.beforeState(),
                 command.afterState(),
                 Instant.now(),
-                currentRequestId.resolve());
+                currentRequestId.resolve()
+        );
         return adminAuditLogRepository.save(auditLog);
     }
 }

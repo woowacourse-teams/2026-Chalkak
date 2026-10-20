@@ -66,9 +66,16 @@ public class Banner {
             String thumbnailUrl
     ) {
         Banner banner = new Banner();
-        banner.title = normalizeText(title, MAX_TITLE_LENGTH, "배너 제목은 1자 이상 50자 이하여야 합니다.");
-        banner.subtitle = normalizeText(subtitle, MAX_SUBTITLE_LENGTH,
-                "배너 부제목은 1자 이상 100자 이하여야 합니다.");
+        banner.title = normalizeText(
+                title,
+                MAX_TITLE_LENGTH,
+                "배너 제목은 1자 이상 50자 이하여야 합니다."
+        );
+        banner.subtitle = normalizeText(
+                subtitle,
+                MAX_SUBTITLE_LENGTH,
+                "배너 부제목은 1자 이상 100자 이하여야 합니다."
+        );
         banner.webViewUrl = normalizeUrl(webViewUrl, "배너 웹뷰 URL");
         banner.thumbnailUrl = normalizeUrl(thumbnailUrl, "배너 썸네일 URL");
         return banner;
@@ -99,8 +106,11 @@ public class Banner {
     }
 
     private static String normalizeUrl(String value, String fieldName) {
-        String normalized = normalizeText(value, MAX_URL_LENGTH,
-                fieldName + "은 1자 이상 2,000자 이하여야 합니다.");
+        String normalized = normalizeText(
+                value,
+                MAX_URL_LENGTH,
+                fieldName + "은 1자 이상 2,000자 이하여야 합니다."
+        );
         try {
             URI uri = new URI(normalized).parseServerAuthority();
             if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null

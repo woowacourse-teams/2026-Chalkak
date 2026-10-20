@@ -61,7 +61,10 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_withoutParameters_usesDefaults() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
-                AdminFeedbackSort.CREATED_AT_DESC, 1, 20))
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        ))
                 .willReturn(listResult());
 
         // When & Then
@@ -79,7 +82,11 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.feedbacks[0].author.appVersion").value("1.2.3"));
 
         then(adminFeedbackQueryService).should()
-                .getFeedbacks(AdminFeedbackSort.CREATED_AT_DESC, 1, 20);
+                .getFeedbacks(
+                        AdminFeedbackSort.CREATED_AT_DESC,
+                        1,
+                        20
+                );
     }
 
     @Test
@@ -87,7 +94,10 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_withParameters_passesThemToService() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
-                AdminFeedbackSort.CREATED_AT_ASC, 2, 50))
+                AdminFeedbackSort.CREATED_AT_ASC,
+                2,
+                50
+        ))
                 .willReturn(listResult());
 
         // When & Then
@@ -98,7 +108,11 @@ class AdminFeedbackControllerTest {
                 .andExpect(status().isOk());
 
         then(adminFeedbackQueryService).should()
-                .getFeedbacks(AdminFeedbackSort.CREATED_AT_ASC, 2, 50);
+                .getFeedbacks(
+                        AdminFeedbackSort.CREATED_AT_ASC,
+                        2,
+                        50
+                );
     }
 
     @Test
@@ -136,6 +150,9 @@ class AdminFeedbackControllerTest {
                                 USER_ID,
                                 "user@example.com",
                                 AdminUserStatus.ACTIVE,
-                                "1.2.3"))));
+                                "1.2.3"
+                        )
+                ))
+        );
     }
 }

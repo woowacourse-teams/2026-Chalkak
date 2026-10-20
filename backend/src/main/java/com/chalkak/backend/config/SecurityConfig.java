@@ -103,7 +103,8 @@ public class SecurityConfig {
                                     AuthorityAuthorizationManager.hasAuthority(
                                             AccessTokenScope.USER.toAuthority()),
                                     AuthorityAuthorizationManager.hasAuthority(
-                                            AccessTokenScope.ADMIN.toAuthority())));
+                                            AccessTokenScope.ADMIN.toAuthority())
+                            ));
                     // 비로그인 조회를 허용하되 관리자 토큰까지 받지는 않는다. 통과시키면
                     // 선택적 회원 인증이 관리자 식별자를 회원 식별자로 해석한다.
                     request.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)

@@ -42,7 +42,8 @@ public class AuthController implements AuthApiDocs {
                 request.provider(),
                 request.idToken(),
                 request.rawNonce(),
-                request.authorizationCode());
+                request.authorizationCode()
+        );
 
         return ResponseEntity.ok(SocialLoginResponse.from(result));
     }
@@ -55,7 +56,8 @@ public class AuthController implements AuthApiDocs {
         SocialSignupSignatureUploadResult result = socialSignupService.createSignatureUpload(
                 request.provider(),
                 request.idToken(),
-                request.rawNonce());
+                request.rawNonce()
+        );
 
         return ResponseEntity.ok(SocialSignupSignatureUploadResponse.from(result));
     }

@@ -12,14 +12,20 @@ public record AiPromptParametersRequest(
         @Schema(description = "추론 강도. 생략하면 모델 기본값을 사용합니다.")
         ReasoningEffort reasoningEffort,
         @Schema(description = "주제 표현 점수가 이 값 이상이면 독특한 시각으로 판정하는 기준(0~10). 생략하면 7.0.")
-        Double distinctivePerspectiveThreshold) {
+        Double distinctivePerspectiveThreshold
+) {
 
     /**
      * parameters 객체를 통째로 생략한 요청은 모든 항목을 생략한 것과 같게 본다.
      */
     public static AiPromptParametersRequest orDefaults(AiPromptParametersRequest parameters) {
         return parameters == null
-                ? new AiPromptParametersRequest(null, null, null, null)
+                ? new AiPromptParametersRequest(
+                        null,
+                        null,
+                        null,
+                        null
+                )
                 : parameters;
     }
 }

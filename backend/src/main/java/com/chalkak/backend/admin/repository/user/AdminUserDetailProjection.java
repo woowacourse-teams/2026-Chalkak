@@ -18,5 +18,6 @@ public record AdminUserDetailProjection(
         Instant deletedAt,
         long pendingPostCount,
         long approvedPostCount,
-        long rejectedPostCount) {
+        long rejectedPostCount
+) {
 }

@@ -36,13 +36,24 @@ public class AdminBannerService {
             String webViewUrl,
             String thumbnailUrl
     ) {
-        Banner banner = Banner.create(title, subtitle, webViewUrl, thumbnailUrl);
+        Banner banner = Banner.create(
+                title,
+                subtitle,
+                webViewUrl,
+                thumbnailUrl
+        );
         validateDuplicateWebView(banner.getWebViewUrl());
         Banner saved = bannerRepository.save(banner);
         AdminAuditSnapshot afterState = createBannerState(saved);
         auditLogService.createAuditLog(new AdminAuditLogCommand(
-                adminId, AdminAction.BANNER_CREATED, AdminTargetType.BANNER, saved.getId(), null,
-                AdminAuditSnapshot.from(Map.of()), afterState));
+                adminId,
+                AdminAction.BANNER_CREATED,
+                AdminTargetType.BANNER,
+                saved.getId(),
+                null,
+                AdminAuditSnapshot.from(Map.of()),
+                afterState
+        ));
         return BannerResult.from(saved);
     }
 
@@ -57,15 +68,24 @@ public class AdminBannerService {
         AdminAuditSnapshot beforeState = createDeletionState(banner);
         banner.delete(clock.instant());
         auditLogService.createAuditLog(new AdminAuditLogCommand(
-                adminId, AdminAction.BANNER_DELETED, AdminTargetType.BANNER, banner.getId(),
-                null, beforeState, createDeletionState(banner)));
+                adminId,
+                AdminAction.BANNER_DELETED,
+                AdminTargetType.BANNER,
+                banner.getId(),
+                null,
+                beforeState,
+                createDeletionState(banner)
+        ));
     }
 
     // URL·문구 원문의 노출을 막고, 문구가 감사 민감값 검증에 걸려 등록이 실패하지 않도록 해시만 남긴다.
     private AdminAuditSnapshot createBannerState(Banner banner) {
         return AdminAuditSnapshot.from(Map.of(
-                "titleSha256", AdminAuditHash.createSha256(banner.getTitle()),
-                "subtitleSha256", AdminAuditHash.createSha256(banner.getSubtitle())));
+                "titleSha256",
+                AdminAuditHash.createSha256(banner.getTitle()),
+                "subtitleSha256",
+                AdminAuditHash.createSha256(banner.getSubtitle())
+        ));
     }
 
     private AdminAuditSnapshot createDeletionState(Banner banner) {

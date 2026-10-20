@@ -14,7 +14,13 @@ public record BannerResponse(
 ) {
 
     public static BannerResponse from(BannerResult result) {
-        return new BannerResponse(result.id(), result.title(), result.subtitle(),
-                result.webViewUrl(), result.thumbnailUrl(), result.createdAt());
+        return new BannerResponse(
+                result.id(),
+                result.title(),
+                result.subtitle(),
+                result.webViewUrl(),
+                result.thumbnailUrl(),
+                result.createdAt()
+        );
     }
 }

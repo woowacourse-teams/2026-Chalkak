@@ -74,7 +74,8 @@ class AdminAuditRequestIdTest extends IntegrationTestSupport {
         UUID savedRequestId = jdbcTemplate.queryForObject(
                 "SELECT request_id FROM admin_audit_logs WHERE target_id = ?",
                 UUID.class,
-                USER_ID);
+                USER_ID
+        );
         assertThat(savedRequestId).hasToString(responseRequestId);
     }
 }

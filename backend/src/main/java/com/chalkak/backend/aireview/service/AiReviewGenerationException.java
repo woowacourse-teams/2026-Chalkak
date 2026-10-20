@@ -43,17 +43,12 @@ public class AiReviewGenerationException extends BusinessException {
     }
 
     /**
-     * AI 리뷰 생성 실패 유형. 같은 요청을 다시 보내면 성공할 수 있는 실패만 재시도 대상이다. 결제·사용 한도 소진은 기다려도 풀리지 않아 재시도하지 않는다.
+     * AI 리뷰 생성 실패 유형. 같은 요청을 다시 보내면 성공할 수 있는 실패만 재시도 대상이다. 결제·사용 한도 소진은 기다려도 풀리지 않아
+     * 재시도하지 않는다.
      */
     public enum FailureType {
-        TIMEOUT(true),
-        RATE_LIMITED(true),
-        QUOTA_EXCEEDED(false),
-        UPSTREAM_ERROR(true),
-        BAD_REQUEST(false),
-        REFUSED(false),
-        INCOMPLETE(false),
-        INVALID_OUTPUT(false);
+        TIMEOUT(true), RATE_LIMITED(true), QUOTA_EXCEEDED(false), UPSTREAM_ERROR(true), BAD_REQUEST(
+                false), REFUSED(false), INCOMPLETE(false), INVALID_OUTPUT(false);
 
         private final boolean retryable;
 

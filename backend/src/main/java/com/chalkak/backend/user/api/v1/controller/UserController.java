@@ -52,7 +52,8 @@ public class UserController implements UserApiDocs {
                         CanonicalUuidParser.parse(authorId),
                         request.page(),
                         request.pageSize(),
-                        loginUser.userId())));
+                        loginUser.userId()
+                )));
     }
 
     @Override

@@ -82,8 +82,16 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     void setUp() {
         new DatabaseCleaner(jdbc).clean();
         insertUser(USER_ID);
-        insertTopic(TOPIC_ID, LocalDate.of(2026, 10, 12));
-        insertSchedule(SCHEDULE_ID, LocalTime.of(9, 0), NOW.minusSeconds(3600));
+        insertTopic(TOPIC_ID, LocalDate.of(
+                2026,
+                10,
+                12
+        ));
+        insertSchedule(
+                SCHEDULE_ID,
+                LocalTime.of(9, 0),
+                NOW.minusSeconds(3600)
+        );
         publisher = mock(PushMessagePublisher.class);
         given(publisher.publish(any())).willReturn(PushPublicationResult.accepted("sqs-message"));
         clock = new FakeClock(NOW);
@@ -109,18 +117,27 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         }
         jdbc.update("UPDATE users SET moderation_push_enabled=false WHERE id=?", new UUID(0, 2));
         jdbc.update("UPDATE users SET status='BANNED' WHERE id=?", new UUID(0, 3));
-        jdbc.update("UPDATE users SET deleted_at=? WHERE id=?", Timestamp.from(NOW),
-                new UUID(0, 4));
+        jdbc.update(
+                "UPDATE users SET deleted_at=? WHERE id=?",
+                Timestamp.from(NOW),
+                new UUID(0, 4)
+        );
         jdbc.update("UPDATE users SET topic_push_enabled=false WHERE id=?", new UUID(0, 5));
         UUID photoId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO photos(id,original_storage_key,thumbnail_storage_key)
                 VALUES (?,'topic/original','topic/thumbnail')
                 """, photoId);
-        jdbc.update("""
-                INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
-                VALUES (?,?,?,?,'APPROVED')
-                """, UUID.randomUUID(), new UUID(0, 6), TOPIC_ID, photoId);
+        jdbc.update(
+                """
+                        INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
+                        VALUES (?,?,?,?,'APPROVED')
+                        """,
+                UUID.randomUUID(),
+                new UUID(0, 6),
+                TOPIC_ID,
+                photoId
+        );
         given(publisher.publish(any())).willAnswer(call -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             return PushPublicationResult.accepted("sqs-message");
@@ -157,10 +174,16 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 INSERT INTO photos(id,original_storage_key,thumbnail_storage_key)
                 VALUES (?,'topic/original','topic/thumbnail')
                 """, photoId);
-        jdbc.update("""
-                INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
-                VALUES (?,?,?,?,'PENDING')
-                """, UUID.randomUUID(), USER_ID, TOPIC_ID, photoId);
+        jdbc.update(
+                """
+                        INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
+                        VALUES (?,?,?,?,'PENDING')
+                        """,
+                UUID.randomUUID(),
+                USER_ID,
+                TOPIC_ID,
+                photoId
+        );
 
         // When
         service.publishDueTopics();
@@ -204,18 +227,30 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     @DisplayName("여러 시각을 회차별로 한 번 실행하고 다음 날 다시 실행한다")
     void publishDueTopics_multipleTimesAndDays_distinguishesOccurrences() {
         // Given
-        insertSchedule(UUID.randomUUID(), LocalTime.of(9, 10), NOW.minusSeconds(3600));
+        insertSchedule(
+                UUID.randomUUID(),
+                LocalTime.of(9, 10),
+                NOW.minusSeconds(3600)
+        );
         clock.set(NOW.plusSeconds(600));
         // When
         service.publishDueTopics();
         service.publishDueTopics();
-        insertTopic(UUID.randomUUID(), LocalDate.of(2026, 10, 13));
+        insertTopic(UUID.randomUUID(), LocalDate.of(
+                2026,
+                10,
+                13
+        ));
         clock.set(NOW.plusSeconds(86400 + 600));
         service.publishDueTopics();
         // Then
         List<PushMessage> messages = captureMessages(4);
         assertThat(messages).extracting(PushMessage::occurredAt).containsExactly(
-                NOW, NOW.plusSeconds(600), NOW.plusSeconds(86400), NOW.plusSeconds(87000));
+                NOW,
+                NOW.plusSeconds(600),
+                NOW.plusSeconds(86400),
+                NOW.plusSeconds(87000)
+        );
         assertThat(messages).extracting(PushMessage::eventId).doesNotHaveDuplicates();
         assertThat(messages.getFirst().expiresAt()).isEqualTo(NOW.plusSeconds(1800));
     }
@@ -243,7 +278,11 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         // Given
         if (change.equals("created")) {
             jdbc.update("DELETE FROM topic_push_schedules");
-            insertSchedule(SCHEDULE_ID, LocalTime.of(9, 0), NOW.plusSeconds(1));
+            insertSchedule(
+                    SCHEDULE_ID,
+                    LocalTime.of(9, 0),
+                    NOW.plusSeconds(1)
+            );
         }
         if (change.equals("updated")) {
             jdbc.update("UPDATE topic_push_schedules SET updated_at=?",
@@ -255,7 +294,11 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         // Then
         verifyNoInteractions(publisher);
         UUID tomorrowTopic = UUID.randomUUID();
-        insertTopic(tomorrowTopic, LocalDate.of(2026, 10, 13));
+        insertTopic(tomorrowTopic, LocalDate.of(
+                2026,
+                10,
+                13
+        ));
         clock.set(NOW.plusSeconds(86400));
         service.publishDueTopics();
         PushMessage message = captureMessages(1).getFirst();
@@ -267,9 +310,11 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     @DisplayName("앞으로 도래하는 시각으로 수정하면 당일 새 시각부터 실행한다")
     void publishDueTopics_futureTimeUpdate_appliesUpcomingTime() {
         // Given
-        jdbc.update("UPDATE topic_push_schedules SET send_time=?,updated_at=?",
+        jdbc.update(
+                "UPDATE topic_push_schedules SET send_time=?,updated_at=?",
                 Time.valueOf("09:10:00"),
-                Timestamp.from(NOW.plusSeconds(300)));
+                Timestamp.from(NOW.plusSeconds(300))
+        );
         clock.set(NOW.plusSeconds(300));
         // When & Then
         service.publishDueTopics();
@@ -296,15 +341,23 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     void publishDueTopics_scheduleChangesBeforeExecution_skipsStaleSnapshot(String change) {
         // Given
         UUID laterId = UUID.randomUUID();
-        insertSchedule(laterId, LocalTime.of(9, 5), NOW.minusSeconds(3600));
+        insertSchedule(
+                laterId,
+                LocalTime.of(9, 5),
+                NOW.minusSeconds(3600)
+        );
         clock.set(NOW.plusSeconds(300));
         given(publisher.publish(any())).willAnswer(call -> {
             if (change.equals("deleted")) {
                 jdbc.update("DELETE FROM topic_push_schedules WHERE id=?", laterId);
             }
             if (change.equals("updated")) {
-                jdbc.update("UPDATE topic_push_schedules SET send_time=?,updated_at=? WHERE id=?",
-                        Time.valueOf("10:00:00"), Timestamp.from(clock.instant()), laterId);
+                jdbc.update(
+                        "UPDATE topic_push_schedules SET send_time=?,updated_at=? WHERE id=?",
+                        Time.valueOf("10:00:00"),
+                        Timestamp.from(clock.instant()),
+                        laterId
+                );
             }
             return PushPublicationResult.accepted("sqs-message");
         });
@@ -319,9 +372,17 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     void publishDueTopics_kstMidnight_usesKstDate() {
         // Given
         UUID midnightTopic = UUID.randomUUID();
-        insertTopic(midnightTopic, LocalDate.of(2026, 10, 13));
+        insertTopic(midnightTopic, LocalDate.of(
+                2026,
+                10,
+                13
+        ));
         Instant midnight = Instant.parse("2026-10-12T15:00:00Z");
-        insertSchedule(UUID.randomUUID(), LocalTime.MIDNIGHT, midnight.minusSeconds(60));
+        insertSchedule(
+                UUID.randomUUID(),
+                LocalTime.MIDNIGHT,
+                midnight.minusSeconds(60)
+        );
         clock.set(midnight);
         // When
         service.publishDueTopics();
@@ -338,9 +399,11 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         for (int id = 2; id <= 4; id++) {
             insertUser(new UUID(0, id));
         }
-        given(publisher.publish(any())).willReturn(PushPublicationResult.accepted("sqs-message"),
+        given(publisher.publish(any())).willReturn(
+                PushPublicationResult.accepted("sqs-message"),
                 PushPublicationResult.retry("RequestThrottled"),
-                PushPublicationResult.unknown("SQS_CLIENT_ERROR"))
+                PushPublicationResult.unknown("SQS_CLIENT_ERROR")
+        )
                 .willThrow(new IllegalStateException("private-message-must-not-be-logged"));
         // When
         service.publishDueTopics();
@@ -398,7 +461,11 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         given(client.sendMessage(any(SendMessageRequest.class))).willThrow(SqsException.builder()
                 .statusCode(status)
                 .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build()).build());
-        publisher = new SqsPushMessagePublisher(client, "test-queue", JsonMapper.builder().build());
+        publisher = new SqsPushMessagePublisher(
+                client,
+                "test-queue",
+                JsonMapper.builder().build()
+        );
         service = newService();
 
         // When
@@ -451,7 +518,14 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     private TopicPushService newService() {
-        return new TopicPushService(schedules, topics, notifications, publisher, clock, manager);
+        return new TopicPushService(
+                schedules,
+                topics,
+                notifications,
+                publisher,
+                clock,
+                manager
+        );
     }
 
     private List<PushMessage> captureMessages(int count) {
@@ -483,24 +557,40 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     private void insertUser(UUID id) {
-        jdbc.update("""
-                INSERT INTO users(id,email,status,signature_original_storage_key)
-                VALUES (?,?,'ACTIVE',?)
-                """, id, id + "@topic-test.example", "topic/signature/" + id);
+        jdbc.update(
+                """
+                        INSERT INTO users(id,email,status,signature_original_storage_key)
+                        VALUES (?,?,'ACTIVE',?)
+                        """,
+                id,
+                id + "@topic-test.example",
+                "topic/signature/" + id
+        );
     }
 
     private void insertTopic(UUID id, LocalDate date) {
         Instant startsAt = date.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
         jdbc.update(
                 "INSERT INTO topics(id,title,topic_date,starts_at,ends_at) VALUES (?,'빛과 그림자',?,?,?)",
-                id, Date.valueOf(date), Timestamp.from(startsAt),
-                Timestamp.from(startsAt.plusSeconds(86400)));
+                id,
+                Date.valueOf(date),
+                Timestamp.from(startsAt),
+                Timestamp.from(startsAt.plusSeconds(86400))
+        );
     }
 
-    private void insertSchedule(UUID id, LocalTime sendTime, Instant updatedAt) {
+    private void insertSchedule(
+            UUID id,
+            LocalTime sendTime,
+            Instant updatedAt
+    ) {
         jdbc.update(
                 "INSERT INTO topic_push_schedules(id,send_time,created_at,updated_at) VALUES (?,?,?,?)",
-                id, Time.valueOf(sendTime), Timestamp.from(updatedAt), Timestamp.from(updatedAt));
+                id,
+                Time.valueOf(sendTime),
+                Timestamp.from(updatedAt),
+                Timestamp.from(updatedAt)
+        );
     }
 
     private static class FakeClock extends Clock {

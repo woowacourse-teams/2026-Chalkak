@@ -38,11 +38,20 @@ public class PushDeviceService {
         lockSessions(sessionId, token.getHash());
 
         Instant now = clock.instant();
-        User user = loginSessionService.getUsableUser(userId, sessionId, now);
+        User user = loginSessionService.getUsableUser(
+                userId,
+                sessionId,
+                now
+        );
 
         pushDeviceRepository.deleteOtherSessionByTokenHash(token.getHash(), sessionId);
         PushDevice device = pushDeviceRepository.findBySessionId(sessionId)
-                .orElseGet(() -> new PushDevice(user, sessionId, token, now));
+                .orElseGet(() -> new PushDevice(
+                        user,
+                        sessionId,
+                        token,
+                        now
+                ));
         device.updateToken(token, now);
         pushDeviceRepository.save(device);
     }

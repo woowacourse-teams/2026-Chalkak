@@ -45,7 +45,11 @@ class PostQueryServiceTest extends IntegrationTestSupport {
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f7");
     private static final UUID UNKNOWN_USER_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570f6");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            12
+    );
 
     private static final String ORIGINAL_STORAGE_KEY = "chalkak/dev/posts/original.jpg";
     private static final String THUMBNAIL_STORAGE_KEY = "chalkak/dev/posts/thumbnail.jpg";
@@ -146,7 +150,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result).isEqualTo(new PostListResult(
@@ -165,7 +170,9 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         Instant.parse("2026-08-12T03:30:00Z"),
                         0L,
                         false,
-                        false))));
+                        false
+                ))
+        ));
     }
 
     @Test
@@ -181,7 +188,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.of(USER_ID));
+                Optional.of(USER_ID)
+        );
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -203,7 +211,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -225,7 +234,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.of(USER_ID));
+                Optional.of(USER_ID)
+        );
 
         // Then
         assertThat(result.posts())
@@ -248,7 +258,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.posts()).extracting(PostListResult.PostSummary::isMine)
@@ -268,7 +279,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.randomSeed()).isEqualTo("f4c3a091");
@@ -286,7 +298,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 "f4c3a091",
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.randomSeed()).isEqualTo("f4c3a091");
@@ -303,7 +316,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 USER_ID,
                 POST_ID,
-                SECOND_USER_ID);
+                SECOND_USER_ID
+        );
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -312,7 +326,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.posts()).extracting(PostListResult.PostSummary::id)
@@ -337,7 +352,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.empty());
+                Optional.empty()
+        );
 
         // Then
         assertThat(result.hasNext()).isFalse();
@@ -348,7 +364,11 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("해당 날짜의 주제가 없으면 찾을 수 없음 예외를 발생시킨다")
     void getPosts_unknownTopicDate_throwsNotFoundException() {
         // Given
-        LocalDate unknownTopicDate = LocalDate.of(2026, 8, 11);
+        LocalDate unknownTopicDate = LocalDate.of(
+                2026,
+                8,
+                11
+        );
 
         // When
         NotFoundException exception = catchThrowableOfType(
@@ -359,7 +379,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         null,
                         1,
                         20,
-                        Optional.empty()));
+                        Optional.empty()
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -383,7 +404,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         randomSeed,
                         page,
                         20,
-                        Optional.empty()));
+                        Optional.empty()
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -394,7 +416,11 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("KST 기준 미래 날짜를 조회하면 잘못된 요청 예외를 발생시킨다")
     void getPosts_futureTopicDate_throwsBusinessException() {
         // Given
-        LocalDate futureTopicDate = LocalDate.of(2999, 1, 1);
+        LocalDate futureTopicDate = LocalDate.of(
+                2999,
+                1,
+                1
+        );
 
         // When
         BusinessException exception = catchThrowableOfType(
@@ -405,7 +431,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         null,
                         1,
                         20,
-                        Optional.empty()));
+                        Optional.empty()
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -432,13 +459,19 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 new PostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
-                        LocalDate.of(2026, 8, 12)),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                12
+                        )
+                ),
                 ORIGINAL_IMAGE_URL,
                 THUMBNAIL_IMAGE_URL,
                 SIGNATURE_IMAGE_URL,
                 "오늘의 순간",
                 1L,
-                true));
+                true
+        ));
     }
 
     @Test
@@ -482,7 +515,13 @@ class PostQueryServiceTest extends IntegrationTestSupport {
 
         // When
         PostListResult result = postQueryService.getPosts(
-                TOPIC_DATE, sort, randomSeed, 1, 20, viewerId);
+                TOPIC_DATE,
+                sort,
+                randomSeed,
+                1,
+                20,
+                viewerId
+        );
 
         // Then
         assertThat(result.posts())
@@ -507,31 +546,59 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
         given(imageUrlProvider.getUrl(newSignatureKey)).willReturn(newSignatureUrl);
         PostListResult beforeFeed = postQueryService.getPosts(
-                TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.of(SECOND_USER_ID));
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.of(SECOND_USER_ID)
+        );
         PostDetail beforeDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
-        jdbcTemplate.update("""
-                UPDATE users
-                SET signature_original_storage_key = ?, signature_thumbnail_storage_key = ?
-                WHERE id = ?
-                """, newSignatureKey, "chalkak/dev/signatures/new-signature-thumbnail.png",
-                USER_ID);
+        jdbcTemplate.update(
+                """
+                        UPDATE users
+                        SET signature_original_storage_key = ?, signature_thumbnail_storage_key = ?
+                        WHERE id = ?
+                        """,
+                newSignatureKey,
+                "chalkak/dev/signatures/new-signature-thumbnail.png",
+                USER_ID
+        );
         entityManager.flush();
         entityManager.clear();
 
         // When
         PostListResult afterFeed = postQueryService.getPosts(
-                TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.of(SECOND_USER_ID));
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.of(SECOND_USER_ID)
+        );
         PostDetail afterDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
 
         // Then
-        assertThat(beforeFeed.posts()).extracting(PostListResult.PostSummary::id,
+        assertThat(beforeFeed.posts()).extracting(
+                PostListResult.PostSummary::id,
                 PostListResult.PostSummary::authorId,
-                PostListResult.PostSummary::signatureOriginalImageUrl)
-                .contains(tuple(POST_ID, USER_ID, SIGNATURE_IMAGE_URL));
-        assertThat(afterFeed.posts()).extracting(PostListResult.PostSummary::id,
+                PostListResult.PostSummary::signatureOriginalImageUrl
+        )
+                .contains(tuple(
+                        POST_ID,
+                        USER_ID,
+                        SIGNATURE_IMAGE_URL
+                ));
+        assertThat(afterFeed.posts()).extracting(
+                PostListResult.PostSummary::id,
                 PostListResult.PostSummary::authorId,
-                PostListResult.PostSummary::signatureOriginalImageUrl)
-                .contains(tuple(POST_ID, USER_ID, newSignatureUrl));
+                PostListResult.PostSummary::signatureOriginalImageUrl
+        )
+                .contains(tuple(
+                        POST_ID,
+                        USER_ID,
+                        newSignatureUrl
+                ));
         assertThat(beforeDetail.authorId()).isEqualTo(USER_ID);
         assertThat(afterDetail.authorId()).isEqualTo(USER_ID).isNotEqualTo(SECOND_USER_ID);
         assertThat(beforeDetail.signatureOriginalImageUrl()).isEqualTo(SIGNATURE_IMAGE_URL);
@@ -544,7 +611,13 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         // Given
         insertSecondVisiblePost();
         PostListResult feed = postQueryService.getPosts(
-                TOPIC_DATE, PostSort.RECENT, null, 1, 20, Optional.empty());
+                TOPIC_DATE,
+                PostSort.RECENT,
+                null,
+                1,
+                20,
+                Optional.empty()
+        );
         UUID authorId = feed.posts().stream().filter(post -> post.id().equals(POST_ID))
                 .findFirst().orElseThrow().authorId();
         jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -553,8 +626,12 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20,
-                SECOND_USER_ID);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                SECOND_USER_ID
+        );
 
         // Then
         assertThat(authorId).isEqualTo(USER_ID);
@@ -567,7 +644,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 POST_ID,
-                USER_ID);
+                USER_ID
+        );
     }
 
     private void insertSecondVisiblePost() {
@@ -615,8 +693,21 @@ class PostQueryServiceTest extends IntegrationTestSupport {
 
     private static Stream<Arguments> invalidRandomSeedCombinations() {
         return Stream.of(
-                Arguments.of(PostSort.RECENT, "f4c3a091", 1),
-                Arguments.of(PostSort.RANDOM, null, 2),
-                Arguments.of(PostSort.POPULAR, "f4c3a091", 1));
+                Arguments.of(
+                        PostSort.RECENT,
+                        "f4c3a091",
+                        1
+                ),
+                Arguments.of(
+                        PostSort.RANDOM,
+                        null,
+                        2
+                ),
+                Arguments.of(
+                        PostSort.POPULAR,
+                        "f4c3a091",
+                        1
+                )
+        );
     }
 }

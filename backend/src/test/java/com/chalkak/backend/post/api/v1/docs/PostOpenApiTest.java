@@ -77,7 +77,11 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder(100)))
                 .andExpect(
                         jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters[*].name")
-                                .value(containsInAnyOrder("userId", "page", "pageSize")))
+                                .value(containsInAnyOrder(
+                                        "userId",
+                                        "page",
+                                        "pageSize"
+                                )))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
                         + "[?(@.name == 'page')].in").value(containsInAnyOrder("query")))
                 .andExpect(jsonPath("$.paths['/api/v1/users/{userId}/posts'].get.parameters"
@@ -231,7 +235,11 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.TodayPostStatusResponse"
                         + ".properties.moderationStatus.enum")
-                        .value(containsInAnyOrder("VALIDATING", "PENDING", "APPROVED")))
+                        .value(containsInAnyOrder(
+                                "VALIDATING",
+                                "PENDING",
+                                "APPROVED"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['200']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/today'].get.responses['401']")
@@ -249,8 +257,13 @@ class PostOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.parameters[*].name")
-                        .value(containsInAnyOrder("topicDate", "sort", "randomSeed", "page",
-                                "pageSize")))
+                        .value(containsInAnyOrder(
+                                "topicDate",
+                                "sort",
+                                "randomSeed",
+                                "page",
+                                "pageSize"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.requestBody").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security.length()").value(2))
                 .andExpect(jsonPath("$.paths['/api/v1/posts'].get.security[0]").value(anEmptyMap()))

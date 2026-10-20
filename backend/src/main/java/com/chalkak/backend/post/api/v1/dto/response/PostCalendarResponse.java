@@ -19,7 +19,8 @@ public record PostCalendarResponse(
                 result.month(),
                 result.posts().stream()
                         .map(CalendarPostResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     public record CalendarPostResponse(
@@ -37,7 +38,8 @@ public record PostCalendarResponse(
                     post.topicDate(),
                     post.postId(),
                     post.thumbnailImageUrl(),
-                    post.status());
+                    post.status()
+            );
         }
     }
 }

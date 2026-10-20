@@ -14,11 +14,20 @@ public record AdminNoticeResult(
         Instant distributedAt,
         Instant deletedAt,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt
+) {
 
     public static AdminNoticeResult from(Notice notice) {
-        return new AdminNoticeResult(notice.getId(), notice.getTitle(), notice.getBody(),
-                notice.getScheduledAt(), notice.getStatus(), notice.getDistributedAt(),
-                notice.getDeletedAt(), notice.getCreatedAt(), notice.getUpdatedAt());
+        return new AdminNoticeResult(
+                notice.getId(),
+                notice.getTitle(),
+                notice.getBody(),
+                notice.getScheduledAt(),
+                notice.getStatus(),
+                notice.getDistributedAt(),
+                notice.getDeletedAt(),
+                notice.getCreatedAt(),
+                notice.getUpdatedAt()
+        );
     }
 }

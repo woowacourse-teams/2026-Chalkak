@@ -27,7 +27,12 @@ class BannerOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(path + ".security").doesNotExist())
                 .andExpect(jsonPath(path + ".responses.keys()")
-                        .value(containsInAnyOrder("200", "400", "401", "403")))
+                        .value(containsInAnyOrder(
+                                "200",
+                                "400",
+                                "401",
+                                "403"
+                        )))
                 .andExpect(jsonPath(path + ".parameters[*].name")
                         .value(containsInAnyOrder("page", "pageSize")))
                 .andExpect(jsonPath(path + ".parameters[?(@.name == 'page')].schema.default")
@@ -37,10 +42,21 @@ class BannerOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(path + ".parameters[?(@.name == 'pageSize')].schema.maximum")
                         .value(org.hamcrest.Matchers.contains(100)))
                 .andExpect(jsonPath("$.components.schemas.BannerListResponse.properties.keys()")
-                        .value(containsInAnyOrder("currentPage", "pageSize", "hasNext", "banners")))
+                        .value(containsInAnyOrder(
+                                "currentPage",
+                                "pageSize",
+                                "hasNext",
+                                "banners"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.BannerResponse.properties.keys()")
-                        .value(containsInAnyOrder("id", "title", "subtitle", "webViewUrl",
-                                "thumbnailUrl", "createdAt")))
+                        .value(containsInAnyOrder(
+                                "id",
+                                "title",
+                                "subtitle",
+                                "webViewUrl",
+                                "thumbnailUrl",
+                                "createdAt"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.BannerResponse.properties.id.format")
                         .value("uuid"))
                 .andExpect(

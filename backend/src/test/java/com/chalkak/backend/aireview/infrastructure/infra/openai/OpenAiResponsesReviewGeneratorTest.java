@@ -58,8 +58,7 @@ class OpenAiResponsesReviewGeneratorTest {
     private static final String RESPONSES_URL = "https://openai.test/v1/responses";
     private static final String API_KEY = "sk-test-secret";
     private static final String IMAGE_URL = "https://cdn.test/photo.jpg";
-    private static final String OK_OUTPUT =
-            "{\"composition\":8.72,\"theme_expression\":8,\"feedback\":\"구도가 좋습니다.\"}";
+    private static final String OK_OUTPUT = "{\"composition\":8.72,\"theme_expression\":8,\"feedback\":\"구도가 좋습니다.\"}";
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
@@ -79,12 +78,14 @@ class OpenAiResponsesReviewGeneratorTest {
                 URI.create("https://openai.test/v1/"),
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(60),
-                List.of("gpt-6.1-sol", "gpt-6-luna"));
+                List.of("gpt-6.1-sol", "gpt-6-luna")
+        );
         generator = new OpenAiResponsesReviewGenerator(
                 builder.build(),
                 objectMapper,
                 clock,
-                properties);
+                properties
+        );
     }
 
     @AfterEach
@@ -134,7 +135,11 @@ class OpenAiResponsesReviewGeneratorTest {
                 .andRespond(withSuccess(successBody(OK_OUTPUT), MediaType.APPLICATION_JSON));
 
         // When & Then
-        generator.generate(request(ImageDetail.LOW, 700, null));
+        generator.generate(request(
+                ImageDetail.LOW,
+                700,
+                null
+        ));
     }
 
     @Test
@@ -150,8 +155,16 @@ class OpenAiResponsesReviewGeneratorTest {
         when(clock.instant()).thenReturn(Instant.EPOCH);
 
         // When & Then
-        generator.generate(request(ImageDetail.AUTO, 500, null));
-        generator.generate(request(ImageDetail.AUTO, 500, ReasoningEffort.MEDIUM));
+        generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        ));
+        generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                ReasoningEffort.MEDIUM
+        ));
     }
 
     @Test
@@ -162,17 +175,34 @@ class OpenAiResponsesReviewGeneratorTest {
                 .andRespond(withSuccess(successBody(OK_OUTPUT), MediaType.APPLICATION_JSON));
 
         // When
-        AiReviewGeneration generation = generator.generate(request(ImageDetail.AUTO, 500, null));
+        AiReviewGeneration generation = generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        ));
 
         // Then
         AiReviewResult result = generation.result();
         assertThat(result.overallScore()).isEqualTo(8.7);
         assertThat(result.criteria()).containsExactly(
-                new AiReviewResult.Criterion("COMPOSITION", "구도", 8.7));
+                new AiReviewResult.Criterion(
+                        "COMPOSITION",
+                        "구도",
+                        8.7
+                ));
         assertThat(result.distinctivePerspective()).isTrue();
         assertThat(result.feedback()).isEqualTo("구도가 좋습니다.");
-        assertThat(generation.output()).isEqualTo(new PhotoReviewOutput(8.72, 8.0, "구도가 좋습니다."));
-        assertThat(generation.attempt().usage()).isEqualTo(new Usage(1200, 300, 85, 40));
+        assertThat(generation.output()).isEqualTo(new PhotoReviewOutput(
+                8.72,
+                8.0,
+                "구도가 좋습니다."
+        ));
+        assertThat(generation.attempt().usage()).isEqualTo(new Usage(
+                1200,
+                300,
+                85,
+                40
+        ));
         assertThat(generation.attempt().responseId()).isEqualTo("resp_123");
         assertThat(generation.attempt().latency()).isEqualTo(Duration.ofMillis(1234));
     }
@@ -185,7 +215,11 @@ class OpenAiResponsesReviewGeneratorTest {
                 "{\"composition\":8,\"theme_expression\":6,\"feedback\":\"좋음\"}"));
 
         // When
-        AiReviewGeneration generation = generator.generate(request(ImageDetail.AUTO, 500, null));
+        AiReviewGeneration generation = generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        ));
 
         // Then
         assertThat(generation.result().distinctivePerspective()).isFalse();
@@ -199,8 +233,12 @@ class OpenAiResponsesReviewGeneratorTest {
                 "{\"composition\":8,\"theme_expression\":6,\"feedback\":\"좋음\"}"));
 
         // When
-        AiReviewGeneration generation =
-                generator.generate(request(ImageDetail.AUTO, 500, null, 6.0));
+        AiReviewGeneration generation = generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null,
+                6.0
+        ));
 
         // Then
         assertThat(generation.result().distinctivePerspective()).isTrue();
@@ -215,8 +253,12 @@ class OpenAiResponsesReviewGeneratorTest {
                 "{\"composition\":8,\"theme_expression\":" + theme + ",\"feedback\":\"좋음\"}"));
 
         // When
-        AiReviewGeneration generation =
-                generator.generate(request(ImageDetail.AUTO, 500, null, 7.5));
+        AiReviewGeneration generation = generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null,
+                7.5
+        ));
 
         // Then
         assertThat(generation.result().distinctivePerspective()).isEqualTo(expected);
@@ -239,18 +281,39 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_missingUsage_returnsNullTokens() {
         // Given
         respondOk(objectMapper.writeValueAsString(Map.of(
-                "id", "resp_123",
-                "status", "completed",
-                "output", List.of(Map.of(
-                        "type", "message",
-                        "content", List.of(Map.of("type", "output_text", "text", OK_OUTPUT)))))));
+                "id",
+                "resp_123",
+                "status",
+                "completed",
+                "output",
+                List.of(Map.of(
+                        "type",
+                        "message",
+                        "content",
+                        List.of(Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                OK_OUTPUT
+                        ))
+                ))
+        )));
 
         // When
-        AiReviewGeneration generation = generator.generate(request(ImageDetail.AUTO, 500, null));
+        AiReviewGeneration generation = generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        ));
 
         // Then
         assertThat(generation.result().overallScore()).isEqualTo(8.7);
-        assertThat(generation.attempt().usage()).isEqualTo(new Usage(null, null, null, null));
+        assertThat(generation.attempt().usage()).isEqualTo(new Usage(
+                null,
+                null,
+                null,
+                null
+        ));
     }
 
     @Test
@@ -258,18 +321,45 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_zeroUsage_reportsZero() {
         // Given
         respondOk(objectMapper.writeValueAsString(Map.of(
-                "id", "resp_123",
-                "status", "completed",
-                "output", List.of(Map.of(
-                        "type", "message",
-                        "content", List.of(Map.of("type", "output_text", "text", OK_OUTPUT)))),
-                "usage", Map.of("input_tokens", 0, "output_tokens", 0))));
+                "id",
+                "resp_123",
+                "status",
+                "completed",
+                "output",
+                List.of(Map.of(
+                        "type",
+                        "message",
+                        "content",
+                        List.of(Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                OK_OUTPUT
+                        ))
+                )),
+                "usage",
+                Map.of(
+                        "input_tokens",
+                        0,
+                        "output_tokens",
+                        0
+                )
+        )));
 
         // When
-        AiReviewGeneration generation = generator.generate(request(ImageDetail.AUTO, 500, null));
+        AiReviewGeneration generation = generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        ));
 
         // Then
-        assertThat(generation.attempt().usage()).isEqualTo(new Usage(0, null, 0, null));
+        assertThat(generation.attempt().usage()).isEqualTo(new Usage(
+                0,
+                null,
+                0,
+                null
+        ));
     }
 
     @Test
@@ -277,10 +367,23 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_refusalWithOutputText_failsWithRefused() {
         // Given
         respondOk(responseBody("completed", List.of(Map.of(
-                "type", "message",
-                "content", List.of(
-                        Map.of("type", "output_text", "text", OK_OUTPUT),
-                        Map.of("type", "refusal", "refusal", "거절"))))));
+                "type",
+                "message",
+                "content",
+                List.of(
+                        Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                OK_OUTPUT
+                        ),
+                        Map.of(
+                                "type",
+                                "refusal",
+                                "refusal",
+                                "거절"
+                        ))
+        ))));
 
         // When & Then
         assertFailure(FailureType.REFUSED, false);
@@ -314,8 +417,16 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_refusal_failsWithRefused() {
         // Given
         String body = responseBody("completed", List.of(Map.of(
-                "type", "message",
-                "content", List.of(Map.of("type", "refusal", "refusal", "도와드릴 수 없습니다.")))));
+                "type",
+                "message",
+                "content",
+                List.of(Map.of(
+                        "type",
+                        "refusal",
+                        "refusal",
+                        "도와드릴 수 없습니다."
+                ))
+        )));
         respondOk(body);
 
         // When & Then
@@ -373,14 +484,20 @@ class OpenAiResponsesReviewGeneratorTest {
     })
     @DisplayName("generate_status가 failed이면_error.code로 실패 유형을 가르고 시도 정보를 담는다")
     void generate_failedStatus_classifiesByErrorCode(
-            String code, FailureType expected, boolean retryable
+            String code,
+            FailureType expected,
+            boolean retryable
     ) {
         // Given
         respondOk("{\"id\":\"resp_f\",\"status\":\"failed\",\"output\":[],"
                 + "\"error\":{\"code\":\"" + code + "\",\"message\":\"secret detail\"}}");
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(expected);
                     assertThat(exception.getFailureType().isRetryable()).isEqualTo(retryable);
@@ -402,7 +519,11 @@ class OpenAiResponsesReviewGeneratorTest {
         respondOk("{\"id\":\"resp_f\",\"status\":\"failed\",\"output\":[]," + error + "}");
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.UPSTREAM_ERROR);
                     assertThat(exception.getFailureType().isRetryable()).isTrue();
@@ -418,7 +539,11 @@ class OpenAiResponsesReviewGeneratorTest {
         respondOk("null");
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.INVALID_OUTPUT);
                     assertThat(exception.findAttempt()).isEmpty();
@@ -436,7 +561,11 @@ class OpenAiResponsesReviewGeneratorTest {
         respondOk("{\"id\":\"resp_x\",\"status\":\"completed\",\"output\":" + output + "}");
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.INVALID_OUTPUT);
                     assertThat(exception.findAttempt().orElseThrow().responseId())
@@ -469,21 +598,32 @@ class OpenAiResponsesReviewGeneratorTest {
     @DisplayName("generate_본문을 받은 뒤 실패하면_예외가 사용량 지연시간 응답 ID를 담는다")
     void generate_incompleteWithUsage_exceptionCarriesUsageLatencyAndResponseId() {
         // Given
-        respondOk("""
-                {"id":"resp_9","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},
-                 "output":[],
-                 "usage":{"input_tokens":1000,"input_tokens_details":{"cached_tokens":10},
-                          "output_tokens":16000,"output_tokens_details":{"reasoning_tokens":15900}}}
-                """);
+        respondOk(
+                """
+                        {"id":"resp_9","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},
+                         "output":[],
+                         "usage":{"input_tokens":1000,"input_tokens_details":{"cached_tokens":10},
+                                  "output_tokens":16000,"output_tokens_details":{"reasoning_tokens":15900}}}
+                        """);
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.INCOMPLETE);
                     assertThat(exception.findAttempt()).contains(new Attempt(
-                            new Usage(1000, 10, 16000, 15900),
+                            new Usage(
+                                    1000,
+                                    10,
+                                    16000,
+                                    15900
+                            ),
                             Duration.ofMillis(1234),
-                            "resp_9"));
+                            "resp_9"
+                    ));
                 });
     }
 
@@ -494,11 +634,20 @@ class OpenAiResponsesReviewGeneratorTest {
         respondOk(successBody("사진이 좋네요."));
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.INVALID_OUTPUT);
                     assertThat(exception.findAttempt().orElseThrow().usage())
-                            .isEqualTo(new Usage(1200, 300, 85, 40));
+                            .isEqualTo(new Usage(
+                                    1200,
+                                    300,
+                                    85,
+                                    40
+                            ));
                     assertThat(exception.findAttempt().orElseThrow().responseId())
                             .isEqualTo("resp_123");
                 });
@@ -570,7 +719,11 @@ class OpenAiResponsesReviewGeneratorTest {
         respondError(HttpStatus.TOO_MANY_REQUESTS, errorBody);
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.RATE_LIMITED);
                     assertThat(exception.getFailureType().isRetryable()).isTrue();
@@ -582,7 +735,8 @@ class OpenAiResponsesReviewGeneratorTest {
     @DisplayName("generate_본문 없는 429 응답이면_재시도 가능한 RATE_LIMITED로 실패한다")
     void generate_http429WithoutBody_failsWithRateLimited() {
         // Given
-        server.expect(requestTo(RESPONSES_URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(requestTo(RESPONSES_URL))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
         // When & Then
         assertFailure(FailureType.RATE_LIMITED, true);
@@ -604,7 +758,11 @@ class OpenAiResponsesReviewGeneratorTest {
                         + "\"code\":\"" + code + "\"}}");
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.QUOTA_EXCEEDED);
                     assertThat(exception.getFailureType().isRetryable()).isFalse();
@@ -676,7 +834,11 @@ class OpenAiResponsesReviewGeneratorTest {
                         .body("{\"error\":{\"message\":\"secret prompt text\"}}"));
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(FailureType.BAD_REQUEST);
                     assertThat(exception.getFailureType().isRetryable()).isFalse();
@@ -760,12 +922,17 @@ class OpenAiResponsesReviewGeneratorTest {
     @DisplayName("generate_실패해도_예외 메시지에 API 키 프롬프트 이미지 주소를 담지 않는다")
     void generate_failure_doesNotLeakSensitiveValues() {
         // Given
-        server.expect(requestTo(RESPONSES_URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(requestTo(RESPONSES_URL))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
-                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception ->
-                        assertThat(exception.getMessage())
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class,
+                        exception -> assertThat(exception.getMessage())
                                 .doesNotContain(API_KEY)
                                 .doesNotContain("사진을 평가한다.")
                                 .doesNotContain(IMAGE_URL));
@@ -798,7 +965,11 @@ class OpenAiResponsesReviewGeneratorTest {
     }
 
     private void assertFailure(FailureType expected, boolean retryable) {
-        assertThatThrownBy(() -> generator.generate(request(ImageDetail.AUTO, 500, null)))
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
                 .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
                     assertThat(exception.getFailureType()).isEqualTo(expected);
                     assertThat(exception.getFailureType().isRetryable()).isEqualTo(retryable);
@@ -810,7 +981,12 @@ class OpenAiResponsesReviewGeneratorTest {
             int maxOutputTokens,
             ReasoningEffort reasoningEffort
     ) {
-        return request(imageDetail, maxOutputTokens, reasoningEffort, null);
+        return request(
+                imageDetail,
+                maxOutputTokens,
+                reasoningEffort,
+                null
+        );
     }
 
     private AiReviewGenerationRequest request(
@@ -824,25 +1000,53 @@ class OpenAiResponsesReviewGeneratorTest {
                 "사진을 평가한다.",
                 "주제: {{topicTitle}}, 다시 {{topicTitle}}",
                 "gpt-5-mini",
-                new AiPromptParameters(imageDetail, maxOutputTokens, reasoningEffort, threshold));
-        return new AiReviewGenerationRequest(draft, IMAGE_URL, "노을");
+                new AiPromptParameters(
+                        imageDetail,
+                        maxOutputTokens,
+                        reasoningEffort,
+                        threshold
+                )
+        );
+        return new AiReviewGenerationRequest(
+                draft,
+                IMAGE_URL,
+                "노을"
+        );
     }
 
     private String successBody(String outputText) {
         return responseBody("completed", List.of(Map.of(
-                "type", "message",
-                "content", List.of(Map.of("type", "output_text", "text", outputText)))));
+                "type",
+                "message",
+                "content",
+                List.of(Map.of(
+                        "type",
+                        "output_text",
+                        "text",
+                        outputText
+                ))
+        )));
     }
 
     private String responseBody(String status, List<Map<String, Object>> output) {
         return objectMapper.writeValueAsString(Map.of(
-                "id", "resp_123",
-                "status", status,
-                "output", output,
-                "usage", Map.of(
-                        "input_tokens", 1200,
-                        "input_tokens_details", Map.of("cached_tokens", 300),
-                        "output_tokens", 85,
-                        "output_tokens_details", Map.of("reasoning_tokens", 40))));
+                "id",
+                "resp_123",
+                "status",
+                status,
+                "output",
+                output,
+                "usage",
+                Map.of(
+                        "input_tokens",
+                        1200,
+                        "input_tokens_details",
+                        Map.of("cached_tokens", 300),
+                        "output_tokens",
+                        85,
+                        "output_tokens_details",
+                        Map.of("reasoning_tokens", 40)
+                )
+        ));
     }
 }

@@ -68,7 +68,8 @@ public class PostCommandService {
                 presigned.uploadUrl(),
                 presigned.expiresInSeconds(),
                 presigned.contentType(),
-                presigned.maxBytes());
+                presigned.maxBytes()
+        );
     }
 
     public PostProcessingImageUpload issuePostImageProcessingUpload(UUID uploadId) {
@@ -97,7 +98,11 @@ public class PostCommandService {
         upload.claim(Instant.now());
         // 이미지 처리 콜백도 업로드 다음 게시물 순서로 잠근다. 모든 경로의 순서를 통일해야 처리 시간 초과
         // 게시물 재작성과 콜백이 겹쳐도 순환 대기가 생기지 않는다.
-        validatePostNotCreated(userId, topicId, Instant.now());
+        validatePostNotCreated(
+                userId,
+                topicId,
+                Instant.now()
+        );
         // 확인한 뒤에 처리가 끝나 staging이 지워졌을 수 있으므로 최종 판정은 락 안에서 읽은 상태로 한다.
         if (!upload.isProcessed() && !stagingImageExists) {
             throw new NotFoundException(
@@ -109,7 +114,13 @@ public class PostCommandService {
         validatePhotoNotUsed(originalStorageKey);
 
         Photo photo = Photo.createPhoto(originalStorageKey);
-        Post post = Post.createPost(author, topic, photo, photoUploadId, title);
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                photoUploadId,
+                title
+        );
         if (upload.isProcessed()) {
             photo.completeProcessing(
                     postImageStorage.toThumbnailStorageKey(photoUploadId),
@@ -130,10 +141,18 @@ public class PostCommandService {
         postLikeRepository.deleteByPostId(postId);
     }
 
-    public PostUpdateResult updatePost(UUID authorId, UUID postId, String title) {
+    public PostUpdateResult updatePost(
+            UUID authorId,
+            UUID postId,
+            String title
+    ) {
         validateUpdatableUser(authorId);
         Post post = getActivePostForUpdate(postId);
-        post.updateTitle(authorId, title, Instant.now());
+        post.updateTitle(
+                authorId,
+                title,
+                Instant.now()
+        );
         return new PostUpdateResult(
                 post.getId(),
                 post.getTitle());
@@ -145,12 +164,20 @@ public class PostCommandService {
      */
     public void completePostImageProcessing(UUID uploadId, Map<String, Object> imageMetadata) {
         postImageUploadRepository.findByIdForUpdate(uploadId)
-                .ifPresent(upload -> completeProcessedUpload(upload, uploadId, imageMetadata));
+                .ifPresent(upload -> completeProcessedUpload(
+                        upload,
+                        uploadId,
+                        imageMetadata
+                ));
     }
 
     public void failPostImageProcessing(UUID uploadId, String rejectionReason) {
         postImageUploadRepository.findByIdForUpdate(uploadId)
-                .ifPresent(upload -> failProcessedUpload(upload, uploadId, rejectionReason));
+                .ifPresent(upload -> failProcessedUpload(
+                        upload,
+                        uploadId,
+                        rejectionReason
+                ));
     }
 
     private void completeProcessedUpload(
@@ -241,7 +268,11 @@ public class PostCommandService {
      * 이미지 처리 콜백이 유실되거나 영구 거부되면 게시물이 이미지 처리 대기 상태로 남는다. 작성자에게는 보이지도 않으면서 같은 주제 재작성만
      * 막으므로, 처리 대기 시간을 넘긴 게시물은 여기서 거절 처리하고 길을 터 준다.
      */
-    private void validatePostNotCreated(UUID userId, UUID topicId, Instant now) {
+    private void validatePostNotCreated(
+            UUID userId,
+            UUID topicId,
+            Instant now
+    ) {
         Optional<Post> activePost = postRepository.findActiveByAuthorIdAndTopicIdForUpdate(userId,
                 topicId);
         if (activePost.isEmpty()) {

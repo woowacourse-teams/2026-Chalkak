@@ -16,21 +16,50 @@ public record RuntimeSnapshot(
         Long gcTimeMsTotal,
         Integer threads,
         Integer hikariActive,
-        Integer hikariPending) {
+        Integer hikariPending
+) {
 
     /** 측정된 값만 로그 키 이름으로 담아 선언 순서대로 돌려준다. */
     public Map<String, Object> logFields() {
         Map<String, Object> fields = new LinkedHashMap<>();
-        putIfPresent(fields, LogFields.HEAP_USED_BYTES, heapUsedBytes);
-        putIfPresent(fields, LogFields.HEAP_MAX_BYTES, heapMaxBytes);
-        putIfPresent(fields, LogFields.GC_TIME_MS_TOTAL, gcTimeMsTotal);
-        putIfPresent(fields, LogFields.THREADS, threads);
-        putIfPresent(fields, LogFields.HIKARI_ACTIVE, hikariActive);
-        putIfPresent(fields, LogFields.HIKARI_PENDING, hikariPending);
+        putIfPresent(
+                fields,
+                LogFields.HEAP_USED_BYTES,
+                heapUsedBytes
+        );
+        putIfPresent(
+                fields,
+                LogFields.HEAP_MAX_BYTES,
+                heapMaxBytes
+        );
+        putIfPresent(
+                fields,
+                LogFields.GC_TIME_MS_TOTAL,
+                gcTimeMsTotal
+        );
+        putIfPresent(
+                fields,
+                LogFields.THREADS,
+                threads
+        );
+        putIfPresent(
+                fields,
+                LogFields.HIKARI_ACTIVE,
+                hikariActive
+        );
+        putIfPresent(
+                fields,
+                LogFields.HIKARI_PENDING,
+                hikariPending
+        );
         return fields;
     }
 
-    private void putIfPresent(Map<String, Object> fields, String key, Number value) {
+    private void putIfPresent(
+            Map<String, Object> fields,
+            String key,
+            Number value
+    ) {
         if (value == null) {
             return;
         }

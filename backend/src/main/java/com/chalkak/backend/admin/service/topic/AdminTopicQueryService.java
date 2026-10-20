@@ -34,7 +34,13 @@ public class AdminTopicQueryService {
             int page,
             int pageSize
     ) {
-        validateQuery(dateFrom, dateTo, sort, page, pageSize);
+        validateQuery(
+                dateFrom,
+                dateTo,
+                sort,
+                page,
+                pageSize
+        );
         Instant now = clock.instant();
         AdminPage<AdminTopicProjection> result = adminTopicQueryRepository.findTopics(
                 new AdminTopicQueryCriteria(
@@ -42,9 +48,11 @@ public class AdminTopicQueryService {
                         dateFrom,
                         dateTo,
                         sort,
-                        now),
+                        now
+                ),
                 page,
-                pageSize);
+                pageSize
+        );
         List<AdminTopicDetail> topics = result.items().stream()
                 .map(topic -> AdminTopicDetail.from(topic, now))
                 .toList();
@@ -52,7 +60,8 @@ public class AdminTopicQueryService {
                 result.currentPage(),
                 result.pageSize(),
                 result.hasNext(),
-                topics);
+                topics
+        );
     }
 
     public AdminTopicDetail getTopic(UUID topicId) {

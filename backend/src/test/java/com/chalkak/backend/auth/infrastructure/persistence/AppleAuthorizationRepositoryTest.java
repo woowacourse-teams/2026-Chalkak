@@ -68,6 +68,7 @@ class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
         return socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.APPLE,
-                SUBJECT_HMAC));
+                SUBJECT_HMAC
+        ));
     }
 }

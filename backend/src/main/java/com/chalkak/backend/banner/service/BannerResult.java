@@ -10,10 +10,17 @@ public record BannerResult(
         String subtitle,
         String webViewUrl,
         String thumbnailUrl,
-        Instant createdAt) {
+        Instant createdAt
+) {
 
     public static BannerResult from(Banner banner) {
-        return new BannerResult(banner.getId(), banner.getTitle(), banner.getSubtitle(),
-                banner.getWebViewUrl(), banner.getThumbnailUrl(), banner.getCreatedAt());
+        return new BannerResult(
+                banner.getId(),
+                banner.getTitle(),
+                banner.getSubtitle(),
+                banner.getWebViewUrl(),
+                banner.getThumbnailUrl(),
+                banner.getCreatedAt()
+        );
     }
 }

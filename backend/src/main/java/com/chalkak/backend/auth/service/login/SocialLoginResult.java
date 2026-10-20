@@ -8,7 +8,8 @@ public record SocialLoginResult(
         SocialLoginStatus status,
         UUID userId,
         IssuedAccessToken accessToken,
-        IssuedRefreshToken refreshToken) {
+        IssuedRefreshToken refreshToken
+) {
 
     public static SocialLoginResult loginSuccess(
             UUID userId,
@@ -19,7 +20,8 @@ public record SocialLoginResult(
                 SocialLoginStatus.LOGIN_SUCCESS,
                 userId,
                 accessToken,
-                refreshToken);
+                refreshToken
+        );
     }
 
     public static SocialLoginResult signUpRequired() {
@@ -27,6 +29,7 @@ public record SocialLoginResult(
                 SocialLoginStatus.SIGN_UP_REQUIRED,
                 null,
                 null,
-                null);
+                null
+        );
     }
 }

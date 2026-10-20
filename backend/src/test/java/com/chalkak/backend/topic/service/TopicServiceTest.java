@@ -45,12 +45,18 @@ class TopicServiceTest extends IntegrationTestSupport {
         Instant startsAt = topicDate.atStartOfDay(KST).toInstant();
         Instant endsAt = topicDate.plusDays(1).atStartOfDay(KST).toInstant();
 
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """,
-                id, TITLE, topicDate, Timestamp.from(startsAt), Timestamp.from(endsAt));
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                id,
+                TITLE,
+                topicDate,
+                Timestamp.from(startsAt),
+                Timestamp.from(endsAt)
+        );
     }
 
     @Test

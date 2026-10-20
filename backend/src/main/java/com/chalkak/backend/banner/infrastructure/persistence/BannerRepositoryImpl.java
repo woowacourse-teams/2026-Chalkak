@@ -44,10 +44,22 @@ public class BannerRepositoryImpl implements BannerRepository {
 
     @Override
     public BannerPage findBanners(int page, int pageSize) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize,
-                Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "createdAt",
+                        "id"
+                )
+        );
         Slice<Banner> result = jpaRepository.findByDeletedAtIsNull(pageable);
-        return new BannerPage(result.getContent(), page, pageSize, result.hasNext());
+        return new BannerPage(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     @Override

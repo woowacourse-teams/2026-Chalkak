@@ -51,7 +51,8 @@ public record AdminPostDetailResponse(
                 detail.moderatedAt(),
                 detail.moderatedBy(),
                 detail.rejectionReason(),
-                detail.deletedAt());
+                detail.deletedAt()
+        );
     }
 
     @Schema(name = "AdminPostDetailAuthor")
@@ -72,7 +73,8 @@ public record AdminPostDetailResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.deletedAt());
+                    author.deletedAt()
+            );
         }
     }
 
@@ -97,7 +99,8 @@ public record AdminPostDetailResponse(
                     topic.topicDate(),
                     topic.startsAt(),
                     topic.endsAt(),
-                    topic.deletedAt());
+                    topic.deletedAt()
+            );
         }
     }
 
@@ -125,7 +128,8 @@ public record AdminPostDetailResponse(
                     PhotoMetadataResponse.from(photo.metadata()),
                     photo.createdAt(),
                     photo.updatedAt(),
-                    photo.deletedAt());
+                    photo.deletedAt()
+            );
         }
     }
 
@@ -144,7 +148,8 @@ public record AdminPostDetailResponse(
             return new PhotoMetadataResponse(
                     toInteger(metadata.get("width")),
                     toInteger(metadata.get("height")),
-                    toLong(metadata.get("byteSize")));
+                    toLong(metadata.get("byteSize"))
+            );
         }
 
         private static Integer toInteger(Object value) {
@@ -175,7 +180,8 @@ public record AdminPostDetailResponse(
                     imageUpload.status(),
                     imageUpload.rejectionReason(),
                     imageUpload.createdAt(),
-                    imageUpload.updatedAt());
+                    imageUpload.updatedAt()
+            );
         }
     }
 }

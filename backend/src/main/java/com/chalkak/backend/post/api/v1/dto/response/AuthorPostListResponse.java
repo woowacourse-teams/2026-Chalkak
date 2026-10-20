@@ -14,10 +14,14 @@ public record AuthorPostListResponse(
 ) {
 
     public static AuthorPostListResponse fromAuthorPostListResult(AuthorPostListResult result) {
-        return new AuthorPostListResponse(result.currentPage(), result.pageSize(), result.hasNext(),
+        return new AuthorPostListResponse(
+                result.currentPage(),
+                result.pageSize(),
+                result.hasNext(),
                 result.posts().stream()
                         .map(AuthorPostResponse::fromPostSummary)
-                        .toList());
+                        .toList()
+        );
     }
 
     public record AuthorPostResponse(
@@ -33,15 +37,24 @@ public record AuthorPostListResponse(
                     post.id(),
                     post.originalImageUrl(),
                     post.thumbnailImageUrl(),
-                    AuthorPostTopicResponse.fromTopicSummary(post.topic()));
+                    AuthorPostTopicResponse.fromTopicSummary(post.topic())
+            );
         }
     }
 
-    public record AuthorPostTopicResponse(UUID id, String title, LocalDate topicDate) {
+    public record AuthorPostTopicResponse(
+            UUID id,
+            String title,
+            LocalDate topicDate
+    ) {
 
         private static AuthorPostTopicResponse fromTopicSummary(
                 AuthorPostListResult.TopicSummary topic) {
-            return new AuthorPostTopicResponse(topic.id(), topic.title(), topic.topicDate());
+            return new AuthorPostTopicResponse(
+                    topic.id(),
+                    topic.title(),
+                    topic.topicDate()
+            );
         }
     }
 }

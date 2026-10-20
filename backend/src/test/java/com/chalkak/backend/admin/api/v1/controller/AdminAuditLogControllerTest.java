@@ -66,15 +66,34 @@ class AdminAuditLogControllerTest {
     @Test
     void getAuditLogs_allFilters_returnsAuditHistory() throws Exception {
         AdminAuditLogListResult result = new AdminAuditLogListResult(
-                2, 50, false,
+                2,
+                50,
+                false,
                 List.of(new AdminAuditLogListResult.AuditLogSummary(
-                        AUDIT_LOG_ID, FILTER_ADMIN_ID, "operator",
-                        AdminAction.POST_REJECTED, AdminTargetType.POST, TARGET_ID,
-                        "운영 정책 위반", Map.of("moderationStatus", "PENDING"),
-                        Map.of("moderationStatus", "REJECTED"), TO, REQUEST_ID)));
+                        AUDIT_LOG_ID,
+                        FILTER_ADMIN_ID,
+                        "operator",
+                        AdminAction.POST_REJECTED,
+                        AdminTargetType.POST,
+                        TARGET_ID,
+                        "운영 정책 위반",
+                        Map.of("moderationStatus", "PENDING"),
+                        Map.of("moderationStatus", "REJECTED"),
+                        TO,
+                        REQUEST_ID
+                ))
+        );
         given(service.getAuditLogs(
-                FILTER_ADMIN_ID, AdminAction.POST_REJECTED, AdminTargetType.POST,
-                TARGET_ID, FROM, TO, AdminAuditLogSort.OCCURRED_AT_ASC, 2, 50)).willReturn(result);
+                FILTER_ADMIN_ID,
+                AdminAction.POST_REJECTED,
+                AdminTargetType.POST,
+                TARGET_ID,
+                FROM,
+                TO,
+                AdminAuditLogSort.OCCURRED_AT_ASC,
+                2,
+                50
+        )).willReturn(result);
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
                 .queryParam("adminId", FILTER_ADMIN_ID.toString())
@@ -96,16 +115,37 @@ class AdminAuditLogControllerTest {
                 .andExpect(jsonPath("$.auditLogs[0].requestId").value(REQUEST_ID.toString()));
 
         then(service).should().getAuditLogs(
-                FILTER_ADMIN_ID, AdminAction.POST_REJECTED, AdminTargetType.POST,
-                TARGET_ID, FROM, TO, AdminAuditLogSort.OCCURRED_AT_ASC, 2, 50);
+                FILTER_ADMIN_ID,
+                AdminAction.POST_REJECTED,
+                AdminTargetType.POST,
+                TARGET_ID,
+                FROM,
+                TO,
+                AdminAuditLogSort.OCCURRED_AT_ASC,
+                2,
+                50
+        );
     }
 
     @Test
     void getAuditLogs_withoutFilters_usesDefaults() throws Exception {
         given(service.getAuditLogs(
-                null, null, null, null, null, null,
-                AdminAuditLogSort.OCCURRED_AT_DESC, 1, 20))
-                .willReturn(new AdminAuditLogListResult(1, 20, false, List.of()));
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                AdminAuditLogSort.OCCURRED_AT_DESC,
+                1,
+                20
+        ))
+                .willReturn(new AdminAuditLogListResult(
+                        1,
+                        20,
+                        false,
+                        List.of()
+                ));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs"))
                 .andExpect(status().isOk())

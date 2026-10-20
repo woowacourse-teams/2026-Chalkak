@@ -74,47 +74,100 @@ class ArchitectureRulesTest {
         // Compile isolated bytecode; these synthetic classes never enter the
         // application classpath.
         var sources = new ArrayList<>(List.of(
-                new Source("org.springframework.data.jpa.repository", "JpaRepository",
-                        "public interface JpaRepository {}"),
-                new Source("software.amazon.awssdk.services.s3", "S3Client",
-                        "public interface S3Client {}"),
-                new Source("org.springframework.web.bind.annotation", "RestController",
-                        "public @interface RestController {}"),
-                new Source("com.chalkak.backend.sample.api.v1.dto.request", "GoodRequest",
-                        "public record GoodRequest(String name) {}"),
-                new Source("com.chalkak.backend.sample.service", "GoodService",
-                        "public class GoodService {}"),
-                new Source("com.chalkak.backend.sample.repository", "GoodRepository",
-                        "public interface GoodRepository {}"),
-                new Source("com.chalkak.backend.sample.infrastructure.persistence",
+                new Source(
+                        "org.springframework.data.jpa.repository",
+                        "JpaRepository",
+                        "public interface JpaRepository {}"
+                ),
+                new Source(
+                        "software.amazon.awssdk.services.s3",
+                        "S3Client",
+                        "public interface S3Client {}"
+                ),
+                new Source(
+                        "org.springframework.web.bind.annotation",
+                        "RestController",
+                        "public @interface RestController {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.sample.api.v1.dto.request",
+                        "GoodRequest",
+                        "public record GoodRequest(String name) {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.sample.service",
+                        "GoodService",
+                        "public class GoodService {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.sample.repository",
+                        "GoodRepository",
+                        "public interface GoodRepository {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.sample.infrastructure.persistence",
                         "GoodJpaRepository",
-                        "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source("com.chalkak.backend.sample.api.internal.v1.controller",
+                        "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.sample.api.internal.v1.controller",
                         "GoodController",
-                        "@org.springframework.web.bind.annotation.RestController public class GoodController {}"),
-                new Source("com.chalkak.backend.admin.api.v1.dto.request", "GoodRequest",
-                        "public record GoodRequest(String name) {}"),
-                new Source("com.chalkak.backend.admin.service.banner", "GoodService",
-                        "public class GoodService {}"),
-                new Source("com.chalkak.backend.banner.repository", "GoodRepository",
-                        "public interface GoodRepository {}"),
-                new Source("com.chalkak.backend.banner.infrastructure.persistence",
+                        "@org.springframework.web.bind.annotation.RestController public class GoodController {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.admin.api.v1.dto.request",
+                        "GoodRequest",
+                        "public record GoodRequest(String name) {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.admin.service.banner",
+                        "GoodService",
+                        "public class GoodService {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.banner.repository",
+                        "GoodRepository",
+                        "public interface GoodRepository {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.banner.infrastructure.persistence",
                         "GoodJpaRepository",
-                        "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source("com.chalkak.backend.admin.api.v1.controller", "GoodController",
-                        "@org.springframework.web.bind.annotation.RestController public class GoodController {}")));
+                        "public interface GoodJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"
+                ),
+                new Source(
+                        "com.chalkak.backend.admin.api.v1.controller",
+                        "GoodController",
+                        "@org.springframework.web.bind.annotation.RestController public class GoodController {}"
+                )
+        ));
         String domain = banner ? "com.chalkak.backend.banner" : "com.chalkak.backend.sample";
         var invalidSources = List.of(
-                new Source(domain + ".api.v1.dto.request", "BadRequest",
-                        "public class BadRequest {}"),
-                new Source(domain + ".service", "BadService",
-                        "public class BadService { software.amazon.awssdk.services.s3.S3Client client; }"),
-                new Source(domain + ".repository", "BadRepository",
-                        "public interface BadRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source(domain + ".domain", "BadJpaRepository",
-                        "public interface BadJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"),
-                new Source(domain + ".service", "BadController",
-                        "@org.springframework.web.bind.annotation.RestController public class BadController {}"));
+                new Source(
+                        domain + ".api.v1.dto.request",
+                        "BadRequest",
+                        "public class BadRequest {}"
+                ),
+                new Source(
+                        domain + ".service",
+                        "BadService",
+                        "public class BadService { software.amazon.awssdk.services.s3.S3Client client; }"
+                ),
+                new Source(
+                        domain + ".repository",
+                        "BadRepository",
+                        "public interface BadRepository extends org.springframework.data.jpa.repository.JpaRepository {}"
+                ),
+                new Source(
+                        domain + ".domain",
+                        "BadJpaRepository",
+                        "public interface BadJpaRepository extends org.springframework.data.jpa.repository.JpaRepository {}"
+                ),
+                new Source(
+                        domain + ".service",
+                        "BadController",
+                        "@org.springframework.web.bind.annotation.RestController public class BadController {}"
+                )
+        );
         if (invalidRule >= 0) {
             sources.add(invalidSources.get(invalidRule));
         }
@@ -127,11 +180,19 @@ class ArchitectureRulesTest {
             Files.writeString(file, "package " + source.packageName() + ";\n" + source.body());
             arguments.add(file.toString());
         }
-        assertThat(ToolProvider.getSystemJavaCompiler().run(null, null, null,
-                arguments.toArray(String[]::new))).isZero();
+        assertThat(ToolProvider.getSystemJavaCompiler().run(
+                null,
+                null,
+                null,
+                arguments.toArray(String[]::new)
+        )).isZero();
         return new ClassFileImporter().importPath(output);
     }
 
-    private record Source(String packageName, String className, String body) {
+    private record Source(
+            String packageName,
+            String className,
+            String body
+    ) {
     }
 }

@@ -57,8 +57,8 @@ class SignatureProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/upload-urls", uploadId)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.originalUploadUrl").value("https://s3.test/original"))
                 .andExpect(jsonPath("$.thumbnailUploadUrl").value("https://s3.test/thumbnail"))
@@ -78,14 +78,19 @@ class SignatureProcessingCallbackControllerTest {
     void issueUploadUrls_nonCanonicalUploadId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post(
-                        "/internal/v1/signature-processing/{uploadId}/upload-urls",
-                        "1-1-1-1-1"
-                )
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature"))
+                "/internal/v1/signature-processing/{uploadId}/upload-urls",
+                "1-1-1-1-1"
+        )
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isBadRequest());
 
-        verify(authenticator, never()).authenticate(any(), any(), any(), any());
+        verify(authenticator, never()).authenticate(
+                any(),
+                any(),
+                any(),
+                any()
+        );
         verify(userService, never()).issueSignatureProcessingUpload(any());
     }
 
@@ -97,11 +102,16 @@ class SignatureProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isNoContent());
 
-        verify(authenticator).authenticate(callbackPath(uploadId, "complete"), null, "1787562000", "signature");
+        verify(authenticator).authenticate(
+                callbackPath(uploadId, "complete"),
+                null,
+                "1787562000",
+                "signature"
+        );
         verify(userService).completeSignatureProcessing(uploadId);
     }
 
@@ -113,11 +123,16 @@ class SignatureProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/failed", uploadId)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isNoContent());
 
-        verify(authenticator).authenticate(callbackPath(uploadId, "failed"), null, "1787562000", "signature");
+        verify(authenticator).authenticate(
+                callbackPath(uploadId, "failed"),
+                null,
+                "1787562000",
+                "signature"
+        );
         verify(userService).failSignatureProcessing(uploadId);
     }
 
@@ -128,12 +143,17 @@ class SignatureProcessingCallbackControllerTest {
         UUID uploadId = UUID.randomUUID();
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(callbackPath(uploadId, "complete"), null, "1787562000", "invalid");
+                .authenticate(
+                        callbackPath(uploadId, "complete"),
+                        null,
+                        "1787562000",
+                        "invalid"
+                );
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "invalid"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "invalid"))
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).completeSignatureProcessing(uploadId);
@@ -146,11 +166,16 @@ class SignatureProcessingCallbackControllerTest {
         UUID uploadId = UUID.randomUUID();
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(callbackPath(uploadId, "complete"), null, "1787562000", null);
+                .authenticate(
+                        callbackPath(uploadId, "complete"),
+                        null,
+                        "1787562000",
+                        null
+                );
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
-                        .header(TIMESTAMP_HEADER, "1787562000"))
+                .header(TIMESTAMP_HEADER, "1787562000"))
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).completeSignatureProcessing(uploadId);
@@ -163,11 +188,16 @@ class SignatureProcessingCallbackControllerTest {
         UUID uploadId = UUID.randomUUID();
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(callbackPath(uploadId, "complete"), null, null, "signature");
+                .authenticate(
+                        callbackPath(uploadId, "complete"),
+                        null,
+                        null,
+                        "signature"
+                );
 
         // When & Then
         mockMvc.perform(post("/internal/v1/signature-processing/{uploadId}/complete", uploadId)
-                        .header(SIGNATURE_HEADER, "signature"))
+                .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).completeSignatureProcessing(uploadId);

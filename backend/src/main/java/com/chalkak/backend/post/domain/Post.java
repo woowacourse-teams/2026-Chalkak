@@ -108,13 +108,23 @@ public class Post {
             UUID postImageUploadId,
             String title
     ) {
-        validateRelations(author, topic, photo);
+        validateRelations(
+                author,
+                topic,
+                photo
+        );
         if (postImageUploadId == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "게시물 생성 정보가 올바르지 않습니다.");
         }
-        return new Post(author, topic, photo, postImageUploadId, title);
+        return new Post(
+                author,
+                topic,
+                photo,
+                postImageUploadId,
+                title
+        );
     }
 
     public void requestModeration() {
@@ -264,7 +274,11 @@ public class Post {
         }
     }
 
-    private static void validateRelations(User author, Topic topic, Photo photo) {
+    private static void validateRelations(
+            User author,
+            Topic topic,
+            Photo photo
+    ) {
         if (author == null || topic == null || photo == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,

@@ -72,9 +72,11 @@ class PushWorkerConfigurationTest {
             String projectId, String credentialsPath) {
         // When & Then
         new ApplicationContextRunner().withUserConfiguration(PushWorkerConfiguration.class)
-                .withPropertyValues("chalkak.notification.fcm.worker-enabled=true",
+                .withPropertyValues(
+                        "chalkak.notification.fcm.worker-enabled=true",
                         "chalkak.notification.fcm.project-id=" + projectId,
-                        "chalkak.notification.fcm.credentials-path=" + credentialsPath)
+                        "chalkak.notification.fcm.credentials-path=" + credentialsPath
+                )
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure())
@@ -94,13 +96,27 @@ class PushWorkerConfigurationTest {
     void configuration_invalidQueueUrl_rejectsRelayAndWorker(String queueUrl) {
         // Given
         PushWorkerConfiguration configuration = new PushWorkerConfiguration("test", "test.json");
-        SqsPushProperties properties = new SqsPushProperties(false, false, queueUrl,
-                "ap-northeast-2");
+        SqsPushProperties properties = new SqsPushProperties(
+                false,
+                false,
+                queueUrl,
+                "ap-northeast-2"
+        );
         // When & Then
-        assertThatThrownBy(() -> new SqsPushProperties(true, false, queueUrl, "ap-northeast-2"))
+        assertThatThrownBy(() -> new SqsPushProperties(
+                true,
+                false,
+                queueUrl,
+                "ap-northeast-2"
+        ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("알림 푸시를 사용하려면 Standard SQS 큐 URL이 필요합니다.");
-        assertThatThrownBy(() -> new SqsPushProperties(false, true, queueUrl, "ap-northeast-2"))
+        assertThatThrownBy(() -> new SqsPushProperties(
+                false,
+                true,
+                queueUrl,
+                "ap-northeast-2"
+        ))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> configuration.notificationWorkerSqsClient(properties))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -148,8 +164,11 @@ class PushWorkerConfigurationTest {
                             .getScheduledTasks()).hasSize(3).extracting(task -> task.getTask())
                             .allSatisfy(task -> assertThat(task).isInstanceOf(FixedDelayTask.class))
                             .extracting(task -> ((FixedDelayTask) task).getIntervalDuration())
-                            .containsExactlyInAnyOrder(Duration.ofMillis(1), Duration.ofMillis(1),
-                                    Duration.ofMillis(10));
+                            .containsExactlyInAnyOrder(
+                                    Duration.ofMillis(1),
+                                    Duration.ofMillis(1),
+                                    Duration.ofMillis(10)
+                            );
                     try {
                         assertThat(probe.pollStarted.await(5, TimeUnit.SECONDS)).isTrue();
                         assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();
@@ -196,15 +215,19 @@ class PushWorkerConfigurationTest {
         FakePollingProbe probe = new FakePollingProbe();
         // When & Then
         createPollingContext(probe)
-                .withBean("failingInitializer", SmartInitializingSingleton.class, () -> () -> {
-                    try {
-                        probe.pollStarted.await(200, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException exception) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError(exception);
-                    }
-                    throw new IllegalStateException("초기화 실패 테스트");
-                })
+                .withBean(
+                        "failingInitializer",
+                        SmartInitializingSingleton.class,
+                        () -> () -> {
+                            try {
+                                probe.pollStarted.await(200, TimeUnit.MILLISECONDS);
+                            } catch (InterruptedException exception) {
+                                Thread.currentThread().interrupt();
+                                throw new AssertionError(exception);
+                            }
+                            throw new IllegalStateException("초기화 실패 테스트");
+                        }
+                )
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure()).hasMessage("초기화 실패 테스트");
@@ -220,15 +243,19 @@ class PushWorkerConfigurationTest {
         AtomicBoolean startedDuringInitialization = new AtomicBoolean();
         // When & Then
         createPollingContext(probe)
-                .withBean("initializationProbe", SmartInitializingSingleton.class, () -> () -> {
-                    try {
-                        startedDuringInitialization
-                                .set(probe.pollStarted.await(200, TimeUnit.MILLISECONDS));
-                    } catch (InterruptedException exception) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError(exception);
-                    }
-                })
+                .withBean(
+                        "initializationProbe",
+                        SmartInitializingSingleton.class,
+                        () -> () -> {
+                            try {
+                                startedDuringInitialization
+                                        .set(probe.pollStarted.await(200, TimeUnit.MILLISECONDS));
+                            } catch (InterruptedException exception) {
+                                Thread.currentThread().interrupt();
+                                throw new AssertionError(exception);
+                            }
+                        }
+                )
                 .run(context -> {
                     try {
                         assertThat(context).hasNotFailed();
@@ -262,16 +289,21 @@ class PushWorkerConfigurationTest {
         return new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
                 .withUserConfiguration(SchedulingTestConfiguration.class, SchedulingConfig.class)
-                .withPropertyValues("spring.task.scheduling.pool.size=4",
+                .withPropertyValues(
+                        "spring.task.scheduling.pool.size=4",
                         "chalkak.notification.fcm.worker-enabled=true",
                         "chalkak.notification.fcm.project-id=test",
-                        "chalkak.notification.fcm.credentials-path=test.json")
+                        "chalkak.notification.fcm.credentials-path=test.json"
+                )
                 .withBean(Clock.class, Clock::systemUTC)
                 .withBean(FakePollingProbe.class, () -> probe)
                 .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
-                .withBean(SqsPushProperties.class, () -> new SqsPushProperties(false, false,
+                .withBean(SqsPushProperties.class, () -> new SqsPushProperties(
+                        false,
+                        false,
                         "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
-                        "ap-northeast-2"))
+                        "ap-northeast-2"
+                ))
                 .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
                 .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
                 .withBean(PostRepository.class, () -> mock(PostRepository.class))
@@ -288,7 +320,8 @@ class PushWorkerConfigurationTest {
         SchedulingTestConfiguration(
                 @Value("${chalkak.notification.fcm.project-id:}") String projectId,
                 @Value("${chalkak.notification.fcm.credentials-path:}") String credentialsPath,
-                FakePollingProbe probe) {
+                FakePollingProbe probe
+        ) {
             super(projectId, credentialsPath);
             this.probe = probe;
         }

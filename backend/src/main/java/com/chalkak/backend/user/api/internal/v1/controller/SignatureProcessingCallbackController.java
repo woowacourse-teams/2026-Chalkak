@@ -45,7 +45,8 @@ public class SignatureProcessingCallbackController
                 callbackPath(parsedUploadId, "upload-urls"),
                 null,
                 timestamp,
-                signature);
+                signature
+        );
         return ResponseEntity.ok(SignatureProcessingUploadUrlsResponse.from(
                 userService.issueSignatureProcessingUpload(parsedUploadId)));
     }
@@ -62,7 +63,8 @@ public class SignatureProcessingCallbackController
                 callbackPath(parsedUploadId, "complete"),
                 null,
                 timestamp,
-                signature);
+                signature
+        );
         userService.completeSignatureProcessing(parsedUploadId);
 
         return ResponseEntity.noContent().build();
@@ -80,7 +82,8 @@ public class SignatureProcessingCallbackController
                 callbackPath(parsedUploadId, "failed"),
                 null,
                 timestamp,
-                signature);
+                signature
+        );
         userService.failSignatureProcessing(parsedUploadId);
 
         return ResponseEntity.noContent().build();

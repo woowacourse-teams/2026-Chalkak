@@ -47,7 +47,12 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         UUID authorId = insertUser();
         UUID nonAuthorId = insertUser();
         UUID topicId = insertTopic("2026-10-12");
-        insertPost(authorId, topicId, status, deleted);
+        insertPost(
+                authorId,
+                topicId,
+                status,
+                deleted
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -70,7 +75,12 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         UUID authorId = insertUser();
         UUID todayTopicId = insertTopic("2026-10-12");
         UUID otherTopicId = insertTopic("2026-10-11");
-        insertPost(authorId, otherTopicId, ModerationStatus.APPROVED, false);
+        insertPost(
+                authorId,
+                otherTopicId,
+                ModerationStatus.APPROVED,
+                false
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -87,8 +97,18 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         // Given
         UUID authorId = insertUser();
         UUID topicId = insertTopic("2026-10-12");
-        insertPost(authorId, topicId, ModerationStatus.REJECTED, false);
-        insertPost(authorId, topicId, ModerationStatus.PENDING, false);
+        insertPost(
+                authorId,
+                topicId,
+                ModerationStatus.REJECTED,
+                false
+        );
+        insertPost(
+                authorId,
+                topicId,
+                ModerationStatus.PENDING,
+                false
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -101,19 +121,30 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
 
     private UUID insertUser() {
         UUID id = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO users(id,email,status,signature_original_storage_key)
-                VALUES (?,?,'ACTIVE',?)
-                """, id, id + "@participation.test", "signatures/" + id);
+        jdbc.update(
+                """
+                        INSERT INTO users(id,email,status,signature_original_storage_key)
+                        VALUES (?,?,'ACTIVE',?)
+                        """,
+                id,
+                id + "@participation.test",
+                "signatures/" + id
+        );
         return id;
     }
 
     private UUID insertTopic(String date) {
         UUID id = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO topics(id,title,topic_date,starts_at,ends_at)
-                VALUES (?,'빛과 그림자',?,?::date,?::date + INTERVAL '1 day')
-                """, id, Date.valueOf(date), Date.valueOf(date), Date.valueOf(date));
+        jdbc.update(
+                """
+                        INSERT INTO topics(id,title,topic_date,starts_at,ends_at)
+                        VALUES (?,'빛과 그림자',?,?::date,?::date + INTERVAL '1 day')
+                        """,
+                id,
+                Date.valueOf(date),
+                Date.valueOf(date),
+                Date.valueOf(date)
+        );
         return id;
     }
 
@@ -124,10 +155,15 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
             boolean deleted
     ) {
         UUID photoId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO photos(id,original_storage_key,thumbnail_storage_key)
-                VALUES (?,?,?)
-                """, photoId, "original/" + photoId, "thumbnail/" + photoId);
+        jdbc.update(
+                """
+                        INSERT INTO photos(id,original_storage_key,thumbnail_storage_key)
+                        VALUES (?,?,?)
+                        """,
+                photoId,
+                "original/" + photoId,
+                "thumbnail/" + photoId
+        );
         Timestamp deletedAt = null;
         if (deleted) {
             deletedAt = Timestamp.from(Instant.parse("2026-10-12T00:00:00Z"));
@@ -137,7 +173,13 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
                         INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status,deleted_at,created_at)
                         VALUES (?,?,?,?,CAST(? AS moderation_status),?,'2026-10-10T00:00:00Z')
                         """,
-                UUID.randomUUID(), userId, topicId, photoId, status.name(), deletedAt);
+                UUID.randomUUID(),
+                userId,
+                topicId,
+                photoId,
+                status.name(),
+                deletedAt
+        );
     }
 
 }

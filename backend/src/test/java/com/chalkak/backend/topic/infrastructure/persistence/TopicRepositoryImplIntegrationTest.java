@@ -42,11 +42,16 @@ class TopicRepositoryImplIntegrationTest extends IntegrationTestSupport {
                 UUID.fromString("0198fd20-0000-7000-8000-000000000011"));
         Topic overlappingTopic = Topic.create(
                 "겹치는 주제",
-                LocalDate.of(2026, 8, 29),
+                LocalDate.of(
+                        2026,
+                        8,
+                        29
+                ),
                 new ParticipationPeriod(
                         Instant.parse("2026-08-29T14:00:00Z"),
                         Instant.parse("2026-08-29T16:00:00Z")),
-                Instant.parse("2026-08-28T03:00:00Z"));
+                Instant.parse("2026-08-28T03:00:00Z")
+        );
 
         // When
         BusinessException exception = catchThrowableOfType(

@@ -29,9 +29,16 @@ public class AdminAuditLogController implements AdminAuditLogApiDocs {
             @Valid @ModelAttribute AdminAuditLogListRequest request
     ) {
         AdminAuditLogListResult result = service.getAuditLogs(
-                request.adminId(), request.action(), request.targetType(), request.targetId(),
-                request.occurredFrom(), request.occurredTo(), request.sort(),
-                request.page(), request.pageSize());
+                request.adminId(),
+                request.action(),
+                request.targetType(),
+                request.targetId(),
+                request.occurredFrom(),
+                request.occurredTo(),
+                request.sort(),
+                request.page(),
+                request.pageSize()
+        );
         return ResponseEntity.ok(AdminAuditLogListResponse.from(result));
     }
 }

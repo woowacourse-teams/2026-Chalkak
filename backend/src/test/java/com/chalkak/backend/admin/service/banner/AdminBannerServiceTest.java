@@ -64,8 +64,13 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("배너 등록은 정규화한 정보를 저장하고 URL 없이 감사 로그를 남긴다")
     void createBanner_validInput_persistsBannerAndAudit() throws Exception {
         // When
-        BannerResult result = adminBannerService.createBanner(ADMIN_ID, " 제목 ", " 부제목 ",
-                " " + URL + " ", " https://cdn.example.com/banner.png ");
+        BannerResult result = adminBannerService.createBanner(
+                ADMIN_ID,
+                " 제목 ",
+                " 부제목 ",
+                " " + URL + " ",
+                " https://cdn.example.com/banner.png "
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -96,8 +101,13 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("잘못된 도메인 입력이면 배너와 감사 기록을 저장하지 않는다")
     void createBanner_invalidInput_throwsBeforeSaving() {
         // When & Then
-        assertThatThrownBy(() -> adminBannerService.createBanner(ADMIN_ID, "제목", "부제목",
-                "http://example.com", "https://cdn.example.com/banner.png"))
+        assertThatThrownBy(() -> adminBannerService.createBanner(
+                ADMIN_ID,
+                "제목",
+                "부제목",
+                "http://example.com",
+                "https://cdn.example.com/banner.png"
+        ))
                 .isInstanceOf(BusinessException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM banners", Integer.class))
                 .isZero();
@@ -108,12 +118,22 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("쿼리나 프래그먼트가 다르면 별도 배너를 등록한다")
     void createBanner_differentCompleteUrl_persistsBoth(String suffix) {
         // Given
-        adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL,
-                "https://cdn.example.com/banner.png");
+        adminBannerService.createBanner(
+                ADMIN_ID,
+                "제목",
+                "부제목",
+                URL,
+                "https://cdn.example.com/banner.png"
+        );
 
         // When
-        adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL + suffix,
-                "https://cdn.example.com/banner.png");
+        adminBannerService.createBanner(
+                ADMIN_ID,
+                "제목",
+                "부제목",
+                URL + suffix,
+                "https://cdn.example.com/banner.png"
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -126,12 +146,22 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
     @DisplayName("중복은 사전 검사에서 거절해 DB 제약 오류 없이 기존 데이터를 유지한다")
     void createBanner_existingUrl_rejectsBeforeDatabaseViolation() {
         // Given
-        adminBannerService.createBanner(ADMIN_ID, "제목", "부제목", URL,
-                "https://cdn.example.com/banner.png");
+        adminBannerService.createBanner(
+                ADMIN_ID,
+                "제목",
+                "부제목",
+                URL,
+                "https://cdn.example.com/banner.png"
+        );
 
         // When & Then
-        assertThatThrownBy(() -> adminBannerService.createBanner(ADMIN_ID, "다른 제목", "다른 부제목",
-                "\u2003" + URL + "\u2003", "https://cdn.example.com/other.png"))
+        assertThatThrownBy(() -> adminBannerService.createBanner(
+                ADMIN_ID,
+                "다른 제목",
+                "다른 부제목",
+                "\u2003" + URL + "\u2003",
+                "https://cdn.example.com/other.png"
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("동일한 웹뷰 URL의 배너가 이미 존재합니다.");
         // DB 제약 오류가 발생했다면 PostgreSQL 트랜잭션이 중단돼 이 조회도 실패한다.
@@ -149,8 +179,13 @@ class AdminBannerServiceTest extends IntegrationTestSupport {
         }
 
         // When
-        BannerResult result = adminBannerService.createBanner(ADMIN_ID, "제목", "부제목",
-                url.toString(), "https://cdn.example.com/banner.png");
+        BannerResult result = adminBannerService.createBanner(
+                ADMIN_ID,
+                "제목",
+                "부제목",
+                url.toString(),
+                "https://cdn.example.com/banner.png"
+        );
         entityManager.flush();
         entityManager.clear();
 

@@ -7,7 +7,8 @@ public record AiPromptVersionPage(
         List<AiPromptVersion> items,
         int currentPage,
         int pageSize,
-        boolean hasNext) {
+        boolean hasNext
+) {
 
     public AiPromptVersionPage {
         items = List.copyOf(items);

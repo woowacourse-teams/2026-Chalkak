@@ -118,7 +118,10 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
         assertThat(distributedAtOf(failing)).isNull();
         assertThat(distributedAtOf(other)).isNotNull();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM notifications WHERE source_id = ?", Integer.class, other))
+                "SELECT COUNT(*) FROM notifications WHERE source_id = ?",
+                Integer.class,
+                other
+        ))
                 .isEqualTo(2);
     }
 
@@ -200,31 +203,46 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
 
     private UUID insertUser(String status, boolean withdrawn) {
         UUID userId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO users (id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at)
-                VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    CASE WHEN ? THEN CURRENT_TIMESTAMP END)
-                """, userId, userId + "@notice.test", status, userId + "/signature.png",
-                withdrawn);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (id, email, status, signature_original_storage_key,
+                            created_at, updated_at, deleted_at)
+                        VALUES (?, ?, CAST(? AS user_status), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                            CASE WHEN ? THEN CURRENT_TIMESTAMP END)
+                        """,
+                userId,
+                userId + "@notice.test",
+                status,
+                userId + "/signature.png",
+                withdrawn
+        );
         return userId;
     }
 
     private UUID insertNotice(Instant scheduledAt) {
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
-                VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                RETURNING id
-                """, UUID.class, Timestamp.from(scheduledAt));
+        return jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                        VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                        """,
+                UUID.class,
+                Timestamp.from(scheduledAt)
+        );
     }
 
     private void insertConflictingNotification(UUID userId, UUID noticeId) {
-        jdbcTemplate.update("""
-                INSERT INTO notifications (user_id, source_type, source_id, event_key, type,
-                    title, body, created_at, sqs_publish_status)
-                VALUES (?, 'NOTICE', ?, ?, 'NOTICE', '공지', '본문', CURRENT_TIMESTAMP,
-                    'NOT_REQUIRED')
-                """, userId, noticeId, noticeId);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (user_id, source_type, source_id, event_key, type,
+                            title, body, created_at, sqs_publish_status)
+                        VALUES (?, 'NOTICE', ?, ?, 'NOTICE', '공지', '본문', CURRENT_TIMESTAMP,
+                            'NOT_REQUIRED')
+                        """,
+                userId,
+                noticeId,
+                noticeId
+        );
     }
 
     private int countNotifications() {
@@ -232,7 +250,10 @@ class NoticeDistributionServiceTest extends IntegrationTestSupport {
     }
 
     private Timestamp distributedAtOf(UUID noticeId) {
-        return jdbcTemplate.queryForObject("SELECT distributed_at FROM notices WHERE id = ?",
-                Timestamp.class, noticeId);
+        return jdbcTemplate.queryForObject(
+                "SELECT distributed_at FROM notices WHERE id = ?",
+                Timestamp.class,
+                noticeId
+        );
     }
 }

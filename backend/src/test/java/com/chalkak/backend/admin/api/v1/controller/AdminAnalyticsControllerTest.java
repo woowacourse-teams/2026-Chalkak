@@ -65,7 +65,11 @@ class AdminAnalyticsControllerTest {
                 .andExpect(status().isAccepted())
                 .andExpect(content().string(""));
 
-        then(aggregationRunner).should().start(ADMIN_ID, LocalDate.of(2030, 1, 2));
+        then(aggregationRunner).should().start(ADMIN_ID, LocalDate.of(
+                2030,
+                1,
+                2
+        ));
     }
 
     @Test
@@ -94,7 +98,11 @@ class AdminAnalyticsControllerTest {
         // Given
         doThrow(new BusinessException(
                 ErrorCode.BUSINESS_ERROR, "아직 끝나지 않은 날짜는 집계할 수 없습니다."))
-                .when(aggregationRunner).start(ADMIN_ID, LocalDate.of(2030, 1, 3));
+                .when(aggregationRunner).start(ADMIN_ID, LocalDate.of(
+                        2030,
+                        1,
+                        3
+                ));
 
         // When & Then
         mockMvc.perform(post(PATH)
@@ -114,7 +122,11 @@ class AdminAnalyticsControllerTest {
         doThrow(new BusinessException(
                 ErrorCode.USER_METRICS_AGGREGATION_IN_PROGRESS,
                 "이미 사용자 지표 집계가 진행 중입니다."))
-                .when(aggregationRunner).start(ADMIN_ID, LocalDate.of(2030, 1, 2));
+                .when(aggregationRunner).start(ADMIN_ID, LocalDate.of(
+                        2030,
+                        1,
+                        2
+                ));
 
         // When & Then
         mockMvc.perform(post(PATH)

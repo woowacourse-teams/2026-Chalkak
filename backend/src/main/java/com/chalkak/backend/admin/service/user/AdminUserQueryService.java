@@ -36,9 +36,14 @@ public class AdminUserQueryService {
         AdminUserQueryCriteria criteria = new AdminUserQueryCriteria(
                 status,
                 normalizedEmail,
-                sort == null ? AdminUserSort.CREATED_AT_DESC : sort);
+                sort == null ? AdminUserSort.CREATED_AT_DESC : sort
+        );
         return AdminUserListResult.from(
-                adminUserQueryRepository.findUsers(criteria, page, pageSize));
+                adminUserQueryRepository.findUsers(
+                        criteria,
+                        page,
+                        pageSize
+                ));
     }
 
     public AdminUserDetail getUser(UUID userId) {

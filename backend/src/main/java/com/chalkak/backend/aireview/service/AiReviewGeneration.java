@@ -21,7 +21,8 @@ public record AiReviewGeneration(
     }
 
     /**
-     * OpenAI가 보고한 토큰 사용량. 각 값이 null이면 OpenAI가 해당 사용량을 주지 않은 것이고, 0은 실제로 0이라고 보고한 값이다.
+     * OpenAI가 보고한 토큰 사용량. 각 값이 null이면 OpenAI가 해당 사용량을 주지 않은 것이고, 0은 실제로 0이라고 보고한
+     * 값이다.
      */
     public record Usage(
             Integer inputTokens,

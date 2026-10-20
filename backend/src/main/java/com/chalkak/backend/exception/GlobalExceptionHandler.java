@@ -38,7 +38,8 @@ public class GlobalExceptionHandler {
                 e,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.BUSINESS_ERROR,
-                message);
+                message
+        );
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
@@ -57,7 +58,8 @@ public class GlobalExceptionHandler {
                 e,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.BUSINESS_ERROR,
-                message);
+                message
+        );
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -68,7 +70,8 @@ public class GlobalExceptionHandler {
                 e,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.BUSINESS_ERROR,
-                "JSON 형식이 올바르지 않거나 요청 본문이 비어 있습니다.");
+                "JSON 형식이 올바르지 않거나 요청 본문이 비어 있습니다."
+        );
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -79,7 +82,8 @@ public class GlobalExceptionHandler {
                 e,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.BUSINESS_ERROR,
-                fieldMessage(e.getName(), "요청 값의 형식이 올바르지 않습니다."));
+                fieldMessage(e.getName(), "요청 값의 형식이 올바르지 않습니다.")
+        );
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
@@ -90,7 +94,8 @@ public class GlobalExceptionHandler {
                 e,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.BUSINESS_ERROR,
-                fieldMessage(e.getParameterName(), "필수 요청 값이 없습니다."));
+                fieldMessage(e.getParameterName(), "필수 요청 값이 없습니다.")
+        );
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)
@@ -101,7 +106,8 @@ public class GlobalExceptionHandler {
                 e,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.BUSINESS_ERROR,
-                fieldMessage(e.getHeaderName(), "필수 요청 값이 없습니다."));
+                fieldMessage(e.getHeaderName(), "필수 요청 값이 없습니다.")
+        );
     }
 
     /**
@@ -109,7 +115,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
     public ResponseEntity<ErrorResponse> handleApiNotFoundException(Exception e) {
-        return response(HttpStatus.NOT_FOUND, ErrorCode.BUSINESS_ERROR, "요청한 API를 찾을 수 없습니다.");
+        return response(
+                HttpStatus.NOT_FOUND,
+                ErrorCode.BUSINESS_ERROR,
+                "요청한 API를 찾을 수 없습니다."
+        );
     }
 
     @ExceptionHandler({BaseException.class})
@@ -134,7 +144,8 @@ public class GlobalExceptionHandler {
                     e,
                     status,
                     ErrorCode.BUSINESS_ERROR,
-                    "지원하지 않는 요청 방식이거나 형식입니다.");
+                    "지원하지 않는 요청 방식이거나 형식입니다."
+            );
         }
 
         log.atError()
@@ -144,7 +155,11 @@ public class GlobalExceptionHandler {
                 .setCause(e)
                 .log("처리되지 않은 예외");
 
-        return response(status, ErrorCode.INTERNAL_ERROR, "서버에서 요청을 처리하지 못했습니다.");
+        return response(
+                status,
+                ErrorCode.INTERNAL_ERROR,
+                "서버에서 요청을 처리하지 못했습니다."
+        );
     }
 
     private HttpStatus statusOf(Exception e) {
@@ -160,7 +175,8 @@ public class GlobalExceptionHandler {
         warnClientError(
                 exception,
                 status,
-                exception.getErrorCode());
+                exception.getErrorCode()
+        );
 
         return ResponseEntity.status(status)
                 .body(new ErrorResponse(exception.getErrorCode().name(), exception.getMessage()));
@@ -175,12 +191,14 @@ public class GlobalExceptionHandler {
         warnClientError(
                 e,
                 status,
-                errorCode);
+                errorCode
+        );
 
         return response(
                 status,
                 errorCode,
-                message);
+                message
+        );
     }
 
     /**
@@ -200,8 +218,11 @@ public class GlobalExceptionHandler {
                 .log("요청 실패");
     }
 
-    private ResponseEntity<ErrorResponse> response(HttpStatus status, ErrorCode errorCode,
-            String message) {
+    private ResponseEntity<ErrorResponse> response(
+            HttpStatus status,
+            ErrorCode errorCode,
+            String message
+    ) {
         return ResponseEntity.status(status)
                 .body(new ErrorResponse(errorCode.name(), message));
     }

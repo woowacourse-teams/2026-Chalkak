@@ -115,11 +115,23 @@ class FcmDevicePushSenderTest {
                 })
                 .setHttpTransport(transport).build(), UUID.randomUUID().toString());
         sender = new FcmDevicePushSender(FirebaseMessaging.getInstance(app), clock);
-        PushMessage message = new PushMessage(UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), NotificationType.POST_APPROVED, NotificationSourceType.POST,
-                UUID.randomUUID(), NOW, NOW.plusSeconds(1800));
-        request = new DevicePushRequest(message, "fcm-test-token", "승인되었습니다", "사진을 확인해주세요",
-                message.expiresAt());
+        PushMessage message = new PushMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NotificationType.POST_APPROVED,
+                NotificationSourceType.POST,
+                UUID.randomUUID(),
+                NOW,
+                NOW.plusSeconds(1800)
+        );
+        request = new DevicePushRequest(
+                message,
+                "fcm-test-token",
+                "승인되었습니다",
+                "사진을 확인해주세요",
+                message.expiresAt()
+        );
     }
 
     @AfterEach
@@ -148,11 +160,23 @@ class FcmDevicePushSenderTest {
     void send_topicMessage_omitsInboxIdAndPreservesExpiration() {
         // Given
         UUID topicId = UUID.randomUUID();
-        PushMessage topic = new PushMessage(UUID.randomUUID(), null, UUID.randomUUID(),
-                NotificationType.TOPIC, NotificationSourceType.TOPIC, topicId, NOW,
-                NOW.plusSeconds(1800));
-        DevicePushRequest topicRequest = new DevicePushRequest(topic, "fcm-test-token", "오늘의 주제",
-                "빛과 그림자", topic.expiresAt());
+        PushMessage topic = new PushMessage(
+                UUID.randomUUID(),
+                null,
+                UUID.randomUUID(),
+                NotificationType.TOPIC,
+                NotificationSourceType.TOPIC,
+                topicId,
+                NOW,
+                NOW.plusSeconds(1800)
+        );
+        DevicePushRequest topicRequest = new DevicePushRequest(
+                topic,
+                "fcm-test-token",
+                "오늘의 주제",
+                "빛과 그림자",
+                topic.expiresAt()
+        );
         // When & Then
         assertThat(sender.send(topicRequest).status()).isEqualTo(Status.ACCEPTED);
         JsonNode body = bodies.getFirst().get("message");
@@ -176,7 +200,12 @@ class FcmDevicePushSenderTest {
             "401,UNAUTHENTICATED,THIRD_PARTY_AUTH_ERROR,PERMANENT_FAILURE",
             "429,RESOURCE_EXHAUSTED,QUOTA_EXCEEDED,RETRYABLE", "500,INTERNAL,INTERNAL,RETRYABLE"})
     @DisplayName("FCM 응답을 무효 토큰·영구 오류·일시 실패로 분류한다")
-    void send_fcmError_classifiesResult(int code, String status, String detail, Status expected) {
+    void send_fcmError_classifiesResult(
+            int code,
+            String status,
+            String detail,
+            Status expected
+    ) {
         // Given
         responseStatus = code;
         errorStatus = status;

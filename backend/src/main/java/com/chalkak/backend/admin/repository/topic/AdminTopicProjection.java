@@ -14,5 +14,6 @@ public record AdminTopicProjection(
         Instant updatedAt,
         long pendingPostCount,
         long approvedPostCount,
-        long rejectedPostCount) {
+        long rejectedPostCount
+) {
 }

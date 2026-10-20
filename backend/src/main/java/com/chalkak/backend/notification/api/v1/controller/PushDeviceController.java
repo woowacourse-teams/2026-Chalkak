@@ -28,7 +28,11 @@ public class PushDeviceController implements PushDeviceApiDocs {
             @Valid @RequestBody PushDeviceRegistrationRequest request,
             @LoginUser AuthenticatedUser loginUser
     ) {
-        pushDeviceService.register(loginUser.userId(), loginUser.sessionId(), request.fcmToken());
+        pushDeviceService.register(
+                loginUser.userId(),
+                loginUser.sessionId(),
+                request.fcmToken()
+        );
         return ResponseEntity.noContent().build();
     }
 }

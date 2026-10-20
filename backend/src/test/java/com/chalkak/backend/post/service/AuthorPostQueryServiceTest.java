@@ -37,13 +37,29 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         // Given
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
-        jdbcTemplate.update("UPDATE users SET status = ?::user_status WHERE id = ?",
-                authorStatus, authorId);
-        UUID postId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
+        jdbcTemplate.update(
+                "UPDATE users SET status = ?::user_status WHERE id = ?",
+                authorStatus,
+                authorId
+        );
+        UUID postId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        );
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -54,7 +70,11 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                     .isEqualTo("https://cdn.example.com/test/posts/" + postId + "-thumbnail.webp");
             assertThat(post.topic().id()).isNotNull();
             assertThat(post.topic().title()).isEqualTo("주제 2026-04-01");
-            assertThat(post.topic().topicDate()).isEqualTo(LocalDate.of(2026, 4, 1));
+            assertThat(post.topic().topicDate()).isEqualTo(LocalDate.of(
+                    2026,
+                    4,
+                    1
+            ));
         });
     }
 
@@ -64,8 +84,16 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         // Given
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
-        UUID postId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
+        UUID postId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
         jdbcTemplate.update("""
                 UPDATE photos
                 SET thumbnail_storage_key = NULL
@@ -73,7 +101,12 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 """, postId);
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        );
 
         // Then
         assertThat(result.posts()).singleElement().satisfies(post -> {
@@ -91,13 +124,34 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         // Given
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
-        createPost(jdbcTemplate, authorId, LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
-        UUID latestPostId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 2), ModerationStatus.APPROVED);
+        createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
+        UUID latestPostId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        2
+                ),
+                ModerationStatus.APPROVED
+        );
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, pageSize,
-                viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                pageSize,
+                viewerId
+        );
 
         // Then
         assertThat(result.posts()).hasSize(pageSize);
@@ -109,10 +163,24 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
     void getAuthorPosts_onlyOwnPendingPost_returnsEmpty() {
         // Given
         UUID authorId = createUser(jdbcTemplate);
-        createPost(jdbcTemplate, authorId, LocalDate.of(2026, 4, 1), ModerationStatus.PENDING);
+        createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.PENDING
+        );
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, authorId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                authorId
+        );
 
         // Then
         assertThat(result.posts()).isEmpty();
@@ -131,7 +199,12 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         }
 
         // When & Then
-        assertThatThrownBy(() -> postQueryService.getAuthorPosts(authorId, 1, 20, viewerId))
+        assertThatThrownBy(() -> postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        ))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("작성자를 찾을 수 없습니다.");
     }
@@ -144,7 +217,12 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
 
         // When & Then
         assertThatThrownBy(
-                () -> postQueryService.getAuthorPosts(authorId, 1, 20, UUID.randomUUID()))
+                () -> postQueryService.getAuthorPosts(
+                        authorId,
+                        1,
+                        20,
+                        UUID.randomUUID()
+                ))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.");
     }
@@ -158,8 +236,16 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         UUID viewerId = createUser(jdbcTemplate);
         List<UUID> expectedIds = new ArrayList<>();
         for (int day = 20; day >= 0; day--) {
-            expectedIds.add(createPost(jdbcTemplate, authorId,
-                    LocalDate.of(2025, 12, 15).plusDays(day), ModerationStatus.APPROVED));
+            expectedIds.add(createPost(
+                    jdbcTemplate,
+                    authorId,
+                    LocalDate.of(
+                            2025,
+                            12,
+                            15
+                    ).plusDays(day),
+                    ModerationStatus.APPROVED
+            ));
         }
         List<UUID> actualIds = new ArrayList<>();
         int currentPage = 0;
@@ -168,7 +254,11 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         // When
         for (int page = 1; page <= 21 && hasNext; page++) {
             AuthorPostListResult result = postQueryService.getAuthorPosts(
-                    authorId, page, pageSize, viewerId);
+                    authorId,
+                    page,
+                    pageSize,
+                    viewerId
+            );
             assertThat(result.posts()).hasSizeLessThanOrEqualTo(pageSize);
             actualIds.addAll(
                     result.posts().stream().map(AuthorPostListResult.PostSummary::id).toList());
@@ -195,12 +285,25 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
         for (int day = 0; day < count; day++) {
-            createPost(jdbcTemplate, authorId,
-                    LocalDate.of(2026, 4, 1).plusDays(day), ModerationStatus.APPROVED);
+            createPost(
+                    jdbcTemplate,
+                    authorId,
+                    LocalDate.of(
+                            2026,
+                            4,
+                            1
+                    ).plusDays(day),
+                    ModerationStatus.APPROVED
+            );
         }
 
         // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(authorId, 1, 20, viewerId);
+        AuthorPostListResult result = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        );
 
         // Then
         assertThat(result.posts()).hasSize(count);
@@ -215,26 +318,89 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         // Given
         UUID authorId = createUser(jdbcTemplate);
         UUID viewerId = createUser(jdbcTemplate);
-        UUID newestId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 5), ModerationStatus.APPROVED);
-        UUID pastApprovalId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 4), ModerationStatus.PENDING);
-        UUID boundaryId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 3), ModerationStatus.APPROVED);
-        UUID nextApprovalId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 2), ModerationStatus.PENDING);
-        UUID oldestId = createPost(jdbcTemplate, authorId,
-                LocalDate.of(2026, 4, 1), ModerationStatus.APPROVED);
-        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        UUID newestId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        5
+                ),
+                ModerationStatus.APPROVED
+        );
+        UUID pastApprovalId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        4
+                ),
+                ModerationStatus.PENDING
+        );
+        UUID boundaryId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        3
+                ),
+                ModerationStatus.APPROVED
+        );
+        UUID nextApprovalId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        2
+                ),
+                ModerationStatus.PENDING
+        );
+        UUID oldestId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
+        AuthorPostListResult first = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                2,
+                viewerId
+        );
         assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
                 .containsExactly(newestId, boundaryId);
-        jdbcTemplate.update("UPDATE posts SET moderation_status = 'APPROVED' WHERE id IN (?, ?)",
-                pastApprovalId, nextApprovalId);
+        jdbcTemplate.update(
+                "UPDATE posts SET moderation_status = 'APPROVED' WHERE id IN (?, ?)",
+                pastApprovalId,
+                nextApprovalId
+        );
 
         // When
-        AuthorPostListResult second = postQueryService.getAuthorPosts(authorId, 2, 2, viewerId);
-        AuthorPostListResult third = postQueryService.getAuthorPosts(authorId, 3, 2, viewerId);
-        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        AuthorPostListResult second = postQueryService.getAuthorPosts(
+                authorId,
+                2,
+                2,
+                viewerId
+        );
+        AuthorPostListResult third = postQueryService.getAuthorPosts(
+                authorId,
+                3,
+                2,
+                viewerId
+        );
+        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                2,
+                viewerId
+        );
 
         // Then
         assertThat(second.posts()).extracting(AuthorPostListResult.PostSummary::id)
@@ -256,10 +422,23 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         UUID viewerId = createUser(jdbcTemplate);
         List<UUID> ids = new ArrayList<>();
         for (int day = 1; day <= 5; day++) {
-            ids.add(createPost(jdbcTemplate, authorId,
-                    LocalDate.of(2026, 4, day), ModerationStatus.APPROVED));
+            ids.add(createPost(
+                    jdbcTemplate,
+                    authorId,
+                    LocalDate.of(
+                            2026,
+                            4,
+                            day
+                    ),
+                    ModerationStatus.APPROVED
+            ));
         }
-        AuthorPostListResult first = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
+        AuthorPostListResult first = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                2,
+                viewerId
+        );
         assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
                 .containsExactly(ids.get(4), ids.get(3));
         jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -270,9 +449,24 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 """, ids.get(2));
 
         // When
-        AuthorPostListResult second = postQueryService.getAuthorPosts(authorId, 2, 2, viewerId);
-        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(authorId, 1, 2, viewerId);
-        AuthorPostListResult pastEnd = postQueryService.getAuthorPosts(authorId, 3, 2, viewerId);
+        AuthorPostListResult second = postQueryService.getAuthorPosts(
+                authorId,
+                2,
+                2,
+                viewerId
+        );
+        AuthorPostListResult refreshed = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                2,
+                viewerId
+        );
+        AuthorPostListResult pastEnd = postQueryService.getAuthorPosts(
+                authorId,
+                3,
+                2,
+                viewerId
+        );
 
         // Then
         assertThat(second.posts()).extracting(AuthorPostListResult.PostSummary::id)

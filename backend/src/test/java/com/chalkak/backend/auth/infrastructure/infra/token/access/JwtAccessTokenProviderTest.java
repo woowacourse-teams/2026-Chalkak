@@ -277,7 +277,12 @@ class JwtAccessTokenProviderTest {
 
     private JwtAccessTokenProvider createProvider(Instant now) {
         return new JwtAccessTokenProvider(
-                new AccessTokenProperties(ISSUER, AUDIENCE, EXPIRATION, SECRET),
+                new AccessTokenProperties(
+                        ISSUER,
+                        AUDIENCE,
+                        EXPIRATION,
+                        SECRET
+                ),
                 Clock.fixed(now, ZoneOffset.UTC));
     }
 }

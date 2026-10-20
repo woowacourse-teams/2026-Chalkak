@@ -36,7 +36,11 @@ class AccessLogUserInterceptorTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
 
         // When
-        interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+        interceptor.preHandle(
+                request,
+                new MockHttpServletResponse(),
+                new Object()
+        );
 
         // Then
         assertThat(request.getAttribute(LogFields.USER_ID_REQUEST_ATTRIBUTE))
@@ -51,7 +55,11 @@ class AccessLogUserInterceptorTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
 
         // When
-        interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+        interceptor.preHandle(
+                request,
+                new MockHttpServletResponse(),
+                new Object()
+        );
 
         // Then
         assertThat(request.getAttribute(LogFields.USER_ID_REQUEST_ATTRIBUTE)).isNull();

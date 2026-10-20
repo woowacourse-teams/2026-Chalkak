@@ -64,7 +64,12 @@ public class Notice {
             Instant now
     ) {
         Notice notice = new Notice();
-        notice.applyContent(title, body, scheduledAt, now);
+        notice.applyContent(
+                title,
+                body,
+                scheduledAt,
+                now
+        );
         return notice;
     }
 
@@ -81,7 +86,12 @@ public class Notice {
         if (distributedAt != null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "배포된 공지는 수정할 수 없습니다.");
         }
-        applyContent(title, body, scheduledAt, now);
+        applyContent(
+                title,
+                body,
+                scheduledAt,
+                now
+        );
     }
 
     // 배포 전 삭제는 발송 취소, 배포 후 삭제는 회원 알림함에서 숨김이 된다.
@@ -125,10 +135,16 @@ public class Notice {
             Instant scheduledAt,
             Instant now
     ) {
-        String normalizedTitle = normalizeText(title, MAX_TITLE_LENGTH,
-                "공지 제목은 1자 이상 50자 이하여야 합니다.");
-        String normalizedBody = normalizeText(body, MAX_BODY_LENGTH,
-                "공지 본문은 1자 이상 500자 이하여야 합니다.");
+        String normalizedTitle = normalizeText(
+                title,
+                MAX_TITLE_LENGTH,
+                "공지 제목은 1자 이상 50자 이하여야 합니다."
+        );
+        String normalizedBody = normalizeText(
+                body,
+                MAX_BODY_LENGTH,
+                "공지 본문은 1자 이상 500자 이하여야 합니다."
+        );
         validateScheduledAt(scheduledAt, now);
         this.title = normalizedTitle;
         this.body = normalizedBody;

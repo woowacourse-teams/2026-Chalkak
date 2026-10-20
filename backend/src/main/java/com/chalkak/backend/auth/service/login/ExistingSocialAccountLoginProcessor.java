@@ -63,7 +63,8 @@ public class ExistingSocialAccountLoginProcessor {
         return Optional.of(new SocialLoginSuccess(
                 userId,
                 accessTokenIssuer.issueForSession(userId, refreshToken.sessionId()),
-                refreshToken));
+                refreshToken
+        ));
     }
 
     /**

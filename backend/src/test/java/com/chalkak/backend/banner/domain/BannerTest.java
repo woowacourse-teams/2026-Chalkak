@@ -23,8 +23,12 @@ class BannerTest {
     @DisplayName("배너 생성은 네 항목의 앞뒤 공백만 제거하고 URL 쿼리와 프래그먼트를 보존한다")
     void create_surroundingWhitespace_trimsWithoutRewritingUrl() {
         // When
-        Banner banner = Banner.create(" 제목 ", " 부제목 ",
-                " " + WEB_VIEW_URL + "?source=home#camera ", " " + THUMBNAIL_URL + " ");
+        Banner banner = Banner.create(
+                " 제목 ",
+                " 부제목 ",
+                " " + WEB_VIEW_URL + "?source=home#camera ",
+                " " + THUMBNAIL_URL + " "
+        );
 
         // Then
         assertThat(banner.getTitle()).isEqualTo("제목");
@@ -42,8 +46,18 @@ class BannerTest {
     }
 
     private static Stream<Arguments> emptyFields() {
-        return Stream.of("title", "subtitle", "webViewUrl", "thumbnailUrl")
-                .flatMap(field -> Stream.of(null, "", " ", "\u2003")
+        return Stream.of(
+                "title",
+                "subtitle",
+                "webViewUrl",
+                "thumbnailUrl"
+        )
+                .flatMap(field -> Stream.of(
+                        null,
+                        "",
+                        " ",
+                        "\u2003"
+                )
                         .map(value -> Arguments.of(field, value)));
     }
 
@@ -105,10 +119,17 @@ class BannerTest {
 
     private static Stream<Arguments> invalidUrls() {
         return Stream.of("webViewUrl", "thumbnailUrl").flatMap(field -> Stream.of(
-                "http://example.com", "/event", "//example.com/event", "https:///event",
-                "javascript:alert(1)", "https://", "https://exa mple.com",
+                "http://example.com",
+                "/event",
+                "//example.com/event",
+                "https:///event",
+                "javascript:alert(1)",
+                "https://",
+                "https://exa mple.com",
                 "https://example.com/%xx",
-                "https://example.com:invalid/event", "https://example.com\\event")
+                "https://example.com:invalid/event",
+                "https://example.com\\event"
+        )
                 .map(url -> Arguments.of(field, url)));
     }
 
@@ -195,17 +216,23 @@ class BannerTest {
     }
 
     private Banner createWith(String field, String value) {
-        return Banner.create(field.equals("title") ? value : "제목",
+        return Banner.create(
+                field.equals("title") ? value : "제목",
                 field.equals("subtitle") ? value : "부제목",
                 field.equals("webViewUrl") ? value : WEB_VIEW_URL,
-                field.equals("thumbnailUrl") ? value : THUMBNAIL_URL);
+                field.equals("thumbnailUrl") ? value : THUMBNAIL_URL
+        );
     }
     @Test
     @DisplayName("삭제는 최초 시각을 기록하고 반복해도 변경하지 않는다")
     void delete_repeated_preservesFirstDeletionTime() {
         // Given
-        Banner banner = Banner.create("제목", "부제목", "https://example.com/event",
-                "https://example.com/image.png");
+        Banner banner = Banner.create(
+                "제목",
+                "부제목",
+                "https://example.com/event",
+                "https://example.com/image.png"
+        );
         Instant first = Instant.parse("2026-10-19T01:00:00.123456789Z");
         assertThat(banner.isDeleted()).isFalse();
 

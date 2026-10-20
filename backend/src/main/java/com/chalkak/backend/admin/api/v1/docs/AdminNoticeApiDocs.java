@@ -61,7 +61,8 @@ public interface AdminNoticeApiDocs {
     ResponseEntity<AdminNoticeResponse> updateNotice(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(description = "공지 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String noticeId,
-            AdminNoticeRequest request);
+            AdminNoticeRequest request
+    );
 
     @Operation(summary = "공지 삭제", description = "사유와 함께 공지를 삭제합니다. 배포 전 공지는 발송이 취소되고, 배포된 공지는 회원 알림함에서 숨기며 아직 보내지 않은 푸시도 보내지 않습니다. 이미 기기에 표시된 푸시는 회수하지 않습니다. 이미 삭제한 공지를 다시 삭제하면 최초 결과를 유지합니다.")
     @ApiResponses({
@@ -73,5 +74,6 @@ public interface AdminNoticeApiDocs {
     ResponseEntity<Void> deleteNotice(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(description = "공지 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String noticeId,
-            AdminNoticeDeletionRequest request);
+            AdminNoticeDeletionRequest request
+    );
 }

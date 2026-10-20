@@ -43,7 +43,13 @@ public class NotificationService {
                 && post.getAuthor().isModerationPushEnabled();
         if (status == ModerationStatus.APPROVED) {
             notificationRepository
-                    .save(Notification.approved(userId, postId, eventKey, occurredAt, pushEnabled));
+                    .save(Notification.approved(
+                            userId,
+                            postId,
+                            eventKey,
+                            occurredAt,
+                            pushEnabled
+                    ));
             return;
         }
         notificationRepository.save(Notification.rejected(
@@ -52,12 +58,21 @@ public class NotificationService {
                 eventKey,
                 rejectionReason,
                 occurredAt,
-                pushEnabled));
+                pushEnabled
+        ));
     }
 
-    public NotificationListResult getNotifications(UUID userId, int page, int pageSize) {
+    public NotificationListResult getNotifications(
+            UUID userId,
+            int page,
+            int pageSize
+    ) {
         NotificationSlice slice = notificationRepository.findByUserId(
-                userId, page, pageSize, Notification.getRetentionThreshold(clock.instant()));
+                userId,
+                page,
+                pageSize,
+                Notification.getRetentionThreshold(clock.instant())
+        );
         List<NotificationListResult.Summary> summaries = new ArrayList<>(
                 slice.notifications().size());
         for (NotificationSummary summary : slice.notifications()) {
@@ -67,13 +82,17 @@ public class NotificationService {
                 page,
                 pageSize,
                 slice.hasNext(),
-                summaries);
+                summaries
+        );
     }
 
     public NotificationDetailResult getNotification(UUID userId, UUID notificationId) {
         NotificationDetail detail = notificationRepository
-                .findDetailByIdAndUserId(notificationId, userId,
-                        Notification.getRetentionThreshold(clock.instant()))
+                .findDetailByIdAndUserId(
+                        notificationId,
+                        userId,
+                        Notification.getRetentionThreshold(clock.instant())
+                )
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "알림을 찾을 수 없습니다."));
@@ -86,7 +105,8 @@ public class NotificationService {
                 imageUrlProvider.getUrl(detail.originalStorageKey()),
                 notification.getRejectionReason(),
                 notification.getReadAt(),
-                notification.getCreatedAt());
+                notification.getCreatedAt()
+        );
     }
 
     public boolean hasUnreadNotification(UUID userId) {
@@ -98,7 +118,11 @@ public class NotificationService {
     public void markRead(UUID userId, UUID notificationId) {
         Instant now = clock.instant();
         int updated = notificationRepository.markRead(
-                notificationId, userId, now, Notification.getRetentionThreshold(now));
+                notificationId,
+                userId,
+                now,
+                Notification.getRetentionThreshold(now)
+        );
         if (updated == 0) {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "알림을 찾을 수 없습니다.");
         }
@@ -107,7 +131,11 @@ public class NotificationService {
     @Transactional
     public void markAllRead(UUID userId) {
         Instant now = clock.instant();
-        notificationRepository.markAllRead(userId, now, Notification.getRetentionThreshold(now));
+        notificationRepository.markAllRead(
+                userId,
+                now,
+                Notification.getRetentionThreshold(now)
+        );
     }
 
     private NotificationListResult.Summary toSummary(NotificationSummary summary) {
@@ -121,6 +149,7 @@ public class NotificationService {
                 notification.getBody(),
                 imageUrlProvider.getUrl(summary.thumbnailStorageKey()),
                 notification.getReadAt(),
-                notification.getCreatedAt());
+                notification.getCreatedAt()
+        );
     }
 }

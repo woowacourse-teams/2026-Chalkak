@@ -41,9 +41,19 @@ class BannerControllerTest {
         // Given
         UUID id = UUID.randomUUID();
         Instant createdAt = Instant.parse("2026-10-19T00:00:00Z");
-        given(bannerService.getBanners(1, 20)).willReturn(new BannerListResult(1, 20, false,
-                List.of(new BannerResult(id, "제목", "부제목", "https://example.com/event",
-                        "https://example.com/image.png", createdAt))));
+        given(bannerService.getBanners(1, 20)).willReturn(new BannerListResult(
+                1,
+                20,
+                false,
+                List.of(new BannerResult(
+                        id,
+                        "제목",
+                        "부제목",
+                        "https://example.com/event",
+                        "https://example.com/image.png",
+                        createdAt
+                ))
+        ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/banners"))
@@ -65,7 +75,12 @@ class BannerControllerTest {
     void getBanners_explicitParameters_returnsEmptyPage() throws Exception {
         // Given
         given(bannerService.getBanners(2, 100))
-                .willReturn(new BannerListResult(2, 100, false, List.of()));
+                .willReturn(new BannerListResult(
+                        2,
+                        100,
+                        false,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/banners").param("page", "2").param("pageSize", "100"))
