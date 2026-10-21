@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -31,6 +32,11 @@ public class Notification {
     private static final String APPROVED_BODY = "내 사진이 피드에 공개되었습니다.";
     private static final String REJECTED_TITLE = "게시물이 반려되었습니다.";
     private static final String REJECTED_BODY = "반려 사유를 확인해 주세요.";
+    private static final String AI_REVIEW_COMPLETED_TITLE = "AI 피드백이 도착했어요";
+    private static final String AI_REVIEW_COMPLETED_BODY = "사진의 구도 점수와 피드백을 확인해 보세요.";
+    private static final String AI_REVIEW_FAILED_TITLE = "AI 피드백을 만들지 못했어요";
+    private static final String AI_REVIEW_RETRYABLE_BODY = "잠시 후 다시 요청해 주세요.";
+    private static final String AI_REVIEW_EXHAUSTED_BODY = "이 사진은 더 이상 AI 피드백을 요청할 수 없어요.";
     private static final int MAX_REJECTION_REASON_LENGTH = 500;
 
     @Id
@@ -151,6 +157,49 @@ public class Notification {
         return notification;
     }
 
+    public static Notification aiReviewCompleted(
+            UUID userId,
+            UUID postId,
+            UUID aiReviewId,
+            int round,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        return createAiReview(
+                userId,
+                postId,
+                aiReviewId,
+                round,
+                NotificationType.AI_REVIEW_COMPLETED,
+                AI_REVIEW_COMPLETED_TITLE,
+                AI_REVIEW_COMPLETED_BODY,
+                createdAt,
+                pushEnabled
+        );
+    }
+
+    public static Notification aiReviewFailed(
+            UUID userId,
+            UUID postId,
+            UUID aiReviewId,
+            int round,
+            boolean canRequestAgain,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        return createAiReview(
+                userId,
+                postId,
+                aiReviewId,
+                round,
+                NotificationType.AI_REVIEW_FAILED,
+                AI_REVIEW_FAILED_TITLE,
+                canRequestAgain ? AI_REVIEW_RETRYABLE_BODY : AI_REVIEW_EXHAUSTED_BODY,
+                createdAt,
+                pushEnabled
+        );
+    }
+
     public void markPublished(Instant acceptedAt) {
         validatePendingPublication();
         if (acceptedAt == null) {
@@ -195,6 +244,42 @@ public class Notification {
         if (publishStatus != PublishStatus.PENDING) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "발행 대기 중인 알림만 처리할 수 있습니다.");
         }
+    }
+
+    private static Notification createAiReview(
+            UUID userId,
+            UUID postId,
+            UUID aiReviewId,
+            int round,
+            NotificationType type,
+            String title,
+            String body,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        validateRequired(
+                userId,
+                postId,
+                aiReviewId,
+                createdAt
+        );
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.POST;
+        notification.sourceId = postId;
+        notification.eventKey = createAiReviewEventKey(aiReviewId, round);
+        notification.type = type;
+        notification.title = title;
+        notification.body = body;
+        notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
+        return notification;
+    }
+
+    // 같은 리뷰의 같은 회차는 항상 같은 키가 되어 회차마다 알림이 한 건만 생긴다.
+    private static UUID createAiReviewEventKey(UUID aiReviewId, int round) {
+        return UUID.nameUUIDFromBytes(
+                ("AI_REVIEW:" + aiReviewId + ":" + round).getBytes(StandardCharsets.UTF_8));
     }
 
     private void initializePublication(boolean pushEnabled) {

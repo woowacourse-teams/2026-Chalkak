@@ -10,6 +10,8 @@ import com.chalkak.backend.notification.repository.NotificationSummary;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
     private final ImageUrlProvider imageUrlProvider;
     private final Clock clock;
 
@@ -57,6 +60,40 @@ public class NotificationService {
                 postId,
                 eventKey,
                 rejectionReason,
+                occurredAt,
+                pushEnabled
+        ));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForAiReview(
+            UUID userId,
+            UUID postId,
+            UUID aiReviewId,
+            int round,
+            boolean completed,
+            boolean canRequestAgain,
+            Instant occurredAt
+    ) {
+        User user = userRepository.findById(userId).orElseThrow();
+        boolean pushEnabled = !user.isDeleted() && user.isAiReviewPushEnabled();
+        if (completed) {
+            notificationRepository.insertIfAbsent(Notification.aiReviewCompleted(
+                    userId,
+                    postId,
+                    aiReviewId,
+                    round,
+                    occurredAt,
+                    pushEnabled
+            ));
+            return;
+        }
+        notificationRepository.insertIfAbsent(Notification.aiReviewFailed(
+                userId,
+                postId,
+                aiReviewId,
+                round,
+                canRequestAgain,
                 occurredAt,
                 pushEnabled
         ));

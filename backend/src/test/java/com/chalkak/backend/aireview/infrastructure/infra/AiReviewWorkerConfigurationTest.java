@@ -9,6 +9,7 @@ import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGenerationRequestFactory;
 import com.chalkak.backend.aireview.service.AiReviewGenerator;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.net.URI;
 import java.time.Clock;
@@ -48,6 +49,7 @@ class AiReviewWorkerConfigurationTest {
             .withBean(AiReviewGenerator.class, () -> mock(AiReviewGenerator.class))
             .withBean(AiReviewGenerationRequestFactory.class,
                     () -> mock(AiReviewGenerationRequestFactory.class))
+            .withBean(NotificationService.class, () -> mock(NotificationService.class))
             .withBean(PlatformTransactionManager.class,
                     () -> mock(PlatformTransactionManager.class))
             .withBean(Clock.class, Clock::systemUTC);

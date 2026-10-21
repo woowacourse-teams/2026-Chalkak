@@ -7,6 +7,8 @@ public enum NotificationType {
     POST_APPROVED(NotificationSourceType.POST, User::isModerationPushEnabled), // 게시물 승인
     POST_REJECTED(NotificationSourceType.POST, User::isModerationPushEnabled), // 게시물 반려
     TOPIC(NotificationSourceType.TOPIC, User::isTopicPushEnabled), // 오늘의 주제
+    AI_REVIEW_COMPLETED(NotificationSourceType.POST, User::isAiReviewPushEnabled), // AI 리뷰 완료
+    AI_REVIEW_FAILED(NotificationSourceType.POST, User::isAiReviewPushEnabled), // AI 리뷰 실패
     NOTICE(NotificationSourceType.NOTICE, user -> true); // 관리자 공지, 전용 수신 설정 없이 항상 보낸다.
 
     private final NotificationSourceType sourceType;

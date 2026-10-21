@@ -92,6 +92,28 @@ public final class AiReviewWorkerLog {
         event.log("AI 리뷰 처리 중단, 임대 만료 뒤 다시 가져감");
     }
 
+    /**
+     * 소진 행의 결과 알림 저장이 실패해 알림 없이 실패로 끝냈다.
+     */
+    public static void resultNotificationSkipped(Claim claim) {
+        event(
+                AI_REVIEW_LOG.atError(),
+                "result_notification_skipped",
+                claim
+        ).log("AI 리뷰 결과 알림 생략, 알림 저장 실패 뒤 알림 없이 실패로 끝냄");
+    }
+
+    /**
+     * 가져가기 첫 시도가 실패해 알림 없이 다시 가져간다. 다시 가져가기까지 실패하면 호출한 쪽이 worker_poll_failed를 남긴다.
+     */
+    public static void claimRetriedWithoutNotification(RuntimeException exception) {
+        AI_REVIEW_LOG.atWarn()
+                .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
+                .addKeyValue(LogFields.EVENT, "claim_retried_without_notification")
+                .addKeyValue(LogFields.ERROR_CODE, exception.getClass().getSimpleName())
+                .log("AI 리뷰 가져가기 첫 시도 실패, 알림 없이 다시 가져감");
+    }
+
     public static void pollFailed(RuntimeException exception) {
         AI_REVIEW_LOG.atError()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)

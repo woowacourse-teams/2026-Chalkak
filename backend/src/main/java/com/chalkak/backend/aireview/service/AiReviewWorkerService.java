@@ -9,6 +9,7 @@ import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewRetryBackoff.RetryDelay;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
@@ -42,6 +43,7 @@ public class AiReviewWorkerService {
     private final PostRepository postRepository;
     private final AiReviewGenerator aiReviewGenerator;
     private final AiReviewGenerationRequestFactory requestFactory;
+    private final NotificationService notificationService;
     private final Clock clock;
     private final Duration leaseDuration;
     private final int maxClaims;
@@ -54,6 +56,7 @@ public class AiReviewWorkerService {
             PostRepository postRepository,
             AiReviewGenerator aiReviewGenerator,
             AiReviewGenerationRequestFactory requestFactory,
+            NotificationService notificationService,
             PlatformTransactionManager transactionManager,
             Clock clock,
             Duration leaseDuration,
@@ -65,6 +68,7 @@ public class AiReviewWorkerService {
         this.postRepository = postRepository;
         this.aiReviewGenerator = aiReviewGenerator;
         this.requestFactory = requestFactory;
+        this.notificationService = notificationService;
         this.clock = clock;
         this.leaseDuration = leaseDuration;
         this.maxClaims = maxClaims;
@@ -75,10 +79,21 @@ public class AiReviewWorkerService {
     }
 
     /**
-     * 가장 오래 기다린 처리 대상을 하나 가져간다. 가져간 횟수 상한을 넘은 행은 처리하지 않고 실패로 끝낸 뒤 다음 행을 찾는다.
+     * 가장 오래 기다린 처리 대상을 하나 가져간다. 가져간 횟수 상한을 넘은 행은 처리하지 않고 실패로 끝낸 뒤 다음 행을 찾는다. 이때 실패
+     * 결과 알림 저장이 예외로 막히면 알림 없이 한 번 더 가져가, 같은 행이 대기열을 막지 않게 한다.
+     *
+     * <p>
+     * 첫 시도가 어떤 이유로든 실패하면 그 폴링에서 소진으로 끝나는 행들의 실패 알림은 남기지 않는다. 소진 자체가 드물고 대기열 정지를 막는
+     * 것이 우선이다. 다시 가져가기도 실패하면 예외를 그대로 던진다.
      */
     public Optional<Claim> claimNext() {
-        return Optional.ofNullable(transactionTemplate.execute(status -> claimOne()));
+        try {
+            return Optional.ofNullable(transactionTemplate.execute(status -> claimOne(true)));
+        } catch (RuntimeException exception) {
+            // 소진된 행의 결과 알림 저장이 막혀도 같은 행이 대기열 맨 앞에서 반복되지 않게, 알림 없이 한 번 더 가져간다.
+            AiReviewWorkerLog.claimRetriedWithoutNotification(exception);
+            return Optional.ofNullable(transactionTemplate.execute(status -> claimOne(false)));
+        }
     }
 
     /**
@@ -166,7 +181,7 @@ public class AiReviewWorkerService {
         );
     }
 
-    private Claim claimOne() {
+    private Claim claimOne(boolean notifyExhausted) {
         Instant now = clock.instant();
         Optional<AiReview> found = reviewRepository.findClaimableForUpdate(now);
         while (found.isPresent()) {
@@ -180,13 +195,29 @@ public class AiReviewWorkerService {
             )) {
                 return toClaim(review, version);
             }
-            AiReviewWorkerLog.finished(
+            finishExhausted(
                     review,
-                    toClaim(review, version)
+                    toClaim(review, version),
+                    notifyExhausted
             );
             found = reviewRepository.findClaimableForUpdate(now);
         }
         return null;
+    }
+
+    // 소진으로 끝난 행을 마무리한다. 알림을 만들거나, 만들지 않았다는 로그를 남기고 종료 로그를 남긴다.
+    private void finishExhausted(
+            AiReview review,
+            Claim claim,
+            boolean notify
+    ) {
+        if (notify) {
+            notifyResult(review);
+            AiReviewWorkerLog.finished(review, claim);
+            return;
+        }
+        AiReviewWorkerLog.resultNotificationSkipped(claim);
+        AiReviewWorkerLog.finished(review, claim);
     }
 
     private void handleGenerationFailure(
@@ -255,7 +286,11 @@ public class AiReviewWorkerService {
             applied = transactionTemplate.execute(status -> {
                 AiReview review = reviewRepository.findByIdForUpdate(claim.reviewId())
                         .orElseThrow();
-                return transition.test(review) ? review : null;
+                if (!transition.test(review)) {
+                    return null;
+                }
+                notifyResult(review);
+                return review;
             });
         } catch (RuntimeException exception) {
             abandon(
@@ -281,6 +316,24 @@ public class AiReviewWorkerService {
         AiReviewWorkerLog.finished(
                 applied,
                 toClaim(applied, claim.version())
+        );
+    }
+
+    /**
+     * 리뷰 상태를 바꾼 트랜잭션 안에서 결과 알림을 만든다. 재시도 대기처럼 끝나지 않았거나 알릴 필요 없는 상태는 건너뛴다.
+     */
+    private void notifyResult(AiReview review) {
+        if (!review.isResultNotifiable()) {
+            return;
+        }
+        notificationService.createForAiReview(
+                review.getUserId(),
+                review.getPostId(),
+                review.getId(),
+                review.getRequestCount(),
+                review.isCompleted(),
+                review.canRequestAgain(),
+                review.getCompletedAt()
         );
     }
 

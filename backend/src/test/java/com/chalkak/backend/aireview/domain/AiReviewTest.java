@@ -488,6 +488,36 @@ class AiReviewTest {
         assertThat(processingReview().isFailed()).isFalse();
     }
 
+    @Test
+    @DisplayName("결과 알림 대상은 완료와 게시물 사용 불가를 제외한 실패뿐이다")
+    void isResultNotifiable_byStateAndErrorCode() {
+        // Given
+        AiReview postUnavailable = processingReview();
+        failOrRetry(
+                postUnavailable,
+                1,
+                FailureReason.POST_UNAVAILABLE.name(),
+                false
+        );
+        AiReview leaseExhausted = processingReview();
+        leaseExhausted.claim(
+                LEASE_END.plusSeconds(1),
+                LEASE_END.plusSeconds(120),
+                1
+        );
+
+        // When & Then
+        assertThat(reviewInStatus(Status.COMPLETED, 1).isResultNotifiable()).isTrue();
+        assertThat(failedReview().isResultNotifiable()).isTrue();
+        assertThat(leaseExhausted.getErrorCode())
+                .isEqualTo(FailureReason.LEASE_EXHAUSTED.name());
+        assertThat(leaseExhausted.isResultNotifiable()).isTrue();
+        assertThat(postUnavailable.isResultNotifiable()).isFalse();
+        assertThat(retryWaitingReview().isResultNotifiable()).isFalse();
+        assertThat(queuedReview().isResultNotifiable()).isFalse();
+        assertThat(processingReview().isResultNotifiable()).isFalse();
+    }
+
     @ParameterizedTest
     @CsvSource({
             "QUEUED, 1, false",

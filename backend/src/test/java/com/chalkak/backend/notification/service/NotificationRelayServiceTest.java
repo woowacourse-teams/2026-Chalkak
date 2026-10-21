@@ -206,6 +206,46 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("AI 리뷰 결과 알림도 종류와 상관없이 같은 경로로 발행하고 종류·게시물 대상을 전달한다")
+    void publishPendingNotifications_aiReviewNotification_publishesTypeAndPostTarget() {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID id = new TransactionTemplate(transactionManager).execute(status -> {
+            repository.insertIfAbsent(Notification.aiReviewFailed(
+                    USER_ID,
+                    postId,
+                    UUID.randomUUID(),
+                    1,
+                    true,
+                    NOW,
+                    true
+            ));
+            return jdbcTemplate.queryForObject(
+                    "SELECT id FROM notifications WHERE user_id = ?",
+                    UUID.class,
+                    USER_ID
+            );
+        });
+
+        // When
+        relay(NOW.plusSeconds(1)).publishPendingNotifications();
+
+        // Then
+        assertThat(getStatus(id)).isEqualTo("PUBLISHED");
+        ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
+        org.mockito.Mockito.verify(publisher).publish(message.capture());
+        assertThat(message.getValue().notificationId()).isEqualTo(id);
+        assertThat(message.getValue().type())
+                .isEqualTo(
+                        com.chalkak.backend.notification.domain.NotificationType.AI_REVIEW_FAILED);
+        assertThat(message.getValue().sourceType())
+                .isEqualTo(com.chalkak.backend.notification.domain.NotificationSourceType.POST);
+        assertThat(message.getValue().sourceId()).isEqualTo(postId);
+        assertThat(message.getValue().occurredAt()).isEqualTo(NOW);
+        assertThat(message.getValue().expiresAt()).isEqualTo(NOW.plusSeconds(1800));
+    }
+
+    @Test
     @DisplayName("업무 트랜잭션에서 아직 커밋하지 않은 알림은 외부에 발행하지 않는다")
     void publishPendingNotifications_uncommittedNotification_doesNotPublish() {
         // Given & When

@@ -274,6 +274,21 @@ public class AiReview {
         }
     }
 
+    /**
+     * 사용자에게 결과를 알릴 최종 상태인지. 완료와 실패가 대상이고, 게시물을 쓸 수 없어 실패한 경우는 사용자가 할 수 있는 일이 없어
+     * 제외한다. 재시도 대기와 처리 중은 아직 끝나지 않았으므로 대상이 아니다.
+     */
+    public boolean isResultNotifiable() {
+        if (isCompleted()) {
+            return true;
+        }
+        return isFailed() && !FailureReason.POST_UNAVAILABLE.name().equals(errorCode);
+    }
+
+    public boolean isCompleted() {
+        return status == Status.COMPLETED;
+    }
+
     public boolean isFailed() {
         return status == Status.FAILED;
     }

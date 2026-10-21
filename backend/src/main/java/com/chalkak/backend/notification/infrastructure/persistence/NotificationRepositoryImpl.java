@@ -70,6 +70,22 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
+    public int insertIfAbsent(Notification notification) {
+        return notificationJpaRepository.insertIfAbsent(
+                notification.getUserId(),
+                notification.getSourceType().name(),
+                notification.getSourceId(),
+                notification.getEventKey(),
+                notification.getType().name(),
+                notification.getTitle(),
+                notification.getBody(),
+                notification.getCreatedAt(),
+                notification.getPublishStatus().name(),
+                notification.getNextAttemptAt()
+        );
+    }
+
+    @Override
     public NotificationSlice findByUserId(
             UUID userId,
             int page,
