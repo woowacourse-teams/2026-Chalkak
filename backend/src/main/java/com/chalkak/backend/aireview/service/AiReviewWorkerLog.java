@@ -32,17 +32,38 @@ public final class AiReviewWorkerLog {
                 .addKeyValue("promptVersion", claim.version().getVersion())
                 .addKeyValue("model", claim.version().getModel())
                 .addKeyValue("queueWaitMs",
-                        Duration.between(review.getRequestedAt(), review.getStartedAt())
+                        Duration.between(review.getLastRequestedAt(), review.getStartedAt())
                                 .toMillis())
                 .addKeyValue("totalMs",
-                        Duration.between(review.getRequestedAt(), review.getCompletedAt())
+                        Duration.between(review.getLastRequestedAt(), review.getCompletedAt())
                                 .toMillis());
-        for (Map.Entry<String, Object> field : optionalFields(review).entrySet()) {
-            if (field.getValue() != null) {
-                event = event.addKeyValue(field.getKey(), field.getValue());
-            }
+        withOptionalFields(event, review).log(completed ? "AI 리뷰 완료" : "AI 리뷰 실패");
+    }
+
+    /**
+     * 자동 재시도를 예약했다. DB에는 마지막 시도의 값만 남으므로 재시도 비용을 추적하려고 시도마다 사용량을 남긴다.
+     */
+    public static void retryScheduled(
+            AiReview review,
+            Claim claim,
+            Duration retryDelay
+    ) {
+        LoggingEventBuilder event = event(
+                AI_REVIEW_LOG.atWarn(),
+                "review_retry_scheduled",
+                claim
+        )
+                .addKeyValue("roundAttempt", review.getRoundAttempt())
+                .addKeyValue("requestCount", review.getRequestCount())
+                .addKeyValue("promptVersion", claim.version().getVersion())
+                .addKeyValue("model", claim.version().getModel())
+                .addKeyValue("retryInMs", retryDelay.toMillis());
+        event = withOptionalFields(event, review);
+        String openaiResponseId = review.getInvocation().openaiResponseId();
+        if (openaiResponseId != null) {
+            event = event.addKeyValue("openaiResponseId", openaiResponseId);
         }
-        event.log(completed ? "AI 리뷰 완료" : "AI 리뷰 실패");
+        event.log("AI 리뷰 자동 재시도 예약");
     }
 
     public static void staleUpdate(Claim claim) {
@@ -75,6 +96,17 @@ public final class AiReviewWorkerLog {
                 .addKeyValue(LogFields.EVENT, "worker_poll_failed")
                 .addKeyValue(LogFields.ERROR_CODE, exception.getClass().getSimpleName())
                 .log("AI 리뷰 워커 폴링 실패");
+    }
+
+    private static LoggingEventBuilder withOptionalFields(LoggingEventBuilder builder,
+            AiReview review) {
+        LoggingEventBuilder event = builder;
+        for (Map.Entry<String, Object> field : optionalFields(review).entrySet()) {
+            if (field.getValue() != null) {
+                event = event.addKeyValue(field.getKey(), field.getValue());
+            }
+        }
+        return event;
     }
 
     /** 값이 없는 필드는 남기지 않으므로 호출 쪽에서 null을 건너뛴다. 순서가 곧 로그 필드 순서다. */

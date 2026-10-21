@@ -171,6 +171,26 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("자동 재시도를 기다리는 행은 요청도 조회도 처리 중이며 마지막 실패의 완료 시각과 결과를 드러내지 않는다")
+    void requestAndGet_retryWaitingReview_returnsProcessingWithoutFailureInfo() {
+        // Given
+        UUID versionId = fixture.insertPromptVersion(1);
+        fixture.insertRetryWaitingReview(versionId, REQUESTED_AT.plusSeconds(10));
+
+        // When
+        ReviewResult requested = service.request(AUTHOR_ID, POST_ID);
+        ReviewResult queried = service.get(AUTHOR_ID, POST_ID);
+
+        // Then
+        assertThat(requested.status()).isEqualTo(ApiStatus.PROCESSING);
+        assertThat(requested.isInProgress()).isTrue();
+        assertThat(requested.completedAt()).isNull();
+        assertThat(requested.result()).isNull();
+        assertThat(queried).isEqualTo(requested);
+        assertThat(fixture.countReviews()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("이미 리뷰가 있으면 기능이 꺼져 있어도 기존 상태를 돌려준다")
     void request_existingReviewWhileFeatureOff_returnsExistingState() {
         // Given

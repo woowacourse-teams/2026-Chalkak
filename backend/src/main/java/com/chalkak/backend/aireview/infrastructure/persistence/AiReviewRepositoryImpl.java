@@ -23,7 +23,8 @@ public class AiReviewRepositoryImpl implements AiReviewRepository {
                 review.getStatus().name(),
                 review.getAttempt(),
                 review.getRequestId(),
-                review.getRequestedAt()
+                review.getRequestedAt(),
+                review.getLastRequestedAt()
         );
     }
 

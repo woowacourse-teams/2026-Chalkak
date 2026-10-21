@@ -19,7 +19,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 게시물 한 건의 AI 리뷰. 게시물당 하나이며 요청 시점에 만든 프롬프트 버전을 끝까지 쓴다.
+ * 게시물 한 건의 AI 리뷰. 게시물당 하나이며 요청 시점에 만든 프롬프트 버전을 끝까지 쓴다. 일시적 실패는 같은 행을 대기로 되돌려
+ * 자동으로 다시 시도한다.
  */
 @Entity
 @Table(name = "ai_reviews")
@@ -46,8 +47,29 @@ public class AiReview {
     @Column(nullable = false, length = 20)
     private Status status;
 
+    /**
+     * 워커가 가져갈 때마다 늘고 줄지 않는다. 늦게 끝난 워커의 반영을 막는 기준이다.
+     */
     @Column(nullable = false)
     private int attempt;
+
+    /**
+     * 이번 회차(사용자 요청 1회) 안에서 가져간 횟수. 재시도와 임대 회수를 모두 세며 자동 시도 상한은 이 값으로 비교한다.
+     */
+    @Column(name = "round_attempt", nullable = false)
+    private int roundAttempt;
+
+    /**
+     * 사용자 요청 횟수(처음 요청 포함)
+     */
+    @Column(name = "request_count", nullable = false)
+    private int requestCount;
+
+    /**
+     * 자동 재시도로 대기 중일 때 다시 가져갈 수 있는 시각. 대기 중이 아니면 null이다.
+     */
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
 
     @Column(name = "lease_expires_at")
     private Instant leaseExpiresAt;
@@ -76,6 +98,12 @@ public class AiReview {
     @Column(name = "requested_at", nullable = false, updatable = false)
     private Instant requestedAt;
 
+    /**
+     * 이번 회차의 사용자 요청 시각. 처음 요청 시각은 {@link #requestedAt}에 남는다.
+     */
+    @Column(name = "last_requested_at", nullable = false)
+    private Instant lastRequestedAt;
+
     @Column(name = "started_at")
     private Instant startedAt;
 
@@ -95,13 +123,17 @@ public class AiReview {
         review.promptVersionId = promptVersionId;
         review.requestId = requestId;
         review.requestedAt = requestedAt;
+        review.lastRequestedAt = requestedAt;
+        review.requestCount = 1;
         review.status = Status.QUEUED;
         return review;
     }
 
     /**
-     * 워커가 이 행을 가져간다. 대기 중이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도 번호가 늘고 줄지 않는다. 시도
-     * 번호가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고 처리하지 않고 실패로 끝낸다(시도 번호는 늘리지 않는다).
+     * 워커가 이 행을 가져간다. 대기 중(다음 시도 시각이 지난 것)이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도
+     * 번호와 회차 시도 횟수가 늘고 줄지 않는다. 회차 시도 횟수가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고
+     * 처리하지 않고 실패로 끝낸다(시도 번호와 회차 시도 횟수는 늘리지 않는다). 마지막 시도는 결과를 모르는 중단이므로 이전 시도의 사용량과
+     * 응답 ID는 비운다.
      *
      * @return 처리해야 하면 true, 상한을 넘어 실패로 끝냈으면 false
      */
@@ -113,7 +145,8 @@ public class AiReview {
         if (!isClaimableAt(now)) {
             throw new IllegalStateException("가져갈 수 없는 AI 리뷰입니다. 상태: " + status);
         }
-        if (attempt + 1 > maxClaims) {
+        if (roundAttempt + 1 > maxClaims) {
+            invocation = null;
             finish(
                     Status.FAILED,
                     FailureReason.LEASE_EXHAUSTED.name(),
@@ -122,6 +155,8 @@ public class AiReview {
             return false;
         }
         attempt++;
+        roundAttempt++;
+        nextAttemptAt = null;
         status = Status.PROCESSING;
         this.leaseExpiresAt = leaseExpiresAt;
         if (startedAt == null) {
@@ -157,20 +192,31 @@ public class AiReview {
     }
 
     /**
-     * 시도 번호가 현재와 같고 처리 중일 때만 실패를 반영한다.
+     * 시도 번호가 현재와 같고 처리 중일 때만 실패를 반영한다. 재시도할 수 있는 실패이고 이번 회차의 시도가 남았으면 대기로 되돌려 다음 시도
+     * 시각을 정한다. 이때 오류 코드와 사용량은 마지막 시도의 값이며 완료 시각은 비워 둔다. 그 밖에는 실패로 끝낸다.
      *
      * @return 반영했으면 true, 늦은 워커라 반영하지 않았으면 false
      */
-    public boolean fail(
+    public boolean failOrRetry(
             int attempt,
             String errorCode,
+            boolean retryable,
             Invocation invocation,
+            Instant nextAttemptAt,
+            int maxClaims,
             Instant now
     ) {
         if (!isProcessingAttempt(attempt)) {
             return false;
         }
         this.invocation = invocation;
+        if (retryable && roundAttempt < maxClaims) {
+            status = Status.QUEUED;
+            this.errorCode = errorCode;
+            this.nextAttemptAt = nextAttemptAt;
+            leaseExpiresAt = null;
+            return true;
+        }
         finish(
                 Status.FAILED,
                 errorCode,
@@ -179,9 +225,18 @@ public class AiReview {
         return true;
     }
 
+    /**
+     * 실패한 시도를 자동으로 다시 시도하려고 대기 중인지. 앱에는 이 상태도 처리 중으로 보인다.
+     */
+    public boolean isRetryScheduled() {
+        return status == Status.QUEUED && nextAttemptAt != null;
+    }
+
     private boolean isClaimableAt(Instant now) {
-        return status == Status.QUEUED
-                || (status == Status.PROCESSING && leaseExpiresAt.isBefore(now));
+        if (status == Status.QUEUED) {
+            return nextAttemptAt == null || !nextAttemptAt.isAfter(now);
+        }
+        return status == Status.PROCESSING && leaseExpiresAt.isBefore(now);
     }
 
     private boolean isProcessingAttempt(int attempt) {
@@ -196,6 +251,7 @@ public class AiReview {
         status = terminalStatus;
         this.errorCode = errorCode;
         leaseExpiresAt = null;
+        nextAttemptAt = null;
         completedAt = now;
     }
 

@@ -5,10 +5,12 @@ import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGenerationRequestFactory;
 import com.chalkak.backend.aireview.service.AiReviewGenerator;
+import com.chalkak.backend.aireview.service.AiReviewRetryBackoff;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -58,7 +60,8 @@ public class AiReviewWorkerConfiguration {
                 transactionManager,
                 clock,
                 properties.leaseDuration(),
-                properties.maxClaims()
+                properties.maxClaims(),
+                new AiReviewRetryBackoff(() -> ThreadLocalRandom.current().nextDouble())
         );
     }
 

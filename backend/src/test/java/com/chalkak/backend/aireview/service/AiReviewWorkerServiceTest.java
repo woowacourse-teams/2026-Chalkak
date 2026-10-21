@@ -12,6 +12,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import ch.qos.logback.classic.Level;
@@ -57,6 +58,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
@@ -78,6 +80,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     private static final String COMPATIBLE_SCHEMA = "1";
     private static final Duration LEASE = Duration.ofSeconds(120);
     private static final int MAX_CLAIMS = 3;
+    // 지터를 중간값으로 고정해 첫 재시도는 10초, 그 뒤는 30초를 기다린다.
+    private static final AiReviewRetryBackoff RETRY_BACKOFF = new AiReviewRetryBackoff(() -> 0.5);
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
     private static final Instant CLAIMED_AT = Instant.parse("2026-10-20T05:00:10Z");
     private static final String IMAGE_URL = "https://cdn.test/ai-review/original.webp";
@@ -379,17 +383,17 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_generationFailureWithoutAttempt_logsFailedWithOnlyPresentFields() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+                .willThrow(new AiReviewGenerationException(FailureType.QUOTA_EXCEEDED));
 
         // When
         UUID reviewId = processQueuedReview();
 
         // Then
         assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
-                .containsEntry("error_code", "TIMEOUT");
+                .containsEntry("error_code", "QUOTA_EXCEEDED");
         String keyValues = singleEventKeyValues("review_failed");
         assertThat(keyValues).contains(
-                "errorCode=\"TIMEOUT\"",
+                "errorCode=\"QUOTA_EXCEEDED\"",
                 "queueWaitMs=\"10000\"",
                 "totalMs=\"10000\""
         );
@@ -397,6 +401,208 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 "inputTokens",
                 "latencyMs",
                 "outputTokens"
+        );
+    }
+
+    @Test
+    @DisplayName("재시도할 수 있는 실패는 대기로 되돌려 다음 시도 시각을 정하고 임대·완료 시각 없이 마지막 시도의 사유와 사용량을 남긴다")
+    void process_retryableFailure_requeuesWithNextAttemptAt() {
+        // Given
+        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
+                FailureType.TIMEOUT, attempt()));
+
+        // When
+        UUID reviewId = processQueuedReview();
+
+        // Then
+        Map<String, Object> row = findRow(reviewId);
+        assertThat(row).containsEntry("status", "QUEUED")
+                .containsEntry("attempt", 1)
+                .containsEntry("round_attempt", 1)
+                .containsEntry("error_code", "TIMEOUT")
+                .containsEntry("input_tokens", 1200)
+                .containsEntry("openai_response_id", "resp_abc");
+        assertThat(instant(row, "next_attempt_at")).isEqualTo(CLAIMED_AT.plusSeconds(10));
+        assertThat(instant(row, "started_at")).isEqualTo(CLAIMED_AT);
+        assertThat(row.get("lease_expires_at")).isNull();
+        assertThat(row.get("completed_at")).isNull();
+    }
+
+    @Test
+    @DisplayName("재시도 대기 행은 다음 시도 시각 전에는 가져가지 않고 그 시각부터 다음 시도로 가져간다")
+    void claimNext_retryWaiting_claimsOnlyFromNextAttemptAt() {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(FailureType.RATE_LIMITED));
+        UUID reviewId = processQueuedReview();
+        Instant nextAttemptAt = CLAIMED_AT.plusSeconds(10);
+
+        // When & Then
+        clock.set(nextAttemptAt.minusMillis(1));
+        assertThat(service.claimNext()).isEmpty();
+
+        clock.set(nextAttemptAt);
+        Claim retry = service.claimNext().orElseThrow();
+        assertThat(retry.reviewId()).isEqualTo(reviewId);
+        assertThat(retry.attempt()).isEqualTo(2);
+        assertThat(findRow(reviewId)).containsEntry("status", "PROCESSING")
+                .containsEntry("round_attempt", 2)
+                .containsEntry("error_code", "RATE_LIMITED");
+        assertThat(findRow(reviewId).get("next_attempt_at")).isNull();
+    }
+
+    @Test
+    @DisplayName("세 번째 시도까지 재시도 가능한 실패면 대기 시간을 10초, 30초로 늘리다 마지막 시도의 사유로 실패를 확정한다")
+    void process_retryableFailureEveryAttempt_failsWithLastAttemptReason() {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT))
+                .willThrow(new AiReviewGenerationException(FailureType.RATE_LIMITED))
+                .willThrow(new AiReviewGenerationException(FailureType.UPSTREAM_ERROR));
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+
+        // When
+        service.process(service.claimNext().orElseThrow(), () -> false);
+        Instant secondAt = instant(findRow(reviewId), "next_attempt_at");
+        clock.set(secondAt);
+        service.process(service.claimNext().orElseThrow(), () -> false);
+        Instant thirdAt = instant(findRow(reviewId), "next_attempt_at");
+        clock.set(thirdAt);
+        service.process(service.claimNext().orElseThrow(), () -> false);
+
+        // Then
+        assertThat(secondAt).isEqualTo(CLAIMED_AT.plusSeconds(10));
+        assertThat(thirdAt).isEqualTo(secondAt.plusSeconds(30));
+        Map<String, Object> row = findRow(reviewId);
+        assertThat(row).containsEntry("status", "FAILED")
+                .containsEntry("attempt", 3)
+                .containsEntry("round_attempt", 3)
+                .containsEntry("error_code", "UPSTREAM_ERROR");
+        assertThat(row.get("next_attempt_at")).isNull();
+        assertThat(instant(row, "completed_at")).isEqualTo(thirdAt);
+        assertThat(service.claimNext()).isEmpty();
+        verify(aiReviewGenerator, times(3)).generate(any());
+    }
+
+    @Test
+    @DisplayName("임대 회수로 회차의 시도를 모두 쓰면 이전 실패 사유가 있어도 LEASE_EXHAUSTED로 끝낸다")
+    void claimNext_leaseReclaimsExhaustRound_failsWithLeaseExhausted() {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(
+                        FailureType.TIMEOUT, attempt()));
+        UUID reviewId = processQueuedReview();
+        clock.set(CLAIMED_AT.plusSeconds(10));
+        service.claimNext().orElseThrow();
+        clock.set(clock.instant().plus(LEASE).plusSeconds(1));
+        service.claimNext().orElseThrow();
+        clock.set(clock.instant().plus(LEASE).plusSeconds(1));
+
+        // When
+        Optional<Claim> claim = service.claimNext();
+
+        // Then
+        assertThat(claim).isEmpty();
+        assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
+                .containsEntry("attempt", 3)
+                .containsEntry("round_attempt", 3)
+                .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name())
+                .containsEntry("input_tokens", null)
+                .containsEntry("latency_ms", null)
+                .containsEntry("openai_response_id", null);
+        verify(aiReviewGenerator, times(1)).generate(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FailureType.class, names = {"QUOTA_EXCEEDED", "BAD_REQUEST", "REFUSED",
+            "INCOMPLETE", "INVALID_OUTPUT"})
+    @DisplayName("재시도하지 않는 실패 유형은 시도가 남아 있어도 바로 실패로 끝내고 다시 가져가지 않는다")
+    void process_nonRetryableFailure_failsWithoutRetry(FailureType failureType) {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(failureType));
+
+        // When
+        UUID reviewId = processQueuedReview();
+
+        // Then
+        Map<String, Object> row = findRow(reviewId);
+        assertThat(row).containsEntry("status", "FAILED")
+                .containsEntry("round_attempt", 1)
+                .containsEntry("error_code", failureType.name());
+        assertThat(row.get("next_attempt_at")).isNull();
+        clock.set(CLAIMED_AT.plus(LEASE));
+        assertThat(service.claimNext()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("재시도로 전환하면 재시도 예약 로그만 남기고 실패 로그는 남기지 않으며 로그에는 비용 추적 값이 들어 있다")
+    void process_retryableFailure_logsRetryScheduledOnly() {
+        // Given
+        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
+                FailureType.TIMEOUT, attempt()));
+
+        // When
+        UUID reviewId = processQueuedReview();
+
+        // Then
+        assertThat(singleEventKeyValues("review_retry_scheduled")).contains(
+                "type=\"ai_review\"",
+                "aiReviewId=\"" + reviewId + "\"",
+                "postId=\"" + POST_ID + "\"",
+                "userId=\"" + AUTHOR_ID + "\"",
+                "attempt=\"1\"",
+                "roundAttempt=\"1\"",
+                "requestCount=\"1\"",
+                "promptVersion=\"1\"",
+                "model=\"" + MODEL + "\"",
+                "errorCode=\"TIMEOUT\"",
+                "retryInMs=\"10000\"",
+                "latencyMs=\"21000\"",
+                "inputTokens=\"1200\"",
+                "cachedInputTokens=\"0\"",
+                "outputTokens=\"300\"",
+                "reasoningTokens=\"64\"",
+                "openaiResponseId=\"resp_abc\""
+        );
+        assertThat(appender.list).extracting(event -> event.getLevel()).containsOnly(Level.WARN);
+        assertThat(appender.list).noneMatch(event -> event.getKeyValuePairs().toString()
+                .contains("event=\"review_failed\""));
+        assertThat(appender.list).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("재시도 대기 시간 로그는 기록한 다음 시도 시각과 같은 대기 시간이며 로그를 남기는 사이 시간이 흘러도 달라지지 않는다")
+    void process_retryableFailureWhileClockMoves_logsRecordedDelay() {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+        clock.setTick(Duration.ofMillis(5));
+
+        // When
+        UUID reviewId = processQueuedReview();
+
+        // Then
+        assertThat(findRow(reviewId)).containsEntry("status", "QUEUED");
+        assertThat(singleEventKeyValues("review_retry_scheduled")).contains("retryInMs=\"10000\"");
+    }
+
+    @Test
+    @DisplayName("응답을 받지 못한 재시도 예약 로그는 값이 없는 사용량·응답 ID를 남기지 않는다")
+    void process_retryableFailureWithoutAttempt_logsOnlyPresentFields() {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+
+        // When
+        processQueuedReview();
+
+        // Then
+        assertThat(singleEventKeyValues("review_retry_scheduled")).doesNotContain(
+                "latencyMs",
+                "inputTokens",
+                "outputTokens",
+                "openaiResponseId"
         );
     }
 
@@ -550,7 +756,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 transactionManager,
                 clock,
                 LEASE,
-                MAX_CLAIMS
+                MAX_CLAIMS,
+                RETRY_BACKOFF
         );
         Claim claim = failingService.claimNext().orElseThrow();
 
@@ -603,7 +810,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 transactionManager,
                 clock,
                 LEASE,
-                MAX_CLAIMS
+                MAX_CLAIMS,
+                RETRY_BACKOFF
         );
     }
 
@@ -687,6 +895,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     private static final class MutableClock extends Clock {
 
         private final AtomicReference<Instant> now;
+        private volatile Duration tick = Duration.ZERO;
 
         private MutableClock(Instant initial) {
             this.now = new AtomicReference<>(initial);
@@ -694,6 +903,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
         private void set(Instant instant) {
             now.set(instant);
+        }
+
+        private void setTick(Duration tick) {
+            this.tick = tick;
         }
 
         private void advance(Duration duration) {
@@ -712,7 +925,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
         @Override
         public Instant instant() {
-            return now.get();
+            return now.getAndUpdate(current -> current.plus(tick));
         }
     }
 }

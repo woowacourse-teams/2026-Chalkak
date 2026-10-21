@@ -29,6 +29,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 가져간 행은 임대 시간 안에 끝내야 한다. 워커가 죽거나 종료되면 행은 처리 중으로 남고 임대가 끝난 뒤 다시 가져간다. 그래서
  * 종료·interrupt·DB 오류처럼 호출 결과를 알 수 없는 상황에서는 실패를 쓰지 않고 행을 그대로 둔다. 반복해서 워커를 멈추게 하는
  * 행은 가져간 횟수 상한에서 실패로 끝난다.
+ *
+ * <p>
+ * 일시적인 생성 실패는 행을 대기로 되돌리고 백오프 뒤에 다시 가져간다. 임대 회수도 같은 회차의 가져간 횟수에 포함하므로 한 번의 사용자
+ * 요청이 처리되는 시도는 상한을 넘지 않는다.
  */
 public class AiReviewWorkerService {
 
@@ -40,6 +44,7 @@ public class AiReviewWorkerService {
     private final Clock clock;
     private final Duration leaseDuration;
     private final int maxClaims;
+    private final AiReviewRetryBackoff retryBackoff;
     private final TransactionTemplate transactionTemplate;
 
     public AiReviewWorkerService(
@@ -51,7 +56,8 @@ public class AiReviewWorkerService {
             PlatformTransactionManager transactionManager,
             Clock clock,
             Duration leaseDuration,
-            int maxClaims
+            int maxClaims,
+            AiReviewRetryBackoff retryBackoff
     ) {
         this.reviewRepository = reviewRepository;
         this.promptVersionRepository = promptVersionRepository;
@@ -61,6 +67,7 @@ public class AiReviewWorkerService {
         this.clock = clock;
         this.leaseDuration = leaseDuration;
         this.maxClaims = maxClaims;
+        this.retryBackoff = retryBackoff;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate
                 .setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -89,6 +96,7 @@ public class AiReviewWorkerService {
                 applyFailure(
                         claim,
                         FailureReason.POST_UNAVAILABLE.name(),
+                        false,
                         Invocation.NONE
                 );
                 return;
@@ -97,6 +105,7 @@ public class AiReviewWorkerService {
                 applyFailure(
                         claim,
                         FailureReason.PROMPT_VERSION_UNAVAILABLE.name(),
+                        false,
                         Invocation.NONE
                 );
                 return;
@@ -119,6 +128,7 @@ public class AiReviewWorkerService {
                     claim,
                     stopping,
                     exception.getFailureType().name(),
+                    exception.getFailureType().isRetryable(),
                     toInvocation(exception.findAttempt())
             );
             return;
@@ -127,6 +137,7 @@ public class AiReviewWorkerService {
                     claim,
                     stopping,
                     FailureReason.UNEXPECTED_ERROR.name(),
+                    false,
                     Invocation.NONE
             );
             return;
@@ -184,6 +195,7 @@ public class AiReviewWorkerService {
             Claim claim,
             BooleanSupplier stopping,
             String errorCode,
+            boolean retryable,
             Invocation invocation
     ) {
         // interrupt로 끊긴 호출은 일반 실패처럼 올라오므로 어떤 처리보다 먼저 확인한다.
@@ -194,35 +206,58 @@ public class AiReviewWorkerService {
         applyFailure(
                 claim,
                 errorCode,
+                retryable,
                 invocation
         );
     }
 
     private void applyCompletion(Claim claim, AiReviewGeneration generation) {
         Invocation invocation = toInvocation(Optional.of(generation.attempt()));
-        apply(claim, review -> review.complete(
-                claim.attempt(),
-                generation.result(),
-                generation.rawOutput(),
-                invocation,
-                clock.instant()
-        ));
+        apply(
+                claim,
+                Duration.ZERO,
+                review -> review.complete(
+                        claim.attempt(),
+                        generation.result(),
+                        generation.rawOutput(),
+                        invocation,
+                        clock.instant()
+                )
+        );
     }
 
     private void applyFailure(
             Claim claim,
             String errorCode,
+            boolean retryable,
             Invocation invocation
     ) {
-        apply(claim, review -> review.fail(
-                claim.attempt(),
-                errorCode,
-                invocation,
-                clock.instant()
-        ));
+        Instant now = clock.instant();
+        Duration delay = retryBackoff.delayAfter(claim.roundAttempt());
+        apply(
+                claim,
+                delay,
+                review -> review.failOrRetry(
+                        claim.attempt(),
+                        errorCode,
+                        retryable,
+                        invocation,
+                        now.plus(delay),
+                        maxClaims,
+                        now
+                )
+        );
     }
 
-    private void apply(Claim claim, Predicate<AiReview> transition) {
+    /**
+     * @param retryDelay
+     *            재시도 대기로 전환될 때 로그에 남길 대기 시간. 완료로 끝나는 전이에서는 쓰지 않는다.
+     */
+    private void apply(
+            Claim claim,
+            Duration retryDelay,
+            Predicate<AiReview> transition
+    ) {
         AiReview applied;
         try {
             applied = transactionTemplate.execute(status -> {
@@ -240,6 +275,14 @@ public class AiReviewWorkerService {
         }
         if (applied == null) {
             AiReviewWorkerLog.staleUpdate(claim);
+            return;
+        }
+        if (applied.isRetryScheduled()) {
+            AiReviewWorkerLog.retryScheduled(
+                    applied,
+                    toClaim(applied, claim.version()),
+                    retryDelay
+            );
             return;
         }
         AiReviewWorkerLog.finished(
@@ -268,6 +311,7 @@ public class AiReviewWorkerService {
         return new Claim(
                 review.getId(),
                 review.getAttempt(),
+                review.getRoundAttempt(),
                 review.getPostId(),
                 review.getUserId(),
                 version
@@ -275,11 +319,13 @@ public class AiReviewWorkerService {
     }
 
     /**
-     * 워커가 가져간 행의 식별 정보와 요청 시점에 고정된 프롬프트 버전. 시도 번호는 반영할 때 늦은 워커를 가려내는 기준이다.
+     * 워커가 가져간 행의 식별 정보와 요청 시점에 고정된 프롬프트 버전. 시도 번호는 반영할 때 늦은 워커를 가려내는 기준이고, 시도 번호가
+     * 같으면 회차 시도 횟수도 같다.
      */
     public record Claim(
             UUID reviewId,
             int attempt,
+            int roundAttempt,
             UUID postId,
             UUID userId,
             AiPromptVersion version

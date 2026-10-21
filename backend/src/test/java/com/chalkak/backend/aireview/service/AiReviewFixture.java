@@ -208,14 +208,15 @@ public final class AiReviewFixture {
         jdbcTemplate.update(
                 """
                         INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
-                            request_id, requested_at)
-                        VALUES (?, ?, ?, ?, 'QUEUED', 0, ?, ?)
+                            request_id, requested_at, last_requested_at)
+                        VALUES (?, ?, ?, ?, 'QUEUED', 0, ?, ?, ?)
                         """,
                 id,
                 postId,
                 userId,
                 promptVersionId,
                 UUID.randomUUID(),
+                Timestamp.from(requestedAt),
                 Timestamp.from(requestedAt)
         );
         return id;
@@ -230,10 +231,11 @@ public final class AiReviewFixture {
         UUID id = insertQueuedReview(promptVersionId, REQUESTED_AT);
         jdbcTemplate.update(
                 """
-                        UPDATE ai_reviews SET status = 'PROCESSING', attempt = ?, lease_expires_at = ?,
-                            started_at = requested_at
+                        UPDATE ai_reviews SET status = 'PROCESSING', attempt = ?, round_attempt = ?,
+                            lease_expires_at = ?, started_at = requested_at
                         WHERE id = ?
                         """,
+                attempt,
                 attempt,
                 Timestamp.from(leaseExpiresAt),
                 id
@@ -252,7 +254,8 @@ public final class AiReviewFixture {
         boolean completed = "COMPLETED".equals(status);
         jdbcTemplate.update(
                 """
-                        UPDATE ai_reviews SET status = ?, attempt = 1, started_at = requested_at,
+                        UPDATE ai_reviews SET status = ?, attempt = 1, round_attempt = 1,
+                            started_at = requested_at,
                             completed_at = ?, error_code = ?, result = CAST(? AS jsonb),
                             output = CAST(? AS jsonb)
                         WHERE id = ?
@@ -262,6 +265,23 @@ public final class AiReviewFixture {
                 completed ? null : "TIMEOUT",
                 completed ? RESULT_JSON : null,
                 completed ? OUTPUT_JSON : null,
+                id
+        );
+        return id;
+    }
+
+    /**
+     * 첫 게시물의 자동 재시도 대기 행을 넣는다. 한 번 시도해 TIMEOUT으로 실패했고 nextAttemptAt까지 기다린다.
+     */
+    public UUID insertRetryWaitingReview(UUID promptVersionId, Instant nextAttemptAt) {
+        UUID id = insertQueuedReview(promptVersionId, REQUESTED_AT);
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET attempt = 1, round_attempt = 1, started_at = requested_at,
+                            error_code = 'TIMEOUT', next_attempt_at = ?
+                        WHERE id = ?
+                        """,
+                Timestamp.from(nextAttemptAt),
                 id
         );
         return id;

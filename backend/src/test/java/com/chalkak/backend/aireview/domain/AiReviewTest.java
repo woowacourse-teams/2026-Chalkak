@@ -22,6 +22,7 @@ class AiReviewTest {
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
     private static final Instant NOW = Instant.parse("2026-10-20T05:01:00Z");
     private static final Instant LEASE_END = Instant.parse("2026-10-20T05:03:00Z");
+    private static final Instant RETRY_AT = Instant.parse("2026-10-20T05:01:40Z");
     private static final int MAX_CLAIMS = 3;
     private static final Invocation INVOCATION = new Invocation(
             1200,
@@ -54,6 +55,10 @@ class AiReviewTest {
         // Then
         assertThat(review.getStatus()).isEqualTo(Status.QUEUED);
         assertThat(review.getAttempt()).isZero();
+        assertThat(review.getRoundAttempt()).isZero();
+        assertThat(review.getRequestCount()).isEqualTo(1);
+        assertThat(review.getLastRequestedAt()).isEqualTo(REQUESTED_AT);
+        assertThat(review.getNextAttemptAt()).isNull();
         assertThat(review.getResult()).isNull();
         assertThat(review.getCompletedAt()).isNull();
     }
@@ -97,12 +102,13 @@ class AiReviewTest {
         assertThat(claimed).isTrue();
         assertThat(review.getStatus()).isEqualTo(Status.PROCESSING);
         assertThat(review.getAttempt()).isEqualTo(1);
+        assertThat(review.getRoundAttempt()).isEqualTo(1);
         assertThat(review.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(120));
         assertThat(review.getStartedAt()).isEqualTo(NOW);
     }
 
     @Test
-    @DisplayName("임대가 끝난 처리 중 행을 다시 가져가면 시도 횟수만 늘고 첫 시작 시각은 유지한다")
+    @DisplayName("임대가 끝난 처리 중 행을 다시 가져가면 시도 번호와 회차 시도 횟수가 늘고 첫 시작 시각은 유지한다")
     void claim_expiredLease_reclaimsAndKeepsStartedAt() {
         // Given
         AiReview review = processingReview();
@@ -114,6 +120,7 @@ class AiReviewTest {
         // Then
         assertThat(claimed).isTrue();
         assertThat(review.getAttempt()).isEqualTo(2);
+        assertThat(review.getRoundAttempt()).isEqualTo(2);
         assertThat(review.getLeaseExpiresAt()).isEqualTo(later.plusSeconds(120));
         assertThat(review.getStartedAt()).isEqualTo(NOW);
     }
@@ -136,7 +143,7 @@ class AiReviewTest {
     }
 
     @Test
-    @DisplayName("가져간 횟수가 상한을 넘으면 처리하지 않고 LEASE_EXHAUSTED로 실패시킨다")
+    @DisplayName("회차 안에서 가져간 횟수가 상한을 넘으면 처리하지 않고 시도 번호를 늘리지 않은 채 LEASE_EXHAUSTED로 실패시킨다")
     void claim_overMaxClaims_failsWithLeaseExhausted() {
         // Given
         AiReview review = queuedReview();
@@ -154,8 +161,47 @@ class AiReviewTest {
         assertThat(review.getStatus()).isEqualTo(Status.FAILED);
         assertThat(review.getErrorCode()).isEqualTo(FailureReason.LEASE_EXHAUSTED.name());
         assertThat(review.getAttempt()).isEqualTo(MAX_CLAIMS);
+        assertThat(review.getRoundAttempt()).isEqualTo(MAX_CLAIMS);
         assertThat(review.getLeaseExpiresAt()).isNull();
         assertThat(review.getCompletedAt()).isEqualTo(claimedAt);
+    }
+
+    @Test
+    @DisplayName("재시도 뒤 임대 회수로 회차를 소진하면 이전 시도의 사용량과 응답 ID를 비우고 LEASE_EXHAUSTED로 끝낸다")
+    void claim_exhaustedAfterRetry_clearsPreviousInvocation() {
+        // Given
+        AiReview review = retryWaitingReview();
+        claim(review, RETRY_AT);
+        claim(review, RETRY_AT.plusSeconds(121));
+        assertThat(review.getInvocation()).isEqualTo(INVOCATION);
+
+        // When
+        boolean claimed = claim(review, RETRY_AT.plusSeconds(242));
+
+        // Then
+        assertThat(claimed).isFalse();
+        assertThat(review.getStatus()).isEqualTo(Status.FAILED);
+        assertThat(review.getErrorCode()).isEqualTo(FailureReason.LEASE_EXHAUSTED.name());
+        assertThat(review.getInvocation()).isEqualTo(Invocation.NONE);
+    }
+
+    @Test
+    @DisplayName("재시도 대기 행은 다음 시도 시각 전에는 가져갈 수 없고, 그 시각부터 가져가면 시도 횟수가 늘고 다음 시도 시각이 비워진다")
+    void claim_retryWaiting_claimableOnlyFromNextAttemptAt() {
+        // Given
+        AiReview review = retryWaitingReview();
+
+        // When & Then
+        assertThatThrownBy(() -> claim(review, RETRY_AT.minusSeconds(1)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(review.getStatus()).isEqualTo(Status.QUEUED);
+
+        assertThat(claim(review, RETRY_AT)).isTrue();
+        assertThat(review.getStatus()).isEqualTo(Status.PROCESSING);
+        assertThat(review.getAttempt()).isEqualTo(2);
+        assertThat(review.getRoundAttempt()).isEqualTo(2);
+        assertThat(review.getNextAttemptAt()).isNull();
+        assertThat(review.getStartedAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -184,17 +230,74 @@ class AiReviewTest {
     }
 
     @Test
-    @DisplayName("현재 시도로 실패하면 오류 코드와 받은 사용량을 저장하고 임대를 푼다")
-    void fail_currentAttempt_storesErrorCodeAndInvocation() {
+    @DisplayName("재시도할 수 있고 회차 예산이 남았으면 대기로 되돌리고 다음 시도 시각·마지막 시도의 사유와 사용량을 남기며 임대를 푼다")
+    void failOrRetry_retryableWithBudget_requeuesWithNextAttemptAt() {
         // Given
         AiReview review = processingReview();
 
         // When
-        boolean applied = review.fail(
+        boolean applied = failOrRetry(
+                review,
+                1,
+                "TIMEOUT",
+                true
+        );
+
+        // Then
+        assertThat(applied).isTrue();
+        assertThat(review.getStatus()).isEqualTo(Status.QUEUED);
+        assertThat(review.getNextAttemptAt()).isEqualTo(RETRY_AT);
+        assertThat(review.getErrorCode()).isEqualTo("TIMEOUT");
+        assertThat(review.getInvocation().inputTokens()).isEqualTo(1200);
+        assertThat(review.getInvocation().openaiResponseId()).isEqualTo("resp_abc");
+        assertThat(review.getLeaseExpiresAt()).isNull();
+        assertThat(review.getCompletedAt()).isNull();
+        assertThat(review.getAttempt()).isEqualTo(1);
+        assertThat(review.getRoundAttempt()).isEqualTo(1);
+        assertThat(review.getStartedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("마지막 시도까지 재시도 가능한 사유로 실패하면 그 사유로 실패를 확정한다")
+    void failOrRetry_retryableWithoutBudget_failsWithLastReason() {
+        // Given
+        AiReview review = retryWaitingReview();
+        claim(review, RETRY_AT);
+        claim(review, RETRY_AT.plusSeconds(121));
+
+        // When
+        boolean applied = review.failOrRetry(
+                3,
+                "RATE_LIMITED",
+                true,
+                INVOCATION,
+                RETRY_AT,
+                MAX_CLAIMS,
+                NOW
+        );
+
+        // Then
+        assertThat(applied).isTrue();
+        assertThat(review.getRoundAttempt()).isEqualTo(MAX_CLAIMS);
+        assertThat(review.getStatus()).isEqualTo(Status.FAILED);
+        assertThat(review.getErrorCode()).isEqualTo("RATE_LIMITED");
+        assertThat(review.getNextAttemptAt()).isNull();
+        assertThat(review.getLeaseExpiresAt()).isNull();
+        assertThat(review.getCompletedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("재시도할 수 없는 사유는 예산이 남아 있어도 바로 실패하고 받은 사용량을 저장한다")
+    void failOrRetry_notRetryable_failsImmediately() {
+        // Given
+        AiReview review = processingReview();
+
+        // When
+        boolean applied = failOrRetry(
+                review,
                 1,
                 "INVALID_OUTPUT",
-                INVOCATION,
-                NOW
+                false
         );
 
         // Then
@@ -206,21 +309,25 @@ class AiReviewTest {
         assertThat(review.getInvocation().openaiResponseId()).isEqualTo("resp_abc");
         assertThat(review.getResult()).isNull();
         assertThat(review.getOutput()).isNull();
+        assertThat(review.getNextAttemptAt()).isNull();
         assertThat(review.getLeaseExpiresAt()).isNull();
         assertThat(review.getCompletedAt()).isEqualTo(NOW);
     }
 
     @Test
     @DisplayName("응답을 받지 못한 실패는 사용량·지연·응답 ID를 비워 둔다")
-    void fail_withoutInvocation_leavesUsageEmpty() {
+    void failOrRetry_withoutInvocation_leavesUsageEmpty() {
         // Given
         AiReview review = processingReview();
 
         // When
-        review.fail(
+        review.failOrRetry(
                 1,
                 FailureReason.POST_UNAVAILABLE.name(),
+                false,
                 Invocation.NONE,
+                RETRY_AT,
+                MAX_CLAIMS,
                 NOW
         );
 
@@ -234,8 +341,8 @@ class AiReviewTest {
     }
 
     @Test
-    @DisplayName("시도 번호가 다른 늦은 워커나 이미 끝난 행에는 완료·실패를 반영하지 않는다")
-    void completeAndFail_staleOrTerminal_changesNothing() {
+    @DisplayName("시도 번호가 다른 늦은 워커나 이미 끝난 행에는 완료·실패·재시도를 반영하지 않는다")
+    void completeAndFailOrRetry_staleOrTerminal_changesNothing() {
         // Given
         AiReview reclaimed = processingReview();
         claim(reclaimed, LEASE_END.plusSeconds(1));
@@ -244,14 +351,25 @@ class AiReviewTest {
 
         // When & Then
         assertThat(complete(reclaimed, 1)).isFalse();
-        assertThat(fail(reclaimed, 1)).isFalse();
+        assertThat(failOrRetry(
+                reclaimed,
+                1,
+                "TIMEOUT",
+                true
+        )).isFalse();
         assertThat(reclaimed.getStatus()).isEqualTo(Status.PROCESSING);
         assertThat(reclaimed.getAttempt()).isEqualTo(2);
         assertThat(reclaimed.getErrorCode()).isNull();
+        assertThat(reclaimed.getNextAttemptAt()).isNull();
         assertThat(reclaimed.getCompletedAt()).isNull();
 
         assertThat(complete(finished, 1)).isFalse();
-        assertThat(fail(finished, 1)).isFalse();
+        assertThat(failOrRetry(
+                finished,
+                1,
+                "TIMEOUT",
+                true
+        )).isFalse();
         assertThat(finished.getStatus()).isEqualTo(Status.COMPLETED);
         assertThat(finished.getErrorCode()).isNull();
     }
@@ -294,11 +412,30 @@ class AiReviewTest {
         );
     }
 
-    private boolean fail(AiReview review, int attempt) {
-        return review.fail(
-                attempt,
+    private AiReview retryWaitingReview() {
+        AiReview review = processingReview();
+        failOrRetry(
+                review,
+                1,
                 "TIMEOUT",
-                Invocation.NONE,
+                true
+        );
+        return review;
+    }
+
+    private boolean failOrRetry(
+            AiReview review,
+            int attempt,
+            String errorCode,
+            boolean retryable
+    ) {
+        return review.failOrRetry(
+                attempt,
+                errorCode,
+                retryable,
+                INVOCATION,
+                RETRY_AT,
+                MAX_CLAIMS,
                 NOW
         );
     }
