@@ -2,11 +2,22 @@ package com.stonefive.chalkak.data.post
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import androidx.exifinterface.media.ExifInterface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentScale
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
+import com.stonefive.chalkak.domain.model.photoedit.SrgbTransfer
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,7 +33,7 @@ class AndroidPostImageEncoderTest {
     fun encodesActualWebpAndStripsExifMetadata() = runBlocking {
         val source = createJpeg(ExifInterface.ORIENTATION_ROTATE_90)
         try {
-            val result = encoder().encode(source.toContentUri(), MAX_BYTES)
+            val result = encoder().encode(source.toContentUri(), MAX_BYTES, PhotoEdit())
             val output = (result as PostImageEncodeResult.Success).file
             try {
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -50,7 +61,7 @@ class AndroidPostImageEncoderTest {
         ORIENTATIONS.forEach { orientation ->
             val source = createJpeg(orientation)
             try {
-                val result = encoder().encode(source.toContentUri(), MAX_BYTES)
+                val result = encoder().encode(source.toContentUri(), MAX_BYTES, PhotoEdit())
                 val output = (result as PostImageEncodeResult.Success).file
                 try {
                     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -73,10 +84,180 @@ class AndroidPostImageEncoderTest {
         try {
             assertEquals(
                 PostImageEncodeResult.SizeLimitExceeded,
-                encoder().encode(source.toContentUri(), 1L),
+                encoder().encode(source.toContentUri(), 1L, PhotoEdit()),
             )
         } finally {
             source.delete()
+        }
+    }
+
+    @Test
+    fun cropsSelectedRegion() = runBlocking {
+        val source = createQuadrantJpeg()
+        try {
+            val output = encodeToBitmap(
+                source,
+                PhotoEdit(crop = CropWindow(centerX = 0.75f, centerY = 0.25f, width = 0.5f, height = 0.5f)),
+            )
+            try {
+                assertEquals(QUADRANT_SIZE, output.width)
+                assertEquals(QUADRANT_SIZE, output.height)
+                assertColorNear(Color.GREEN, output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2))
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun quarterTurnSwapsDimensionsAndRotatesClockwise() = runBlocking {
+        val source = createJpeg(width = QUADRANT_SIZE * 2, height = QUADRANT_SIZE) { x, _ ->
+            if (x < QUADRANT_SIZE) Color.RED else Color.BLUE
+        }
+        try {
+            val output = encodeToBitmap(source, PhotoEdit(quarterTurns = 1))
+            try {
+                assertEquals(QUADRANT_SIZE, output.width)
+                assertEquals(QUADRANT_SIZE * 2, output.height)
+                assertColorNear(Color.RED, output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2))
+                assertColorNear(Color.BLUE, output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE * 3 / 2))
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun monoFilterProducesNeutralPixels() = runBlocking {
+        val source = createQuadrantJpeg()
+        try {
+            val output = encodeToBitmap(source, PhotoEdit(filter = PhotoFilter.Mono))
+            try {
+                listOf(
+                    QUADRANT_SIZE / 2 to QUADRANT_SIZE / 2,
+                    QUADRANT_SIZE * 3 / 2 to QUADRANT_SIZE / 2,
+                    QUADRANT_SIZE / 2 to QUADRANT_SIZE * 3 / 2,
+                ).forEach { (x, y) ->
+                    val pixel = output.getPixel(x, y)
+                    assertTrue(abs(Color.red(pixel) - Color.green(pixel)) <= NEUTRAL_TOLERANCE)
+                    assertTrue(abs(Color.green(pixel) - Color.blue(pixel)) <= NEUTRAL_TOLERANCE)
+                }
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun exposureAdjustmentBrightensPixels() = runBlocking {
+        val gray = Color.rgb(GRAY_LEVEL, GRAY_LEVEL, GRAY_LEVEL)
+        val source = createJpeg(width = QUADRANT_SIZE, height = QUADRANT_SIZE) { _, _ -> gray }
+        try {
+            val edit = PhotoEdit(adjustmentLayers = PhotoAdjustmentLayers.manualOnly(PhotoAdjustments(exposure = 0.4f)))
+            val output = encodeToBitmap(source, edit)
+            try {
+                // 선형 공간에서 2^(0.4 × 1.5)배 한 뒤 다시 감마 인코딩한 값.
+                val linear = SrgbTransfer.linear(GRAY_LEVEL / 255.0) *
+                    2.0.pow(0.4 * PhotoAdjustmentScale.EXPOSURE_RANGE_EV)
+                val brightened = (SrgbTransfer.gamma(linear) * 255).roundToInt()
+                val center = output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2)
+                // 단색은 손실 압축에도 거의 그대로라 일반 색 허용치보다 좁게 본다.
+                assertTrue(
+                    "expected $brightened but was ${Color.green(center)}",
+                    abs(Color.green(center) - brightened) <= FLAT_COLOR_TOLERANCE,
+                )
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun adjustmentsApplyBeforeFilterAndKeepCrop() = runBlocking {
+        val source = createQuadrantJpeg()
+        try {
+            val edit = PhotoEdit(
+                crop = CropWindow(centerX = 0.25f, centerY = 0.25f, width = 0.5f, height = 0.5f),
+                filter = PhotoFilter.Warm,
+                adjustmentLayers = PhotoAdjustmentLayers.manualOnly(PhotoAdjustments(saturation = -1f)),
+            )
+            val output = encodeToBitmap(source, edit)
+            try {
+                assertEquals(QUADRANT_SIZE, output.width)
+                // 빨강 영역만 남고, 채도를 뺀 회색 위에 따뜻한 필터가 입혀져 빨강이 파랑보다 크다.
+                val center = output.getPixel(QUADRANT_SIZE / 2, QUADRANT_SIZE / 2)
+                assertTrue(Color.red(center) > Color.blue(center))
+                assertTrue(abs(Color.red(center) - Color.green(center)) < WARM_GRAY_RED_GREEN_GAP)
+            } finally {
+                output.recycle()
+            }
+        } finally {
+            source.delete()
+        }
+    }
+
+    private suspend fun encodeToBitmap(
+        source: File,
+        edit: PhotoEdit,
+    ): Bitmap {
+        val result = encoder().encode(source.toContentUri(), MAX_BYTES, edit)
+        val output = (result as PostImageEncodeResult.Success).file
+        return try {
+            BitmapFactory.decodeFile(output.absolutePath)
+        } finally {
+            output.delete()
+        }
+    }
+
+    private fun createQuadrantJpeg(): File = createJpeg(width = QUADRANT_SIZE * 2, height = QUADRANT_SIZE * 2) { x, y ->
+        when {
+            x < QUADRANT_SIZE && y < QUADRANT_SIZE -> Color.RED
+            y < QUADRANT_SIZE -> Color.GREEN
+            x < QUADRANT_SIZE -> Color.BLUE
+            else -> Color.WHITE
+        }
+    }
+
+    private fun createJpeg(
+        width: Int,
+        height: Int,
+        colorAt: (Int, Int) -> Int,
+    ): File {
+        val file = File.createTempFile("post-encoder-edit-source-", ".jpg", context.cacheDir)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        try {
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    bitmap.setPixel(x, y, colorAt(x, y))
+                }
+            }
+            FileOutputStream(file).use { output ->
+                assertTrue(bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output))
+            }
+        } finally {
+            bitmap.recycle()
+        }
+        return file
+    }
+
+    private fun assertColorNear(
+        expected: Int,
+        actual: Int,
+    ) {
+        val channels = listOf(Color::red, Color::green, Color::blue)
+        channels.forEach { channel ->
+            assertTrue(
+                "expected ${Integer.toHexString(expected)} but was ${Integer.toHexString(actual)}",
+                abs(channel(expected) - channel(actual)) <= COLOR_TOLERANCE,
+            )
         }
     }
 
@@ -116,6 +297,12 @@ class AndroidPostImageEncoderTest {
     private companion object {
         const val ENCODER_CACHE_DIRECTORY = "post-encoder-test"
         const val MAX_BYTES = 5_242_880L
+        const val QUADRANT_SIZE = 32
+        const val COLOR_TOLERANCE = 40
+        const val NEUTRAL_TOLERANCE = 6
+        const val GRAY_LEVEL = 100
+        const val FLAT_COLOR_TOLERANCE = 4
+        const val WARM_GRAY_RED_GREEN_GAP = 30
         val ORIENTATIONS = intArrayOf(
             ExifInterface.ORIENTATION_NORMAL,
             ExifInterface.ORIENTATION_FLIP_HORIZONTAL,

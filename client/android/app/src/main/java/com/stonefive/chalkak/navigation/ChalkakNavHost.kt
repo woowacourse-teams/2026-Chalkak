@@ -52,6 +52,11 @@ import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
@@ -696,6 +701,20 @@ fun ChalkakNavHost(
                                     .toString(),
                                 topic = submission.content.topic,
                                 moderationStatus = submission.content.moderationStatus,
+                                quarterTurns = submission.edit.quarterTurns,
+                                straightenDegrees = submission.edit.straightenDegrees,
+                                cropCenterX = submission.edit.crop.centerX,
+                                cropCenterY = submission.edit.crop.centerY,
+                                cropWidth = submission.edit.crop.width,
+                                cropHeight = submission.edit.crop.height,
+                                filter = submission.edit.filter.name,
+                                exposure = submission.edit.adjustments.exposure,
+                                contrast = submission.edit.adjustments.contrast,
+                                highlights = submission.edit.adjustments.highlights,
+                                shadows = submission.edit.adjustments.shadows,
+                                blackPoint = submission.edit.adjustments.blackPoint,
+                                saturation = submission.edit.adjustments.saturation,
+                                warmth = submission.edit.adjustments.warmth,
                             ),
                         ) {
                             popUpTo<PhotoUpload> { inclusive = true }
@@ -709,6 +728,7 @@ fun ChalkakNavHost(
 
                 PhotoUploadSuccessScreen(
                     imageModel = success.imageModel,
+                    edit = success.toPhotoEdit(),
                     caption = success.caption,
                     content = PhotoUploadSuccessContent(
                         date = LocalDate.parse(success.date),
@@ -726,6 +746,30 @@ fun ChalkakNavHost(
         }
     }
 }
+
+private fun PhotoUploadSuccess.toPhotoEdit() = PhotoEdit(
+    quarterTurns = quarterTurns,
+    straightenDegrees = straightenDegrees,
+    crop = CropWindow(
+        centerX = cropCenterX,
+        centerY = cropCenterY,
+        width = cropWidth,
+        height = cropHeight,
+    ),
+    filter = PhotoFilter.entries.firstOrNull { it.name == filter } ?: PhotoFilter.Original,
+    // 성공 화면은 결과만 보여 주므로 적용한 값을 직접 정한 값으로 옮긴다.
+    adjustmentLayers = PhotoAdjustmentLayers.manualOnly(
+        PhotoAdjustments(
+            exposure = exposure,
+            contrast = contrast,
+            highlights = highlights,
+            shadows = shadows,
+            blackPoint = blackPoint,
+            saturation = saturation,
+            warmth = warmth,
+        ),
+    ),
+)
 
 private fun NavHostController.openNotificationTarget(item: NotificationItemUiState) {
     openNotificationTarget(
