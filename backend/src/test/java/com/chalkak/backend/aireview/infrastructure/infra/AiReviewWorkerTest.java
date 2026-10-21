@@ -15,6 +15,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.aireview.service.AbandonReason;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService.Claim;
 import java.time.Duration;
@@ -127,7 +128,7 @@ class AiReviewWorkerTest {
         verify(service, times(2)).claimNext();
         verify(service).abandon(
                 any(),
-                eq(AiReviewWorkerService.UNEXPECTED),
+                eq(AbandonReason.UNEXPECTED_WHILE_PROCESSING),
                 any()
         );
     }
@@ -249,7 +250,7 @@ class AiReviewWorkerTest {
 
         // Then
         verify(service, never()).process(any(), any());
-        verify(service).abandon(claim, AiReviewWorkerService.SHUTDOWN);
+        verify(service).abandon(claim, AbandonReason.SHUTDOWN);
     }
 
     private AiReviewWorker worker(int concurrency, Duration grace) {

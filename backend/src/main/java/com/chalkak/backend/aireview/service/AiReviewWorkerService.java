@@ -4,12 +4,10 @@ import com.chalkak.backend.aireview.domain.AiPromptVersion;
 import com.chalkak.backend.aireview.domain.AiReview;
 import com.chalkak.backend.aireview.domain.AiReview.FailureReason;
 import com.chalkak.backend.aireview.domain.AiReview.Invocation;
-import com.chalkak.backend.aireview.domain.AiReview.Status;
 import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
-import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
@@ -19,9 +17,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,15 +31,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 행은 가져간 횟수 상한에서 실패로 끝난다.
  */
 public class AiReviewWorkerService {
-
-    /** 종료·interrupt로 처리를 멈춘 경우의 중단 사유. */
-    public static final String SHUTDOWN = "SHUTDOWN";
-    /** 처리 도중 예상 못 한 예외로 멈춘 경우의 중단 사유. */
-    public static final String UNEXPECTED = "UNEXPECTED";
-
-    private static final Logger AI_REVIEW_LOG = LoggerFactory.getLogger("chalkak.aireview");
-    private static final String DB_ERROR = "DB_ERROR";
-    private static final String PREPARE_FAILED = "PREPARE_FAILED";
 
     private final AiReviewRepository reviewRepository;
     private final AiPromptVersionRepository promptVersionRepository;
@@ -107,7 +93,7 @@ public class AiReviewWorkerService {
                 );
                 return;
             }
-            if (!aiReviewGenerator.canRun(version)) {
+            if (!version.isRunnableWith(aiReviewGenerator::supportsModel)) {
                 applyFailure(
                         claim,
                         FailureReason.PROMPT_VERSION_UNAVAILABLE.name(),
@@ -119,7 +105,7 @@ public class AiReviewWorkerService {
         } catch (RuntimeException exception) {
             abandon(
                     claim,
-                    PREPARE_FAILED,
+                    AbandonReason.PREPARE_FAILED,
                     exception
             );
             return;
@@ -151,7 +137,7 @@ public class AiReviewWorkerService {
     /**
      * 처리를 끝내지 못한 채 행을 처리 중으로 남긴다. 임대가 끝나면 다른 워커가 다시 가져간다.
      */
-    public void abandon(Claim claim, String reason) {
+    public void abandon(Claim claim, AbandonReason reason) {
         abandon(
                 claim,
                 reason,
@@ -161,18 +147,14 @@ public class AiReviewWorkerService {
 
     public void abandon(
             Claim claim,
-            String reason,
+            AbandonReason reason,
             RuntimeException exception
     ) {
-        LoggingEventBuilder event = event(
-                AI_REVIEW_LOG.atWarn(),
-                "review_abandoned",
-                claim
-        ).addKeyValue("reason", reason);
-        if (exception != null) {
-            event = event.addKeyValue(LogFields.ERROR_CODE, exception.getClass().getSimpleName());
-        }
-        event.log("AI 리뷰 처리 중단, 임대 만료 뒤 다시 가져감");
+        AiReviewWorkerLog.abandoned(
+                claim,
+                reason,
+                exception
+        );
     }
 
     private Claim claimOne() {
@@ -189,7 +171,10 @@ public class AiReviewWorkerService {
             )) {
                 return toClaim(review, version);
             }
-            logFinished(review, version);
+            AiReviewWorkerLog.finished(
+                    review,
+                    toClaim(review, version)
+            );
             found = reviewRepository.findClaimableForUpdate(now);
         }
         return null;
@@ -203,7 +188,7 @@ public class AiReviewWorkerService {
     ) {
         // interrupt로 끊긴 호출은 일반 실패처럼 올라오므로 어떤 처리보다 먼저 확인한다.
         if (Thread.currentThread().isInterrupted() || stopping.getAsBoolean()) {
-            abandon(claim, SHUTDOWN);
+            abandon(claim, AbandonReason.SHUTDOWN);
             return;
         }
         applyFailure(
@@ -248,16 +233,19 @@ public class AiReviewWorkerService {
         } catch (RuntimeException exception) {
             abandon(
                     claim,
-                    DB_ERROR,
+                    AbandonReason.DB_ERROR,
                     exception
             );
             return;
         }
         if (applied == null) {
-            logStaleUpdate(claim);
+            AiReviewWorkerLog.staleUpdate(claim);
             return;
         }
-        logFinished(applied, claim.version());
+        AiReviewWorkerLog.finished(
+                applied,
+                toClaim(applied, claim.version())
+        );
     }
 
     private Invocation toInvocation(Optional<Attempt> found) {
@@ -276,63 +264,6 @@ public class AiReviewWorkerService {
         );
     }
 
-    private void logFinished(AiReview review, AiPromptVersion version) {
-        boolean completed = review.getStatus() == Status.COMPLETED;
-        LoggingEventBuilder event = completed ? AI_REVIEW_LOG.atInfo() : AI_REVIEW_LOG.atWarn();
-        event = event(
-                event,
-                completed ? "review_completed" : "review_failed",
-                toClaim(review, version)
-        )
-                .addKeyValue("promptVersion", version.getVersion())
-                .addKeyValue("model", version.getModel())
-                .addKeyValue("queueWaitMs",
-                        Duration.between(review.getRequestedAt(), review.getStartedAt())
-                                .toMillis())
-                .addKeyValue("totalMs",
-                        Duration.between(review.getRequestedAt(), review.getCompletedAt())
-                                .toMillis());
-        event = addIfPresent(
-                event,
-                "latencyMs",
-                review.getLatencyMs()
-        );
-        event = addIfPresent(
-                event,
-                "inputTokens",
-                review.getInputTokens()
-        );
-        event = addIfPresent(
-                event,
-                "cachedInputTokens",
-                review.getCachedInputTokens()
-        );
-        event = addIfPresent(
-                event,
-                "outputTokens",
-                review.getOutputTokens()
-        );
-        event = addIfPresent(
-                event,
-                "reasoningTokens",
-                review.getReasoningTokens()
-        );
-        event = addIfPresent(
-                event,
-                LogFields.ERROR_CODE,
-                review.getErrorCode()
-        );
-        event.log(completed ? "AI 리뷰 완료" : "AI 리뷰 실패");
-    }
-
-    private void logStaleUpdate(Claim claim) {
-        event(
-                AI_REVIEW_LOG.atWarn(),
-                "review_stale_update",
-                claim
-        ).log("AI 리뷰 늦은 반영 무시");
-    }
-
     private Claim toClaim(AiReview review, AiPromptVersion version) {
         return new Claim(
                 review.getId(),
@@ -341,32 +272,6 @@ public class AiReviewWorkerService {
                 review.getUserId(),
                 version
         );
-    }
-
-    /** 모든 이벤트가 공통으로 남기는 식별 필드를 붙인다. */
-    private LoggingEventBuilder event(
-            LoggingEventBuilder builder,
-            String name,
-            Claim claim
-    ) {
-        return builder
-                .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
-                .addKeyValue(LogFields.EVENT, name)
-                .addKeyValue("aiReviewId", claim.reviewId())
-                .addKeyValue(LogFields.POST_ID, claim.postId())
-                .addKeyValue(LogFields.USER_ID, claim.userId())
-                .addKeyValue("attempt", claim.attempt());
-    }
-
-    private LoggingEventBuilder addIfPresent(
-            LoggingEventBuilder event,
-            String key,
-            Object value
-    ) {
-        if (value == null) {
-            return event;
-        }
-        return event.addKeyValue(key, value);
     }
 
     /**

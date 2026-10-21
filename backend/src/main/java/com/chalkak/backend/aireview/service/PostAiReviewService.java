@@ -80,7 +80,7 @@ public class PostAiReviewService {
      */
     private AiPromptVersion getUsableLatestVersion() {
         return promptVersionRepository.findLatestByType(AiPromptType.PHOTO_REVIEW)
-                .filter(aiReviewGenerator::canRun)
+                .filter(version -> version.isRunnableWith(aiReviewGenerator::supportsModel))
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.BUSINESS_ERROR,
                         "지금은 AI 리뷰를 요청할 수 없습니다."));

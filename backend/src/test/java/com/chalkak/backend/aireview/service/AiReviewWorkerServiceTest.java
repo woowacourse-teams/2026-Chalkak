@@ -9,7 +9,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -130,7 +129,6 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         );
         given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(IMAGE_URL);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
-        willCallRealMethod().given(aiReviewGenerator).canRun(any());
         service = createService(reviewRepository);
         appender.start();
         logger.addAppender(appender);
@@ -564,6 +562,29 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         verify(aiReviewGenerator, never()).generate(any());
         assertThat(singleEventKeyValues("review_abandoned"))
                 .contains("reason=\"PREPARE_FAILED\"");
+    }
+
+    @Test
+    @DisplayName("처리 중 예상 못 한 예외로 중단하면 reason과 예외 이름을 남기고 행은 그대로 둔다")
+    void abandon_unexpectedWhileProcessing_logsReasonAndErrorCode() {
+        // Given
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+        Claim claim = service.claimNext().orElseThrow();
+
+        // When
+        service.abandon(
+                claim,
+                AbandonReason.UNEXPECTED_WHILE_PROCESSING,
+                new IllegalStateException("x")
+        );
+
+        // Then
+        assertThat(findRow(reviewId)).containsEntry("status", "PROCESSING");
+        assertThat(singleEventKeyValues("review_abandoned"))
+                .contains(
+                        "reason=\"UNEXPECTED_WHILE_PROCESSING\"",
+                        "errorCode=\"IllegalStateException\""
+                );
     }
 
     private UUID processQueuedReview() {

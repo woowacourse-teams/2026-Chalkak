@@ -172,12 +172,12 @@ class AiReviewTest {
         assertThat(review.getStatus()).isEqualTo(Status.COMPLETED);
         assertThat(review.getResult()).isEqualTo(RESULT);
         assertThat(review.getOutput()).isEqualTo(OUTPUT);
-        assertThat(review.getInputTokens()).isEqualTo(1200);
-        assertThat(review.getCachedInputTokens()).isZero();
-        assertThat(review.getOutputTokens()).isEqualTo(300);
-        assertThat(review.getReasoningTokens()).isEqualTo(64);
-        assertThat(review.getLatencyMs()).isEqualTo(21_000L);
-        assertThat(review.getOpenaiResponseId()).isEqualTo("resp_abc");
+        assertThat(review.getInvocation().inputTokens()).isEqualTo(1200);
+        assertThat(review.getInvocation().cachedInputTokens()).isZero();
+        assertThat(review.getInvocation().outputTokens()).isEqualTo(300);
+        assertThat(review.getInvocation().reasoningTokens()).isEqualTo(64);
+        assertThat(review.getInvocation().latencyMs()).isEqualTo(21_000L);
+        assertThat(review.getInvocation().openaiResponseId()).isEqualTo("resp_abc");
         assertThat(review.getErrorCode()).isNull();
         assertThat(review.getLeaseExpiresAt()).isNull();
         assertThat(review.getCompletedAt()).isEqualTo(NOW);
@@ -201,9 +201,9 @@ class AiReviewTest {
         assertThat(applied).isTrue();
         assertThat(review.getStatus()).isEqualTo(Status.FAILED);
         assertThat(review.getErrorCode()).isEqualTo("INVALID_OUTPUT");
-        assertThat(review.getInputTokens()).isEqualTo(1200);
-        assertThat(review.getLatencyMs()).isEqualTo(21_000L);
-        assertThat(review.getOpenaiResponseId()).isEqualTo("resp_abc");
+        assertThat(review.getInvocation().inputTokens()).isEqualTo(1200);
+        assertThat(review.getInvocation().latencyMs()).isEqualTo(21_000L);
+        assertThat(review.getInvocation().openaiResponseId()).isEqualTo("resp_abc");
         assertThat(review.getResult()).isNull();
         assertThat(review.getOutput()).isNull();
         assertThat(review.getLeaseExpiresAt()).isNull();
@@ -225,12 +225,12 @@ class AiReviewTest {
         );
 
         // Then
-        assertThat(review.getInputTokens()).isNull();
-        assertThat(review.getCachedInputTokens()).isNull();
-        assertThat(review.getOutputTokens()).isNull();
-        assertThat(review.getReasoningTokens()).isNull();
-        assertThat(review.getLatencyMs()).isNull();
-        assertThat(review.getOpenaiResponseId()).isNull();
+        assertThat(review.getInvocation().inputTokens()).isNull();
+        assertThat(review.getInvocation().cachedInputTokens()).isNull();
+        assertThat(review.getInvocation().outputTokens()).isNull();
+        assertThat(review.getInvocation().reasoningTokens()).isNull();
+        assertThat(review.getInvocation().latencyMs()).isNull();
+        assertThat(review.getInvocation().openaiResponseId()).isNull();
     }
 
     @Test

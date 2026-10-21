@@ -10,6 +10,8 @@ import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class AiPromptVersionTest {
@@ -181,6 +183,40 @@ class AiPromptVersionTest {
 
         // When & Then
         assertThat(version.hasCurrentOutputSchema()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "gpt-6.1-sol, 1, true",
+            "gpt-6.1-sol, 0, false",
+            "gpt-unknown, 1, false"
+    })
+    @DisplayName("현재 출력 스키마이고 허용된 모델일 때만 실행할 수 있다")
+    void isRunnableWith_byOutputSchemaAndModel(
+            String model,
+            String outputSchemaVersion,
+            boolean expected
+    ) {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                ADMIN_ID
+        );
+        ReflectionTestUtils.setField(
+                version,
+                "model",
+                model
+        );
+        ReflectionTestUtils.setField(
+                version,
+                "outputSchemaVersion",
+                outputSchemaVersion
+        );
+
+        // When & Then
+        assertThat(version.isRunnableWith("gpt-6.1-sol"::equals)).isEqualTo(expected);
     }
 
     @Test

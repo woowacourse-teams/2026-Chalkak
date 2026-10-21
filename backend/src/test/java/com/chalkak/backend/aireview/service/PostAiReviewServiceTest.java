@@ -7,9 +7,7 @@ import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.REQUESTED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willCallRealMethod;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -77,7 +75,6 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         fixture = new AiReviewFixture(jdbcTemplate);
         fixture.insertPublicPost();
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
-        willCallRealMethod().given(aiReviewGenerator).canRun(any());
         given(clock.instant()).willReturn(REQUESTED_AT);
         MDC.put(LogFields.REQUEST_ID, requestId.toString());
         appender.start();

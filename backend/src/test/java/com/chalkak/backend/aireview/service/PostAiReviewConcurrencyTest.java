@@ -4,9 +4,7 @@ import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.MODEL;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willCallRealMethod;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -56,7 +54,6 @@ class PostAiReviewConcurrencyTest extends IntegrationTestSupport {
         fixture.insertPublicPost();
         fixture.insertPromptVersion(1);
         given(aiReviewGenerator.supportsModel(MODEL)).willReturn(true);
-        willCallRealMethod().given(aiReviewGenerator).canRun(any());
         appender.start();
         logger.addAppender(appender);
         logger.setLevel(Level.INFO);

@@ -1,6 +1,8 @@
 package com.chalkak.backend.aireview.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -62,23 +64,8 @@ public class AiReview {
     @Column(columnDefinition = "jsonb")
     private String output;
 
-    @Column(name = "input_tokens")
-    private Integer inputTokens;
-
-    @Column(name = "cached_input_tokens")
-    private Integer cachedInputTokens;
-
-    @Column(name = "output_tokens")
-    private Integer outputTokens;
-
-    @Column(name = "reasoning_tokens")
-    private Integer reasoningTokens;
-
-    @Column(name = "latency_ms")
-    private Long latencyMs;
-
-    @Column(name = "openai_response_id", length = 100)
-    private String openaiResponseId;
+    @Embedded
+    private Invocation invocation;
 
     @Column(name = "error_code", length = 50)
     private String errorCode;
@@ -160,7 +147,7 @@ public class AiReview {
         }
         this.result = result;
         this.output = output;
-        record(invocation);
+        this.invocation = invocation;
         finish(
                 Status.COMPLETED,
                 null,
@@ -183,7 +170,7 @@ public class AiReview {
         if (!isProcessingAttempt(attempt)) {
             return false;
         }
-        record(invocation);
+        this.invocation = invocation;
         finish(
                 Status.FAILED,
                 errorCode,
@@ -201,15 +188,6 @@ public class AiReview {
         return status == Status.PROCESSING && this.attempt == attempt;
     }
 
-    private void record(Invocation invocation) {
-        inputTokens = invocation.inputTokens();
-        cachedInputTokens = invocation.cachedInputTokens();
-        outputTokens = invocation.outputTokens();
-        reasoningTokens = invocation.reasoningTokens();
-        latencyMs = invocation.latencyMs();
-        openaiResponseId = invocation.openaiResponseId();
-    }
-
     private void finish(
             Status terminalStatus,
             String errorCode,
@@ -219,6 +197,17 @@ public class AiReview {
         this.errorCode = errorCode;
         leaseExpiresAt = null;
         completedAt = now;
+    }
+
+    /**
+     * 호출 기록이 없으면 {@link Invocation#NONE}을 돌려준다. 컬럼이 모두 null인 행은 Hibernate가 null로
+     * 읽는다.
+     */
+    public Invocation getInvocation() {
+        if (invocation == null) {
+            return Invocation.NONE;
+        }
+        return invocation;
     }
 
     /**
@@ -238,13 +227,14 @@ public class AiReview {
     /**
      * OpenAI 호출에서 받은 사용량·지연시간·응답 ID. 응답 본문을 받지 못했거나 OpenAI가 주지 않은 값은 null이다.
      */
+    @Embeddable
     public record Invocation(
-            Integer inputTokens,
-            Integer cachedInputTokens,
-            Integer outputTokens,
-            Integer reasoningTokens,
-            Long latencyMs,
-            String openaiResponseId
+            @Column(name = "input_tokens") Integer inputTokens,
+            @Column(name = "cached_input_tokens") Integer cachedInputTokens,
+            @Column(name = "output_tokens") Integer outputTokens,
+            @Column(name = "reasoning_tokens") Integer reasoningTokens,
+            @Column(name = "latency_ms") Long latencyMs,
+            @Column(name = "openai_response_id", length = 100) String openaiResponseId
     ) {
 
         public static final Invocation NONE = new Invocation(

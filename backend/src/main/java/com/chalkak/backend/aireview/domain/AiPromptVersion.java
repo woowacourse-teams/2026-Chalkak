@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.function.Predicate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -98,6 +99,13 @@ public class AiPromptVersion {
      */
     public boolean hasCurrentOutputSchema() {
         return outputSchemaVersion.equals(type.outputSchemaVersion());
+    }
+
+    /**
+     * 이 버전을 지금 서버가 호출할 수 있는지 확인한다. 서버가 해석하는 출력 스키마이고 허용된 모델이어야 한다.
+     */
+    public boolean isRunnableWith(Predicate<String> modelSupported) {
+        return hasCurrentOutputSchema() && modelSupported.test(model);
     }
 
     public AiPromptDraft toDraft() {

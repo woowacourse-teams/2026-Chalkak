@@ -140,6 +140,7 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         // Given
         reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
         AiReview review = reviewRepository.findClaimableForUpdate(REQUESTED_AT).orElseThrow();
+        assertThat(review.getInvocation()).isEqualTo(Invocation.NONE);
         String output = "{\"composition\":7.46,\"theme_expression\":8,\"feedback\":\"좋습니다\"}";
         Instant claimedAt = REQUESTED_AT.plusSeconds(5);
         Instant completedAt = REQUESTED_AT.plusSeconds(26);
@@ -196,6 +197,14 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         assertThat(objectMapper.readTree(reloaded.getOutput()))
                 .isEqualTo(objectMapper.readTree(output));
         assertThat(reloaded.getResult().feedback()).isEqualTo("좋습니다");
+        assertThat(reloaded.getInvocation()).isEqualTo(new Invocation(
+                1200,
+                0,
+                300,
+                64,
+                21_000L,
+                "resp_abc"
+        ));
     }
 
     private void setProcessing(Instant leaseExpiresAt) {

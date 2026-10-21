@@ -1,8 +1,9 @@
 package com.chalkak.backend.aireview.infrastructure.infra;
 
+import com.chalkak.backend.aireview.service.AbandonReason;
+import com.chalkak.backend.aireview.service.AiReviewWorkerLog;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService.Claim;
-import com.chalkak.backend.common.logging.LogFields;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -10,8 +11,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
@@ -25,7 +24,6 @@ import org.springframework.scheduling.annotation.Scheduled;
  */
 public class AiReviewWorker {
 
-    private static final Logger AI_REVIEW_LOG = LoggerFactory.getLogger("chalkak.aireview");
     private static final long POLL_DELAY_MILLIS = 1000;
     private static final Duration INTERRUPT_WAIT = Duration.ofSeconds(2);
 
@@ -54,11 +52,7 @@ public class AiReviewWorker {
                 }
             }
         } catch (RuntimeException exception) {
-            AI_REVIEW_LOG.atError()
-                    .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
-                    .addKeyValue(LogFields.EVENT, "worker_poll_failed")
-                    .addKeyValue(LogFields.ERROR_CODE, exception.getClass().getSimpleName())
-                    .log("AI 리뷰 워커 폴링 실패");
+            AiReviewWorkerLog.pollFailed(exception);
         }
     }
 
@@ -92,7 +86,7 @@ public class AiReviewWorker {
             executor.execute(() -> process(claim.get()));
         } catch (RejectedExecutionException exception) {
             permits.release();
-            service.abandon(claim.get(), AiReviewWorkerService.SHUTDOWN);
+            service.abandon(claim.get(), AbandonReason.SHUTDOWN);
             return false;
         }
         return true;
@@ -104,7 +98,7 @@ public class AiReviewWorker {
         } catch (RuntimeException exception) {
             service.abandon(
                     claim,
-                    AiReviewWorkerService.UNEXPECTED,
+                    AbandonReason.UNEXPECTED_WHILE_PROCESSING,
                     exception
             );
         } finally {
