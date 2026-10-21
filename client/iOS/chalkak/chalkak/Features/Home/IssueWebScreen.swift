@@ -6,14 +6,12 @@ struct IssueWebScreen: View {
     @State private var loadState: LoadState = .loading
     @State private var reloadToken = UUID()
 
+    let url: URL
     let onBack: () -> Void
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            theme.colors.background
-                .ignoresSafeArea()
-
-            IssueWebView(loadState: $loadState)
+        ZStack {
+            IssueWebView(url: url, loadState: $loadState)
                 .id(reloadToken)
 
             switch loadState {
@@ -39,13 +37,17 @@ struct IssueWebScreen: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            ChalkakNavigationButton(kind: .back, action: onBack)
-                .background(theme.colors.background, in: Circle())
-                .padding(.leading, theme.spacing.lg)
-                .padding(.top, theme.spacing.sm)
-                .accessibilityIdentifier("issue.back")
         }
+        .overlay(alignment: .top) {
+            HStack {
+                ChalkakNavigationButton(kind: .back, action: onBack)
+                    .accessibilityIdentifier("issue.back")
+                Spacer()
+            }
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.sm)
+        }
+        .background(theme.colors.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
     }
 }
@@ -57,9 +59,8 @@ private enum LoadState {
 }
 
 private struct IssueWebView: UIViewRepresentable {
+    let url: URL
     @Binding var loadState: LoadState
-
-    private static let pageURL = URL(string: "https://2026-chalkak-web.vercel.app/beta/beta.html")!
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -69,7 +70,7 @@ private struct IssueWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = false
-        webView.load(URLRequest(url: Self.pageURL))
+        webView.load(URLRequest(url: url))
         return webView
     }
 
@@ -101,7 +102,7 @@ private struct IssueWebView: UIViewRepresentable {
                 return
             }
             guard !didAllowInitialNavigation,
-                  navigationAction.request.url == IssueWebView.pageURL else {
+                  navigationAction.request.url == parent.url else {
                 decisionHandler(.cancel)
                 return
             }

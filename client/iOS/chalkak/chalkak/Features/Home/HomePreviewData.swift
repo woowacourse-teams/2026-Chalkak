@@ -5,6 +5,15 @@ enum HomePreviewData {
         from: DateComponents(year: 2026, month: 8, day: 3)
     )!
 
+    static let banner = Banner(
+        id: "preview-banner",
+        title: "함께 만들어주신 찰캌",
+        subtitle: "베타테스트에 함께해주셔서 감사합니다",
+        webViewURL: URL(string: "https://example.com/issue")!,
+        thumbnailURL: URL(string: "https://example.com/banner.jpg")!,
+        createdAt: "2026-10-20T08:08:11.001Z"
+    )
+
     static let heroPhoto = HomeHeroPhoto(
         imageSource: .asset("preview_photo"),
         thumbnailSource: .asset("preview_photo"),
@@ -33,6 +42,8 @@ enum HomePreviewData {
         state.recordsStatus = .ready
         state.yesterday = HomeRankingState(status: .ready, photos: photos)
         state.trending = HomeRankingState(status: .ready, photos: photos.reversed())
+        state.banners = [banner]
+        state.bannerStatus = .ready
         state.isAuthenticated = true
         return state
     }()
@@ -41,6 +52,7 @@ enum HomePreviewData {
 
     static let errorState: HomeViewState = {
         var state = HomeViewState(date: previewDate)
+        state.bannerStatus = .error
         state.topicStatus = .error
         state.hero = .error
         state.recordsStatus = .error
@@ -53,6 +65,7 @@ enum HomePreviewData {
         let date = previewDate
         let dateLabel = previewDate.homeFullDateText
         let previewPhotos = photos
+        let previewBanner = banner
         let records = contentState.week.compactMap(\.post)
         let postStatus = PhotoUploadTodayPostStatus(
             topicDate: date,
@@ -88,11 +101,12 @@ enum HomePreviewData {
                     )
                 )
             },
+            banners: { page, pageSize in BannerPage(currentPage: page, pageSize: pageSize, hasNext: false, banners: [previewBanner]) },
             postStatus: { postStatus }
         )
     }()
 
-    static func viewModel(state: HomeViewState) -> HomeViewModel {
+    static func viewModel(state: HomeViewState, loader: HomeDataLoader = loader) -> HomeViewModel {
         let date = previewDate
         return HomeViewModel(
             initialState: state,
@@ -101,6 +115,23 @@ enum HomePreviewData {
             isAuthenticated: { state.isAuthenticated }
         )
     }
+
+#if DEBUG
+    static func paginatedBannerPage(page: Int, pageSize: Int) -> BannerPage {
+        let start = (page - 1) * pageSize + 1
+        let banners = (start..<(start + pageSize)).map { index in
+            Banner(
+                id: "pagination-\(index)",
+                title: "이슈 \(index)",
+                subtitle: "페이지 \(page)",
+                webViewURL: banner.webViewURL,
+                thumbnailURL: nil,
+                createdAt: banner.createdAt
+            )
+        }
+        return BannerPage(currentPage: page, pageSize: pageSize, hasNext: page < 2, banners: banners)
+    }
+#endif
 
     private static let photos: [DisplayPhoto] = (1...5).map { index in
         DisplayPhoto(

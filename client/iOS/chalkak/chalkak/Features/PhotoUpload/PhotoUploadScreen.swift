@@ -25,6 +25,8 @@ struct PhotoUploadScreen: View {
                     selectedImage: viewState.selectedImage,
                     topicTitle: viewState.topicTitle,
                     isCameraAvailable: isCameraAvailable,
+                    isImageEditable: viewState.canEditSelectedImage && !viewState.isSubmitting,
+                    onImageClick: { onAction(.selectedImageClicked) },
                     onGalleryClick: { onAction(.galleryClicked) },
                     onCameraClick: { onAction(.cameraClicked) }
                 )

@@ -14,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
@@ -206,20 +207,97 @@ class HomeScreenTest {
     }
 
     @Test
-    fun issueShowsOneBetaCardAndInvokesOpenAction() {
+    fun issueShowsServerBannerAndInvokesOpenAction() {
         var openedPage: Pair<String, String>? = null
-        showHome(readyState(), onIssue = { title, url -> openedPage = title to url })
+        val banner = Banner(
+            id = "banner-id",
+            title = "서버에서 받은 제목",
+            subtitle = "서버에서 받은 설명",
+            webViewUrl = "https://example.com/issue",
+            thumbnailUrl = image(R.drawable.home_feed_photo),
+            createdAt = "2026-10-20T08:08:11.001Z",
+        )
+        showHome(
+            readyState().copy(banners = listOf(banner), bannerStatus = HomeSectionStatus.Ready),
+            onIssue = { title, url -> openedPage = title to url },
+        )
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(5)
         composeRule.onNodeWithText("ISSUE").assertIsDisplayed()
         composeRule
-            .onNodeWithContentDescription("함께 만들어주신 찰캌")
+            .onNodeWithContentDescription(banner.title)
             .assertIsDisplayed()
             .performClick()
         composeRule
             .onNodeWithContentDescription("지난 주 가장 인기있었던 사진")
             .assertDoesNotExist()
-        assertEquals("ISSUE" to "https://2026-chalkak-web.vercel.app/beta/beta.html", openedPage)
+        assertEquals("ISSUE" to banner.webViewUrl, openedPage)
         screenshot("home-issues")
+    }
+
+    @Test
+    fun emptyBannerHidesIssueSection() {
+        showHome(readyState().copy(banners = emptyList(), bannerStatus = HomeSectionStatus.Ready))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule.onNodeWithText("ISSUE").assertDoesNotExist()
+    }
+
+    @Test
+    fun failedBannerHidesIssueSection() {
+        showHome(readyState().copy(banners = emptyList(), bannerStatus = HomeSectionStatus.Error))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        composeRule.onNodeWithText("ISSUE").assertDoesNotExist()
+    }
+
+    @Test
+    fun issuesLoadNextPageOnlyNearTheEnd() {
+        var loads = 0
+        showHome(
+            readyState().copy(
+                banners = sampleBanners(),
+                bannerStatus = HomeSectionStatus.Ready,
+                bannerHasNext = true,
+            ),
+            onLoadMoreBanners = { loads++ },
+        )
+        composeRule.runOnIdle { assertEquals(0, loads) }
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(6)
+        composeRule.runOnIdle { assertEquals(0, loads) }
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(14)
+        composeRule.runOnIdle { assertEquals(1, loads) }
+    }
+
+    @Test
+    fun issuesDoNotRequestAnotherPageWhenHasNextIsFalse() {
+        var loads = 0
+        showHome(
+            readyState().copy(
+                banners = sampleBanners(),
+                bannerStatus = HomeSectionStatus.Ready,
+                bannerHasNext = false,
+            ),
+            onLoadMoreBanners = { loads++ },
+        )
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(15)
+        composeRule.onNodeWithContentDescription("이슈 9").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, loads) }
+    }
+
+    @Test
+    fun failedNextPageWaitsForExplicitRetry() {
+        var loads = 0
+        showHome(
+            readyState().copy(
+                banners = sampleBanners(),
+                bannerStatus = HomeSectionStatus.Ready,
+                bannerHasNext = true,
+                bannerLoadMoreError = true,
+            ),
+            onLoadMoreBanners = { loads++ },
+        )
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(16)
+        composeRule.runOnIdle { assertEquals(0, loads) }
+        composeRule.onNodeWithText("다시 시도").performClick()
+        composeRule.runOnIdle { assertEquals(1, loads) }
     }
 
     private fun showHome(
@@ -231,6 +309,7 @@ class HomeScreenTest {
         onTab: (ChalkakBottomBarItem) -> Unit = {},
         onIssue: (String, String) -> Unit = { _, _ -> },
         onStartFeedback: () -> Unit = {},
+        onLoadMoreBanners: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -245,6 +324,7 @@ class HomeScreenTest {
                     onNotificationClick = {},
                     onIssueClick = onIssue,
                     onStartFeedback = onStartFeedback,
+                    onLoadMoreBanners = onLoadMoreBanners,
                 )
             }
         }
@@ -293,3 +373,14 @@ private fun samplePhotos(): List<Post> = List(4) { index ->
 }
 
 private fun image(resourceId: Int) = "android.resource://com.stonefive.chalkak/$resourceId"
+
+private fun sampleBanners(): List<Banner> = List(10) { index ->
+    Banner(
+        id = "banner-$index",
+        title = "이슈 $index",
+        subtitle = "이슈 설명 $index",
+        webViewUrl = "https://example.com/issue/$index",
+        thumbnailUrl = image(R.drawable.home_feed_photo),
+        createdAt = "2026-10-20T08:08:11.001Z",
+    )
+}

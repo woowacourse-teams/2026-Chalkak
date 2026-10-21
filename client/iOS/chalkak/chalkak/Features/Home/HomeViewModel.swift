@@ -11,6 +11,8 @@ final class HomeViewModel {
     private let isAuthenticated: @MainActor () -> Bool
     private var generation = 0
     private var loadTask: Task<Void, Never>?
+    private var bannerLoadMoreTask: Task<Void, Never>?
+    private static let bannerPageSize = 10
 
     init(
         initialState: HomeViewState? = nil,
@@ -41,6 +43,10 @@ final class HomeViewModel {
         generation += 1
         loadTask?.cancel()
         loadTask = nil
+        bannerLoadMoreTask?.cancel()
+        bannerLoadMoreTask = nil
+        viewState.isLoadingMoreBanners = false
+        viewState.isRefreshing = false
     }
 
     private func load(showRefreshIndicator: Bool) async {
@@ -54,12 +60,15 @@ final class HomeViewModel {
         }
         viewState.isAuthenticated = authenticated
         viewState.isRefreshing = showRefreshIndicator
+        viewState.bannerStatus = .loading
+        viewState.bannerLoadMoreError = false
         let task = Task { [weak self] in
             guard let self else { return }
             async let today: Void = self.loadToday(date, request: request)
             async let yesterday: Void = self.loadYesterday(date, request: request)
             async let personal: Void = self.loadPersonal(date, authenticated: authenticated, request: request)
-            _ = await (today, yesterday, personal)
+            async let banner: Void = self.loadBanner(request: request)
+            _ = await (today, yesterday, personal, banner)
             guard self.isCurrent(request) else { return }
             self.viewState.isRefreshing = false
             self.loadTask = nil
@@ -78,6 +87,61 @@ final class HomeViewModel {
 
     private func isCurrent(_ request: Int) -> Bool {
         request == generation && !Task.isCancelled
+    }
+
+    private func loadBanner(request: Int) async {
+        do {
+            let page = try await loader.banners(1, Self.bannerPageSize)
+            guard isCurrent(request) else { return }
+            viewState.banners = uniqueBanners(page.banners)
+            viewState.bannerStatus = .ready
+            viewState.bannerCurrentPage = page.currentPage
+            viewState.bannerHasNext = page.hasNext && !page.banners.isEmpty
+        } catch {
+            guard isCurrent(request) else { return }
+            viewState.bannerStatus = .error
+        }
+    }
+
+    func loadMoreBanners() async {
+        guard viewState.bannerStatus == .ready,
+              viewState.bannerHasNext,
+              !viewState.isRefreshing,
+              !viewState.isLoadingMoreBanners else { return }
+        let request = generation
+        let nextPage = viewState.bannerCurrentPage + 1
+        viewState.isLoadingMoreBanners = true
+        viewState.bannerLoadMoreError = false
+        let task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let page = try await self.loader.banners(nextPage, Self.bannerPageSize)
+                guard self.isCurrent(request) else { return }
+                self.viewState.banners = self.uniqueBanners(self.viewState.banners + page.banners)
+                self.viewState.bannerCurrentPage = page.currentPage
+                self.viewState.bannerHasNext = page.hasNext && !page.banners.isEmpty && page.currentPage >= nextPage
+            } catch {
+                guard self.isCurrent(request) else { return }
+                self.viewState.bannerLoadMoreError = true
+            }
+            self.viewState.isLoadingMoreBanners = false
+            self.bannerLoadMoreTask = nil
+        }
+        bannerLoadMoreTask = task
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        if generation == request, task.isCancelled {
+            bannerLoadMoreTask = nil
+            viewState.isLoadingMoreBanners = false
+        }
+    }
+
+    private func uniqueBanners(_ banners: [Banner]) -> [Banner] {
+        var ids = Set<String>()
+        return banners.filter { ids.insert($0.id).inserted }
     }
 
     private func loadToday(_ date: Date, request: Int) async {

@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .home
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
-    @State private var isIssuePresented = false
+    @State private var selectedIssueURL: URL?
     @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
     @State private var notificationPath: [NotificationRoute] = []
@@ -86,8 +86,8 @@ struct ContentView: View {
             case .main:
                 NavigationStack(path: $notificationPath) {
                     mainTab
-                        .navigationDestination(isPresented: $isIssuePresented) {
-                            IssueWebScreen(onBack: { isIssuePresented = false })
+                        .navigationDestination(item: $selectedIssueURL) { url in
+                            IssueWebScreen(url: url, onBack: { selectedIssueURL = nil })
                                 .background(InteractivePopGestureEnabler())
                         }
                         .navigationDestination(for: NotificationRoute.self) { destination in
@@ -291,7 +291,7 @@ struct ContentView: View {
             }
             if route == .main, selectedTab == .home {
 #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
                 Task { await homeViewModel.resume() }
             }
@@ -483,12 +483,12 @@ struct ContentView: View {
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
-                onIssueClick: { isIssuePresented = true },
+                onIssueClick: { selectedIssueURL = $0 },
                 bottomBarCompact: $isBottomBarCompact
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
 #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
                 await homeViewModel.resume()
             }
@@ -812,7 +812,7 @@ struct ContentView: View {
         homeViewModel.cancel()
         selectedTab = .home
         selectedFeed = nil
-        isIssuePresented = false
+        selectedIssueURL = nil
         signatureAnalyticsScreen = nil
         isNotificationInboxPresented = false
         isPhotoUploadPresented = false
@@ -844,7 +844,25 @@ struct ContentView: View {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
             var state = HomePreviewData.contentState
+            var loader = HomePreviewData.loader
             let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-test-home-banner-state"), arguments.indices.contains(index + 1) {
+                state.banners = []
+                switch arguments[index + 1] {
+                case "loading": state.bannerStatus = .loading
+                case "error": state.bannerStatus = .error
+                case "pagination":
+                    let firstPage = HomePreviewData.paginatedBannerPage(page: 1, pageSize: 10)
+                    state.banners = firstPage.banners
+                    state.bannerStatus = .ready
+                    state.bannerCurrentPage = firstPage.currentPage
+                    state.bannerHasNext = firstPage.hasNext
+                    loader.banners = { page, pageSize in
+                        await HomePreviewData.paginatedBannerPage(page: page, pageSize: pageSize)
+                    }
+                default: state.bannerStatus = .ready
+                }
+            }
             if let index = arguments.firstIndex(of: "-test-home-hero-state"), arguments.indices.contains(index + 1) {
                 switch arguments[index + 1] {
                 case "empty": state.hero = .empty
@@ -870,7 +888,7 @@ struct ContentView: View {
                     }
                 }
             }
-            return HomePreviewData.viewModel(state: state)
+            return HomePreviewData.viewModel(state: state, loader: loader)
         }
 #endif
         return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
@@ -1104,7 +1122,7 @@ struct ContentView: View {
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
             }
         }
-        if isIssuePresented {
+        if selectedIssueURL != nil {
             return AnalyticsScreen(name: "issue", screenClass: "IssueWeb")
         }
         return selectedTab.analyticsScreen
