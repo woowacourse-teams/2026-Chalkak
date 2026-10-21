@@ -42,7 +42,7 @@ enum HomePreviewData {
         state.recordsStatus = .ready
         state.yesterday = HomeRankingState(status: .ready, photos: photos)
         state.trending = HomeRankingState(status: .ready, photos: photos.reversed())
-        state.banner = banner
+        state.banners = [banner]
         state.bannerStatus = .ready
         state.isAuthenticated = true
         return state
@@ -101,12 +101,12 @@ enum HomePreviewData {
                     )
                 )
             },
-            banners: { BannerPage(currentPage: 1, pageSize: 1, hasNext: false, banners: [previewBanner]) },
+            banners: { page, pageSize in BannerPage(currentPage: page, pageSize: pageSize, hasNext: false, banners: [previewBanner]) },
             postStatus: { postStatus }
         )
     }()
 
-    static func viewModel(state: HomeViewState) -> HomeViewModel {
+    static func viewModel(state: HomeViewState, loader: HomeDataLoader = loader) -> HomeViewModel {
         let date = previewDate
         return HomeViewModel(
             initialState: state,
@@ -115,6 +115,23 @@ enum HomePreviewData {
             isAuthenticated: { state.isAuthenticated }
         )
     }
+
+#if DEBUG
+    static func paginatedBannerPage(page: Int, pageSize: Int) -> BannerPage {
+        let start = (page - 1) * pageSize + 1
+        let banners = (start..<(start + pageSize)).map { index in
+            Banner(
+                id: "pagination-\(index)",
+                title: "이슈 \(index)",
+                subtitle: "페이지 \(page)",
+                webViewURL: banner.webViewURL,
+                thumbnailURL: nil,
+                createdAt: banner.createdAt
+            )
+        }
+        return BannerPage(currentPage: page, pageSize: pageSize, hasNext: page < 2, banners: banners)
+    }
+#endif
 
     private static let photos: [DisplayPhoto] = (1...5).map { index in
         DisplayPhoto(

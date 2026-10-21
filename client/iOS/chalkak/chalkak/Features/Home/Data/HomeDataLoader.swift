@@ -6,7 +6,7 @@ struct HomeDataLoader: Sendable {
     var ranking: @Sendable (Date) async throws -> [DisplayPhoto]
     var calendar: @Sendable (RecordMonth) async throws -> RecordCalendar
     var detail: @Sendable (String) async throws -> FeedContent
-    var banners: @Sendable () async throws -> BannerPage
+    var banners: @Sendable (_ page: Int, _ pageSize: Int) async throws -> BannerPage
     var postStatus: @Sendable () async throws -> PhotoUploadTodayPostStatus
 
     static func live(baseURL: URL) -> Self {
@@ -23,7 +23,7 @@ struct HomeDataLoader: Sendable {
             },
             calendar: { try await record.fetchCalendar(month: $0) },
             detail: { try await feed.fetchPostDetail(postID: $0) },
-            banners: { try await banner.fetchPage(page: 1, pageSize: 1) },
+            banners: { try await banner.fetchPage(page: $0, pageSize: $1) },
             postStatus: { try await upload.fetchTodayPostStatus() }
         )
     }

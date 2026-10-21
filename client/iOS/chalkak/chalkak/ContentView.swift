@@ -844,12 +844,22 @@ struct ContentView: View {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
             var state = HomePreviewData.contentState
+            var loader = HomePreviewData.loader
             let arguments = ProcessInfo.processInfo.arguments
             if let index = arguments.firstIndex(of: "-test-home-banner-state"), arguments.indices.contains(index + 1) {
-                state.banner = nil
+                state.banners = []
                 switch arguments[index + 1] {
                 case "loading": state.bannerStatus = .loading
                 case "error": state.bannerStatus = .error
+                case "pagination":
+                    let firstPage = HomePreviewData.paginatedBannerPage(page: 1, pageSize: 10)
+                    state.banners = firstPage.banners
+                    state.bannerStatus = .ready
+                    state.bannerCurrentPage = firstPage.currentPage
+                    state.bannerHasNext = firstPage.hasNext
+                    loader.banners = { page, pageSize in
+                        await HomePreviewData.paginatedBannerPage(page: page, pageSize: pageSize)
+                    }
                 default: state.bannerStatus = .ready
                 }
             }
@@ -878,7 +888,7 @@ struct ContentView: View {
                     }
                 }
             }
-            return HomePreviewData.viewModel(state: state)
+            return HomePreviewData.viewModel(state: state, loader: loader)
         }
 #endif
         return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))

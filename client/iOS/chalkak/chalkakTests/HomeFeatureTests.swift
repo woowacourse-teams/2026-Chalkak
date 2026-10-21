@@ -250,7 +250,7 @@ struct HomeViewModelTests {
 
         await viewModel.resume()
 
-        #expect(viewModel.viewState.banner == Self.bannerPage().banners.first)
+        #expect(viewModel.viewState.banners == Self.bannerPage().banners)
         #expect(viewModel.viewState.bannerStatus == .ready)
         #expect(viewModel.viewState.yesterday.status == .error)
         #expect(loader.bannerCallCount == 1)
@@ -266,7 +266,7 @@ struct HomeViewModelTests {
 
         await viewModel.resume()
 
-        #expect(viewModel.viewState.banner == nil)
+        #expect(viewModel.viewState.banners.isEmpty)
         #expect(viewModel.viewState.bannerStatus == .error)
         #expect(viewModel.viewState.trending.status == .ready)
         #expect(!viewModel.viewState.isRefreshing)
@@ -282,13 +282,13 @@ struct HomeViewModelTests {
 
         loader.bannerResult = .failure(TestError.expected)
         await viewModel.refresh()
-        #expect(viewModel.viewState.banner == Self.bannerPage().banners.first)
+        #expect(viewModel.viewState.banners == Self.bannerPage().banners)
         #expect(viewModel.viewState.bannerStatus == .error)
         #expect(!viewModel.viewState.isRefreshing)
 
         loader.bannerResult = .success(BannerPage(currentPage: 1, pageSize: 1, hasNext: false, banners: []))
         await viewModel.refresh()
-        #expect(viewModel.viewState.banner == nil)
+        #expect(viewModel.viewState.banners.isEmpty)
         #expect(viewModel.viewState.bannerStatus == .ready)
     }
 
@@ -304,8 +304,152 @@ struct HomeViewModelTests {
         viewModel.cancel()
         await gate.complete(with: Self.bannerPage())
         await task.value
-        #expect(viewModel.viewState.banner == nil)
+        #expect(viewModel.viewState.banners.isEmpty)
         #expect(!viewModel.viewState.isRefreshing)
+    }
+
+    @Test("배너는 10개씩 누적하며 마지막 페이지 이후와 로딩 중에는 중복 요청하지 않는다")
+    func bannerPaginationAppendsAndStops() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        let first = Self.bannerPage(page: 1, hasNext: true, ids: (0..<10).map { "first-\($0)" })
+        let second = Self.bannerPage(page: 2, hasNext: false, ids: (0..<10).map { "second-\($0)" })
+        loader.bannerResult = .success(first)
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+        #expect(viewModel.viewState.banners == first.banners)
+        let gate = SuspendedBannerResult()
+        loader.bannerHandler = { try await gate.load() }
+        let task = Task { await viewModel.loadMoreBanners() }
+        await gate.waitUntilStarted()
+        await viewModel.loadMoreBanners()
+        #expect(viewModel.viewState.isLoadingMoreBanners)
+        await gate.complete(with: second)
+        await task.value
+        await viewModel.loadMoreBanners()
+        #expect(loader.bannerRequests == [[1, 10], [2, 10]])
+        #expect(viewModel.viewState.banners == first.banners + second.banners)
+        #expect(!viewModel.viewState.bannerHasNext)
+        #expect(!viewModel.viewState.isLoadingMoreBanners)
+    }
+
+    @Test("배너 추가 조회 실패 후 같은 페이지를 재시도하고 중복 항목을 제거한다")
+    func bannerPaginationRetriesSamePage() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        let first = Self.bannerPage(page: 1, hasNext: true, ids: ["first"])
+        loader.bannerResult = .success(first)
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+        loader.bannerResult = .failure(TestError.expected)
+        await viewModel.loadMoreBanners()
+        #expect(viewModel.viewState.banners == first.banners)
+        #expect(viewModel.viewState.bannerLoadMoreError)
+        #expect(viewModel.viewState.bannerHasNext)
+        let second = Self.bannerPage(page: 2, hasNext: false, ids: ["first", "next"])
+        loader.bannerResult = .success(second)
+        await viewModel.loadMoreBanners()
+        #expect(loader.bannerRequests == [[1, 10], [2, 10], [2, 10]])
+        #expect(viewModel.viewState.banners.map(\.id) == ["first", "next"])
+        #expect(!viewModel.viewState.bannerLoadMoreError)
+    }
+
+    @Test("hasNext가 false이거나 빈 목록이면 다음 페이지를 요청하지 않는다")
+    func bannerPaginationStopsForEmptyOrLastPage() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        for page in [
+            Self.bannerPage(page: 1, hasNext: false, ids: ["first"]),
+            Self.bannerPage(page: 1, hasNext: true, ids: [])
+        ] {
+            let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+            loader.bannerResult = .success(page)
+            let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+            await viewModel.resume()
+            await viewModel.loadMoreBanners()
+            #expect(loader.bannerRequests == [[1, 10]])
+            #expect(!viewModel.viewState.bannerHasNext)
+        }
+    }
+
+    @Test("빈 추가 페이지는 기존 목록을 유지하고 페이지 조회를 종료한다")
+    func emptyNextBannerPageStops() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        let first = Self.bannerPage(page: 1, hasNext: true, ids: ["first"])
+        loader.bannerResult = .success(first)
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+        loader.bannerResult = .success(Self.bannerPage(page: 2, hasNext: true, ids: []))
+        await viewModel.loadMoreBanners()
+        await viewModel.loadMoreBanners()
+        #expect(loader.bannerRequests == [[1, 10], [2, 10]])
+        #expect(viewModel.viewState.banners == first.banners)
+        #expect(!viewModel.viewState.bannerHasNext)
+    }
+
+    @Test("새로고침은 누적 배너를 교체하고 다음 페이지를 2부터 다시 조회한다")
+    func bannerRefreshRestartsPagination() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        loader.bannerResult = .success(Self.bannerPage(page: 1, hasNext: true, ids: ["old"]))
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+        loader.bannerResult = .success(Self.bannerPage(page: 2, hasNext: false, ids: ["older"]))
+        await viewModel.loadMoreBanners()
+        loader.bannerResult = .success(Self.bannerPage(page: 1, hasNext: true, ids: ["fresh"]))
+        await viewModel.refresh()
+        #expect(viewModel.viewState.banners.map(\.id) == ["fresh"])
+        loader.bannerResult = .success(Self.bannerPage(page: 2, hasNext: false, ids: ["next"]))
+        await viewModel.loadMoreBanners()
+        #expect(loader.bannerRequests == [[1, 10], [2, 10], [1, 10], [2, 10]])
+        #expect(viewModel.viewState.banners.map(\.id) == ["fresh", "next"])
+    }
+
+    @Test("취소 후 늦게 도착한 추가 배너는 적용하지 않는다")
+    func cancelledBannerPaginationDoesNotApply() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        loader.bannerResult = .success(Self.bannerPage(page: 1, hasNext: true, ids: ["first"]))
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+        let gate = SuspendedBannerResult()
+        loader.bannerHandler = { try await gate.load() }
+        let task = Task { await viewModel.loadMoreBanners() }
+        await gate.waitUntilStarted()
+        viewModel.cancel()
+        await gate.complete(with: Self.bannerPage(page: 2, hasNext: false, ids: ["late"]))
+        await task.value
+        #expect(viewModel.viewState.banners.map(\.id) == ["first"])
+        #expect(!viewModel.viewState.isLoadingMoreBanners)
+    }
+
+    @Test("새로고침 후 도착한 이전 추가 배너는 새 목록을 덮어쓰지 않는다")
+    func refreshIgnoresStaleBannerPagination() async {
+        let date = Self.date(year: 2026, month: 10, day: 20)
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: date)), rankingResult: .success([]))
+        loader.bannerResult = .success(Self.bannerPage(page: 1, hasNext: true, ids: ["first"]))
+        let viewModel = Self.viewModel(date: date, isAuthenticated: false, loader: loader.loader)
+        await viewModel.resume()
+        let gate = SuspendedBannerResult()
+        loader.bannerHandler = { try await gate.load() }
+        let task = Task { await viewModel.loadMoreBanners() }
+        await gate.waitUntilStarted()
+        loader.bannerHandler = nil
+        loader.bannerResult = .success(Self.bannerPage(page: 1, hasNext: false, ids: ["fresh"]))
+        await viewModel.refresh()
+        await gate.complete(with: Self.bannerPage(page: 2, hasNext: false, ids: ["late"]))
+        await task.value
+        #expect(viewModel.viewState.banners.map(\.id) == ["fresh"])
+        #expect(viewModel.viewState.bannerCurrentPage == 1)
+        #expect(!viewModel.viewState.isLoadingMoreBanners)
+    }
+
+    private static func bannerPage(page: Int, hasNext: Bool, ids: [String]) -> BannerPage {
+        let template = bannerPage().banners[0]
+        return BannerPage(currentPage: page, pageSize: 10, hasNext: hasNext, banners: ids.map { id in
+            Banner(id: id, title: template.title, subtitle: template.subtitle,
+                   webViewURL: template.webViewURL, thumbnailURL: template.thumbnailURL, createdAt: template.createdAt)
+        })
     }
 
     private static func bannerPage() -> BannerPage {
@@ -450,6 +594,7 @@ private final class HomeLoaderProbe {
     private(set) var detailRequests: [String] = []
     private(set) var postStatusCallCount = 0
     private(set) var bannerCallCount = 0
+    private(set) var bannerRequests: [[Int]] = []
     var bannerResult: Result<BannerPage, Error> = .success(BannerPage(currentPage: 1, pageSize: 1, hasNext: false, banners: []))
     var bannerHandler: (@Sendable () async throws -> BannerPage)?
 
@@ -493,7 +638,7 @@ private final class HomeLoaderProbe {
             detail: { postID in
                 try await self.loadDetail(postID)
             },
-            banners: { try await self.loadBanners() },
+            banners: { page, pageSize in try await self.loadBanners(page: page, pageSize: pageSize) },
             postStatus: {
                 try await self.loadPostStatus()
             }
@@ -519,7 +664,8 @@ private final class HomeLoaderProbe {
         return try detailResult.get()
     }
 
-    private func loadBanners() async throws -> BannerPage {
+    private func loadBanners(page: Int, pageSize: Int) async throws -> BannerPage {
+        bannerRequests.append([page, pageSize])
         bannerCallCount += 1
         if let bannerHandler { return try await bannerHandler() }
         return try bannerResult.get()

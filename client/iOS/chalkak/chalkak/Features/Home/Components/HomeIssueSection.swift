@@ -4,13 +4,16 @@ struct HomeIssueSection: View {
     @Environment(\.chalkakTheme) private var theme
     let banner: Banner?
     var onIssueClick: (URL) -> Void
+    var showHeader = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
-            Text("ISSUE")
-                .font(theme.typography.headline)
-                .fontWeight(.bold)
-                .foregroundStyle(theme.colors.textPrimary)
+            if showHeader {
+                Text("ISSUE")
+                    .font(theme.typography.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(theme.colors.textPrimary)
+            }
 
             if let banner {
                 Button(action: { onIssueClick(banner.webViewURL) }) {

@@ -20,7 +20,7 @@ struct BannerAPIClient: Sendable {
         self.session = session
     }
 
-    func fetchPage(page: Int = 1, pageSize: Int = 1) async throws -> BannerPage {
+    func fetchPage(page: Int = 1, pageSize: Int = 10) async throws -> BannerPage {
         let url = configuration.baseURL.appendingPathComponent("banners")
         guard url.scheme?.lowercased() == "https", url.host?.isEmpty == false,
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -73,14 +73,14 @@ enum BannerAPIError: Error, Equatable, Sendable {
 private struct BannerPageResponse: Decodable {
     let currentPage: Int
     let pageSize: Int
-    let hasNext: Bool
+    let hasNext: Bool?
     let banners: [BannerResponse]
 
     func toBannerPage() throws -> BannerPage {
         BannerPage(
             currentPage: currentPage,
             pageSize: pageSize,
-            hasNext: hasNext,
+            hasNext: hasNext ?? false,
             banners: try banners.map { try $0.toBanner() }
         )
     }

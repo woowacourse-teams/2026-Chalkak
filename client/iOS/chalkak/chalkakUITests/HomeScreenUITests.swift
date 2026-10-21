@@ -59,6 +59,32 @@ final class HomeScreenUITests: XCTestCase {
     }
 
     @MainActor
+    func testIssuePaginationLoadsSecondPageAndStopsAtLastPage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview", "-test-home-banner-state", "pagination"]
+        app.launch()
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+
+        let first = app.buttons["이슈 1"]
+        for _ in 0..<8 where !first.isHittable { app.swipeUp() }
+        XCTAssertTrue(first.isHittable)
+        XCTAssertFalse(app.buttons["이슈 11"].exists)
+
+        let nextPage = app.buttons["이슈 11"]
+        for _ in 0..<20 where !nextPage.isHittable { app.swipeUp() }
+        XCTAssertTrue(nextPage.isHittable)
+
+        let last = app.buttons["이슈 20"]
+        for _ in 0..<20 where !last.isHittable { app.swipeUp() }
+        XCTAssertTrue(last.isHittable)
+        for _ in 0..<3 { app.swipeUp() }
+        XCTAssertFalse(app.buttons["이슈 21"].exists)
+        XCTAssertFalse(app.otherElements["home.issue.loadingMore"].exists)
+        XCTAssertFalse(app.buttons["home.issue.retry"].exists)
+        captureScreenshot(app, named: "Issue last page")
+    }
+
+    @MainActor
     func testFlatBackButtonRespondsAcrossTouchTarget() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview", "-use-flat-ios-design"]

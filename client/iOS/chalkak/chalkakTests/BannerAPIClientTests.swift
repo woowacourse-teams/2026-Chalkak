@@ -17,7 +17,7 @@ struct BannerAPIClientTests {
         let page = try await Self.makeClient().fetchPage()
 
         #expect(page.currentPage == 1)
-        #expect(page.pageSize == 1)
+        #expect(page.pageSize == 10)
         #expect(page.hasNext)
         #expect(page.banners == [Banner(
             id: "banner-1",
@@ -33,7 +33,7 @@ struct BannerAPIClientTests {
         #expect(request.url?.path == "/api/v1/banners")
         #expect(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems == [
             URLQueryItem(name: "page", value: "1"),
-            URLQueryItem(name: "pageSize", value: "1")
+            URLQueryItem(name: "pageSize", value: "10")
         ])
         #expect(request.httpMethod == "GET")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
@@ -58,6 +58,17 @@ struct BannerAPIClientTests {
         let requests = await recorder.requests
         let request = try #require(requests.first)
         #expect(request.url?.query == "page=3&pageSize=20")
+    }
+
+    @Test("hasNext 필드가 없으면 마지막 페이지로 처리한다")
+    func missingHasNextStopsPagination() async throws {
+        BannerAPIClientURLProtocol.handler = { request in
+            Self.response(for: request, body: Self.pageBody.replacingOccurrences(of: "\"hasNext\":true,", with: ""))
+        }
+        defer { BannerAPIClientURLProtocol.handler = nil }
+        let page = try await Self.makeClient().fetchPage()
+        #expect(!page.hasNext)
+        #expect(page.banners.count == 1)
     }
 
     @Test("HTTP 오류는 인증 갱신이나 재요청 없이 반환한다", arguments: [400, 401, 403, 500])
@@ -129,7 +140,7 @@ struct BannerAPIClientTests {
         }
     }
 
-    nonisolated private static let pageBody = #"{"currentPage":1,"pageSize":1,"hasNext":true,"banners":[{"id":"banner-1","title":"제목","subtitle":"설명","webViewUrl":"https://example.com/issue/1","thumbnailUrl":"https://example.com/image.webp","createdAt":"2026-10-20T08:08:11.001Z"}]}"#
+    nonisolated private static let pageBody = #"{"currentPage":1,"pageSize":10,"hasNext":true,"banners":[{"id":"banner-1","title":"제목","subtitle":"설명","webViewUrl":"https://example.com/issue/1","thumbnailUrl":"https://example.com/image.webp","createdAt":"2026-10-20T08:08:11.001Z"}]}"#
 
     private static func makeClient() -> BannerAPIClient {
         let configuration = URLSessionConfiguration.ephemeral
