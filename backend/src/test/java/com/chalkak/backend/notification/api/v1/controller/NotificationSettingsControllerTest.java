@@ -43,11 +43,15 @@ class NotificationSettingsControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("저장된 두 수신 설정을 불리언 필드로 반환한다")
+    @DisplayName("저장된 세 수신 설정을 불리언 필드로 반환한다")
     void getSettings_authenticatedUser_returnsSettings() throws Exception {
         // Given
         given(notificationSettingsService.getSettings(USER_ID))
-                .willReturn(new NotificationSettingsResult(false, true));
+                .willReturn(new NotificationSettingsResult(
+                        false,
+                        true,
+                        false
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/notification-settings"))
@@ -55,7 +59,8 @@ class NotificationSettingsControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.topicPushEnabled").value(false))
                 .andExpect(jsonPath("$.moderationPushEnabled").value(true))
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(false))
+                .andExpect(jsonPath("$.length()").value(3));
     }
 
     @Test
@@ -77,6 +82,8 @@ class NotificationSettingsControllerTest {
     @ValueSource(strings = {
             "{\"topicPushEnabled\":false}",
             "{\"moderationPushEnabled\":false}",
+            "{\"aiReviewPushEnabled\":false}",
+            "{\"topicPushEnabled\":null,\"moderationPushEnabled\":null,\"aiReviewPushEnabled\":true}",
             "{\"topicPushEnabled\":null,\"moderationPushEnabled\":true}",
             "{\"topicPushEnabled\":true,\"moderationPushEnabled\":null}",
             "{\"topicPushEnabled\":false,\"moderationPushEnabled\":false}"
@@ -96,10 +103,11 @@ class NotificationSettingsControllerTest {
             "{}",
             "{\"topicPushEnabled\":null}",
             "{\"moderationPushEnabled\":null}",
-            "{\"topicPushEnabled\":null,\"moderationPushEnabled\":null}"
+            "{\"aiReviewPushEnabled\":null}",
+            "{\"topicPushEnabled\":null,\"moderationPushEnabled\":null,\"aiReviewPushEnabled\":null}"
     })
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("두 수신 설정 모두 값이 없으면 400으로 거부한다")
+    @DisplayName("세 수신 설정 모두 값이 없으면 400으로 거부한다")
     void updateSettings_emptyUpdate_returnsBadRequest(String body) throws Exception {
         // When & Then
         mockMvc.perform(patch("/api/v1/notification-settings")
@@ -111,7 +119,8 @@ class NotificationSettingsControllerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "{\"topicPushEnabled\":{}}", "{\"moderationPushEnabled\":{}}", ""
+            "{\"topicPushEnabled\":{}}", "{\"moderationPushEnabled\":{}}",
+            "{\"aiReviewPushEnabled\":{}}", ""
     })
     @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("필드 형식이 잘못되거나 본문이 없으면 공통 400 응답을 반환한다")
@@ -132,6 +141,7 @@ class NotificationSettingsControllerTest {
                 .given(notificationSettingsService).updateSettings(
                         USER_ID,
                         false,
+                        null,
                         null
                 );
 

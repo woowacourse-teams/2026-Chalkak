@@ -270,7 +270,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(true))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(true));
     }
 
     @Test
@@ -279,7 +280,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
         // When
         mockMvc.perform(patch("/api/v1/notification-settings")
                 .header(HttpHeaders.AUTHORIZATION, token)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"topicPushEnabled\":false}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"topicPushEnabled\":false,\"aiReviewPushEnabled\":false}"))
                 .andExpect(status().isNoContent());
 
         // Then
@@ -287,7 +289,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(false))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(false));
     }
 
     @Test

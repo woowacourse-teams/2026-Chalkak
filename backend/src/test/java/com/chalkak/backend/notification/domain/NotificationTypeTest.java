@@ -41,7 +41,11 @@ class NotificationTypeTest {
     ) {
         // Given
         User user = UserFixture.create();
-        user.updatePushPreferences(topicPushEnabled, moderationPushEnabled);
+        user.updatePushPreferences(
+                topicPushEnabled,
+                moderationPushEnabled,
+                true
+        );
 
         // When & Then
         assertThat(type.isPushEnabledFor(user)).isEqualTo(expected);
@@ -52,7 +56,11 @@ class NotificationTypeTest {
     void isPushEnabledFor_noticeWithAllSettingsOff_returnsTrue() {
         // Given
         User user = UserFixture.create();
-        user.updatePushPreferences(false, false);
+        user.updatePushPreferences(
+                false,
+                false,
+                false
+        );
 
         // When & Then
         assertThat(NotificationType.NOTICE.isPushEnabledFor(user)).isTrue();
