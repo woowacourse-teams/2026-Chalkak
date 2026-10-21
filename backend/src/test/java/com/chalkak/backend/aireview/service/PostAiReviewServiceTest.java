@@ -295,6 +295,33 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("실패 뒤 도착한 같은 요청은 새 다시 요청으로 집계된다(재전송과 구분하지 않음)")
+    void request_sameRequestArrivingAfterFailure_countsAsNewRequestAgain() {
+        // Given
+        fixture.insertFailedReview(fixture.insertPromptVersion(1), 1);
+        service.request(AUTHOR_ID, POST_ID);
+        entityManager.flush();
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET status = 'FAILED', round_attempt = 1,
+                            started_at = requested_at, error_code = 'BAD_REQUEST',
+                            completed_at = requested_at
+                        """
+        );
+        entityManager.clear();
+
+        // When
+        ReviewResult resent = service.request(AUTHOR_ID, POST_ID);
+
+        // Then
+        assertThat(resent.status()).isEqualTo(ApiStatus.PROCESSING);
+        entityManager.flush();
+        assertThat(
+                jdbcTemplate.queryForObject("SELECT request_count FROM ai_reviews", Integer.class))
+                .isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("요청 횟수가 상한에 닿은 뒤의 요청은 400이고 행도 로그도 바뀌지 않는다")
     void request_failedReviewAtLimit_throwsBusinessExceptionAndKeepsRow() {
         // Given
