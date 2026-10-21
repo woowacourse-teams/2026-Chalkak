@@ -130,7 +130,6 @@ private struct DisplayMasonryCell: View {
                     isEnabled: !isLiking,
                     onLike: onLike
                 )
-                .padding(Metrics.badgeInset)
             }
             .task(id: photo.id) {
                 guard ratio == nil,
@@ -141,6 +140,11 @@ private struct DisplayMasonryCell: View {
     }
 }
 
+// 사진 카드 좌하단에 올리는 좋아요 버튼(하트 + 개수).
+// 카드 모서리와 하트 사이 여백(cardInset)까지 버튼 영역에 포함해서,
+// 하트 바깥 모서리 쪽을 눌러도 사진 탭(피드 열기)이 아닌 좋아요로 처리한다.
+// 그래서 호출부는 바깥 여백 없이 카드의 .bottomLeading에 overlay로 올리기만 하면 된다.
+// 예) 숫자 한 자리일 때 버튼 영역은 약 55×44pt이고, 하트는 카드 모서리에서 10pt 안쪽에 그려진다.
 struct DisplayLikeBadge: View {
     @Environment(\.chalkakTheme) private var theme
     let likeCount: Int
@@ -160,7 +164,10 @@ struct DisplayLikeBadge: View {
                 Text("\(likeCount)")
                     .font(theme.typography.subheadline)
             }
-            // 터치 영역은 위·오른쪽으로 넓히고, 하트는 Android처럼 카드 좌하단 여백에 맞춘다.
+            // 왼쪽·아래 여백은 카드 모서리까지 닿게 하고, 위·오른쪽은 손가락이 하트를 조금 벗어나도 눌리게 넓힌다.
+            .padding(.leading, Metrics.cardInset)
+            .padding(.bottom, Metrics.cardInset)
+            .padding([.top, .trailing], Metrics.touchExpansion)
             .frame(
                 minWidth: Metrics.minimumTouchSize,
                 minHeight: Metrics.minimumTouchSize,
@@ -178,7 +185,11 @@ struct DisplayLikeBadge: View {
     }
 
     private enum Metrics {
-        static let minimumTouchSize: CGFloat = 36
+        static let minimumTouchSize: CGFloat = 44
+        // 카드 좌하단 모서리에서 하트까지의 거리. 이 여백도 버튼 영역에 포함된다.
+        static let cardInset: CGFloat = 10
+        // 하트·개수 위쪽과 오른쪽으로 버튼 영역을 더 넓히는 폭.
+        static let touchExpansion: CGFloat = 14
         static let spacing: CGFloat = 4
         static let heartSize: CGFloat = 18
         static let shadowOpacity: CGFloat = 0.25
@@ -192,7 +203,6 @@ private enum Metrics {
     // 카드 사이 세로 간격을 열 높이 추정에 반영하기 위한 정규화 상수.
     static let spacingRatio: CGFloat = 0.06
     static let signatureSize = CGSize(width: 40, height: 30)
-    static let badgeInset: CGFloat = 10
 }
 
 #Preview("Display Photo Grid") {
