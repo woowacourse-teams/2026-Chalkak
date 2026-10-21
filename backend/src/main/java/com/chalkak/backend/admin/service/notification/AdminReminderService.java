@@ -12,6 +12,7 @@ import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.ReminderRepository;
+import com.chalkak.backend.notification.repository.ReminderSlice;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
@@ -24,9 +25,22 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AdminReminderService {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final ReminderRepository reminderRepository;
     private final AdminAuditLogService adminAuditLogService;
     private final Clock clock;
+
+    @Transactional(readOnly = true)
+    public AdminReminderListResult getReminders(int page, int pageSize) {
+        validatePagination(page, pageSize);
+        ReminderSlice slice = reminderRepository.findReminders(page, pageSize);
+        return AdminReminderListResult.from(
+                slice,
+                page,
+                pageSize
+        );
+    }
 
     @Transactional
     public AdminReminderResult createReminder(
@@ -73,6 +87,16 @@ public class AdminReminderService {
                 "scheduledAt",
                 reminder.getScheduledAt().toString()
         ));
+    }
+
+    private void validatePagination(int page, int pageSize) {
+        long offset = ((long) page - 1) * pageSize;
+        if (page < 1
+                || pageSize < 1
+                || pageSize > MAX_PAGE_SIZE
+                || offset > Integer.MAX_VALUE) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "조회 조건이 올바르지 않습니다.");
+        }
     }
 
     private void validateAdminId(UUID adminId) {

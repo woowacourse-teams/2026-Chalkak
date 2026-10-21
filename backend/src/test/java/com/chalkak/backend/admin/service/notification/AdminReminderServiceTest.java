@@ -26,6 +26,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -152,6 +154,64 @@ class AdminReminderServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("관리자 식별자가 필요합니다.");
         assertThat(countRows("reminders")).isZero();
+    }
+
+    @Test
+    @DisplayName("리마인더 목록은 등록 최신순으로 요청한 페이지만 조회하고 다음 페이지 여부를 알려준다")
+    void getReminders_multipleReminders_returnsLatestCreatedFirst() {
+        // Given
+        UUID oldest = insertReminder("2026-10-19T00:00:00Z");
+        UUID middle = insertReminder("2026-10-20T00:00:00Z");
+        UUID latest = insertReminder("2026-10-21T00:00:00Z");
+
+        // When
+        AdminReminderListResult firstPage = reminderService.getReminders(1, 2);
+        AdminReminderListResult secondPage = reminderService.getReminders(2, 2);
+
+        // Then
+        assertThat(firstPage.reminders()).extracting(AdminReminderResult::reminderId)
+                .containsExactly(latest, middle);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.currentPage()).isEqualTo(1);
+        assertThat(firstPage.pageSize()).isEqualTo(2);
+        assertThat(secondPage.reminders()).extracting(AdminReminderResult::reminderId)
+                .containsExactly(oldest);
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("등록된 리마인더가 없으면 빈 목록을 조회한다")
+    void getReminders_noReminders_returnsEmptyList() {
+        // When
+        AdminReminderListResult result = reminderService.getReminders(1, 20);
+
+        // Then
+        assertThat(result.reminders()).isEmpty();
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 20", "1, 0", "1, 101"})
+    @DisplayName("페이지 번호나 페이지 크기가 범위를 벗어나면 거절한다")
+    void getReminders_invalidPagination_throwsBusinessException(int page, int pageSize) {
+        // When & Then
+        assertThatThrownBy(() -> reminderService.getReminders(page, pageSize))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("조회 조건이 올바르지 않습니다.");
+    }
+
+    private UUID insertReminder(String createdAt) {
+        return jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO reminders (title, body, repeat, target, scheduled_at, created_at, updated_at)
+                        VALUES ('오늘이 얼마 남지 않았어요', '사진을 자랑해 주세요!', 'DAILY', 'ALL',
+                            '2026-10-25T12:00:00Z', CAST(? AS TIMESTAMPTZ), CAST(? AS TIMESTAMPTZ))
+                        RETURNING id
+                        """,
+                UUID.class,
+                createdAt,
+                createdAt
+        );
     }
 
     private String sha256(String value) throws NoSuchAlgorithmException {

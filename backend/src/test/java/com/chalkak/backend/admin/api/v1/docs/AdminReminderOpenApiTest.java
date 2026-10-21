@@ -22,6 +22,27 @@ class AdminReminderOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("리마인더 목록 API는 관리자 보안·페이지 파라미터·응답 코드 계약을 노출한다")
+    void adminApiDocs_getReminders_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(REMINDERS + ".get.responses.keys()")
+                        .value(containsInAnyOrder(
+                                "200",
+                                "400",
+                                "401",
+                                "403"
+                        )))
+                .andExpect(jsonPath(REMINDERS + ".get.security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(REMINDERS + ".get.parameters[*].name")
+                        .value(containsInAnyOrder("page", "pageSize")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminReminderListResponse.properties.reminders.items['$ref']")
+                        .value("#/components/schemas/AdminReminderResponse"));
+    }
+
+    @Test
     @DisplayName("리마인더 등록 API는 관리자 보안·필수 필드·반복 방식·대상·시각 형식·응답 코드 계약을 노출한다")
     void adminApiDocs_createReminder_exposesContract() throws Exception {
         // When & Then

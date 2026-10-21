@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
+import com.chalkak.backend.admin.service.notification.AdminReminderListResult;
 import com.chalkak.backend.admin.service.notification.AdminReminderResult;
 import com.chalkak.backend.admin.service.notification.AdminReminderService;
 import com.chalkak.backend.exception.BusinessException;
@@ -18,11 +20,13 @@ import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -54,6 +58,72 @@ class AdminReminderControllerTest {
     @BeforeEach
     void setUp() {
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
+    }
+
+    @Test
+    @DisplayName("목록 조회는 200과 페이지 정보·리마인더 목록을 응답한다")
+    void getReminders_validRequest_returnsReminderList() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-21T09:00:00Z");
+        given(reminderService.getReminders(2, 10)).willReturn(new AdminReminderListResult(
+                2,
+                10,
+                true,
+                List.of(new AdminReminderResult(
+                        REMINDER_ID,
+                        "오늘이 얼마 남지 않았어요",
+                        "사진을 자랑해 주세요!",
+                        ReminderRepeat.DAILY,
+                        ReminderTarget.TOPIC_NON_PARTICIPANTS,
+                        SCHEDULED_AT,
+                        createdAt,
+                        createdAt
+                ))
+        ));
+
+        // When & Then
+        mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(2))
+                .andExpect(jsonPath("$.pageSize").value(10))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.reminders.length()").value(1))
+                .andExpect(jsonPath("$.reminders[0].reminderId").value(REMINDER_ID.toString()))
+                .andExpect(jsonPath("$.reminders[0].title").value("오늘이 얼마 남지 않았어요"))
+                .andExpect(jsonPath("$.reminders[0].body").value("사진을 자랑해 주세요!"))
+                .andExpect(jsonPath("$.reminders[0].repeat").value("DAILY"))
+                .andExpect(jsonPath("$.reminders[0].target").value("TOPIC_NON_PARTICIPANTS"))
+                .andExpect(jsonPath("$.reminders[0].scheduledAt").value("2026-10-25T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("페이지 조건을 생략하면 1페이지·20개로 조회한다")
+    void getReminders_omittedPagination_usesDefaults() throws Exception {
+        // Given
+        given(reminderService.getReminders(1, 20)).willReturn(new AdminReminderListResult(
+                1,
+                20,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get(PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(1))
+                .andExpect(jsonPath("$.pageSize").value(20))
+                .andExpect(jsonPath("$.reminders").isEmpty());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"page, 0", "pageSize, 0", "pageSize, 101"})
+    @DisplayName("페이지 번호 0이나 페이지 크기 0·101은 400으로 응답한다")
+    void getReminders_invalidPagination_returnsBadRequest(String name, String value)
+            throws Exception {
+        // When & Then
+        mockMvc.perform(get(PATH).param(name, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 
     @Test
