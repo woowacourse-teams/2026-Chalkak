@@ -38,4 +38,17 @@ public interface AdminReminderApiDocs {
     ResponseEntity<AdminReminderResponse> createReminder(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             AdminReminderRequest request);
+
+    @Operation(summary = "리마인더 수정", description = "리마인더의 제목·본문·반복 방식·대상·발송 시각을 수정합니다. 일회성은 발송 시각 전에만 수정할 수 있고, 매일 반복은 언제든 수정할 수 있으며 다음 회차부터 적용됩니다. 발송 시각이나 반복 방식을 바꿀 때만 5분 넘게 과거인 시각을 거절합니다. 같은 내용으로 수정하면 변경 없이 현재 리마인더를 반환합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "수정 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID, 필수 값 누락, 제목·본문 길이 초과, 잘못된 반복 방식·대상, 바꾼 발송 시각이 5분 넘게 과거, 발송 시각이 지난 일회성 리마인더 또는 감사 로그에 저장할 수 없는 민감 정보 포함", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "리마인더 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<AdminReminderResponse> updateReminder(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(description = "리마인더 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String reminderId,
+            AdminReminderRequest request
+    );
 }

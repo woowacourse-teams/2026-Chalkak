@@ -8,6 +8,7 @@ import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
@@ -69,6 +70,48 @@ public class AdminReminderService {
                 null,
                 AdminAuditSnapshot.from(Map.of()),
                 createReminderState(saved)
+        ));
+        return AdminReminderResult.from(saved);
+    }
+
+    @Transactional
+    public AdminReminderResult updateReminder(
+            UUID reminderId,
+            UUID adminId,
+            String title,
+            String body,
+            ReminderRepeat repeat,
+            ReminderTarget target,
+            Instant scheduledAt
+    ) {
+        validateAdminId(adminId);
+        Reminder reminder = reminderRepository.findByIdForUpdate(reminderId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
+                        "리마인더를 찾을 수 없습니다."));
+        AdminAuditSnapshot beforeState = createReminderState(reminder);
+        reminder.update(
+                title,
+                body,
+                repeat,
+                target,
+                scheduledAt,
+                clock.instant()
+        );
+        AdminAuditSnapshot afterState = createReminderState(reminder);
+        // 같은 내용으로 수정하면 바뀐 것이 없으므로 감사 로그를 남기지 않는다.
+        if (beforeState.values().equals(afterState.values())) {
+            return AdminReminderResult.from(reminder);
+        }
+        // 응답의 수정 시각(@UpdateTimestamp)이 채워지도록 UPDATE를 먼저 실행한다.
+        Reminder saved = reminderRepository.saveAndFlush(reminder);
+        adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId,
+                AdminAction.REMINDER_UPDATED,
+                AdminTargetType.REMINDER,
+                saved.getId(),
+                null,
+                beforeState,
+                afterState
         ));
         return AdminReminderResult.from(saved);
     }

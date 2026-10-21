@@ -8,6 +8,7 @@ import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
@@ -16,6 +17,7 @@ import jakarta.persistence.EntityManager;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -198,6 +200,163 @@ class AdminReminderServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> reminderService.getReminders(page, pageSize))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("조회 조건이 올바르지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("리마인더를 수정하면 변경을 저장하고 감사 로그에 전후 상태를 남기며 수정 시각을 응답한다")
+    void updateReminder_validInput_persistsChangeAndAuditLog() throws Exception {
+        // Given
+        UUID reminderId = insertReminder("ONCE", Instant.now().plus(Duration.ofHours(1)));
+        Instant scheduledAt = Instant.now().plus(Duration.ofHours(2))
+                .truncatedTo(ChronoUnit.MICROS);
+
+        // When
+        AdminReminderResult result = reminderService.updateReminder(
+                reminderId,
+                ADMIN_ID,
+                "새 제목",
+                "새 본문",
+                ReminderRepeat.DAILY,
+                ReminderTarget.TOPIC_PARTICIPANTS,
+                scheduledAt
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Reminder stored = entityManager.find(Reminder.class, reminderId);
+        assertThat(stored.getTitle()).isEqualTo("새 제목");
+        assertThat(stored.getRepeat()).isEqualTo(ReminderRepeat.DAILY);
+        assertThat(stored.getTarget()).isEqualTo(ReminderTarget.TOPIC_PARTICIPANTS);
+        assertThat(stored.getScheduledAt()).isEqualTo(scheduledAt);
+        assertThat(result.updatedAt()).isAfter(Instant.parse("2026-10-20T00:00:00Z"))
+                .isEqualTo(stored.getUpdatedAt());
+        AdminAuditLog auditLog = findAuditLog(reminderId, AdminAction.REMINDER_UPDATED);
+        assertThat(auditLog.getActorAdminId()).isEqualTo(ADMIN_ID);
+        assertThat(auditLog.getBeforeState()).containsEntry("title", TITLE)
+                .containsEntry("repeat", "ONCE")
+                .containsEntry("target", "ALL");
+        assertThat(auditLog.getAfterState()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "title",
+                "새 제목",
+                "bodySha256",
+                sha256("새 본문"),
+                "repeat",
+                "DAILY",
+                "target",
+                "TOPIC_PARTICIPANTS",
+                "scheduledAt",
+                scheduledAt.toString()
+        ));
+    }
+
+    @Test
+    @DisplayName("같은 내용으로 수정하면 감사 로그 없이 현재 리마인더를 반환한다")
+    void updateReminder_sameContent_returnsReminderWithoutAuditLog() {
+        // Given
+        Instant scheduledAt = Instant.now().plus(Duration.ofHours(1))
+                .truncatedTo(ChronoUnit.MICROS);
+        UUID reminderId = insertReminder("ONCE", scheduledAt);
+
+        // When
+        AdminReminderResult result = reminderService.updateReminder(
+                reminderId,
+                ADMIN_ID,
+                TITLE,
+                BODY,
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                scheduledAt
+        );
+
+        // Then
+        assertThat(result.reminderId()).isEqualTo(reminderId);
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("발송 시각이 지난 일회성 리마인더의 수정은 거절하고 변경하지 않는다")
+    void updateReminder_sentOnceReminder_throwsWithoutChange() {
+        // Given
+        UUID reminderId = insertReminder("ONCE", Instant.now().minus(Duration.ofMinutes(1)));
+
+        // When & Then
+        assertThatThrownBy(() -> reminderService.updateReminder(
+                reminderId,
+                ADMIN_ID,
+                "새 제목",
+                BODY,
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                Instant.now().plus(Duration.ofHours(1))
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("발송 시각이 지난 일회성 리마인더는 수정할 수 없습니다.");
+        entityManager.clear();
+        assertThat(entityManager.find(Reminder.class, reminderId).getTitle()).isEqualTo(TITLE);
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("없는 리마인더를 수정하면 대상 없음으로 거절한다")
+    void updateReminder_unknownReminder_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(() -> reminderService.updateReminder(
+                UUID.randomUUID(),
+                ADMIN_ID,
+                TITLE,
+                BODY,
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                Instant.now()
+        ))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("리마인더를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("관리자 식별자가 없으면 수정을 거절한다")
+    void updateReminder_nullAdminId_throwsBusinessException() {
+        // Given
+        UUID reminderId = insertReminder("ONCE", Instant.now().plus(Duration.ofHours(1)));
+
+        // When & Then
+        assertThatThrownBy(() -> reminderService.updateReminder(
+                reminderId,
+                null,
+                "새 제목",
+                BODY,
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                Instant.now().plus(Duration.ofHours(1))
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("관리자 식별자가 필요합니다.");
+    }
+
+    private AdminAuditLog findAuditLog(UUID reminderId, AdminAction action) {
+        return entityManager.createQuery("""
+                SELECT auditLog FROM AdminAuditLog auditLog
+                WHERE auditLog.targetId = :targetId AND auditLog.action = :action
+                """, AdminAuditLog.class)
+                .setParameter("targetId", reminderId)
+                .setParameter("action", action)
+                .getSingleResult();
+    }
+
+    private UUID insertReminder(String repeat, Instant scheduledAt) {
+        return jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO reminders (title, body, repeat, target, scheduled_at, created_at, updated_at)
+                        VALUES (?, ?, ?, 'ALL', ?, '2026-10-19T00:00:00Z', '2026-10-19T00:00:00Z')
+                        RETURNING id
+                        """,
+                UUID.class,
+                TITLE,
+                BODY,
+                repeat,
+                Timestamp.from(scheduledAt)
+        );
     }
 
     private UUID insertReminder(String createdAt) {

@@ -109,6 +109,12 @@ public enum AdminAction {
             AdminTargetType.REMINDER,
             false,
             AdminAuditTransitionRules::isReminderCreated
+    ),
+
+    REMINDER_UPDATED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderUpdated
     );
 
     private final AdminTargetType targetType;

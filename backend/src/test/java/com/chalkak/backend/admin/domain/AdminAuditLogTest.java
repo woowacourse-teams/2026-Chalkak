@@ -507,6 +507,58 @@ class AdminAuditLogTest {
         return state;
     }
 
+    @Test
+    @DisplayName("리마인더 수정은 변경 전후의 제목·본문 해시·반복 방식·대상·발송 시각을 기록한다")
+    void create_validReminderUpdate_createsAuditLog() {
+        // Given
+        Map<String, Object> before = reminderState("title", "오늘이 얼마 남지 않았어요");
+        Map<String, Object> after = reminderState("target", "ALL");
+
+        // When
+        AdminAuditLog audit = createReminderUpdateAudit(before, after);
+
+        // Then
+        assertThat(audit.getAction()).isEqualTo(AdminAction.REMINDER_UPDATED);
+        assertThat(audit.getBeforeState()).containsExactlyInAnyOrderEntriesOf(before);
+        assertThat(audit.getAfterState()).containsExactlyInAnyOrderEntriesOf(after);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidReminderUpdates")
+    @DisplayName("리마인더 수정의 같은 전후 상태나 잘못된 전후 상태를 거절한다")
+    void create_invalidReminderUpdate_throwsBusinessException(
+            Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createReminderUpdateAudit(before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidReminderUpdates() {
+        Map<String, Object> valid = reminderState("title", "오늘이 얼마 남지 않았어요");
+        Map<String, Object> changed = reminderState("target", "ALL");
+        return Stream.of(
+                Arguments.of(valid, valid),
+                Arguments.of(Map.of(), changed),
+                Arguments.of(reminderState("repeat", "WEEKLY"), changed),
+                Arguments.of(valid, reminderState("title", " "))
+        );
+    }
+
+    private AdminAuditLog createReminderUpdateAudit(Map<String, Object> before,
+            Map<String, Object> after) {
+        return AdminAuditLog.create(
+                ACTOR_ADMIN_ID,
+                AdminAction.REMINDER_UPDATED,
+                AdminTargetType.REMINDER,
+                TARGET_ID,
+                null,
+                AdminAuditSnapshot.from(before),
+                AdminAuditSnapshot.from(after),
+                OCCURRED_AT,
+                REQUEST_ID
+        );
+    }
+
     private AdminAuditLog createReminderAudit(Map<String, Object> before,
             Map<String, Object> after) {
         return AdminAuditLog.create(

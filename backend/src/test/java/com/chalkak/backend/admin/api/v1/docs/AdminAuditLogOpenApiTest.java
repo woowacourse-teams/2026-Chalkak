@@ -52,7 +52,8 @@ class AdminAuditLogOpenApiTest extends IntegrationTestSupport {
                                 "NOTICE_CREATED",
                                 "NOTICE_UPDATED",
                                 "NOTICE_DELETED",
-                                "REMINDER_CREATED"
+                                "REMINDER_CREATED",
+                                "REMINDER_UPDATED"
                         )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/audit-logs'].delete").doesNotExist())

@@ -275,6 +275,16 @@ final class AdminAuditTransitionRules {
         return beforeState.isEmpty() && isValidReminderState(afterState);
     }
 
+    static boolean isReminderUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidReminderState(beforeState)
+                && isValidReminderState(afterState)
+                && !beforeState.values().equals(afterState.values());
+    }
+
     private static boolean isValidReminderState(AdminAuditSnapshot state) {
         return state.hasExactlyFields(REMINDER_STATE_FIELDS)
                 && state.value("title") instanceof String title

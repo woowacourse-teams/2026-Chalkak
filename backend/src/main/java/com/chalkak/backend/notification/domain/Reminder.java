@@ -71,20 +71,51 @@ public class Reminder {
             Instant scheduledAt,
             Instant now
     ) {
+        validateNotPast(scheduledAt, now);
         Reminder reminder = new Reminder();
         reminder.applyContent(
                 title,
                 body,
                 repeat,
                 target,
-                scheduledAt,
-                now
+                scheduledAt
         );
         return reminder;
     }
 
+    // 이미 시작한 매일 반복의 문구를 고칠 수 있도록 과거 검증은 발송 일정이 바뀔 때만 한다.
+    public void update(
+            String title,
+            String body,
+            ReminderRepeat repeat,
+            ReminderTarget target,
+            Instant scheduledAt,
+            Instant now
+    ) {
+        if (!this.repeat.canUpdate(this.scheduledAt, now)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "발송 시각이 지난 일회성 리마인더는 수정할 수 없습니다.");
+        }
+        if (isScheduleChanged(repeat, scheduledAt)) {
+            validateNotPast(scheduledAt, now);
+        }
+        applyContent(
+                title,
+                body,
+                repeat,
+                target,
+                scheduledAt
+        );
+    }
+
     public static boolean isValidTitle(String title) {
         return title != null && isValidNormalizedText(title.trim(), MAX_TITLE_LENGTH);
+    }
+
+    private boolean isScheduleChanged(ReminderRepeat repeat, Instant scheduledAt) {
+        return this.repeat != repeat
+                || scheduledAt == null
+                || !this.scheduledAt.equals(scheduledAt.truncatedTo(ChronoUnit.MICROS));
     }
 
     private void applyContent(
@@ -92,8 +123,7 @@ public class Reminder {
             String body,
             ReminderRepeat repeat,
             ReminderTarget target,
-            Instant scheduledAt,
-            Instant now
+            Instant scheduledAt
     ) {
         String normalizedTitle = normalizeText(
                 title,
@@ -111,7 +141,9 @@ public class Reminder {
         if (target == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "리마인더 발송 대상이 필요합니다.");
         }
-        validateScheduledAt(scheduledAt, now);
+        if (scheduledAt == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "리마인더 발송 시각이 필요합니다.");
+        }
         this.title = normalizedTitle;
         this.body = normalizedBody;
         this.repeat = repeat;
@@ -137,11 +169,9 @@ public class Reminder {
                 && normalized.codePointCount(0, normalized.length()) <= maxLength;
     }
 
-    private static void validateScheduledAt(Instant scheduledAt, Instant now) {
-        if (scheduledAt == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "리마인더 발송 시각이 필요합니다.");
-        }
-        if (scheduledAt.isBefore(now.minus(PAST_SCHEDULE_TOLERANCE))) {
+    // 발송 시각이 없으면 applyContent에서 필수 값으로 거절한다.
+    private static void validateNotPast(Instant scheduledAt, Instant now) {
+        if (scheduledAt != null && scheduledAt.isBefore(now.minus(PAST_SCHEDULE_TOLERANCE))) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     "리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
         }

@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class AdminReminderOpenApiTest extends IntegrationTestSupport {
 
     private static final String REMINDERS = "$.paths['/api/v1/admin/reminders']";
+    private static final String REMINDER = "$.paths['/api/v1/admin/reminders/{reminderId}']";
     private static final String REQUEST = "$.components.schemas.AdminReminderRequest";
 
     @Autowired
@@ -39,6 +40,30 @@ class AdminReminderOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder("page", "pageSize")))
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminReminderListResponse.properties.reminders.items['$ref']")
+                        .value("#/components/schemas/AdminReminderResponse"));
+    }
+
+    @Test
+    @DisplayName("리마인더 수정 API는 관리자 보안·UUID 경로·요청 본문·응답 코드 계약을 노출한다")
+    void adminApiDocs_updateReminder_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(REMINDER + ".put.responses.keys()")
+                        .value(containsInAnyOrder(
+                                "200",
+                                "400",
+                                "401",
+                                "403",
+                                "404"
+                        )))
+                .andExpect(jsonPath(REMINDER + ".put.security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(REMINDER + ".put.parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(REMINDER
+                        + ".put.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/AdminReminderRequest"))
+                .andExpect(jsonPath(REMINDER
+                        + ".put.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/AdminReminderResponse"));
     }
 

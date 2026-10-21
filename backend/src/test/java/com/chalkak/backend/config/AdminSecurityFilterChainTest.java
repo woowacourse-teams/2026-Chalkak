@@ -375,7 +375,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PUT", "/api/v1/admin/notices/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/notices/" + id),
                 Arguments.of("POST", "/api/v1/admin/reminders"),
-                Arguments.of("GET", "/api/v1/admin/reminders")
+                Arguments.of("GET", "/api/v1/admin/reminders"),
+                Arguments.of("PUT", "/api/v1/admin/reminders/" + id)
         );
     }
 

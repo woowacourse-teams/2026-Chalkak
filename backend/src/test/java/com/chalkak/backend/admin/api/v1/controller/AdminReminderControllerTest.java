@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,6 +18,7 @@ import com.chalkak.backend.admin.service.notification.AdminReminderService;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import java.time.Instant;
@@ -187,6 +189,121 @@ class AdminReminderControllerTest {
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(content))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("수정 성공 시 200과 수정된 리마인더를 응답한다")
+    void updateReminder_validRequest_returnsUpdatedReminder() throws Exception {
+        // Given
+        Instant createdAt = Instant.parse("2026-10-21T09:00:00Z");
+        Instant updatedAt = Instant.parse("2026-10-21T10:00:00Z");
+        given(reminderService.updateReminder(
+                REMINDER_ID,
+                ADMIN_ID,
+                "새 제목",
+                "새 본문",
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                SCHEDULED_AT
+        )).willReturn(new AdminReminderResult(
+                REMINDER_ID,
+                "새 제목",
+                "새 본문",
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                SCHEDULED_AT,
+                createdAt,
+                updatedAt
+        ));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + REMINDER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"새 제목","body":"새 본문","repeat":"ONCE","target":"ALL",
+                        "scheduledAt":"2026-10-25T12:00:00Z"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reminderId").value(REMINDER_ID.toString()))
+                .andExpect(jsonPath("$.title").value("새 제목"))
+                .andExpect(jsonPath("$.repeat").value("ONCE"))
+                .andExpect(jsonPath("$.updatedAt").value(updatedAt.toString()));
+    }
+
+    @Test
+    @DisplayName("수정 경로의 리마인더 ID가 UUID 형식이 아니면 400으로 응답한다")
+    void updateReminder_invalidId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put(PATH + "/not-a-uuid").contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"새 제목","body":"새 본문","repeat":"ONCE","target":"ALL",
+                        "scheduledAt":"2026-10-25T12:00:00Z"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("수정 요청 본문이 등록 기준을 어기면 400으로 응답한다")
+    void updateReminder_invalidRequest_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + REMINDER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":" ","body":"새 본문","repeat":"ONCE","target":"ALL",
+                        "scheduledAt":"2026-10-25T12:00:00Z"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 리마인더를 수정하면 404로 응답한다")
+    void updateReminder_unknownReminder_returnsNotFound() throws Exception {
+        // Given
+        given(reminderService.updateReminder(
+                any(),
+                any(),
+                anyString(),
+                anyString(),
+                any(),
+                any(),
+                any()
+        )).willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "리마인더를 찾을 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + REMINDER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"새 제목","body":"새 본문","repeat":"ONCE","target":"ALL",
+                        "scheduledAt":"2026-10-25T12:00:00Z"}
+                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("리마인더를 찾을 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("발송 시각이 지난 일회성 리마인더의 수정 거절은 400으로 응답한다")
+    void updateReminder_businessException_returnsBadRequest() throws Exception {
+        // Given
+        given(reminderService.updateReminder(
+                any(),
+                any(),
+                anyString(),
+                anyString(),
+                any(),
+                any(),
+                any()
+        )).willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
+                "발송 시각이 지난 일회성 리마인더는 수정할 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(put(PATH + "/" + REMINDER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"title":"새 제목","body":"새 본문","repeat":"ONCE","target":"ALL",
+                        "scheduledAt":"2026-10-25T12:00:00Z"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("발송 시각이 지난 일회성 리마인더는 수정할 수 없습니다."));
     }
 
     @Test

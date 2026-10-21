@@ -8,6 +8,7 @@ import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -74,6 +75,39 @@ class AdminReminderAuditTransactionTest extends IntegrationTestSupport {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
         assertThat(countRows("reminders")).isZero();
+        assertThat(countRows("admin_audit_logs")).isZero();
+    }
+
+    @Test
+    @DisplayName("감사 로그가 민감 정보로 판정하는 형식을 수정 제목에 포함하면 리마인더 수정도 함께 롤백한다")
+    void updateReminder_sensitiveTitle_rollsBackUpdate() {
+        // Given
+        insertAdmin();
+        UUID reminderId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO reminders (title, body, repeat, target, scheduled_at, created_at, updated_at)
+                        VALUES ('오늘이 얼마 남지 않았어요', '사진을 자랑해 주세요!', 'ONCE', 'ALL', ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                        """,
+                UUID.class,
+                Timestamp.from(Instant.now().plusSeconds(3600))
+        );
+
+        // When & Then
+        assertThatThrownBy(() -> reminderService.updateReminder(
+                reminderId,
+                ADMIN_ID,
+                "password: 8자 이상",
+                "비밀번호 정책이 변경됩니다.",
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                Instant.now().plusSeconds(3600)
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");
+        assertThat(jdbcTemplate.queryForObject("SELECT title FROM reminders", String.class))
+                .isEqualTo("오늘이 얼마 남지 않았어요");
         assertThat(countRows("admin_audit_logs")).isZero();
     }
 

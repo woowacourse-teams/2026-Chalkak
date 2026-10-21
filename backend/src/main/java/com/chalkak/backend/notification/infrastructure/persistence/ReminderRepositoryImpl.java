@@ -3,6 +3,8 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.repository.ReminderSlice;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -24,6 +26,16 @@ public class ReminderRepositoryImpl implements ReminderRepository {
     @Override
     public Reminder save(Reminder reminder) {
         return reminderJpaRepository.save(reminder);
+    }
+
+    @Override
+    public Reminder saveAndFlush(Reminder reminder) {
+        return reminderJpaRepository.saveAndFlush(reminder);
+    }
+
+    @Override
+    public Optional<Reminder> findByIdForUpdate(UUID reminderId) {
+        return reminderJpaRepository.findByIdForUpdate(reminderId);
     }
 
     @Override
