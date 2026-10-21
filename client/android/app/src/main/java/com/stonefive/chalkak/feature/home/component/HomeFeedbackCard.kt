@@ -61,7 +61,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.AiReviewContent
+import com.stonefive.chalkak.domain.model.AiReviewCriterion
+import com.stonefive.chalkak.domain.model.AiReviewFeedback
 import com.stonefive.chalkak.feature.home.HomeFeedbackPhase
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -72,7 +76,6 @@ import kotlin.math.sin
  * - [HomeFeedbackPhase.Processing]: 헤더를 누를 수 없고, 오른쪽 음성 파형 아이콘만 움직인다.
  * - [HomeFeedbackPhase.Completed]: 헤더를 누르면 [onToggleExpanded]를 호출한다. [isExpanded]가 true면 결과를 펼친다.
  *
- * 결과 내용(점수 8.7, 문장들)은 서버 API가 생기기 전까지 쓰는 고정 목업이다.
  */
 @Composable
 fun HomeFeedbackCard(
@@ -81,7 +84,10 @@ fun HomeFeedbackCard(
     onStart: () -> Unit,
     onToggleExpanded: () -> Unit,
     modifier: Modifier = Modifier,
+    result: AiReviewContent? = null,
 ) {
+    if (phase == HomeFeedbackPhase.Hidden) return
+
     var isTipRequested by rememberSaveable { mutableStateOf(false) }
     val showsDetail = phase == HomeFeedbackPhase.Completed && isExpanded
     LaunchedEffect(showsDetail) {
@@ -115,6 +121,7 @@ fun HomeFeedbackCard(
                 exit = shrinkVertically() + fadeOut(),
             ) {
                 FeedbackDetail(
+                    result = result,
                     isInterpretationTipVisible = isInterpretationTipVisible,
                     onInterpretationBadgeClick = { isTipRequested = !isTipRequested },
                     modifier = Modifier
@@ -151,6 +158,7 @@ private fun FeedbackHeader(
     modifier: Modifier = Modifier,
 ) {
     val title = when (phase) {
+        HomeFeedbackPhase.Hidden -> ""
         HomeFeedbackPhase.Ready -> "이 사진, AI에게 피드백 받아보기"
         HomeFeedbackPhase.Processing -> "AI 피드백이 진행중이에요"
         HomeFeedbackPhase.Completed -> "AI 피드백이 완료되었어요"
@@ -222,6 +230,7 @@ private fun FeedbackHeader(
 
 @Composable
 private fun FeedbackDetail(
+    result: AiReviewContent?,
     isInterpretationTipVisible: Boolean,
     onInterpretationBadgeClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -230,12 +239,14 @@ private fun FeedbackDetail(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
     ) {
-        InterpretationBadge(
-            isTipVisible = isInterpretationTipVisible,
-            onClick = onInterpretationBadgeClick,
-            // 툴팁이 아래 문단 위에 그려지도록 같은 Column의 다음 형제들보다 위에 둔다.
-            modifier = Modifier.zIndex(1f),
-        )
+        if (result?.distinctivePerspective == true) {
+            InterpretationBadge(
+                isTipVisible = isInterpretationTipVisible,
+                onClick = onInterpretationBadgeClick,
+                // 툴팁이 아래 문단 위에 그려지도록 같은 Column의 다음 형제들보다 위에 둔다.
+                modifier = Modifier.zIndex(1f),
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -244,28 +255,24 @@ private fun FeedbackDetail(
             horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
         ) {
             Text(
-                text = "건물의 크기와 높이 차이가 잘 비교되는 구도예요",
+                text = result
+                    ?.feedback
+                    ?.summary
+                    .orEmpty(),
                 color = ChalkakTheme.colors.textPrimary,
                 style = ChalkakTheme.typography.title3,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            FeedbackScoreRing(score = 8.7f)
+            FeedbackScoreRing(score = result?.overallScore ?: 0.0)
         }
         HorizontalDivider(color = ChalkakTheme.colors.border)
-        FeedbackParagraph(
-            title = "좋았던 점",
-            body = "아래쪽 계단과 겹겹이 쌓인 집들, 위쪽 아파트가 한 화면에 같이 담겼어요.",
-        )
-        FeedbackParagraph(
-            title = "아쉬운 점",
-            body = "맨 아래 담장과 검은 옥상이 골목의 흐름을 끊어요.",
-        )
-        HorizontalDivider(color = ChalkakTheme.colors.border)
-        FeedbackParagraph(
-            title = "다음엔 이렇게",
-            body = "왼쪽 계단 입구와 붉은 도로는 남기면서 맨 아래 담장이 덜 나오게 담아보세요.",
-        )
+        result?.feedback?.let { feedback ->
+            FeedbackParagraph(title = "좋았던 점", body = feedback.strength)
+            FeedbackParagraph(title = "아쉬운 점", body = feedback.weakness)
+            HorizontalDivider(color = ChalkakTheme.colors.border)
+            FeedbackParagraph(title = "다음엔 이렇게", body = feedback.suggestion)
+        }
     }
 }
 
@@ -362,7 +369,7 @@ private fun InterpretationTip(modifier: Modifier = Modifier) {
  */
 @Composable
 private fun FeedbackScoreRing(
-    score: Float,
+    score: Double,
     modifier: Modifier = Modifier,
 ) {
     val trackColor = ChalkakTheme.colors.calendarCell
@@ -370,7 +377,7 @@ private fun FeedbackScoreRing(
     Box(
         modifier = modifier
             .size(FeedbackScoreSize)
-            .semantics(mergeDescendants = true) { contentDescription = "구도 점수 10점 만점에 ${score}점" },
+            .semantics(mergeDescendants = true) { contentDescription = "전체 점수 10점 만점에 ${score.formatScore()}점" },
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
@@ -389,7 +396,7 @@ private fun FeedbackScoreRing(
             drawArc(
                 color = progressColor,
                 startAngle = -90f,
-                sweepAngle = 360f * score / FEEDBACK_MAX_SCORE,
+                sweepAngle = 360f * score.toFloat() / FEEDBACK_MAX_SCORE,
                 useCenter = false,
                 topLeft = Offset(inset, inset),
                 size = arcSize,
@@ -397,12 +404,14 @@ private fun FeedbackScoreRing(
             )
         }
         Text(
-            text = score.toString(),
+            text = score.formatScore(),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.title1,
         )
     }
 }
+
+private fun Double.formatScore(): String = String.format(Locale.KOREAN, "%.1f", this)
 
 @Composable
 private fun FeedbackParagraph(
@@ -506,8 +515,24 @@ private fun HomeFeedbackCardPreview() {
                     onStart = {},
                     onToggleExpanded = {},
                     modifier = Modifier.fillMaxWidth(),
+                    result = previewFeedbackResult,
                 )
             }
         }
     }
 }
+
+private val previewFeedbackResult = AiReviewContent(
+    overallScore = 8.7,
+    criteria = listOf(
+        AiReviewCriterion(key = "composition", label = "구도", score = 8.7),
+        AiReviewCriterion(key = "light", label = "빛", score = 8.2),
+    ),
+    distinctivePerspective = true,
+    feedback = AiReviewFeedback(
+        summary = "건물의 크기와 높이 차이가 잘 비교되는 구도예요",
+        strength = "아래쪽 계단과 겹겹이 쌓인 집들이 한 화면에 같이 담겼어요.",
+        weakness = "맨 아래 담장이 골목의 흐름을 조금 끊어요.",
+        suggestion = "계단 입구는 남기면서 담장이 덜 나오게 담아보세요.",
+    ),
+)

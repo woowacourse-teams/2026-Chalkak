@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -93,11 +94,13 @@ fun HomeScreen(
     onStartFeedback: () -> Unit,
     modifier: Modifier = Modifier,
     onLoadMoreBanners: () -> Unit = {},
+    onDismissFeedbackMessage: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     // 날짜가 바뀌면 다른 사진의 카드이므로 펼침·시트 상태를 처음으로 되돌린다.
-    var isFeedbackExpanded by rememberSaveable(uiState.date) { mutableStateOf(false) }
-    var isFeedbackSheetVisible by rememberSaveable(uiState.date) { mutableStateOf(false) }
+    val feedbackIdentity = uiState.date to (uiState.hero as? HomeHeroState.Photo)?.postId
+    var isFeedbackExpanded by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
+    var isFeedbackSheetVisible by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
     val bottomBarState = rememberBottomBarScrollState()
     val interactionScope = rememberCoroutineScope()
     val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
@@ -217,6 +220,21 @@ fun HomeScreen(
                 onStartFeedback()
             },
             onDismiss = { isFeedbackSheetVisible = false },
+        )
+    }
+    uiState.feedbackMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissFeedbackMessage,
+            confirmButton = {
+                TextButton(onClick = onDismissFeedbackMessage) {
+                    Text("확인", color = ChalkakTheme.colors.actionPrimary, style = ChalkakTheme.typography.callout)
+                }
+            },
+            text = {
+                Text(message, color = ChalkakTheme.colors.textPrimary, style = ChalkakTheme.typography.callout)
+            },
+            shape = ChalkakTheme.shapes.large,
+            containerColor = ChalkakTheme.colors.surfaceElevated,
         )
     }
 }
@@ -353,6 +371,7 @@ private fun HomeContent(
                     Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
                     HomeFeedbackCard(
                         phase = uiState.feedbackPhase,
+                        result = uiState.feedbackResult,
                         isExpanded = isFeedbackExpanded,
                         onStart = onFeedbackStartClick,
                         onToggleExpanded = onFeedbackToggleExpanded,

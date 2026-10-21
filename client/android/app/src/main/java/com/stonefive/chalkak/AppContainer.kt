@@ -19,6 +19,7 @@ import com.stonefive.chalkak.data.local.notification.PushNotificationManager
 import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
+import com.stonefive.chalkak.data.remote.aireview.AiReviewDataSourceImpl
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
@@ -32,12 +33,14 @@ import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
+import com.stonefive.chalkak.data.repository.AiReviewRepositoryImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
 import com.stonefive.chalkak.data.repository.BannerRepositoryImpl
 import com.stonefive.chalkak.data.repository.FeedbackRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
@@ -156,6 +159,15 @@ class AppContainer(context: Context) {
     val feedbackRepository: FeedbackRepository by lazy {
         FeedbackRepositoryImpl(
             feedbackDataSource = feedbackDataSource,
+        )
+    }
+
+    val aiReviewRepository: AiReviewRepository by lazy {
+        AiReviewRepositoryImpl(
+            AiReviewDataSourceImpl(
+                api = networkModule.aiReviewApi,
+                requestExecutor = networkModule.apiRequestExecutor,
+            ),
         )
     }
 

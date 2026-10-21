@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -16,6 +17,9 @@ import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewFailure
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -44,12 +48,17 @@ class HomeViewModel(
     private val uploadEntryRepository: PhotoUploadEntryRepository,
     private val sessionState: StateFlow<UserSessionState>,
     private val bannerRepository: BannerRepository,
+    private val aiReviewRepository: AiReviewRepository,
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
     private var feedbackJob: Job? = null
+    private var isFeedbackVisible = false
+    private var isFeedbackSubmitting = false
+    private var feedbackGeneration = 0
+    private var feedbackOwnerUserId: String? = null
     private var bannerLoadMoreJob: Job? = null
     private var hasBeenPresented = false
     private val isPreloadingEnabled = MutableStateFlow(false)
@@ -100,6 +109,7 @@ class HomeViewModel(
     }
 
     fun onResume() {
+        isFeedbackVisible = true
         val isFirstPresentation = !hasBeenPresented
         hasBeenPresented = true
         if (!sessionState.value.canLoadHome()) return
@@ -107,26 +117,182 @@ class HomeViewModel(
             loadHome(reset = true)
         } else if (!isFirstPresentation && loadJob?.isActive != true) {
             loadHome(reset = false)
+        } else if (loadJob?.isActive != true) {
+            syncFeedback()
         }
     }
 
-    /**
-     * 피드백 카드의 "분석 시작하기"에서 호출한다. [HomeFeedbackPhase.Ready]일 때만 [HomeFeedbackPhase.Processing]으로
-     * 바꾸고, [MOCK_FEEDBACK_DURATION_MS] 뒤 [HomeFeedbackPhase.Completed]로 바꾼다.
-     * 서버 API가 생기면 이 지연 대신 분석 요청과 결과 조회로 바꾼다.
-     */
+    fun onPause() {
+        isFeedbackVisible = false
+        stopFeedback()
+    }
+
+    fun dismissFeedbackMessage() {
+        _uiState.update { it.copy(feedbackMessage = null) }
+    }
+
     fun startFeedback() {
-        if (_uiState.value.feedbackPhase != HomeFeedbackPhase.Ready) return
-        _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Processing) }
+        val state = _uiState.value
+        val postId = feedbackPostId() ?: return
+        val userId = (sessionState.value as? UserSessionState.Authenticated)?.userId ?: return
+        if (!isFeedbackVisible || state.feedbackPhase != HomeFeedbackPhase.Ready || isFeedbackSubmitting ||
+            feedbackOwnerUserId != userId
+        ) {
+            return
+        }
+        // POST 응답 유실 시에도 다시 누를 수 없도록, 서버 상태를 확인할 때까지 분석 중으로 둔다.
+        _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Processing, feedbackMessage = null) }
+        launchFeedback(postId, requestReview = true)
+    }
+
+    private fun feedbackPostId(): String? = (_uiState.value.hero as? HomeHeroState.Photo)
+        ?.takeUnless { it.isPending }
+        ?.postId
+
+    private fun stopFeedback() {
+        feedbackGeneration++
+        feedbackOwnerUserId = null
+        feedbackJob?.cancel()
+        feedbackJob = null
+        isFeedbackSubmitting = false
+    }
+
+    private fun syncFeedback() {
+        if (!isFeedbackVisible || isFeedbackSubmitting) return
+        val postId = feedbackPostId() ?: return
+        if (_uiState.value.feedbackPhase == HomeFeedbackPhase.Ready) {
+            _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Hidden) }
+        }
+        launchFeedback(postId, requestReview = false)
+    }
+
+    private fun launchFeedback(
+        postId: String,
+        requestReview: Boolean,
+    ) {
+        val userId = (sessionState.value as? UserSessionState.Authenticated)?.userId ?: return
+        stopFeedback()
+        val generation = feedbackGeneration
+        isFeedbackSubmitting = requestReview
         feedbackJob = viewModelScope.launch {
-            delay(MOCK_FEEDBACK_DURATION_MS)
-            _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Completed) }
+            try {
+                // 요청/진입 시점부터 경과시간을 재므로 최초 requestedAt 및 기기 시각 변경과 무관하다.
+                withTimeoutOrNull(FEEDBACK_POLL_WINDOW_MS) {
+                    var response = feedbackRequest {
+                        if (requestReview) {
+                            aiReviewRepository.requestReview(
+                                postId,
+                            )
+                        } else {
+                            aiReviewRepository.getReview(postId)
+                        }
+                    }
+                    ensureFeedbackCurrent(postId, userId, generation)
+                    feedbackOwnerUserId = userId
+                    isFeedbackSubmitting = false
+                    if (requestReview && response is AiReviewResponseResult.Failure) {
+                        val error = response.error
+                        if (error is AiReviewFailure.Http) {
+                            val phase = if (error.statusCode ==
+                                404
+                            ) {
+                                HomeFeedbackPhase.Hidden
+                            } else {
+                                HomeFeedbackPhase.Ready
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    feedbackPhase = phase,
+                                    feedbackMessage = error.message ?: feedbackErrorMessage(error),
+                                )
+                            }
+                            return@withTimeoutOrNull
+                        }
+                        // 접수 여부를 모르는 POST는 재전송하지 않고 GET으로 실제 상태만 확인한다.
+                        _uiState.update { it.copy(feedbackMessage = feedbackErrorMessage(error)) }
+                        response = feedbackRequest { aiReviewRepository.getReview(postId) }
+                        ensureFeedbackCurrent(postId, userId, generation)
+                    }
+                    while (true) {
+                        when (val current = response) {
+                            is AiReviewResponseResult.Success -> {
+                                showFeedback(current.review)
+                                if (current.review.status != AiReview.Status.PROCESSING) return@withTimeoutOrNull
+                            }
+
+                            is AiReviewResponseResult.Failure -> {
+                                val postMissing = (current.error as? AiReviewFailure.Http)?.statusCode == 404
+                                _uiState.update {
+                                    it.copy(
+                                        feedbackPhase = if (postMissing) HomeFeedbackPhase.Hidden else it.feedbackPhase,
+                                        feedbackMessage = feedbackErrorMessage(current.error),
+                                    )
+                                }
+                                return@withTimeoutOrNull
+                            }
+                        }
+                        delay(FEEDBACK_POLL_INTERVAL_MS)
+                        response = feedbackRequest { aiReviewRepository.getReview(postId) }
+                        ensureFeedbackCurrent(postId, userId, generation)
+                    }
+                }
+                // 5分超過では分析中表示を保ち、追加UIやPOSTは行わない。
+            } finally {
+                if (generation == feedbackGeneration) isFeedbackSubmitting = false
+            }
         }
     }
 
-    // 날짜·세션이 바뀌어 화면 상태를 새로 만들 때 이전 사진의 피드백 목업이 새 상태를 완료로 바꾸지 않게 멈춘다.
+    private suspend fun ensureFeedbackCurrent(
+        postId: String,
+        userId: String,
+        generation: Int,
+    ) {
+        currentCoroutineContext().ensureActive()
+        if (!isFeedbackVisible || generation != feedbackGeneration || feedbackPostId() != postId ||
+            (sessionState.value as? UserSessionState.Authenticated)?.userId != userId
+        ) {
+            throw CancellationException("AI review target changed")
+        }
+    }
+
+    private fun showFeedback(review: AiReview) {
+        _uiState.update {
+            it.copy(
+                feedbackPhase = when (review.status) {
+                    AiReview.Status.NONE -> HomeFeedbackPhase.Ready
+
+                    AiReview.Status.PROCESSING -> HomeFeedbackPhase.Processing
+
+                    AiReview.Status.COMPLETED -> HomeFeedbackPhase.Completed
+
+                    // 이번 범위에는 실패·재요청 UI를 추가하지 않는다.
+                    AiReview.Status.FAILED -> HomeFeedbackPhase.Hidden
+                },
+                feedbackResult = review.result,
+                feedbackMessage = null,
+            )
+        }
+    }
+
+    private suspend fun feedbackRequest(block: suspend () -> AiReviewResponseResult): AiReviewResponseResult =
+        block().also { currentCoroutineContext().ensureActive() }
+
+    private fun feedbackErrorMessage(error: AiReviewFailure): String = when (error) {
+        AiReviewFailure.Network -> "네트워크 연결을 확인해 주세요."
+
+        AiReviewFailure.InvalidResponse -> "AI 피드백 정보를 불러오지 못했어요."
+
+        is AiReviewFailure.Http -> when (error.statusCode) {
+            401 -> "다시 로그인해 주세요."
+            403 -> "이용이 정지된 회원은 AI 리뷰를 요청할 수 없습니다."
+            404 -> "AI 피드백을 확인할 수 없는 게시물이에요."
+            else -> "AI 피드백 정보를 불러오지 못했어요."
+        }
+    }
+
     private fun resetState(state: HomeUiState) {
-        feedbackJob?.cancel()
+        stopFeedback()
         _uiState.value = state
     }
 
@@ -299,7 +465,16 @@ class HomeViewModel(
         } else {
             loadMissingHero(date)
         }
+        val previousPostId = feedbackPostId()
+        val nextPostId = (hero as? HomeHeroState.Photo)?.takeUnless { it.isPending }?.postId
+        if (previousPostId != nextPostId) {
+            stopFeedback()
+            _uiState.update {
+                it.copy(feedbackPhase = HomeFeedbackPhase.Hidden, feedbackResult = null, feedbackMessage = null)
+            }
+        }
         _uiState.update { it.copy(hero = hero) }
+        syncFeedback()
     }
 
     private suspend fun loadHero(record: PostCalendarItem): HomeHeroState {
@@ -312,10 +487,11 @@ class HomeViewModel(
                 thumbnailUrl = record.thumbnailImageUrl,
                 signatureUrl = detail.value.post.signatureOriginalImageUrl,
                 signatureThumbnailUrl = detail.value.post.signatureThumbnailImageUrl,
+                postId = record.postId,
             )
 
             // The calendar already proves ownership and provides a usable image.
-            is HomeResult.Failure -> HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl)
+            is HomeResult.Failure -> HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, postId = record.postId)
         }
     }
 
@@ -355,7 +531,8 @@ class HomeViewModel(
 
     companion object {
         private const val HOME_PRELOAD_MAX_WAIT_MS = 700L
-        internal const val MOCK_FEEDBACK_DURATION_MS = 3_000L
+        internal const val FEEDBACK_POLL_INTERVAL_MS = 3_000L
+        internal const val FEEDBACK_POLL_WINDOW_MS = 300_000L
         private const val BANNER_PAGE_SIZE = 10
 
         val Factory = viewModelFactory {
@@ -366,6 +543,7 @@ class HomeViewModel(
                     uploadEntryRepository = application.appContainer.photoUploadEntryRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
                     bannerRepository = application.appContainer.bannerRepository,
+                    aiReviewRepository = application.appContainer.aiReviewRepository,
                 )
             }
         }
