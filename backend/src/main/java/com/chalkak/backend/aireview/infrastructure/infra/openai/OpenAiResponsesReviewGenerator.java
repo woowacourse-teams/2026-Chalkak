@@ -13,6 +13,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import com.chalkak.backend.aireview.domain.AiPromptDraft;
 import com.chalkak.backend.aireview.domain.AiPromptParameters;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
@@ -131,7 +132,30 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                             PhotoReviewOutput.maxScore()
                     ),
                     "feedback",
-                    Map.of("type", "string")
+                    Map.of(
+                            "type",
+                            "object",
+                            "additionalProperties",
+                            false,
+                            "required",
+                            List.of(
+                                    "summary",
+                                    "strength",
+                                    "weakness",
+                                    "suggestion"
+                            ),
+                            "properties",
+                            Map.of(
+                                    "summary",
+                                    Map.of("type", "string"),
+                                    "strength",
+                                    Map.of("type", "string"),
+                                    "weakness",
+                                    Map.of("type", "string"),
+                                    "suggestion",
+                                    Map.of("type", "string")
+                            )
+                    )
             )
     );
 
@@ -322,13 +346,25 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                     || payload.themeExpression() == null
                     || !payload.themeExpression().isNumber()
                     || payload.feedback() == null
-                    || !payload.feedback().isString()) {
+                    || !payload.feedback().isObject()) {
+                return Optional.empty();
+            }
+            JsonNode feedback = payload.feedback();
+            if (!isString(feedback.get("summary"))
+                    || !isString(feedback.get("strength"))
+                    || !isString(feedback.get("weakness"))
+                    || !isString(feedback.get("suggestion"))) {
                 return Optional.empty();
             }
             return Optional.of(new PhotoReviewOutput(
                     payload.composition().doubleValue(),
                     payload.themeExpression().doubleValue(),
-                    payload.feedback().stringValue()
+                    new AiReviewResult.Feedback(
+                            feedback.get("summary").stringValue(),
+                            feedback.get("strength").stringValue(),
+                            feedback.get("weakness").stringValue(),
+                            feedback.get("suggestion").stringValue()
+                    )
             ));
         } catch (JacksonException | IllegalArgumentException exception) {
             return Optional.empty();
@@ -350,6 +386,10 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             return BAD_REQUEST;
         }
         return UPSTREAM_ERROR;
+    }
+
+    private static boolean isString(JsonNode node) {
+        return node != null && node.isString();
     }
 
     private FailureType failureTypeOf(ClientHttpResponse response) throws IOException {

@@ -54,7 +54,12 @@ Authorization: Bearer {accessToken}
       }
     ],
     "distinctivePerspective": true,
-    "feedback": "빛이 들어오는 방향을 따라 시선이 자연스럽게 이어지는 구도입니다."
+    "feedback": {
+      "summary": "빛을 따라 시선이 흐르는 안정적인 구도",
+      "strength": "빛이 들어오는 방향을 따라 시선이 자연스럽게 이어집니다.",
+      "weakness": "수평선이 살짝 기울어 안정감이 조금 떨어집니다.",
+      "suggestion": "카메라를 낮추고 수평선을 맞춰 한 번 더 찍어 보세요."
+    }
   },
   "canRequestAgain": false
 }
@@ -62,7 +67,7 @@ Authorization: Bearer {accessToken}
 
 - `overallScore`와 `criteria[].score`는 0~10, 소수 첫째 자리다. 현재 종합 점수는 구도 점수와 같다.
 - `distinctivePerspective`는 독특한 시각이 드러났는지 여부다. 서버가 판정하며 판정에 쓴 원점수는 제공하지 않는다.
-- `feedback`은 300자 이하다. 저장된 값을 그대로 돌려주므로 다시 조회해도 바뀌지 않는다.
+- `feedback`은 네 항목을 가진 객체이며 항목은 항상 비어 있지 않다. `summary`는 한 줄 요약(60자 이하)으로 화면의 굵은 제목, `strength`는 좋았던 점, `weakness`는 아쉬운 점, `suggestion`은 다음엔 이렇게(각 150자 이하)다. 저장된 값을 그대로 돌려주므로 다시 조회해도 바뀌지 않는다.
 - `criteria`는 지금 구도 한 항목이다. 항목이 늘 수 있으니 `key`·`label`을 목록으로 표시하고 개수를 고정하지 않는다.
 
 실패하면 `200`과 `FAILED`를 돌려주며 `completedAt`은 있고 `result`는 `null`이다. 서버가 일시적인 실패를 자동으로 다시 시도한 뒤에도 실패했거나 다시 시도하지 않는 실패일 때 이 상태가 된다. 실패 사유는 앱에 알려 주지 않는다. 요청 횟수가 남았으면 `canRequestAgain`이 `true`다.

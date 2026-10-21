@@ -79,7 +79,7 @@ import tools.jackson.databind.ObjectMapper;
  */
 class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
-    private static final String COMPATIBLE_SCHEMA = "1";
+    private static final String COMPATIBLE_SCHEMA = "2";
     private static final Duration LEASE = Duration.ofSeconds(120);
     private static final int MAX_CLAIMS = 3;
     // 지터를 중간값으로 고정해 첫 재시도는 10초, 그 뒤는 30초를 기다린다.
@@ -87,9 +87,16 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
     private static final Instant CLAIMED_AT = Instant.parse("2026-10-20T05:00:10Z");
     private static final String IMAGE_URL = "https://cdn.test/ai-review/original.webp";
-    private static final String FEEDBACK = "구도가 좋습니다.";
+    private static final AiReviewResult.Feedback FEEDBACK = new AiReviewResult.Feedback(
+            "구도가 좋습니다.",
+            "빛이 좋습니다.",
+            "수평이 아쉽습니다.",
+            "낮게 찍어 보세요."
+    );
     private static final String RAW_OUTPUT = """
-            {"composition":7.46,"theme_expression":8,"feedback":"구도가 좋습니다."}""";
+            {"composition":7.46,"theme_expression":8,
+             "feedback":{"summary":"구도가 좋습니다.","strength":"빛이 좋습니다.",
+                         "weakness":"수평이 아쉽습니다.","suggestion":"낮게 찍어 보세요."}}""";
 
     @Autowired
     private AiReviewRepository reviewRepository;
@@ -305,7 +312,9 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                         {"overallScore":7.5,
                          "criteria":[{"key":"COMPOSITION","label":"구도","score":7.5}],
                          "distinctivePerspective":true,
-                         "feedback":"구도가 좋습니다."}"""));
+                         "feedback":{"summary":"구도가 좋습니다.","strength":"빛이 좋습니다.",
+                                     "weakness":"수평이 아쉽습니다.",
+                                     "suggestion":"낮게 찍어 보세요."}}"""));
         assertThat(objectMapper.readTree(row.get("output").toString())).isEqualTo(
                 objectMapper.readTree(RAW_OUTPUT));
         ILoggingEvent event = singleEvent("review_completed");
@@ -329,7 +338,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(keyValues).doesNotContain("errorCode");
         assertThat(keyValues + event.getFormattedMessage())
                 .doesNotContain(
-                        FEEDBACK,
+                        FEEDBACK.summary(),
                         "시스템",
                         "노을",
                         "original.webp",
@@ -697,7 +706,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @ParameterizedTest
     @CsvSource({
             "0, true",
-            "1, false"
+            "2, false"
     })
     @DisplayName("고정한 버전의 출력 스키마가 다르거나 모델이 더는 허용되지 않으면 호출하지 않고 PROMPT_VERSION_UNAVAILABLE로 실패시킨다")
     void process_versionNoLongerRunnable_failsWithoutCalling(

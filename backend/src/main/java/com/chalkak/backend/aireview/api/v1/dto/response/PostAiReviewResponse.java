@@ -41,8 +41,7 @@ public record PostAiReviewResponse(
             List<Criterion> criteria,
             @Schema(description = "독특한 시각이 드러났는지 여부")
             boolean distinctivePerspective,
-            @Schema(description = "피드백(300자 이하)")
-            String feedback
+            Feedback feedback
     ) {
 
         private static Result from(AiReviewResult result) {
@@ -50,7 +49,29 @@ public record PostAiReviewResponse(
                     result.overallScore(),
                     result.criteria().stream().map(Criterion::from).toList(),
                     result.distinctivePerspective(),
-                    result.feedback()
+                    Feedback.from(result.feedback())
+            );
+        }
+    }
+
+    @Schema(name = "PostAiReviewFeedback")
+    public record Feedback(
+            @Schema(description = "한 줄 요약(60자 이하). 화면의 굵은 제목으로 쓴다.")
+            String summary,
+            @Schema(description = "좋았던 점(150자 이하)")
+            String strength,
+            @Schema(description = "아쉬운 점(150자 이하)")
+            String weakness,
+            @Schema(description = "다음엔 이렇게, 다음 촬영을 위한 제안(150자 이하)")
+            String suggestion
+    ) {
+
+        private static Feedback from(AiReviewResult.Feedback feedback) {
+            return new Feedback(
+                    feedback.summary(),
+                    feedback.strength(),
+                    feedback.weakness(),
+                    feedback.suggestion()
             );
         }
     }

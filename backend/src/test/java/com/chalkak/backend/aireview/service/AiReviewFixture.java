@@ -33,7 +33,8 @@ public final class AiReviewFixture {
             {"overallScore":7.5,
              "criteria":[{"key":"COMPOSITION","label":"구도","score":7.5}],
              "distinctivePerspective":true,
-             "feedback":"구도가 좋습니다."}
+             "feedback":{"summary":"구도가 좋습니다.","strength":"빛이 좋습니다.",
+                         "weakness":"수평이 아쉽습니다.","suggestion":"낮게 찍어 보세요."}}
             """;
     private static final String OUTPUT_JSON = "{\"compositionScore\":7.46,\"themeExpressionScore\":8,\"feedback\":\"구도가 좋습니다.\"}";
 
@@ -150,7 +151,7 @@ public final class AiReviewFixture {
         return insertPromptVersion(
                 version,
                 MODEL,
-                "1"
+                "2"
         );
     }
 

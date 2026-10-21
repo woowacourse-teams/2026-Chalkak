@@ -277,7 +277,12 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
                                 7.5
                         )),
                         true,
-                        "좋습니다"
+                        new AiReviewResult.Feedback(
+                                "요약",
+                                "좋습니다",
+                                "아쉽습니다",
+                                "제안합니다"
+                        )
                 ),
                 output,
                 new Invocation(
@@ -311,7 +316,12 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         AiReview reloaded = reviewRepository.findByPostId(POST_ID).orElseThrow();
         assertThat(objectMapper.readTree(reloaded.getOutput()))
                 .isEqualTo(objectMapper.readTree(output));
-        assertThat(reloaded.getResult().feedback()).isEqualTo("좋습니다");
+        assertThat(reloaded.getResult().feedback()).isEqualTo(new AiReviewResult.Feedback(
+                "요약",
+                "좋습니다",
+                "아쉽습니다",
+                "제안합니다"
+        ));
         assertThat(reloaded.getInvocation()).isEqualTo(new Invocation(
                 1200,
                 0,

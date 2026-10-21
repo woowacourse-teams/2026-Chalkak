@@ -59,7 +59,10 @@ class OpenAiResponsesReviewGeneratorTest {
     private static final String RESPONSES_URL = "https://openai.test/v1/responses";
     private static final String API_KEY = "sk-test-secret";
     private static final String IMAGE_URL = "https://cdn.test/photo.jpg";
-    private static final String OK_OUTPUT = "{\"composition\":8.72,\"theme_expression\":8,\"feedback\":\"구도가 좋습니다.\"}";
+    private static final String FEEDBACK = "{\"summary\":\"구도가 좋습니다.\",\"strength\":\"빛이 좋습니다.\","
+            + "\"weakness\":\"수평이 아쉽습니다.\",\"suggestion\":\"낮게 찍어 보세요.\"}";
+    private static final String OK_OUTPUT = "{\"composition\":8.72,\"theme_expression\":8,\"feedback\":"
+            + FEEDBACK + "}";
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
@@ -111,7 +114,7 @@ class OpenAiResponsesReviewGeneratorTest {
                   ],
                   "text": {"format": {
                     "type": "json_schema",
-                    "name": "photo_review_v1",
+                    "name": "photo_review_v2",
                     "strict": true,
                     "schema": {
                       "type": "object",
@@ -120,7 +123,17 @@ class OpenAiResponsesReviewGeneratorTest {
                       "properties": {
                         "composition": {"type": "number", "minimum": 0, "maximum": 10},
                         "theme_expression": {"type": "number", "minimum": 0, "maximum": 10},
-                        "feedback": {"type": "string"}
+                        "feedback": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["summary", "strength", "weakness", "suggestion"],
+                          "properties": {
+                            "summary": {"type": "string"},
+                            "strength": {"type": "string"},
+                            "weakness": {"type": "string"},
+                            "suggestion": {"type": "string"}
+                          }
+                        }
                       }
                     }
                   }},
@@ -192,11 +205,21 @@ class OpenAiResponsesReviewGeneratorTest {
                         8.7
                 ));
         assertThat(result.distinctivePerspective()).isTrue();
-        assertThat(result.feedback()).isEqualTo("구도가 좋습니다.");
+        assertThat(result.feedback()).isEqualTo(new AiReviewResult.Feedback(
+                "구도가 좋습니다.",
+                "빛이 좋습니다.",
+                "수평이 아쉽습니다.",
+                "낮게 찍어 보세요."
+        ));
         assertThat(generation.output()).isEqualTo(new PhotoReviewOutput(
                 8.72,
                 8.0,
-                "구도가 좋습니다."
+                new AiReviewResult.Feedback(
+                        "구도가 좋습니다.",
+                        "빛이 좋습니다.",
+                        "수평이 아쉽습니다.",
+                        "낮게 찍어 보세요."
+                )
         ));
         assertThat(generation.rawOutput()).isEqualTo(OK_OUTPUT);
         assertThat(generation.attempt().usage()).isEqualTo(new Usage(
@@ -214,7 +237,7 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_defaultThreshold_themeSixIsNotDistinctive() {
         // Given
         respondOk(successBody(
-                "{\"composition\":8,\"theme_expression\":6,\"feedback\":\"좋음\"}"));
+                "{\"composition\":8,\"theme_expression\":6,\"feedback\":" + FEEDBACK + "}"));
 
         // When
         AiReviewGeneration generation = generator.generate(request(
@@ -232,7 +255,7 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_customThreshold_isAppliedToJudgement() {
         // Given
         respondOk(successBody(
-                "{\"composition\":8,\"theme_expression\":6,\"feedback\":\"좋음\"}"));
+                "{\"composition\":8,\"theme_expression\":6,\"feedback\":" + FEEDBACK + "}"));
 
         // When
         AiReviewGeneration generation = generator.generate(request(
@@ -252,7 +275,8 @@ class OpenAiResponsesReviewGeneratorTest {
     void generate_decimalThreshold_comparesDecimalScores(String theme, boolean expected) {
         // Given
         respondOk(successBody(
-                "{\"composition\":8,\"theme_expression\":" + theme + ",\"feedback\":\"좋음\"}"));
+                "{\"composition\":8,\"theme_expression\":" + theme + ",\"feedback\":" + FEEDBACK
+                        + "}"));
 
         // When
         AiReviewGeneration generation = generator.generate(request(
@@ -656,11 +680,12 @@ class OpenAiResponsesReviewGeneratorTest {
     }
 
     @Test
-    @DisplayName("generate_feedback이 301자면_INVALID_OUTPUT으로 실패한다")
-    void generate_tooLongFeedback_failsWithInvalidOutput() {
+    @DisplayName("generate_요약이 61자면_INVALID_OUTPUT으로 실패한다")
+    void generate_tooLongSummary_failsWithInvalidOutput() {
         // Given
-        respondOk(successBody("{\"composition\":8,\"theme_expression\":8,\"feedback\":\""
-                + "가".repeat(301) + "\"}"));
+        respondOk(successBody("{\"composition\":8,\"theme_expression\":8,\"feedback\":"
+                + "{\"summary\":\"" + "가".repeat(61) + "\",\"strength\":\"좋음\","
+                + "\"weakness\":\"아쉬움\",\"suggestion\":\"제안\"}}"));
 
         // When & Then
         assertFailure(FailureType.INVALID_OUTPUT, false);
@@ -679,17 +704,26 @@ class OpenAiResponsesReviewGeneratorTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "{\"composition\":8,\"theme_expression\":8}",
-            "{\"theme_expression\":8,\"feedback\":\"좋음\"}",
-            "{\"composition\":8,\"feedback\":\"좋음\"}",
-            "{\"composition\":11,\"theme_expression\":8,\"feedback\":\"좋음\"}",
-            "{\"composition\":8,\"theme_expression\":11,\"feedback\":\"좋음\"}",
-            "{\"composition\":8,\"theme_expression\":99999999999,\"feedback\":\"좋음\"}",
-            "{\"composition\":8,\"theme_expression\":null,\"feedback\":\"좋음\"}",
-            "{\"composition\":null,\"theme_expression\":8,\"feedback\":\"좋음\"}",
-            "{\"composition\":8,\"theme_expression\":\"7\",\"feedback\":\"좋음\"}",
-            "{\"composition\":\"8\",\"theme_expression\":7,\"feedback\":\"좋음\"}",
-            "{\"composition\":8,\"theme_expression\":7,\"feedback\":\" \"}",
-            "{\"composition\":8,\"theme_expression\":7,\"feedback\":null}"
+            "{\"theme_expression\":8,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":8,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":11,\"theme_expression\":8,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":8,\"theme_expression\":11,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":8,\"theme_expression\":99999999999,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":8,\"theme_expression\":null,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":null,\"theme_expression\":8,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":8,\"theme_expression\":\"7\",\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":\"8\",\"theme_expression\":7,\"feedback\":" + FEEDBACK + "}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":\"좋음\"}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":null}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":[]}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":{\"summary\":\"요약\","
+                    + "\"strength\":\"좋음\",\"weakness\":\"아쉬움\"}}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":{\"summary\":\"요약\","
+                    + "\"strength\":\"좋음\",\"weakness\":\"아쉬움\",\"suggestion\":3}}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":{\"summary\":\"요약\","
+                    + "\"strength\":\"좋음\",\"weakness\":null,\"suggestion\":\"제안\"}}",
+            "{\"composition\":8,\"theme_expression\":7,\"feedback\":{\"summary\":\" \","
+                    + "\"strength\":\"좋음\",\"weakness\":\"아쉬움\",\"suggestion\":\"제안\"}}"
     })
     @DisplayName("generate_필드가 없거나 범위를 벗어나면_INVALID_OUTPUT으로 실패한다")
     void generate_schemaViolation_failsWithInvalidOutput(String output) {

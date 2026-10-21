@@ -48,7 +48,12 @@ class AiReviewTest {
                     7.5
             )),
             true,
-            "구도가 좋습니다."
+            new AiReviewResult.Feedback(
+                    "구도가 좋습니다.",
+                    "빛이 좋습니다.",
+                    "수평이 아쉽습니다.",
+                    "낮게 찍어 보세요."
+            )
     );
     private static final String OUTPUT = "{\"compositionScore\":7.46,\"feedback\":\"구도가 좋습니다.\"}";
 
