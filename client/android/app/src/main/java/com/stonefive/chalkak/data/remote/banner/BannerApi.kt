@@ -17,7 +17,7 @@ interface BannerApi {
 data class BannerPageResponse(
     val currentPage: Int,
     val pageSize: Int,
-    val hasNext: Boolean,
+    val hasNext: Boolean = false,
     val banners: List<BannerResponse>,
 )
 

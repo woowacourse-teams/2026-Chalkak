@@ -434,8 +434,8 @@ class HomeViewModelTest {
         }
         val viewModel = createViewModel(repository, MutableStateFlow(UserSessionState.Guest))
         advanceUntilIdle()
-        assertEquals(listOf(1 to 1), repository.bannerQueries)
-        assertEquals(banner(), viewModel.uiState.value.banner)
+        assertEquals(listOf(1 to 10), repository.bannerQueries)
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
         assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
         assertEquals(0, repository.statusCalls)
     }
@@ -445,7 +445,10 @@ class HomeViewModelTest {
         val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Failure(HomeFailure.Network) }
         val viewModel = createViewModel(repository)
         advanceUntilIdle()
-        assertEquals(null, viewModel.uiState.value.banner)
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
         assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.bannerStatus)
         assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.trending.status)
         assertTrue(viewModel.uiState.value.isInitialLoadComplete)
@@ -461,12 +464,15 @@ class HomeViewModelTest {
         repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
         viewModel.refresh()
         advanceUntilIdle()
-        assertEquals(banner(), viewModel.uiState.value.banner)
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
         assertFalse(viewModel.uiState.value.isRefreshing)
         repository.bannerResult = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
         viewModel.refresh()
         advanceUntilIdle()
-        assertEquals(null, viewModel.uiState.value.banner)
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
         assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
     }
 
@@ -495,7 +501,138 @@ class HomeViewModelTest {
         runCurrent()
         repository.bannerGate!!.complete(Unit)
         advanceUntilIdle()
-        assertEquals(null, viewModel.uiState.value.banner)
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `banner pagination appends ten items and stops after last page`() = runTest {
+        val first = List(10) { banner().copy(id = "first-$it") }
+        val second = List(10) { banner().copy(id = "second-$it") }
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, first))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(first, viewModel.uiState.value.banners)
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, second))
+        viewModel.loadMoreBanners()
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10, 2 to 10), repository.bannerQueries)
+        assertEquals(first + second, viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.bannerHasNext)
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+    }
+
+    @Test
+    fun `banner pagination failure retries same page and deduplicates overlapping items`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertTrue(viewModel.uiState.value.bannerLoadMoreError)
+        assertTrue(viewModel.uiState.value.bannerHasNext)
+        val next = banner().copy(id = "next")
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, listOf(banner(), next)))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10, 2 to 10, 2 to 10), repository.bannerQueries)
+        assertEquals(listOf(banner(), next), viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.bannerLoadMoreError)
+    }
+
+    @Test
+    fun `banner pagination does not request after false or empty page`() = runTest {
+        for (page in listOf(
+            BannerPage(1, 10, false, listOf(banner())),
+            BannerPage(1, 10, true, emptyList()),
+        )) {
+            val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Success(page) }
+            val viewModel = createViewModel(repository)
+            advanceUntilIdle()
+            viewModel.loadMoreBanners()
+            advanceUntilIdle()
+            assertEquals(listOf(1 to 10), repository.bannerQueries)
+        }
+    }
+
+    @Test
+    fun `banner refresh replaces accumulated pages and restarts pagination`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, listOf(banner().copy(id = "old"))))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        val fresh = banner().copy(id = "fresh")
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(fresh)))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf(fresh), viewModel.uiState.value.banners)
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, emptyList()))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        viewModel.loadMoreBanners()
+        assertEquals(listOf(1 to 10, 2 to 10, 1 to 10, 2 to 10), repository.bannerQueries)
+        assertFalse(viewModel.uiState.value.bannerHasNext)
+    }
+
+    @Test
+    fun `refresh cancels pagination and ignores late response`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        val staleGate = CompletableDeferred<Unit>()
+        repository.bannerGate = staleGate
+        viewModel.loadMoreBanners()
+        runCurrent()
+        repository.bannerGate = null
+        val fresh = banner().copy(id = "fresh")
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(fresh)))
+        viewModel.refresh()
+        runCurrent()
+        staleGate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(fresh), viewModel.uiState.value.banners)
+        assertEquals(1, viewModel.uiState.value.bannerCurrentPage)
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+        assertEquals(listOf(1 to 10, 2 to 10, 1 to 10), repository.bannerQueries)
+    }
+
+    @Test
+    fun `cancelled pagination cannot repopulate signed out home`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+        repository.bannerGate = CompletableDeferred()
+        viewModel.loadMoreBanners()
+        runCurrent()
+        session.value = UserSessionState.SignedOut
+        runCurrent()
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
     }
 
     private fun createViewModel(

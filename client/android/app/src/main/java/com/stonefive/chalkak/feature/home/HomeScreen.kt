@@ -13,16 +13,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -34,6 +40,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
@@ -58,6 +65,7 @@ import com.stonefive.chalkak.feature.home.component.HomeWeeklyRecord
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 const val HOME_CONTENT_TEST_TAG = "home-content"
@@ -74,6 +82,7 @@ fun HomeScreen(
     onNotificationClick: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
+    onLoadMoreBanners: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val bottomBarState = rememberBottomBarScrollState()
@@ -149,6 +158,7 @@ fun HomeScreen(
                     onOpenFeed = onOpenFeed,
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
+                    onLoadMoreBanners = onLoadMoreBanners,
                     listState = listState,
                     bottomBarHeight = bottomBarHeight,
                     modifier = Modifier.weight(1f),
@@ -201,11 +211,32 @@ private fun HomeContent(
     onOpenFeed: (Post) -> Unit,
     onRetry: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
+    onLoadMoreBanners: () -> Unit,
     listState: LazyListState,
     bottomBarHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
+    val currentUiState by rememberUpdatedState(uiState)
+    val currentOnLoadMoreBanners by rememberUpdatedState(onLoadMoreBanners)
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val state = currentUiState
+            val lastVisibleIssue = listState.layoutInfo.visibleItemsInfo
+                .mapNotNull { it.key as? HomeIssueItemKey }
+                .maxOfOrNull { it.index }
+            state.banners.isNotEmpty() &&
+                state.bannerStatus == HomeSectionStatus.Ready &&
+                state.bannerHasNext &&
+                !state.isRefreshing &&
+                !state.isLoadingMoreBanners &&
+                !state.bannerLoadMoreError &&
+                lastVisibleIssue != null &&
+                lastVisibleIssue >= state.banners.lastIndex - ISSUE_PREFETCH_DISTANCE
+        }.distinctUntilChanged().collect { shouldLoadMore ->
+            if (shouldLoadMore) currentOnLoadMoreBanners()
+        }
+    }
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
@@ -283,14 +314,70 @@ private fun HomeContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (uiState.banner != null || uiState.bannerStatus == HomeSectionStatus.Loading) {
-                item {
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
-                    HomeIssueSection(
-                        banner = uiState.banner,
-                        onIssueClick = onIssueClick,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+            if (uiState.banners.isNotEmpty() || uiState.bannerStatus == HomeSectionStatus.Loading) {
+                item(key = "issue-header") {
+                    Text(
+                        text = "ISSUE",
+                        color = ChalkakTheme.colors.textPrimary,
+                        style = ChalkakTheme.typography.headline,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = ChalkakTheme.spacing.screenHorizontal,
+                                top = ChalkakTheme.spacing.xxl,
+                                end = ChalkakTheme.spacing.screenHorizontal,
+                            ),
                     )
+                }
+                if (uiState.banners.isEmpty()) {
+                    item(key = "issue-loading") {
+                        HomeIssueSection(
+                            banner = null,
+                            onIssueClick = onIssueClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
+                                .padding(top = ChalkakTheme.spacing.lg),
+                            showHeader = false,
+                        )
+                    }
+                }
+                itemsIndexed(
+                    items = uiState.banners,
+                    key = { index, banner -> HomeIssueItemKey(banner.id, index) },
+                ) { index, banner ->
+                    HomeIssueSection(
+                        banner = banner,
+                        onIssueClick = onIssueClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
+                            .padding(top = if (index == 0) ChalkakTheme.spacing.lg else ChalkakTheme.spacing.xxl),
+                        showHeader = false,
+                    )
+                }
+                if (uiState.isLoadingMoreBanners || uiState.bannerLoadMoreError) {
+                    item(key = "issue-pagination") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(ChalkakTheme.spacing.xl),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (uiState.isLoadingMoreBanners) {
+                                CircularProgressIndicator(color = ChalkakTheme.colors.actionPrimary)
+                            } else {
+                                TextButton(onClick = onLoadMoreBanners) {
+                                    Text(
+                                        text = "다시 시도",
+                                        color = ChalkakTheme.colors.actionPrimary,
+                                        style = ChalkakTheme.typography.body,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -336,6 +423,13 @@ private fun Modifier.homeBottomDivider(): Modifier {
         )
     }
 }
+
+private const val ISSUE_PREFETCH_DISTANCE = 2
+
+private data class HomeIssueItemKey(
+    val id: String,
+    val index: Int,
+) : java.io.Serializable
 
 private val HomeDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
 private val HomeDividerWidth = 0.5.dp

@@ -48,7 +48,7 @@ class BannerRepositoryImplTest {
             MockResponse().setBody(
                 """
             {
-              "currentPage": 1, "pageSize": 1, "hasNext": true,
+              "currentPage": 1, "pageSize": 10, "hasNext": true,
               "banners": [{
                 "id": "banner-id", "title": "제목", "subtitle": "설명",
                 "webViewUrl": "https://example.com/issue",
@@ -61,10 +61,10 @@ class BannerRepositoryImplTest {
         )
         val page = (repository.getBanners() as HomeResult.Success).value
         val request = server.takeRequest()
-        assertEquals("/api/v1/banners?page=1&pageSize=1", request.path)
+        assertEquals("/api/v1/banners?page=1&pageSize=10", request.path)
         assertNull(request.getHeader("Authorization"))
         assertEquals(1, page.currentPage)
-        assertEquals(1, page.pageSize)
+        assertEquals(10, page.pageSize)
         assertTrue(page.hasNext)
         val banner = page.banners.single()
         assertEquals("banner-id", banner.id)
@@ -80,7 +80,7 @@ class BannerRepositoryImplTest {
         server.enqueue(
             MockResponse().setBody(
                 """
-            {"currentPage": 3, "pageSize": 1, "hasNext": false, "banners": []}
+            {"currentPage": 3, "pageSize": 10, "hasNext": false, "banners": []}
                 """.trimIndent(),
             ),
         )
@@ -88,6 +88,17 @@ class BannerRepositoryImplTest {
         assertTrue(page.banners.isEmpty())
         assertFalse(page.hasNext)
         assertEquals(3, page.currentPage)
+    }
+
+    @Test
+    fun `missing hasNext defaults to no further pages`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"currentPage":1,"pageSize":10,"banners":[]}""",
+            ),
+        )
+        val page = (repository.getBanners() as HomeResult.Success).value
+        assertFalse(page.hasNext)
     }
 
     @Test

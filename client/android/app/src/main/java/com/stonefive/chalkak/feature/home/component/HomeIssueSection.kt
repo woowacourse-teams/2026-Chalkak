@@ -30,17 +30,20 @@ fun HomeIssueSection(
     banner: Banner?,
     onIssueClick: (title: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
+    showHeader: Boolean = true,
 ) {
     Column(
         modifier = modifier,
     ) {
-        Text(
-            text = "ISSUE",
-            color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.headline,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+        if (showHeader) {
+            Text(
+                text = "ISSUE",
+                color = ChalkakTheme.colors.textPrimary,
+                style = ChalkakTheme.typography.headline,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+        }
         if (banner == null) {
             Box(
                 modifier = Modifier

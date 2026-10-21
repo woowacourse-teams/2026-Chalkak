@@ -16,8 +16,12 @@ data class HomeUiState(
     val recordsStatus: HomeSectionStatus = HomeSectionStatus.Loading,
     val yesterday: HomeRankingState = HomeRankingState(),
     val trending: HomeRankingState = HomeRankingState(),
-    val banner: Banner? = null,
+    val banners: List<Banner> = emptyList(),
     val bannerStatus: HomeSectionStatus = HomeSectionStatus.Loading,
+    val bannerCurrentPage: Int = 0,
+    val bannerHasNext: Boolean = false,
+    val isLoadingMoreBanners: Boolean = false,
+    val bannerLoadMoreError: Boolean = false,
     val isRefreshing: Boolean = false,
     val isAuthenticated: Boolean = false,
 )
