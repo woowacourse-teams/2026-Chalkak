@@ -53,7 +53,12 @@ class PostAiReviewControllerTest {
                     7.5
             )),
             true,
-            "구도가 좋습니다."
+            new AiReviewResult.Feedback(
+                    "구도가 좋습니다.",
+                    "빛이 좋습니다.",
+                    "수평이 아쉽습니다.",
+                    "낮게 찍어 보세요."
+            )
     );
     private static final String PATH = "/api/v1/posts/{postId}/ai-review";
 
@@ -177,7 +182,10 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.result.criteria[0].label").value("구도"))
                 .andExpect(jsonPath("$.result.criteria[0].score").value(7.5))
                 .andExpect(jsonPath("$.result.distinctivePerspective").value(true))
-                .andExpect(jsonPath("$.result.feedback").value("구도가 좋습니다."));
+                .andExpect(jsonPath("$.result.feedback.summary").value("구도가 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.strength").value("빛이 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.weakness").value("수평이 아쉽습니다."))
+                .andExpect(jsonPath("$.result.feedback.suggestion").value("낮게 찍어 보세요."));
         given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(result(ApiStatus.FAILED));
         mockMvc.perform(post(PATH, POST_ID))
                 .andExpect(jsonPath("$.result").value(nullValue()));

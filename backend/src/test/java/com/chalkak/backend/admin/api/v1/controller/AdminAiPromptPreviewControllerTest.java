@@ -69,7 +69,12 @@ class AdminAiPromptPreviewControllerTest {
         PhotoReviewOutput output = new PhotoReviewOutput(
                 8.72,
                 8.0,
-                "구도가 좋습니다."
+                new AiReviewResult.Feedback(
+                        "구도가 좋습니다.",
+                        "빛이 좋습니다.",
+                        "수평이 아쉽습니다.",
+                        "낮게 찍어 보세요."
+                )
         );
         AiReviewResult result = output.toResult(7.0);
         given(previewService.preview(eq(ADMIN_ID), any())).willReturn(new PreviewResult(
@@ -99,7 +104,10 @@ class AdminAiPromptPreviewControllerTest {
                 .andExpect(jsonPath("$.result.criteria[0].label").value("구도"))
                 .andExpect(jsonPath("$.result.criteria[0].score").value(8.7))
                 .andExpect(jsonPath("$.result.distinctivePerspective").value(true))
-                .andExpect(jsonPath("$.result.feedback").value("구도가 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.summary").value("구도가 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.strength").value("빛이 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.weakness").value("수평이 아쉽습니다."))
+                .andExpect(jsonPath("$.result.feedback.suggestion").value("낮게 찍어 보세요."))
                 .andExpect(jsonPath("$.output.compositionScore").value(8.72))
                 .andExpect(jsonPath("$.output.themeExpressionScore").value(8.0))
                 .andExpect(jsonPath("$.usage.inputTokens").value(1200))

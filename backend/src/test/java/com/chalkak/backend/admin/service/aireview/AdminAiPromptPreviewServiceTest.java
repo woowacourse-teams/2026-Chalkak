@@ -114,7 +114,12 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
         assertThat(result.output()).isEqualTo(new PhotoReviewOutput(
                 8.72,
                 8.0,
-                "구도가 좋습니다."
+                new AiReviewResult.Feedback(
+                        "구도가 좋습니다.",
+                        "빛이 좋습니다.",
+                        "수평이 아쉽습니다.",
+                        "낮게 찍어 보세요."
+                )
         ));
         assertThat(result.usage()).isEqualTo(new Usage(
                 1200,
@@ -379,7 +384,12 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
         PhotoReviewOutput output = new PhotoReviewOutput(
                 8.72,
                 8.0,
-                "구도가 좋습니다."
+                new AiReviewResult.Feedback(
+                        "구도가 좋습니다.",
+                        "빛이 좋습니다.",
+                        "수평이 아쉽습니다.",
+                        "낮게 찍어 보세요."
+                )
         );
         AiReviewResult result = output.toResult(7.0);
         return new AiReviewGeneration(

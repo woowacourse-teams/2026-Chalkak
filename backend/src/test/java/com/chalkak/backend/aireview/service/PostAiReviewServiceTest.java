@@ -57,7 +57,12 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
                     7.5
             )),
             true,
-            "구도가 좋습니다."
+            new AiReviewResult.Feedback(
+                    "구도가 좋습니다.",
+                    "빛이 좋습니다.",
+                    "수평이 아쉽습니다.",
+                    "낮게 찍어 보세요."
+            )
     );
 
     @Autowired
@@ -528,7 +533,7 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
         fixture.insertPromptVersion(
                 1,
                 "gpt-unsupported",
-                "1"
+                "2"
         );
 
         // When & Then
