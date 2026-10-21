@@ -367,8 +367,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("응답을 받은 뒤 생성이 실패하면 실패 유형을 오류 코드로 저장하고 받은 사용량을 남긴다")
     void process_generationFailureWithAttempt_failsWithFailureTypeAndUsage() {
         // Given
-        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
-                FailureType.INVALID_OUTPUT, attempt()));
+        given(aiReviewGenerator.generate(any())).willThrow(AiReviewGenerationException.withAttempt(
+                FailureType.INVALID_OUTPUT,
+                attempt()
+        ));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -385,7 +387,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_generationFailureWithoutAttempt_logsFailedWithOnlyPresentFields() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.QUOTA_EXCEEDED));
+                .willThrow(AiReviewGenerationException.of(FailureType.QUOTA_EXCEEDED));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -410,8 +412,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("재시도할 수 있는 실패는 대기로 되돌려 다음 시도 시각을 정하고 임대·완료 시각 없이 마지막 시도의 사유와 사용량을 남긴다")
     void process_retryableFailure_requeuesWithNextAttemptAt() {
         // Given
-        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
-                FailureType.TIMEOUT, attempt()));
+        given(aiReviewGenerator.generate(any())).willThrow(AiReviewGenerationException.withAttempt(
+                FailureType.TIMEOUT,
+                attempt()
+        ));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -435,7 +439,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void claimNext_retryWaiting_claimsOnlyFromNextAttemptAt() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.RATE_LIMITED));
+                .willThrow(AiReviewGenerationException.of(FailureType.RATE_LIMITED));
         UUID reviewId = processQueuedReview();
         Instant nextAttemptAt = CLAIMED_AT.plusSeconds(10);
 
@@ -458,9 +462,9 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_retryableFailureEveryAttempt_failsWithLastAttemptReason() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT))
-                .willThrow(new AiReviewGenerationException(FailureType.RATE_LIMITED))
-                .willThrow(new AiReviewGenerationException(FailureType.UPSTREAM_ERROR));
+                .willThrow(AiReviewGenerationException.of(FailureType.TIMEOUT))
+                .willThrow(AiReviewGenerationException.of(FailureType.RATE_LIMITED))
+                .willThrow(AiReviewGenerationException.of(FailureType.UPSTREAM_ERROR));
         UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
 
         // When
@@ -491,8 +495,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void claimNext_leaseReclaimsExhaustRound_failsWithLeaseExhausted() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(
-                        FailureType.TIMEOUT, attempt()));
+                .willThrow(AiReviewGenerationException.withAttempt(
+                        FailureType.TIMEOUT,
+                        attempt()
+                ));
         UUID reviewId = processQueuedReview();
         clock.set(CLAIMED_AT.plusSeconds(10));
         service.claimNext().orElseThrow();
@@ -522,7 +528,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_nonRetryableFailure_failsWithoutRetry(FailureType failureType) {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(failureType));
+                .willThrow(AiReviewGenerationException.of(failureType));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -541,8 +547,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("재시도로 전환하면 재시도 예약 로그만 남기고 실패 로그는 남기지 않으며 로그에는 비용 추적 값이 들어 있다")
     void process_retryableFailure_logsRetryScheduledOnly() {
         // Given
-        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
-                FailureType.TIMEOUT, attempt()));
+        given(aiReviewGenerator.generate(any())).willThrow(AiReviewGenerationException.withAttempt(
+                FailureType.TIMEOUT,
+                attempt()
+        ));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -579,7 +587,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_retryableFailureWhileClockMoves_logsRecordedDelay() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+                .willThrow(AiReviewGenerationException.of(FailureType.TIMEOUT));
         clock.setTick(Duration.ofMillis(5));
 
         // When
@@ -594,8 +602,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("생성기가 Retry-After를 실어 보내면 백오프보다 길 때 그 값만큼 기다리고 로그에 적용 여부를 남긴다")
     void process_rateLimitedWithRetryAfter_waitsForRetryAfter() {
         // Given
-        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
-                FailureType.RATE_LIMITED, Duration.ofSeconds(45)));
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(AiReviewGenerationException.withRetryAfter(
+                        FailureType.RATE_LIMITED,
+                        Duration.ofSeconds(45)
+                ));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -615,8 +626,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("Retry-After가 없거나 백오프보다 짧으면 백오프만큼 기다리고 retryAfterUsed는 false다")
     void process_retryAfterNotDeciding_logsRetryAfterUsedFalse() {
         // Given
-        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
-                FailureType.RATE_LIMITED, Duration.ofSeconds(3)));
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(AiReviewGenerationException.withRetryAfter(
+                        FailureType.RATE_LIMITED,
+                        Duration.ofSeconds(3)
+                ));
 
         // When
         UUID reviewId = processQueuedReview();
@@ -635,7 +649,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     void process_retryableFailureWithoutAttempt_logsOnlyPresentFields() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+                .willThrow(AiReviewGenerationException.of(FailureType.TIMEOUT));
 
         // When
         processQueuedReview();
@@ -770,7 +784,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         Claim previous = service.claimNext().orElseThrow();
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.INVALID_OUTPUT));
+                .willThrow(AiReviewGenerationException.of(FailureType.INVALID_OUTPUT));
         service.process(previous, () -> false);
         requestAgain(
                 reviewId,
@@ -781,7 +795,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // When
         doReturn(generation()).when(aiReviewGenerator).generate(any());
         service.process(previous, () -> false);
-        doThrow(new AiReviewGenerationException(FailureType.TIMEOUT))
+        doThrow(AiReviewGenerationException.of(FailureType.TIMEOUT))
                 .when(aiReviewGenerator).generate(any());
         service.process(previous, () -> false);
 
@@ -838,7 +852,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
             if (interrupted) {
                 Thread.currentThread().interrupt();
             }
-            throw new AiReviewGenerationException(FailureType.TIMEOUT);
+            throw AiReviewGenerationException.of(FailureType.TIMEOUT);
         });
         Claim claim = service.claimNext().orElseThrow();
 
@@ -936,7 +950,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     private UUID failedReview() {
         UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.INVALID_OUTPUT));
+                .willThrow(AiReviewGenerationException.of(FailureType.INVALID_OUTPUT));
         service.process(service.claimNext().orElseThrow(), () -> false);
         assertThat(findRow(reviewId)).containsEntry("status", "FAILED");
         return reviewId;

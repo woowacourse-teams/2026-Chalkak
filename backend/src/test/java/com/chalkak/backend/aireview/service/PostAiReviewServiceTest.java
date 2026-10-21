@@ -145,9 +145,10 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
                     "promptVersion=\"1\"",
                     "model=\"" + MODEL + "\"",
                     "requestCount=\"1\"",
-                    "requestId=\"" + requestId + "\"",
                     "created=\"true\""
             );
+            // requestId는 로그 문맥(MDC)이 모든 줄에 붙이므로 명시 key-value로 중복해서 싣지 않는다.
+            assertThat(keyValues).doesNotContain("requestId=");
             assertThat(keyValues + event.getFormattedMessage())
                     .doesNotContain(
                             "시스템",
@@ -244,7 +245,7 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("재요청 로그는 요청 횟수·이번 요청 ID·재고정한 버전을 남기고 신규가 아님을 표시하며 같은 요청을 다시 보내면 남기지 않는다")
+    @DisplayName("재요청 로그는 요청 횟수·재고정한 버전을 남기고 신규가 아님을 표시하며 같은 요청을 다시 보내면 남기지 않는다")
     void request_failedReview_logsRequestedAgainOnce() {
         // Given
         fixture.insertPromptVersion(1);
@@ -268,9 +269,9 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
                     "promptVersion=\"2\"",
                     "model=\"" + MODEL + "\"",
                     "requestCount=\"2\"",
-                    "requestId=\"" + requestId + "\"",
                     "created=\"false\""
             );
+            assertThat(keyValues).doesNotContain("requestId=");
         });
     }
 

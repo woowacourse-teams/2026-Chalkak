@@ -249,7 +249,7 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
                 "resp_9"
         );
         given(aiReviewGenerator.generate(any())).willThrow(
-                new AiReviewGenerationException(FailureType.INCOMPLETE, attempt));
+                AiReviewGenerationException.withAttempt(FailureType.INCOMPLETE, attempt));
 
         // When
         PreviewResult result = service.preview(ADMIN_ID, command(MODEL, "주제: {{topicTitle}}"));
@@ -275,7 +275,7 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     void preview_timeoutWithoutAttempt_returnsFailureOutcomeWithoutUsage() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+                .willThrow(AiReviewGenerationException.of(FailureType.TIMEOUT));
 
         // When
         PreviewResult result = service.preview(ADMIN_ID, command(MODEL, "주제: {{topicTitle}}"));
@@ -342,7 +342,7 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
     void preview_failure_logsFailureTypeOnly() {
         // Given
         given(aiReviewGenerator.generate(any()))
-                .willThrow(new AiReviewGenerationException(FailureType.TIMEOUT));
+                .willThrow(AiReviewGenerationException.of(FailureType.TIMEOUT));
 
         // When
         service.preview(ADMIN_ID, command(MODEL, "주제: {{topicTitle}}"));

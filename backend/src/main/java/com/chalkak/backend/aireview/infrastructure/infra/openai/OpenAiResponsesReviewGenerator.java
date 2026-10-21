@@ -221,17 +221,20 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                             status -> !status.is2xxSuccessful(),
                             (httpRequest, response) -> {
                                 FailureType failureType = failureTypeOf(response);
-                                throw new AiReviewGenerationException(
-                                        failureType,
-                                        retryAfterOf(failureType, response)
-                                );
+                                throw retryAfterOf(failureType, response)
+                                        .map(retryAfter -> AiReviewGenerationException
+                                                .withRetryAfter(failureType, retryAfter))
+                                        .orElseGet(() -> AiReviewGenerationException
+                                                .of(failureType));
                             })
                     .body(String.class);
         } catch (ResourceAccessException exception) {
-            throw new AiReviewGenerationException(transportFailureType(exception, startedAt),
-                    exception);
+            throw AiReviewGenerationException.withCause(
+                    transportFailureType(exception, startedAt),
+                    exception
+            );
         } catch (RestClientException exception) {
-            throw new AiReviewGenerationException(transportFailureType(exception, startedAt));
+            throw AiReviewGenerationException.of(transportFailureType(exception, startedAt));
         }
     }
 
@@ -254,31 +257,33 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                 response.id()
         );
         if (STATUS_INCOMPLETE.equals(response.status())) {
-            throw new AiReviewGenerationException(INCOMPLETE, attempt);
+            throw AiReviewGenerationException.withAttempt(INCOMPLETE, attempt);
         }
         if (STATUS_FAILED.equals(response.status())) {
-            throw new AiReviewGenerationException(failureTypeOf(response.error()), attempt);
+            throw AiReviewGenerationException.withAttempt(failureTypeOf(response.error()), attempt);
         }
         if (!STATUS_COMPLETED.equals(response.status())) {
-            throw new AiReviewGenerationException(UPSTREAM_ERROR, attempt);
+            throw AiReviewGenerationException.withAttempt(UPSTREAM_ERROR, attempt);
         }
         if (response.hasNullElement()) {
-            throw new AiReviewGenerationException(INVALID_OUTPUT, attempt);
+            throw AiReviewGenerationException.withAttempt(INVALID_OUTPUT, attempt);
         }
 
         List<ContentPart> parts = response.contentParts();
         if (parts.stream().anyMatch(part -> REFUSAL_TYPE.equals(part.type()))) {
-            throw new AiReviewGenerationException(REFUSED, attempt);
+            throw AiReviewGenerationException.withAttempt(REFUSED, attempt);
         }
         String outputText = parts.stream()
                 .filter(part -> OUTPUT_TEXT_TYPE.equals(part.type()))
                 .map(ContentPart::text)
                 .filter(Objects::nonNull)
                 .findFirst()
-                .orElseThrow(() -> new AiReviewGenerationException(INVALID_OUTPUT, attempt));
+                .orElseThrow(
+                        () -> AiReviewGenerationException.withAttempt(INVALID_OUTPUT, attempt));
 
         PhotoReviewOutput output = readOutput(outputText)
-                .orElseThrow(() -> new AiReviewGenerationException(INVALID_OUTPUT, attempt));
+                .orElseThrow(
+                        () -> AiReviewGenerationException.withAttempt(INVALID_OUTPUT, attempt));
         return new AiReviewGeneration(
                 output.toResult(threshold),
                 output,
@@ -289,17 +294,17 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
 
     private ResponsesResponse readResponse(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
-            throw new AiReviewGenerationException(INVALID_OUTPUT);
+            throw AiReviewGenerationException.of(INVALID_OUTPUT);
         }
         try {
             ResponsesResponse response = objectMapper.readValue(responseBody,
                     ResponsesResponse.class);
             if (response == null) {
-                throw new AiReviewGenerationException(INVALID_OUTPUT);
+                throw AiReviewGenerationException.of(INVALID_OUTPUT);
             }
             return response;
         } catch (JacksonException exception) {
-            throw new AiReviewGenerationException(INVALID_OUTPUT);
+            throw AiReviewGenerationException.of(INVALID_OUTPUT);
         }
     }
 
@@ -368,14 +373,13 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
      * 재시도하지 않는 유형은 기다려도 소용없으므로 헤더가 있어도 싣지 않는다. 날짜 형식의 retry-after는 OpenAI가 보내지 않아
      * 읽지 않는다.
      */
-    private Duration retryAfterOf(FailureType failureType, ClientHttpResponse response) {
+    private Optional<Duration> retryAfterOf(FailureType failureType, ClientHttpResponse response) {
         if (!failureType.isRetryable()) {
-            return null;
+            return Optional.empty();
         }
         HttpHeaders headers = response.getHeaders();
         return parseDelay(headers.getFirst(RETRY_AFTER_MS_HEADER), ChronoUnit.MILLIS)
-                .or(() -> parseDelay(headers.getFirst(RETRY_AFTER_HEADER), ChronoUnit.SECONDS))
-                .orElse(null);
+                .or(() -> parseDelay(headers.getFirst(RETRY_AFTER_HEADER), ChronoUnit.SECONDS));
     }
 
     private Optional<Duration> parseDelay(String value, ChronoUnit unit) {

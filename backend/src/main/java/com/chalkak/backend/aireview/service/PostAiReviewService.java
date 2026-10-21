@@ -14,6 +14,7 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -44,9 +45,15 @@ public class PostAiReviewService {
     public ReviewResult request(UUID userId, UUID postId) {
         validateAuthoredVisiblePost(userId, postId);
         // 동시 재요청이 한 번만 반영되도록 트랜잭션의 첫 리뷰 읽기를 잠금 읽기로 한다.
-        return aiReviewRepository.findByPostIdForUpdate(postId)
-                .map(this::requestAgainIfFailed)
-                .orElseGet(() -> createReview(userId, postId));
+        Optional<AiReview> found = aiReviewRepository.findByPostIdForUpdate(postId);
+        if (found.isEmpty()) {
+            return createReview(userId, postId);
+        }
+        AiReview review = found.get();
+        if (!review.isFailed()) {
+            return ReviewResult.from(review);
+        }
+        return requestAgain(review);
     }
 
     @Transactional(readOnly = true)
@@ -78,10 +85,7 @@ public class PostAiReviewService {
         return ReviewResult.from(review);
     }
 
-    private ReviewResult requestAgainIfFailed(AiReview review) {
-        if (!review.isFailed()) {
-            return ReviewResult.from(review);
-        }
+    private ReviewResult requestAgain(AiReview review) {
         review.validateRequestsLeft();
         AiPromptVersion version = getUsableLatestVersion();
         review.requestAgain(
@@ -129,7 +133,6 @@ public class PostAiReviewService {
                 .addKeyValue("promptVersion", version.getVersion())
                 .addKeyValue("model", version.getModel())
                 .addKeyValue("requestCount", review.getRequestCount())
-                .addKeyValue(LogFields.REQUEST_ID, currentRequestId.resolve())
                 .addKeyValue("created", created)
                 .log("AI 리뷰 요청");
     }

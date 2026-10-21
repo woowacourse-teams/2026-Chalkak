@@ -15,35 +15,55 @@ public class AiReviewGenerationException extends BusinessException {
     private final Attempt attempt;
     private final Duration retryAfter;
 
-    public AiReviewGenerationException(FailureType failureType) {
-        this(failureType, (Attempt) null);
+    /**
+     * 실패 유형만 담는다.
+     */
+    public static AiReviewGenerationException of(FailureType failureType) {
+        return new AiReviewGenerationException(
+                failureType,
+                null,
+                null
+        );
     }
 
-    public AiReviewGenerationException(FailureType failureType, Throwable cause) {
-        this(failureType);
-        initCause(cause);
-    }
-
-    public AiReviewGenerationException(
+    /**
+     * 응답 본문을 받은 뒤의 실패. 사용량·지연시간·응답 ID를 함께 담는다.
+     */
+    public static AiReviewGenerationException withAttempt(
             FailureType failureType,
             Attempt attempt
     ) {
-        this(
+        return new AiReviewGenerationException(
                 failureType,
                 attempt,
                 null
         );
     }
 
-    public AiReviewGenerationException(
+    /**
+     * 외부 서비스가 알려 준 최소 대기 시간을 함께 담는다.
+     */
+    public static AiReviewGenerationException withRetryAfter(
             FailureType failureType,
             Duration retryAfter
     ) {
-        this(
+        return new AiReviewGenerationException(
                 failureType,
                 null,
                 retryAfter
         );
+    }
+
+    /**
+     * 원인 예외를 보존한다. 메시지에는 원인 내용을 싣지 않는다.
+     */
+    public static AiReviewGenerationException withCause(
+            FailureType failureType,
+            Throwable cause
+    ) {
+        AiReviewGenerationException exception = of(failureType);
+        exception.initCause(cause);
+        return exception;
     }
 
     private AiReviewGenerationException(
