@@ -7,12 +7,16 @@ import com.chalkak.backend.aireview.domain.AiReview.FailureReason;
 import com.chalkak.backend.aireview.domain.AiReview.Invocation;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
 import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -23,7 +27,11 @@ class AiReviewTest {
     private static final Instant NOW = Instant.parse("2026-10-20T05:01:00Z");
     private static final Instant LEASE_END = Instant.parse("2026-10-20T05:03:00Z");
     private static final Instant RETRY_AT = Instant.parse("2026-10-20T05:01:40Z");
+    private static final Instant AGAIN_AT = Instant.parse("2026-10-20T06:00:00Z");
+    private static final UUID NEW_VERSION_ID = UUID
+            .fromString("019a0000-0000-7000-8000-000000000002");
     private static final int MAX_CLAIMS = 3;
+    private static final int MAX_REQUESTS = 3;
     private static final Invocation INVOCATION = new Invocation(
             1200,
             0,
@@ -372,6 +380,202 @@ class AiReviewTest {
         )).isFalse();
         assertThat(finished.getStatus()).isEqualTo(Status.COMPLETED);
         assertThat(finished.getErrorCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("실패한 리뷰를 다시 요청하면 대기로 되돌려 요청 횟수를 늘리고 회차 상태와 사용량을 비우며 버전을 다시 고정한다")
+    void requestAgain_failed_requeuesWithFreshRound() {
+        // Given
+        AiReview review = failedReview();
+
+        // When
+        review.requestAgain(NEW_VERSION_ID, AGAIN_AT);
+
+        // Then
+        assertThat(review.getStatus()).isEqualTo(Status.QUEUED);
+        assertThat(review.getRequestCount()).isEqualTo(2);
+        assertThat(review.getLastRequestedAt()).isEqualTo(AGAIN_AT);
+        assertThat(review.getRoundAttempt()).isZero();
+        assertThat(review.getPromptVersionId()).isEqualTo(NEW_VERSION_ID);
+        assertThat(review.getStartedAt()).isNull();
+        assertThat(review.getCompletedAt()).isNull();
+        assertThat(review.getErrorCode()).isNull();
+        assertThat(review.getNextAttemptAt()).isNull();
+        assertThat(review.getLeaseExpiresAt()).isNull();
+        assertThat(review.getInvocation()).isEqualTo(Invocation.NONE);
+    }
+
+    @Test
+    @DisplayName("다시 요청해도 시도 번호와 최초 요청 ID·시각은 그대로다")
+    void requestAgain_failed_keepsAttemptAndFirstRequest() {
+        // Given
+        AiReview review = failedReview();
+
+        // When
+        review.requestAgain(NEW_VERSION_ID, AGAIN_AT);
+
+        // Then
+        assertThat(review.getAttempt()).isEqualTo(1);
+        assertThat(review.getRequestId()).isEqualTo(ID);
+        assertThat(review.getRequestedAt()).isEqualTo(REQUESTED_AT);
+    }
+
+    @Test
+    @DisplayName("실패가 아닌 리뷰는 다시 요청할 수 없다")
+    void requestAgain_notFailed_throws() {
+        // Given
+        AiReview queued = queuedReview();
+        AiReview processing = processingReview();
+        AiReview completed = processingReview();
+        complete(completed, 1);
+
+        // When & Then
+        List<AiReview> reviews = List.of(
+                queued,
+                processing,
+                completed
+        );
+        for (AiReview review : reviews) {
+            Status before = review.getStatus();
+            assertThatThrownBy(() -> review.requestAgain(NEW_VERSION_ID, AGAIN_AT))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThat(review.getStatus()).isEqualTo(before);
+            assertThat(review.getRequestCount()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    @DisplayName("요청 횟수가 상한에 닿은 리뷰의 다시 요청은 400 업무 예외로 거절하고 아무것도 바꾸지 않는다")
+    void requestAgain_limitReached_throwsBusinessException() {
+        // Given
+        AiReview review = failedAfterRequests(MAX_REQUESTS);
+
+        // When & Then
+        assertThatThrownBy(() -> review.requestAgain(NEW_VERSION_ID, AGAIN_AT))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+                    assertThat(exception).hasMessage("더 이상 AI 리뷰를 다시 요청할 수 없습니다.");
+                });
+        assertThat(review.getStatus()).isEqualTo(Status.FAILED);
+        assertThat(review.getRequestCount()).isEqualTo(MAX_REQUESTS);
+        assertThat(review.getPromptVersionId()).isEqualTo(ID);
+        assertThat(review.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("요청 횟수가 남았으면 횟수 확인을 통과하고 상한에 닿으면 400 업무 예외다")
+    void validateRequestsLeft_byRequestCount() {
+        // When & Then
+        failedAfterRequests(MAX_REQUESTS - 1).validateRequestsLeft();
+        assertThatThrownBy(() -> failedAfterRequests(MAX_REQUESTS).validateRequestsLeft())
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+                    assertThat(exception).hasMessage("더 이상 AI 리뷰를 다시 요청할 수 없습니다.");
+                });
+    }
+
+    @Test
+    @DisplayName("실패한 리뷰만 실패 상태로 묻는다")
+    void isFailed_byStatus() {
+        // When & Then
+        assertThat(failedReview().isFailed()).isTrue();
+        assertThat(queuedReview().isFailed()).isFalse();
+        assertThat(processingReview().isFailed()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "QUEUED, 1, false",
+            "PROCESSING, 1, false",
+            "COMPLETED, 1, false",
+            "FAILED, 1, true",
+            "FAILED, 2, true",
+            "FAILED, 3, false"
+    })
+    @DisplayName("다시 요청할 수 있는지는 실패이고 요청 횟수가 상한 미만일 때만 참이다")
+    void canRequestAgain_byStatusAndRequestCount(
+            Status status,
+            int requestCount,
+            boolean expected
+    ) {
+        // Given
+        AiReview review = reviewInStatus(status, requestCount);
+
+        // When & Then
+        assertThat(review.getRequestCount()).isEqualTo(requestCount);
+        assertThat(review.canRequestAgain()).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("다시 요청한 뒤에는 이전 회차에서 시도하던 워커의 완료·실패·재시도를 반영하지 않는다")
+    void completeAndFailOrRetry_afterRequestAgain_ignoresPreviousRoundAttempt() {
+        // Given
+        AiReview review = failedReview();
+        review.requestAgain(NEW_VERSION_ID, AGAIN_AT);
+
+        // When & Then
+        assertThat(complete(review, 1)).isFalse();
+        assertThat(failOrRetry(
+                review,
+                1,
+                "TIMEOUT",
+                true
+        )).isFalse();
+        assertThat(review.getStatus()).isEqualTo(Status.QUEUED);
+
+        claim(review, AGAIN_AT);
+        assertThat(review.getAttempt()).isEqualTo(2);
+        assertThat(complete(review, 1)).isFalse();
+        assertThat(failOrRetry(
+                review,
+                1,
+                "TIMEOUT",
+                true
+        )).isFalse();
+        assertThat(review.getStatus()).isEqualTo(Status.PROCESSING);
+        assertThat(review.getResult()).isNull();
+    }
+
+    private AiReview failedReview() {
+        AiReview review = processingReview();
+        failOrRetry(
+                review,
+                1,
+                "INVALID_OUTPUT",
+                false
+        );
+        return review;
+    }
+
+    private AiReview failedAfterRequests(int requests) {
+        AiReview review = failedReview();
+        for (int count = 2; count <= requests; count++) {
+            review.requestAgain(ID, AGAIN_AT);
+            int attempt = review.getAttempt() + 1;
+            claim(review, AGAIN_AT);
+            failOrRetry(
+                    review,
+                    attempt,
+                    "INVALID_OUTPUT",
+                    false
+            );
+        }
+        return review;
+    }
+
+    private AiReview reviewInStatus(Status status, int requestCount) {
+        if (status == Status.QUEUED) {
+            return queuedReview();
+        }
+        if (status == Status.PROCESSING) {
+            return processingReview();
+        }
+        if (status == Status.COMPLETED) {
+            AiReview review = processingReview();
+            complete(review, 1);
+            return review;
+        }
+        return failedAfterRequests(requestCount);
     }
 
     private AiReview queuedReview() {

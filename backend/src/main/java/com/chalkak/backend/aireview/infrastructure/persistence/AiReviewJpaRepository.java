@@ -35,6 +35,10 @@ public interface AiReviewJpaRepository extends JpaRepository<AiReview, UUID> {
 
     Optional<AiReview> findByPostId(UUID postId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT review FROM AiReview review WHERE review.postId = :postId")
+    Optional<AiReview> findByPostIdForUpdate(@Param("postId") UUID postId);
+
     @Query(value = """
             SELECT * FROM ai_reviews
             WHERE (status = 'QUEUED' AND (next_attempt_at IS NULL OR next_attempt_at <= :now))

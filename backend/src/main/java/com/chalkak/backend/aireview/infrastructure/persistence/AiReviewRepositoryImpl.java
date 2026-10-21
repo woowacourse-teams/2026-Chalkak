@@ -34,6 +34,11 @@ public class AiReviewRepositoryImpl implements AiReviewRepository {
     }
 
     @Override
+    public Optional<AiReview> findByPostIdForUpdate(UUID postId) {
+        return jpaRepository.findByPostIdForUpdate(postId);
+    }
+
+    @Override
     public Optional<AiReview> findClaimableForUpdate(Instant now) {
         return jpaRepository.findClaimableForUpdate(now);
     }

@@ -100,6 +100,19 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("게시물의 리뷰를 잠가서 읽고 없으면 비어 있다")
+    void findByPostIdForUpdate_returnsReviewOfPost() {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+        entityManager.clear();
+
+        // When & Then
+        assertThat(reviewRepository.findByPostIdForUpdate(POST_ID))
+                .map(AiReview::getPostId).contains(POST_ID);
+        assertThat(reviewRepository.findByPostIdForUpdate(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
     @DisplayName("처리 중인데 임대 만료 시각이 없으면 CHECK 제약이 거절한다")
     void processingWithoutLease_isRejectedByCheckConstraint() {
         // When & Then

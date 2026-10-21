@@ -9,6 +9,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -689,6 +691,102 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(singleEventKeyValues("review_completed")).contains("queueWaitMs=\"10000\"");
     }
 
+    @Test
+    @DisplayName("다시 요청한 행을 가져가 처리하면 재고정된 프롬프트 버전으로 처리하고 완료 로그에도 그 버전을 남긴다")
+    void claimNextAndProcess_requestedAgain_usesRepinnedVersion() {
+        // Given
+        UUID reviewId = failedReview();
+        UUID newVersionId = fixture.insertPromptVersion(
+                2,
+                MODEL,
+                COMPATIBLE_SCHEMA
+        );
+        requestAgain(
+                reviewId,
+                newVersionId,
+                CLAIMED_AT.plusSeconds(600)
+        );
+        clock.set(CLAIMED_AT.plusSeconds(601));
+        doReturn(generation()).when(aiReviewGenerator).generate(any());
+
+        // When
+        Claim claim = service.claimNext().orElseThrow();
+        service.process(claim, () -> false);
+
+        // Then
+        assertThat(claim.version().getId()).isEqualTo(newVersionId);
+        assertThat(claim.attempt()).isEqualTo(2);
+        assertThat(claim.roundAttempt()).isEqualTo(1);
+        assertThat(findRow(reviewId)).containsEntry("status", "COMPLETED")
+                .containsEntry("request_count", 2);
+        assertThat(singleEventKeyValues("review_completed")).contains("promptVersion=\"2\"");
+    }
+
+    @Test
+    @DisplayName("다시 요청하기 전에 받은 Claim으로 늦게 완료하거나 실패를 반영해도 무시하고 stale 로그만 남긴다")
+    void process_claimFromBeforeRequestAgain_isStale() {
+        // Given
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+        Claim previous = service.claimNext().orElseThrow();
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(FailureType.INVALID_OUTPUT));
+        service.process(previous, () -> false);
+        requestAgain(
+                reviewId,
+                versionId,
+                CLAIMED_AT.plusSeconds(600)
+        );
+
+        // When
+        doReturn(generation()).when(aiReviewGenerator).generate(any());
+        service.process(previous, () -> false);
+        doThrow(new AiReviewGenerationException(FailureType.TIMEOUT))
+                .when(aiReviewGenerator).generate(any());
+        service.process(previous, () -> false);
+
+        // Then
+        assertThat(findRow(reviewId)).containsEntry("status", "QUEUED")
+                .containsEntry("request_count", 2)
+                .containsEntry("round_attempt", 0)
+                .containsEntry("attempt", 1)
+                .containsEntry("error_code", null)
+                .containsEntry("result", null);
+        assertThat(appender.list.stream()
+                .filter(event -> event.getKeyValuePairs().toString()
+                        .contains("event=\"review_stale_update\"")))
+                .hasSize(2);
+    }
+
+    @Test
+    @DisplayName("다시 요청한 회차의 종료 로그 시간은 마지막 요청 시각과 회차의 첫 가져감 기준이다")
+    void process_requestedAgain_logsTimesFromLastRequest() {
+        // Given
+        UUID reviewId = failedReview();
+        Instant requestedAgainAt = CLAIMED_AT.plusSeconds(600);
+        requestAgain(
+                reviewId,
+                versionId,
+                requestedAgainAt
+        );
+        clock.set(requestedAgainAt.plusSeconds(4));
+        doAnswer(invocation -> {
+            clock.advance(Duration.ofSeconds(21));
+            return generation();
+        }).when(aiReviewGenerator).generate(any());
+
+        // When
+        service.process(service.claimNext().orElseThrow(), () -> false);
+
+        // Then
+        assertThat(instant(findRow(reviewId), "started_at"))
+                .isEqualTo(requestedAgainAt.plusSeconds(4));
+        assertThat(singleEventKeyValues("review_completed")).contains(
+                "queueWaitMs=\"4000\"",
+                "latencyMs=\"21000\"",
+                "totalMs=\"25000\""
+        );
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("스레드가 interrupt됐거나 종료 중이면 생성이 실패해도 실패를 쓰지 않고 처리 중으로 남긴다")
@@ -792,6 +890,26 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                         "reason=\"UNEXPECTED_WHILE_PROCESSING\"",
                         "errorCode=\"IllegalStateException\""
                 );
+    }
+
+    private UUID failedReview() {
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(new AiReviewGenerationException(FailureType.INVALID_OUTPUT));
+        service.process(service.claimNext().orElseThrow(), () -> false);
+        assertThat(findRow(reviewId)).containsEntry("status", "FAILED");
+        return reviewId;
+    }
+
+    private void requestAgain(
+            UUID reviewId,
+            UUID promptVersionId,
+            Instant at
+    ) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> reviewRepository
+                .findByIdForUpdate(reviewId)
+                .orElseThrow()
+                .requestAgain(promptVersionId, at));
     }
 
     private UUID processQueuedReview() {

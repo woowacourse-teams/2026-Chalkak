@@ -271,6 +271,24 @@ public final class AiReviewFixture {
     }
 
     /**
+     * 첫 게시물의 실패 행을 넣는다. 사용자 요청을 requestCount번 했고 마지막 회차가 TIMEOUT으로 실패했으며 마지막 시도의
+     * 사용량이 남아 있다.
+     */
+    public UUID insertFailedReview(UUID promptVersionId, int requestCount) {
+        UUID id = insertReview(promptVersionId, "FAILED");
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET request_count = ?, input_tokens = 1200, output_tokens = 300,
+                            latency_ms = 21000, openai_response_id = 'resp_abc'
+                        WHERE id = ?
+                        """,
+                requestCount,
+                id
+        );
+        return id;
+    }
+
+    /**
      * 첫 게시물의 자동 재시도 대기 행을 넣는다. 한 번 시도해 TIMEOUT으로 실패했고 nextAttemptAt까지 기다린다.
      */
     public UUID insertRetryWaitingReview(UUID promptVersionId, Instant nextAttemptAt) {
