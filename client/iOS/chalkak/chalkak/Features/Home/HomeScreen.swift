@@ -13,6 +13,9 @@ struct HomeScreen: View {
     var bottomBarCompact: Binding<Bool> = .constant(false)
 
     @State private var scrollPosition = ScrollPosition()
+    @State private var feedbackPhase: HomeFeedbackPhase = .ready
+    @State private var isFeedbackSheetPresented = false
+    @State private var isFeedbackExpanded = false
     @State private var visibleBannerIDs: Set<Banner.ID> = []
 
     var body: some View {
@@ -49,6 +52,17 @@ struct HomeScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xl)
 
+                    if showsFeedback {
+                        HomeFeedbackCard(
+                            phase: feedbackPhase,
+                            isExpanded: isFeedbackExpanded,
+                            onStart: { isFeedbackSheetPresented = true },
+                            onToggleExpanded: { withAnimation(.easeInOut) { isFeedbackExpanded.toggle() } }
+                        )
+                        .padding(.horizontal, theme.spacing.screenHorizontal)
+                        .padding(.top, theme.spacing.lg)
+                    }
+
                     HomeWeeklyRecord(
                         days: viewModel.viewState.week,
                         status: viewModel.viewState.recordsStatus,
@@ -56,7 +70,7 @@ struct HomeScreen: View {
                         onRetry: { Task { await viewModel.refresh() } }
                     )
                     .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .padding(.top, theme.spacing.xxl)
+                    .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
 
                     HomeRankingRow(
                         title: "어제 랭킹",
@@ -144,6 +158,12 @@ struct HomeScreen: View {
             .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
                 scrollToTop()
             }
+            .onChange(of: viewModel.viewState.date) { _, _ in
+                resetFeedback()
+            }
+            .onChange(of: viewModel.viewState.hero) { _, _ in
+                resetFeedback()
+            }
             .onChange(of: bannerPaginationTrigger) { _, trigger in
                 guard trigger.canLoad else { return }
                 Task { await viewModel.loadMoreBanners() }
@@ -151,11 +171,53 @@ struct HomeScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
+        .sheet(isPresented: $isFeedbackSheetPresented) {
+            feedbackStartSheet
+                .presentationDetents([.height(Metrics.feedbackSheetHeight)])
+                .presentationDragIndicator(.visible)
+        }
+        .task(id: feedbackPhase) {
+            guard feedbackPhase == .processing else { return }
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            feedbackPhase = .completed
+        }
+    }
+
+    @ViewBuilder
+    private var feedbackStartSheet: some View {
+        let content = HomeFeedbackStartSheet(
+            onStart: {
+                isFeedbackSheetPresented = false
+                feedbackPhase = .processing
+            }
+        )
+
+        if ChalkakPlatformAppearance.usesLiquidGlass {
+            content
+        } else {
+            content
+                .presentationCornerRadius(theme.shapes.sheet)
+                .presentationBackground(theme.colors.surfaceElevated)
+        }
     }
 
     private var yesterday: Date {
         RecordMonth.calendar.date(byAdding: .day, value: -1, to: viewModel.viewState.date)
             ?? viewModel.viewState.date
+    }
+
+    private var showsFeedback: Bool {
+        if case let .photo(photo) = viewModel.viewState.hero {
+            return !photo.isPending
+        }
+        return false
+    }
+
+    private func resetFeedback() {
+        feedbackPhase = .ready
+        isFeedbackExpanded = false
+        isFeedbackSheetPresented = false
     }
 
     private var bannerPaginationTrigger: HomeBannerPaginationTrigger {
@@ -225,6 +287,7 @@ private struct HomeBannerPaginationTrigger: Equatable {
 
 private enum Metrics {
     static let topBarOpacity = 0.96
+    static let feedbackSheetHeight: CGFloat = 320
     static let bannerEndThreshold = 3
     static let minimumTouchHeight: CGFloat = 44
 }
