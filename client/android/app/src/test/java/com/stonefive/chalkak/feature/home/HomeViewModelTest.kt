@@ -340,6 +340,43 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `feedback start moves to processing and completes after mock duration`() = runTest {
+        val viewModel = createViewModel(FakeHomeRepository())
+        advanceUntilIdle()
+        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
+
+        viewModel.startFeedback()
+        assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
+        advanceTimeBy(HomeViewModel.MOCK_FEEDBACK_DURATION_MS - 1)
+        assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
+
+        viewModel.startFeedback()
+        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
+    }
+
+    @Test
+    fun `crossing KST midnight during feedback resets it for the new day`() = runTest {
+        var date = LocalDate.of(2026, 10, 10)
+        val viewModel = createViewModel(FakeHomeRepository(), dateProvider = { date })
+        advanceUntilIdle()
+        viewModel.onResume()
+        viewModel.startFeedback()
+
+        date = date.plusDays(1)
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(date, viewModel.uiState.value.date)
+        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
+    }
+
+    @Test
     fun `returning from upload refreshes and crossing KST midnight moves week`() = runTest {
         var date = LocalDate.of(2026, 10, 10)
         val repository = FakeHomeRepository()

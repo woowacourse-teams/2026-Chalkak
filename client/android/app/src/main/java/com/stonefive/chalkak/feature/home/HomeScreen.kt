@@ -15,19 +15,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +63,8 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.home.component.HomeFeedbackCard
+import com.stonefive.chalkak.feature.home.component.HomeFeedbackStartSheet
 import com.stonefive.chalkak.feature.home.component.HomeHeroCard
 import com.stonefive.chalkak.feature.home.component.HomeIssueSection
 import com.stonefive.chalkak.feature.home.component.HomeRankingRow
@@ -81,10 +90,14 @@ fun HomeScreen(
     onRetry: () -> Unit,
     onNotificationClick: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
+    onStartFeedback: () -> Unit,
     modifier: Modifier = Modifier,
     onLoadMoreBanners: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
+    // 날짜가 바뀌면 다른 사진의 카드이므로 펼침·시트 상태를 처음으로 되돌린다.
+    var isFeedbackExpanded by rememberSaveable(uiState.date) { mutableStateOf(false) }
+    var isFeedbackSheetVisible by rememberSaveable(uiState.date) { mutableStateOf(false) }
     val bottomBarState = rememberBottomBarScrollState()
     val interactionScope = rememberCoroutineScope()
     val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
@@ -158,6 +171,9 @@ fun HomeScreen(
                     onOpenFeed = onOpenFeed,
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
+                    isFeedbackExpanded = isFeedbackExpanded,
+                    onFeedbackStartClick = { isFeedbackSheetVisible = true },
+                    onFeedbackToggleExpanded = { isFeedbackExpanded = !isFeedbackExpanded },
                     onLoadMoreBanners = onLoadMoreBanners,
                     listState = listState,
                     bottomBarHeight = bottomBarHeight,
@@ -194,6 +210,53 @@ fun HomeScreen(
             )
         }
     }
+    if (isFeedbackSheetVisible) {
+        HomeFeedbackStartBottomSheet(
+            onStart = {
+                isFeedbackSheetVisible = false
+                onStartFeedback()
+            },
+            onDismiss = { isFeedbackSheetVisible = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeFeedbackStartBottomSheet(
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        // 화면 아래 끝과 좌우를 꽉 채우도록 위쪽 모서리만 둥글게 하고 기본 최대 너비(640dp) 제한을 푼다.
+        sheetMaxWidth = Dp.Unspecified,
+        shape = ChalkakTheme.shapes.sheet
+            .copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize),
+        containerColor = ChalkakTheme.colors.surfaceElevated,
+    ) {
+        HomeFeedbackStartSheet(
+            onStart = {
+                // 시트가 내려가는 애니메이션을 마친 뒤 닫힌 상태로 바꿔야 시트가 뚝 끊기지 않는다.
+                // 그 사이 날짜가 바뀌어 시트가 화면에서 사라지면 코루틴이 취소되어 이전 날짜의 분석을 시작하지 않는다.
+                scope.launch {
+                    sheetState.hide()
+                    onStart()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = ChalkakTheme.spacing.xl,
+                    top = ChalkakTheme.spacing.sm,
+                    end = ChalkakTheme.spacing.xl,
+                    bottom = ChalkakTheme.spacing.xl,
+                ),
+        )
+    }
 }
 
 private suspend fun LazyListState.animateScrollToTopSmoothly() {
@@ -211,6 +274,9 @@ private fun HomeContent(
     onOpenFeed: (Post) -> Unit,
     onRetry: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
+    isFeedbackExpanded: Boolean,
+    onFeedbackStartClick: () -> Unit,
+    onFeedbackToggleExpanded: () -> Unit,
     onLoadMoreBanners: () -> Unit,
     listState: LazyListState,
     bottomBarHeight: Dp,
@@ -282,8 +348,24 @@ private fun HomeContent(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
             }
+            if (uiState.showsFeedback) {
+                item {
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+                    HomeFeedbackCard(
+                        phase = uiState.feedbackPhase,
+                        isExpanded = isFeedbackExpanded,
+                        onStart = onFeedbackStartClick,
+                        onToggleExpanded = onFeedbackToggleExpanded,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                    )
+                }
+            }
             item {
-                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                Spacer(
+                    modifier = Modifier.height(
+                        if (uiState.showsFeedback) ChalkakTheme.spacing.xl else ChalkakTheme.spacing.xxl,
+                    ),
+                )
                 HomeWeeklyRecord(
                     days = uiState.week,
                     status = uiState.recordsStatus,
@@ -480,6 +562,7 @@ private fun HomeScreenPreview() {
             onRetry = {},
             onNotificationClick = {},
             onIssueClick = { _, _ -> },
+            onStartFeedback = {},
         )
     }
 }

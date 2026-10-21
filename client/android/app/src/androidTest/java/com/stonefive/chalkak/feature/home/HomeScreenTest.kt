@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.home
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -91,7 +92,7 @@ class HomeScreenTest {
             .assertHasNoClickAction()
         composeRule.onNodeWithTag(HOME_HERO_TEST_TAG).assertHasNoClickAction()
         screenshot("home-owned")
-        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(3)
         composeRule.onNodeWithText("5/7").assertIsDisplayed()
         composeRule.onNodeWithText("금", useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithText("토", useUnmergedTree = true).assertIsDisplayed()
@@ -99,6 +100,56 @@ class HomeScreenTest {
         screenshot("home-weekly")
         composeRule.onNodeWithContentDescription("이번 주 기록 더보기").performClick()
         assertEquals(1, records)
+    }
+
+    @Test
+    fun feedbackCardIsHiddenForPendingPhoto() {
+        showHome(readyState().copy(hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo), isPending = true)))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithContentDescription(FEEDBACK_READY_TITLE).assertDoesNotExist()
+    }
+
+    @Test
+    fun readyFeedbackOpensStartSheetAndStartsAnalysis() {
+        var starts = 0
+        showHome(approvedState(), onStartFeedback = { starts++ })
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithContentDescription(FEEDBACK_READY_TITLE).performClick()
+        composeRule.onNodeWithText("AI 피드백을 시작할까요?").assertIsDisplayed()
+        screenshot("home-feedback-sheet")
+        composeRule.onNodeWithText("분석 시작하기").performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, starts)
+        composeRule.onNodeWithText("AI 피드백을 시작할까요?").assertDoesNotExist()
+    }
+
+    @Test
+    fun processingFeedbackCannotBeOpened() {
+        showHome(approvedState().copy(feedbackPhase = HomeFeedbackPhase.Processing))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule
+            .onNodeWithContentDescription("AI 피드백이 진행중이에요")
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+    }
+
+    @Test
+    fun completedFeedbackExpandsShowsTipAndCollapses() {
+        showHome(approvedState().copy(feedbackPhase = HomeFeedbackPhase.Completed))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        val header = composeRule.onNodeWithContentDescription("AI 피드백이 완료되었어요")
+        header.performClick()
+        composeRule.onNodeWithText(FEEDBACK_HEADLINE).assertIsDisplayed()
+        screenshot("home-feedback-expanded")
+
+        composeRule.onNodeWithText("작가님의 해석이 돋보이는 작품이에요").performClick()
+        composeRule.onNodeWithText(FEEDBACK_TIP).assertIsDisplayed()
+        screenshot("home-feedback-tip")
+        composeRule.onNodeWithText("좋았던 점").performClick()
+        composeRule.onNodeWithText(FEEDBACK_TIP).assertDoesNotExist()
+
+        header.performClick()
+        composeRule.onNodeWithText(FEEDBACK_HEADLINE).assertDoesNotExist()
     }
 
     @Test
@@ -257,6 +308,7 @@ class HomeScreenTest {
         onFeed: (Post) -> Unit = {},
         onTab: (ChalkakBottomBarItem) -> Unit = {},
         onIssue: (String, String) -> Unit = { _, _ -> },
+        onStartFeedback: () -> Unit = {},
         onLoadMoreBanners: () -> Unit = {},
     ) {
         composeRule.setContent {
@@ -271,6 +323,7 @@ class HomeScreenTest {
                     onRetry = {},
                     onNotificationClick = {},
                     onIssueClick = onIssue,
+                    onStartFeedback = onStartFeedback,
                     onLoadMoreBanners = onLoadMoreBanners,
                 )
             }
@@ -290,6 +343,9 @@ class HomeScreenTest {
 }
 
 private val DATE = LocalDate.of(2026, 10, 8)
+private const val FEEDBACK_READY_TITLE = "이 사진, AI에게 피드백 받아보기"
+private const val FEEDBACK_HEADLINE = "건물의 크기와 높이 차이가 잘 비교되는 구도예요"
+private const val FEEDBACK_TIP = "구도 점수와 별개로, 주제 해석이 특별한 사진이라는 의미예요."
 
 private fun readyState() = HomeUiState(
     date = DATE,
@@ -301,6 +357,8 @@ private fun readyState() = HomeUiState(
     trending = HomeRankingState(HomeSectionStatus.Ready, samplePhotos().reversed()),
     isAuthenticated = true,
 )
+
+private fun approvedState() = readyState().copy(hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo)))
 
 private fun samplePhotos(): List<Post> = List(4) { index ->
     Post(

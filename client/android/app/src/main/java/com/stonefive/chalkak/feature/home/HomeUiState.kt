@@ -24,6 +24,7 @@ data class HomeUiState(
     val bannerLoadMoreError: Boolean = false,
     val isRefreshing: Boolean = false,
     val isAuthenticated: Boolean = false,
+    val feedbackPhase: HomeFeedbackPhase = HomeFeedbackPhase.Ready,
 )
 
 val HomeUiState.isInitialLoadComplete: Boolean
@@ -32,6 +33,25 @@ val HomeUiState.isInitialLoadComplete: Boolean
         recordsStatus != HomeSectionStatus.Loading &&
         yesterday.status != HomeSectionStatus.Loading &&
         trending.status != HomeSectionStatus.Loading
+
+// 피드백 카드는 오늘 올린 사진이 검수를 통과(승인)했을 때만 보인다. 검수 대기 사진과 사진이 없는 상태에서는 숨긴다.
+val HomeUiState.showsFeedback: Boolean
+    get() = (hero as? HomeHeroState.Photo)?.isPending == false
+
+/**
+ * 오늘 올린 승인 사진의 AI 피드백 진행 단계다. 홈의 피드백 카드가 이 값으로 제목과 동작을 바꾼다.
+ *
+ * - [Ready]: 아직 요청하지 않음. 카드를 누르면 시작 안내 시트가 열린다.
+ * - [Processing]: 분석 중. 카드를 눌러도 반응하지 않는다.
+ * - [Completed]: 결과가 준비됨. 카드를 눌러 결과를 펼치거나 접는다.
+ *
+ * 아직 서버 API가 없어 [HomeViewModel.startFeedback]이 일정 시간 뒤 [Completed]로 바꾸는 목업으로 동작한다.
+ */
+enum class HomeFeedbackPhase {
+    Ready,
+    Processing,
+    Completed,
+}
 
 enum class HomeSectionStatus {
     Loading,

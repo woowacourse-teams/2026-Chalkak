@@ -44,6 +44,7 @@ fun HomeRoute(
         onRetry = viewModel::refresh,
         onNotificationClick = onNotificationClick,
         onIssueClick = onIssueClick,
+        onStartFeedback = viewModel::startFeedback,
         modifier = modifier,
         onLoadMoreBanners = viewModel::loadMoreBanners,
     )
