@@ -28,3 +28,9 @@ COMMENT ON COLUMN ai_reviews.next_attempt_at IS
     '자동 재시도로 대기 중일 때 다시 가져갈 수 있는 시각. 이 시각 전에는 워커가 가져가지 않는다.';
 COMMENT ON COLUMN ai_reviews.last_requested_at IS
     '이번 회차의 사용자 요청 시각. 처음 요청 시각은 requested_at에 남는다.';
+
+-- 대기열 조회가 COALESCE(next_attempt_at, last_requested_at), id 순으로 정렬하므로 인덱스를 같은 식으로 바꿔 별도 정렬 없이 첫 행을 읽게 한다.
+DROP INDEX ix_ai_reviews_claimable;
+CREATE INDEX ix_ai_reviews_claimable
+    ON ai_reviews ((COALESCE(next_attempt_at, last_requested_at)), id)
+    WHERE status IN ('QUEUED', 'PROCESSING');
