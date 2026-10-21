@@ -35,14 +35,18 @@ final class PhotoUploadViewModel {
 
     typealias CameraImageSaver = @MainActor (UIImage) async -> PhotoLibrarySaveResult
     typealias CameraImageSaveFailureHandler = @MainActor (String) -> Void
+    typealias EditImagePreparer = @MainActor (Data) async -> UIImage?
 
     private let saveCameraImage: CameraImageSaver
+    private let prepareEditImage: EditImagePreparer
     private let onCameraImageSaveFailure: CameraImageSaveFailureHandler?
     private let topicDate: Date
     private let repository: PhotoUploadRepository
 
     private var creationTopic: PhotoUploadTopic?
     private var preparedImage: PhotoUploadPreparation?
+    private var selectedEditSession: PhotoEditSession?
+    private var editPreparationTask: Task<Void, Never>?
     private var imageGeneration = 0
     private var preparationTask: Task<Void, Never>?
     private var submissionTask: Task<Void, Never>?
@@ -55,9 +59,11 @@ final class PhotoUploadViewModel {
         initialState: PhotoUploadViewState? = nil,
         repository: PhotoUploadRepository? = nil,
         saveCameraImage: @escaping CameraImageSaver = { await PhotoLibraryImageSaver.save($0) },
-        onCameraImageSaveFailure: CameraImageSaveFailureHandler? = nil
+        onCameraImageSaveFailure: CameraImageSaveFailureHandler? = nil,
+        prepareEditImage: @escaping EditImagePreparer = { await PhotoImageDownsampler.downsampleInBackground(data: $0) }
     ) {
         self.saveCameraImage = saveCameraImage
+        self.prepareEditImage = prepareEditImage
         self.onCameraImageSaveFailure = onCameraImageSaveFailure
         self.topicDate = PhotoUploadDate.startOfDay(topicDate)
         self.viewState = initialState ?? PhotoUploadViewState()
@@ -82,6 +88,9 @@ final class PhotoUploadViewModel {
             publish(.openGallery)
         case .cameraClicked:
             publish(.openCamera)
+        case .selectedImageClicked:
+            guard let selectedEditSession else { return }
+            viewState.editRequest = PhotoUploadEditRequest(session: selectedEditSession)
         case let .captionChanged(caption):
             viewState.caption = caption.limited(to: Constants.captionMaxLength, using: .characters)
         case .submitClicked:
@@ -103,21 +112,59 @@ final class PhotoUploadViewModel {
         let generation = imageGeneration
         preparationTask?.cancel()
         preparedImage = nil
+        selectedEditSession = nil
+        viewState.canEditSelectedImage = false
         viewState.selectedImage = preview
         viewState.selectedImageData = data
         viewState.imagePreparationStatus = .preparing
         startImagePreparation(data: data, generation: generation)
     }
 
-    func selectCapturedImage(data: Data, preview: UIImage) async {
-        guard !viewState.isSubmitting, !data.isEmpty else {
+    /// 고르거나 찍은 사진을 편집할 수 있는 크기로 줄인 뒤 편집 화면을 띄운다.
+    func beginEditing(sourceData: Data) {
+        guard !viewState.isSubmitting, !sourceData.isEmpty else {
             showImageSelectionFailure()
             return
         }
 
-        selectImage(data: data, preview: preview)
-        // 화면을 나가거나 업로드에 실패해도 확정한 촬영 사진은 저장을 마친다.
-        let result = await saveCameraImage(preview)
+        editPreparationTask?.cancel()
+        let prepareEditImage = prepareEditImage
+        editPreparationTask = Task { [weak self] in
+            let image = await prepareEditImage(sourceData)
+            guard !Task.isCancelled, let self else { return }
+            self.editPreparationTask = nil
+            guard let image else {
+                self.showImageSelectionFailure()
+                return
+            }
+            self.viewState.editRequest = PhotoUploadEditRequest(session: PhotoEditSession(original: image))
+        }
+    }
+
+    func completeEditing(_ result: PhotoEditResult) {
+        guard viewState.editRequest != nil else { return }
+        viewState.editRequest = nil
+        // 업로드 URL이 만료되어 다시 인코딩할 때도 편집한 사진을 쓰도록 원본 대신 편집 결과를 넘긴다.
+        guard let data = result.image.jpegData(compressionQuality: 1) else {
+            showImageSelectionFailure()
+            return
+        }
+        selectImage(data: data, preview: result.image)
+        guard viewState.selectedImageData == data else { return }
+        selectedEditSession = result.session
+        viewState.canEditSelectedImage = true
+    }
+
+    /// 편집을 마치기 전에는 선택을 바꾸지 않으므로, 처음 고른 사진은 선택이 취소되고
+    /// 다시 편집하던 사진은 이전 결과가 유지된다.
+    func cancelEditing() {
+        viewState.editRequest = nil
+    }
+
+    /// 편집을 취소해도 촬영한 원본은 사진 앱에 저장한다. 편집 결과는 저장하지 않는다.
+    func saveCapturedImage(_ image: UIImage) async {
+        // 화면을 나가거나 업로드에 실패해도 촬영 사진은 저장을 마친다.
+        let result = await saveCameraImage(image)
 
         switch result {
         case .saved:
@@ -314,6 +361,9 @@ final class PhotoUploadViewModel {
 
     private func clearWork() {
         imageGeneration += 1
+        editPreparationTask?.cancel()
+        editPreparationTask = nil
+        selectedEditSession = nil
         preparationTask?.cancel()
         preparationTask = nil
         submissionTask?.cancel()
@@ -333,6 +383,7 @@ enum PhotoUploadAction: Equatable, Sendable {
     case backClicked
     case galleryClicked
     case cameraClicked
+    case selectedImageClicked
     case captionChanged(String)
     case submitClicked
     case messageShown(Int)
