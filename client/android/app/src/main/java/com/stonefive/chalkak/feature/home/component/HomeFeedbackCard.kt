@@ -82,11 +82,13 @@ fun HomeFeedbackCard(
     onToggleExpanded: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var isInterpretationTipVisible by rememberSaveable { mutableStateOf(false) }
+    var isTipRequested by rememberSaveable { mutableStateOf(false) }
     val showsDetail = phase == HomeFeedbackPhase.Completed && isExpanded
     LaunchedEffect(showsDetail) {
-        if (!showsDetail) isInterpretationTipVisible = false
+        if (!showsDetail) isTipRequested = false
     }
+    // 결과가 접히는 프레임에 아직 지워지지 않은 요청이 남아 있어도 툴팁과 닫기 오버레이를 그리지 않는다.
+    val isInterpretationTipVisible = showsDetail && isTipRequested
 
     Box(
         modifier = modifier
@@ -114,7 +116,7 @@ fun HomeFeedbackCard(
             ) {
                 FeedbackDetail(
                     isInterpretationTipVisible = isInterpretationTipVisible,
-                    onInterpretationBadgeClick = { isInterpretationTipVisible = !isInterpretationTipVisible },
+                    onInterpretationBadgeClick = { isTipRequested = !isTipRequested },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
@@ -134,7 +136,7 @@ fun HomeFeedbackCard(
                         interactionSource = null,
                         indication = null,
                         onClickLabel = "설명 닫기",
-                        onClick = { isInterpretationTipVisible = false },
+                        onClick = { isTipRequested = false },
                     ),
             )
         }

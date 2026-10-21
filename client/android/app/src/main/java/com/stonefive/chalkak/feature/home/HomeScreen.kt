@@ -241,7 +241,11 @@ private fun HomeFeedbackStartBottomSheet(
         HomeFeedbackStartSheet(
             onStart = {
                 // 시트가 내려가는 애니메이션을 마친 뒤 닫힌 상태로 바꿔야 시트가 뚝 끊기지 않는다.
-                scope.launch { sheetState.hide() }.invokeOnCompletion { onStart() }
+                // 그 사이 날짜가 바뀌어 시트가 화면에서 사라지면 코루틴이 취소되어 이전 날짜의 분석을 시작하지 않는다.
+                scope.launch {
+                    sheetState.hide()
+                    onStart()
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
