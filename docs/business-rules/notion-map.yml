@@ -81,6 +81,7 @@ rule_pages:
       주제 푸시 설정: [NOTIFICATION-009, NOTIFICATION-011]
       주제 푸시 발송과 화면 이동: [NOTIFICATION-010]
       관리자 공지: [NOTIFICATION-012, NOTIFICATION-013]
+      AI 리뷰 결과 알림: [NOTIFICATION-014]
   docs/business-rules/rules/ai-review.md:
     domain: AI 리뷰
     pages:
