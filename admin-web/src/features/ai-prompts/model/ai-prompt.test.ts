@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AiPromptVersionDetail } from "@/shared/api/contracts";
 import {
   checkMemo, checkPostId, checkSystemPrompt, checkUserPromptTemplate, draftFingerprint, draftFromVersion,
-  emptyDraft, failureTypeLabel, formatLatency, formatTokenCount, toCreateRequest, toVersionInput, validateDraft,
+  emptyDraft, failureTypeLabel, formatLatency, formatTokenCount, toCreateRequest, toPlainDecimal, toVersionInput, validateDraft,
   type AiPromptDraft,
 } from "./ai-prompt";
 
@@ -114,6 +114,36 @@ describe("AI prompt request mapping", () => {
       systemPrompt: "S", userPromptTemplate: "T", model: "gpt-6-luna", imageDetail: "LOW", maxOutputTokens: "6000",
       reasoningEffort: "", distinctivePerspectiveThreshold: "6.5", memo: "",
     });
+  });
+});
+
+describe("threshold round trip through a stored version", () => {
+  const versionWith = (threshold: number): AiPromptVersionDetail => ({
+    promptVersionId: "p", type: "PHOTO_REVIEW", version: 1, systemPrompt: "S", userPromptTemplate: "T", model: "gpt-6-luna",
+    parameters: { imageDetail: "HIGH", maxOutputTokens: 8000, reasoningEffort: null, distinctivePerspectiveThreshold: threshold },
+    outputSchemaVersion: "1", memo: null, createdByAdminId: "a", createdAt: "2026-10-20T00:00:00Z",
+  });
+
+  it("keeps a tiny threshold valid and numerically identical without exponent notation", () => {
+    const typed = { ...valid, distinctivePerspectiveThreshold: "0.0000001" };
+    expect(validateDraft(typed)).toEqual({});
+    const sent = toVersionInput(typed).parameters?.distinctivePerspectiveThreshold;
+    expect(sent).toBe(1e-7);
+
+    const loaded = draftFromVersion(versionWith(sent as number));
+    expect(loaded.distinctivePerspectiveThreshold).toBe("0.0000001");
+    expect(validateDraft({ ...loaded, systemPrompt: "S", model: "gpt-6-luna", userPromptTemplate: "T" })).toEqual({});
+    expect(toVersionInput({ ...loaded, systemPrompt: "S", userPromptTemplate: "T" }).parameters?.distinctivePerspectiveThreshold).toBe(1e-7);
+  });
+
+  it("formats numbers in plain decimal notation", () => {
+    expect(toPlainDecimal(7)).toBe("7");
+    expect(toPlainDecimal(7.5)).toBe("7.5");
+    expect(toPlainDecimal(0)).toBe("0");
+    expect(toPlainDecimal(10)).toBe("10");
+    expect(toPlainDecimal(1e-7)).toBe("0.0000001");
+    expect(toPlainDecimal(1.5e-10)).toBe("0.00000000015");
+    expect(toPlainDecimal(1.5e21)).toBe("1500000000000000000000");
   });
 });
 

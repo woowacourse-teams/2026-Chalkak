@@ -56,6 +56,20 @@ export function emptyDraft(): AiPromptDraft {
   };
 }
 
+// String(1e-7) is "1e-7", which parseThreshold rejects; expand the exponent by shifting the decimal point
+// instead of toFixed(), which would add binary noise. Assumes a finite, non-negative number.
+export function toPlainDecimal(value: number) {
+  const text = String(value);
+  const match = /^(\d+)(?:\.(\d+))?e([+-]\d+)$/.exec(text);
+  if (!match) return text;
+  const [, integer, fraction = "", exponent] = match;
+  const digits = integer + fraction;
+  const point = integer.length + Number(exponent);
+  if (point <= 0) return `0.${"0".repeat(-point)}${digits}`;
+  if (point >= digits.length) return digits + "0".repeat(point - digits.length);
+  return `${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
 // The memo is not copied: each version describes its own change.
 export function draftFromVersion(version: AiPromptVersionDetail): AiPromptDraft {
   return {
@@ -65,7 +79,7 @@ export function draftFromVersion(version: AiPromptVersionDetail): AiPromptDraft 
     imageDetail: version.parameters.imageDetail,
     maxOutputTokens: String(version.parameters.maxOutputTokens),
     reasoningEffort: version.parameters.reasoningEffort ?? "",
-    distinctivePerspectiveThreshold: String(version.parameters.distinctivePerspectiveThreshold),
+    distinctivePerspectiveThreshold: toPlainDecimal(version.parameters.distinctivePerspectiveThreshold),
     memo: "",
   };
 }

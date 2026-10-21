@@ -5,7 +5,7 @@ import { ApiError } from "@/shared/api/errors";
 import { ErrorState, LoadingSkeleton } from "@/shared/ui/feedback-states";
 import type { AiPromptVersionDetail } from "@/shared/api/contracts";
 import { useAiPromptVersion } from "../api/ai-prompt-hooks";
-import { AI_PROMPT_TYPE_LABEL, DEFAULTS, formatVersion } from "../model/ai-prompt";
+import { AI_PROMPT_TYPE_LABEL, DEFAULTS, formatVersion, toPlainDecimal } from "../model/ai-prompt";
 import common from "@/shared/ui/management.module.css";
 import styles from "./ai-prompts.module.css";
 
@@ -19,7 +19,7 @@ function Parameters({ version }: { version: AiPromptVersionDetail }) {
     <div><dt>이미지 상세도</dt><dd>{parameters.imageDetail}{isDefault(parameters.imageDetail, DEFAULTS.imageDetail)}</dd></div>
     <div><dt>최대 출력 토큰</dt><dd>{parameters.maxOutputTokens.toLocaleString()}{isDefault(parameters.maxOutputTokens, DEFAULTS.maxOutputTokens)}</dd></div>
     <div><dt>추론 강도</dt><dd>{parameters.reasoningEffort ?? "모델 기본값"}</dd></div>
-    <div><dt>독특한 시각 기준 점수</dt><dd>{parameters.distinctivePerspectiveThreshold}{isDefault(parameters.distinctivePerspectiveThreshold, DEFAULTS.distinctivePerspectiveThreshold)}</dd></div>
+    <div><dt>독특한 시각 기준 점수</dt><dd>{toPlainDecimal(parameters.distinctivePerspectiveThreshold)}{isDefault(parameters.distinctivePerspectiveThreshold, DEFAULTS.distinctivePerspectiveThreshold)}</dd></div>
   </dl>;
 }
 
