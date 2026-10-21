@@ -46,7 +46,8 @@ public final class AiReviewWorkerLog {
     public static void retryScheduled(
             AiReview review,
             Claim claim,
-            Duration retryDelay
+            Duration retryDelay,
+            boolean retryAfterUsed
     ) {
         LoggingEventBuilder event = event(
                 AI_REVIEW_LOG.atWarn(),
@@ -57,7 +58,8 @@ public final class AiReviewWorkerLog {
                 .addKeyValue("requestCount", review.getRequestCount())
                 .addKeyValue("promptVersion", claim.version().getVersion())
                 .addKeyValue("model", claim.version().getModel())
-                .addKeyValue("retryInMs", retryDelay.toMillis());
+                .addKeyValue("retryInMs", retryDelay.toMillis())
+                .addKeyValue("retryAfterUsed", retryAfterUsed);
         event = withOptionalFields(event, review);
         String openaiResponseId = review.getInvocation().openaiResponseId();
         if (openaiResponseId != null) {

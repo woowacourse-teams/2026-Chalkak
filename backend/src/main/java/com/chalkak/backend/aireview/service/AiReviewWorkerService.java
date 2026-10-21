@@ -8,6 +8,7 @@ import com.chalkak.backend.aireview.repository.AiPromptVersionRepository;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
+import com.chalkak.backend.aireview.service.AiReviewRetryBackoff.RetryDelay;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
@@ -95,18 +96,14 @@ public class AiReviewWorkerService {
             if (post.isEmpty()) {
                 applyFailure(
                         claim,
-                        FailureReason.POST_UNAVAILABLE.name(),
-                        false,
-                        Invocation.NONE
+                        Failure.internal(FailureReason.POST_UNAVAILABLE.name())
                 );
                 return;
             }
             if (!version.isRunnableWith(aiReviewGenerator::supportsModel)) {
                 applyFailure(
                         claim,
-                        FailureReason.PROMPT_VERSION_UNAVAILABLE.name(),
-                        false,
-                        Invocation.NONE
+                        Failure.internal(FailureReason.PROMPT_VERSION_UNAVAILABLE.name())
                 );
                 return;
             }
@@ -127,18 +124,19 @@ public class AiReviewWorkerService {
             handleGenerationFailure(
                     claim,
                     stopping,
-                    exception.getFailureType().name(),
-                    exception.getFailureType().isRetryable(),
-                    toInvocation(exception.findAttempt())
+                    new Failure(
+                            exception.getFailureType().name(),
+                            exception.getFailureType().isRetryable(),
+                            toInvocation(exception.findAttempt()),
+                            exception.findRetryAfter()
+                    )
             );
             return;
         } catch (RuntimeException exception) {
             handleGenerationFailure(
                     claim,
                     stopping,
-                    FailureReason.UNEXPECTED_ERROR.name(),
-                    false,
-                    Invocation.NONE
+                    Failure.internal(FailureReason.UNEXPECTED_ERROR.name())
             );
             return;
         }
@@ -194,9 +192,7 @@ public class AiReviewWorkerService {
     private void handleGenerationFailure(
             Claim claim,
             BooleanSupplier stopping,
-            String errorCode,
-            boolean retryable,
-            Invocation invocation
+            Failure failure
     ) {
         // interrupt로 끊긴 호출은 일반 실패처럼 올라오므로 어떤 처리보다 먼저 확인한다.
         if (Thread.currentThread().isInterrupted() || stopping.getAsBoolean()) {
@@ -205,9 +201,7 @@ public class AiReviewWorkerService {
         }
         applyFailure(
                 claim,
-                errorCode,
-                retryable,
-                invocation
+                failure
         );
     }
 
@@ -215,7 +209,7 @@ public class AiReviewWorkerService {
         Invocation invocation = toInvocation(Optional.of(generation.attempt()));
         apply(
                 claim,
-                Duration.ZERO,
+                RetryDelay.NONE,
                 review -> review.complete(
                         claim.attempt(),
                         generation.result(),
@@ -226,23 +220,21 @@ public class AiReviewWorkerService {
         );
     }
 
-    private void applyFailure(
-            Claim claim,
-            String errorCode,
-            boolean retryable,
-            Invocation invocation
-    ) {
+    private void applyFailure(Claim claim, Failure failure) {
         Instant now = clock.instant();
-        Duration delay = retryBackoff.delayAfter(claim.roundAttempt());
+        RetryDelay retryDelay = retryBackoff.delayAfter(
+                claim.roundAttempt(),
+                failure.retryAfter()
+        );
         apply(
                 claim,
-                delay,
+                retryDelay,
                 review -> review.failOrRetry(
                         claim.attempt(),
-                        errorCode,
-                        retryable,
-                        invocation,
-                        now.plus(delay),
+                        failure.errorCode(),
+                        failure.retryable(),
+                        failure.invocation(),
+                        now.plus(retryDelay.delay()),
                         maxClaims,
                         now
                 )
@@ -255,7 +247,7 @@ public class AiReviewWorkerService {
      */
     private void apply(
             Claim claim,
-            Duration retryDelay,
+            RetryDelay retryDelay,
             Predicate<AiReview> transition
     ) {
         AiReview applied;
@@ -281,7 +273,8 @@ public class AiReviewWorkerService {
             AiReviewWorkerLog.retryScheduled(
                     applied,
                     toClaim(applied, claim.version()),
-                    retryDelay
+                    retryDelay.delay(),
+                    retryDelay.retryAfterUsed()
             );
             return;
         }
@@ -316,6 +309,29 @@ public class AiReviewWorkerService {
                 review.getUserId(),
                 version
         );
+    }
+
+    /**
+     * 실패 한 건을 반영하는 데 필요한 값. 워커 자체 사유와 예상 못 한 예외는 재시도하지 않고 호출 결과도 없다.
+     *
+     * @param retryAfter
+     *            외부 서비스가 알려 준 최소 대기 시간
+     */
+    private record Failure(
+            String errorCode,
+            boolean retryable,
+            Invocation invocation,
+            Optional<Duration> retryAfter
+    ) {
+
+        private static Failure internal(String errorCode) {
+            return new Failure(
+                    errorCode,
+                    false,
+                    Invocation.NONE,
+                    Optional.empty()
+            );
+        }
     }
 
     /**

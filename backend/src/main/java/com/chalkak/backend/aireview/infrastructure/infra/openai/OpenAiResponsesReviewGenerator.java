@@ -30,12 +30,14 @@ import java.net.http.HttpTimeoutException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResourceAccessException;
@@ -59,6 +61,9 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private static final String STATUS_INCOMPLETE = "incomplete";
     private static final String STATUS_COMPLETED = "completed";
     private static final String STATUS_FAILED = "failed";
+    // 429 등 HTTP 오류 응답이 알려 주는 최소 대기 시간. 밀리초 헤더가 더 정확하므로 먼저 읽는다.
+    private static final String RETRY_AFTER_MS_HEADER = "retry-after-ms";
+    private static final String RETRY_AFTER_HEADER = "retry-after";
     private static final String RATE_LIMIT_ERROR_CODE = "rate_limit_exceeded";
     // status=failed의 error.code 중 정책 위반은 같은 입력을 다시 보내도 거절되므로 재시도 대상이 아니다.
     private static final Set<String> REFUSED_ERROR_CODES = Set.of(
@@ -215,8 +220,11 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                     .onStatus(
                             status -> !status.is2xxSuccessful(),
                             (httpRequest, response) -> {
+                                FailureType failureType = failureTypeOf(response);
                                 throw new AiReviewGenerationException(
-                                        failureTypeOf(response));
+                                        failureType,
+                                        retryAfterOf(failureType, response)
+                                );
                             })
                     .body(String.class);
         } catch (ResourceAccessException exception) {
@@ -354,6 +362,32 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             return BAD_REQUEST;
         }
         return UPSTREAM_ERROR;
+    }
+
+    /**
+     * 재시도하지 않는 유형은 기다려도 소용없으므로 헤더가 있어도 싣지 않는다. 날짜 형식의 retry-after는 OpenAI가 보내지 않아
+     * 읽지 않는다.
+     */
+    private Duration retryAfterOf(FailureType failureType, ClientHttpResponse response) {
+        if (!failureType.isRetryable()) {
+            return null;
+        }
+        HttpHeaders headers = response.getHeaders();
+        return parseDelay(headers.getFirst(RETRY_AFTER_MS_HEADER), ChronoUnit.MILLIS)
+                .or(() -> parseDelay(headers.getFirst(RETRY_AFTER_HEADER), ChronoUnit.SECONDS))
+                .orElse(null);
+    }
+
+    private Optional<Duration> parseDelay(String value, ChronoUnit unit) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        try {
+            long amount = Long.parseLong(value.strip());
+            return amount < 0 ? Optional.empty() : Optional.of(Duration.of(amount, unit));
+        } catch (NumberFormatException exception) {
+            return Optional.empty();
+        }
     }
 
     /**

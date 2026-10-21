@@ -3,6 +3,7 @@ package com.chalkak.backend.aireview.service;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -12,6 +13,7 @@ public class AiReviewGenerationException extends BusinessException {
 
     private final FailureType failureType;
     private final Attempt attempt;
+    private final Duration retryAfter;
 
     public AiReviewGenerationException(FailureType failureType) {
         this(failureType, (Attempt) null);
@@ -26,9 +28,33 @@ public class AiReviewGenerationException extends BusinessException {
             FailureType failureType,
             Attempt attempt
     ) {
+        this(
+                failureType,
+                attempt,
+                null
+        );
+    }
+
+    public AiReviewGenerationException(
+            FailureType failureType,
+            Duration retryAfter
+    ) {
+        this(
+                failureType,
+                null,
+                retryAfter
+        );
+    }
+
+    private AiReviewGenerationException(
+            FailureType failureType,
+            Attempt attempt,
+            Duration retryAfter
+    ) {
         super(ErrorCode.BUSINESS_ERROR, "AI 리뷰 생성에 실패했습니다. 유형: " + failureType);
         this.failureType = failureType;
         this.attempt = attempt;
+        this.retryAfter = retryAfter;
     }
 
     public FailureType getFailureType() {
@@ -40,6 +66,13 @@ public class AiReviewGenerationException extends BusinessException {
      */
     public Optional<Attempt> findAttempt() {
         return Optional.ofNullable(attempt);
+    }
+
+    /**
+     * 외부 서비스가 알려 준 최소 대기 시간. HTTP 오류 응답에 대기 시간 힌트가 있을 때만 값이 있다.
+     */
+    public Optional<Duration> findRetryAfter() {
+        return Optional.ofNullable(retryAfter);
     }
 
     /**

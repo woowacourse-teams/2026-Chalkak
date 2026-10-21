@@ -560,6 +560,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 "model=\"" + MODEL + "\"",
                 "errorCode=\"TIMEOUT\"",
                 "retryInMs=\"10000\"",
+                "retryAfterUsed=\"false\"",
                 "latencyMs=\"21000\"",
                 "inputTokens=\"1200\"",
                 "cachedInputTokens=\"0\"",
@@ -587,6 +588,46 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(findRow(reviewId)).containsEntry("status", "QUEUED");
         assertThat(singleEventKeyValues("review_retry_scheduled")).contains("retryInMs=\"10000\"");
+    }
+
+    @Test
+    @DisplayName("생성기가 Retry-After를 실어 보내면 백오프보다 길 때 그 값만큼 기다리고 로그에 적용 여부를 남긴다")
+    void process_rateLimitedWithRetryAfter_waitsForRetryAfter() {
+        // Given
+        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
+                FailureType.RATE_LIMITED, Duration.ofSeconds(45)));
+
+        // When
+        UUID reviewId = processQueuedReview();
+
+        // Then
+        Map<String, Object> row = findRow(reviewId);
+        assertThat(row).containsEntry("status", "QUEUED").containsEntry("error_code",
+                "RATE_LIMITED");
+        assertThat(instant(row, "next_attempt_at")).isEqualTo(CLAIMED_AT.plusSeconds(45));
+        assertThat(singleEventKeyValues("review_retry_scheduled")).contains(
+                "retryInMs=\"45000\"",
+                "retryAfterUsed=\"true\""
+        );
+    }
+
+    @Test
+    @DisplayName("Retry-After가 없거나 백오프보다 짧으면 백오프만큼 기다리고 retryAfterUsed는 false다")
+    void process_retryAfterNotDeciding_logsRetryAfterUsedFalse() {
+        // Given
+        given(aiReviewGenerator.generate(any())).willThrow(new AiReviewGenerationException(
+                FailureType.RATE_LIMITED, Duration.ofSeconds(3)));
+
+        // When
+        UUID reviewId = processQueuedReview();
+
+        // Then
+        assertThat(instant(findRow(reviewId), "next_attempt_at"))
+                .isEqualTo(CLAIMED_AT.plusSeconds(10));
+        assertThat(singleEventKeyValues("review_retry_scheduled")).contains(
+                "retryInMs=\"10000\"",
+                "retryAfterUsed=\"false\""
+        );
     }
 
     @Test
