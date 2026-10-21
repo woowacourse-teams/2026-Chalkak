@@ -32,11 +32,13 @@ import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
+import com.stonefive.chalkak.data.repository.BannerRepositoryImpl
 import com.stonefive.chalkak.data.repository.FeedbackRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
@@ -143,6 +145,10 @@ class AppContainer(context: Context) {
             signatureUploader = signatureUploader,
             sessionStore = sessionStore,
         )
+    }
+
+    val bannerRepository: BannerRepository by lazy {
+        BannerRepositoryImpl(networkModule.bannerApi, networkModule.apiRequestExecutor)
     }
 
     val feedbackRepository: FeedbackRepository by lazy {

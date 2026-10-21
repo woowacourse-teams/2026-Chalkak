@@ -45,5 +45,6 @@ fun HomeRoute(
         onNotificationClick = onNotificationClick,
         onIssueClick = onIssueClick,
         modifier = modifier,
+        onLoadMoreBanners = viewModel::loadMoreBanners,
     )
 }
