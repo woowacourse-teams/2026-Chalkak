@@ -9,13 +9,14 @@ struct HomeScreen: View {
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
-    var onIssueClick: () -> Void = {}
+    var onIssueClick: (URL) -> Void = { _ in }
     var bottomBarCompact: Binding<Bool> = .constant(false)
 
     @State private var scrollPosition = ScrollPosition()
     @State private var feedbackPhase: HomeFeedbackPhase = .ready
     @State private var isFeedbackSheetPresented = false
     @State private var isFeedbackExpanded = false
+    @State private var visibleBannerIDs: Set<Banner.ID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -93,11 +94,58 @@ struct HomeScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xxl)
 
-                    HomeIssueSection(onIssueClick: onIssueClick)
+                    if !viewModel.viewState.banners.isEmpty || viewModel.viewState.bannerStatus == .loading {
+                        Text("ISSUE")
+                            .font(theme.typography.headline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(theme.colors.textPrimary)
+                            .padding(.horizontal, theme.spacing.screenHorizontal)
+                            .padding(.top, theme.spacing.xxl)
+                            .padding(.bottom, theme.spacing.lg)
+
+                        ForEach(viewModel.viewState.banners) { banner in
+                            HomeIssueSection(banner: banner, onIssueClick: onIssueClick, showHeader: false)
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, theme.spacing.screenHorizontal)
+                                .padding(.bottom, theme.spacing.xxl)
+                                .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+                                    if isVisible {
+                                        visibleBannerIDs.insert(banner.id)
+                                    } else {
+                                        visibleBannerIDs.remove(banner.id)
+                                    }
+                                }
+                        }
+                    }
+
+                    if viewModel.viewState.bannerStatus == .loading && viewModel.viewState.banners.isEmpty {
+                        HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, theme.spacing.screenHorizontal)
+                    }
+
+                    if viewModel.viewState.isLoadingMoreBanners {
+                        ProgressView()
+                            .tint(theme.colors.actionPrimary)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityLabel("ISSUE 더 불러오는 중")
+                            .accessibilityIdentifier("home.issue.loadingMore")
+                    } else if viewModel.viewState.bannerLoadMoreError {
+                        Button {
+                            Task { await viewModel.loadMoreBanners() }
+                        } label: {
+                            Text("ISSUE를 불러오지 못했어요. 다시 시도")
+                                .font(theme.typography.subheadline)
+                                .foregroundStyle(theme.colors.textPrimary)
+                                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                         .padding(.horizontal, theme.spacing.screenHorizontal)
-                        .padding(.top, theme.spacing.xxl)
-                        .padding(.bottom, theme.spacing.xxl)
+                        .accessibilityIdentifier("home.issue.retry")
+                    }
                 }
+                .padding(.bottom, theme.spacing.xxl)
                 .scrollTargetLayout()
             }
             .feedZoomViewport(.home)
@@ -115,6 +163,10 @@ struct HomeScreen: View {
             }
             .onChange(of: viewModel.viewState.hero) { _, _ in
                 resetFeedback()
+            }
+            .onChange(of: bannerPaginationTrigger) { _, trigger in
+                guard trigger.canLoad else { return }
+                Task { await viewModel.loadMoreBanners() }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -168,6 +220,18 @@ struct HomeScreen: View {
         isFeedbackSheetPresented = false
     }
 
+    private var bannerPaginationTrigger: HomeBannerPaginationTrigger {
+        let state = viewModel.viewState
+        let isNearEnd = state.banners.suffix(Metrics.bannerEndThreshold)
+            .contains { visibleBannerIDs.contains($0.id) }
+        return HomeBannerPaginationTrigger(
+            page: state.bannerCurrentPage,
+            count: state.banners.count,
+            canLoad: isNearEnd && state.bannerHasNext && state.bannerStatus == .ready
+                && !state.isLoadingMoreBanners && !state.bannerLoadMoreError && !state.isRefreshing
+        )
+    }
+
     private func scrollToTop() {
         Task { @MainActor in
             await Task.yield()
@@ -215,9 +279,17 @@ private enum HomeScrollTarget {
     static let top = "home-scroll-top"
 }
 
+private struct HomeBannerPaginationTrigger: Equatable {
+    let page: Int
+    let count: Int
+    let canLoad: Bool
+}
+
 private enum Metrics {
     static let topBarOpacity = 0.96
     static let feedbackSheetHeight: CGFloat = 320
+    static let bannerEndThreshold = 3
+    static let minimumTouchHeight: CGFloat = 44
 }
 
 extension Date {

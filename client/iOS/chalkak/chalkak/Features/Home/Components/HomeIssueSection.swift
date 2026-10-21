@@ -2,49 +2,60 @@ import SwiftUI
 
 struct HomeIssueSection: View {
     @Environment(\.chalkakTheme) private var theme
-    var onIssueClick: () -> Void
+    let banner: Banner?
+    var onIssueClick: (URL) -> Void
+    var showHeader = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
-            Text("ISSUE")
-                .font(theme.typography.headline)
-                .fontWeight(.bold)
-                .foregroundStyle(theme.colors.textPrimary)
-
-            Button(action: onIssueClick) {
-                VStack(alignment: .leading, spacing: theme.spacing.lg) {
-                    theme.colors.surfaceElevated
-                        .aspectRatio(Metrics.imageAspectRatio, contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                        .overlay {
-                            GeometryReader { geometry in
-                                ChalkakImage(
-                                    source: .asset("issue_beta_thanks"),
-                                    contentDescription: nil,
-                                    contentMode: .fill
-                                )
-                                .frame(width: geometry.size.width, height: geometry.size.height)
-                                .clipped()
-                            }
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: theme.shapes.large))
-
-                    VStack(alignment: .leading, spacing: theme.spacing.sm) {
-                        Text("함께 만들어주신 찰캌")
-                            .font(theme.typography.subheadline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(theme.colors.textPrimary)
-
-                        Text("베타테스트에 함께해주셔서 감사합니다")
-                            .font(theme.typography.caption)
-                            .foregroundStyle(theme.colors.textSecondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            if showHeader {
+                Text("ISSUE")
+                    .font(theme.typography.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(theme.colors.textPrimary)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("함께 만들어주신 찰캌")
+
+            if let banner {
+                Button(action: { onIssueClick(banner.webViewURL) }) {
+                    VStack(alignment: .leading, spacing: theme.spacing.lg) {
+                        theme.colors.surfaceElevated
+                            .aspectRatio(Metrics.imageAspectRatio, contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                            .overlay {
+                                GeometryReader { geometry in
+                                    ChalkakImage(
+                                        source: .remote(banner.thumbnailURL),
+                                        contentDescription: nil,
+                                        contentMode: .fill
+                                    )
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .clipped()
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: theme.shapes.large))
+
+                        VStack(alignment: .leading, spacing: theme.spacing.sm) {
+                            Text(banner.title)
+                                .font(theme.typography.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(theme.colors.textPrimary)
+
+                            Text(banner.subtitle)
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.textSecondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(banner.title)
+            } else {
+                theme.colors.surfaceElevated
+                    .aspectRatio(Metrics.imageAspectRatio, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: theme.shapes.large))
+                    .accessibilityLabel("배너 불러오는 중")
+            }
         }
     }
 }
@@ -54,7 +65,7 @@ private enum Metrics {
 }
 
 #Preview("Issue Section", traits: .sizeThatFitsLayout) {
-    HomeIssueSection(onIssueClick: {})
+    HomeIssueSection(banner: HomePreviewData.banner, onIssueClick: { _ in })
         .padding()
         .chalkakTheme(.light)
 }

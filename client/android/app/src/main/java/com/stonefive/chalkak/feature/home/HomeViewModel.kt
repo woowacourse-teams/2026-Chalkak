@@ -16,6 +16,7 @@ import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -41,11 +42,13 @@ class HomeViewModel(
     private val repository: PostRepository,
     private val uploadEntryRepository: PhotoUploadEntryRepository,
     private val sessionState: StateFlow<UserSessionState>,
+    private val bannerRepository: BannerRepository,
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
+    private var bannerLoadMoreJob: Job? = null
     private var hasBeenPresented = false
     private val isPreloadingEnabled = MutableStateFlow(false)
     private val _isReadyForInitialDisplay = MutableStateFlow(false)
@@ -61,11 +64,13 @@ class HomeViewModel(
 
                         session == UserSessionState.SignedOut -> {
                             loadJob?.cancel()
+                            bannerLoadMoreJob?.cancel()
                             _uiState.value = HomeUiState(date = dateProvider())
                         }
 
                         else -> {
                             loadJob?.cancel()
+                            bannerLoadMoreJob?.cancel()
                             _uiState.value = HomeUiState(date = dateProvider())
                         }
                     }
@@ -108,21 +113,79 @@ class HomeViewModel(
         showRefreshIndicator: Boolean = false,
     ) {
         loadJob?.cancel()
+        bannerLoadMoreJob?.cancel()
         val date = dateProvider()
         val authenticated = sessionState.value is UserSessionState.Authenticated
         val previous = _uiState.value
         _uiState.value = if (reset || previous.date != date) {
             HomeUiState(date = date, isAuthenticated = authenticated)
         } else {
-            previous.copy(isRefreshing = showRefreshIndicator, isAuthenticated = authenticated)
+            previous.copy(
+                isRefreshing = showRefreshIndicator,
+                isAuthenticated = authenticated,
+                bannerStatus = HomeSectionStatus.Loading,
+                isLoadingMoreBanners = false,
+                bannerLoadMoreError = false,
+            )
         }
         loadJob = viewModelScope.launch {
             coroutineScope {
                 launch { loadTodayRanking(date) }
                 launch { loadYesterdayRanking(date.minusDays(1)) }
                 launch { loadPersonalContent(date, authenticated) }
+                launch { loadBanner() }
             }
             _uiState.update { it.copy(isRefreshing = false) }
+        }
+    }
+
+    private suspend fun loadBanner() {
+        val result = request { bannerRepository.getBanners(page = 1, pageSize = BANNER_PAGE_SIZE) }
+        _uiState.update { state ->
+            when (result) {
+                is HomeResult.Success -> state.copy(
+                    banners = result.value.banners
+                        .distinctBy { it.id },
+                    bannerStatus = HomeSectionStatus.Ready,
+                    bannerCurrentPage = result.value.currentPage,
+                    bannerHasNext = result.value.hasNext && result.value.banners
+                        .isNotEmpty(),
+                )
+
+                is HomeResult.Failure -> state.copy(bannerStatus = HomeSectionStatus.Error)
+            }
+        }
+    }
+
+    fun loadMoreBanners() {
+        val state = _uiState.value
+        if (!sessionState.value.canLoadHome() ||
+            state.bannerStatus != HomeSectionStatus.Ready ||
+            !state.bannerHasNext || state.isRefreshing || state.isLoadingMoreBanners
+        ) {
+            return
+        }
+        val nextPage = state.bannerCurrentPage + 1
+        _uiState.update { it.copy(isLoadingMoreBanners = true, bannerLoadMoreError = false) }
+        bannerLoadMoreJob = viewModelScope.launch {
+            val result = request { bannerRepository.getBanners(page = nextPage, pageSize = BANNER_PAGE_SIZE) }
+            _uiState.update { current ->
+                when (result) {
+                    is HomeResult.Success -> current.copy(
+                        banners = (current.banners + result.value.banners).distinctBy { it.id },
+                        bannerCurrentPage = result.value.currentPage,
+                        bannerHasNext = result.value.hasNext && result.value.banners
+                            .isNotEmpty() &&
+                            result.value.currentPage >= nextPage,
+                        isLoadingMoreBanners = false,
+                    )
+
+                    is HomeResult.Failure -> current.copy(
+                        isLoadingMoreBanners = false,
+                        bannerLoadMoreError = true,
+                    )
+                }
+            }
         }
     }
 
@@ -270,6 +333,7 @@ class HomeViewModel(
 
     companion object {
         private const val HOME_PRELOAD_MAX_WAIT_MS = 700L
+        private const val BANNER_PAGE_SIZE = 10
 
         val Factory = viewModelFactory {
             initializer {
@@ -278,6 +342,7 @@ class HomeViewModel(
                     repository = application.appContainer.postRepository,
                     uploadEntryRepository = application.appContainer.photoUploadEntryRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
+                    bannerRepository = application.appContainer.bannerRepository,
                 )
             }
         }

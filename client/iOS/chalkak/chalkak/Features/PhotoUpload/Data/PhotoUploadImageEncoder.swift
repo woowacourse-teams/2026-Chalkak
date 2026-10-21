@@ -1,5 +1,4 @@
 import Foundation
-import ImageIO
 import SDWebImageWebPCoder
 import UIKit
 
@@ -40,36 +39,15 @@ enum PhotoUploadImageEncoder {
         compress: @Sendable (UIImage, Double) -> Data?
     ) throws -> Data {
         try Task.checkCancellation()
-        guard let source = CGImageSourceCreateWithData(sourceData as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? Int,
-              let height = properties[kCGImagePropertyPixelHeight] as? Int,
-              width > 0, height > 0
-        else {
-            throw PhotoUploadImageEncodingError.invalidSource
-        }
-
-        let longEdge = max(width, height)
-        var sampleSize = 1
-        while longEdge / sampleSize > Constants.initialMaxLongEdge {
-            sampleSize *= 2
-        }
-        let sampledLongEdge = max(1, Int(ceil(Double(longEdge) / Double(sampleSize))))
-        guard let image = CGImageSourceCreateThumbnailAtIndex(
-            source,
-            0,
-            [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: sampledLongEdge,
-            ] as CFDictionary
+        guard var candidate = PhotoImageDownsampler.downsample(
+            data: sourceData,
+            maxLongEdge: Constants.initialMaxLongEdge
         )
         else {
             throw PhotoUploadImageEncodingError.invalidSource
         }
 
         try Task.checkCancellation()
-        var candidate = UIImage(cgImage: image, scale: 1, orientation: .up)
 
         for round in 0...Constants.maxRescaleRounds {
             for quality in Constants.qualityLadder {
@@ -127,7 +105,7 @@ enum PhotoUploadImageEncoder {
     }
 
     private enum Constants {
-        nonisolated static let initialMaxLongEdge = 4_096
+        nonisolated static let initialMaxLongEdge = PhotoImageDownsampler.maxLongEdge
         nonisolated static let maxRescaleRounds = 3
         nonisolated static let qualityLadder = [0.9, 0.8, 0.6, 0.4]
         nonisolated static let encodingMethod = 0
