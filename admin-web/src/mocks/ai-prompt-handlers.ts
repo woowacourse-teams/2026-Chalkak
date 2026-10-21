@@ -23,7 +23,7 @@ export const aiPromptFixtures: AiPromptVersionDetail[] = [
     systemPrompt: "당신은 사진 리뷰어입니다.\n구도와 주제 표현을 10점 만점으로 평가하고, 다정한 어조로 한 문단의 피드백을 작성하세요.",
     userPromptTemplate: '{"주제": "{{topicTitle}}"}', model: "gpt-6.1-sol",
     parameters: { imageDetail: "HIGH", maxOutputTokens: 8000, reasoningEffort: "LOW", distinctivePerspectiveThreshold: 7 },
-    outputSchemaVersion: "1", memo: "피드백 어조를 부드럽게 조정", createdByAdminId: adminId, createdAt: "2026-10-20T01:00:00Z",
+    outputSchemaVersion: "2", memo: "피드백 어조를 부드럽게 조정", createdByAdminId: adminId, createdAt: "2026-10-20T01:00:00Z",
   },
   {
     promptVersionId: "cccccccc-cccc-4ccc-8ccc-cccccccccc01", type: "PHOTO_REVIEW", version: 1,
@@ -84,7 +84,12 @@ function previewResult(body: Body, failureType: AiPromptFailureType | undefined)
       overallScore: output.compositionScore,
       criteria: [{ key: "COMPOSITION", label: "구도", score: output.compositionScore }],
       distinctivePerspective: output.themeExpressionScore >= (threshold as number),
-      feedback: "빛이 번지는 방향을 따라 시선이 자연스럽게 흐르는 사진이에요.\n주제를 한 걸음 더 가까이에서 담아 보면 이야기가 더 또렷해질 거예요.",
+      feedback: {
+        summary: "건물의 크기와 높이 차이가 잘 비교되는 구도예요",
+        strength: "아래쪽 계단과 겹겹이 쌓인 집들, 위쪽 아파트가 한 화면에 같이 담겼어요.",
+        weakness: "맨 아래 담장과 검은 옥상이 골목의 흐름을 끊어요.",
+        suggestion: "왼쪽 계단 입구와 붉은 도로는 남기면서 맨 아래 담장이 덜 나오게 담아보세요.",
+      },
     },
     output, usage: { inputTokens: 1450, cachedInputTokens: null, outputTokens: 620, reasoningTokens: 410 },
     latencyMs: 4200, responseId: "resp_mock_succeeded",
@@ -132,7 +137,7 @@ export function createAiPromptHandlers(
           reasoningEffort: (parameters.reasoningEffort as never) ?? null,
           distinctivePerspectiveThreshold: (parameters.distinctivePerspectiveThreshold as number) ?? DEFAULTS.distinctivePerspectiveThreshold,
         },
-        outputSchemaVersion: "1", memo: typeof body.memo === "string" && body.memo.trim() ? body.memo.trim() : null,
+        outputSchemaVersion: "2", memo: typeof body.memo === "string" && body.memo.trim() ? body.memo.trim() : null,
         createdByAdminId: adminId, createdAt: new Date().toISOString(),
       };
       versions.unshift(version);

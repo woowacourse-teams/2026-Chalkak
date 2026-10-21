@@ -293,6 +293,13 @@ export type AiPromptFailureType =
   | "TIMEOUT" | "RATE_LIMITED" | "QUOTA_EXCEEDED" | "UPSTREAM_ERROR"
   | "BAD_REQUEST" | "REFUSED" | "INCOMPLETE" | "INVALID_OUTPUT";
 
+export interface AiPromptPreviewFeedback {
+  summary: string;
+  strength: string;
+  weakness: string;
+  suggestion: string;
+}
+
 export interface AiPromptPreviewResponse {
   succeeded: boolean;
   failureType: AiPromptFailureType | null;
@@ -301,7 +308,8 @@ export interface AiPromptPreviewResponse {
     overallScore: number;
     criteria: { key: string; label: string; score: number }[];
     distinctivePerspective: boolean;
-    feedback: string;
+    // 백엔드 #731 배포 전 응답은 문자열이다. 배포 후 `| string`과 화면의 문자열 분기를 제거한다.
+    feedback: AiPromptPreviewFeedback | string;
   } | null;
   // Raw model scores, shown for tuning the distinctive-perspective threshold.
   output: { compositionScore: number; themeExpressionScore: number } | null;

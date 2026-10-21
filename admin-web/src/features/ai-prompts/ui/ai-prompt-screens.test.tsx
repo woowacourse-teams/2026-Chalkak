@@ -36,7 +36,7 @@ describe("AI prompt version list", () => {
     expect(within(rows[0]).getByText("최신")).toBeInTheDocument();
     expect(within(rows[0]).getByText("피드백 어조를 부드럽게 조정")).toBeInTheDocument();
     expect(within(rows[0]).getByText("gpt-6.1-sol")).toBeInTheDocument();
-    expect(within(rows[0]).getByText("v1", { selector: "td:nth-child(3)" })).toBeInTheDocument();
+    expect(within(rows[0]).getByText("v2", { selector: "td:nth-child(3)" })).toBeInTheDocument();
     expect(within(rows[1]).queryByText("최신")).not.toBeInTheDocument();
     expect(screen.getByText(/PHOTO_REVIEW/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "새 버전 만들기" })).toHaveAttribute("href", "/ai-prompts/new");
@@ -115,6 +115,12 @@ async function runPreview() {
   fireEvent.click(screen.getByRole("button", { name: "미리보기 실행" }));
   return screen.findByRole("region", { name: "미리보기 결과" });
 }
+const FEEDBACK = {
+  summary: "건물의 크기와 높이 차이가 잘 비교되는 구도예요",
+  strength: "아래쪽 계단과 겹겹이 쌓인 집들, 위쪽 아파트가 한 화면에 같이 담겼어요.",
+  weakness: "맨 아래 담장과 검은 옥상이 골목의 흐름을 끊어요.",
+  suggestion: "왼쪽 계단 입구와 붉은 도로는 남기면서 맨 아래 담장이 덜 나오게 담아보세요.",
+};
 const createButton = () => screen.getByRole("button", { name: "버전 만들기" });
 
 describe("AI prompt form", () => {
@@ -188,7 +194,7 @@ describe("AI prompt form", () => {
       posted(await request.json());
       return HttpResponse.json({
         succeeded: true, failureType: null, retryable: null,
-        result: { overallScore: 8.2, criteria: [{ key: "COMPOSITION", label: "구도", score: 8.2 }], distinctivePerspective: true, feedback: "첫 줄\n둘째 줄" },
+        result: { overallScore: 8.2, criteria: [{ key: "COMPOSITION", label: "구도", score: 8.2 }], distinctivePerspective: true, feedback: FEEDBACK },
         output: { compositionScore: 8.2, themeExpressionScore: 7.4 },
         usage: { inputTokens: 1450, cachedInputTokens: null, outputTokens: 620, reasoningTokens: 410 }, latencyMs: 4200, responseId: "resp_1",
       });
@@ -210,13 +216,30 @@ describe("AI prompt form", () => {
     expect(within(result).getByText("종합 점수").nextSibling).toHaveTextContent("8.2");
     expect(within(result).getByText("구도").nextSibling).toHaveTextContent("8.2");
     expect(within(result).getByText("독특한 시각").nextSibling).toHaveTextContent("예");
-    expect(within(result).getByText(/첫 줄/).textContent).toBe("첫 줄\n둘째 줄");
+    expect(within(result).getByRole("heading", { name: FEEDBACK.summary })).toBeInTheDocument();
+    expect(within(result).getByText("좋았던 점").nextSibling).toHaveTextContent(FEEDBACK.strength);
+    expect(within(result).getByText("아쉬운 점").nextSibling).toHaveTextContent(FEEDBACK.weakness);
+    expect(within(result).getByText("다음엔 이렇게").nextSibling).toHaveTextContent(FEEDBACK.suggestion);
     expect(within(result).getByText("모델 원점수 · 주제 표현").nextSibling).toHaveTextContent("7.4");
     expect(within(result).getByText("입력 토큰").nextSibling).toHaveTextContent("1,450토큰");
     expect(within(result).getByText("캐시된 입력 토큰").nextSibling).toHaveTextContent("미보고");
     expect(within(result).getByText("응답 시간").nextSibling).toHaveTextContent("4.2초");
     expect(within(result).getByText("응답 ID").nextSibling).toHaveTextContent("resp_1");
     expect(createButton()).toBeEnabled();
+  });
+
+  it("still shows a plain-string feedback from a backend that has not deployed the sectioned format", async () => {
+    server.use(http.post("*/api/v1/admin/ai-prompt-previews", () => HttpResponse.json({
+      succeeded: true, failureType: null, retryable: null,
+      result: { overallScore: 8.2, criteria: [{ key: "COMPOSITION", label: "구도", score: 8.2 }], distinctivePerspective: true, feedback: "첫 줄\n둘째 줄" },
+      output: { compositionScore: 8.2, themeExpressionScore: 7.4 },
+      usage: null, latencyMs: 4200, responseId: "resp_legacy",
+    })));
+    mount(<AiPromptFormScreen />);
+    fillDraft();
+    const result = await runPreview();
+    expect(within(result).getByText(/첫 줄/).textContent).toBe("첫 줄\n둘째 줄");
+    expect(within(result).queryByText("좋았던 점")).not.toBeInTheDocument();
   });
 
   it.each([
