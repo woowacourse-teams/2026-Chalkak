@@ -71,18 +71,21 @@ class PostAiReviewOpenApiTest extends IntegrationTestSupport {
                         .value(4))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.status.enum")
                         .value(containsInAnyOrder(
+                                "NONE",
                                 "PROCESSING",
                                 "COMPLETED",
                                 "FAILED"
                         )))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.requestedAt")
                         .exists())
+                .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.requestedAt.type")
+                        .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.completedAt")
                         .exists())
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.result['$ref']")
                         .value("#/components/schemas/PostAiReviewResult"))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.required")
-                        .value(containsInAnyOrder("status", "requestedAt")))
+                        .value(containsInAnyOrder("status")))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.length()").value(4))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.overallScore.type")
                         .value("number"))

@@ -29,7 +29,8 @@ class ReviewResultTest {
     @CsvSource({
             "PROCESSING, true",
             "COMPLETED, false",
-            "FAILED, false"
+            "FAILED, false",
+            "NONE, false"
     })
     @DisplayName("처리 중 상태일 때만 진행 중이다")
     void isInProgress_byStatus(ApiStatus status, boolean expected) {
