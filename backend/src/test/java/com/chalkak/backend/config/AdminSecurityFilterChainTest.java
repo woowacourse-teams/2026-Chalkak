@@ -141,7 +141,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @MethodSource("protectedAdminMemberEndpoints")
-    @DisplayName("모든 관리자 API는 회원을 거절하고 주제 푸시 설정·공지는 정상·정지·탈퇴 회원을 거절한다")
+    @DisplayName("모든 관리자 API는 회원을 거절하고 주제 푸시 설정·공지·리마인더는 정상·정지·탈퇴 회원을 거절한다")
     void adminEndpoints_memberState_returnsForbidden(
             String method,
             String path,
@@ -373,7 +373,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/notices"),
                 Arguments.of("GET", "/api/v1/admin/notices/" + id),
                 Arguments.of("PUT", "/api/v1/admin/notices/" + id),
-                Arguments.of("DELETE", "/api/v1/admin/notices/" + id)
+                Arguments.of("DELETE", "/api/v1/admin/notices/" + id),
+                Arguments.of("POST", "/api/v1/admin/reminders")
         );
     }
 
@@ -387,7 +388,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                     || path.startsWith("/api/v1/admin/ai-prompt-previews")
                     || path.startsWith("/api/v1/admin/ai-prompt-versions")
                     || path.startsWith("/api/v1/admin/notices")
-                    || path.startsWith("/api/v1/admin/banners")) {
+                    || path.startsWith("/api/v1/admin/banners")
+                    || path.startsWith("/api/v1/admin/reminders")) {
                 states = List.of(
                         "ACTIVE",
                         "BANNED",

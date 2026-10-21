@@ -446,6 +446,83 @@ class AdminAuditLogTest {
     }
 
     @Test
+    @DisplayName("리마인더 등록은 빈 변경 전 상태와 제목·본문 해시·반복 방식·대상·발송 시각의 변경 후 상태를 기록한다")
+    void create_validReminderCreation_createsAuditLog() {
+        // Given
+        Map<String, Object> after = reminderState("title", "가".repeat(50));
+
+        // When
+        AdminAuditLog audit = createReminderAudit(Map.of(), after);
+
+        // Then
+        assertThat(audit.getTargetType()).isEqualTo(AdminTargetType.REMINDER);
+        assertThat(audit.getAfterState()).containsExactlyInAnyOrderEntriesOf(after);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidReminderCreations")
+    @DisplayName("리마인더 등록의 잘못된 제목·해시·반복 방식·대상·시각·필드·변경 전 상태를 거절한다")
+    void create_invalidReminderCreation_throwsBusinessException(
+            Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createReminderAudit(before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidReminderCreations() {
+        Map<String, Object> valid = reminderState("title", "오늘이 얼마 남지 않았어요");
+        Map<String, Object> withBody = new LinkedHashMap<>(valid);
+        withBody.put("body", "사진을 자랑해 주세요!");
+        Map<String, Object> withoutTarget = new LinkedHashMap<>(valid);
+        withoutTarget.remove("target");
+        return Stream.of(
+                Arguments.of(valid, valid),
+                Arguments.of(Map.of(), reminderState("title", "가".repeat(51))),
+                Arguments.of(Map.of(), reminderState("title", " ")),
+                Arguments.of(Map.of(),
+                        reminderState("bodySha256", VALID_BODY_SHA256.toUpperCase())),
+                Arguments.of(Map.of(), reminderState("repeat", "WEEKLY")),
+                Arguments.of(Map.of(), reminderState("target", "ADMINS")),
+                Arguments.of(Map.of(), reminderState("scheduledAt", "2026-10-25")),
+                Arguments.of(Map.of(), withoutTarget),
+                Arguments.of(Map.of(), withBody)
+        );
+    }
+
+    // 올바른 리마인더 상태에서 한 필드만 바꾼 상태를 만든다.
+    private static Map<String, Object> reminderState(String field, Object value) {
+        Map<String, Object> state = new LinkedHashMap<>(Map.of(
+                "title",
+                "오늘이 얼마 남지 않았어요",
+                "bodySha256",
+                VALID_BODY_SHA256,
+                "repeat",
+                "DAILY",
+                "target",
+                "TOPIC_NON_PARTICIPANTS",
+                "scheduledAt",
+                "2026-10-25T12:00:00Z"
+        ));
+        state.put(field, value);
+        return state;
+    }
+
+    private AdminAuditLog createReminderAudit(Map<String, Object> before,
+            Map<String, Object> after) {
+        return AdminAuditLog.create(
+                ACTOR_ADMIN_ID,
+                AdminAction.REMINDER_CREATED,
+                AdminTargetType.REMINDER,
+                TARGET_ID,
+                null,
+                AdminAuditSnapshot.from(before),
+                AdminAuditSnapshot.from(after),
+                OCCURRED_AT,
+                REQUEST_ID
+        );
+    }
+
+    @Test
     @DisplayName("관리자 작업의 대상과 변경 전후 상태를 감사 로그로 생성한다")
     void create_validAuditInformation_createsAuditLog() {
         // Given
