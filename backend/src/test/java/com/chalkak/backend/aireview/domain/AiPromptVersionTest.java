@@ -187,9 +187,9 @@ class AiPromptVersionTest {
 
     @ParameterizedTest
     @CsvSource({
-            "gpt-6.1-sol, 1, true",
+            "gpt-6.1-sol, 2, true",
             "gpt-6.1-sol, 0, false",
-            "gpt-unknown, 1, false"
+            "gpt-unknown, 2, false"
     })
     @DisplayName("현재 출력 스키마이고 허용된 모델일 때만 실행할 수 있다")
     void isRunnableWith_byOutputSchemaAndModel(

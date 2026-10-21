@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import com.chalkak.backend.aireview.service.AiReviewGeneration;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
@@ -86,7 +87,12 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
         PhotoReviewOutput output = new PhotoReviewOutput(
                 8.72,
                 8.0,
-                "구도가 좋습니다."
+                new AiReviewResult.Feedback(
+                        "구도가 좋습니다.",
+                        "빛이 좋습니다.",
+                        "수평이 아쉽습니다.",
+                        "낮게 찍어 보세요."
+                )
         );
         given(aiReviewGenerator.generate(any())).willReturn(new AiReviewGeneration(
                 output.toResult(7.0),

@@ -20,7 +20,7 @@ class PhotoReviewOutputTest {
         PhotoReviewOutput output = new PhotoReviewOutput(
                 8.72,
                 3.0,
-                "구도가 안정적입니다."
+                feedback("구도가 안정적입니다.")
         );
 
         // When
@@ -34,7 +34,7 @@ class PhotoReviewOutputTest {
                         "구도",
                         8.7
                 ));
-        assertThat(result.feedback()).isEqualTo("구도가 안정적입니다.");
+        assertThat(result.feedback()).isEqualTo(feedback("구도가 안정적입니다."));
     }
 
     @ParameterizedTest
@@ -45,7 +45,7 @@ class PhotoReviewOutputTest {
         AiReviewResult result = new PhotoReviewOutput(
                 score,
                 5,
-                "피드백"
+                feedback("피드백")
         ).toResult(7.0);
 
         // Then
@@ -61,7 +61,7 @@ class PhotoReviewOutputTest {
         AiReviewResult result = new PhotoReviewOutput(
                 7,
                 themeScore,
-                "피드백"
+                feedback("피드백")
         ).toResult(7.0);
 
         // Then
@@ -75,7 +75,7 @@ class PhotoReviewOutputTest {
         PhotoReviewOutput output = new PhotoReviewOutput(
                 7,
                 6.5,
-                "피드백"
+                feedback("피드백")
         );
 
         // When & Then
@@ -91,7 +91,7 @@ class PhotoReviewOutputTest {
         assertThatCode(() -> new PhotoReviewOutput(
                 score,
                 5,
-                "피드백"
+                feedback("피드백")
         ))
                 .doesNotThrowAnyException();
     }
@@ -104,7 +104,7 @@ class PhotoReviewOutputTest {
         assertThatThrownBy(() -> new PhotoReviewOutput(
                 score,
                 5,
-                "피드백"
+                feedback("피드백")
         ))
                 .isInstanceOf(IllegalArgumentException.class);
     }
@@ -117,7 +117,7 @@ class PhotoReviewOutputTest {
         assertThatCode(() -> new PhotoReviewOutput(
                 5,
                 score,
-                "피드백"
+                feedback("피드백")
         ))
                 .doesNotThrowAnyException();
     }
@@ -130,41 +130,83 @@ class PhotoReviewOutputTest {
         assertThatThrownBy(() -> new PhotoReviewOutput(
                 5,
                 score,
-                "피드백"
+                feedback("피드백")
         ))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"가", "😀"})
-    @DisplayName("생성_feedback이 300자(코드포인트)면_성공하고 301자면_거부한다")
-    void create_feedbackLength_boundary(String unit) {
-        // When & Then
-        assertThatCode(() -> new PhotoReviewOutput(
-                5,
-                5,
-                unit.repeat(300)
-        ))
+    @DisplayName("생성_요약이 60자(코드포인트)면_성공하고 61자면_거부한다")
+    void create_summaryLength_boundary(String unit) {
+        assertThatCode(() -> output(new AiReviewResult.Feedback(
+                unit.repeat(60),
+                "좋음",
+                "아쉬움",
+                "제안"
+        )))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> new PhotoReviewOutput(
-                5,
-                5,
-                unit.repeat(301)
-        ))
+        assertThatThrownBy(() -> output(new AiReviewResult.Feedback(
+                unit.repeat(61),
+                "좋음",
+                "아쉬움",
+                "제안"
+        )))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"가, strength", "😀, strength", "가, weakness", "😀, weakness", "가, suggestion",
+            "😀, suggestion"})
+    @DisplayName("생성_섹션이 150자(코드포인트)면_성공하고 151자면_거부한다")
+    void create_sectionLength_boundary(String unit, String section) {
+        assertThatCode(() -> output(withSection(section, unit.repeat(150))))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> output(withSection(section, unit.repeat(151))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {" ", "\n"})
-    @DisplayName("생성_feedback이 비어 있으면_거부한다")
-    void create_blankFeedback_throwsIllegalArgumentException(String feedback) {
-        // When & Then
-        assertThatThrownBy(() -> new PhotoReviewOutput(
+    @DisplayName("생성_피드백 항목이 비어 있으면_거부한다")
+    void create_blankSection_throwsIllegalArgumentException(String blank) {
+        for (String section : new String[]{"summary", "strength", "weakness", "suggestion"}) {
+            assertThatThrownBy(() -> output(withSection(section, blank)))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("생성_피드백이 null이면_거부한다")
+    void create_nullFeedback_throwsIllegalArgumentException() {
+        assertThatThrownBy(() -> output(null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static AiReviewResult.Feedback feedback(String summary) {
+        return new AiReviewResult.Feedback(
+                summary,
+                "좋음",
+                "아쉬움",
+                "제안"
+        );
+    }
+
+    private static AiReviewResult.Feedback withSection(String section, String value) {
+        return new AiReviewResult.Feedback(
+                "summary".equals(section) ? value : "요약",
+                "strength".equals(section) ? value : "좋음",
+                "weakness".equals(section) ? value : "아쉬움",
+                "suggestion".equals(section) ? value : "제안"
+        );
+    }
+
+    private static PhotoReviewOutput output(AiReviewResult.Feedback feedback) {
+        return new PhotoReviewOutput(
                 5,
                 5,
                 feedback
-        ))
-                .isInstanceOf(IllegalArgumentException.class);
+        );
     }
 }

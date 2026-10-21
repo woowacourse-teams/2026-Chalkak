@@ -39,7 +39,8 @@ class ReviewResultTest {
                 status,
                 Instant.EPOCH,
                 null,
-                null
+                null,
+                false
         );
 
         // When & Then

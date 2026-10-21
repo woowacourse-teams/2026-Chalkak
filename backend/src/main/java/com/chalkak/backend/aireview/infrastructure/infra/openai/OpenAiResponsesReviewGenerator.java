@@ -13,6 +13,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import com.chalkak.backend.aireview.domain.AiPromptDraft;
 import com.chalkak.backend.aireview.domain.AiPromptParameters;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
@@ -30,12 +31,14 @@ import java.net.http.HttpTimeoutException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResourceAccessException;
@@ -59,6 +62,9 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
     private static final String STATUS_INCOMPLETE = "incomplete";
     private static final String STATUS_COMPLETED = "completed";
     private static final String STATUS_FAILED = "failed";
+    // 429 등 HTTP 오류 응답이 알려 주는 최소 대기 시간. 밀리초 헤더가 더 정확하므로 먼저 읽는다.
+    private static final String RETRY_AFTER_MS_HEADER = "retry-after-ms";
+    private static final String RETRY_AFTER_HEADER = "retry-after";
     private static final String RATE_LIMIT_ERROR_CODE = "rate_limit_exceeded";
     // status=failed의 error.code 중 정책 위반은 같은 입력을 다시 보내도 거절되므로 재시도 대상이 아니다.
     private static final Set<String> REFUSED_ERROR_CODES = Set.of(
@@ -126,7 +132,30 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                             PhotoReviewOutput.maxScore()
                     ),
                     "feedback",
-                    Map.of("type", "string")
+                    Map.of(
+                            "type",
+                            "object",
+                            "additionalProperties",
+                            false,
+                            "required",
+                            List.of(
+                                    "summary",
+                                    "strength",
+                                    "weakness",
+                                    "suggestion"
+                            ),
+                            "properties",
+                            Map.of(
+                                    "summary",
+                                    Map.of("type", "string"),
+                                    "strength",
+                                    Map.of("type", "string"),
+                                    "weakness",
+                                    Map.of("type", "string"),
+                                    "suggestion",
+                                    Map.of("type", "string")
+                            )
+                    )
             )
     );
 
@@ -215,15 +244,21 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                     .onStatus(
                             status -> !status.is2xxSuccessful(),
                             (httpRequest, response) -> {
-                                throw new AiReviewGenerationException(
-                                        failureTypeOf(response));
+                                FailureType failureType = failureTypeOf(response);
+                                throw retryAfterOf(failureType, response)
+                                        .map(retryAfter -> AiReviewGenerationException
+                                                .withRetryAfter(failureType, retryAfter))
+                                        .orElseGet(() -> AiReviewGenerationException
+                                                .of(failureType));
                             })
                     .body(String.class);
         } catch (ResourceAccessException exception) {
-            throw new AiReviewGenerationException(transportFailureType(exception, startedAt),
-                    exception);
+            throw AiReviewGenerationException.withCause(
+                    transportFailureType(exception, startedAt),
+                    exception
+            );
         } catch (RestClientException exception) {
-            throw new AiReviewGenerationException(transportFailureType(exception, startedAt));
+            throw AiReviewGenerationException.of(transportFailureType(exception, startedAt));
         }
     }
 
@@ -246,31 +281,33 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                 response.id()
         );
         if (STATUS_INCOMPLETE.equals(response.status())) {
-            throw new AiReviewGenerationException(INCOMPLETE, attempt);
+            throw AiReviewGenerationException.withAttempt(INCOMPLETE, attempt);
         }
         if (STATUS_FAILED.equals(response.status())) {
-            throw new AiReviewGenerationException(failureTypeOf(response.error()), attempt);
+            throw AiReviewGenerationException.withAttempt(failureTypeOf(response.error()), attempt);
         }
         if (!STATUS_COMPLETED.equals(response.status())) {
-            throw new AiReviewGenerationException(UPSTREAM_ERROR, attempt);
+            throw AiReviewGenerationException.withAttempt(UPSTREAM_ERROR, attempt);
         }
         if (response.hasNullElement()) {
-            throw new AiReviewGenerationException(INVALID_OUTPUT, attempt);
+            throw AiReviewGenerationException.withAttempt(INVALID_OUTPUT, attempt);
         }
 
         List<ContentPart> parts = response.contentParts();
         if (parts.stream().anyMatch(part -> REFUSAL_TYPE.equals(part.type()))) {
-            throw new AiReviewGenerationException(REFUSED, attempt);
+            throw AiReviewGenerationException.withAttempt(REFUSED, attempt);
         }
         String outputText = parts.stream()
                 .filter(part -> OUTPUT_TEXT_TYPE.equals(part.type()))
                 .map(ContentPart::text)
                 .filter(Objects::nonNull)
                 .findFirst()
-                .orElseThrow(() -> new AiReviewGenerationException(INVALID_OUTPUT, attempt));
+                .orElseThrow(
+                        () -> AiReviewGenerationException.withAttempt(INVALID_OUTPUT, attempt));
 
         PhotoReviewOutput output = readOutput(outputText)
-                .orElseThrow(() -> new AiReviewGenerationException(INVALID_OUTPUT, attempt));
+                .orElseThrow(
+                        () -> AiReviewGenerationException.withAttempt(INVALID_OUTPUT, attempt));
         return new AiReviewGeneration(
                 output.toResult(threshold),
                 output,
@@ -281,17 +318,17 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
 
     private ResponsesResponse readResponse(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
-            throw new AiReviewGenerationException(INVALID_OUTPUT);
+            throw AiReviewGenerationException.of(INVALID_OUTPUT);
         }
         try {
             ResponsesResponse response = objectMapper.readValue(responseBody,
                     ResponsesResponse.class);
             if (response == null) {
-                throw new AiReviewGenerationException(INVALID_OUTPUT);
+                throw AiReviewGenerationException.of(INVALID_OUTPUT);
             }
             return response;
         } catch (JacksonException exception) {
-            throw new AiReviewGenerationException(INVALID_OUTPUT);
+            throw AiReviewGenerationException.of(INVALID_OUTPUT);
         }
     }
 
@@ -309,13 +346,25 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
                     || payload.themeExpression() == null
                     || !payload.themeExpression().isNumber()
                     || payload.feedback() == null
-                    || !payload.feedback().isString()) {
+                    || !payload.feedback().isObject()) {
+                return Optional.empty();
+            }
+            JsonNode feedback = payload.feedback();
+            if (!isString(feedback.get("summary"))
+                    || !isString(feedback.get("strength"))
+                    || !isString(feedback.get("weakness"))
+                    || !isString(feedback.get("suggestion"))) {
                 return Optional.empty();
             }
             return Optional.of(new PhotoReviewOutput(
                     payload.composition().doubleValue(),
                     payload.themeExpression().doubleValue(),
-                    payload.feedback().stringValue()
+                    new AiReviewResult.Feedback(
+                            feedback.get("summary").stringValue(),
+                            feedback.get("strength").stringValue(),
+                            feedback.get("weakness").stringValue(),
+                            feedback.get("suggestion").stringValue()
+                    )
             ));
         } catch (JacksonException | IllegalArgumentException exception) {
             return Optional.empty();
@@ -339,6 +388,10 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         return UPSTREAM_ERROR;
     }
 
+    private static boolean isString(JsonNode node) {
+        return node != null && node.isString();
+    }
+
     private FailureType failureTypeOf(ClientHttpResponse response) throws IOException {
         HttpStatusCode status = response.getStatusCode();
         if (status.value() == 429) {
@@ -354,6 +407,31 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
             return BAD_REQUEST;
         }
         return UPSTREAM_ERROR;
+    }
+
+    /**
+     * 재시도하지 않는 유형은 기다려도 소용없으므로 헤더가 있어도 싣지 않는다. 날짜 형식의 retry-after는 OpenAI가 보내지 않아
+     * 읽지 않는다.
+     */
+    private Optional<Duration> retryAfterOf(FailureType failureType, ClientHttpResponse response) {
+        if (!failureType.isRetryable()) {
+            return Optional.empty();
+        }
+        HttpHeaders headers = response.getHeaders();
+        return parseDelay(headers.getFirst(RETRY_AFTER_MS_HEADER), ChronoUnit.MILLIS)
+                .or(() -> parseDelay(headers.getFirst(RETRY_AFTER_HEADER), ChronoUnit.SECONDS));
+    }
+
+    private Optional<Duration> parseDelay(String value, ChronoUnit unit) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        try {
+            long amount = Long.parseLong(value.strip());
+            return amount < 0 ? Optional.empty() : Optional.of(Duration.of(amount, unit));
+        } catch (NumberFormatException exception) {
+            return Optional.empty();
+        }
     }
 
     /**

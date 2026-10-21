@@ -53,7 +53,12 @@ class PostAiReviewControllerTest {
                     7.5
             )),
             true,
-            "구도가 좋습니다."
+            new AiReviewResult.Feedback(
+                    "구도가 좋습니다.",
+                    "빛이 좋습니다.",
+                    "수평이 아쉽습니다.",
+                    "낮게 찍어 보세요."
+            )
     );
     private static final String PATH = "/api/v1/posts/{postId}/ai-review";
 
@@ -92,6 +97,7 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.completedAt").value(completedAt))
                 .andExpect(jsonPath("$.id").doesNotExist())
                 .andExpect(jsonPath("$.errorCode").doesNotExist())
+                .andExpect(jsonPath("$.canRequestAgain").value(apiStatus == ApiStatus.FAILED))
                 .andExpect(resultMatcher);
         mockMvc.perform(get(PATH, POST_ID))
                 .andExpect(status().isOk())
@@ -109,7 +115,8 @@ class PostAiReviewControllerTest {
                         ApiStatus.NONE,
                         null,
                         null,
-                        null
+                        null,
+                        false
                 ));
 
         // When & Then
@@ -118,7 +125,45 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.status").value("NONE"))
                 .andExpect(jsonPath("$.requestedAt").value(nullValue()))
                 .andExpect(jsonPath("$.completedAt").value(nullValue()))
-                .andExpect(jsonPath("$.result").value(nullValue()));
+                .andExpect(jsonPath("$.result").value(nullValue()))
+                .andExpect(jsonPath("$.canRequestAgain").value(false));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("실패한 리뷰를 다시 요청하면 202와 처리 중이고 다시 요청할 수 없음을 응답한다")
+    void request_failedReviewRequestedAgain_returnsAcceptedProcessing() throws Exception {
+        // Given
+        given(postAiReviewService.request(USER_ID, POST_ID))
+                .willReturn(new ReviewResult(
+                        ApiStatus.PROCESSING,
+                        REQUESTED_AT,
+                        null,
+                        null,
+                        false
+                ));
+
+        // When & Then
+        mockMvc.perform(post(PATH, POST_ID))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("PROCESSING"))
+                .andExpect(jsonPath("$.requestedAt").value("2026-10-20T05:00:00Z"))
+                .andExpect(jsonPath("$.canRequestAgain").value(false));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("요청 횟수를 넘긴 다시 요청은 서비스 메시지 그대로 400 BUSINESS_ERROR다")
+    void request_overLimit_returnsBadRequest() throws Exception {
+        // Given
+        given(postAiReviewService.request(USER_ID, POST_ID)).willThrow(new BusinessException(
+                ErrorCode.BUSINESS_ERROR, "더 이상 AI 리뷰를 다시 요청할 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(post(PATH, POST_ID))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("더 이상 AI 리뷰를 다시 요청할 수 없습니다."));
     }
 
     @Test
@@ -137,7 +182,10 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.result.criteria[0].label").value("구도"))
                 .andExpect(jsonPath("$.result.criteria[0].score").value(7.5))
                 .andExpect(jsonPath("$.result.distinctivePerspective").value(true))
-                .andExpect(jsonPath("$.result.feedback").value("구도가 좋습니다."));
+                .andExpect(jsonPath("$.result.feedback.summary").value("구도가 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.strength").value("빛이 좋습니다."))
+                .andExpect(jsonPath("$.result.feedback.weakness").value("수평이 아쉽습니다."))
+                .andExpect(jsonPath("$.result.feedback.suggestion").value("낮게 찍어 보세요."));
         given(postAiReviewService.request(USER_ID, POST_ID)).willReturn(result(ApiStatus.FAILED));
         mockMvc.perform(post(PATH, POST_ID))
                 .andExpect(jsonPath("$.result").value(nullValue()));
@@ -213,7 +261,8 @@ class PostAiReviewControllerTest {
                 apiStatus,
                 REQUESTED_AT,
                 apiStatus == ApiStatus.PROCESSING ? null : COMPLETED_AT,
-                apiStatus == ApiStatus.COMPLETED ? STORED : null
+                apiStatus == ApiStatus.COMPLETED ? STORED : null,
+                apiStatus == ApiStatus.FAILED
         );
     }
 }

@@ -46,7 +46,7 @@ public record AiPromptPreviewResponse(
             double overallScore,
             List<Criterion> criteria,
             boolean distinctivePerspective,
-            String feedback
+            Feedback feedback
     ) {
 
         private static Result from(AiReviewResult result) {
@@ -54,7 +54,24 @@ public record AiPromptPreviewResponse(
                     result.overallScore(),
                     result.criteria().stream().map(Criterion::from).toList(),
                     result.distinctivePerspective(),
-                    result.feedback()
+                    Feedback.from(result.feedback())
+            );
+        }
+    }
+
+    public record Feedback(
+            String summary,
+            String strength,
+            String weakness,
+            String suggestion
+    ) {
+
+        private static Feedback from(AiReviewResult.Feedback feedback) {
+            return new Feedback(
+                    feedback.summary(),
+                    feedback.strength(),
+                    feedback.weakness(),
+                    feedback.suggestion()
             );
         }
     }
