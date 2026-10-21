@@ -51,4 +51,5 @@ export const queryKeys = {
   pushes: ["admin", "pushes"] as const,
   notices: ["admin", "notices"] as const,
   banners: ["admin", "banners"] as const,
+  aiPrompts: ["admin", "ai-prompts"] as const,
 };

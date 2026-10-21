@@ -13,6 +13,7 @@ export const adminNavigation: AdminNavigationItem[] = [
   { href: "/banners", label: "배너", icon: "image" },
   { href: "/audit-logs", label: "처리 이력", icon: "shield" },
   { href: "/feedbacks", label: "피드백", icon: "message" },
+  { href: "/ai-prompts", label: "AI", icon: "sparkle" },
   { href: "/pushes", label: "알림", icon: "clock" },
 ];
 

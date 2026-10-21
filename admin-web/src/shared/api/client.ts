@@ -5,6 +5,8 @@ import { notifyAdminSessionExpired } from "./session-events";
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
+  // Overrides the default timeout for slow endpoints such as AI prompt previews.
+  timeoutMs?: number;
 };
 
 const activeRequests = new Set<AbortController>();
@@ -49,14 +51,15 @@ export class ApiClient {
 
   async request<T>(
     path: string,
-    options: ApiRequestOptions = {},
+    requestOptions: ApiRequestOptions = {},
   ): Promise<T> {
+    const { timeoutMs = this.config.timeoutMs, ...options } = requestOptions;
     const controller = new AbortController();
     activeRequests.add(controller);
     const requestGeneration = sessionGeneration;
     const timeoutId = window.setTimeout(
       () => controller.abort("timeout"),
-      this.config.timeoutMs,
+      timeoutMs,
     );
     const externalSignal = options.signal;
     const abortFromExternalSignal = () => controller.abort(externalSignal?.reason);
