@@ -68,6 +68,25 @@ class AdminReminderOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("리마인더 삭제 API는 관리자 보안·UUID 경로·본문 없음·응답 코드 계약을 노출한다")
+    void adminApiDocs_deleteReminder_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(REMINDER + ".delete.responses.keys()")
+                        .value(containsInAnyOrder(
+                                "204",
+                                "400",
+                                "401",
+                                "403",
+                                "404"
+                        )))
+                .andExpect(jsonPath(REMINDER + ".delete.security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(REMINDER + ".delete.parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(REMINDER + ".delete.requestBody").doesNotExist());
+    }
+
+    @Test
     @DisplayName("리마인더 등록 API는 관리자 보안·필수 필드·반복 방식·대상·시각 형식·응답 코드 계약을 노출한다")
     void adminApiDocs_createReminder_exposesContract() throws Exception {
         // When & Then

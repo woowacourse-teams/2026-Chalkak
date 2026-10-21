@@ -99,16 +99,55 @@ class AdminReminderConcurrencyTest extends IntegrationTestSupport {
         ));
     }
 
+    @Test
+    @DisplayName("같은 리마인더를 동시에 두 번 삭제해도 삭제 감사 로그는 한 건만 남긴다")
+    void deleteReminder_sameReminderConcurrently_recordsAuditOnce() throws Exception {
+        // Given
+        UUID reminderId = reminderService.createReminder(
+                ADMIN_ID,
+                "처음 제목",
+                "본문",
+                ReminderRepeat.ONCE,
+                ReminderTarget.ALL,
+                Instant.now().plus(Duration.ofHours(1))
+        ).reminderId();
+        CyclicBarrier barrier = new CyclicBarrier(2);
+
+        // When
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> first = executor.submit(() -> deleteAfterBarrier(reminderId, barrier));
+            Future<?> second = executor.submit(() -> deleteAfterBarrier(reminderId, barrier));
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'REMINDER_DELETED'",
+                Integer.class,
+                reminderId
+        )).isEqualTo(1);
+    }
+
+    private void deleteAfterBarrier(UUID reminderId, CyclicBarrier barrier) {
+        awaitTogether(barrier);
+        reminderService.deleteReminder(reminderId, ADMIN_ID);
+    }
+
+    private void awaitTogether(CyclicBarrier barrier) {
+        try {
+            barrier.await(5, TimeUnit.SECONDS);
+        } catch (Exception exception) {
+            throw new IllegalStateException("두 요청을 동시에 시작하지 못했습니다.", exception);
+        }
+    }
+
     private void updateAfterBarrier(
             UUID reminderId,
             String title,
             CyclicBarrier barrier
     ) {
-        try {
-            barrier.await(5, TimeUnit.SECONDS);
-        } catch (Exception exception) {
-            throw new IllegalStateException("두 수정 요청을 동시에 시작하지 못했습니다.", exception);
-        }
+        awaitTogether(barrier);
         reminderService.updateReminder(
                 reminderId,
                 ADMIN_ID,

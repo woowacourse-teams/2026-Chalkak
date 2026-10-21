@@ -51,4 +51,16 @@ public interface AdminReminderApiDocs {
             @Parameter(description = "리마인더 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String reminderId,
             AdminReminderRequest request
     );
+
+    @Operation(summary = "리마인더 삭제", description = "리마인더를 삭제합니다. 삭제한 리마인더는 목록에서 빠지고 아직 실행하지 않은 회차는 보내지 않습니다. 이미 기기에 표시된 푸시는 회수하지 않습니다. 이미 삭제한 리마인더를 다시 삭제하면 최초 결과를 유지합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 ID", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "리마인더 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteReminder(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(description = "리마인더 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String reminderId
+    );
 }

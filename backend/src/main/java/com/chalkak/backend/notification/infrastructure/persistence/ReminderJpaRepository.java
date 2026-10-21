@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface ReminderJpaRepository extends JpaRepository<Reminder, UUID> {
 
-    Slice<Reminder> findSliceBy(Pageable pageable);
+    Slice<Reminder> findByDeletedAtIsNull(Pageable pageable);
 
     // 동시에 고쳐도 감사 로그의 변경 전 상태가 직전 변경 결과가 되도록 리마인더 행을 잠근다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)

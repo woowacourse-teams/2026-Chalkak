@@ -111,6 +111,28 @@ class AdminReminderAuditTransactionTest extends IntegrationTestSupport {
         assertThat(countRows("admin_audit_logs")).isZero();
     }
 
+    @Test
+    @DisplayName("감사 로그 저장이 실패하면 리마인더 삭제도 함께 롤백한다")
+    void deleteReminder_auditInsertFails_rollsBackDeletion() {
+        // Given
+        UUID reminderId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO reminders (title, body, repeat, target, scheduled_at, created_at, updated_at)
+                        VALUES ('오늘이 얼마 남지 않았어요', '사진을 자랑해 주세요!', 'ONCE', 'ALL', ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                        """,
+                UUID.class,
+                Timestamp.from(Instant.now().plusSeconds(3600))
+        );
+
+        // When & Then
+        assertThatThrownBy(() -> reminderService.deleteReminder(reminderId, UNKNOWN_ADMIN_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_at IS NULL FROM reminders", Boolean.class)).isTrue();
+    }
+
     private void insertAdmin() {
         jdbcTemplate.update(
                 """

@@ -544,6 +544,87 @@ class AdminAuditLogTest {
         );
     }
 
+    @Test
+    @DisplayName("리마인더 삭제는 같은 내용에 삭제 시각만 채운 변경 전후 상태를 기록한다")
+    void create_validReminderDeletion_createsAuditLog() {
+        // Given
+        Map<String, Object> before = deletedReminderState(
+                "title",
+                "오늘이 얼마 남지 않았어요",
+                null
+        );
+        Map<String, Object> after = deletedReminderState(
+                "title",
+                "오늘이 얼마 남지 않았어요",
+                "2026-10-21T10:00:00Z"
+        );
+
+        // When
+        AdminAuditLog audit = createReminderDeletionAudit(before, after);
+
+        // Then
+        assertThat(audit.getAction()).isEqualTo(AdminAction.REMINDER_DELETED);
+        assertThat(audit.getAfterState()).containsEntry("deletedAt", "2026-10-21T10:00:00Z");
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidReminderDeletions")
+    @DisplayName("리마인더 삭제의 이미 삭제된 변경 전 상태·삭제 시각 없는 변경 후 상태·바뀐 내용을 거절한다")
+    void create_invalidReminderDeletion_throwsBusinessException(
+            Map<String, Object> before, Map<String, Object> after) {
+        // When & Then
+        assertThatThrownBy(() -> createReminderDeletionAudit(before, after))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidReminderDeletions() {
+        Map<String, Object> before = deletedReminderState(
+                "title",
+                "오늘이 얼마 남지 않았어요",
+                null
+        );
+        Map<String, Object> after = deletedReminderState(
+                "title",
+                "오늘이 얼마 남지 않았어요",
+                "2026-10-21T10:00:00Z"
+        );
+        return Stream.of(
+                Arguments.of(after, after),
+                Arguments.of(before, before),
+                Arguments.of(before, deletedReminderState(
+                        "title",
+                        "다른 제목",
+                        "2026-10-21T10:00:00Z"
+                )),
+                Arguments.of(reminderState("title", "오늘이 얼마 남지 않았어요"), after)
+        );
+    }
+
+    private static Map<String, Object> deletedReminderState(
+            String field,
+            Object value,
+            String deletedAt
+    ) {
+        Map<String, Object> state = reminderState(field, value);
+        state.put("deletedAt", deletedAt);
+        return state;
+    }
+
+    private AdminAuditLog createReminderDeletionAudit(Map<String, Object> before,
+            Map<String, Object> after) {
+        return AdminAuditLog.create(
+                ACTOR_ADMIN_ID,
+                AdminAction.REMINDER_DELETED,
+                AdminTargetType.REMINDER,
+                TARGET_ID,
+                null,
+                AdminAuditSnapshot.from(before),
+                AdminAuditSnapshot.from(after),
+                OCCURRED_AT,
+                REQUEST_ID
+        );
+    }
+
     private AdminAuditLog createReminderUpdateAudit(Map<String, Object> before,
             Map<String, Object> after) {
         return AdminAuditLog.create(

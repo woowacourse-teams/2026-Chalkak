@@ -334,6 +334,124 @@ class AdminReminderServiceTest extends IntegrationTestSupport {
                 .hasMessage("관리자 식별자가 필요합니다.");
     }
 
+    @Test
+    @DisplayName("리마인더를 삭제하면 삭제 시각을 저장하고 감사 로그에 삭제 전후 상태를 남긴다")
+    void deleteReminder_activeReminder_recordsDeletedAtWithAuditLog() throws Exception {
+        // Given
+        Instant scheduledAt = Instant.now().plus(Duration.ofHours(1))
+                .truncatedTo(ChronoUnit.MICROS);
+        UUID reminderId = insertReminder("DAILY", scheduledAt);
+
+        // When
+        reminderService.deleteReminder(reminderId, ADMIN_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Reminder stored = entityManager.find(Reminder.class, reminderId);
+        assertThat(stored.getDeletedAt()).isNotNull();
+        AdminAuditLog auditLog = findAuditLog(reminderId, AdminAction.REMINDER_DELETED);
+        assertThat(auditLog.getActorAdminId()).isEqualTo(ADMIN_ID);
+        assertThat(auditLog.getReason()).isNull();
+        assertThat(auditLog.getBeforeState()).containsEntry("title", TITLE)
+                .containsEntry("bodySha256", sha256(BODY))
+                .containsEntry("repeat", "DAILY")
+                .containsEntry("scheduledAt", scheduledAt.toString())
+                .containsEntry("deletedAt", null);
+        assertThat(auditLog.getAfterState())
+                .containsEntry("deletedAt", stored.getDeletedAt().toString());
+    }
+
+    @Test
+    @DisplayName("이미 삭제한 리마인더를 다시 삭제하면 최초 결과를 유지하고 감사 로그를 추가하지 않는다")
+    void deleteReminder_deletedReminder_keepsFirstResultWithoutAuditLog() {
+        // Given
+        UUID reminderId = insertReminder("ONCE", Instant.now().plus(Duration.ofHours(1)));
+        reminderService.deleteReminder(reminderId, ADMIN_ID);
+        entityManager.flush();
+        Instant firstDeletedAt = jdbcTemplate.queryForObject(
+                "SELECT deleted_at FROM reminders WHERE id = ?",
+                Instant.class,
+                reminderId
+        );
+
+        // When
+        reminderService.deleteReminder(reminderId, ADMIN_ID);
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_at FROM reminders WHERE id = ?",
+                Instant.class,
+                reminderId
+        )).isEqualTo(firstDeletedAt);
+        assertThat(countRows("admin_audit_logs")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("없는 리마인더를 삭제하면 대상 없음으로 거절한다")
+    void deleteReminder_unknownReminder_throwsNotFoundException() {
+        // When & Then
+        assertThatThrownBy(() -> reminderService.deleteReminder(UUID.randomUUID(), ADMIN_ID))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("리마인더를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("관리자 식별자가 없으면 삭제를 거절하고 삭제하지 않는다")
+    void deleteReminder_nullAdminId_throwsWithoutDeleting() {
+        // Given
+        UUID reminderId = insertReminder("ONCE", Instant.now().plus(Duration.ofHours(1)));
+
+        // When & Then
+        assertThatThrownBy(() -> reminderService.deleteReminder(reminderId, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("관리자 식별자가 필요합니다.");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_at IS NULL FROM reminders WHERE id = ?",
+                Boolean.class,
+                reminderId
+        )).isTrue();
+    }
+
+    @Test
+    @DisplayName("삭제한 리마인더는 목록에서 제외한다")
+    void getReminders_deletedReminder_excludesFromList() {
+        // Given
+        UUID active = insertReminder("2026-10-19T00:00:00Z");
+        UUID deleted = insertReminder("2026-10-20T00:00:00Z");
+        reminderService.deleteReminder(deleted, ADMIN_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AdminReminderListResult result = reminderService.getReminders(1, 20);
+
+        // Then
+        assertThat(result.reminders()).extracting(AdminReminderResult::reminderId)
+                .containsExactly(active);
+    }
+
+    @Test
+    @DisplayName("삭제한 리마인더는 수정할 수 없다")
+    void updateReminder_deletedReminder_throwsBusinessException() {
+        // Given
+        UUID reminderId = insertReminder("DAILY", Instant.now().plus(Duration.ofHours(1)));
+        reminderService.deleteReminder(reminderId, ADMIN_ID);
+
+        // When & Then
+        assertThatThrownBy(() -> reminderService.updateReminder(
+                reminderId,
+                ADMIN_ID,
+                "새 제목",
+                BODY,
+                ReminderRepeat.DAILY,
+                ReminderTarget.ALL,
+                Instant.now().plus(Duration.ofHours(1))
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("삭제된 리마인더는 수정할 수 없습니다.");
+    }
+
     private AdminAuditLog findAuditLog(UUID reminderId, AdminAction action) {
         return entityManager.createQuery("""
                 SELECT auditLog FROM AdminAuditLog auditLog

@@ -16,6 +16,7 @@ import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.repository.ReminderSlice;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -86,8 +87,7 @@ public class AdminReminderService {
     ) {
         validateAdminId(adminId);
         Reminder reminder = reminderRepository.findByIdForUpdate(reminderId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
-                        "리마인더를 찾을 수 없습니다."));
+                .orElseThrow(this::reminderNotFoundException);
         AdminAuditSnapshot beforeState = createReminderState(reminder);
         reminder.update(
                 title,
@@ -114,6 +114,34 @@ public class AdminReminderService {
                 afterState
         ));
         return AdminReminderResult.from(saved);
+    }
+
+    @Transactional
+    public void deleteReminder(UUID reminderId, UUID adminId) {
+        validateAdminId(adminId);
+        Reminder reminder = reminderRepository.findByIdForUpdate(reminderId)
+                .orElseThrow(this::reminderNotFoundException);
+        // 이미 삭제한 리마인더는 최초 삭제 결과를 유지하고 감사 로그를 추가하지 않는다.
+        if (reminder.isDeleted()) {
+            return;
+        }
+        AdminAuditSnapshot beforeState = createDeletionState(reminder);
+        reminder.delete(clock.instant());
+        adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId,
+                AdminAction.REMINDER_DELETED,
+                AdminTargetType.REMINDER,
+                reminder.getId(),
+                null,
+                beforeState,
+                createDeletionState(reminder)
+        ));
+    }
+
+    private AdminAuditSnapshot createDeletionState(Reminder reminder) {
+        Map<String, Object> state = new LinkedHashMap<>(createReminderState(reminder).values());
+        state.put("deletedAt", reminder.getDeletedAt());
+        return AdminAuditSnapshot.from(state);
     }
 
     // 본문 원문을 감사 로그에 노출하지 않도록 공통 UTF-8 SHA-256 해시로 기록한다.
@@ -146,5 +174,9 @@ public class AdminReminderService {
         if (adminId == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "관리자 식별자가 필요합니다.");
         }
+    }
+
+    private NotFoundException reminderNotFoundException() {
+        return new NotFoundException(ErrorCode.BUSINESS_ERROR, "리마인더를 찾을 수 없습니다.");
     }
 }

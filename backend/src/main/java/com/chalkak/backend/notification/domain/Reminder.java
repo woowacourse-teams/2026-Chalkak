@@ -55,6 +55,9 @@ public class Reminder {
     @Column(name = "scheduled_at", nullable = false)
     private Instant scheduledAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -92,6 +95,9 @@ public class Reminder {
             Instant scheduledAt,
             Instant now
     ) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 리마인더는 수정할 수 없습니다.");
+        }
         if (!this.repeat.canUpdate(this.scheduledAt, now)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     "발송 시각이 지난 일회성 리마인더는 수정할 수 없습니다.");
@@ -106,6 +112,18 @@ public class Reminder {
                 target,
                 scheduledAt
         );
+    }
+
+    public void delete(Instant deletedAt) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 삭제된 리마인더입니다.");
+        }
+        // 감사 기록의 삭제 시각이 DB 저장값과 같도록 저장 정밀도에 맞춘다.
+        this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     public static boolean isValidTitle(String title) {

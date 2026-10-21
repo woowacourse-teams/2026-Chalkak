@@ -40,7 +40,7 @@ public class ReminderRepositoryImpl implements ReminderRepository {
 
     @Override
     public ReminderSlice findReminders(int page, int pageSize) {
-        Slice<Reminder> slice = reminderJpaRepository.findSliceBy(
+        Slice<Reminder> slice = reminderJpaRepository.findByDeletedAtIsNull(
                 PageRequest.of(
                         page - 1,
                         pageSize,

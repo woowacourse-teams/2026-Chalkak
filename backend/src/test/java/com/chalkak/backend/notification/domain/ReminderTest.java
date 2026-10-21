@@ -346,6 +346,55 @@ class ReminderTest {
         assertThat(reminder.getScheduledAt()).isEqualTo(NOW.plusSeconds(3600));
     }
 
+    @Test
+    @DisplayName("리마인더를 삭제하면 삭제 시각을 마이크로초까지 기록한다")
+    void delete_activeReminder_recordsDeletedAt() {
+        // Given
+        Reminder reminder = createWithText(TITLE, BODY);
+
+        // When
+        reminder.delete(Instant.parse("2026-10-21T10:00:00.123456789Z"));
+
+        // Then
+        assertThat(reminder.isDeleted()).isTrue();
+        assertThat(reminder.getDeletedAt()).isEqualTo(Instant.parse("2026-10-21T10:00:00.123456Z"));
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 리마인더는 다시 삭제할 수 없고 최초 삭제 시각을 유지한다")
+    void delete_deletedReminder_throwsBusinessException() {
+        // Given
+        Reminder reminder = createWithText(TITLE, BODY);
+        reminder.delete(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> reminder.delete(NOW.plusSeconds(60)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 삭제된 리마인더입니다.");
+        assertThat(reminder.getDeletedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("삭제된 리마인더는 수정할 수 없다")
+    void update_deletedReminder_throwsBusinessException() {
+        // Given
+        Reminder reminder = createScheduledAt(ReminderRepeat.DAILY, NOW);
+        reminder.delete(NOW);
+
+        // When & Then
+        assertThatThrownBy(() -> reminder.update(
+                "새 제목",
+                BODY,
+                ReminderRepeat.DAILY,
+                ReminderTarget.ALL,
+                NOW,
+                NOW
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("삭제된 리마인더는 수정할 수 없습니다.");
+        assertThat(reminder.getTitle()).isEqualTo(TITLE);
+    }
+
     private boolean isCreatable(String title) {
         try {
             createWithText(title, BODY);

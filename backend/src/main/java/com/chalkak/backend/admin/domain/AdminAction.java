@@ -115,6 +115,12 @@ public enum AdminAction {
             AdminTargetType.REMINDER,
             false,
             AdminAuditTransitionRules::isReminderUpdated
+    ),
+
+    REMINDER_DELETED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderDeleted
     );
 
     private final AdminTargetType targetType;

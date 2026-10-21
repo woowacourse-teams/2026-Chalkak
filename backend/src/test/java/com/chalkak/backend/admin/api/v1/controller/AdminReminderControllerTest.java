@@ -3,6 +3,9 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -304,6 +307,37 @@ class AdminReminderControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("발송 시각이 지난 일회성 리마인더는 수정할 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("삭제 성공 시 204로 응답한다")
+    void deleteReminder_existingReminder_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + REMINDER_ID))
+                .andExpect(status().isNoContent());
+        verify(reminderService).deleteReminder(REMINDER_ID, ADMIN_ID);
+    }
+
+    @Test
+    @DisplayName("삭제 경로의 리마인더 ID가 UUID 형식이 아니면 400으로 응답한다")
+    void deleteReminder_invalidId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(delete(PATH + "/not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    @DisplayName("없는 리마인더를 삭제하면 404로 응답한다")
+    void deleteReminder_unknownReminder_returnsNotFound() throws Exception {
+        // Given
+        willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "리마인더를 찾을 수 없습니다."))
+                .given(reminderService).deleteReminder(REMINDER_ID, ADMIN_ID);
+
+        // When & Then
+        mockMvc.perform(delete(PATH + "/" + REMINDER_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("리마인더를 찾을 수 없습니다."));
     }
 
     @Test

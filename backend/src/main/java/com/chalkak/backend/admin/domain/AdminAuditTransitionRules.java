@@ -59,6 +59,14 @@ final class AdminAuditTransitionRules {
             "target",
             "scheduledAt"
     );
+    private static final Set<String> DELETED_REMINDER_STATE_FIELDS = Set.of(
+            "title",
+            "bodySha256",
+            "repeat",
+            "target",
+            "scheduledAt",
+            "deletedAt"
+    );
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -285,8 +293,28 @@ final class AdminAuditTransitionRules {
                 && !beforeState.values().equals(afterState.values());
     }
 
+    static boolean isReminderDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidReminderState(beforeState, DELETED_REMINDER_STATE_FIELDS)
+                && isValidReminderState(afterState, DELETED_REMINDER_STATE_FIELDS)
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"))
+                && REMINDER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
+                        beforeState.value(field), afterState.value(field)));
+    }
+
     private static boolean isValidReminderState(AdminAuditSnapshot state) {
-        return state.hasExactlyFields(REMINDER_STATE_FIELDS)
+        return isValidReminderState(state, REMINDER_STATE_FIELDS);
+    }
+
+    private static boolean isValidReminderState(
+            AdminAuditSnapshot state,
+            Set<String> expectedFields
+    ) {
+        return state.hasExactlyFields(expectedFields)
                 && state.value("title") instanceof String title
                 && Reminder.isValidTitle(title)
                 && isSha256Hex(state.value("bodySha256"))
