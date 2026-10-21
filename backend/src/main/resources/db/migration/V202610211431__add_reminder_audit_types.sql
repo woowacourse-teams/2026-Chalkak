@@ -1,0 +1,3 @@
+ALTER TYPE admin_target_type ADD VALUE 'REMINDER';
+
+ALTER TYPE admin_action ADD VALUE 'REMINDER_CREATED';
