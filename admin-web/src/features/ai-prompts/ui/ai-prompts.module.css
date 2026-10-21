@@ -45,6 +45,11 @@
 .criteria { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .criteria li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #f0f0f5; padding-bottom: 8px; font-size: 13px; }
 .feedback { margin: 0; color: #41434f; font-size: 14px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feedbackSections { display: grid; gap: 10px; }
+.feedbackSections h5 { margin: 0; color: #252631; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.feedbackSections dl { display: grid; gap: 10px; margin: 0; }
+.feedbackSections dt { color: #5557a1; font-size: 12px; font-weight: 600; }
+.feedbackSections dd { margin: 2px 0 0; color: #41434f; font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; }
 .stale { color: #805c16; font-size: 13px; line-height: 1.7; }
 .failure { color: #a13f33; font-size: 13px; line-height: 1.7; }
 .failure p { margin: 0 0 8px; }

@@ -13,6 +13,19 @@ function Usage({ usage }: { usage: AiPromptPreviewResponse["usage"] }) {
   </>;
 }
 
+function PreviewFeedback({ feedback }: { feedback: NonNullable<AiPromptPreviewResponse["result"]>["feedback"] }) {
+  // 백엔드 #731 배포 후 이 문자열 분기와 contracts의 `| string`을 함께 제거한다.
+  if (typeof feedback === "string") return <p className={styles.feedback}>{feedback}</p>;
+  return <div className={styles.feedbackSections}>
+    <h5>{feedback.summary}</h5>
+    <dl>
+      <div><dt>좋았던 점</dt><dd>{feedback.strength}</dd></div>
+      <div><dt>아쉬운 점</dt><dd>{feedback.weakness}</dd></div>
+      <div><dt>다음엔 이렇게</dt><dd>{feedback.suggestion}</dd></div>
+    </dl>
+  </div>;
+}
+
 export function AiPromptPreviewResult({ response }: { response: AiPromptPreviewResponse }) {
   const details = <dl className={common.meta}>
     <Usage usage={response.usage} />
@@ -38,7 +51,7 @@ export function AiPromptPreviewResult({ response }: { response: AiPromptPreviewR
         {result.criteria.map((criterion) => <li key={criterion.key}><span>{criterion.label}</span><strong>{criterion.score}</strong></li>)}
       </ul>
       <dl className={common.meta}><div><dt>독특한 시각</dt><dd>{result.distinctivePerspective ? "예" : "아니오"}</dd></div></dl>
-      <p className={styles.feedback}>{result.feedback}</p>
+      <PreviewFeedback feedback={result.feedback} />
     </> : null}
     {response.output ? <dl className={common.meta}>
       <div><dt>모델 원점수 · 구도</dt><dd>{response.output.compositionScore}</dd></div>
