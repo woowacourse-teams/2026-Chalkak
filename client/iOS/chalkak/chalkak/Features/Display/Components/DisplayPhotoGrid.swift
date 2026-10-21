@@ -173,7 +173,9 @@ struct DisplayLikeBadge: View {
                 minHeight: Metrics.minimumTouchSize,
                 alignment: .bottomLeading
             )
-            .contentShape(Rectangle())
+            // 배지는 카드의 clipShape 바깥에 overlay로 올라가므로, 좌하단을 카드와 같은 반지름으로 깎아
+            // 카드 둥근 모서리 바깥(화면상 카드가 아닌 곳)이 좋아요로 눌리지 않게 한다.
+            .contentShape(UnevenRoundedRectangle(bottomLeadingRadius: theme.shapes.photoCard))
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
