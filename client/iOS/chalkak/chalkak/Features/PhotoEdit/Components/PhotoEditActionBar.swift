@@ -10,17 +10,19 @@ struct PhotoEditActionBar<Tools: View>: View {
     @ViewBuilder let tools: () -> Tools
 
     var body: some View {
-        HStack(spacing: 0) {
-            circleButton("취소", systemImage: "xmark", isEnabled: true, action: onCancel)
-                .accessibilityIdentifier("photoEdit.tool.cancel")
+        PhotoEditControlGroup {
+            HStack(spacing: 0) {
+                circleButton("취소", systemImage: "xmark", isEnabled: true, action: onCancel)
+                    .accessibilityIdentifier("photoEdit.tool.cancel")
 
-            // 도구가 없어도 취소·적용 버튼이 양 끝에 머물도록 Spacer로 밀어 둔다.
-            Spacer(minLength: 0)
-            tools()
-            Spacer(minLength: 0)
+                // 도구가 없어도 취소·적용 버튼이 양 끝에 머물도록 Spacer로 밀어 둔다.
+                Spacer(minLength: 0)
+                tools()
+                Spacer(minLength: 0)
 
-            circleButton("적용", systemImage: "checkmark", isEnabled: isApplyEnabled, action: onApply)
-                .accessibilityIdentifier("photoEdit.tool.apply")
+                circleButton("적용", systemImage: "checkmark", isEnabled: isApplyEnabled, action: onApply)
+                    .accessibilityIdentifier("photoEdit.tool.apply")
+            }
         }
     }
 
@@ -35,7 +37,7 @@ struct PhotoEditActionBar<Tools: View>: View {
                 .font(.system(size: Metrics.iconSize, weight: .semibold))
                 .foregroundStyle(isEnabled ? theme.colors.textOnEditor : theme.colors.textOnEditorMuted)
                 .frame(width: Metrics.buttonSize, height: Metrics.buttonSize)
-                .background(theme.colors.editorControl, in: Circle())
+                .photoEditControlBackground(in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -63,7 +65,7 @@ struct PhotoEditCropTools: View {
             toolButton("왼쪽으로 회전", systemImage: "rotate.left", action: onRotate)
         }
         .padding(.horizontal, theme.spacing.xs)
-        .background(theme.colors.editorControl, in: Capsule())
+        .photoEditControlBackground(in: Capsule())
     }
 
     private func toolButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {

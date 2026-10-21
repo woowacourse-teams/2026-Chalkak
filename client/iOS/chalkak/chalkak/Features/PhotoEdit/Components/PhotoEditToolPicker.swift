@@ -33,7 +33,7 @@ struct PhotoEditToolPicker: View {
         }
         .padding(.horizontal, theme.spacing.md)
         .padding(.vertical, theme.spacing.xs)
-        .background(theme.colors.editorControl, in: Capsule())
+        .photoEditControlBackground(in: Capsule())
     }
 }
 
