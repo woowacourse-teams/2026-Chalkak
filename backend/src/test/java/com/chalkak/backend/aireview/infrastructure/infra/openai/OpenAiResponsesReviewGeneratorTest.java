@@ -49,6 +49,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.client.response.DefaultResponseCreator;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -920,6 +921,133 @@ class OpenAiResponsesReviewGeneratorTest {
     }
 
     @Test
+    @DisplayName("generate_429 응답에 retry-after-ms와 retry-after가 함께 있으면_밀리초 값을 대기 시간 힌트로 싣는다")
+    void generate_http429WithBothRetryHeaders_prefersMilliseconds() {
+        // Given
+        respondRateLimited(Map.of(
+                "retry-after",
+                "30",
+                "retry-after-ms",
+                "60000"
+        ));
+
+        // When & Then
+        assertRetryAfter(
+                FailureType.RATE_LIMITED,
+                Duration.ofSeconds(60)
+        );
+    }
+
+    @Test
+    @DisplayName("generate_429 응답에 retry-after만 있으면_초 단위로 읽어 대기 시간 힌트로 싣는다")
+    void generate_http429WithRetryAfterSeconds_readsSeconds() {
+        // Given
+        respondRateLimited(Map.of("retry-after", "60"));
+
+        // When & Then
+        assertRetryAfter(
+                FailureType.RATE_LIMITED,
+                Duration.ofSeconds(60)
+        );
+    }
+
+    @Test
+    @DisplayName("generate_retry-after-ms를 읽을 수 없으면_retry-after로 대신한다")
+    void generate_unparsableMilliseconds_fallsBackToRetryAfter() {
+        // Given
+        respondRateLimited(Map.of(
+                "retry-after-ms",
+                "soon",
+                "retry-after",
+                "45"
+        ));
+
+        // When & Then
+        assertRetryAfter(
+                FailureType.RATE_LIMITED,
+                Duration.ofSeconds(45)
+        );
+    }
+
+    @Test
+    @DisplayName("generate_429 응답에 대기 시간 헤더가 없으면_힌트는 비어 있다")
+    void generate_http429WithoutRetryHeaders_hasNoRetryAfter() {
+        // Given
+        respondRateLimited(Map.of());
+
+        // When & Then
+        assertNoRetryAfter(FailureType.RATE_LIMITED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "", "-1", "1.5", "Wed, 21 Oct 2026 07:28:00 GMT"})
+    @DisplayName("generate_retry-after를 읽을 수 없거나 음수이거나 날짜 형식이면_힌트는 비어 있다")
+    void generate_invalidRetryAfter_hasNoRetryAfter(String value) {
+        // Given
+        respondRateLimited(Map.of("retry-after", value));
+
+        // When & Then
+        assertNoRetryAfter(FailureType.RATE_LIMITED);
+    }
+
+    @Test
+    @DisplayName("generate_retry-after-ms가 음수이면_힌트는 비어 있다")
+    void generate_negativeMilliseconds_hasNoRetryAfter() {
+        // Given
+        respondRateLimited(Map.of("retry-after-ms", "-5"));
+
+        // When & Then
+        assertNoRetryAfter(FailureType.RATE_LIMITED);
+    }
+
+    @Test
+    @DisplayName("generate_5xx 응답에 retry-after가 있으면_대기 시간 힌트로 싣는다")
+    void generate_http503WithRetryAfter_carriesRetryAfter() {
+        // Given
+        server.expect(requestTo(RESPONSES_URL))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                        .header("retry-after", "20"));
+
+        // When & Then
+        assertRetryAfter(
+                FailureType.UPSTREAM_ERROR,
+                Duration.ofSeconds(20)
+        );
+    }
+
+    @Test
+    @DisplayName("generate_결제·한도 소진 429 응답이면_헤더가 있어도 재시도하지 않으므로 힌트는 비어 있다")
+    void generate_billingHttp429WithRetryAfter_hasNoRetryAfter() {
+        // Given
+        server.expect(requestTo(RESPONSES_URL))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("retry-after", "60")
+                        .body("{\"error\":{\"code\":\"insufficient_quota\"}}"));
+
+        // When & Then
+        assertNoRetryAfter(FailureType.QUOTA_EXCEEDED);
+    }
+
+    @Test
+    @DisplayName("generate_시간 초과나 status가 failed인 HTTP 200 응답이면_헤더가 없으므로 힌트는 비어 있다")
+    void generate_timeoutAndFailedStatus_haveNoRetryAfter() {
+        // Given
+        server.expect(requestTo(RESPONSES_URL)).andRespond(request -> {
+            throw new SocketTimeoutException("Read timed out");
+        });
+        server.expect(requestTo(RESPONSES_URL)).andRespond(withSuccess(
+                "{\"id\":\"resp_1\",\"status\":\"failed\","
+                        + "\"error\":{\"code\":\"rate_limit_exceeded\"},\"output\":[]}",
+                MediaType.APPLICATION_JSON
+        ));
+
+        // When & Then
+        assertNoRetryAfter(FailureType.TIMEOUT);
+        assertNoRetryAfter(FailureType.RATE_LIMITED);
+    }
+
+    @Test
     @DisplayName("generate_실패해도_예외 메시지에 API 키 프롬프트 이미지 주소를 담지 않는다")
     void generate_failure_doesNotLeakSensitiveValues() {
         // Given
@@ -963,6 +1091,38 @@ class OpenAiResponsesReviewGeneratorTest {
                 .andRespond(withStatus(status)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body));
+    }
+
+    private void respondRateLimited(Map<String, String> headers) {
+        DefaultResponseCreator response = withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":{\"code\":\"rate_limit_exceeded\"}}");
+        headers.forEach(response::header);
+        server.expect(requestTo(RESPONSES_URL)).andRespond(response);
+    }
+
+    private void assertRetryAfter(FailureType expected, Duration retryAfter) {
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(expected);
+                    assertThat(exception.findRetryAfter()).contains(retryAfter);
+                });
+    }
+
+    private void assertNoRetryAfter(FailureType expected) {
+        assertThatThrownBy(() -> generator.generate(request(
+                ImageDetail.AUTO,
+                500,
+                null
+        )))
+                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                    assertThat(exception.getFailureType()).isEqualTo(expected);
+                    assertThat(exception.findRetryAfter()).isEmpty();
+                });
     }
 
     private void assertFailure(FailureType expected, boolean retryable) {

@@ -265,6 +265,7 @@ class AiReviewWorkerTest {
         return new Claim(
                 UUID.randomUUID(),
                 1,
+                1,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 null

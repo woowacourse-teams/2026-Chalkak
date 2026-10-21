@@ -14,6 +14,7 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -43,9 +44,16 @@ public class PostAiReviewService {
     @Transactional
     public ReviewResult request(UUID userId, UUID postId) {
         validateAuthoredVisiblePost(userId, postId);
-        return aiReviewRepository.findByPostId(postId)
-                .map(ReviewResult::from)
-                .orElseGet(() -> createReview(userId, postId));
+        // 동시 재요청이 한 번만 반영되도록 트랜잭션의 첫 리뷰 읽기를 잠금 읽기로 한다.
+        Optional<AiReview> found = aiReviewRepository.findByPostIdForUpdate(postId);
+        if (found.isEmpty()) {
+            return createReview(userId, postId);
+        }
+        AiReview review = found.get();
+        if (!review.isFailed()) {
+            return ReviewResult.from(review);
+        }
+        return requestAgain(review);
     }
 
     @Transactional(readOnly = true)
@@ -68,8 +76,27 @@ public class PostAiReviewService {
         int inserted = aiReviewRepository.insertIfAbsent(requested);
         AiReview review = aiReviewRepository.findByPostId(postId).orElseThrow();
         if (inserted == 1) {
-            logRequested(review, version);
+            logRequested(
+                    review,
+                    version,
+                    true
+            );
         }
+        return ReviewResult.from(review);
+    }
+
+    private ReviewResult requestAgain(AiReview review) {
+        review.validateRequestsLeft();
+        AiPromptVersion version = getUsableLatestVersion();
+        review.requestAgain(
+                version.getId(),
+                clock.instant()
+        );
+        logRequested(
+                review,
+                version,
+                false
+        );
         return ReviewResult.from(review);
     }
 
@@ -92,7 +119,11 @@ public class PostAiReviewService {
                         "게시물을 찾을 수 없습니다."));
     }
 
-    private void logRequested(AiReview review, AiPromptVersion version) {
+    private void logRequested(
+            AiReview review,
+            AiPromptVersion version,
+            boolean created
+    ) {
         AI_REVIEW_LOG.atInfo()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
                 .addKeyValue(LogFields.EVENT, "review_requested")
@@ -101,6 +132,8 @@ public class PostAiReviewService {
                 .addKeyValue(LogFields.USER_ID, review.getUserId())
                 .addKeyValue("promptVersion", version.getVersion())
                 .addKeyValue("model", version.getModel())
+                .addKeyValue("requestCount", review.getRequestCount())
+                .addKeyValue("created", created)
                 .log("AI 리뷰 요청");
     }
 
@@ -112,7 +145,8 @@ public class PostAiReviewService {
             ApiStatus status,
             Instant requestedAt,
             Instant completedAt,
-            AiReviewResult result
+            AiReviewResult result,
+            boolean canRequestAgain
     ) {
 
         private static ReviewResult from(AiReview review) {
@@ -120,7 +154,8 @@ public class PostAiReviewService {
                     ApiStatus.from(review.getStatus()),
                     review.getRequestedAt(),
                     review.getCompletedAt(),
-                    review.getResult()
+                    review.getResult(),
+                    review.canRequestAgain()
             );
         }
 
@@ -129,7 +164,8 @@ public class PostAiReviewService {
                     ApiStatus.NONE,
                     null,
                     null,
-                    null
+                    null,
+                    false
             );
         }
 

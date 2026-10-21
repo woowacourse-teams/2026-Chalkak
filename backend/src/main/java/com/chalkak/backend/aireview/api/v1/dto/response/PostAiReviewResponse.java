@@ -17,7 +17,11 @@ public record PostAiReviewResponse(
         @Schema(description = "완료 또는 실패한 시각(UTC). 요청 전·처리 중에는 null", nullable = true)
         Instant completedAt,
         @Schema(description = "리뷰 결과. COMPLETED일 때만 값이 있고 그 밖에는 null", nullable = true)
-        Result result
+        Result result,
+        @Schema(
+                description = "실패한 리뷰를 다시 요청할 수 있는지. 실패(FAILED)이고 요청 횟수(처음 포함 최대 3번)가 남았을 때만 true이며 그 밖의 상태는 false다. 횟수만 반영하므로 true여도 AI 설정이 없으면 400, 이용이 정지된 회원이면 403이 될 수 있다.",
+                requiredMode = Schema.RequiredMode.REQUIRED)
+        boolean canRequestAgain
 ) {
 
     public static PostAiReviewResponse from(ReviewResult reviewResult) {
@@ -25,7 +29,8 @@ public record PostAiReviewResponse(
                 reviewResult.status(),
                 reviewResult.requestedAt(),
                 reviewResult.completedAt(),
-                reviewResult.result() == null ? null : Result.from(reviewResult.result())
+                reviewResult.result() == null ? null : Result.from(reviewResult.result()),
+                reviewResult.canRequestAgain()
         );
     }
 

@@ -23,13 +23,19 @@ public class AiReviewRepositoryImpl implements AiReviewRepository {
                 review.getStatus().name(),
                 review.getAttempt(),
                 review.getRequestId(),
-                review.getRequestedAt()
+                review.getRequestedAt(),
+                review.getLastRequestedAt()
         );
     }
 
     @Override
     public Optional<AiReview> findByPostId(UUID postId) {
         return jpaRepository.findByPostId(postId);
+    }
+
+    @Override
+    public Optional<AiReview> findByPostIdForUpdate(UUID postId) {
+        return jpaRepository.findByPostIdForUpdate(postId);
     }
 
     @Override

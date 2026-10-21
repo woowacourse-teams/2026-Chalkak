@@ -17,9 +17,9 @@ public interface AiReviewJpaRepository extends JpaRepository<AiReview, UUID> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             INSERT INTO ai_reviews (post_id, user_id, prompt_version_id, status, attempt,
-                request_id, requested_at)
+                request_id, requested_at, last_requested_at)
             VALUES (:postId, :userId, :promptVersionId, :status, :attempt,
-                :requestId, :requestedAt)
+                :requestId, :requestedAt, :lastRequestedAt)
             ON CONFLICT (post_id) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsent(
@@ -29,16 +29,21 @@ public interface AiReviewJpaRepository extends JpaRepository<AiReview, UUID> {
             @Param("status") String status,
             @Param("attempt") int attempt,
             @Param("requestId") UUID requestId,
-            @Param("requestedAt") Instant requestedAt
+            @Param("requestedAt") Instant requestedAt,
+            @Param("lastRequestedAt") Instant lastRequestedAt
     );
 
     Optional<AiReview> findByPostId(UUID postId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT review FROM AiReview review WHERE review.postId = :postId")
+    Optional<AiReview> findByPostIdForUpdate(@Param("postId") UUID postId);
+
     @Query(value = """
             SELECT * FROM ai_reviews
-            WHERE status = 'QUEUED'
+            WHERE (status = 'QUEUED' AND (next_attempt_at IS NULL OR next_attempt_at <= :now))
                 OR (status = 'PROCESSING' AND lease_expires_at < :now)
-            ORDER BY requested_at, id
+            ORDER BY COALESCE(next_attempt_at, last_requested_at), id
             LIMIT 1
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)

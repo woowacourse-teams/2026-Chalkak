@@ -68,7 +68,7 @@ class PostAiReviewOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.length()")
-                        .value(4))
+                        .value(5))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.status.enum")
                         .value(containsInAnyOrder(
                                 "NONE",
@@ -84,8 +84,11 @@ class PostAiReviewOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.result['$ref']")
                         .value("#/components/schemas/PostAiReviewResult"))
+                .andExpect(
+                        jsonPath(SCHEMAS + ".PostAiReviewResponse.properties.canRequestAgain.type")
+                                .value("boolean"))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResponse.required")
-                        .value(containsInAnyOrder("status")))
+                        .value(containsInAnyOrder("status", "canRequestAgain")))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.length()").value(4))
                 .andExpect(jsonPath(SCHEMAS + ".PostAiReviewResult.properties.overallScore.type")
                         .value("number"))

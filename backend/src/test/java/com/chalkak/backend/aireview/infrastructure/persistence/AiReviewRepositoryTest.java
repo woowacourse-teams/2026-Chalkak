@@ -19,9 +19,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,6 +75,10 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         assertThat(found.getPromptVersionId()).isEqualTo(promptVersionId);
         assertThat(found.getRequestId()).isEqualTo(review.getRequestId());
         assertThat(found.getRequestedAt()).isEqualTo(REQUESTED_AT);
+        assertThat(found.getLastRequestedAt()).isEqualTo(REQUESTED_AT);
+        assertThat(found.getRequestCount()).isEqualTo(1);
+        assertThat(found.getRoundAttempt()).isZero();
+        assertThat(found.getNextAttemptAt()).isNull();
     }
 
     @Test
@@ -92,14 +100,27 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("게시물의 리뷰를 잠가서 읽고 없으면 비어 있다")
+    void findByPostIdForUpdate_returnsReviewOfPost() {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+        entityManager.clear();
+
+        // When & Then
+        assertThat(reviewRepository.findByPostIdForUpdate(POST_ID))
+                .map(AiReview::getPostId).contains(POST_ID);
+        assertThat(reviewRepository.findByPostIdForUpdate(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
     @DisplayName("처리 중인데 임대 만료 시각이 없으면 CHECK 제약이 거절한다")
     void processingWithoutLease_isRejectedByCheckConstraint() {
         // When & Then
         assertThatThrownBy(() -> jdbcTemplate.update(
                 """
                         INSERT INTO ai_reviews (post_id, user_id, prompt_version_id, status, attempt,
-                            request_id, requested_at)
-                        VALUES (?, ?, ?, 'PROCESSING', 1, ?, CURRENT_TIMESTAMP)
+                            round_attempt, request_id, requested_at, last_requested_at)
+                        VALUES (?, ?, ?, 'PROCESSING', 1, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 POST_ID,
                 AUTHOR_ID,
@@ -108,6 +129,54 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         ))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_ai_reviews");
+    }
+
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("checkViolations")
+    @DisplayName("재시도 컬럼의 CHECK 제약을 어기는 값은 제약 이름과 함께 거절한다")
+    void retryColumnViolation_isRejectedByCheckConstraint(String update, String constraint) {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+
+        // When & Then
+        assertThatThrownBy(() -> jdbcTemplate.update(update))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining(constraint);
+    }
+
+    private static Stream<Arguments> checkViolations() {
+        return Stream.of(
+                Arguments.of(
+                        """
+                                UPDATE ai_reviews SET status = 'PROCESSING', attempt = 1, round_attempt = 1,
+                                    lease_expires_at = CURRENT_TIMESTAMP, next_attempt_at = CURRENT_TIMESTAMP
+                                """,
+                        "ck_ai_reviews_next_attempt_queued"
+                ),
+                Arguments.of(
+                        "UPDATE ai_reviews SET round_attempt = -1",
+                        "ck_ai_reviews_round_attempt_not_negative"
+                ),
+                Arguments.of(
+                        "UPDATE ai_reviews SET round_attempt = 1",
+                        "ck_ai_reviews_round_attempt_within_attempt"
+                ),
+                Arguments.of(
+                        """
+                                UPDATE ai_reviews SET status = 'FAILED', attempt = 1, error_code = 'TIMEOUT',
+                                    completed_at = CURRENT_TIMESTAMP
+                                """,
+                        "ck_ai_reviews_round_attempt_after_queued"
+                ),
+                Arguments.of(
+                        "UPDATE ai_reviews SET request_count = 0",
+                        "ck_ai_reviews_request_count_positive"
+                ),
+                Arguments.of(
+                        "UPDATE ai_reviews SET last_requested_at = requested_at - INTERVAL '1 second'",
+                        "ck_ai_reviews_last_requested_at_order"
+                )
+        );
     }
 
     @Test
@@ -132,6 +201,51 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
                 """);
         entityManager.clear();
         assertThat(reviewRepository.findClaimableForUpdate(now)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("재시도 대기 행은 다음 시도 시각 전에는 후보가 아니고 그 시각부터 후보다")
+    void findClaimableForUpdate_retryWaiting_isCandidateFromNextAttemptAt() {
+        // Given
+        reviewRepository.insertIfAbsent(request(UUID.randomUUID()));
+        Instant nextAttemptAt = REQUESTED_AT.plusSeconds(600);
+        setRetryWaiting(nextAttemptAt);
+
+        // When & Then
+        assertThat(reviewRepository.findClaimableForUpdate(nextAttemptAt.minusSeconds(1)))
+                .isEmpty();
+        assertThat(reviewRepository.findClaimableForUpdate(nextAttemptAt)).isPresent();
+        assertThat(reviewRepository.findClaimableForUpdate(nextAttemptAt.plusSeconds(1)))
+                .isPresent();
+    }
+
+    @Test
+    @DisplayName("가져가는 순서는 다음 시도 시각이 있으면 그 시각, 없으면 이번 회차 요청 시각 기준이다")
+    void findClaimableForUpdate_ordersByNextAttemptAtOrLastRequestedAt() {
+        // Given
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertSecondPublicPost();
+        UUID first = fixture.insertQueuedReview(promptVersionId, REQUESTED_AT);
+        UUID second = fixture.insertSecondQueuedReview(promptVersionId,
+                REQUESTED_AT.plusSeconds(50));
+        Instant now = REQUESTED_AT.plusSeconds(600);
+
+        // When & Then: 먼저 요청했지만 다시 요청해 회차 요청 시각이 늦은 행은 뒤로 밀린다
+        jdbcTemplate.update(
+                "UPDATE ai_reviews SET last_requested_at = ? WHERE id = ?",
+                Timestamp.from(REQUESTED_AT.plusSeconds(100)),
+                first
+        );
+        entityManager.clear();
+        assertThat(reviewRepository.findClaimableForUpdate(now)).map(AiReview::getId)
+                .contains(second);
+
+        // When & Then: 재시도 대기 행은 요청 시각이 아니라 다음 시도 시각 순서다
+        jdbcTemplate.update("UPDATE ai_reviews SET last_requested_at = requested_at WHERE id = ?",
+                first);
+        setRetryWaiting(REQUESTED_AT.plusSeconds(100));
+        assertThat(reviewRepository.findClaimableForUpdate(now)).map(AiReview::getId)
+                .contains(second);
     }
 
     @Test
@@ -180,7 +294,8 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // Then
-        assertThat(processing).containsEntry("status", "PROCESSING").containsEntry("attempt", 1);
+        assertThat(processing).containsEntry("status", "PROCESSING").containsEntry("attempt", 1)
+                .containsEntry("round_attempt", 1);
         assertThat(((Timestamp) processing.get("lease_expires_at")).toInstant())
                 .isEqualTo(claimedAt.plusSeconds(120));
         Map<String, Object> row = jdbcTemplate.queryForMap("SELECT * FROM ai_reviews");
@@ -207,9 +322,23 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
         ));
     }
 
+    private void setRetryWaiting(Instant nextAttemptAt) {
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET attempt = 1, round_attempt = 1, started_at = requested_at,
+                            error_code = 'TIMEOUT', next_attempt_at = ?
+                        WHERE status = 'QUEUED' AND post_id = ?
+                        """,
+                Timestamp.from(nextAttemptAt),
+                POST_ID
+        );
+        entityManager.clear();
+    }
+
     private void setProcessing(Instant leaseExpiresAt) {
         jdbcTemplate.update("""
-                UPDATE ai_reviews SET status = 'PROCESSING', attempt = 1, lease_expires_at = ?
+                UPDATE ai_reviews SET status = 'PROCESSING', attempt = 1, round_attempt = 1,
+                    lease_expires_at = ?
                 """, Timestamp.from(leaseExpiresAt));
         entityManager.clear();
     }
