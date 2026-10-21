@@ -4,9 +4,14 @@ import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.domain.PhotoReviewOutput;
 import java.time.Duration;
 
+/**
+ * 생성 성공 결과. {@code rawOutput}은 모델이 돌려준 output_text 그대로이며, 검증을 거친
+ * {@code output}과 달리 가공하지 않는다.
+ */
 public record AiReviewGeneration(
         AiReviewResult result,
         PhotoReviewOutput output,
+        String rawOutput,
         Attempt attempt
 ) {
 

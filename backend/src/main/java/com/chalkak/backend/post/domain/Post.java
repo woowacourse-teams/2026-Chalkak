@@ -136,6 +136,10 @@ public class Post {
         decideModeration(ModerationStatus.APPROVED, moderatedAt);
     }
 
+    public boolean isAuthoredBy(UUID userId) {
+        return author.getId().equals(userId);
+    }
+
     public boolean isValidating() {
         return moderationStatus == ModerationStatus.VALIDATING;
     }

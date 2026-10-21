@@ -789,6 +789,24 @@ class PostTest {
         assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
     }
 
+    @Test
+    @DisplayName("작성자 식별자와 같을 때만 작성자로 판단한다")
+    void isAuthoredBy_comparesAuthorId() {
+        // Given
+        given(author.getId()).willReturn(AUTHOR_ID);
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "제목"
+        );
+
+        // When & Then
+        assertThat(post.isAuthoredBy(AUTHOR_ID)).isTrue();
+        assertThat(post.isAuthoredBy(OTHER_USER_ID)).isFalse();
+    }
+
     private Post createPostWithStatus(ModerationStatus status) {
         Post post = Post.createPost(
                 author,

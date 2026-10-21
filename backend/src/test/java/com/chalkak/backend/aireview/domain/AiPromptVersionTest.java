@@ -10,6 +10,9 @@ import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class AiPromptVersionTest {
 
@@ -145,6 +148,90 @@ class AiPromptVersionTest {
                 null
         ))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("출력 스키마 버전이 유형의 현재 버전과 같으면 호환된다")
+    void hasCurrentOutputSchema_sameSchemaVersion_returnsTrue() {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                ADMIN_ID
+        );
+
+        // When & Then
+        assertThat(version.hasCurrentOutputSchema()).isTrue();
+    }
+
+    @Test
+    @DisplayName("출력 스키마 버전이 유형의 현재 버전과 다르면 호환되지 않는다")
+    void hasCurrentOutputSchema_differentSchemaVersion_returnsFalse() {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                ADMIN_ID
+        );
+        ReflectionTestUtils.setField(
+                version,
+                "outputSchemaVersion",
+                "0"
+        );
+
+        // When & Then
+        assertThat(version.hasCurrentOutputSchema()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "gpt-6.1-sol, 1, true",
+            "gpt-6.1-sol, 0, false",
+            "gpt-unknown, 1, false"
+    })
+    @DisplayName("현재 출력 스키마이고 허용된 모델일 때만 실행할 수 있다")
+    void isRunnableWith_byOutputSchemaAndModel(
+            String model,
+            String outputSchemaVersion,
+            boolean expected
+    ) {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                null,
+                ADMIN_ID
+        );
+        ReflectionTestUtils.setField(
+                version,
+                "model",
+                model
+        );
+        ReflectionTestUtils.setField(
+                version,
+                "outputSchemaVersion",
+                outputSchemaVersion
+        );
+
+        // When & Then
+        assertThat(version.isRunnableWith("gpt-6.1-sol"::equals)).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("버전에서 만든 초안은 버전을 만든 초안과 같은 값이다")
+    void toDraft_createdVersion_returnsSameDraft() {
+        // Given
+        AiPromptVersion version = AiPromptVersion.create(
+                draft(),
+                1,
+                "메모",
+                ADMIN_ID
+        );
+
+        // When & Then
+        assertThat(version.toDraft()).isEqualTo(draft());
     }
 
     private AiPromptDraft draft() {

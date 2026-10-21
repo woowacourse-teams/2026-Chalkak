@@ -91,6 +91,7 @@ class AdminAiPromptPreviewApiTest extends IntegrationTestSupport {
         given(aiReviewGenerator.generate(any())).willReturn(new AiReviewGeneration(
                 output.toResult(7.0),
                 output,
+                "{}",
                 new Attempt(
                         new Usage(
                                 1200,

@@ -385,6 +385,7 @@ class AdminAiPromptPreviewServiceTest extends IntegrationTestSupport {
         return new AiReviewGeneration(
                 result,
                 output,
+                "{}",
                 new Attempt(
                         new Usage(
                                 1200,

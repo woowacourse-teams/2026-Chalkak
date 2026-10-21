@@ -19,6 +19,11 @@ public interface AiPromptVersionRepository {
      */
     int findMaxVersion(AiPromptType type);
 
+    /**
+     * 용도의 가장 큰 버전. 출력 스키마나 모델은 거르지 않으며, 쓸 수 있는지는 호출하는 쪽이 판단한다.
+     */
+    Optional<AiPromptVersion> findLatestByType(AiPromptType type);
+
     Optional<AiPromptVersion> findById(UUID promptVersionId);
 
     /**

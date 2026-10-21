@@ -197,6 +197,7 @@ class OpenAiResponsesReviewGeneratorTest {
                 8.0,
                 "구도가 좋습니다."
         ));
+        assertThat(generation.rawOutput()).isEqualTo(OK_OUTPUT);
         assertThat(generation.attempt().usage()).isEqualTo(new Usage(
                 1200,
                 300,

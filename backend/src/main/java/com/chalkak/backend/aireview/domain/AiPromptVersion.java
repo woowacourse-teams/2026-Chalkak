@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.function.Predicate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -91,6 +92,30 @@ public class AiPromptVersion {
         promptVersion.memo = normalizeMemo(memo);
         promptVersion.createdByAdminId = createdByAdminId;
         return promptVersion;
+    }
+
+    /**
+     * 이 버전이 모델에게 요구하는 출력 스키마가 서버가 지금 해석할 수 있는 버전인지 확인한다.
+     */
+    public boolean hasCurrentOutputSchema() {
+        return outputSchemaVersion.equals(type.outputSchemaVersion());
+    }
+
+    /**
+     * 이 버전을 지금 서버가 호출할 수 있는지 확인한다. 서버가 해석하는 출력 스키마이고 허용된 모델이어야 한다.
+     */
+    public boolean isRunnableWith(Predicate<String> modelSupported) {
+        return hasCurrentOutputSchema() && modelSupported.test(model);
+    }
+
+    public AiPromptDraft toDraft() {
+        return new AiPromptDraft(
+                type,
+                systemPrompt,
+                userPromptTemplate,
+                model,
+                parameters
+        );
     }
 
     private static String normalizeMemo(String memo) {

@@ -274,6 +274,7 @@ public final class OpenAiResponsesReviewGenerator implements AiReviewGenerator {
         return new AiReviewGeneration(
                 output.toResult(threshold),
                 output,
+                outputText,
                 attempt
         );
     }

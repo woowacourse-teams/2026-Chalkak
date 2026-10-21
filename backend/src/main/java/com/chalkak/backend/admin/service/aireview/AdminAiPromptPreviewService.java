@@ -13,12 +13,12 @@ import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewGenerationException;
 import com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType;
 import com.chalkak.backend.aireview.service.AiReviewGenerationRequest;
+import com.chalkak.backend.aireview.service.AiReviewGenerationRequestFactory;
 import com.chalkak.backend.aireview.service.AiReviewGenerator;
 import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.util.UUID;
@@ -44,18 +44,14 @@ public class AdminAiPromptPreviewService {
 
     private final AiReviewGenerator aiReviewGenerator;
     private final PostRepository postRepository;
-    private final ImageUrlProvider imageUrlProvider;
+    private final AiReviewGenerationRequestFactory requestFactory;
 
     public PreviewResult preview(UUID adminId, PreviewCommand command) {
         validateAdminId(adminId);
         AiPromptDraft draft = createDraft(command);
         validateModel(draft.model());
         Post post = getVisiblePost(command.postId());
-        AiReviewGenerationRequest request = new AiReviewGenerationRequest(
-                draft,
-                imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
-                post.getTopic().getTitle()
-        );
+        AiReviewGenerationRequest request = requestFactory.create(draft, post);
 
         PreviewResult result = generate(request);
         logPreview(
