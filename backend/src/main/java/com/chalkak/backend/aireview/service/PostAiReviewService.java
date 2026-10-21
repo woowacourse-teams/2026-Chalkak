@@ -53,9 +53,7 @@ public class PostAiReviewService {
         validateAuthoredVisiblePost(userId, postId);
         return aiReviewRepository.findByPostId(postId)
                 .map(ReviewResult::from)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.BUSINESS_ERROR,
-                        "AI 리뷰를 찾을 수 없습니다."));
+                .orElseGet(ReviewResult::none);
     }
 
     private ReviewResult createReview(UUID userId, UUID postId) {
@@ -107,7 +105,8 @@ public class PostAiReviewService {
     }
 
     /**
-     * 요청·조회 결과. 앱에는 내부 대기와 처리 중을 합친 상태만 노출하고, 결과는 완료일 때만 있다.
+     * 요청·조회 결과. 앱에는 내부 대기와 처리 중을 합친 상태만 노출하고, 결과는 완료일 때만 있다. 요청한 적이 없으면 시각과 결과 없이
+     * 요청 전 상태(NONE)다.
      */
     public record ReviewResult(
             ApiStatus status,
@@ -125,16 +124,25 @@ public class PostAiReviewService {
             );
         }
 
+        private static ReviewResult none() {
+            return new ReviewResult(
+                    ApiStatus.NONE,
+                    null,
+                    null,
+                    null
+            );
+        }
+
         public boolean isInProgress() {
             return status == ApiStatus.PROCESSING;
         }
     }
 
     /**
-     * 앱에 노출하는 상태. 대기와 처리 중은 앱이 구분할 필요가 없어 하나로 합친다.
+     * 앱에 노출하는 상태. 대기와 처리 중은 앱이 구분할 필요가 없어 하나로 합친다. NONE은 아직 요청하지 않은 상태다.
      */
     public enum ApiStatus {
-        PROCESSING, COMPLETED, FAILED;
+        NONE, PROCESSING, COMPLETED, FAILED;
 
         static ApiStatus from(AiReview.Status status) {
             if (status == AiReview.Status.COMPLETED) {

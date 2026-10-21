@@ -9,12 +9,12 @@ import java.util.List;
 
 public record PostAiReviewResponse(
         @Schema(
-                description = "리뷰 진행 상태. 앱은 HTTP 상태 코드가 아니라 이 값으로 분기한다.",
+                description = "리뷰 진행 상태. 앱은 HTTP 상태 코드가 아니라 이 값으로 분기한다. NONE은 아직 요청하지 않은 상태다.",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         ApiStatus status,
-        @Schema(description = "최초 요청 시각(UTC)", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "최초 요청 시각(UTC). 요청 전(NONE)에는 null", nullable = true)
         Instant requestedAt,
-        @Schema(description = "완료 또는 실패한 시각(UTC). 완료·실패 전에는 null", nullable = true)
+        @Schema(description = "완료 또는 실패한 시각(UTC). 요청 전·처리 중에는 null", nullable = true)
         Instant completedAt,
         @Schema(description = "리뷰 결과. COMPLETED일 때만 값이 있고 그 밖에는 null", nullable = true)
         Result result

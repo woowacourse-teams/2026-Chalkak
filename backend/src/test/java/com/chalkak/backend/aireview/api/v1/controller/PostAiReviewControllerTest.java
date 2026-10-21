@@ -101,6 +101,28 @@ class PostAiReviewControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("요청한 적 없는 리뷰의 조회는 200과 요청 전 상태이고 시각과 결과는 null이다")
+    void get_none_returnsOkWithNullFields() throws Exception {
+        // Given
+        given(postAiReviewService.get(USER_ID, POST_ID))
+                .willReturn(new ReviewResult(
+                        ApiStatus.NONE,
+                        null,
+                        null,
+                        null
+                ));
+
+        // When & Then
+        mockMvc.perform(get(PATH, POST_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("NONE"))
+                .andExpect(jsonPath("$.requestedAt").value(nullValue()))
+                .andExpect(jsonPath("$.completedAt").value(nullValue()))
+                .andExpect(jsonPath("$.result").value(nullValue()));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("완료된 리뷰는 결과의 점수·항목·피드백을 반환하고 그 밖의 상태는 결과가 null이다")
     void request_completed_returnsResult() throws Exception {
         // Given
@@ -153,13 +175,13 @@ class PostAiReviewControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("게시물이나 리뷰를 찾을 수 없으면 서비스 메시지 그대로 404를 반환한다")
+    @DisplayName("게시물을 찾을 수 없으면 서비스 메시지 그대로 404를 반환한다")
     void notFound_returnsNotFound() throws Exception {
         // Given
         given(postAiReviewService.request(USER_ID, POST_ID)).willThrow(new NotFoundException(
                 ErrorCode.BUSINESS_ERROR, "게시물을 찾을 수 없습니다."));
         given(postAiReviewService.get(USER_ID, POST_ID)).willThrow(new NotFoundException(
-                ErrorCode.BUSINESS_ERROR, "AI 리뷰를 찾을 수 없습니다."));
+                ErrorCode.BUSINESS_ERROR, "게시물을 찾을 수 없습니다."));
 
         // When & Then
         mockMvc.perform(post(PATH, POST_ID))
@@ -168,7 +190,7 @@ class PostAiReviewControllerTest {
                 .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));
         mockMvc.perform(get(PATH, POST_ID))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("AI 리뷰를 찾을 수 없습니다."));
+                .andExpect(jsonPath("$.message").value("게시물을 찾을 수 없습니다."));
     }
 
     @Test

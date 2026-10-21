@@ -291,14 +291,17 @@ class PostAiReviewServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("요청한 적 없으면 조회는 404다")
-    void get_noReview_throwsNotFound() {
-        // When & Then
-        assertThatThrownBy(() -> service.get(AUTHOR_ID, POST_ID))
-                .isInstanceOfSatisfying(NotFoundException.class, exception -> {
-                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-                    assertThat(exception).hasMessage("AI 리뷰를 찾을 수 없습니다.");
-                });
+    @DisplayName("본인의 공개된 게시물에 리뷰를 요청한 적 없으면 조회는 요청 전 상태로 응답하고 행을 만들지 않는다")
+    void get_noReview_returnsNone() {
+        // When
+        ReviewResult result = service.get(AUTHOR_ID, POST_ID);
+
+        // Then
+        assertThat(result.status()).isEqualTo(ApiStatus.NONE);
+        assertThat(result.requestedAt()).isNull();
+        assertThat(result.completedAt()).isNull();
+        assertThat(result.result()).isNull();
+        assertThat(fixture.countReviews()).isZero();
     }
 
     private void assertUnavailable() {
