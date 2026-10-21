@@ -13,17 +13,33 @@ final class HomeViewModel {
     private var loadTask: Task<Void, Never>?
     private var bannerLoadMoreTask: Task<Void, Never>?
     private static let bannerPageSize = 10
+    private let aiReviewRepository: (any AIReviewRepository)?
+    private let aiReviewNow: @MainActor () -> Date
+    private let aiReviewSleep: @Sendable (Duration) async throws -> Void
+    private var aiReviewTask: Task<Void, Never>?
+    private var aiReviewPostID: String?
+    private var aiReviewGeneration = 0
+    private var aiReviewRevision = 0
+    private var aiReviewDeadline: Date?
+
+    var hasAIReviewRepository: Bool { aiReviewRepository != nil }
 
     init(
         initialState: HomeViewState? = nil,
         loader: HomeDataLoader,
         dateProvider: @escaping @MainActor () -> Date = { Date() },
-        isAuthenticated: @escaping @MainActor () -> Bool = { KeychainSessionStore.hasAuthenticatedSession() }
+        isAuthenticated: @escaping @MainActor () -> Bool = { KeychainSessionStore.hasAuthenticatedSession() },
+        aiReviewRepository: (any AIReviewRepository)? = nil,
+        aiReviewNow: @escaping @MainActor () -> Date = { Date() },
+        aiReviewSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         viewState = initialState ?? HomeViewState(date: dateProvider())
         self.loader = loader
         self.dateProvider = dateProvider
         self.isAuthenticated = isAuthenticated
+        self.aiReviewRepository = aiReviewRepository
+        self.aiReviewNow = aiReviewNow
+        self.aiReviewSleep = aiReviewSleep
     }
 
     func resume() async {
@@ -40,6 +56,11 @@ final class HomeViewModel {
     }
 
     func cancel() {
+        cancelAIReview()
+        cancelHomeLoading()
+    }
+
+    private func cancelHomeLoading() {
         generation += 1
         loadTask?.cancel()
         loadTask = nil
@@ -49,13 +70,155 @@ final class HomeViewModel {
         viewState.isRefreshing = false
     }
 
+    /// Kept alive by the screen's task so cancellation also ends polling.
+    func observeAIReview(postID: String) async {
+        guard let repository = aiReviewRepository else { return }
+        let samePost = aiReviewPostID == postID
+        cancelAIReview()
+        aiReviewPostID = postID
+        if !samePost { viewState.aiReview = HomeAIReviewState() }
+        viewState.aiReview.isUnavailable = false
+        viewState.aiReview.pollingTimedOut = false
+        viewState.aiReview.isLoading = true
+        aiReviewDeadline = aiReviewNow().addingTimeInterval(300)
+        let session = aiReviewGeneration
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.fetchAIReview(repository: repository, postID: postID, session: session)
+            while self.isCurrentAIReview(session) {
+                do { try await self.aiReviewSleep(.seconds(5)) }
+                catch { break }
+                guard self.isCurrentAIReview(session) else { break }
+                guard !self.viewState.aiReview.isUnavailable,
+                      !self.viewState.aiReview.isSubmitting,
+                      self.viewState.aiReview.review?.status == .processing else { continue }
+                guard let deadline = self.aiReviewDeadline, self.aiReviewNow() < deadline else {
+                    self.viewState.aiReview.pollingTimedOut = true
+                    continue
+                }
+                await self.fetchAIReview(repository: repository, postID: postID, session: session)
+            }
+        }
+        aiReviewTask = task
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        if session == aiReviewGeneration {
+            cancelAIReview()
+        }
+    }
+
+    func requestAIReview() async {
+        guard let repository = aiReviewRepository,
+              let postID = aiReviewPostID,
+              !viewState.aiReview.isLoading,
+              !viewState.aiReview.isSubmitting,
+              !viewState.aiReview.isUnavailable,
+              let review = viewState.aiReview.review,
+              review.status == .none || (review.status == .failed && review.canRequestAgain) else { return }
+        let session = aiReviewGeneration
+        aiReviewRevision += 1
+        viewState.aiReview.isSubmitting = true
+        viewState.aiReview.message = nil
+        viewState.aiReview.pollingTimedOut = false
+        aiReviewDeadline = aiReviewNow().addingTimeInterval(300)
+        do {
+            let response = try await repository.requestReview(postID: postID)
+            guard isCurrentAIReview(session) else { return }
+            viewState.aiReview.review = response
+            updateAIReviewTimeout()
+        } catch {
+            guard isCurrentAIReview(session) else { return }
+            handleAIReviewError(error)
+            // A lost POST response can still mean the server accepted it.
+            // Resolve uncertainty with GET; never send another POST automatically.
+            let needsStatusCheck: Bool
+            switch error as? AIReviewError {
+            case .network?, .invalidResponse?: needsStatusCheck = true
+            default: needsStatusCheck = false
+            }
+            if needsStatusCheck {
+                await fetchAIReview(repository: repository, postID: postID, session: session, preserveMessage: true)
+            }
+        }
+        guard isCurrentAIReview(session) else { return }
+        viewState.aiReview.isSubmitting = false
+    }
+
+    func dismissAIReviewMessage() {
+        viewState.aiReview.message = nil
+    }
+
+    private func cancelAIReview() {
+        aiReviewGeneration += 1
+        aiReviewRevision += 1
+        aiReviewTask?.cancel()
+        aiReviewTask = nil
+        viewState.aiReview.isLoading = false
+        viewState.aiReview.isSubmitting = false
+    }
+
+    private func isCurrentAIReview(_ session: Int) -> Bool {
+        session == aiReviewGeneration && !Task.isCancelled && aiReviewTask?.isCancelled != true
+    }
+
+    private func fetchAIReview(
+        repository: any AIReviewRepository,
+        postID: String,
+        session: Int,
+        preserveMessage: Bool = false
+    ) async {
+        let revision = aiReviewRevision
+        do {
+            let review = try await repository.fetchReview(postID: postID)
+            guard isCurrentAIReview(session), revision == aiReviewRevision else { return }
+            viewState.aiReview.review = review
+            updateAIReviewTimeout()
+            if !preserveMessage { viewState.aiReview.message = nil }
+        } catch {
+            guard isCurrentAIReview(session), revision == aiReviewRevision else { return }
+            handleAIReviewError(error)
+        }
+        guard isCurrentAIReview(session), revision == aiReviewRevision else { return }
+        viewState.aiReview.isLoading = false
+    }
+
+    private func updateAIReviewTimeout() {
+        viewState.aiReview.pollingTimedOut = viewState.aiReview.review?.status == .processing
+            && aiReviewDeadline.map { aiReviewNow() >= $0 } == true
+    }
+
+    private func handleAIReviewError(_ error: Error) {
+        guard !(error is CancellationError) else { return }
+        if let error = error as? AIReviewError {
+            switch error {
+            case .http(let statusCode, let message):
+                if statusCode == 404 {
+                    viewState.aiReview.isUnavailable = true
+                    viewState.aiReview.message = "AI 리뷰를 확인할 수 없는 게시물입니다."
+                } else {
+                    viewState.aiReview.message = message ?? "AI 리뷰를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+                }
+            case .unauthorized:
+                viewState.aiReview.message = "로그인이 필요합니다."
+            case .network, .invalidResponse:
+                viewState.aiReview.message = "AI 리뷰를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            }
+        } else {
+            viewState.aiReview.message = "AI 리뷰를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+        }
+    }
+
     private func load(showRefreshIndicator: Bool) async {
         let date = RecordMonth.calendar.startOfDay(for: dateProvider())
         let authenticated = isAuthenticated()
         if loadTask != nil, date == viewState.date, authenticated == viewState.isAuthenticated { return }
-        cancel()
+        cancelHomeLoading()
         let request = generation
         if date != viewState.date || authenticated != viewState.isAuthenticated {
+            cancelAIReview()
             viewState = HomeViewState(date: date)
         }
         viewState.isAuthenticated = authenticated
@@ -212,12 +375,12 @@ final class HomeViewModel {
     }
 
     private func loadHero(_ record: RecordPost) async -> HomeHeroState {
-        let fallback = HomeHeroPhoto(imageSource: record.thumbnailImageSource, thumbnailSource: record.thumbnailImageSource, signatureSource: nil, isPending: record.status == .pending)
+        let fallback = HomeHeroPhoto(imageSource: record.thumbnailImageSource, thumbnailSource: record.thumbnailImageSource, signatureSource: nil, isPending: record.status == .pending, postID: record.postId)
         if record.status == .pending { return .photo(fallback) }
         guard record.status == .approved else { return .error }
         do {
             let detail = try await loader.detail(record.postId)
-            return .photo(HomeHeroPhoto(imageSource: detail.post.originalImageSource, thumbnailSource: record.thumbnailImageSource, signatureSource: detail.post.signatureImageSource, isPending: false))
+            return .photo(HomeHeroPhoto(imageSource: detail.post.originalImageSource, thumbnailSource: record.thumbnailImageSource, signatureSource: detail.post.signatureImageSource, isPending: false, postID: record.postId))
         } catch {
             return .photo(fallback)
         }

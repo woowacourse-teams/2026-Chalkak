@@ -2,7 +2,7 @@ import XCTest
 
 final class HomeScreenUITests: XCTestCase {
     @MainActor
-    func testMockFeedbackFlowOnApprovedPhoto() {
+    func testFeedbackFlowOnApprovedPhoto() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview"]
         app.launch()
@@ -35,7 +35,7 @@ final class HomeScreenUITests: XCTestCase {
         )
         captureScreenshot(app, named: "Home feedback expanded")
         app.buttons["작가님의 해석이 돋보이는 작품이에요"].tap()
-        let interpretationTip = app.staticTexts["구도 점수와 별개로, 주제 해석이 특별한 사진이라는 의미예요."]
+        let interpretationTip = app.staticTexts["종합 점수와 별개로, 독특한 시각이 드러난 사진이라는 의미예요."]
         XCTAssertTrue(interpretationTip.waitForExistence(timeout: 3))
         captureScreenshot(app, named: "Home feedback interpretation tip")
         app.staticTexts["좋았던 점"].tap()

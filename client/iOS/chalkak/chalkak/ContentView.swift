@@ -484,7 +484,9 @@ struct ContentView: View {
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onIssueClick: { selectedIssueURL = $0 },
-                bottomBarCompact: $isBottomBarCompact
+                bottomBarCompact: $isBottomBarCompact,
+                isActive: selectedFeed == nil && notificationPath.isEmpty
+                    && selectedIssueURL == nil && !isNotificationInboxPresented && !isFeedbackPresented
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
 #if DEBUG
@@ -891,7 +893,12 @@ struct ContentView: View {
             return HomePreviewData.viewModel(state: state, loader: loader)
         }
 #endif
-        return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
+        return HomeViewModel(
+            loader: .live(baseURL: resolvedAPIBaseURL),
+            aiReviewRepository: APIAIReviewRepository(
+                client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
+            )
+        )
     }
 
     private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {

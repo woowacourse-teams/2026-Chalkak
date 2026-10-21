@@ -1,6 +1,10 @@
 import SwiftUI
 
 enum HomeFeedbackPhase: Hashable {
+    case loading
+    case unavailable
+    case loadError
+    case failed(canRequestAgain: Bool)
     case ready
     case processing
     case completed
@@ -14,6 +18,9 @@ struct HomeFeedbackCard: View {
     let isExpanded: Bool
     let onStart: () -> Void
     let onToggleExpanded: () -> Void
+    var result: AIReviewResult? = nil
+    var isSubmitting = false
+    var pollingTimedOut = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -50,12 +57,20 @@ struct HomeFeedbackCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(HomeFeedbackHeaderButtonStyle())
-            .disabled(phase == .processing)
+            .disabled(isDisabled)
             .accessibilityLabel(title)
             .accessibilityValue(phase == .completed ? (isExpanded ? "펼쳐짐" : "접힘") : "")
 
-            if phase == .completed && isExpanded {
-                feedbackDetail
+            if pollingTimedOut {
+                Text("처리가 오래 걸리고 있어요. 나중에 다시 확인해 주세요.")
+                    .font(theme.typography.footnote)
+                    .foregroundStyle(theme.colors.textSecondary)
+                    .padding(.horizontal, theme.spacing.lg)
+                    .padding(.bottom, theme.spacing.lg)
+            }
+
+            if phase == .completed && isExpanded, let result {
+                feedbackDetail(result)
                     .padding(.horizontal, theme.spacing.xl)
                     .padding(.bottom, theme.spacing.xl)
             }
@@ -76,43 +91,59 @@ struct HomeFeedbackCard: View {
         }
     }
 
+    private var isDisabled: Bool {
+        if isSubmitting { return true }
+        return switch phase {
+        case .loading, .processing, .unavailable, .failed(canRequestAgain: false): true
+        default: false
+        }
+    }
+
     private var title: String {
-        switch phase {
+        if isSubmitting { return "AI 피드백을 요청하고 있어요" }
+        return switch phase {
+        case .loading: "AI 피드백 상태를 확인하고 있어요"
+        case .unavailable: "AI 피드백을 확인할 수 없는 게시물이에요"
+        case .loadError: "AI 피드백 상태 다시 확인"
+        case .failed(canRequestAgain: true): "다시 요청"
+        case .failed(canRequestAgain: false): "AI 피드백을 생성하지 못했어요"
         case .ready: "이 사진, AI에게 피드백 받아보기"
         case .processing: "AI 피드백이 진행중이에요"
         case .completed: "AI 피드백이 완료되었어요"
         }
     }
 
-    private var feedbackDetail: some View {
+    private func feedbackDetail(_ result: AIReviewResult) -> some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
-            Button {
-                isInterpretationTipPresented.toggle()
-            } label: {
-                Label("작가님의 해석이 돋보이는 작품이에요", systemImage: "camera.aperture")
-                    .font(theme.typography.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.sm)
-                    .padding(.vertical, theme.spacing.xs)
-                    .background(theme.colors.actionPrimary, in: RoundedRectangle(cornerRadius: theme.shapes.small))
-                    .frame(minHeight: Metrics.iconSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("주제 해석 배지의 의미를 확인합니다")
-            .overlay(alignment: .topLeading) {
-                if isInterpretationTipPresented {
-                    GeometryReader { geometry in
-                        interpretationTip
-                            .offset(y: geometry.size.height + theme.spacing.xs)
+            if result.distinctivePerspective {
+                Button {
+                    isInterpretationTipPresented.toggle()
+                } label: {
+                    Label("작가님의 해석이 돋보이는 작품이에요", systemImage: "camera.aperture")
+                        .font(theme.typography.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(theme.colors.onActionPrimary)
+                        .padding(.horizontal, theme.spacing.sm)
+                        .padding(.vertical, theme.spacing.xs)
+                        .background(theme.colors.actionPrimary, in: RoundedRectangle(cornerRadius: theme.shapes.small))
+                        .frame(minHeight: Metrics.iconSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("독특한 시각 배지의 의미를 확인합니다")
+                .overlay(alignment: .topLeading) {
+                    if isInterpretationTipPresented {
+                        GeometryReader { geometry in
+                            interpretationTip
+                                .offset(y: geometry.size.height + theme.spacing.xs)
+                        }
                     }
                 }
+                .zIndex(1)
             }
-            .zIndex(1)
 
             HStack(alignment: .center, spacing: theme.spacing.lg) {
-                Text("건물의 크기와 높이 차이가 잘 비교되는 구도예요")
+                Text(result.feedback.summary)
                     .font(theme.typography.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(theme.colors.textPrimary)
@@ -124,31 +155,31 @@ struct HomeFeedbackCard: View {
                     Circle()
                         .stroke(theme.colors.calendarCell, lineWidth: Metrics.scoreRingWidth)
                     Circle()
-                        .trim(from: 0, to: 0.87)
+                        .trim(from: 0, to: min(1, max(0, result.overallScore / 10)))
                         .stroke(
                             theme.colors.actionPrimary,
                             style: StrokeStyle(lineWidth: Metrics.scoreRingWidth, lineCap: .round)
                         )
                         .rotationEffect(.degrees(-90))
-                    Text("8.7")
+                    Text(result.overallScore.formatted(.number.precision(.fractionLength(1))))
                         .font(theme.typography.title1)
                         .foregroundStyle(theme.colors.textPrimary)
                 }
                 .frame(width: Metrics.scoreSize, height: Metrics.scoreSize)
-                .accessibilityLabel("구도 점수 10점 만점에 8.7점")
+                .accessibilityLabel("종합 점수 10점 만점에 \(result.overallScore.formatted(.number.precision(.fractionLength(1))))점")
             }
             .padding(.bottom, theme.spacing.sm)
 
             Divider()
 
-            feedbackParagraph(title: "좋았던 점", body: "아래쪽 계단과 겹겹이 쌓인 집들, 위쪽 아파트가 한 화면에 같이 담겼어요.")
-            feedbackParagraph(title: "아쉬운 점", body: "맨 아래 담장과 검은 옥상이 골목의 흐름을 끊어요.")
+            feedbackParagraph(title: "좋았던 점", body: result.feedback.strength)
+            feedbackParagraph(title: "아쉬운 점", body: result.feedback.weakness)
 
             Divider()
 
             feedbackParagraph(
                 title: "다음엔 이렇게",
-                body: "왼쪽 계단 입구와 붉은 도로는 남기면서 맨 아래 담장이 덜 나오게 담아보세요."
+                body: result.feedback.suggestion
             )
         }
     }
@@ -160,7 +191,7 @@ struct HomeFeedbackCard: View {
                 .frame(width: Metrics.tipArrowWidth, height: Metrics.tipArrowHeight)
                 .padding(.leading, theme.spacing.lg)
 
-            Text("구도 점수와 별개로, 주제 해석이 특별한 사진이라는 의미예요.")
+            Text("종합 점수와 별개로, 독특한 시각이 드러난 사진이라는 의미예요.")
                 .font(theme.typography.footnote)
                 .foregroundStyle(theme.colors.onActionPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -218,9 +249,9 @@ struct HomeFeedbackStartSheet: View {
                 .foregroundStyle(theme.colors.textPrimary)
 
             VStack(alignment: .leading, spacing: theme.spacing.lg) {
-                note("clock", "결과가 나오기까지 최대 1~2분 소요될 수 있어요")
+                note("clock", "결과가 나오기까지 몇 분 정도 소요될 수 있어요")
                 note("iphone", "앱을 나가도 분석은 계속되니 걱정마세요")
-                note("bell", "분석이 끝나면 알림으로 알려드릴게요")
+                note("arrow.clockwise", "나중에 홈에서도 결과를 확인할 수 있어요")
             }
             .padding(theme.spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -298,7 +329,7 @@ private enum Metrics {
     VStack(spacing: ChalkakSpacing.lg) {
         HomeFeedbackCard(phase: .ready, isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .processing, isExpanded: false, onStart: {}, onToggleExpanded: {})
-        HomeFeedbackCard(phase: .completed, isExpanded: true, onStart: {}, onToggleExpanded: {})
+        HomeFeedbackCard(phase: .completed, isExpanded: true, onStart: {}, onToggleExpanded: {}, result: HomePreviewData.aiReviewResult)
     }
     .padding()
     .chalkakTheme(.light)
