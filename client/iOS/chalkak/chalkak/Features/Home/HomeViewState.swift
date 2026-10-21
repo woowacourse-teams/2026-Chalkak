@@ -37,6 +37,12 @@ struct HomeViewState: Equatable, Sendable {
     var recordsStatus: HomeSectionStatus = .loading
     var yesterday = HomeRankingState()
     var trending = HomeRankingState()
+    var banners: [Banner] = []
+    var bannerStatus: HomeSectionStatus = .loading
+    var bannerCurrentPage = 0
+    var bannerHasNext = false
+    var isLoadingMoreBanners = false
+    var bannerLoadMoreError = false
     var isRefreshing = false
     var isAuthenticated = false
 

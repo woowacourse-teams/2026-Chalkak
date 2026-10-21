@@ -33,6 +33,8 @@ final class HomeScreenUITests: XCTestCase {
         XCTAssertTrue(issue.isHittable)
         captureScreenshot(app, named: "Issue cards")
         issue.tap()
+        XCTAssertTrue(app.buttons["issue.back"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["issue.title"].exists)
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 5))
         app.buttons["issue.back"].tap()
         XCTAssertTrue(issue.waitForExistence(timeout: 3))
@@ -40,6 +42,46 @@ final class HomeScreenUITests: XCTestCase {
         app.buttons["홈"].tap()
         XCTAssertTrue(app.staticTexts["하늘"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["하늘"].isHittable)
+    }
+
+    @MainActor
+    func testEmptyAndFailedBannersHideIssueSection() {
+        let app = XCUIApplication()
+        for state in ["empty", "error"] {
+            app.launchArguments = ["-test-home-preview", "-test-home-banner-state", state]
+            app.launch()
+            XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+            for _ in 0..<6 { app.swipeUp() }
+            XCTAssertFalse(app.staticTexts["ISSUE"].exists)
+            XCTAssertFalse(app.buttons["함께 만들어주신 찰캌"].exists)
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testIssuePaginationLoadsSecondPageAndStopsAtLastPage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview", "-test-home-banner-state", "pagination"]
+        app.launch()
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+
+        let first = app.buttons["이슈 1"]
+        for _ in 0..<8 where !first.isHittable { app.swipeUp() }
+        XCTAssertTrue(first.isHittable)
+        XCTAssertFalse(app.buttons["이슈 11"].exists)
+
+        let nextPage = app.buttons["이슈 11"]
+        for _ in 0..<20 where !nextPage.isHittable { app.swipeUp() }
+        XCTAssertTrue(nextPage.isHittable)
+
+        let last = app.buttons["이슈 20"]
+        for _ in 0..<20 where !last.isHittable { app.swipeUp() }
+        XCTAssertTrue(last.isHittable)
+        for _ in 0..<3 { app.swipeUp() }
+        XCTAssertFalse(app.buttons["이슈 21"].exists)
+        XCTAssertFalse(app.otherElements["home.issue.loadingMore"].exists)
+        XCTAssertFalse(app.buttons["home.issue.retry"].exists)
+        captureScreenshot(app, named: "Issue last page")
     }
 
     @MainActor
