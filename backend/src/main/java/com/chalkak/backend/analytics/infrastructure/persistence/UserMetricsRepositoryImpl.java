@@ -2,6 +2,7 @@ package com.chalkak.backend.analytics.infrastructure.persistence;
 
 import com.chalkak.backend.analytics.infrastructure.infra.AnalyticsProperties;
 import com.chalkak.backend.analytics.repository.UserMetricsRepository;
+import com.chalkak.backend.analytics.repository.UserMetricsRepository.AiReviewCounts;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -71,6 +72,18 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
               AND pl.user_id <> ALL (CAST(:excludedUserIds AS uuid[]))
             """;
 
+    /** 재요청은 {@code requested_at}을 바꾸지 않으므로 최초 요청만 센다. 완료·실패는 집계 시점 상태다. */
+    private static final String COUNT_AI_REVIEWS = """
+            SELECT COUNT(DISTINCT r.user_id)                      AS users,
+                   COUNT(*)                                       AS requests,
+                   COUNT(*) FILTER (WHERE r.status = 'COMPLETED') AS completed,
+                   COUNT(*) FILTER (WHERE r.status = 'FAILED')    AS failed
+            FROM ai_reviews r
+            WHERE r.requested_at >= :from
+              AND r.requested_at < :to
+              AND r.user_id <> ALL (CAST(:excludedUserIds AS uuid[]))
+            """;
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final UUID[] excludedUserIds;
 
@@ -120,6 +133,25 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
     @Override
     public long countLikesOnLivePosts() {
         return count(COUNT_LIKES_ON_LIVE_POSTS, new MapSqlParameterSource());
+    }
+
+    @Override
+    public AiReviewCounts countAiReviews(
+            Instant from,
+            Instant to
+    ) {
+        MapSqlParameterSource parameters = periodParameters(from, to);
+        parameters.addValue("excludedUserIds", excludedUserIds);
+        return jdbcTemplate.queryForObject(
+                COUNT_AI_REVIEWS,
+                parameters,
+                (rs, rowNum) -> new AiReviewCounts(
+                        rs.getLong("users"),
+                        rs.getLong("requests"),
+                        rs.getLong("completed"),
+                        rs.getLong("failed")
+                )
+        );
     }
 
     private MapSqlParameterSource periodParameters(
