@@ -7,12 +7,21 @@ public record AdminNoticeListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AdminNoticeResult> notices) {
+        List<AdminNoticeResult> notices
+) {
 
-    public static AdminNoticeListResult from(NoticeSlice slice, int page, int pageSize) {
-        return new AdminNoticeListResult(page, pageSize, slice.hasNext(),
+    public static AdminNoticeListResult from(
+            NoticeSlice slice,
+            int page,
+            int pageSize
+    ) {
+        return new AdminNoticeListResult(
+                page,
+                pageSize,
+                slice.hasNext(),
                 slice.notices().stream()
                         .map(AdminNoticeResult::from)
-                        .toList());
+                        .toList()
+        );
     }
 }

@@ -33,9 +33,21 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
     void findLatestUnexpiredBySubjectHmacForUpdate_multipleRows_returnsLatest() {
         // Given
         // 재로그인으로 행이 쌓여도 정식 보관으로 옮길 대상은 마지막 교환 결과 하나뿐이다.
-        save(SUBJECT_HMAC, "first-token", EXPIRES_AT);
-        save(SUBJECT_HMAC, "second-token", EXPIRES_AT.plus(Duration.ofMinutes(10)));
-        save(SUBJECT_HMAC, "third-token", EXPIRES_AT);
+        save(
+                SUBJECT_HMAC,
+                "first-token",
+                EXPIRES_AT
+        );
+        save(
+                SUBJECT_HMAC,
+                "second-token",
+                EXPIRES_AT.plus(Duration.ofMinutes(10))
+        );
+        save(
+                SUBJECT_HMAC,
+                "third-token",
+                EXPIRES_AT
+        );
 
         // When
         Optional<PendingAppleAuthorization> found = repository
@@ -50,7 +62,11 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
     @DisplayName("만료 시각이 지난 행은 반환하지 않는다")
     void findLatestUnexpiredBySubjectHmacForUpdate_atExpiryBoundary_excludesExpired() {
         // Given
-        save(SUBJECT_HMAC, "boundary-token", EXPIRES_AT);
+        save(
+                SUBJECT_HMAC,
+                "boundary-token",
+                EXPIRES_AT
+        );
 
         // When & Then
         assertThat(repository.findLatestUnexpiredBySubjectHmacForUpdate(
@@ -68,7 +84,11 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
     @DisplayName("다른 신원의 임시 인증 정보는 반환하지 않는다")
     void findLatestUnexpiredBySubjectHmacForUpdate_otherSubjectHmac_returnsEmpty() {
         // Given
-        save(OTHER_SUBJECT_HMAC, "other-token", EXPIRES_AT);
+        save(
+                OTHER_SUBJECT_HMAC,
+                "other-token",
+                EXPIRES_AT
+        );
 
         // When
         Optional<PendingAppleAuthorization> found = repository
@@ -86,7 +106,8 @@ class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
         repository.save(PendingAppleAuthorization.create(
                 subjectHmac,
                 encryptedRefreshToken,
-                expiresAt));
+                expiresAt
+        ));
         entityManager.flush();
         entityManager.clear();
     }

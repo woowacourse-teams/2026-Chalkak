@@ -66,8 +66,11 @@ public class TopicRepositoryImpl implements TopicRepository {
             Instant endsAt,
             UUID topicId
     ) {
-        return topicJpaRepository.existsActiveOverlappingPeriodExcludingId(startsAt, endsAt,
-                topicId);
+        return topicJpaRepository.existsActiveOverlappingPeriodExcludingId(
+                startsAt,
+                endsAt,
+                topicId
+        );
     }
 
     @Override

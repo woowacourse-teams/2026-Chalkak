@@ -44,7 +44,8 @@ final class OidcJwkSetEventLogger {
         log.warn(
                 "{} 공개키 목록 조회에 실패해 한 번 더 시도합니다. cause={}",
                 provider.name(),
-                retrialEvent.getException().getMessage());
+                retrialEvent.getException().getMessage()
+        );
     }
 
     <C extends SecurityContext> void logOutage(Event<OutageTolerantJWKSetSource<C>, C> event) {
@@ -55,7 +56,8 @@ final class OidcJwkSetEventLogger {
                 "{} 공개키 목록을 받지 못해 이전에 받은 목록을 사용합니다. remainingMillis={}, cause={}",
                 provider.name(),
                 outageEvent.getRemainingTime(),
-                outageEvent.getException().getMessage());
+                outageEvent.getException().getMessage()
+        );
     }
 
     <C extends SecurityContext> void logRateLimited(Event<RateLimitedJWKSetSource<C>, C> event) {

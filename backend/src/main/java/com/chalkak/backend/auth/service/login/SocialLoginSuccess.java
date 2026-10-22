@@ -11,5 +11,6 @@ import java.util.UUID;
 public record SocialLoginSuccess(
         UUID userId,
         IssuedAccessToken accessToken,
-        IssuedRefreshToken refreshToken) {
+        IssuedRefreshToken refreshToken
+) {
 }

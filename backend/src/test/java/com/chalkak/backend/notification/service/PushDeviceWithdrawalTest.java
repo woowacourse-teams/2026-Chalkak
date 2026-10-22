@@ -82,18 +82,26 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         // Then
         assertDeleted(first.sessionId());
         assertDeleted(second.sessionId());
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE user_id = ? AND revoked_at IS NULL
-                """, Integer.class, user.getId())).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE user_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                user.getId()
+        )).isZero();
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
         PushDevice otherDevice = pushDeviceRepository.findBySessionId(other.sessionId())
                 .orElseThrow();
         assertThat(otherDevice.getFcmToken()).isEqualTo("other-token");
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE user_id = ? AND revoked_at IS NULL
-                """, Integer.class, otherUser.getId())).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE user_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                otherUser.getId()
+        )).isEqualTo(1);
     }
 
     @Test
@@ -111,10 +119,14 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         // Then
         assertThat(userRepository.findActiveById(user.getId())).isEmpty();
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId())).isEmpty();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE session_id = ? AND revoked_at IS NOT NULL
-                """, Integer.class, issued.sessionId())).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE session_id = ? AND revoked_at IS NOT NULL
+                        """,
+                Integer.class,
+                issued.sessionId()
+        )).isEqualTo(1);
     }
 
     @Test
@@ -124,8 +136,11 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = register(user, "remaining-token");
         flushAndClear();
-        jdbcTemplate.update("UPDATE user_refresh_tokens SET revoked_at = ? WHERE session_id = ?",
-                java.sql.Timestamp.from(NOW.minusSeconds(60)), issued.sessionId());
+        jdbcTemplate.update(
+                "UPDATE user_refresh_tokens SET revoked_at = ? WHERE session_id = ?",
+                java.sql.Timestamp.from(NOW.minusSeconds(60)),
+                issued.sessionId()
+        );
 
         // When
         userWithdrawalService.withdraw(user.getId());
@@ -179,7 +194,11 @@ class PushDeviceWithdrawalTest extends IntegrationTestSupport {
 
     private IssuedRefreshToken register(User user, String token) {
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), token);
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                token
+        );
         registeredDeviceIds.put(issued.sessionId(),
                 pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;

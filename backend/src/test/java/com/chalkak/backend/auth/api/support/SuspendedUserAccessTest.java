@@ -131,6 +131,15 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("정지 회원은 AI 리뷰를 요청할 수 없다")
+    void requestAiReview_suspendedUser_returnsForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts/{postId}/ai-review", POST_ID)
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(suspended());
+    }
+
+    @Test
     @DisplayName("정지 회원은 사인 업로드 URL을 발급받을 수 없다")
     void createSignatureUpload_suspendedUser_returnsForbidden() throws Exception {
         // When & Then
@@ -160,6 +169,15 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
     void unlikePost_suspendedUser_isNotForbidden() throws Exception {
         // When & Then
         mockMvc.perform(delete("/api/v1/posts/{postId}/likes", POST_ID)
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(notSuspended());
+    }
+
+    @Test
+    @DisplayName("정지 회원도 AI 리뷰를 조회할 수 있다")
+    void getAiReview_suspendedUser_isNotForbidden() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}/ai-review", POST_ID)
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(notSuspended());
     }
@@ -252,7 +270,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(true))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(true));
     }
 
     @Test
@@ -261,7 +280,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
         // When
         mockMvc.perform(patch("/api/v1/notification-settings")
                 .header(HttpHeaders.AUTHORIZATION, token)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"topicPushEnabled\":false}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"topicPushEnabled\":false,\"aiReviewPushEnabled\":false}"))
                 .andExpect(status().isNoContent());
 
         // Then
@@ -269,7 +289,8 @@ class SuspendedUserAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(false))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(false));
     }
 
     @Test

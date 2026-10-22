@@ -26,9 +26,18 @@ public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository 
             int page,
             int pageSize
     ) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize, toSort(criteria.sort()));
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                toSort(criteria.sort())
+        );
         Slice<AdminTopicProjection> result = repository.findTopics(criteria, pageable);
-        return new AdminPage<>(result.getContent(), page, pageSize, result.hasNext());
+        return new AdminPage<>(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     @Override
@@ -39,14 +48,30 @@ public class AdminTopicQueryRepositoryImpl implements AdminTopicQueryRepository 
     private Sort toSort(AdminTopicSort sort) {
         Objects.requireNonNull(sort);
         if (sort == AdminTopicSort.TOPIC_DATE_ASC) {
-            return Sort.by(Sort.Direction.ASC, "topicDate", "id");
+            return Sort.by(
+                    Sort.Direction.ASC,
+                    "topicDate",
+                    "id"
+            );
         }
         if (sort == AdminTopicSort.CREATED_AT_DESC) {
-            return Sort.by(Sort.Direction.DESC, "createdAt", "id");
+            return Sort.by(
+                    Sort.Direction.DESC,
+                    "createdAt",
+                    "id"
+            );
         }
         if (sort == AdminTopicSort.CREATED_AT_ASC) {
-            return Sort.by(Sort.Direction.ASC, "createdAt", "id");
+            return Sort.by(
+                    Sort.Direction.ASC,
+                    "createdAt",
+                    "id"
+            );
         }
-        return Sort.by(Sort.Direction.DESC, "topicDate", "id");
+        return Sort.by(
+                Sort.Direction.DESC,
+                "topicDate",
+                "id"
+        );
     }
 }

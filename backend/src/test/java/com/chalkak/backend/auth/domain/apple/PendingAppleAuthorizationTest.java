@@ -25,7 +25,8 @@ class PendingAppleAuthorizationTest {
         PendingAppleAuthorization authorization = PendingAppleAuthorization.create(
                 SUBJECT_HMAC,
                 "encrypted-refresh-token",
-                EXPIRES_AT);
+                EXPIRES_AT
+        );
 
         // Then
         assertThat(authorization.getSubjectHmac()).isEqualTo(SUBJECT_HMAC);
@@ -44,7 +45,8 @@ class PendingAppleAuthorizationTest {
         assertInvalid(() -> PendingAppleAuthorization.create(
                 SUBJECT_HMAC,
                 encryptedRefreshToken,
-                EXPIRES_AT));
+                EXPIRES_AT
+        ));
     }
 
     @Test
@@ -53,7 +55,8 @@ class PendingAppleAuthorizationTest {
         assertInvalid(() -> PendingAppleAuthorization.create(
                 SUBJECT_HMAC,
                 "a".repeat(4097),
-                EXPIRES_AT));
+                EXPIRES_AT
+        ));
     }
 
     @ParameterizedTest
@@ -63,7 +66,8 @@ class PendingAppleAuthorizationTest {
         assertInvalid(() -> PendingAppleAuthorization.create(
                 subjectHmac,
                 "encrypted-refresh-token",
-                EXPIRES_AT));
+                EXPIRES_AT
+        ));
     }
 
     private static Stream<String> invalidSubjectHmacs() {
@@ -74,7 +78,8 @@ class PendingAppleAuthorizationTest {
                 "a".repeat(63),
                 "a".repeat(65),
                 "A".repeat(64),
-                "g".repeat(64));
+                "g".repeat(64)
+        );
     }
 
     @Test
@@ -83,7 +88,8 @@ class PendingAppleAuthorizationTest {
         assertInvalid(() -> PendingAppleAuthorization.create(
                 SUBJECT_HMAC,
                 "encrypted-refresh-token",
-                null));
+                null
+        ));
     }
 
     @Test
@@ -93,7 +99,8 @@ class PendingAppleAuthorizationTest {
         PendingAppleAuthorization authorization = PendingAppleAuthorization.create(
                 SUBJECT_HMAC,
                 "encrypted-refresh-token",
-                EXPIRES_AT);
+                EXPIRES_AT
+        );
 
         // When & Then
         authorization.extendTo(EXPIRES_AT.minusMillis(1));

@@ -41,7 +41,11 @@ public class NotificationSettingsController implements NotificationSettingsApiDo
             @LoginUser AuthenticatedUser loginUser
     ) {
         notificationSettingsService.updateSettings(
-                loginUser.userId(), request.topicPushEnabled(), request.moderationPushEnabled());
+                loginUser.userId(),
+                request.topicPushEnabled(),
+                request.moderationPushEnabled(),
+                request.aiReviewPushEnabled()
+        );
         return ResponseEntity.noContent().build();
     }
 }

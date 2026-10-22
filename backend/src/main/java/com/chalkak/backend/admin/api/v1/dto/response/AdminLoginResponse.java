@@ -30,6 +30,7 @@ public record AdminLoginResponse(
                 result.accessToken().value(),
                 result.accessToken().expiresIn().toSeconds(),
                 result.refreshToken().value(),
-                result.refreshToken().expiresIn().toSeconds());
+                result.refreshToken().expiresIn().toSeconds()
+        );
     }
 }

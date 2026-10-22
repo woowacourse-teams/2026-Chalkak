@@ -31,14 +31,21 @@ public class NotificationRepositoryImpl implements NotificationRepository {
 
     @Override
     public List<UUID> findTopicPushRecipientIds(UUID topicId) {
-        return notificationJpaRepository.findTopicPushRecipientIds(UserStatus.ACTIVE, topicId,
-                ModerationStatus.REJECTED);
+        return notificationJpaRepository.findTopicPushRecipientIds(
+                UserStatus.ACTIVE,
+                topicId,
+                ModerationStatus.REJECTED
+        );
     }
 
     @Override
     public int createNoticeNotifications(Notice notice, Instant createdAt) {
-        return notificationJpaRepository.insertNoticeNotifications(notice.getId(),
-                notice.getTitle(), notice.getBody(), createdAt);
+        return notificationJpaRepository.insertNoticeNotifications(
+                notice.getId(),
+                notice.getTitle(),
+                notice.getBody(),
+                createdAt
+        );
     }
 
     @Override
@@ -63,6 +70,22 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
+    public int insertIfAbsent(Notification notification) {
+        return notificationJpaRepository.insertIfAbsent(
+                notification.getUserId(),
+                notification.getSourceType().name(),
+                notification.getSourceId(),
+                notification.getEventKey(),
+                notification.getType().name(),
+                notification.getTitle(),
+                notification.getBody(),
+                notification.getCreatedAt(),
+                notification.getPublishStatus().name(),
+                notification.getNextAttemptAt()
+        );
+    }
+
+    @Override
     public NotificationSlice findByUserId(
             UUID userId,
             int page,
@@ -72,7 +95,8 @@ public class NotificationRepositoryImpl implements NotificationRepository {
         Slice<NotificationSummary> slice = notificationJpaRepository.findSummariesByUserId(
                 userId,
                 createdFrom,
-                PageRequest.of(page - 1, pageSize));
+                PageRequest.of(page - 1, pageSize)
+        );
         return new NotificationSlice(slice.getContent(), slice.hasNext());
     }
 
@@ -82,8 +106,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
             UUID userId,
             Instant createdFrom
     ) {
-        return notificationJpaRepository.findDetailByIdAndUserId(notificationId, userId,
-                createdFrom);
+        return notificationJpaRepository.findDetailByIdAndUserId(
+                notificationId,
+                userId,
+                createdFrom
+        );
     }
 
     @Override
@@ -98,7 +125,12 @@ public class NotificationRepositoryImpl implements NotificationRepository {
             Instant readAt,
             Instant createdFrom
     ) {
-        return notificationJpaRepository.markRead(notificationId, userId, readAt, createdFrom);
+        return notificationJpaRepository.markRead(
+                notificationId,
+                userId,
+                readAt,
+                createdFrom
+        );
     }
 
     @Override
@@ -107,7 +139,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
             Instant readAt,
             Instant createdFrom
     ) {
-        notificationJpaRepository.markAllRead(userId, readAt, createdFrom);
+        notificationJpaRepository.markAllRead(
+                userId,
+                readAt,
+                createdFrom
+        );
     }
 
     @Override

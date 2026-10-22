@@ -114,7 +114,8 @@ class AppleAuthorizationServiceTest extends IntegrationTestSupport {
         return socialAccountRepository.save(SocialAccount.create(
                 user,
                 provider,
-                fingerprintEncoder.encode(provider, SUBJECT)));
+                fingerprintEncoder.encode(provider, SUBJECT)
+        ));
     }
 
     private void flushAndClear() {

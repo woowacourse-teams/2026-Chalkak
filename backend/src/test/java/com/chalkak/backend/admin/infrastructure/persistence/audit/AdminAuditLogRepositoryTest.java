@@ -69,7 +69,8 @@ class AdminAuditLogRepositoryTest {
         AdminAuditLog auditLog = createAuditLog(
                 actorAdminId,
                 UUID.randomUUID(),
-                UUID.randomUUID());
+                UUID.randomUUID()
+        );
 
         // When
         AdminAuditLog savedAuditLog = adminAuditLogRepository.save(auditLog);
@@ -100,18 +101,21 @@ class AdminAuditLogRepositoryTest {
         adminAuditLogRepository.save(createAuditLog(
                 actorAdminId,
                 UUID.randomUUID(),
-                requestId));
+                requestId
+        ));
         adminAuditLogRepository.save(createAuditLog(
                 actorAdminId,
                 UUID.randomUUID(),
-                requestId));
+                requestId
+        ));
         entityManager.flush();
 
         // Then
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE request_id = ?",
                 Integer.class,
-                requestId);
+                requestId
+        );
         assertThat(count).isEqualTo(2);
     }
 
@@ -122,7 +126,8 @@ class AdminAuditLogRepositoryTest {
         AdminAuditLog auditLog = createAuditLog(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                UUID.randomUUID());
+                UUID.randomUUID()
+        );
 
         // When & Then
         assertThatThrownBy(() -> {
@@ -151,7 +156,8 @@ class AdminAuditLogRepositoryTest {
                 "ix_admin_audit_logs_actor_occurred_at_id",
                 "ix_admin_audit_logs_action_occurred_at_id",
                 "ix_admin_audit_logs_target_occurred_at_id",
-                "ix_admin_audit_logs_request_id");
+                "ix_admin_audit_logs_request_id"
+        );
     }
 
     private UUID persistAdmin() {
@@ -177,10 +183,15 @@ class AdminAuditLogRepositoryTest {
                 null,
                 AdminAuditSnapshot.from(beforeState),
                 AdminAuditSnapshot.from(Map.of(
-                        "moderationStatus", "APPROVED",
-                        "moderatedAt", OCCURRED_AT,
-                        "moderatedBy", actorAdminId)),
+                        "moderationStatus",
+                        "APPROVED",
+                        "moderatedAt",
+                        OCCURRED_AT,
+                        "moderatedBy",
+                        actorAdminId
+                )),
                 OCCURRED_AT,
-                requestId);
+                requestId
+        );
     }
 }

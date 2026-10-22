@@ -23,5 +23,6 @@ public record AdminPostSummaryProjection(
         long likeCount,
         Instant createdAt,
         Instant moderatedAt,
-        Instant deletedAt) {
+        Instant deletedAt
+) {
 }

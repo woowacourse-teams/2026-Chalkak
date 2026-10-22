@@ -39,7 +39,12 @@ class PhotoTest {
     void completeProcessing_processedImage_fillsThumbnailKeyAndMetadata() {
         // Given
         Photo photo = Photo.createPhoto("chalkak/posts/test/original/photo.webp");
-        Map<String, Object> metadata = Map.of("width", 4032, "height", 3024);
+        Map<String, Object> metadata = Map.of(
+                "width",
+                4032,
+                "height",
+                3024
+        );
 
         // When
         photo.completeProcessing("chalkak/posts/test/thumbnail/photo.webp", metadata);

@@ -12,7 +12,14 @@ class RuntimeSnapshotTest {
     @DisplayName("로그 필드는 측정된 값만 선언 순서대로 담는다")
     void logFields_someValuesAbsent_keepsOrderAndOmitsNulls() {
         // Given
-        RuntimeSnapshot snapshot = new RuntimeSnapshot(400L, null, 42L, 40, null, 1);
+        RuntimeSnapshot snapshot = new RuntimeSnapshot(
+                400L,
+                null,
+                42L,
+                40,
+                null,
+                1
+        );
 
         // When
         var fields = snapshot.logFields();
@@ -22,6 +29,7 @@ class RuntimeSnapshotTest {
                 entry("heapUsedBytes", 400L),
                 entry("gcTimeMsTotal", 42L),
                 entry("threads", 40),
-                entry("hikariPending", 1));
+                entry("hikariPending", 1)
+        );
     }
 }

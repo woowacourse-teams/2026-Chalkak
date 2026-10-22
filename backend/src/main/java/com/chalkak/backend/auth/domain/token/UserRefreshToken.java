@@ -33,7 +33,12 @@ public class UserRefreshToken extends RefreshToken {
     ) {
         UserRefreshToken refreshToken = new UserRefreshToken();
         refreshToken.validateUser(user);
-        refreshToken.initialize(sessionId, tokenHash, expiresAt, absoluteExpiresAt);
+        refreshToken.initialize(
+                sessionId,
+                tokenHash,
+                expiresAt,
+                absoluteExpiresAt
+        );
         refreshToken.user = user;
         return refreshToken;
     }
@@ -48,7 +53,8 @@ public class UserRefreshToken extends RefreshToken {
                 getSessionId(),
                 tokenHash,
                 expiresAt,
-                getAbsoluteExpiresAt());
+                getAbsoluteExpiresAt()
+        );
     }
 
     private void validateUser(User user) {

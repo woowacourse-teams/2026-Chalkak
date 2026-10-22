@@ -44,10 +44,15 @@ public class AdminPostQueryService {
                 userId,
                 createdAtFrom,
                 createdAtTo,
-                sort == null ? AdminPostSort.CREATED_AT_DESC : sort);
+                sort == null ? AdminPostSort.CREATED_AT_DESC : sort
+        );
 
         return AdminPostListResult.from(
-                adminPostQueryRepository.findPosts(criteria, page, pageSize),
+                adminPostQueryRepository.findPosts(
+                        criteria,
+                        page,
+                        pageSize
+                ),
                 imageUrlProvider);
     }
 

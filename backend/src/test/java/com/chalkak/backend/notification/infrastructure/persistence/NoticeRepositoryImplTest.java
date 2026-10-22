@@ -36,11 +36,22 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
         insertNotice(SCHEDULED_AT.minusSeconds(120), true);
 
         // When & Then
-        assertThat(targetIds(noticeRepository.findDistributableNotices(SCHEDULED_AT, null, 10)))
+        assertThat(targetIds(noticeRepository.findDistributableNotices(
+                SCHEDULED_AT,
+                null,
+                10
+        )))
                 .containsExactly(earlier, later);
         assertThat(targetIds(noticeRepository.findDistributableNotices(
-                SCHEDULED_AT.minusNanos(1_000), null, 10))).containsExactly(earlier);
-        assertThat(targetIds(noticeRepository.findDistributableNotices(SCHEDULED_AT, null, 1)))
+                SCHEDULED_AT.minusNanos(1_000),
+                null,
+                10
+        ))).containsExactly(earlier);
+        assertThat(targetIds(noticeRepository.findDistributableNotices(
+                SCHEDULED_AT,
+                null,
+                1
+        )))
                 .containsExactly(earlier);
     }
 
@@ -54,16 +65,27 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
         UUID third = insertNotice(SCHEDULED_AT.plusSeconds(1), false);
         List<UUID> seconds = orderedByDb(secondA, secondB);
         Instant now = SCHEDULED_AT.plusSeconds(60);
-        List<DistributableNotice> all = noticeRepository.findDistributableNotices(now, null,
-                10);
+        List<DistributableNotice> all = noticeRepository.findDistributableNotices(
+                now,
+                null,
+                10
+        );
         DistributableNotice cursor = all.get(1);
 
         // When
-        List<DistributableNotice> next = noticeRepository.findDistributableNotices(now, cursor,
-                10);
+        List<DistributableNotice> next = noticeRepository.findDistributableNotices(
+                now,
+                cursor,
+                10
+        );
 
         // Then
-        assertThat(targetIds(all)).containsExactly(first, seconds.get(0), seconds.get(1), third);
+        assertThat(targetIds(all)).containsExactly(
+                first,
+                seconds.get(0),
+                seconds.get(1),
+                third
+        );
         assertThat(targetIds(next)).containsExactly(seconds.get(1), third);
     }
 
@@ -88,15 +110,25 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
         // Given
         UUID deleted = insertNotice(SCHEDULED_AT, false);
         UUID active = insertNotice(SCHEDULED_AT.plusSeconds(1), false);
-        jdbcTemplate.update("UPDATE notices SET deleted_at = ? WHERE id = ?",
-                Timestamp.from(SCHEDULED_AT), deleted);
+        jdbcTemplate.update(
+                "UPDATE notices SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(SCHEDULED_AT),
+                deleted
+        );
         Instant now = SCHEDULED_AT.plusSeconds(60);
 
         // When & Then
-        assertThat(targetIds(noticeRepository.findDistributableNotices(now, null, 10)))
+        assertThat(targetIds(noticeRepository.findDistributableNotices(
+                now,
+                null,
+                10
+        )))
                 .containsExactly(active);
-        assertThat(targetIds(noticeRepository.findDistributableNotices(now,
-                new DistributableNotice(UUID.randomUUID(), SCHEDULED_AT.minusSeconds(1)), 10)))
+        assertThat(targetIds(noticeRepository.findDistributableNotices(
+                now,
+                new DistributableNotice(UUID.randomUUID(), SCHEDULED_AT.minusSeconds(1)),
+                10
+        )))
                 .containsExactly(active);
         assertThat(noticeRepository.findDistributableForUpdate(deleted, now)).isEmpty();
     }
@@ -106,12 +138,17 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
         if (distributed) {
             distributedAt = Timestamp.from(scheduledAt);
         }
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, distributed_at, created_at,
-                    updated_at)
-                VALUES ('공지', '본문', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                RETURNING id
-                """, UUID.class, Timestamp.from(scheduledAt), distributedAt);
+        return jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO notices (title, body, scheduled_at, distributed_at, created_at,
+                            updated_at)
+                        VALUES ('공지', '본문', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                        """,
+                UUID.class,
+                Timestamp.from(scheduledAt),
+                distributedAt
+        );
     }
 
     private List<UUID> targetIds(List<DistributableNotice> targets) {
@@ -120,7 +157,11 @@ class NoticeRepositoryImplTest extends IntegrationTestSupport {
 
     // UUID 대소 비교는 Java와 PostgreSQL이 다르므로 DB가 정렬한 순서를 기대값으로 쓴다.
     private List<UUID> orderedByDb(UUID a, UUID b) {
-        return jdbcTemplate.queryForList("SELECT id FROM notices WHERE id IN (?, ?) ORDER BY id",
-                UUID.class, a, b);
+        return jdbcTemplate.queryForList(
+                "SELECT id FROM notices WHERE id IN (?, ?) ORDER BY id",
+                UUID.class,
+                a,
+                b
+        );
     }
 }

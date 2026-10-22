@@ -81,7 +81,8 @@ public class PostController implements PostApiDocs {
                 userId,
                 request.topicId(),
                 request.photoUploadId(),
-                request.title());
+                request.title()
+        );
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(PostCreateResponse.from(result));
@@ -99,7 +100,8 @@ public class PostController implements PostApiDocs {
         PostUpdateResult result = postCommandService.updatePost(
                 loginUser.userId(),
                 parsedPostId,
-                request.title());
+                request.title()
+        );
 
         return ResponseEntity.ok(PostUpdateResponse.from(result));
     }
@@ -137,8 +139,13 @@ public class PostController implements PostApiDocs {
                         request.randomSeed(),
                         request.page(),
                         request.pageSize(),
-                        loginUser.map(AuthenticatedUser::userId)));
-        setFeedQueryLog(servletRequest, request, response);
+                        loginUser.map(AuthenticatedUser::userId)
+                ));
+        setFeedQueryLog(
+                servletRequest,
+                request,
+                response
+        );
         return ResponseEntity.ok(response);
     }
 
@@ -206,7 +213,8 @@ public class PostController implements PostApiDocs {
         servletRequest.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE, new FeedQueryLog(
                 request.sort().name().toLowerCase(Locale.ROOT),
                 response.currentPage(),
-                response.pageSize()));
+                response.pageSize()
+        ));
     }
 
     private UUID requireUserId(Optional<AuthenticatedUser> loginUser) {

@@ -49,7 +49,8 @@ public class AppleTokenClientConfig {
         return new AppleClientSecretGenerator(
                 tokenProperties,
                 oidcProperties,
-                Clock.systemUTC());
+                Clock.systemUTC()
+        );
     }
 
     @Bean
@@ -63,6 +64,7 @@ public class AppleTokenClientConfig {
                 restClient,
                 tokenProperties,
                 oidcProperties,
-                clientSecretGenerator);
+                clientSecretGenerator
+        );
     }
 }

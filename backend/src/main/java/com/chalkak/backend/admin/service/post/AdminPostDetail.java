@@ -27,12 +27,14 @@ public record AdminPostDetail(
         Instant moderatedAt,
         UUID moderatedBy,
         String rejectionReason,
-        Instant deletedAt) {
+        Instant deletedAt
+) {
 
     private static final List<String> SAFE_IMAGE_METADATA_KEYS = List.of(
             "width",
             "height",
-            "byteSize");
+            "byteSize"
+    );
 
     public static AdminPostDetail from(
             AdminPostDetailProjection post,
@@ -46,14 +48,16 @@ public record AdminPostDetail(
                         post.authorId(),
                         post.authorEmail(),
                         post.authorStatus(),
-                        post.authorDeletedAt()),
+                        post.authorDeletedAt()
+                ),
                 new TopicDetail(
                         post.topicId(),
                         post.topicTitle(),
                         post.topicDate(),
                         post.topicStartsAt(),
                         post.topicEndsAt(),
-                        post.topicDeletedAt()),
+                        post.topicDeletedAt()
+                ),
                 new PhotoDetail(
                         post.photoId(),
                         imageUrlProvider.getUrl(post.originalStorageKey()),
@@ -61,7 +65,8 @@ public record AdminPostDetail(
                         safeImageMetadata(post.photoMetadata()),
                         post.photoCreatedAt(),
                         post.photoUpdatedAt(),
-                        post.photoDeletedAt()),
+                        post.photoDeletedAt()
+                ),
                 ImageUploadDetail.from(post),
                 post.likeCount(),
                 post.createdAt(),
@@ -69,7 +74,8 @@ public record AdminPostDetail(
                 post.moderatedAt(),
                 post.moderatedBy(),
                 post.rejectionReason(),
-                post.deletedAt());
+                post.deletedAt()
+        );
     }
 
     private static Map<String, Object> safeImageMetadata(Map<String, Object> metadata) {
@@ -89,7 +95,8 @@ public record AdminPostDetail(
             UUID userId,
             String email,
             UserStatus status,
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
     }
 
     public record TopicDetail(
@@ -98,7 +105,8 @@ public record AdminPostDetail(
             LocalDate topicDate,
             Instant startsAt,
             Instant endsAt,
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
     }
 
     public record PhotoDetail(
@@ -108,7 +116,8 @@ public record AdminPostDetail(
             Map<String, Object> metadata,
             Instant createdAt,
             Instant updatedAt,
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
     }
 
     public record ImageUploadDetail(
@@ -116,7 +125,8 @@ public record AdminPostDetail(
             PostImageUploadStatus status,
             String rejectionReason,
             Instant createdAt,
-            Instant updatedAt) {
+            Instant updatedAt
+    ) {
 
         private static ImageUploadDetail from(AdminPostDetailProjection post) {
             if (post.uploadId() == null) {
@@ -127,7 +137,8 @@ public record AdminPostDetail(
                     post.uploadStatus(),
                     post.uploadRejectionReason(),
                     post.uploadCreatedAt(),
-                    post.uploadUpdatedAt());
+                    post.uploadUpdatedAt()
+            );
         }
     }
 }

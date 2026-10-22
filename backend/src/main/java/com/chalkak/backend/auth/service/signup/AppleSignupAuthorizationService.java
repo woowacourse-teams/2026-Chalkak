@@ -64,7 +64,8 @@ public class AppleSignupAuthorizationService {
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
                 subjectHmac(identity),
                 encryptedRefreshToken,
-                expiresAt()));
+                expiresAt()
+        ));
     }
 
     /**

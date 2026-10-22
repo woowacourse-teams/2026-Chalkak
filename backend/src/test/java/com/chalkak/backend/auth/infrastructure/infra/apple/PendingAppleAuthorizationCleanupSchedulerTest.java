@@ -140,7 +140,8 @@ class PendingAppleAuthorizationCleanupSchedulerTest
         repository.save(PendingAppleAuthorization.create(
                 SUBJECT_HMAC,
                 encryptedRefreshToken,
-                expiresAt));
+                expiresAt
+        ));
     }
 
     private List<String> remainingEncryptedTokens() {

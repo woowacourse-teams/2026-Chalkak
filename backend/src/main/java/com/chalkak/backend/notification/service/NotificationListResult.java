@@ -10,7 +10,8 @@ public record NotificationListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<Summary> notifications) {
+        List<Summary> notifications
+) {
 
     public record Summary(
             UUID id,
@@ -21,6 +22,7 @@ public record NotificationListResult(
             String body,
             String thumbnailImageUrl,
             Instant readAt,
-            Instant createdAt) {
+            Instant createdAt
+    ) {
     }
 }

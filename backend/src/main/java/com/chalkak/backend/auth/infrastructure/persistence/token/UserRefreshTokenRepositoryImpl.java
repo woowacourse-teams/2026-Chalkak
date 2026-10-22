@@ -21,8 +21,11 @@ public class UserRefreshTokenRepositoryImpl implements UserRefreshTokenRepositor
             UUID userId,
             Instant now
     ) {
-        return userRefreshTokenJpaRepository.existsUsableBySessionIdAndUserId(sessionId, userId,
-                now);
+        return userRefreshTokenJpaRepository.existsUsableBySessionIdAndUserId(
+                sessionId,
+                userId,
+                now
+        );
     }
 
     @Override

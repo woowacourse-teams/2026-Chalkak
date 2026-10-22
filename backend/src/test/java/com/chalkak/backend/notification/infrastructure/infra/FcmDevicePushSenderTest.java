@@ -115,11 +115,23 @@ class FcmDevicePushSenderTest {
                 })
                 .setHttpTransport(transport).build(), UUID.randomUUID().toString());
         sender = new FcmDevicePushSender(FirebaseMessaging.getInstance(app), clock);
-        PushMessage message = new PushMessage(UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), NotificationType.POST_APPROVED, NotificationSourceType.POST,
-                UUID.randomUUID(), NOW, NOW.plusSeconds(1800));
-        request = new DevicePushRequest(message, "fcm-test-token", "승인되었습니다", "사진을 확인해주세요",
-                message.expiresAt());
+        PushMessage message = new PushMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NotificationType.POST_APPROVED,
+                NotificationSourceType.POST,
+                UUID.randomUUID(),
+                NOW,
+                NOW.plusSeconds(1800)
+        );
+        request = new DevicePushRequest(
+                message,
+                "fcm-test-token",
+                "승인되었습니다",
+                "사진을 확인해주세요",
+                message.expiresAt()
+        );
     }
 
     @AfterEach
@@ -148,11 +160,23 @@ class FcmDevicePushSenderTest {
     void send_topicMessage_omitsInboxIdAndPreservesExpiration() {
         // Given
         UUID topicId = UUID.randomUUID();
-        PushMessage topic = new PushMessage(UUID.randomUUID(), null, UUID.randomUUID(),
-                NotificationType.TOPIC, NotificationSourceType.TOPIC, topicId, NOW,
-                NOW.plusSeconds(1800));
-        DevicePushRequest topicRequest = new DevicePushRequest(topic, "fcm-test-token", "오늘의 주제",
-                "빛과 그림자", topic.expiresAt());
+        PushMessage topic = new PushMessage(
+                UUID.randomUUID(),
+                null,
+                UUID.randomUUID(),
+                NotificationType.TOPIC,
+                NotificationSourceType.TOPIC,
+                topicId,
+                NOW,
+                NOW.plusSeconds(1800)
+        );
+        DevicePushRequest topicRequest = new DevicePushRequest(
+                topic,
+                "fcm-test-token",
+                "오늘의 주제",
+                "빛과 그림자",
+                topic.expiresAt()
+        );
         // When & Then
         assertThat(sender.send(topicRequest).status()).isEqualTo(Status.ACCEPTED);
         JsonNode body = bodies.getFirst().get("message");
@@ -170,13 +194,65 @@ class FcmDevicePushSenderTest {
     }
 
     @ParameterizedTest
+    @CsvSource({
+            "AI_REVIEW_COMPLETED,AI 피드백이 도착했어요,사진의 구도 점수와 피드백을 확인해 보세요.",
+            "AI_REVIEW_FAILED,AI 피드백을 만들지 못했어요,잠시 후 다시 요청해 주세요."
+    })
+    @DisplayName("AI 리뷰 SDK 요청은 저장된 문구와 종류·게시물 대상·알림 ID·사건 ID를 보내고 만료를 유지한다")
+    void send_aiReviewMessage_sendsTypeAndPostTarget(
+            NotificationType type,
+            String title,
+            String text
+    ) {
+        // Given
+        UUID postId = UUID.randomUUID();
+        PushMessage aiReview = new PushMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                type,
+                NotificationSourceType.POST,
+                postId,
+                NOW,
+                NOW.plusSeconds(1800)
+        );
+        DevicePushRequest aiReviewRequest = new DevicePushRequest(
+                aiReview,
+                "fcm-test-token",
+                title,
+                text,
+                aiReview.expiresAt()
+        );
+
+        // When & Then
+        assertThat(sender.send(aiReviewRequest).status()).isEqualTo(Status.ACCEPTED);
+        JsonNode body = bodies.getFirst().get("message");
+        assertThat(body.get("notification").get("title").asText()).isEqualTo(title);
+        assertThat(body.get("notification").get("body").asText()).isEqualTo(text);
+        assertThat(body.get("data").get("type").asText()).isEqualTo(type.name());
+        assertThat(body.get("data").get("sourceType").asText()).isEqualTo("POST");
+        assertThat(body.get("data").get("sourceId").asText()).isEqualTo(postId.toString());
+        assertThat(body.get("data").get("notificationId").asText())
+                .isEqualTo(aiReview.notificationId().toString());
+        assertThat(body.get("data").get("eventId").asText())
+                .isEqualTo(aiReview.eventId().toString());
+        assertThat(body.get("data").has("userId")).isFalse();
+        assertThat(body.get("android").get("ttl").asText()).isEqualTo("1800s");
+    }
+
+    @ParameterizedTest
     @CsvSource({"404,NOT_FOUND,UNREGISTERED,INVALID_TOKEN",
             "400,INVALID_ARGUMENT,INVALID_ARGUMENT,PERMANENT_FAILURE",
             "403,PERMISSION_DENIED,SENDER_ID_MISMATCH,PERMANENT_FAILURE",
             "401,UNAUTHENTICATED,THIRD_PARTY_AUTH_ERROR,PERMANENT_FAILURE",
             "429,RESOURCE_EXHAUSTED,QUOTA_EXCEEDED,RETRYABLE", "500,INTERNAL,INTERNAL,RETRYABLE"})
     @DisplayName("FCM 응답을 무효 토큰·영구 오류·일시 실패로 분류한다")
-    void send_fcmError_classifiesResult(int code, String status, String detail, Status expected) {
+    void send_fcmError_classifiesResult(
+            int code,
+            String status,
+            String detail,
+            Status expected
+    ) {
         // Given
         responseStatus = code;
         errorStatus = status;

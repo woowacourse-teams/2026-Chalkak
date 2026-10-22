@@ -29,7 +29,8 @@ class AdminLocalConfigurationTest {
                 .withPropertyValues(
                         "ADMIN_DEVELOPMENT_BYPASS_ENABLED=false",
                         "ADMIN_USERNAME=local-operator",
-                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH);
+                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH
+                );
 
         // When & Then
         contextRunner.run(context -> {
@@ -69,7 +70,8 @@ class AdminLocalConfigurationTest {
                 .withPropertyValues(
                         "ADMIN_DEVELOPMENT_BYPASS_ENABLED=false",
                         "ADMIN_USERNAME=local-operator",
-                        "ADMIN_PASSWORD_HASH=" + passwordHash);
+                        "ADMIN_PASSWORD_HASH=" + passwordHash
+                );
 
         // When & Then
         contextRunner.run(context -> {
@@ -89,7 +91,8 @@ class AdminLocalConfigurationTest {
                         "spring.profiles.active=" + profile,
                         "ADMIN_DEVELOPMENT_BYPASS_ENABLED=true",
                         "ADMIN_USERNAME=deployment-operator",
-                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH);
+                        "ADMIN_PASSWORD_HASH=" + PASSWORD_HASH
+                );
 
         // When & Then
         contextRunner.run(context -> assertThat(context)
@@ -107,7 +110,8 @@ class AdminLocalConfigurationTest {
                         AdminAccountBootstrap.class,
                         DevelopmentAdminBootstrap.class,
                         DevAdminActorResolver.class,
-                        SecurityContextAdminActorResolver.class)
+                        SecurityContextAdminActorResolver.class
+                )
                 .withBean(AdminRepository.class, () -> mock(AdminRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=local",

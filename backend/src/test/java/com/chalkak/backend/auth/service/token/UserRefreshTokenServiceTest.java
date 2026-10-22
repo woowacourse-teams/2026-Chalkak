@@ -73,17 +73,25 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
 
         // then
         flushAndClear();
-        String storedTokenHash = jdbcTemplate.queryForObject("""
-                SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?
-                """, String.class, user.getId());
+        String storedTokenHash = jdbcTemplate.queryForObject(
+                """
+                        SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?
+                        """,
+                String.class,
+                user.getId()
+        );
         assertThat(issued.value()).isNotBlank();
         assertThat(storedTokenHash).isNotEqualTo(issued.value());
         assertThat(storedTokenHash).matches(TOKEN_HASH_PATTERN);
         assertThat(issued.expiresIn()).isEqualTo(Duration.ofDays(30));
         assertThat(issued.sessionId()).isNotNull();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT session_id FROM user_refresh_tokens WHERE user_id = ?
-                """, UUID.class, user.getId())).isEqualTo(issued.sessionId());
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT session_id FROM user_refresh_tokens WHERE user_id = ?
+                        """,
+                UUID.class,
+                user.getId()
+        )).isEqualTo(issued.sessionId());
     }
 
     @Test
@@ -349,25 +357,32 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
     }
 
     private int countLiveTokens(UUID sessionId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE session_id = ? AND revoked_at IS NULL
-                """, Integer.class, sessionId);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE session_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                sessionId
+        );
     }
 
     private TokenRow findTokenRow(String token) {
-        return jdbcTemplate.queryForObject("""
-                SELECT session_id, rotated_at, revoked_at, expires_at, absolute_expires_at
-                FROM user_refresh_tokens
-                WHERE token_hash = ?
-                """,
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT session_id, rotated_at, revoked_at, expires_at, absolute_expires_at
+                        FROM user_refresh_tokens
+                        WHERE token_hash = ?
+                        """,
                 (resultSet, rowNumber) -> new TokenRow(
                         resultSet.getObject("session_id", UUID.class),
                         toInstant(resultSet.getTimestamp("rotated_at")),
                         toInstant(resultSet.getTimestamp("revoked_at")),
                         toInstant(resultSet.getTimestamp("expires_at")),
-                        toInstant(resultSet.getTimestamp("absolute_expires_at"))),
-                refreshTokenHasher.encode(token));
+                        toInstant(resultSet.getTimestamp("absolute_expires_at"))
+                ),
+                refreshTokenHasher.encode(token)
+        );
     }
 
     private Instant toInstant(Timestamp timestamp) {
@@ -382,6 +397,7 @@ class UserRefreshTokenServiceTest extends IntegrationTestSupport {
             Instant rotatedAt,
             Instant revokedAt,
             Instant expiresAt,
-            Instant absoluteExpiresAt) {
+            Instant absoluteExpiresAt
+    ) {
     }
 }

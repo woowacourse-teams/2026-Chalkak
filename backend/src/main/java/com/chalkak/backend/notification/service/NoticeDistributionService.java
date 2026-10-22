@@ -42,7 +42,11 @@ public class NoticeDistributionService {
         DistributableNotice cursor = null;
         while (true) {
             List<DistributableNotice> targets = noticeRepository
-                    .findDistributableNotices(now, cursor, BATCH_SIZE);
+                    .findDistributableNotices(
+                            now,
+                            cursor,
+                            BATCH_SIZE
+                    );
             targets.forEach(target -> distributeSafely(target.noticeId()));
             if (targets.size() < BATCH_SIZE) {
                 return;

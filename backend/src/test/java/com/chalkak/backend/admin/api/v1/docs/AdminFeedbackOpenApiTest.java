@@ -25,7 +25,11 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters[*].name")
-                        .value(containsInAnyOrder("sort", "page", "pageSize")))
+                        .value(containsInAnyOrder(
+                                "sort",
+                                "page",
+                                "pageSize"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].post").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].patch").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].delete").doesNotExist())

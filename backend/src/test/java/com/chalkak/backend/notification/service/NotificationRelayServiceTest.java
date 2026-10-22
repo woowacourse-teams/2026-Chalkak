@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -181,9 +182,14 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         UUID expired = saveNotification(NOW, true);
         jdbcTemplate.update(
                 "UPDATE notifications SET sqs_publish_status = 'PUBLISHED', next_attempt_at = NULL, sqs_published_at = ? WHERE id = ?",
-                java.sql.Timestamp.from(NOW), published);
-        jdbcTemplate.update("UPDATE notifications SET next_attempt_at = ? WHERE id = ?",
-                java.sql.Timestamp.from(NOW.plusSeconds(1)), future);
+                java.sql.Timestamp.from(NOW),
+                published
+        );
+        jdbcTemplate.update(
+                "UPDATE notifications SET next_attempt_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(NOW.plusSeconds(1)),
+                future
+        );
         jdbcTemplate.update(
                 "UPDATE notifications SET sqs_publish_status = 'FAILED', next_attempt_at = NULL WHERE id = ?",
                 failed);
@@ -201,12 +207,57 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("AI 리뷰 결과 알림도 종류와 상관없이 같은 경로로 발행하고 종류·게시물 대상을 전달한다")
+    void publishPendingNotifications_aiReviewNotification_publishesTypeAndPostTarget() {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID id = new TransactionTemplate(transactionManager).execute(status -> {
+            repository.insertIfAbsent(Notification.aiReview(
+                    USER_ID,
+                    postId,
+                    UUID.randomUUID(),
+                    1,
+                    AiReviewOutcome.FAILED_RETRYABLE,
+                    NOW,
+                    true
+            ));
+            return jdbcTemplate.queryForObject(
+                    "SELECT id FROM notifications WHERE user_id = ?",
+                    UUID.class,
+                    USER_ID
+            );
+        });
+
+        // When
+        relay(NOW.plusSeconds(1)).publishPendingNotifications();
+
+        // Then
+        assertThat(getStatus(id)).isEqualTo("PUBLISHED");
+        ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
+        org.mockito.Mockito.verify(publisher).publish(message.capture());
+        assertThat(message.getValue().notificationId()).isEqualTo(id);
+        assertThat(message.getValue().type())
+                .isEqualTo(
+                        com.chalkak.backend.notification.domain.NotificationType.AI_REVIEW_FAILED);
+        assertThat(message.getValue().sourceType())
+                .isEqualTo(com.chalkak.backend.notification.domain.NotificationSourceType.POST);
+        assertThat(message.getValue().sourceId()).isEqualTo(postId);
+        assertThat(message.getValue().occurredAt()).isEqualTo(NOW);
+        assertThat(message.getValue().expiresAt()).isEqualTo(NOW.plusSeconds(1800));
+    }
+
+    @Test
     @DisplayName("업무 트랜잭션에서 아직 커밋하지 않은 알림은 외부에 발행하지 않는다")
     void publishPendingNotifications_uncommittedNotification_doesNotPublish() {
         // Given & When
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            repository.save(Notification.approved(USER_ID, UUID.randomUUID(), UUID.randomUUID(),
-                    NOW, true));
+            repository.save(Notification.approved(
+                    USER_ID,
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                    NOW,
+                    true
+            ));
             entityManager.flush();
             relay(NOW).publishPendingNotifications();
             status.setRollbackOnly();
@@ -341,27 +392,41 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
     }
 
     private NotificationRelayService relay(Instant now) {
-        return new NotificationRelayService(repository, publisher, Clock.fixed(now, ZoneOffset.UTC),
-                transactionManager);
+        return new NotificationRelayService(
+                repository,
+                publisher,
+                Clock.fixed(now, ZoneOffset.UTC),
+                transactionManager
+        );
     }
 
     private UUID saveNotification(Instant occurredAt, boolean pushEnabled) {
         return new TransactionTemplate(transactionManager).execute(status -> repository.save(
-                Notification.approved(USER_ID, UUID.randomUUID(), UUID.randomUUID(), occurredAt,
-                        pushEnabled))
+                Notification.approved(
+                        USER_ID,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        occurredAt,
+                        pushEnabled
+                ))
                 .getId());
     }
 
     private String getStatus(UUID id) {
         return jdbcTemplate.queryForObject(
-                "SELECT sqs_publish_status FROM notifications WHERE id = ?", String.class, id);
+                "SELECT sqs_publish_status FROM notifications WHERE id = ?",
+                String.class,
+                id
+        );
     }
 
     private Instant getTime(UUID id, String column) {
-        return jdbcTemplate.queryForObject("SELECT " + column + " FROM notifications WHERE id = ?",
+        return jdbcTemplate.queryForObject(
+                "SELECT " + column + " FROM notifications WHERE id = ?",
                 (row, rowNumber) -> row.getTimestamp(1) == null
                         ? null
                         : row.getTimestamp(1).toInstant(),
-                id);
+                id
+        );
     }
 }

@@ -60,11 +60,15 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
     void setUp() {
         executor = Executors.newFixedThreadPool(2);
         clean();
-        noticeId = jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
-                VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                RETURNING id
-                """, UUID.class, Timestamp.from(Instant.now().minusSeconds(60)));
+        noticeId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO notices (title, body, scheduled_at, created_at, updated_at)
+                        VALUES ('서비스 점검 안내', '점검합니다.', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                        """,
+                UUID.class,
+                Timestamp.from(Instant.now().minusSeconds(60))
+        );
     }
 
     @AfterEach
@@ -94,8 +98,13 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
 
         // When
         CompletableFuture<AdminNoticeResult> update = CompletableFuture.supplyAsync(
-                () -> noticeService.updateNotice(noticeId, ADMIN_ID, "점검 일정 변경", "점검합니다.",
-                        Instant.now()),
+                () -> noticeService.updateNotice(
+                        noticeId,
+                        ADMIN_ID,
+                        "점검 일정 변경",
+                        "점검합니다.",
+                        Instant.now()
+                ),
                 executor);
         try {
             awaitLockWaiting();
@@ -171,7 +180,11 @@ class AdminNoticeConcurrencyTest extends IntegrationTestSupport {
 
         // When
         CompletableFuture<Void> deletion = CompletableFuture.runAsync(
-                () -> noticeService.deleteNotice(noticeId, ADMIN_ID, "잘못 보낸 공지"), executor);
+                () -> noticeService.deleteNotice(
+                        noticeId,
+                        ADMIN_ID,
+                        "잘못 보낸 공지"
+                ), executor);
         try {
             awaitLockWaiting();
             assertThat(deletion.isDone()).isFalse();

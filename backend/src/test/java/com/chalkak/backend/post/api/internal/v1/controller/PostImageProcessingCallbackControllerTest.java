@@ -36,8 +36,7 @@ class PostImageProcessingCallbackControllerTest {
 
     private static final String TIMESTAMP_HEADER = "X-Chalkak-Callback-Timestamp";
     private static final String SIGNATURE_HEADER = "X-Chalkak-Callback-Signature";
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final String COMPLETE_BODY = """
             {"width":4032,"height":3024,"byteSize":812345,\
             "location":{"latitude":37.5665,"longitude":126.978},\
@@ -67,8 +66,8 @@ class PostImageProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/upload-urls", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.originalUploadUrl").value("https://s3.test/original"))
                 .andExpect(jsonPath("$.thumbnailUploadUrl").value("https://s3.test/thumbnail"))
@@ -92,12 +91,17 @@ class PostImageProcessingCallbackControllerTest {
                 "유효하지 않은 이미지 처리 콜백입니다."
         ))
                 .when(authenticator)
-                .authenticate(any(), any(), any(), any());
+                .authenticate(
+                        any(),
+                        any(),
+                        any(),
+                        any()
+                );
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/upload-urls", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "invalid"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "invalid"))
                 .andExpect(status().isUnauthorized());
 
         verify(postCommandService, never()).issuePostImageProcessingUpload(any());
@@ -108,10 +112,10 @@ class PostImageProcessingCallbackControllerTest {
     void complete_authenticatedCallback_completesProcessing() throws Exception {
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(COMPLETE_BODY))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COMPLETE_BODY))
                 .andExpect(status().isNoContent());
 
         verify(authenticator).authenticate(
@@ -131,10 +135,10 @@ class PostImageProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/failed", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
                 .andExpect(status().isNoContent());
 
         verify(authenticator).authenticate(
@@ -152,14 +156,19 @@ class PostImageProcessingCallbackControllerTest {
         // Given
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(any(), any(), any(), any());
+                .authenticate(
+                        any(),
+                        any(),
+                        any(),
+                        any()
+                );
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(COMPLETE_BODY))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "invalid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COMPLETE_BODY))
                 .andExpect(status().isUnauthorized());
 
         verify(postCommandService, never()).completePostImageProcessing(any(), any());
@@ -171,12 +180,17 @@ class PostImageProcessingCallbackControllerTest {
         // Given
         doThrow(new UnauthorizedException(ErrorCode.UNAUTHORIZED, "유효하지 않은 이미지 처리 콜백입니다."))
                 .when(authenticator)
-                .authenticate(any(), any(), any(), any());
+                .authenticate(
+                        any(),
+                        any(),
+                        any(),
+                        any()
+                );
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(COMPLETE_BODY))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COMPLETE_BODY))
                 .andExpect(status().isUnauthorized());
 
         verify(postCommandService, never()).completePostImageProcessing(any(), any());
@@ -187,10 +201,10 @@ class PostImageProcessingCallbackControllerTest {
     void fail_blankReason_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/failed", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
                 .andExpect(status().isBadRequest());
 
         verify(postCommandService, never()).failPostImageProcessing(any(), any());
@@ -206,10 +220,10 @@ class PostImageProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
                 .andExpect(status().isBadRequest());
 
         verify(postCommandService, never()).completePostImageProcessing(any(), any());
@@ -223,10 +237,10 @@ class PostImageProcessingCallbackControllerTest {
 
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", UPLOAD_ID)
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
                 .andExpect(status().isBadRequest());
 
         verify(postCommandService, never()).completePostImageProcessing(any(), any());
@@ -237,13 +251,18 @@ class PostImageProcessingCallbackControllerTest {
     void complete_nonCanonicalUploadId_returnsBadRequest() throws Exception {
         // When & Then
         mockMvc.perform(post("/internal/v1/post-image-processing/{uploadId}/complete", "1-1-1-1-1")
-                        .header(TIMESTAMP_HEADER, "1787562000")
-                        .header(SIGNATURE_HEADER, "signature")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(COMPLETE_BODY))
+                .header(TIMESTAMP_HEADER, "1787562000")
+                .header(SIGNATURE_HEADER, "signature")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COMPLETE_BODY))
                 .andExpect(status().isBadRequest());
 
-        verify(authenticator, never()).authenticate(any(), any(), any(), any());
+        verify(authenticator, never()).authenticate(
+                any(),
+                any(),
+                any(),
+                any()
+        );
         verify(postCommandService, never()).completePostImageProcessing(any(), any());
     }
 }

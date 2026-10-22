@@ -95,6 +95,26 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             @Param("moderationStatus") ModerationStatus moderationStatus
     );
 
+    @Query("""
+            SELECT post
+            FROM Post post
+            JOIN FETCH post.topic topic
+            JOIN FETCH post.photo photo
+            JOIN post.author author
+            WHERE author.id = :authorId
+              AND post.moderationStatus = :moderationStatus
+              AND post.deletedAt IS NULL
+              AND topic.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+              AND author.deletedAt IS NULL
+            ORDER BY topic.topicDate DESC, post.id DESC
+            """)
+    Slice<Post> findVisibleRecentByAuthorId(
+            @Param("authorId") UUID authorId,
+            @Param("moderationStatus") ModerationStatus moderationStatus,
+            Pageable pageable
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT post

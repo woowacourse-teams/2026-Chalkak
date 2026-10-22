@@ -62,7 +62,12 @@ public class Topic {
             Instant now
     ) {
         Topic topic = new Topic();
-        topic.validateBusinessState(title, topicDate, participationPeriod, now);
+        topic.validateBusinessState(
+                title,
+                topicDate,
+                participationPeriod,
+                now
+        );
         topic.title = title.trim();
         topic.topicDate = topicDate;
         topic.participationPeriod = participationPeriod;
@@ -76,7 +81,12 @@ public class Topic {
             Instant now
     ) {
         validateEditable(now);
-        validateBusinessState(title, topicDate, participationPeriod, now);
+        validateBusinessState(
+                title,
+                topicDate,
+                participationPeriod,
+                now
+        );
         String normalizedTitle = title.trim();
         if (Objects.equals(this.title, normalizedTitle)
                 && Objects.equals(this.topicDate, topicDate)

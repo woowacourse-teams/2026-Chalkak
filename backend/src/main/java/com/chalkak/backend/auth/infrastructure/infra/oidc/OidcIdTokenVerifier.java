@@ -53,7 +53,8 @@ final class OidcIdTokenVerifier implements IdTokenVerifier {
         return new VerifiedSocialIdentity(
                 provider,
                 getSubject(jwt),
-                emailPolicy.extractEmail(jwt));
+                emailPolicy.extractEmail(jwt)
+        );
     }
 
     private void validateRawNonce(String rawNonce) {

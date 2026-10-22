@@ -105,7 +105,11 @@ public class SqsPushService {
         }
         logReceived(pushMessage);
         PushProcessingResult result = pushWorkerService.process(pushMessage);
-        visibility.finishAttempt(() -> handleProcessingResult(message, pushMessage, result));
+        visibility.finishAttempt(() -> handleProcessingResult(
+                message,
+                pushMessage,
+                result
+        ));
     }
 
     private PushMessage readPushMessage(Message message) {
@@ -126,7 +130,11 @@ public class SqsPushService {
             delete(message);
             return;
         }
-        postponeRetry(message, pushMessage, result);
+        postponeRetry(
+                message,
+                pushMessage,
+                result
+        );
         log.atInfo().addKeyValue("type", "notification")
                 .addKeyValue("stage", "worker_retry_pending")
                 .addKeyValue("eventId", pushMessage.eventId())
@@ -204,8 +212,12 @@ public class SqsPushService {
         private VisibilityExtension(Message message) {
             this.message = message;
             long intervalSeconds = VISIBILITY_EXTENSION_INTERVAL.getSeconds();
-            task = visibilityExtensionExecutor.scheduleAtFixedRate(this::extend, intervalSeconds,
-                    intervalSeconds, TimeUnit.SECONDS);
+            task = visibilityExtensionExecutor.scheduleAtFixedRate(
+                    this::extend,
+                    intervalSeconds,
+                    intervalSeconds,
+                    TimeUnit.SECONDS
+            );
         }
 
         private synchronized void finishAttempt(Runnable completion) {

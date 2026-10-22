@@ -63,7 +63,11 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
         try {
             Future<?> first = executor.submit(() -> transaction.executeWithoutResult(status -> {
                 notificationSettingsService.updateSettings(
-                        userId, topicFirst ? false : null, topicFirst ? null : false);
+                        userId,
+                        topicFirst ? false : null,
+                        topicFirst ? null : false,
+                        null
+                );
                 firstUpdated.countDown();
                 awaitCommit(firstCanCommit);
             }));
@@ -72,7 +76,11 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
                 secondBackendPid.complete(
                         jdbcTemplate.queryForObject("SELECT pg_backend_pid()", Integer.class));
                 notificationSettingsService.updateSettings(
-                        userId, topicFirst ? null : false, topicFirst ? false : null);
+                        userId,
+                        topicFirst ? null : false,
+                        topicFirst ? false : null,
+                        null
+                );
             }));
 
             // When
@@ -84,7 +92,11 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
 
             // Then
             assertThat(notificationSettingsService.getSettings(userId))
-                    .isEqualTo(new NotificationSettingsResult(false, false));
+                    .isEqualTo(new NotificationSettingsResult(
+                            false,
+                            false,
+                            true
+                    ));
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();
@@ -107,7 +119,10 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
             Boolean blocked = jdbcTemplate.queryForObject(
-                    "SELECT cardinality(pg_blocking_pids(?)) > 0", Boolean.class, backendPid);
+                    "SELECT cardinality(pg_blocking_pids(?)) > 0",
+                    Boolean.class,
+                    backendPid
+            );
             if (Boolean.TRUE.equals(blocked)) {
                 return;
             }

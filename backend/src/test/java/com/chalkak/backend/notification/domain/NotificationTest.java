@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,6 +21,7 @@ class NotificationTest {
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID POST_ID = UUID.randomUUID();
     private static final UUID EVENT_KEY = UUID.randomUUID();
+    private static final UUID AI_REVIEW_ID = UUID.randomUUID();
     private static final Instant OCCURRED_AT = Instant.parse("2026-10-06T00:00:00Z");
 
     @ParameterizedTest
@@ -27,8 +29,13 @@ class NotificationTest {
     @DisplayName("푸시 기한은 사건 발생 후 30분부터 만료다")
     void isPushExpired_deadlineBoundary_expiresAtThirtyMinutes(long seconds) {
         // Given
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                true);
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                true
+        );
 
         // When & Then
         assertThat(notification.isPushExpired(OCCURRED_AT.plusSeconds(seconds)))
@@ -40,8 +47,13 @@ class NotificationTest {
     @DisplayName("발행 재시도는 1분 뒤이며 기한을 넘기지 않는다")
     void retryPublication_attemptTime_limitsRetryToDeadline(long seconds) {
         // Given
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                true);
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                true
+        );
         Instant attemptedAt = OCCURRED_AT.plusSeconds(seconds);
 
         // When
@@ -63,8 +75,13 @@ class NotificationTest {
     @DisplayName("SQS 수락은 수락 시각을 기록하고 다음 발행 시각을 비운다")
     void markPublished_pending_recordsAcceptance() {
         // Given
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                true);
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                true
+        );
         Instant acceptedAt = OCCURRED_AT.plusSeconds(1);
 
         // When
@@ -80,8 +97,13 @@ class NotificationTest {
     @DisplayName("수락 시각이 없으면 발행 완료로 바꾸지 않는다")
     void markPublished_missingAcceptanceTime_rejectsTransition() {
         // Given
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                true);
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                true
+        );
 
         // When & Then
         assertThatThrownBy(() -> notification.markPublished(null))
@@ -93,8 +115,13 @@ class NotificationTest {
     @DisplayName("영구 오류는 발행 실패로 끝내고 다음 발행 시각을 비운다")
     void failPublication_pending_stopsPublication() {
         // Given
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                true);
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                true
+        );
 
         // When
         notification.failPublication();
@@ -110,8 +137,13 @@ class NotificationTest {
     @DisplayName("이미 발행을 끝낸 알림은 다시 상태를 바꾸지 못한다")
     void publication_terminalState_rejectsTransitions(String state) {
         // Given
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                !state.equals("NOT_REQUIRED"));
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                !state.equals("NOT_REQUIRED")
+        );
         if (state.equals("PUBLISHED")) {
             notification.markPublished(OCCURRED_AT);
         }
@@ -136,8 +168,13 @@ class NotificationTest {
     @DisplayName("승인 알림은 게시물 대상을 기록하고 반려 사유는 갖지 않는다")
     void approved_validInput_setsPostSourceWithoutRejectionReason() {
         // When
-        Notification notification = Notification.approved(USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT,
-                true);
+        Notification notification = Notification.approved(
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                true
+        );
 
         // Then
         assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
@@ -156,7 +193,13 @@ class NotificationTest {
 
         // When
         Notification notification = Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, reason, OCCURRED_AT, true);
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                reason,
+                OCCURRED_AT,
+                true
+        );
 
         // Then
         assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
@@ -171,7 +214,13 @@ class NotificationTest {
     void rejected_missingReason_throwsBusinessException(String reason) {
         // When & Then
         assertThatThrownBy(() -> Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, reason, OCCURRED_AT, true))
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                reason,
+                OCCURRED_AT,
+                true
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -180,7 +229,13 @@ class NotificationTest {
     void rejected_reasonOverLimit_throwsBusinessException() {
         // When & Then
         assertThatThrownBy(() -> Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, "가".repeat(501), OCCURRED_AT, true))
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                "가".repeat(501),
+                OCCURRED_AT,
+                true
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -194,10 +249,22 @@ class NotificationTest {
             Instant occurredAt
     ) {
         // When & Then
-        assertThatThrownBy(() -> Notification.approved(userId, postId, eventKey, occurredAt, true))
+        assertThatThrownBy(() -> Notification.approved(
+                userId,
+                postId,
+                eventKey,
+                occurredAt,
+                true
+        ))
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> Notification.rejected(
-                userId, postId, eventKey, "사진 품질", occurredAt, true))
+                userId,
+                postId,
+                eventKey,
+                "사진 품질",
+                occurredAt,
+                true
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -207,9 +274,20 @@ class NotificationTest {
     void create_pushPreference_setsInitialPublicationState(boolean pushEnabled) {
         // When
         Notification approved = Notification.approved(
-                USER_ID, POST_ID, EVENT_KEY, OCCURRED_AT, pushEnabled);
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                OCCURRED_AT,
+                pushEnabled
+        );
         Notification rejected = Notification.rejected(
-                USER_ID, POST_ID, EVENT_KEY, "사진 품질", OCCURRED_AT, pushEnabled);
+                USER_ID,
+                POST_ID,
+                EVENT_KEY,
+                "사진 품질",
+                OCCURRED_AT,
+                pushEnabled
+        );
 
         // Then
         for (Notification notification : new Notification[]{approved, rejected}) {
@@ -221,11 +299,231 @@ class NotificationTest {
         }
     }
 
+    @Test
+    @DisplayName("AI 리뷰 완료 알림은 게시물 대상에 고정 문구와 회차 키를 담아 발행 대기로 만든다")
+    void aiReview_completed_createsPendingNotification() {
+        // When
+        Notification notification = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(notification.getType()).isEqualTo(NotificationType.AI_REVIEW_COMPLETED);
+        assertThat(notification.getUserId()).isEqualTo(USER_ID);
+        assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
+        assertThat(notification.getSourceId()).isEqualTo(POST_ID);
+        assertThat(notification.getTitle()).isEqualTo("AI 피드백이 도착했어요");
+        assertThat(notification.getBody()).isEqualTo("사진의 구도 점수와 피드백을 확인해 보세요.");
+        assertThat(notification.getPayload()).isNull();
+        assertThat(notification.getCreatedAt()).isEqualTo(OCCURRED_AT);
+        assertThat(notification.getPublishStatus()).isEqualTo(PublishStatus.PENDING);
+        assertThat(notification.getNextAttemptAt()).isEqualTo(OCCURRED_AT);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "FAILED_RETRYABLE, 잠시 후 다시 요청해 주세요.",
+            "FAILED_FINAL, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+    })
+    @DisplayName("AI 리뷰 실패 알림은 다시 요청할 수 있는지에 따라 본문이 다르다")
+    void aiReview_failedOutcome_choosesBody(
+            AiReviewOutcome outcome,
+            String expectedBody
+    ) {
+        // When
+        Notification notification = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                2,
+                outcome,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(notification.getType()).isEqualTo(NotificationType.AI_REVIEW_FAILED);
+        assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
+        assertThat(notification.getSourceId()).isEqualTo(POST_ID);
+        assertThat(notification.getTitle()).isEqualTo("AI 피드백을 만들지 못했어요");
+        assertThat(notification.getBody()).isEqualTo(expectedBody);
+        assertThat(notification.getPayload()).isNull();
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림 키는 리뷰와 회차가 같으면 같고 하나라도 다르면 다르며 종류와 무관하다")
+    void aiReviewEventKey_reviewAndRound_isDeterministic() {
+        // When
+        Notification first = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+        Notification sameRound = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                OCCURRED_AT.plusSeconds(5),
+                false
+        );
+        Notification nextRound = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                2,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+        Notification otherReview = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                UUID.randomUUID(),
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(first.getEventKey()).isNotNull().isEqualTo(sameRound.getEventKey());
+        assertThat(nextRound.getEventKey()).isNotEqualTo(first.getEventKey());
+        assertThat(otherReview.getEventKey()).isNotEqualTo(first.getEventKey());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("AI 리뷰 알림은 푸시 필요 여부에 따라 즉시 발행 대기 또는 발행 불필요로 생성한다")
+    void aiReview_pushPreference_setsInitialPublicationState(boolean pushEnabled) {
+        // When
+        Notification completed = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                pushEnabled
+        );
+        Notification failed = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                OCCURRED_AT,
+                pushEnabled
+        );
+
+        // Then
+        for (Notification notification : new Notification[]{completed, failed}) {
+            assertThat(notification.getPublishStatus()).isEqualTo(pushEnabled
+                    ? PublishStatus.PENDING
+                    : PublishStatus.NOT_REQUIRED);
+            assertThat(notification.getNextAttemptAt()).isEqualTo(pushEnabled ? OCCURRED_AT : null);
+        }
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림은 결과가 없으면 NPE가 아니라 필수값 위반으로 만들지 않는다")
+    void aiReview_nullOutcome_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                null,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림은 회원·게시물·리뷰·발생 시각이 없으면 만들지 않는다")
+    void aiReview_missingRequiredValue_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                null,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                null,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.aiReview(
+                null,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                null,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private static Stream<Arguments> missingRequiredValues() {
         return Stream.of(
-                Arguments.of(null, POST_ID, EVENT_KEY, OCCURRED_AT),
-                Arguments.of(USER_ID, null, EVENT_KEY, OCCURRED_AT),
-                Arguments.of(USER_ID, POST_ID, null, OCCURRED_AT),
-                Arguments.of(USER_ID, POST_ID, EVENT_KEY, null));
+                Arguments.of(
+                        null,
+                        POST_ID,
+                        EVENT_KEY,
+                        OCCURRED_AT
+                ),
+                Arguments.of(
+                        USER_ID,
+                        null,
+                        EVENT_KEY,
+                        OCCURRED_AT
+                ),
+                Arguments.of(
+                        USER_ID,
+                        POST_ID,
+                        null,
+                        OCCURRED_AT
+                ),
+                Arguments.of(
+                        USER_ID,
+                        POST_ID,
+                        EVENT_KEY,
+                        null
+                )
+        );
     }
 }

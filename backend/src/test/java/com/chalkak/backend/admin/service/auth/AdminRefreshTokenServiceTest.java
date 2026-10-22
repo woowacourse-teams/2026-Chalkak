@@ -76,9 +76,13 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
 
         // then
         flushAndClear();
-        String storedTokenHash = jdbcTemplate.queryForObject("""
-                SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
-                """, String.class, admin.getId());
+        String storedTokenHash = jdbcTemplate.queryForObject(
+                """
+                        SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
+                        """,
+                String.class,
+                admin.getId()
+        );
         assertThat(issued.value()).isNotBlank();
         assertThat(storedTokenHash).isNotEqualTo(issued.value());
         assertThat(storedTokenHash).matches(TOKEN_HASH_PATTERN);
@@ -295,25 +299,32 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
     }
 
     private int countLiveTokens(UUID sessionId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM admin_refresh_tokens
-                WHERE session_id = ? AND revoked_at IS NULL
-                """, Integer.class, sessionId);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM admin_refresh_tokens
+                        WHERE session_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                sessionId
+        );
     }
 
     private TokenRow findTokenRow(String token) {
-        return jdbcTemplate.queryForObject("""
-                SELECT session_id, rotated_at, revoked_at, expires_at, absolute_expires_at
-                FROM admin_refresh_tokens
-                WHERE token_hash = ?
-                """,
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT session_id, rotated_at, revoked_at, expires_at, absolute_expires_at
+                        FROM admin_refresh_tokens
+                        WHERE token_hash = ?
+                        """,
                 (resultSet, rowNumber) -> new TokenRow(
                         resultSet.getObject("session_id", UUID.class),
                         toInstant(resultSet.getTimestamp("rotated_at")),
                         toInstant(resultSet.getTimestamp("revoked_at")),
                         toInstant(resultSet.getTimestamp("expires_at")),
-                        toInstant(resultSet.getTimestamp("absolute_expires_at"))),
-                refreshTokenHasher.encode(token));
+                        toInstant(resultSet.getTimestamp("absolute_expires_at"))
+                ),
+                refreshTokenHasher.encode(token)
+        );
     }
 
     private Instant toInstant(Timestamp timestamp) {
@@ -328,6 +339,7 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
             Instant rotatedAt,
             Instant revokedAt,
             Instant expiresAt,
-            Instant absoluteExpiresAt) {
+            Instant absoluteExpiresAt
+    ) {
     }
 }

@@ -25,7 +25,8 @@ public class OidcIdTokenConfig {
                 SocialProvider.GOOGLE,
                 properties.issuer(),
                 properties.jwkSetUri(),
-                properties.clientId());
+                properties.clientId()
+        );
     }
 
     @Bean
@@ -35,7 +36,8 @@ public class OidcIdTokenConfig {
         return new OidcIdTokenVerifier(
                 SocialProvider.GOOGLE,
                 jwtDecoder,
-                OidcEmailPolicy.VERIFIED_ONLY);
+                OidcEmailPolicy.VERIFIED_ONLY
+        );
     }
 
     @Bean
@@ -44,7 +46,8 @@ public class OidcIdTokenConfig {
                 SocialProvider.KAKAO,
                 properties.issuer(),
                 properties.jwkSetUri(),
-                properties.appKey());
+                properties.appKey()
+        );
     }
 
     @Bean
@@ -54,7 +57,8 @@ public class OidcIdTokenConfig {
         return new OidcIdTokenVerifier(
                 SocialProvider.KAKAO,
                 jwtDecoder,
-                OidcEmailPolicy.AS_PROVIDED);
+                OidcEmailPolicy.AS_PROVIDED
+        );
     }
 
     @Bean
@@ -63,7 +67,8 @@ public class OidcIdTokenConfig {
                 SocialProvider.APPLE,
                 properties.issuer(),
                 properties.jwkSetUri(),
-                properties.clientId());
+                properties.clientId()
+        );
     }
 
     @Bean
@@ -73,6 +78,7 @@ public class OidcIdTokenConfig {
         return new OidcIdTokenVerifier(
                 SocialProvider.APPLE,
                 jwtDecoder,
-                OidcEmailPolicy.VERIFIED_ONLY);
+                OidcEmailPolicy.VERIFIED_ONLY
+        );
     }
 }

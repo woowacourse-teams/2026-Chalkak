@@ -77,9 +77,13 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
         entityManager.flush();
 
         // Then
-        String storedTokenHash = jdbcTemplate.queryForObject("""
-                SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
-                """, String.class, admin.getId());
+        String storedTokenHash = jdbcTemplate.queryForObject(
+                """
+                        SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
+                        """,
+                String.class,
+                admin.getId()
+        );
         assertThat(result.refreshToken().value()).isNotBlank();
         assertThat(result.refreshToken().expiresIn()).isEqualTo(Duration.ofDays(30));
         assertThat(storedTokenHash).isNotEqualTo(result.refreshToken().value());

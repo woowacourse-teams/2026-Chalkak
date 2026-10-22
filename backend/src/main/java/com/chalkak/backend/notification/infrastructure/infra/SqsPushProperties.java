@@ -3,8 +3,12 @@ package com.chalkak.backend.notification.infrastructure.infra;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "chalkak.notification.sqs")
-public record SqsPushProperties(boolean relayEnabled, boolean topicPushEnabled, String queueUrl,
-        String region) {
+public record SqsPushProperties(
+        boolean relayEnabled,
+        boolean topicPushEnabled,
+        String queueUrl,
+        String region
+) {
 
     public SqsPushProperties {
         if (relayEnabled || topicPushEnabled) {

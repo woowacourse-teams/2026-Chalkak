@@ -82,9 +82,21 @@ class AdminPostQueryRepositoryTest {
     private static final UUID DELETED_POST_ID = UUID
             .fromString("0198fa50-0000-7000-8000-000000000005");
 
-    private static final LocalDate FIRST_TOPIC_DATE = LocalDate.of(2026, 8, 20);
-    private static final LocalDate SECOND_TOPIC_DATE = LocalDate.of(2026, 8, 21);
-    private static final LocalDate DELETED_TOPIC_DATE = LocalDate.of(2026, 8, 22);
+    private static final LocalDate FIRST_TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            20
+    );
+    private static final LocalDate SECOND_TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            21
+    );
+    private static final LocalDate DELETED_TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            22
+    );
     private static final Instant TOPIC_STARTS_AT = Instant.parse("2026-08-20T00:00:00Z");
     private static final Instant TOPIC_ENDS_AT = Instant.parse("2026-08-20T23:59:59Z");
     private static final Instant REJECTED_CREATED_AT = Instant.parse("2026-08-20T08:00:00Z");
@@ -130,8 +142,11 @@ class AdminPostQueryRepositoryTest {
         AdminPostQueryCriteria criteria = criteria(AdminPostSort.CREATED_AT_DESC);
 
         // When
-        AdminPage<AdminPostSummaryProjection> result = adminPostQueryRepository.findPosts(criteria,
-                1, 10);
+        AdminPage<AdminPostSummaryProjection> result = adminPostQueryRepository.findPosts(
+                criteria,
+                1,
+                10
+        );
 
         // Then
         assertThat(result.currentPage()).isEqualTo(1);
@@ -142,13 +157,15 @@ class AdminPostQueryRepositoryTest {
                         DELETED_POST_ID,
                         PENDING_POST_ID,
                         APPROVED_POST_ID,
-                        REJECTED_POST_ID);
+                        REJECTED_POST_ID
+                );
         assertThat(result.items()).extracting(AdminPostSummaryProjection::moderationStatus)
                 .containsExactly(
                         ModerationStatus.APPROVED,
                         ModerationStatus.PENDING,
                         ModerationStatus.APPROVED,
-                        ModerationStatus.REJECTED);
+                        ModerationStatus.REJECTED
+                );
         assertThat(summaryOf(result, DELETED_POST_ID).deletedAt()).isEqualTo(DELETED_AT);
         assertThat(summaryOf(result, PENDING_POST_ID).likeCount()).isEqualTo(2);
         assertThat(summaryOf(result, PENDING_POST_ID).authorEmail())
@@ -172,11 +189,15 @@ class AdminPostQueryRepositoryTest {
                 PENDING_USER_ID,
                 TIED_CREATED_AT,
                 TIED_CREATED_AT,
-                AdminPostSort.CREATED_AT_ASC);
+                AdminPostSort.CREATED_AT_ASC
+        );
 
         // When
-        AdminPage<AdminPostSummaryProjection> result = adminPostQueryRepository.findPosts(criteria,
-                1, 20);
+        AdminPage<AdminPostSummaryProjection> result = adminPostQueryRepository.findPosts(
+                criteria,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.items()).extracting(AdminPostSummaryProjection::postId)
@@ -196,9 +217,11 @@ class AdminPostQueryRepositoryTest {
                         null,
                         null,
                         null,
-                        AdminPostSort.CREATED_AT_DESC),
+                        AdminPostSort.CREATED_AT_DESC
+                ),
                 1,
-                20);
+                20
+        );
         AdminPage<AdminPostSummaryProjection> topicIdResult = adminPostQueryRepository.findPosts(
                 new AdminPostQueryCriteria(
                         null,
@@ -207,9 +230,11 @@ class AdminPostQueryRepositoryTest {
                         null,
                         null,
                         null,
-                        AdminPostSort.CREATED_AT_DESC),
+                        AdminPostSort.CREATED_AT_DESC
+                ),
                 1,
-                20);
+                20
+        );
         AdminPage<AdminPostSummaryProjection> topicDateResult = adminPostQueryRepository.findPosts(
                 new AdminPostQueryCriteria(
                         null,
@@ -218,9 +243,11 @@ class AdminPostQueryRepositoryTest {
                         null,
                         null,
                         null,
-                        AdminPostSort.CREATED_AT_DESC),
+                        AdminPostSort.CREATED_AT_DESC
+                ),
                 1,
-                20);
+                20
+        );
         AdminPage<AdminPostSummaryProjection> userIdResult = adminPostQueryRepository.findPosts(
                 new AdminPostQueryCriteria(
                         null,
@@ -229,9 +256,11 @@ class AdminPostQueryRepositoryTest {
                         REJECTED_USER_ID,
                         null,
                         null,
-                        AdminPostSort.CREATED_AT_DESC),
+                        AdminPostSort.CREATED_AT_DESC
+                ),
                 1,
-                20);
+                20
+        );
         AdminPage<AdminPostSummaryProjection> createdAtFromResult = adminPostQueryRepository
                 .findPosts(
                         new AdminPostQueryCriteria(
@@ -241,9 +270,11 @@ class AdminPostQueryRepositoryTest {
                                 null,
                                 DELETED_CREATED_AT,
                                 null,
-                                AdminPostSort.CREATED_AT_DESC),
+                                AdminPostSort.CREATED_AT_DESC
+                        ),
                         1,
-                        20);
+                        20
+                );
         AdminPage<AdminPostSummaryProjection> createdAtToResult = adminPostQueryRepository
                 .findPosts(
                         new AdminPostQueryCriteria(
@@ -253,9 +284,11 @@ class AdminPostQueryRepositoryTest {
                                 null,
                                 null,
                                 REJECTED_CREATED_AT,
-                                AdminPostSort.CREATED_AT_DESC),
+                                AdminPostSort.CREATED_AT_DESC
+                        ),
                         1,
-                        20);
+                        20
+                );
 
         // Then
         assertThat(statusResult.items()).extracting(AdminPostSummaryProjection::postId)
@@ -285,23 +318,31 @@ class AdminPostQueryRepositoryTest {
         AdminPage<AdminPostSummaryProjection> descendingFirst = adminPostQueryRepository.findPosts(
                 descendingCriteria,
                 1,
-                3);
+                3
+        );
         AdminPage<AdminPostSummaryProjection> descendingSecond = adminPostQueryRepository.findPosts(
                 descendingCriteria,
                 2,
-                3);
+                3
+        );
         AdminPage<AdminPostSummaryProjection> ascendingFirst = adminPostQueryRepository.findPosts(
                 ascendingCriteria,
                 1,
-                3);
+                3
+        );
         AdminPage<AdminPostSummaryProjection> ascendingSecond = adminPostQueryRepository.findPosts(
                 ascendingCriteria,
                 2,
-                3);
+                3
+        );
 
         // Then
         assertThat(descendingFirst.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(DELETED_POST_ID, PENDING_POST_ID, APPROVED_POST_ID);
+                .containsExactly(
+                        DELETED_POST_ID,
+                        PENDING_POST_ID,
+                        APPROVED_POST_ID
+                );
         assertThat(descendingSecond.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(REJECTED_POST_ID);
         assertThat(descendingFirst.hasNext()).isTrue();
@@ -309,7 +350,11 @@ class AdminPostQueryRepositoryTest {
         assertThat(descendingSecond.currentPage()).isEqualTo(2);
 
         assertThat(ascendingFirst.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(REJECTED_POST_ID, APPROVED_POST_ID, PENDING_POST_ID);
+                .containsExactly(
+                        REJECTED_POST_ID,
+                        APPROVED_POST_ID,
+                        PENDING_POST_ID
+                );
         assertThat(ascendingSecond.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(DELETED_POST_ID);
         assertThat(ascendingFirst.hasNext()).isTrue();
@@ -416,7 +461,15 @@ class AdminPostQueryRepositoryTest {
     }
 
     private AdminPostQueryCriteria criteria(AdminPostSort sort) {
-        return new AdminPostQueryCriteria(null, null, null, null, null, null, sort);
+        return new AdminPostQueryCriteria(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                sort
+        );
     }
 
     private AdminPostSummaryProjection summaryOf(
@@ -430,15 +483,36 @@ class AdminPostQueryRepositoryTest {
     }
 
     private void insertUsers() {
-        insertUser(VALIDATING_USER_ID, "validating@example.com", "ACTIVE", null);
-        insertUser(PENDING_USER_ID, "pending@example.com", "BANNED", null);
-        insertUser(APPROVED_USER_ID, "approved@example.com", "ACTIVE", null);
-        insertUser(REJECTED_USER_ID, "rejected@example.com", "ACTIVE", null);
+        insertUser(
+                VALIDATING_USER_ID,
+                "validating@example.com",
+                "ACTIVE",
+                null
+        );
+        insertUser(
+                PENDING_USER_ID,
+                "pending@example.com",
+                "BANNED",
+                null
+        );
+        insertUser(
+                APPROVED_USER_ID,
+                "approved@example.com",
+                "ACTIVE",
+                null
+        );
+        insertUser(
+                REJECTED_USER_ID,
+                "rejected@example.com",
+                "ACTIVE",
+                null
+        );
         insertUser(
                 DELETED_USER_ID,
                 "withdrawn+0198fa10000070008000000000000005@chalkak.invalid",
                 "ACTIVE",
-                DELETED_AT);
+                DELETED_AT
+        );
     }
 
     private void insertAdmin() {
@@ -453,24 +527,26 @@ class AdminPostQueryRepositoryTest {
     }
 
     private void insertModerationAuditLog() {
-        jdbcTemplate.update("""
-                INSERT INTO admin_audit_logs (
-                    actor_admin_id, action, target_type, target_id, reason,
-                    before_state, after_state, occurred_at, request_id
-                ) VALUES (
-                    ?, CAST('POST_APPROVED' AS admin_action),
-                    CAST('POST' AS admin_target_type), ?, NULL,
-                    CAST('{"moderationStatus":"PENDING","moderatedAt":null}' AS jsonb),
-                    CAST(? AS jsonb), ?, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admin_audit_logs (
+                            actor_admin_id, action, target_type, target_id, reason,
+                            before_state, after_state, occurred_at, request_id
+                        ) VALUES (
+                            ?, CAST('POST_APPROVED' AS admin_action),
+                            CAST('POST' AS admin_target_type), ?, NULL,
+                            CAST('{"moderationStatus":"PENDING","moderatedAt":null}' AS jsonb),
+                            CAST(? AS jsonb), ?, ?
+                        )
+                        """,
                 ADMIN_ID,
                 APPROVED_POST_ID,
                 "{\"moderationStatus\":\"APPROVED\","
                         + "\"moderatedAt\":\"" + MODERATED_AT + "\","
                         + "\"moderatedBy\":\"" + ADMIN_ID + "\"}",
                 timestamp(MODERATED_AT),
-                UUID.fromString("0198fa60-0000-7000-8000-000000000001"));
+                UUID.fromString("0198fa60-0000-7000-8000-000000000001")
+        );
     }
 
     private void insertUser(
@@ -479,20 +555,22 @@ class AdminPostQueryRepositoryTest {
             String status,
             Instant deletedAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, ?, CAST(? AS user_status), ?,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, ?, CAST(? AS user_status), ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
+                        )
+                        """,
                 userId,
                 email,
                 status,
                 "chalkak/signatures/" + userId + "/original.png",
-                timestamp(deletedAt));
+                timestamp(deletedAt)
+        );
     }
 
     private void insertTopics() {
@@ -502,21 +580,24 @@ class AdminPostQueryRepositoryTest {
                 FIRST_TOPIC_DATE,
                 TOPIC_STARTS_AT,
                 TOPIC_ENDS_AT,
-                null);
+                null
+        );
         insertTopic(
                 SECOND_TOPIC_ID,
                 "두 번째 주제",
                 SECOND_TOPIC_DATE,
                 TOPIC_STARTS_AT.plusSeconds(86_400),
                 TOPIC_ENDS_AT.plusSeconds(86_400),
-                null);
+                null
+        );
         insertTopic(
                 DELETED_TOPIC_ID,
                 "삭제된 주제",
                 DELETED_TOPIC_DATE,
                 TOPIC_STARTS_AT.plusSeconds(172_800),
                 TOPIC_ENDS_AT.plusSeconds(172_800),
-                DELETED_AT);
+                DELETED_AT
+        );
     }
 
     private void insertTopic(
@@ -527,20 +608,22 @@ class AdminPostQueryRepositoryTest {
             Instant endsAt,
             Instant deletedAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
+                        )
+                        """,
                 topicId,
                 title,
                 topicDate,
                 timestamp(startsAt),
                 timestamp(endsAt),
-                timestamp(deletedAt));
+                timestamp(deletedAt)
+        );
     }
 
     private void insertPhotos() {
@@ -550,35 +633,40 @@ class AdminPostQueryRepositoryTest {
                 "{}",
                 PHOTO_CREATED_AT,
                 PHOTO_CREATED_AT,
-                null);
+                null
+        );
         insertPhoto(
                 PENDING_PHOTO_ID,
                 "pending",
                 "{\"width\":4032,\"height\":3024}",
                 PHOTO_CREATED_AT,
                 PHOTO_UPDATED_AT,
-                null);
+                null
+        );
         insertPhoto(
                 APPROVED_PHOTO_ID,
                 "approved",
                 "{\"width\":1920,\"height\":1080}",
                 PHOTO_CREATED_AT,
                 PHOTO_UPDATED_AT,
-                null);
+                null
+        );
         insertPhoto(
                 REJECTED_PHOTO_ID,
                 "rejected",
                 "{}",
                 PHOTO_CREATED_AT,
                 PHOTO_CREATED_AT,
-                null);
+                null
+        );
         insertPhoto(
                 DELETED_PHOTO_ID,
                 "deleted",
                 "{\"width\":1280,\"height\":720}",
                 PHOTO_CREATED_AT,
                 PHOTO_UPDATED_AT,
-                DELETED_AT);
+                DELETED_AT
+        );
     }
 
     private void insertPhoto(
@@ -589,14 +677,15 @@ class AdminPostQueryRepositoryTest {
             Instant updatedAt,
             Instant deletedAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, ?, ?, CAST(? AS jsonb), ?, ?, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, ?, ?, CAST(? AS jsonb), ?, ?, ?
+                        )
+                        """,
                 photoId,
                 "chalkak/posts/" + keySegment + "/original.webp",
                 keySegment.equals("validating") || keySegment.equals("rejected")
@@ -605,7 +694,8 @@ class AdminPostQueryRepositoryTest {
                 metadata,
                 timestamp(createdAt),
                 timestamp(updatedAt),
-                timestamp(deletedAt));
+                timestamp(deletedAt)
+        );
     }
 
     private void insertUploads() {
@@ -614,25 +704,29 @@ class AdminPostQueryRepositoryTest {
                 VALIDATING_USER_ID,
                 "ISSUED",
                 null,
-                null);
+                null
+        );
         insertUpload(
                 PENDING_UPLOAD_ID,
                 PENDING_USER_ID,
                 "READY",
                 null,
-                "{\"width\":4032,\"height\":3024}");
+                "{\"width\":4032,\"height\":3024}"
+        );
         insertUpload(
                 APPROVED_UPLOAD_ID,
                 APPROVED_USER_ID,
                 "READY",
                 null,
-                "{\"width\":1920,\"height\":1080}");
+                "{\"width\":1920,\"height\":1080}"
+        );
         insertUpload(
                 REJECTED_UPLOAD_ID,
                 REJECTED_USER_ID,
                 "REJECTED",
                 "CORRUPTED_IMAGE",
-                null);
+                null
+        );
     }
 
     private void insertUpload(
@@ -642,15 +736,16 @@ class AdminPostQueryRepositoryTest {
             String rejectionReason,
             String imageMetadata
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, rejection_reason, image_metadata,
-                    expires_at, claimed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST(? AS post_image_upload_status), ?, CAST(? AS jsonb),
-                    ?, ?, ?, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, rejection_reason, image_metadata,
+                            expires_at, claimed_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST(? AS post_image_upload_status), ?, CAST(? AS jsonb),
+                            ?, ?, ?, ?
+                        )
+                        """,
                 uploadId,
                 userId,
                 status,
@@ -659,7 +754,8 @@ class AdminPostQueryRepositoryTest {
                 timestamp(UPLOAD_EXPIRES_AT),
                 timestamp(UPLOAD_CLAIMED_AT),
                 timestamp(UPLOAD_CREATED_AT),
-                timestamp(UPLOAD_UPDATED_AT));
+                timestamp(UPLOAD_UPDATED_AT)
+        );
     }
 
     private void insertPosts() {
@@ -673,7 +769,8 @@ class AdminPostQueryRepositoryTest {
                 "VALIDATING",
                 null,
                 TIED_CREATED_AT,
-                null);
+                null
+        );
         insertPost(
                 PENDING_POST_ID,
                 PENDING_USER_ID,
@@ -684,7 +781,8 @@ class AdminPostQueryRepositoryTest {
                 "PENDING",
                 null,
                 TIED_CREATED_AT,
-                null);
+                null
+        );
         insertPost(
                 APPROVED_POST_ID,
                 APPROVED_USER_ID,
@@ -695,7 +793,8 @@ class AdminPostQueryRepositoryTest {
                 "APPROVED",
                 MODERATED_AT,
                 APPROVED_CREATED_AT,
-                null);
+                null
+        );
         insertPost(
                 REJECTED_POST_ID,
                 REJECTED_USER_ID,
@@ -706,7 +805,8 @@ class AdminPostQueryRepositoryTest {
                 "REJECTED",
                 null,
                 REJECTED_CREATED_AT,
-                null);
+                null
+        );
         insertPost(
                 DELETED_POST_ID,
                 DELETED_USER_ID,
@@ -717,7 +817,8 @@ class AdminPostQueryRepositoryTest {
                 "APPROVED",
                 MODERATED_AT,
                 DELETED_CREATED_AT,
-                DELETED_AT);
+                DELETED_AT
+        );
     }
 
     private void insertPost(
@@ -732,15 +833,16 @@ class AdminPostQueryRepositoryTest {
             Instant createdAt,
             Instant deletedAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, post_image_upload_id,
-                    title, moderation_status, moderated_at,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, CAST(? AS moderation_status), ?, ?, ?, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, post_image_upload_id,
+                            title, moderation_status, moderated_at,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, CAST(? AS moderation_status), ?, ?, ?, ?
+                        )
+                        """,
                 postId,
                 userId,
                 topicId,
@@ -751,7 +853,8 @@ class AdminPostQueryRepositoryTest {
                 timestamp(moderatedAt),
                 timestamp(createdAt),
                 timestamp(createdAt.plusSeconds(30)),
-                timestamp(deletedAt));
+                timestamp(deletedAt)
+        );
     }
 
     private Timestamp timestamp(Instant instant) {
@@ -765,10 +868,12 @@ class AdminPostQueryRepositoryTest {
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 PENDING_POST_ID,
-                VALIDATING_USER_ID);
+                VALIDATING_USER_ID
+        );
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 PENDING_POST_ID,
-                APPROVED_USER_ID);
+                APPROVED_USER_ID
+        );
     }
 }

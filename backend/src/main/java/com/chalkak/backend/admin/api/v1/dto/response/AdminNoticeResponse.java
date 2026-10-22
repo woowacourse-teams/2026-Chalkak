@@ -20,12 +20,20 @@ public record AdminNoticeResponse(
                 nullable = true)
         Instant deletedAt,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt
+) {
 
     public static AdminNoticeResponse from(AdminNoticeResult result) {
-        return new AdminNoticeResponse(result.noticeId(), result.title(), result.body(),
-                result.scheduledAt(), result.status(), result.distributedAt(), result.deletedAt(),
+        return new AdminNoticeResponse(
+                result.noticeId(),
+                result.title(),
+                result.body(),
+                result.scheduledAt(),
+                result.status(),
+                result.distributedAt(),
+                result.deletedAt(),
                 result.createdAt(),
-                result.updatedAt());
+                result.updatedAt()
+        );
     }
 }

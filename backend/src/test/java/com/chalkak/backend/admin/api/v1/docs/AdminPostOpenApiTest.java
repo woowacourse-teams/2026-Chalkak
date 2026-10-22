@@ -38,7 +38,11 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get"
                         + ".parameters[?(@.name == 'status')].schema.enum")
                         .value(containsInAnyOrder(
-                                containsInAnyOrder("PENDING", "APPROVED", "REJECTED")
+                                containsInAnyOrder(
+                                        "PENDING",
+                                        "APPROVED",
+                                        "REJECTED"
+                                )
                         )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}'].get"
                         + ".parameters[?(@.name == 'postId')].schema.format")
@@ -48,13 +52,21 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                         .value("#/components/schemas/AdminPostListTopic"))
                 .andExpect(jsonPath("$.components.schemas.AdminPostListItem"
                         + ".properties.moderationStatus.enum")
-                        .value(containsInAnyOrder("PENDING", "APPROVED", "REJECTED")))
+                        .value(containsInAnyOrder(
+                                "PENDING",
+                                "APPROVED",
+                                "REJECTED"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
                         + ".properties.topic['$ref']")
                         .value("#/components/schemas/AdminPostDetailTopic"))
                 .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
                         + ".properties.moderationStatus.enum")
-                        .value(containsInAnyOrder("PENDING", "APPROVED", "REJECTED")))
+                        .value(containsInAnyOrder(
+                                "PENDING",
+                                "APPROVED",
+                                "REJECTED"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.AdminPostDetailTopic"
                         + ".properties.startsAt").exists())
                 .andExpect(jsonPath("$.components.schemas.AdminPostDetailTopic"

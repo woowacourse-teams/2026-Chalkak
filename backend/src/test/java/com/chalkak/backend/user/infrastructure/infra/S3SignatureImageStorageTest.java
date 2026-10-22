@@ -39,9 +39,11 @@ class S3SignatureImageStorageTest {
                     new ImageProperties.Signature(
                             1048576L,
                             List.of("image/png"),
-                            "public, max-age=86400"),
+                            "public, max-age=86400"
+                    ),
                     null,
-                    false));
+                    false
+            ));
 
     @Test
     @DisplayName("업로드 ID로 원본과 썸네일의 결정적 스토리지 키를 만든다")
@@ -75,9 +77,11 @@ class S3SignatureImageStorageTest {
                         new ImageProperties.Signature(
                                 1048576L,
                                 List.of("image/png"),
-                                "public, max-age=86400"),
+                                "public, max-age=86400"
+                        ),
                         null,
-                        false));
+                        false
+                ));
 
         // When
         SignatureStorageKeys storageKeys = prodStorage.toStorageKeys(uploadId);

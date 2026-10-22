@@ -35,7 +35,12 @@ class PostImageUploadTest {
     void completeProcessing_issuedUpload_becomesReady() {
         // Given
         PostImageUpload upload = PostImageUpload.createPostImageUpload(user, ISSUED_AT);
-        Map<String, Object> metadata = Map.of("width", 4032, "height", 3024);
+        Map<String, Object> metadata = Map.of(
+                "width",
+                4032,
+                "height",
+                3024
+        );
 
         // When
         upload.completeProcessing(metadata);

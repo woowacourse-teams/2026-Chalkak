@@ -12,5 +12,6 @@ public record NotificationDetailResult(
         String originalImageUrl,
         String rejectionReason,
         Instant readAt,
-        Instant createdAt) {
+        Instant createdAt
+) {
 }

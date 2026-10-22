@@ -21,10 +21,8 @@ public final class AdminAuditSnapshot {
     private static final int MAX_STRING_LENGTH = 2_000;
     private static final int MAX_INSPECTION_DEPTH = 5;
     private static final int MAX_INSPECTION_VALUE_COUNT = 100;
-    private static final String INVALID_STATE_MESSAGE =
-            "관리자 감사 로그 상태가 올바르지 않습니다.";
-    private static final String SENSITIVE_STATE_MESSAGE =
-            "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.";
+    private static final String INVALID_STATE_MESSAGE = "관리자 감사 로그 상태가 올바르지 않습니다.";
+    private static final String SENSITIVE_STATE_MESSAGE = "민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.";
     private static final Pattern NON_ALPHANUMERIC_PATTERN = Pattern.compile("[^a-z0-9]");
     private static final Set<String> SENSITIVE_KEY_FRAGMENTS = Set.of(
             "password",
@@ -78,7 +76,11 @@ public final class AdminAuditSnapshot {
             throw invalidStateException();
         }
         int[] inspectedValueCount = {0};
-        validateNoSensitiveInformation(values, 0, inspectedValueCount);
+        validateNoSensitiveInformation(
+                values,
+                0,
+                inspectedValueCount
+        );
         values.keySet().forEach(AdminAuditSnapshot::validateKey);
     }
 
@@ -93,7 +95,11 @@ public final class AdminAuditSnapshot {
             throw invalidStateException();
         }
         if (value instanceof Map<?, ?> map) {
-            validateMapEntries(map, depth, inspectedValueCount);
+            validateMapEntries(
+                    map,
+                    depth,
+                    inspectedValueCount
+            );
             return;
         }
         if (value instanceof Iterable<?> iterable) {
@@ -116,7 +122,11 @@ public final class AdminAuditSnapshot {
             }
             validateKey(key);
             validateSensitiveKey(key);
-            validateNoSensitiveInformation(entry.getValue(), depth + 1, inspectedValueCount);
+            validateNoSensitiveInformation(
+                    entry.getValue(),
+                    depth + 1,
+                    inspectedValueCount
+            );
         }
     }
 

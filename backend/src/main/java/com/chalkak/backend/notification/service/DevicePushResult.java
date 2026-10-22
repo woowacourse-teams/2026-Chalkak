@@ -2,9 +2,17 @@ package com.chalkak.backend.notification.service;
 
 import java.time.Duration;
 
-public record DevicePushResult(Status status, String errorCode, Duration retryAfter) {
+public record DevicePushResult(
+        Status status,
+        String errorCode,
+        Duration retryAfter
+) {
     public static DevicePushResult accepted() {
-        return new DevicePushResult(Status.ACCEPTED, null, Duration.ZERO);
+        return new DevicePushResult(
+                Status.ACCEPTED,
+                null,
+                Duration.ZERO
+        );
     }
 
     public static DevicePushResult retryable(String errorCode) {
@@ -12,19 +20,35 @@ public record DevicePushResult(Status status, String errorCode, Duration retryAf
     }
 
     public static DevicePushResult retryable(String errorCode, Duration retryAfter) {
-        return new DevicePushResult(Status.RETRYABLE, errorCode, retryAfter);
+        return new DevicePushResult(
+                Status.RETRYABLE,
+                errorCode,
+                retryAfter
+        );
     }
 
     public static DevicePushResult invalidToken(String errorCode) {
-        return new DevicePushResult(Status.INVALID_TOKEN, errorCode, Duration.ZERO);
+        return new DevicePushResult(
+                Status.INVALID_TOKEN,
+                errorCode,
+                Duration.ZERO
+        );
     }
 
     public static DevicePushResult permanentFailure(String errorCode) {
-        return new DevicePushResult(Status.PERMANENT_FAILURE, errorCode, Duration.ZERO);
+        return new DevicePushResult(
+                Status.PERMANENT_FAILURE,
+                errorCode,
+                Duration.ZERO
+        );
     }
 
     public static DevicePushResult skipped(String reason) {
-        return new DevicePushResult(Status.SKIPPED, reason, Duration.ZERO);
+        return new DevicePushResult(
+                Status.SKIPPED,
+                reason,
+                Duration.ZERO
+        );
     }
 
     public boolean isAccepted() {

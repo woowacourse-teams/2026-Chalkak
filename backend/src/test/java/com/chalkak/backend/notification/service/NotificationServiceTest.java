@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
@@ -16,11 +17,13 @@ import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,6 +43,8 @@ class NotificationServiceTest extends IntegrationTestSupport {
     private static final UUID EVENT_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6572e1");
     private static final UUID SECOND_EVENT_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6572e2");
+    private static final UUID AI_REVIEW_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6572a3");
     private static final UUID NOTIFICATION_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6572f2");
     private static final UUID SECOND_NOTIFICATION_ID = UUID
@@ -85,7 +90,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         given(imageUrlProvider.getUrl(THUMBNAIL_KEY)).willReturn("https://cdn.test/thumbnail.webp");
 
         // When
-        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
+        NotificationListResult result = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.notifications()).hasSize(1);
@@ -112,7 +121,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
+        NotificationListResult result = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
 
         // Then
         NotificationListResult.Summary summary = result.notifications().getFirst();
@@ -129,8 +142,16 @@ class NotificationServiceTest extends IntegrationTestSupport {
         insertSecondNotification(USER_ID);
 
         // When
-        NotificationListResult first = notificationService.getNotifications(USER_ID, 1, 1);
-        NotificationListResult second = notificationService.getNotifications(USER_ID, 2, 1);
+        NotificationListResult first = notificationService.getNotifications(
+                USER_ID,
+                1,
+                1
+        );
+        NotificationListResult second = notificationService.getNotifications(
+                USER_ID,
+                2,
+                1
+        );
 
         // Then
         assertThat(first.notifications()).extracting(NotificationListResult.Summary::id)
@@ -185,7 +206,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         postCommandService.deletePost(USER_ID, POST_ID);
 
         // Then
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications())
                 .isEmpty();
         assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
@@ -193,18 +218,28 @@ class NotificationServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> notificationService.markRead(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM notifications WHERE id = ?", Integer.class,
-                NOTIFICATION_ID)).isEqualTo(1);
+                "SELECT COUNT(*) FROM notifications WHERE id = ?",
+                Integer.class,
+                NOTIFICATION_ID
+        )).isEqualTo(1);
     }
 
     @Test
     @DisplayName("관리자가 반려 게시물을 삭제해도 알림함에서 제외한다")
     void getNotifications_adminDeletedRejectedPost_hidesNotification() {
         // When
-        adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "운영 정책 위반");
+        adminPostCommandService.deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "운영 정책 위반"
+        );
 
         // Then
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications())
                 .isEmpty();
         assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
@@ -212,18 +247,27 @@ class NotificationServiceTest extends IntegrationTestSupport {
         notificationService.markAllRead(USER_ID);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
-                Integer.class, NOTIFICATION_ID)).isEqualTo(1);
+                Integer.class,
+                NOTIFICATION_ID
+        )).isEqualTo(1);
     }
 
     @Test
     @DisplayName("관련 게시물이 없는 알림은 조회·미읽음·읽음 처리에서 제외한다")
     void getNotifications_missingPost_hidesNotificationFromEveryInboxOperation() {
         // Given
-        jdbcTemplate.update("UPDATE notifications SET source_id = ? WHERE id = ?",
-                UUID.randomUUID(), NOTIFICATION_ID);
+        jdbcTemplate.update(
+                "UPDATE notifications SET source_id = ? WHERE id = ?",
+                UUID.randomUUID(),
+                NOTIFICATION_ID
+        );
 
         // When & Then
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications())
                 .isEmpty();
         assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
                 .isInstanceOf(NotFoundException.class);
@@ -233,7 +277,9 @@ class NotificationServiceTest extends IntegrationTestSupport {
         notificationService.markAllRead(USER_ID);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
-                Integer.class, NOTIFICATION_ID)).isEqualTo(1);
+                Integer.class,
+                NOTIFICATION_ID
+        )).isEqualTo(1);
     }
 
     @Test
@@ -246,12 +292,14 @@ class NotificationServiceTest extends IntegrationTestSupport {
         Instant firstReadAt = jdbcTemplate.queryForObject(
                 "SELECT read_at FROM notifications WHERE id = ?",
                 (resultSet, rowNum) -> resultSet.getTimestamp(1).toInstant(),
-                NOTIFICATION_ID);
+                NOTIFICATION_ID
+        );
         notificationService.markRead(USER_ID, NOTIFICATION_ID);
         Instant secondReadAt = jdbcTemplate.queryForObject(
                 "SELECT read_at FROM notifications WHERE id = ?",
                 (resultSet, rowNum) -> resultSet.getTimestamp(1).toInstant(),
-                NOTIFICATION_ID);
+                NOTIFICATION_ID
+        );
 
         assertThat(firstReadAt).isNotNull();
         assertThat(secondReadAt).isEqualTo(firstReadAt);
@@ -268,10 +316,14 @@ class NotificationServiceTest extends IntegrationTestSupport {
         notificationService.markAllRead(USER_ID);
 
         // Then
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM notifications
-                WHERE user_id = ? AND read_at IS NULL
-                """, Integer.class, USER_ID)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM notifications
+                        WHERE user_id = ? AND read_at IS NULL
+                        """,
+                Integer.class,
+                USER_ID
+        )).isZero();
     }
 
     @ParameterizedTest
@@ -279,14 +331,21 @@ class NotificationServiceTest extends IntegrationTestSupport {
     @DisplayName("30일 보관 경계를 목록·상세·미읽음·단건 읽음·전체 읽음에 동일하게 적용한다")
     void notificationInbox_retentionBoundary_appliesToEveryOperation(long secondsFromBoundary) {
         // Given
-        jdbcTemplate.update("UPDATE notifications SET created_at = ? WHERE id = ?",
-                Timestamp.from(CREATED_FROM.plusSeconds(secondsFromBoundary)), NOTIFICATION_ID);
+        jdbcTemplate.update(
+                "UPDATE notifications SET created_at = ? WHERE id = ?",
+                Timestamp.from(CREATED_FROM.plusSeconds(secondsFromBoundary)),
+                NOTIFICATION_ID
+        );
         entityManager.flush();
         entityManager.clear();
         boolean visible = secondsFromBoundary >= 0;
 
         // When
-        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
+        NotificationListResult result = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
         boolean unread = notificationService.hasUnreadNotification(USER_ID);
 
         // Then
@@ -298,7 +357,9 @@ class NotificationServiceTest extends IntegrationTestSupport {
             notificationService.markRead(USER_ID, NOTIFICATION_ID);
             Instant readAt = jdbcTemplate.queryForObject(
                     "SELECT read_at FROM notifications WHERE id = ?",
-                    (row, rowNum) -> row.getTimestamp(1).toInstant(), NOTIFICATION_ID);
+                    (row, rowNum) -> row.getTimestamp(1).toInstant(),
+                    NOTIFICATION_ID
+            );
             assertThat(readAt).isEqualTo(NOW);
         } else {
             assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
@@ -312,23 +373,35 @@ class NotificationServiceTest extends IntegrationTestSupport {
         notificationService.markAllRead(USER_ID);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT read_at IS NOT NULL FROM notifications WHERE id = ?",
-                Boolean.class, NOTIFICATION_ID)).isEqualTo(visible);
+                Boolean.class,
+                NOTIFICATION_ID
+        )).isEqualTo(visible);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE id = ?",
-                Integer.class, NOTIFICATION_ID)).isEqualTo(1);
+                Integer.class,
+                NOTIFICATION_ID
+        )).isEqualTo(1);
     }
 
     @Test
     @DisplayName("알림을 읽어도 사건 발생 시각부터 30일인 조회 기간은 연장하지 않는다")
     void getNotifications_recentlyReadExpiredNotification_doesNotExtendRetention() {
         // Given
-        jdbcTemplate.update("UPDATE notifications SET created_at = ?, read_at = ? WHERE id = ?",
-                Timestamp.from(CREATED_FROM.minusSeconds(1)), Timestamp.from(NOW), NOTIFICATION_ID);
+        jdbcTemplate.update(
+                "UPDATE notifications SET created_at = ?, read_at = ? WHERE id = ?",
+                Timestamp.from(CREATED_FROM.minusSeconds(1)),
+                Timestamp.from(NOW),
+                NOTIFICATION_ID
+        );
         entityManager.flush();
         entityManager.clear();
 
         // When
-        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
+        NotificationListResult result = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.notifications()).isEmpty();
@@ -336,7 +409,9 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 .isInstanceOf(NotFoundException.class);
         Instant readAt = jdbcTemplate.queryForObject(
                 "SELECT read_at FROM notifications WHERE id = ?",
-                (row, rowNum) -> row.getTimestamp(1).toInstant(), NOTIFICATION_ID);
+                (row, rowNum) -> row.getTimestamp(1).toInstant(),
+                NOTIFICATION_ID
+        );
         assertThat(readAt).isEqualTo(NOW);
     }
 
@@ -347,13 +422,20 @@ class NotificationServiceTest extends IntegrationTestSupport {
         jdbcTemplate.update("UPDATE users SET status = CAST('BANNED' AS user_status) WHERE id = ?",
                 USER_ID);
         insertSecondNotification(USER_ID);
-        jdbcTemplate.update("UPDATE notifications SET created_at = ? WHERE id = ?",
-                Timestamp.from(CREATED_FROM.minusSeconds(1)), NOTIFICATION_ID);
+        jdbcTemplate.update(
+                "UPDATE notifications SET created_at = ? WHERE id = ?",
+                Timestamp.from(CREATED_FROM.minusSeconds(1)),
+                NOTIFICATION_ID
+        );
         entityManager.flush();
         entityManager.clear();
 
         // When
-        NotificationListResult result = notificationService.getNotifications(USER_ID, 1, 20);
+        NotificationListResult result = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.notifications()).extracting(NotificationListResult.Summary::id)
@@ -368,7 +450,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         UUID notificationId = insertNoticeNotification(false);
 
         // When & Then
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications())
                 .hasSize(1);
         assertThat(notificationService.getNotification(USER_ID, notificationId)).isNotNull();
         assertThat(notificationService.hasUnreadNotification(USER_ID)).isTrue();
@@ -383,7 +469,11 @@ class NotificationServiceTest extends IntegrationTestSupport {
         UUID notificationId = insertNoticeNotification(true);
 
         // When & Then
-        assertThat(notificationService.getNotifications(USER_ID, 1, 20).notifications())
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications())
                 .isEmpty();
         assertThatThrownBy(() -> notificationService.getNotification(USER_ID, notificationId))
                 .isInstanceOf(NotFoundException.class);
@@ -393,53 +483,231 @@ class NotificationServiceTest extends IntegrationTestSupport {
         notificationService.markAllRead(USER_ID);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications WHERE id = ? AND read_at IS NULL",
-                Integer.class, notificationId)).isEqualTo(1);
+                Integer.class,
+                notificationId
+        )).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "COMPLETED, AI_REVIEW_COMPLETED, AI 피드백이 도착했어요, 사진의 구도 점수와 피드백을 확인해 보세요.",
+            "FAILED_RETRYABLE, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 잠시 후 다시 요청해 주세요.",
+            "FAILED_FINAL, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+    })
+    @DisplayName("AI 리뷰 결과 알림은 결과로 종류와 문구를 정해 게시물 대상으로 저장한다")
+    void createForAiReview_outcome_storesTypeAndMessage(
+            AiReviewOutcome outcome,
+            String type,
+            String title,
+            String body
+    ) {
+        // When
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                outcome,
+                NOW
+        );
+
+        // Then
+        Map<String, Object> row = findAiReviewNotification();
+        assertThat(row).containsEntry("type", type)
+                .containsEntry("source_type", "POST")
+                .containsEntry("source_id", POST_ID)
+                .containsEntry("title", title)
+                .containsEntry("body", body)
+                .containsEntry("sqs_publish_status", "PENDING");
+        assertThat(((Timestamp) row.get("created_at")).toInstant()).isEqualTo(NOW);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "ON, PENDING",
+            "SETTING_OFF, NOT_REQUIRED",
+            "WITHDRAWN, NOT_REQUIRED"
+    })
+    @DisplayName("AI 리뷰 결과 알림은 수신 설정을 끈 회원과 탈퇴 회원에게는 발행 불필요로 저장한다")
+    void createForAiReview_userState_decidesPublishStatus(String state, String publishStatus) {
+        // Given
+        if (state.equals("SETTING_OFF")) {
+            jdbcTemplate.update("UPDATE users SET ai_review_push_enabled = false WHERE id = ?",
+                    USER_ID);
+        }
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update(
+                    "UPDATE users SET deleted_at = ? WHERE id = ?",
+                    Timestamp.from(NOW),
+                    USER_ID
+            );
+        }
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                NOW
+        );
+
+        // Then
+        assertThat(findAiReviewNotification()).containsEntry("sqs_publish_status", publishStatus);
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 결과 알림은 목록에 종류·게시물 ID·썸네일과 함께 보이고 작성자가 게시물을 지우면 숨긴다")
+    void getNotifications_aiReviewNotification_showsThumbnailAndHidesDeletedPost() {
+        // Given
+        given(imageUrlProvider.getUrl(THUMBNAIL_KEY)).willReturn("https://cdn.test/thumbnail.webp");
+        jdbcTemplate.update("DELETE FROM notifications");
+        jdbcTemplate.update("""
+                UPDATE posts SET moderation_status = CAST('APPROVED' AS moderation_status)
+                WHERE id = ?
+                """, POST_ID);
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                NOW
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        NotificationListResult shown = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
+        postCommandService.deletePost(USER_ID, POST_ID);
+        NotificationListResult hidden = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(shown.notifications()).singleElement().satisfies(summary -> {
+            assertThat(summary.type()).isEqualTo(NotificationType.AI_REVIEW_COMPLETED);
+            assertThat(summary.sourceType()).isEqualTo(NotificationSourceType.POST);
+            assertThat(summary.sourceId()).isEqualTo(POST_ID);
+            assertThat(summary.thumbnailImageUrl()).isEqualTo("https://cdn.test/thumbnail.webp");
+        });
+        assertThat(hidden.notifications()).isEmpty();
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림 상세는 원본 사진과 null 반려 사유를 돌려주고 다른 회원은 조회할 수 없다")
+    void getNotification_aiReviewNotification_returnsOriginalWithoutReasonForOwnerOnly() {
+        // Given
+        given(imageUrlProvider.getUrl(ORIGINAL_KEY)).willReturn("https://cdn.test/original.webp");
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                NOW
+        );
+        entityManager.flush();
+        entityManager.clear();
+        UUID id = (UUID) findAiReviewNotification().get("id");
+
+        // When
+        NotificationDetailResult detail = notificationService.getNotification(USER_ID, id);
+
+        // Then
+        assertThat(detail.type()).isEqualTo(NotificationType.AI_REVIEW_COMPLETED);
+        assertThat(detail.originalImageUrl()).isEqualTo("https://cdn.test/original.webp");
+        assertThat(detail.rejectionReason()).isNull();
+        assertThatThrownBy(() -> notificationService.getNotification(OTHER_USER_ID, id))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    private Map<String, Object> findAiReviewNotification() {
+        return jdbcTemplate.queryForMap(
+                "SELECT * FROM notifications WHERE user_id = ? AND type LIKE 'AI_REVIEW_%'",
+                USER_ID
+        );
     }
 
     // 기본 검수 알림을 지우고, 이 회원에게 공지 알림 하나만 남긴다.
     private UUID insertNoticeNotification(boolean noticeDeleted) {
         jdbcTemplate.update("DELETE FROM notifications");
-        UUID noticeId = jdbcTemplate.queryForObject("""
-                INSERT INTO notices (title, body, scheduled_at, distributed_at, deleted_at,
-                    created_at, updated_at)
-                VALUES ('서비스 점검 안내', '점검합니다.', ?, ?, ?, ?, ?)
-                RETURNING id
-                """, UUID.class, Timestamp.from(CREATED_AT), Timestamp.from(CREATED_AT),
-                noticeDeleted ? Timestamp.from(NOW) : null, Timestamp.from(CREATED_AT),
-                Timestamp.from(CREATED_AT));
-        return jdbcTemplate.queryForObject("""
-                INSERT INTO notifications (user_id, source_type, source_id, event_key, type,
-                    title, body, created_at, sqs_publish_status)
-                VALUES (?, 'NOTICE', ?, ?, 'NOTICE', '서비스 점검 안내', '점검합니다.', ?,
-                    'NOT_REQUIRED')
-                RETURNING id
-                """, UUID.class, USER_ID, noticeId, noticeId, Timestamp.from(CREATED_AT));
+        UUID noticeId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO notices (title, body, scheduled_at, distributed_at, deleted_at,
+                            created_at, updated_at)
+                        VALUES ('서비스 점검 안내', '점검합니다.', ?, ?, ?, ?, ?)
+                        RETURNING id
+                        """,
+                UUID.class,
+                Timestamp.from(CREATED_AT),
+                Timestamp.from(CREATED_AT),
+                noticeDeleted ? Timestamp.from(NOW) : null,
+                Timestamp.from(CREATED_AT),
+                Timestamp.from(CREATED_AT)
+        );
+        return jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO notifications (user_id, source_type, source_id, event_key, type,
+                            title, body, created_at, sqs_publish_status)
+                        VALUES (?, 'NOTICE', ?, ?, 'NOTICE', '서비스 점검 안내', '점검합니다.', ?,
+                            'NOT_REQUIRED')
+                        RETURNING id
+                        """,
+                UUID.class,
+                USER_ID,
+                noticeId,
+                noticeId,
+                Timestamp.from(CREATED_AT)
+        );
     }
 
     private void insertSecondNotification(UUID recipientId) {
-        jdbcTemplate.update("""
-                INSERT INTO admin_audit_logs (
-                    id, actor_admin_id, action, target_type, target_id, reason,
-                    before_state, after_state, occurred_at, request_id
-                ) VALUES (
-                    ?, ?, CAST('POST_REJECTED' AS admin_action),
-                    CAST('POST' AS admin_target_type), ?, '사진 품질',
-                    CAST('{"status":"PENDING"}' AS jsonb),
-                    CAST('{"status":"REJECTED"}' AS jsonb), ?, ?
-                )
-                """, SECOND_EVENT_ID, ADMIN_ID, POST_ID,
-                Timestamp.from(CREATED_AT.plusSeconds(1)), UUID.randomUUID());
-        jdbcTemplate.update("""
-                INSERT INTO notifications (
-                    id, user_id, source_type, source_id, event_key, type, title, body,
-                    payload, created_at, sqs_publish_status
-                ) VALUES (
-                    ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
-                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?,
-                    'NOT_REQUIRED'
-                )
-                """, SECOND_NOTIFICATION_ID, recipientId, POST_ID, SECOND_EVENT_ID,
-                Timestamp.from(CREATED_AT.plusSeconds(1)));
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admin_audit_logs (
+                            id, actor_admin_id, action, target_type, target_id, reason,
+                            before_state, after_state, occurred_at, request_id
+                        ) VALUES (
+                            ?, ?, CAST('POST_REJECTED' AS admin_action),
+                            CAST('POST' AS admin_target_type), ?, '사진 품질',
+                            CAST('{"status":"PENDING"}' AS jsonb),
+                            CAST('{"status":"REJECTED"}' AS jsonb), ?, ?
+                        )
+                        """,
+                SECOND_EVENT_ID,
+                ADMIN_ID,
+                POST_ID,
+                Timestamp.from(CREATED_AT.plusSeconds(1)),
+                UUID.randomUUID()
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (
+                            id, user_id, source_type, source_id, event_key, type, title, body,
+                            payload, created_at, sqs_publish_status
+                        ) VALUES (
+                            ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
+                            '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?,
+                            'NOT_REQUIRED'
+                        )
+                        """,
+                SECOND_NOTIFICATION_ID,
+                recipientId,
+                POST_ID,
+                SECOND_EVENT_ID,
+                Timestamp.from(CREATED_AT.plusSeconds(1))
+        );
     }
 
     private void insertFixtures() {
@@ -461,54 +729,84 @@ class NotificationServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, TOPIC_ID);
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, CAST('{}' AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, PHOTO_ID, ORIGINAL_KEY, THUMBNAIL_KEY);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '검수 대상', CAST('REJECTED' AS moderation_status),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, USER_ID, TOPIC_ID, PHOTO_ID);
-        jdbcTemplate.update("""
-                INSERT INTO admin_audit_logs (
-                    id, actor_admin_id, action, target_type, target_id, reason,
-                    before_state, after_state, occurred_at, request_id
-                ) VALUES (
-                    ?, ?, CAST('POST_REJECTED' AS admin_action),
-                    CAST('POST' AS admin_target_type), ?, '사진 품질',
-                    CAST('{"status":"PENDING"}' AS jsonb),
-                    CAST('{"status":"REJECTED"}' AS jsonb), ?, ?
-                )
-                """, EVENT_ID, ADMIN_ID, POST_ID, Timestamp.from(CREATED_AT), UUID.randomUUID());
-        jdbcTemplate.update("""
-                INSERT INTO notifications (
-                    id, user_id, source_type, source_id, event_key, type, title, body,
-                    payload, created_at, sqs_publish_status
-                ) VALUES (
-                    ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
-                    '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?,
-                    'NOT_REQUIRED'
-                )
-                """, NOTIFICATION_ID, USER_ID, POST_ID, EVENT_ID, Timestamp.from(CREATED_AT));
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, CAST('{}' AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                PHOTO_ID,
+                ORIGINAL_KEY,
+                THUMBNAIL_KEY
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '검수 대상', CAST('REJECTED' AS moderation_status),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admin_audit_logs (
+                            id, actor_admin_id, action, target_type, target_id, reason,
+                            before_state, after_state, occurred_at, request_id
+                        ) VALUES (
+                            ?, ?, CAST('POST_REJECTED' AS admin_action),
+                            CAST('POST' AS admin_target_type), ?, '사진 품질',
+                            CAST('{"status":"PENDING"}' AS jsonb),
+                            CAST('{"status":"REJECTED"}' AS jsonb), ?, ?
+                        )
+                        """,
+                EVENT_ID,
+                ADMIN_ID,
+                POST_ID,
+                Timestamp.from(CREATED_AT),
+                UUID.randomUUID()
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (
+                            id, user_id, source_type, source_id, event_key, type, title, body,
+                            payload, created_at, sqs_publish_status
+                        ) VALUES (
+                            ?, ?, 'POST', ?, ?, 'POST_REJECTED', '게시물이 반려되었습니다.',
+                            '반려 사유를 확인해 주세요.', CAST('{"rejectionReason":"사진 품질"}' AS jsonb), ?,
+                            'NOT_REQUIRED'
+                        )
+                        """,
+                NOTIFICATION_ID,
+                USER_ID,
+                POST_ID,
+                EVENT_ID,
+                Timestamp.from(CREATED_AT)
+        );
     }
 
     private void insertUser(UUID userId, String email) {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('ACTIVE' AS user_status),
-                    ?,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, userId, email, "chalkak/signatures/inbox/" + userId + "/original.webp");
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('ACTIVE' AS user_status),
+                            ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                userId,
+                email,
+                "chalkak/signatures/inbox/" + userId + "/original.webp"
+        );
     }
 }

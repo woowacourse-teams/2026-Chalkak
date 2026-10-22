@@ -29,15 +29,32 @@ public class AdminAuditLogRepositoryImpl implements AdminAuditLogRepository {
             int page,
             int pageSize
     ) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize, toSort(criteria.sort()));
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                toSort(criteria.sort())
+        );
         Slice<AdminAuditLogSummaryProjection> result = repository.findAuditLogs(criteria, pageable);
-        return new AdminPage<>(result.getContent(), page, pageSize, result.hasNext());
+        return new AdminPage<>(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     private Sort toSort(AdminAuditLogSort sort) {
         if (sort == AdminAuditLogSort.OCCURRED_AT_ASC) {
-            return Sort.by(Sort.Direction.ASC, "occurredAt", "id");
+            return Sort.by(
+                    Sort.Direction.ASC,
+                    "occurredAt",
+                    "id"
+            );
         }
-        return Sort.by(Sort.Direction.DESC, "occurredAt", "id");
+        return Sort.by(
+                Sort.Direction.DESC,
+                "occurredAt",
+                "id"
+        );
     }
 }

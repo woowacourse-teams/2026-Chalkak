@@ -105,11 +105,21 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
                 pushDeviceRepository.findBySessionId(other.sessionId()).orElseThrow().getFcmToken())
                 .isEqualTo("other-user-device");
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
-                first.sessionId(), user.getId(), LOGGED_OUT_AT)).isFalse();
+                first.sessionId(),
+                user.getId(),
+                LOGGED_OUT_AT
+        )).isFalse();
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
-                second.sessionId(), user.getId(), LOGGED_OUT_AT)).isTrue();
+                second.sessionId(),
+                user.getId(),
+                LOGGED_OUT_AT
+        )).isTrue();
         assertThatThrownBy(
-                () -> pushDeviceService.register(user.getId(), first.sessionId(), "new-token"))
+                () -> pushDeviceService.register(
+                        user.getId(),
+                        first.sessionId(),
+                        "new-token"
+                ))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.REAUTHENTICATION_REQUIRED));
@@ -134,7 +144,10 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
                 entityManager.find(PushDevice.class, registeredDeviceIds.get(issued.sessionId())))
                 .isNull();
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
-                issued.sessionId(), user.getId(), REGISTERED_AT)).isFalse();
+                issued.sessionId(),
+                user.getId(),
+                REGISTERED_AT
+        )).isFalse();
     }
 
     @Test
@@ -197,7 +210,10 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         // Then
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId())).isEmpty();
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
-                issued.sessionId(), user.getId(), REGISTERED_AT)).isFalse();
+                issued.sessionId(),
+                user.getId(),
+                REGISTERED_AT
+        )).isFalse();
     }
 
     @Test
@@ -218,7 +234,10 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
                 .getFcmToken())
                 .isEqualTo("shared-device");
         assertThat(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
-                second.sessionId(), user.getId(), REGISTERED_AT)).isTrue();
+                second.sessionId(),
+                user.getId(),
+                REGISTERED_AT
+        )).isTrue();
     }
 
     @Test
@@ -228,8 +247,11 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
         IssuedRefreshToken issued = register(userRepository.save(UserFixture.create()),
                 "expired-device");
         flushAndClear();
-        jdbcTemplate.update("UPDATE user_refresh_tokens SET expires_at = ? WHERE session_id = ?",
-                java.sql.Timestamp.from(REGISTERED_AT.minusSeconds(1)), issued.sessionId());
+        jdbcTemplate.update(
+                "UPDATE user_refresh_tokens SET expires_at = ? WHERE session_id = ?",
+                java.sql.Timestamp.from(REGISTERED_AT.minusSeconds(1)),
+                issued.sessionId()
+        );
 
         // When
         userRefreshTokenService.logout(issued.value());
@@ -265,7 +287,11 @@ class PushDeviceLogoutTest extends IntegrationTestSupport {
 
     private IssuedRefreshToken register(User user, String token) {
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), token);
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                token
+        );
         registeredDeviceIds.put(issued.sessionId(),
                 pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;

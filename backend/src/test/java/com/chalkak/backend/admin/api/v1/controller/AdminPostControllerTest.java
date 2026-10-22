@@ -61,7 +61,11 @@ class AdminPostControllerTest {
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c3");
     private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 12);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            12
+    );
     private static final Instant CREATED_AT = Instant.parse("2026-08-12T03:30:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-08-12T03:40:00Z");
     private static final Instant MODERATED_AT = Instant.parse("2026-08-12T03:45:00Z");
@@ -100,19 +104,24 @@ class AdminPostControllerTest {
                                 USER_ID,
                                 "author@example.com",
                                 UserStatus.ACTIVE,
-                                null),
+                                null
+                        ),
                         new AdminPostListResult.TopicSummary(
                                 TOPIC_ID,
                                 "오늘 가장 기억에 남은 순간",
-                                TOPIC_DATE),
+                                TOPIC_DATE
+                        ),
                         new AdminPostListResult.PhotoSummary(
                                 PHOTO_ID,
                                 "https://cdn.example.com/dev/posts/original.jpg",
-                                "https://cdn.example.com/dev/posts/thumbnail.jpg"),
+                                "https://cdn.example.com/dev/posts/thumbnail.jpg"
+                        ),
                         43L,
                         CREATED_AT,
                         null,
-                        null)));
+                        null
+                ))
+        );
         given(adminPostQueryService.getPosts(
                 null,
                 null,
@@ -122,7 +131,8 @@ class AdminPostControllerTest {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                20)).willReturn(result);
+                20
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts"))
@@ -146,7 +156,8 @@ class AdminPostControllerTest {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                20);
+                20
+        );
     }
 
     @Test
@@ -155,7 +166,12 @@ class AdminPostControllerTest {
         // Given
         Instant createdAtFrom = Instant.parse("2026-08-01T00:00:00Z");
         Instant createdAtTo = Instant.parse("2026-08-31T23:59:59Z");
-        AdminPostListResult result = new AdminPostListResult(2, 50, false, List.of());
+        AdminPostListResult result = new AdminPostListResult(
+                2,
+                50,
+                false,
+                List.of()
+        );
         given(adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
@@ -165,7 +181,8 @@ class AdminPostControllerTest {
                 createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 2,
-                50)).willReturn(result);
+                50
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
@@ -193,7 +210,8 @@ class AdminPostControllerTest {
                 createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 2,
-                50);
+                50
+        );
     }
 
     @Test
@@ -265,7 +283,13 @@ class AdminPostControllerTest {
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
-                pageSize)).willReturn(new AdminPostListResult(1, pageSize, false, List.of()));
+                pageSize
+        )).willReturn(new AdminPostListResult(
+                1,
+                pageSize,
+                false,
+                List.of()
+        ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
@@ -281,7 +305,8 @@ class AdminPostControllerTest {
         AdminPostDetail detail = createDetail(
                 ModerationStatus.REJECTED,
                 MODERATED_AT,
-                DELETED_AT);
+                DELETED_AT
+        );
         given(adminPostQueryService.getPost(POST_ID)).willReturn(detail);
 
         // When & Then
@@ -321,7 +346,11 @@ class AdminPostControllerTest {
     @DisplayName("처리 시각이 없는 게시물 상세 정보는 null로 직렬화한다")
     void getPost_withoutModeratedOrDeletedAt_returnsNullTimes() throws Exception {
         // Given
-        AdminPostDetail detail = createDetail(ModerationStatus.PENDING, null, null);
+        AdminPostDetail detail = createDetail(
+                ModerationStatus.PENDING,
+                null,
+                null
+        );
         given(adminPostQueryService.getPost(POST_ID)).willReturn(detail);
 
         // When & Then
@@ -371,12 +400,14 @@ class AdminPostControllerTest {
                 ModerationStatus.APPROVED,
                 ADMIN_ID,
                 MODERATED_AT,
-                null);
+                null
+        );
         given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null)).willReturn(result);
+                null
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
@@ -398,7 +429,8 @@ class AdminPostControllerTest {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null);
+                null
+        );
     }
 
     @Test
@@ -411,12 +443,14 @@ class AdminPostControllerTest {
                 ModerationStatus.REJECTED,
                 ADMIN_ID,
                 MODERATED_AT,
-                rejectionReason);
+                rejectionReason
+        );
         given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason)).willReturn(result);
+                rejectionReason
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
@@ -439,7 +473,8 @@ class AdminPostControllerTest {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason);
+                rejectionReason
+        );
     }
 
     @ParameterizedTest
@@ -507,12 +542,14 @@ class AdminPostControllerTest {
                 ModerationStatus.REJECTED,
                 ADMIN_ID,
                 MODERATED_AT,
-                rejectionReason);
+                rejectionReason
+        );
         given(adminPostCommandService.moderate(
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason)).willReturn(result);
+                rejectionReason
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
@@ -530,7 +567,8 @@ class AdminPostControllerTest {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.REJECTED,
-                rejectionReason);
+                rejectionReason
+        );
     }
 
     @Test
@@ -610,9 +648,10 @@ class AdminPostControllerTest {
                 POST_ID,
                 ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null)).willThrow(new BusinessException(
-                        ErrorCode.RESOURCE_STATE_CHANGED,
-                        "대기 중인 게시물만 검수할 수 있습니다."));
+                null
+        )).willThrow(new BusinessException(
+                ErrorCode.RESOURCE_STATE_CHANGED,
+                "대기 중인 게시물만 검수할 수 있습니다."));
 
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
@@ -646,7 +685,11 @@ class AdminPostControllerTest {
                 .andExpect(status().isNoContent());
 
         then(adminActorResolver).should().resolve();
-        then(adminPostCommandService).should().deletePost(POST_ID, ADMIN_ID, reason);
+        then(adminPostCommandService).should().deletePost(
+                POST_ID,
+                ADMIN_ID,
+                reason
+        );
     }
 
     @Test
@@ -665,7 +708,11 @@ class AdminPostControllerTest {
                         """.formatted(reason)))
                 .andExpect(status().isNoContent());
 
-        then(adminPostCommandService).should().deletePost(POST_ID, ADMIN_ID, reason);
+        then(adminPostCommandService).should().deletePost(
+                POST_ID,
+                ADMIN_ID,
+                reason
+        );
     }
 
     @ParameterizedTest
@@ -746,7 +793,8 @@ class AdminPostControllerTest {
                 "게시물을 찾을 수 없습니다.")).given(adminPostCommandService).deletePost(
                         POST_ID,
                         ADMIN_ID,
-                        "운영 정책 위반");
+                        "운영 정책 위반"
+                );
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
@@ -770,7 +818,8 @@ class AdminPostControllerTest {
                 "이미지 처리 중인 게시물은 삭제할 수 없습니다.")).given(adminPostCommandService).deletePost(
                         POST_ID,
                         ADMIN_ID,
-                        "운영 정책 위반");
+                        "운영 정책 위반"
+                );
 
         // When & Then
         mockMvc.perform(delete("/api/v1/admin/posts/{postId}", POST_ID)
@@ -802,7 +851,8 @@ class AdminPostControllerTest {
         then(adminPostCommandService).should().deletePost(
                 POST_ID,
                 ADMIN_ID,
-                "중복 삭제 요청");
+                "중복 삭제 요청"
+        );
     }
 
     private AdminPostDetail createDetail(
@@ -818,25 +868,32 @@ class AdminPostControllerTest {
                         USER_ID,
                         "author@example.com",
                         UserStatus.ACTIVE,
-                        deletedAt),
+                        deletedAt
+                ),
                 new AdminPostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
                         TOPIC_DATE,
                         Instant.parse("2026-08-12T00:00:00Z"),
                         Instant.parse("2026-08-13T00:00:00Z"),
-                        null),
+                        null
+                ),
                 new AdminPostDetail.PhotoDetail(
                         PHOTO_ID,
                         "https://cdn.example.com/dev/posts/original.jpg",
                         "https://cdn.example.com/dev/posts/thumbnail.jpg",
                         Map.of(
-                                "width", 4032,
-                                "height", 3024,
-                                "byteSize", 8_123_456L),
+                                "width",
+                                4032,
+                                "height",
+                                3024,
+                                "byteSize",
+                                8_123_456L
+                        ),
                         CREATED_AT,
                         UPDATED_AT,
-                        null),
+                        null
+                ),
                 new AdminPostDetail.ImageUploadDetail(
                         UPLOAD_ID,
                         moderationStatus == ModerationStatus.VALIDATING
@@ -844,13 +901,15 @@ class AdminPostControllerTest {
                                 : PostImageUploadStatus.READY,
                         null,
                         CREATED_AT,
-                        UPDATED_AT),
+                        UPDATED_AT
+                ),
                 43L,
                 CREATED_AT,
                 UPDATED_AT,
                 moderatedAt,
                 null,
                 null,
-                deletedAt);
+                deletedAt
+        );
     }
 }

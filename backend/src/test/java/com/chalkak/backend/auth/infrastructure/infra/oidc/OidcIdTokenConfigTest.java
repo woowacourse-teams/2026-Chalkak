@@ -25,7 +25,8 @@ class OidcIdTokenConfigTest {
                     "chalkak.auth.oidc.kakao.app-key=kakao-app-key",
                     "chalkak.auth.oidc.apple.issuer=https://appleid.apple.com",
                     "chalkak.auth.oidc.apple.jwk-set-uri=https://appleid.apple.com/auth/keys",
-                    "chalkak.auth.oidc.apple.client-id=apple-client-id");
+                    "chalkak.auth.oidc.apple.client-id=apple-client-id"
+            );
 
     @Test
     @DisplayName("세 제공자의 OIDC 설정으로 디코더와 ID Token 검증기를 등록한다")

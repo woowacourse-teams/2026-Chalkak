@@ -21,7 +21,8 @@ public record AdminFeedbackListResponse(
                 result.hasNext(),
                 result.feedbacks().stream()
                         .map(FeedbackResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     @Schema(name = "AdminFeedbackListItem")
@@ -37,7 +38,8 @@ public record AdminFeedbackListResponse(
                     feedback.feedbackId(),
                     feedback.content(),
                     feedback.createdAt(),
-                    AuthorResponse.from(feedback.author()));
+                    AuthorResponse.from(feedback.author())
+            );
         }
     }
 
@@ -56,7 +58,8 @@ public record AdminFeedbackListResponse(
                     author.userId(),
                     author.email(),
                     author.status(),
-                    author.appVersion());
+                    author.appVersion()
+            );
         }
     }
 }

@@ -50,7 +50,11 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
     @DisplayName("작성자가 열린 주제의 검수 대기 게시물 제목을 수정한다")
     void updatePost_pendingPost_updatesNormalizedTitleAndKeepsStatus() {
         // When
-        var result = postCommandService.updatePost(AUTHOR_ID, POST_ID, "  수정 제목  ");
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "  수정 제목  "
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -81,7 +85,11 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         Instant beforeUpdatedAt = findUpdatedAt();
 
         // When
-        var result = postCommandService.updatePost(AUTHOR_ID, POST_ID, "승인 제목");
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "승인 제목"
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -101,7 +109,11 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         Instant updatedAt = findUpdatedAt();
 
         // When
-        var result = postCommandService.updatePost(AUTHOR_ID, POST_ID, "  기존 제목  ");
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "  기존 제목  "
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -116,7 +128,11 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
     @DisplayName("null, 빈 문자열, 공백 제목으로 수정하면 DB에 NULL로 저장한다")
     void updatePost_emptyTitle_storesNullTitle(String title) {
         // When
-        var result = postCommandService.updatePost(AUTHOR_ID, POST_ID, title);
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                title
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -142,7 +158,11 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
-                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목"));
+                () -> postCommandService.updatePost(
+                        AUTHOR_ID,
+                        POST_ID,
+                        "수정 제목"
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -160,7 +180,11 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         // When
         UnauthorizedException exception = catchThrowableOfType(
                 UnauthorizedException.class,
-                () -> postCommandService.updatePost(AUTHOR_ID, POST_ID, "수정 제목"));
+                () -> postCommandService.updatePost(
+                        AUTHOR_ID,
+                        POST_ID,
+                        "수정 제목"
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
@@ -208,16 +232,22 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
     }
 
     private void insertPendingPost() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '기존 제목', CAST('PENDING' AS moderation_status),
-                    TIMESTAMPTZ '2026-08-28 10:00:00+00',
-                    TIMESTAMPTZ '2026-08-28 10:00:00+00'
-                )
-                """, POST_ID, AUTHOR_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '기존 제목', CAST('PENDING' AS moderation_status),
+                            TIMESTAMPTZ '2026-08-28 10:00:00+00',
+                            TIMESTAMPTZ '2026-08-28 10:00:00+00'
+                        )
+                        """,
+                POST_ID,
+                AUTHOR_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
     }
 
     private Map<String, Object> findPostState() {
@@ -232,6 +262,7 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT updated_at FROM posts WHERE id = ?",
                 Instant.class,
-                POST_ID);
+                POST_ID
+        );
     }
 }

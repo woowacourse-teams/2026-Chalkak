@@ -58,7 +58,8 @@ class UserWithdrawalTransactionTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 fingerprintEncoder.encode(
                         SocialProvider.GOOGLE,
-                        "google-subject")));
+                        "google-subject")
+        ));
 
         // When
         userWithdrawalService.withdraw(user.getId());

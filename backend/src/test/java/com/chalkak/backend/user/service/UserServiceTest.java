@@ -121,7 +121,8 @@ class UserServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac));
+                subjectHmac
+        ));
         flushAndClear();
 
         // When
@@ -229,7 +230,11 @@ class UserServiceTest extends IntegrationTestSupport {
         given(signatureImageUploadIssuer.issue(any(UUID.class)))
                 .willAnswer(invocation -> {
                     UUID uploadId = invocation.getArgument(0);
-                    return new SignatureImageUpload(uploadId, uploadUrl, 300L);
+                    return new SignatureImageUpload(
+                            uploadId,
+                            uploadUrl,
+                            300L
+                    );
                 });
 
         // When
@@ -1082,18 +1087,24 @@ class UserServiceTest extends IntegrationTestSupport {
     }
 
     private int countLiveRefreshTokens(UUID userId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE user_id = ? AND revoked_at IS NULL
-                """, Integer.class, userId);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE user_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                userId
+        );
     }
 
     private Timestamp findRefreshTokenRevokedAt(String token) {
-        return jdbcTemplate.queryForObject("""
-                SELECT revoked_at FROM user_refresh_tokens WHERE token_hash = ?
-                """,
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT revoked_at FROM user_refresh_tokens WHERE token_hash = ?
+                        """,
                 Timestamp.class,
-                refreshTokenHasher.encode(token));
+                refreshTokenHasher.encode(token)
+        );
     }
 
     private SignatureStorageKeys storageKeys(UUID uploadId) {
@@ -1119,7 +1130,8 @@ class UserServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac));
+                subjectHmac
+        ));
         flushAndClear();
 
         // When
@@ -1147,7 +1159,8 @@ class UserServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.APPLE,
-                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")));
+                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")
+        ));
         UUID socialAccountId = socialAccount.getId();
         AppleAuthorization authorization = appleAuthorizationRepository.save(
                 AppleAuthorization.create(
@@ -1174,7 +1187,8 @@ class UserServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.APPLE,
-                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")));
+                fingerprintEncoder.encode(SocialProvider.APPLE, "apple-subject")
+        ));
         UUID socialAccountId = socialAccount.getId();
         appleAuthorizationRepository.save(AppleAuthorization.create(
                 socialAccount,
@@ -1206,7 +1220,8 @@ class UserServiceTest extends IntegrationTestSupport {
         SocialAccount socialAccount = socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.APPLE,
-                subjectHmac));
+                subjectHmac
+        ));
         UUID socialAccountId = socialAccount.getId();
         AppleAuthorization authorization = appleAuthorizationRepository.save(
                 AppleAuthorization.create(

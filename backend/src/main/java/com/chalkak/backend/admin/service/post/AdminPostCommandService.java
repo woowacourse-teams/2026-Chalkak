@@ -56,7 +56,8 @@ public class AdminPostCommandService {
                 postId,
                 adminId,
                 status,
-                rejectionReason);
+                rejectionReason
+        );
         Post post = postRepository.findActiveByIdForUpdate(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -65,8 +66,16 @@ public class AdminPostCommandService {
 
         AdminAuditSnapshot beforeState = moderationBeforeState(post);
         Instant moderatedAt = clock.instant();
-        decide(post, status, moderatedAt);
-        logModerated(post, status, moderatedAt);
+        decide(
+                post,
+                status,
+                moderatedAt
+        );
+        logModerated(
+                post,
+                status,
+                moderatedAt
+        );
         AdminAuditSnapshot afterState = moderationAfterState(post, adminId);
         AdminAuditLog auditLog = adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
@@ -75,20 +84,23 @@ public class AdminPostCommandService {
                 post.getId(),
                 normalizedReason,
                 beforeState,
-                afterState));
+                afterState
+        ));
         notificationService.createForModeration(
                 post,
                 auditLog.getId(),
                 status,
                 normalizedReason,
-                moderatedAt);
+                moderatedAt
+        );
 
         return new AdminPostModerationResult(
                 post.getId(),
                 post.getModerationStatus(),
                 adminId,
                 post.getModeratedAt(),
-                normalizedReason);
+                normalizedReason
+        );
     }
 
     @Transactional
@@ -97,7 +109,11 @@ public class AdminPostCommandService {
             UUID adminId,
             String reason
     ) {
-        String normalizedReason = validateAndNormalizeDeletion(postId, adminId, reason);
+        String normalizedReason = validateAndNormalizeDeletion(
+                postId,
+                adminId,
+                reason
+        );
         Post post = postRepository.findByIdForUpdate(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -118,7 +134,8 @@ public class AdminPostCommandService {
                 post.getId(),
                 normalizedReason,
                 beforeState,
-                deletionState(post)));
+                deletionState(post)
+        ));
     }
 
     private String validateAndNormalizeModeration(
@@ -179,7 +196,11 @@ public class AdminPostCommandService {
         post.reject(moderatedAt);
     }
 
-    private void logModerated(Post post, ModerationStatus status, Instant moderatedAt) {
+    private void logModerated(
+            Post post,
+            ModerationStatus status,
+            Instant moderatedAt
+    ) {
         MODERATION_LOG.atInfo()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_MODERATION)
                 .addKeyValue(LogFields.EVENT, status.name().toLowerCase(Locale.ROOT))
@@ -206,9 +227,13 @@ public class AdminPostCommandService {
 
     private AdminAuditSnapshot moderationAfterState(Post post, UUID adminId) {
         return AdminAuditSnapshot.from(Map.of(
-                "moderationStatus", post.getModerationStatus(),
-                "moderatedAt", post.getModeratedAt(),
-                "moderatedBy", adminId));
+                "moderationStatus",
+                post.getModerationStatus(),
+                "moderatedAt",
+                post.getModeratedAt(),
+                "moderatedBy",
+                adminId
+        ));
     }
 
     private BusinessException invalidModerationRequestException() {

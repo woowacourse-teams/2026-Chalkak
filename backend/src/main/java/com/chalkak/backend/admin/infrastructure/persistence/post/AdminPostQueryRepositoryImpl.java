@@ -26,9 +26,18 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
             int page,
             int pageSize
     ) {
-        PageRequest pageable = PageRequest.of(page - 1, pageSize, toSort(criteria.sort()));
+        PageRequest pageable = PageRequest.of(
+                page - 1,
+                pageSize,
+                toSort(criteria.sort())
+        );
         Slice<AdminPostSummaryProjection> result = repository.findPosts(criteria, pageable);
-        return new AdminPage<>(result.getContent(), page, pageSize, result.hasNext());
+        return new AdminPage<>(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     @Override
@@ -38,8 +47,16 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
 
     private Sort toSort(AdminPostSort sort) {
         if (sort == AdminPostSort.CREATED_AT_ASC) {
-            return Sort.by(Sort.Direction.ASC, "createdAt", "id");
+            return Sort.by(
+                    Sort.Direction.ASC,
+                    "createdAt",
+                    "id"
+            );
         }
-        return Sort.by(Sort.Direction.DESC, "createdAt", "id");
+        return Sort.by(
+                Sort.Direction.DESC,
+                "createdAt",
+                "id"
+        );
     }
 }

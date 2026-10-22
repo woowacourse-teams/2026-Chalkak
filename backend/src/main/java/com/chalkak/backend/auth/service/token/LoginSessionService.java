@@ -39,7 +39,11 @@ public class LoginSessionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(LoginSessionService::reauthenticationRequired);
         user.validateNotWithdrawn();
-        if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(sessionId, userId, now)) {
+        if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
+                sessionId,
+                userId,
+                now
+        )) {
             throw reauthenticationRequired();
         }
         return user;
@@ -54,7 +58,11 @@ public class LoginSessionService {
         if (user == null || user.isDeleted()) {
             return Optional.empty();
         }
-        if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(sessionId, userId, now)) {
+        if (!userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
+                sessionId,
+                userId,
+                now
+        )) {
             return Optional.empty();
         }
         return Optional.of(user);

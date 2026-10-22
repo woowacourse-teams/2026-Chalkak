@@ -50,17 +50,18 @@ class AdminUserQueryServiceTest extends IntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, app_version,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, 'active-service@example.com', 'ACTIVE', ?, ?, '1.0.0', ?, ?, NULL
-                ), (
-                    ?, ?, 'ACTIVE', ?, NULL, NULL, ?, ?, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            signature_thumbnail_storage_key, app_version,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, 'active-service@example.com', 'ACTIVE', ?, ?, '1.0.0', ?, ?, NULL
+                        ), (
+                            ?, ?, 'ACTIVE', ?, NULL, NULL, ?, ?, ?
+                        )
+                        """,
                 ACTIVE_USER_ID,
                 ORIGINAL_STORAGE_KEY,
                 THUMBNAIL_STORAGE_KEY,
@@ -71,7 +72,8 @@ class AdminUserQueryServiceTest extends IntegrationTestSupport {
                 "withdrawn/" + WITHDRAWN_USER_ID,
                 Timestamp.from(CREATED_AT.plusSeconds(60)),
                 Timestamp.from(WITHDRAWN_AT),
-                Timestamp.from(WITHDRAWN_AT));
+                Timestamp.from(WITHDRAWN_AT)
+        );
     }
 
     @Test
@@ -83,7 +85,8 @@ class AdminUserQueryServiceTest extends IntegrationTestSupport {
                 "WITHDRAWN+",
                 AdminUserSort.CREATED_AT_DESC,
                 1,
-                20);
+                20
+        );
 
         // Then
         assertThat(result.users()).singleElement().satisfies(user -> {
@@ -145,7 +148,8 @@ class AdminUserQueryServiceTest extends IntegrationTestSupport {
                         null,
                         AdminUserSort.CREATED_AT_DESC,
                         Integer.MAX_VALUE,
-                        100));
+                        100
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);

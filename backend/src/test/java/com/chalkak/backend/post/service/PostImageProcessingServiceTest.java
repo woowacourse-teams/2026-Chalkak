@@ -24,20 +24,20 @@ import org.springframework.transaction.annotation.Transactional;
 @RecordApplicationEvents
 class PostImageProcessingServiceTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a6");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b6");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c6");
-    private static final String ORIGINAL_STORAGE_KEY =
-            "chalkak/posts/test/original/" + UPLOAD_ID + ".webp";
-    private static final String THUMBNAIL_STORAGE_KEY =
-            "chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".webp";
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a6");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b6");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c6");
+    private static final String ORIGINAL_STORAGE_KEY = "chalkak/posts/test/original/" + UPLOAD_ID
+            + ".webp";
+    private static final String THUMBNAIL_STORAGE_KEY = "chalkak/posts/test/thumbnail/" + UPLOAD_ID
+            + ".webp";
     private static final Map<String, Object> METADATA = Map.of(
-            "width", 4032,
-            "height", 3024,
-            "capturedAt", "2026-08-20T11:02:31+09:00"
+            "width",
+            4032,
+            "height",
+            3024,
+            "capturedAt",
+            "2026-08-20T11:02:31+09:00"
     );
 
     @Autowired
@@ -94,16 +94,21 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
     }
 
     private void insertUpload(String status) {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, expires_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST(? AS post_image_upload_status),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status
-                """, UPLOAD_ID, USER_ID, status);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, expires_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST(? AS post_image_upload_status),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status
+                        """,
+                UPLOAD_ID,
+                USER_ID,
+                status
+        );
     }
 
     private UUID createValidatingPost() {

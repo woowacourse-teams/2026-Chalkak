@@ -115,7 +115,8 @@ public class JwtSocialSignupTokenProvider
                     getUploadId(jwt),
                     getEmail(jwt),
                     getTokenId(jwt),
-                    jwt.getExpiresAt());
+                    jwt.getExpiresAt()
+            );
         } catch (JwtException | IllegalArgumentException exception) {
             throw new UnauthorizedException(
                     ErrorCode.UNAUTHORIZED,
@@ -135,7 +136,8 @@ public class JwtSocialSignupTokenProvider
                 new JwtIssuerValidator(properties.issuer()),
                 this::validateAudience,
                 this::validatePurpose,
-                this::validateRequiredTimestamps));
+                this::validateRequiredTimestamps
+        ));
         return jwtDecoder;
     }
 
@@ -172,7 +174,8 @@ public class JwtSocialSignupTokenProvider
         return OAuth2TokenValidatorResult.failure(new OAuth2Error(
                 "invalid_token",
                 "Invalid social signup token",
-                null));
+                null
+        ));
     }
 
     private SocialProvider getProvider(Jwt jwt) {

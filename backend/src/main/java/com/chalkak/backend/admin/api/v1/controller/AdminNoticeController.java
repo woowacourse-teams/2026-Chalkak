@@ -60,8 +60,12 @@ public class AdminNoticeController implements AdminNoticeApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @RequestBody AdminNoticeRequest request
     ) {
-        AdminNoticeResult result = noticeService.createNotice(authenticatedAdmin.adminId(),
-                request.title(), request.body(), request.scheduledAt());
+        AdminNoticeResult result = noticeService.createNotice(
+                authenticatedAdmin.adminId(),
+                request.title(),
+                request.body(),
+                request.scheduledAt()
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(AdminNoticeResponse.from(result));
     }
 
@@ -73,8 +77,12 @@ public class AdminNoticeController implements AdminNoticeApiDocs {
             @Valid @RequestBody AdminNoticeRequest request
     ) {
         AdminNoticeResult result = noticeService.updateNotice(
-                CanonicalUuidParser.parse(noticeId), authenticatedAdmin.adminId(),
-                request.title(), request.body(), request.scheduledAt());
+                CanonicalUuidParser.parse(noticeId),
+                authenticatedAdmin.adminId(),
+                request.title(),
+                request.body(),
+                request.scheduledAt()
+        );
         return ResponseEntity.ok(AdminNoticeResponse.from(result));
     }
 
@@ -85,8 +93,11 @@ public class AdminNoticeController implements AdminNoticeApiDocs {
             @PathVariable String noticeId,
             @Valid @RequestBody AdminNoticeDeletionRequest request
     ) {
-        noticeService.deleteNotice(CanonicalUuidParser.parse(noticeId),
-                authenticatedAdmin.adminId(), request.reason());
+        noticeService.deleteNotice(
+                CanonicalUuidParser.parse(noticeId),
+                authenticatedAdmin.adminId(),
+                request.reason()
+        );
         return ResponseEntity.noContent().build();
     }
 }

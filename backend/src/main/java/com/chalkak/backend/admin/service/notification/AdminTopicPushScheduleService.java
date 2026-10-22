@@ -47,8 +47,13 @@ public class AdminTopicPushScheduleService {
         validateSendTimeAvailable(sendTime);
         TopicPushSchedule schedule = new TopicPushSchedule(sendTime);
         TopicPushSchedule saved = scheduleRepository.saveAndFlush(schedule);
-        createAuditLog(adminId, AdminAction.TOPIC_PUSH_SCHEDULE_CREATED, saved.getId(),
-                AdminAuditSnapshot.from(Map.of()), createScheduleState(saved));
+        createAuditLog(
+                adminId,
+                AdminAction.TOPIC_PUSH_SCHEDULE_CREATED,
+                saved.getId(),
+                AdminAuditSnapshot.from(Map.of()),
+                createScheduleState(saved)
+        );
         return TopicPushScheduleResult.from(saved);
     }
 
@@ -68,8 +73,13 @@ public class AdminTopicPushScheduleService {
         AdminAuditSnapshot beforeState = createScheduleState(schedule);
         schedule.updateSendTime(sendTime);
         TopicPushSchedule saved = scheduleRepository.saveAndFlush(schedule);
-        createAuditLog(adminId, AdminAction.TOPIC_PUSH_SCHEDULE_UPDATED, saved.getId(),
-                beforeState, createScheduleState(saved));
+        createAuditLog(
+                adminId,
+                AdminAction.TOPIC_PUSH_SCHEDULE_UPDATED,
+                saved.getId(),
+                beforeState,
+                createScheduleState(saved)
+        );
         return TopicPushScheduleResult.from(saved);
     }
 
@@ -79,8 +89,13 @@ public class AdminTopicPushScheduleService {
         TopicPushSchedule schedule = getSchedule(scheduleId);
         AdminAuditSnapshot beforeState = createScheduleState(schedule);
         scheduleRepository.delete(schedule);
-        createAuditLog(adminId, AdminAction.TOPIC_PUSH_SCHEDULE_DELETED, scheduleId,
-                beforeState, AdminAuditSnapshot.from(Map.of()));
+        createAuditLog(
+                adminId,
+                AdminAction.TOPIC_PUSH_SCHEDULE_DELETED,
+                scheduleId,
+                beforeState,
+                AdminAuditSnapshot.from(Map.of())
+        );
     }
 
     private TopicPushSchedule getSchedule(UUID scheduleId) {
@@ -108,8 +123,14 @@ public class AdminTopicPushScheduleService {
             AdminAuditSnapshot afterState
     ) {
         adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
-                adminId, action, AdminTargetType.TOPIC_PUSH_SCHEDULE, scheduleId, null,
-                beforeState, afterState));
+                adminId,
+                action,
+                AdminTargetType.TOPIC_PUSH_SCHEDULE,
+                scheduleId,
+                null,
+                beforeState,
+                afterState
+        ));
     }
 
     private void validateAdminId(UUID adminId) {

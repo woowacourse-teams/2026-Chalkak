@@ -13,7 +13,8 @@ public record AdminAuditLogListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AuditLogSummary> auditLogs) {
+        List<AuditLogSummary> auditLogs
+) {
 
     public AdminAuditLogListResult {
         auditLogs = List.copyOf(auditLogs);
@@ -24,7 +25,8 @@ public record AdminAuditLogListResult(
                 page.currentPage(),
                 page.pageSize(),
                 page.hasNext(),
-                page.items().stream().map(AuditLogSummary::from).toList());
+                page.items().stream().map(AuditLogSummary::from).toList()
+        );
     }
 
     public record AuditLogSummary(
@@ -38,14 +40,23 @@ public record AdminAuditLogListResult(
             Map<String, Object> beforeState,
             Map<String, Object> afterState,
             Instant occurredAt,
-            UUID requestId) {
+            UUID requestId
+    ) {
 
         private static AuditLogSummary from(AdminAuditLogSummaryProjection projection) {
             return new AuditLogSummary(
-                    projection.auditLogId(), projection.actorAdminId(),
-                    projection.actorUsername(), projection.action(), projection.targetType(),
-                    projection.targetId(), projection.reason(), projection.beforeState(),
-                    projection.afterState(), projection.occurredAt(), projection.requestId());
+                    projection.auditLogId(),
+                    projection.actorAdminId(),
+                    projection.actorUsername(),
+                    projection.action(),
+                    projection.targetType(),
+                    projection.targetId(),
+                    projection.reason(),
+                    projection.beforeState(),
+                    projection.afterState(),
+                    projection.occurredAt(),
+                    projection.requestId()
+            );
         }
     }
 }

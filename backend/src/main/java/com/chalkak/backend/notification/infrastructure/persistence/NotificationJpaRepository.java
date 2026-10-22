@@ -66,6 +66,28 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             @Param("createdAt") Instant createdAt
     );
 
+    // 같은 트랜잭션에서 잠근 엔티티가 영속성 컨텍스트에 남도록 clearAutomatically는 쓰지 않는다.
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO notifications (user_id, source_type, source_id, event_key, type, title,
+                body, created_at, sqs_publish_status, next_attempt_at)
+            VALUES (:userId, :sourceType, :sourceId, :eventKey, :type, :title,
+                :body, :createdAt, :publishStatus, :nextAttemptAt)
+            ON CONFLICT (user_id, event_key) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(
+            @Param("userId") UUID userId,
+            @Param("sourceType") String sourceType,
+            @Param("sourceId") UUID sourceId,
+            @Param("eventKey") UUID eventKey,
+            @Param("type") String type,
+            @Param("title") String title,
+            @Param("body") String body,
+            @Param("createdAt") Instant createdAt,
+            @Param("publishStatus") String publishStatus,
+            @Param("nextAttemptAt") Instant nextAttemptAt
+    );
+
     @Query(value = """
             SELECT id FROM notifications
             WHERE sqs_publish_status = 'PENDING' AND next_attempt_at <= :now

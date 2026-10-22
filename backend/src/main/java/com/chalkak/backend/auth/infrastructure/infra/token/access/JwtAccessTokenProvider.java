@@ -56,15 +56,27 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
 
     @Override
     public IssuedAccessToken issueForSession(UUID userId, UUID sessionId) {
-        return issue(userId, AccessTokenScope.USER, sessionId);
+        return issue(
+                userId,
+                AccessTokenScope.USER,
+                sessionId
+        );
     }
 
     @Override
     public IssuedAccessToken issue(UUID subjectId, AccessTokenScope scope) {
-        return issue(subjectId, scope, null);
+        return issue(
+                subjectId,
+                scope,
+                null
+        );
     }
 
-    private IssuedAccessToken issue(UUID subjectId, AccessTokenScope scope, UUID sessionId) {
+    private IssuedAccessToken issue(
+            UUID subjectId,
+            AccessTokenScope scope,
+            UUID sessionId
+    ) {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.expiration());
         JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
@@ -108,7 +120,8 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
                 new JwtIssuerValidator(properties.issuer()),
                 this::validateAudience,
                 this::validatePurpose,
-                this::validateSubject));
+                this::validateSubject
+        ));
         return jwtDecoder;
     }
 
@@ -151,6 +164,7 @@ public class JwtAccessTokenProvider implements AccessTokenIssuer {
         return OAuth2TokenValidatorResult.failure(new OAuth2Error(
                 "invalid_token",
                 "Invalid access token",
-                null));
+                null
+        ));
     }
 }

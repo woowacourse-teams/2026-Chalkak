@@ -31,7 +31,8 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
                 request.sort(),
                 request.page(),
-                request.pageSize());
+                request.pageSize()
+        );
         return ResponseEntity.ok(AdminFeedbackListResponse.from(result));
     }
 }

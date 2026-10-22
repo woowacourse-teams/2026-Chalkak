@@ -32,8 +32,11 @@ import tools.jackson.databind.json.JsonMapper;
 class SqsPushConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withUserConfiguration(SqsPushConfiguration.class, NotificationRelayScheduler.class,
-                    TopicPushScheduler.class)
+            .withUserConfiguration(
+                    SqsPushConfiguration.class,
+                    NotificationRelayScheduler.class,
+                    TopicPushScheduler.class
+            )
             .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
             .withBean(NotificationRelayService.class, () -> mock(NotificationRelayService.class))
             .withBean(TopicPushService.class, () -> mock(TopicPushService.class))
@@ -72,9 +75,11 @@ class SqsPushConfigurationTest {
     @DisplayName("주제 발행은 Relay와 독립적으로 켜지고 전용 스케줄러를 사용한다")
     void configuration_topicEnabled_createsDedicatedSchedulerWithoutRelay() {
         // When & Then
-        contextRunner.withPropertyValues("chalkak.notification.sqs.topic-push-enabled=true",
+        contextRunner.withPropertyValues(
+                "chalkak.notification.sqs.topic-push-enabled=true",
                 "chalkak.notification.sqs.relay-enabled=false",
-                "chalkak.notification.sqs.queue-url=https://sqs.ap-northeast-2.amazonaws.com/000000000000/chalkak-dev-push")
+                "chalkak.notification.sqs.queue-url=https://sqs.ap-northeast-2.amazonaws.com/000000000000/chalkak-dev-push"
+        )
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(TopicPushScheduler.class);
@@ -166,17 +171,22 @@ class SqsPushConfigurationTest {
         // When
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
-                .withUserConfiguration(SqsPushConfiguration.class,
-                        NotificationRelayScheduler.class, TopicPushScheduler.class,
-                        SchedulingConfig.class)
+                .withUserConfiguration(
+                        SqsPushConfiguration.class,
+                        NotificationRelayScheduler.class,
+                        TopicPushScheduler.class,
+                        SchedulingConfig.class
+                )
                 .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
                 .withBean(NotificationRelayService.class, () -> relay)
                 .withBean(TopicPushService.class, () -> topic)
                 .withBean(FakePublicationProbe.class, () -> probe)
-                .withPropertyValues("chalkak.notification.sqs.region=ap-northeast-2",
+                .withPropertyValues(
+                        "chalkak.notification.sqs.region=ap-northeast-2",
                         enabledKey,
                         "chalkak.notification.sqs.queue-url=https://sqs.ap-northeast-2.amazonaws.com/000000000000/chalkak-dev-push",
-                        "spring.task.scheduling.pool.size=1")
+                        "spring.task.scheduling.pool.size=1"
+                )
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     // Then: 공용 스레드 하나만 있어도 발행 작업이 점유하지 않아야 한다.

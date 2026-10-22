@@ -73,21 +73,41 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
             boolean read
     ) {
         // Given
-        jdbcTemplate.update("UPDATE users SET status = CAST(? AS user_status) WHERE id = ?",
-                status, activeUserId);
-        UUID expired = insertNotification(activeUserId, activePostId,
-                NORMAL_THRESHOLD.minusSeconds(1));
-        UUID onBoundary = insertNotification(activeUserId, activePostId, NORMAL_THRESHOLD);
-        UUID recent = insertNotification(activeUserId, activePostId,
-                NORMAL_THRESHOLD.plusSeconds(1));
+        jdbcTemplate.update(
+                "UPDATE users SET status = CAST(? AS user_status) WHERE id = ?",
+                status,
+                activeUserId
+        );
+        UUID expired = insertNotification(
+                activeUserId,
+                activePostId,
+                NORMAL_THRESHOLD.minusSeconds(1)
+        );
+        UUID onBoundary = insertNotification(
+                activeUserId,
+                activePostId,
+                NORMAL_THRESHOLD
+        );
+        UUID recent = insertNotification(
+                activeUserId,
+                activePostId,
+                NORMAL_THRESHOLD.plusSeconds(1)
+        );
 
         if (read) {
-            jdbcTemplate.update("UPDATE notifications SET read_at = ? WHERE user_id = ?",
-                    Timestamp.from(NOW), activeUserId);
+            jdbcTemplate.update(
+                    "UPDATE notifications SET read_at = ? WHERE user_id = ?",
+                    Timestamp.from(NOW),
+                    activeUserId
+            );
         }
 
         // When
-        NotificationListResult inbox = notificationService.getNotifications(activeUserId, 1, 20);
+        NotificationListResult inbox = notificationService.getNotifications(
+                activeUserId,
+                1,
+                20
+        );
         notificationCleanupScheduler.deleteExpiredNotifications();
 
         // Then
@@ -103,10 +123,16 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     void deleteExpiredNotifications_oldWithdrawal_deletesRecentNotification() {
         // Given
         withdrawAt(WITHDRAWN_THRESHOLD.minusSeconds(1));
-        UUID notificationId = insertNotification(withdrawnUserId, withdrawnPostId,
-                NOW.minus(Duration.ofDays(1)));
-        UUID olderNotificationId = insertNotification(withdrawnUserId, withdrawnPostId,
-                NORMAL_THRESHOLD.minus(Duration.ofDays(1)));
+        UUID notificationId = insertNotification(
+                withdrawnUserId,
+                withdrawnPostId,
+                NOW.minus(Duration.ofDays(1))
+        );
+        UUID olderNotificationId = insertNotification(
+                withdrawnUserId,
+                withdrawnPostId,
+                NORMAL_THRESHOLD.minus(Duration.ofDays(1))
+        );
 
         // When
         notificationCleanupScheduler.deleteExpiredNotifications();
@@ -123,8 +149,11 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
             long secondsFromBoundary) {
         // Given
         withdrawAt(WITHDRAWN_THRESHOLD.plusSeconds(secondsFromBoundary));
-        UUID notificationId = insertNotification(withdrawnUserId, withdrawnPostId,
-                NORMAL_THRESHOLD.minusSeconds(1));
+        UUID notificationId = insertNotification(
+                withdrawnUserId,
+                withdrawnPostId,
+                NORMAL_THRESHOLD.minusSeconds(1)
+        );
 
         // When
         notificationCleanupScheduler.deleteExpiredNotifications();
@@ -134,30 +163,51 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     }
 
     private void withdrawAt(Instant withdrawnAt) {
-        jdbcTemplate.update("UPDATE users SET deleted_at = ? WHERE id = ?",
-                Timestamp.from(withdrawnAt), withdrawnUserId);
+        jdbcTemplate.update(
+                "UPDATE users SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(withdrawnAt),
+                withdrawnUserId
+        );
     }
 
-    private UUID insertNotification(UUID userId, UUID postId, Instant createdAt) {
+    private UUID insertNotification(
+            UUID userId,
+            UUID postId,
+            Instant createdAt
+    ) {
         UUID eventId = UUID.randomUUID();
         UUID notificationId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO admin_audit_logs (
-                    id, actor_admin_id, action, target_type, target_id,
-                    before_state, after_state, occurred_at, request_id
-                ) VALUES (
-                    ?, ?, CAST('POST_APPROVED' AS admin_action),
-                    CAST('POST' AS admin_target_type), ?,
-                    CAST('{"status":"PENDING"}' AS jsonb),
-                    CAST('{"status":"APPROVED"}' AS jsonb), ?, ?
-                )
-                """, eventId, adminId, postId, Timestamp.from(createdAt), UUID.randomUUID());
-        jdbcTemplate.update("""
-                INSERT INTO notifications (
-                    id, user_id, source_type, source_id, event_key, type, title, body, created_at,
-                    sqs_publish_status
-                ) VALUES (?, ?, 'POST', ?, ?, 'POST_APPROVED', '승인', '피드에 공개', ?, 'NOT_REQUIRED')
-                """, notificationId, userId, postId, eventId, Timestamp.from(createdAt));
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admin_audit_logs (
+                            id, actor_admin_id, action, target_type, target_id,
+                            before_state, after_state, occurred_at, request_id
+                        ) VALUES (
+                            ?, ?, CAST('POST_APPROVED' AS admin_action),
+                            CAST('POST' AS admin_target_type), ?,
+                            CAST('{"status":"PENDING"}' AS jsonb),
+                            CAST('{"status":"APPROVED"}' AS jsonb), ?, ?
+                        )
+                        """,
+                eventId,
+                adminId,
+                postId,
+                Timestamp.from(createdAt),
+                UUID.randomUUID()
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (
+                            id, user_id, source_type, source_id, event_key, type, title, body, created_at,
+                            sqs_publish_status
+                        ) VALUES (?, ?, 'POST', ?, ?, 'POST_APPROVED', '승인', '피드에 공개', ?, 'NOT_REQUIRED')
+                        """,
+                notificationId,
+                userId,
+                postId,
+                eventId,
+                Timestamp.from(createdAt)
+        );
         return notificationId;
     }
 
@@ -165,14 +215,19 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT EXISTS(SELECT 1 FROM notifications WHERE id = ?)",
                 Boolean.class,
-                notificationId);
+                notificationId
+        );
     }
 
     private void insertFixtures() {
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, adminId, "notification-cleanup-" + adminId);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                adminId,
+                "notification-cleanup-" + adminId
+        );
         insertUser(activeUserId);
         insertUser(withdrawnUserId);
         jdbcTemplate.update("""
@@ -190,32 +245,47 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     }
 
     private void insertUser(UUID userId) {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('ACTIVE' AS user_status), ?,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, userId, userId + "@example.com", "chalkak/signatures/" + userId);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('ACTIVE' AS user_status), ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                userId,
+                userId + "@example.com",
+                "chalkak/signatures/" + userId
+        );
     }
 
     private void insertPost(UUID userId, UUID postId) {
         UUID photoId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, metadata, created_at, updated_at
-                ) VALUES (?, ?, CAST('{}' AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, photoId, "chalkak/posts/" + postId);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '검수 완료', CAST('APPROVED' AS moderation_status),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, postId, userId, topicId, photoId);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, metadata, created_at, updated_at
+                        ) VALUES (?, ?, CAST('{}' AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                photoId,
+                "chalkak/posts/" + postId
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '검수 완료', CAST('APPROVED' AS moderation_status),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                postId,
+                userId,
+                topicId,
+                photoId
+        );
     }
 }

@@ -1,0 +1,2 @@
+ALTER TYPE admin_target_type ADD VALUE 'BANNER';
+ALTER TYPE admin_action ADD VALUE 'BANNER_CREATED';
