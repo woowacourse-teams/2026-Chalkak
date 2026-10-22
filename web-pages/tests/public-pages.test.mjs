@@ -59,6 +59,10 @@ test("accept response links and reject editor links, credentials, and lookalike 
 
 test("unconfigured deployment has working routes and local survey fallback", async (t) => {
   const root = await fixture(t);
+  await configure(root, "surveys.json", (data) => ({
+    ...data,
+    "ai-feedback": null,
+  }));
   const result = await buildSite({
     projectRoot: root,
     env: { PUBLIC_SITE_URL: "https://pages.example.test" },
