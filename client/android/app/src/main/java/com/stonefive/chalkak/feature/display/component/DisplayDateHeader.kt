@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.display.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +18,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -38,6 +41,8 @@ fun DisplayDateHeader(
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onDateClick: () -> Unit = {},
+    canPickDate: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -63,6 +68,14 @@ fun DisplayDateHeader(
                 text = selectedDate?.format(DateFormatter).orEmpty(),
                 color = ChalkakTheme.colors.textPrimary,
                 style = ChalkakTheme.typography.headline,
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .clickable(
+                        enabled = canPickDate,
+                        onClickLabel = "날짜 선택",
+                        role = Role.Button,
+                        onClick = onDateClick,
+                    ),
             )
 
             HeaderArrowButton(

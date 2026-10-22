@@ -71,6 +71,15 @@ class RecordViewModel(
         loadRecord(nextMonth)
     }
 
+    /** 년/월 휠에서 고른 달로 이동한다. 기록이 있는 달(+이번 달)만 받고, 같은 달이면 다시 불러오지 않는다. */
+    fun moveToMonth(month: YearMonth) {
+        val state = _uiState.value
+        if (state.isLoading) return
+        if (month == state.month || month !in state.availableMonths) return
+
+        loadRecord(month)
+    }
+
     fun selectDate(date: LocalDate) {
         val state = _uiState.value
         if (date !in state.posts.map { it.topicDate }) return

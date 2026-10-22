@@ -42,10 +42,12 @@ final class DisplayViewModel {
         dateProvider: @escaping DateProvider = { Date() },
         firstPageHandler: @escaping FirstPageHandler = { _, _, _ in .failure(.generic) },
         nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) },
-        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
+        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
+        firstTopicDate: Date? = nil
     ) {
         var resolvedState = initialState ?? DisplayViewState()
         if initialState == nil { resolvedState.selectedSort = initialSort }
+        if resolvedState.earliestDate == nil { resolvedState.earliestDate = firstTopicDate }
         let initialState = resolvedState
         self.viewState = initialState
         self.initialDate = initialDate
@@ -67,6 +69,7 @@ final class DisplayViewModel {
         initialDate: Date? = nil,
         initialSort: DisplaySort = .latest,
         dateProvider: @escaping DateProvider = { Date() },
+        firstTopicDate: Date? = DisplayViewModel.firstTopicDate,
         apiClient: DisplayAPIClient
     ) {
         self.init(
@@ -101,9 +104,14 @@ final class DisplayViewModel {
                 } catch {
                     return .failure(.generic)
                 }
-            }
+            },
+            firstTopicDate: firstTopicDate
         )
     }
+
+    /// 서비스의 첫 주제 날짜(KST 2026-09-17). 이보다 이전 날짜로는 이동하거나 고를 수 없다.
+    /// 주제 날짜 목록을 알려주는 API가 없어 앱에 고정한다. Android `DisplayViewModel.FIRST_TOPIC_DATE`와 같다.
+    static let firstTopicDate: Date = calendar.date(from: DateComponents(year: 2026, month: 9, day: 17))!
 
     func load() async {
         let latestDate = Self.startOfDay(dateProvider())
@@ -154,8 +162,24 @@ final class DisplayViewModel {
         await loadFirstPage(
             date: targetDate,
             latestDate: viewState.latestDate ?? Self.startOfDay(dateProvider()),
-            preserves: viewState,
-            isPreviousDateRequest: true
+            preserves: viewState
+        )
+    }
+
+    /// 날짜 휠에서 고른 날짜로 이동한다. 첫 주제 날짜와 오늘 사이로 맞추고, 같은 날짜면 다시 불러오지 않는다.
+    func moveToDate(_ date: Date) async {
+        guard viewState.contentStatus != .loading,
+              let selectedDate = viewState.selectedDate,
+              let latestDate = viewState.latestDate
+        else { return }
+        let pickedDate = Self.startOfDay(date)
+        let targetDate = min(max(pickedDate, viewState.earliestDate ?? pickedDate), latestDate)
+        guard targetDate != selectedDate else { return }
+
+        await loadFirstPage(
+            date: targetDate,
+            latestDate: latestDate,
+            preserves: viewState
         )
     }
 
@@ -272,7 +296,6 @@ final class DisplayViewModel {
         date: Date,
         latestDate: Date,
         preserves previousState: DisplayViewState?,
-        isPreviousDateRequest: Bool = false,
         keepsContentVisible: Bool = false,
         preservesRandomSeed: Bool = false
     ) async {
@@ -317,9 +340,6 @@ final class DisplayViewModel {
         case let .failure(error):
             loadedTopicDate = previousState.flatMap { _ in loadedTopicDate }
             if var restored = previousState {
-                if isPreviousDateRequest, error == .topicNotFound {
-                    restored.earliestDate = restored.selectedDate
-                }
                 selectedLatestSort = restored.contentStatus == .latest
                     ? restored.selectedSort
                     : selectedLatestSort

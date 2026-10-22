@@ -89,6 +89,44 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun `고른 달로 이동하면 그 달의 기록을 불러온다`() = runTest {
+        advanceUntilIdle()
+
+        viewModel.moveToMonth(RecordLatestMonth)
+        advanceUntilIdle()
+
+        assertEquals(RecordLatestMonth, viewModel.uiState.value.month)
+        assertEquals(RecordLatestMonth, repository.requests.last())
+    }
+
+    @Test
+    fun `기록이 없는 달이나 지금 달을 고르면 다시 불러오지 않는다`() = runTest {
+        advanceUntilIdle()
+        val requestCount = repository.requests.size
+
+        viewModel.moveToMonth(RecordTestMonth.minusMonths(5))
+        viewModel.moveToMonth(RecordTestMonth)
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth, viewModel.uiState.value.month)
+        assertEquals(requestCount, repository.requests.size)
+    }
+
+    @Test
+    fun `기록을 불러오는 중에는 고른 달로 이동하지 않는다`() = runTest {
+        advanceUntilIdle()
+        repository.pendingCalendarResult = CompletableDeferred()
+        viewModel.moveToPreviousMonth()
+        val requestCount = repository.requests.size
+
+        viewModel.moveToMonth(RecordLatestMonth)
+
+        assertEquals(RecordTestMonth.minusMonths(1), viewModel.uiState.value.month)
+        assertEquals(false, viewModel.uiState.value.canPickMonth)
+        assertEquals(requestCount, repository.requests.size)
+    }
+
+    @Test
     fun failedMonthLoadClearsPreviousMonthContent() = runTest {
         advanceUntilIdle()
         val failedMonth = RecordTestMonth.minusMonths(1)

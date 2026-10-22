@@ -94,6 +94,11 @@ struct DisplayViewState: Equatable, Sendable {
         else { return false }
         return selectedDate < latestDate
     }
+
+    /// 날짜 휠을 열 수 있는지. 휠의 범위는 `earliestDate`부터 `latestDate`까지다.
+    var canPickDate: Bool {
+        contentStatus != .loading && selectedDate != nil && latestDate != nil
+    }
 }
 
 enum DisplayEvent: Equatable, Sendable {
