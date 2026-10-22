@@ -16,6 +16,7 @@ import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -100,6 +101,289 @@ class RecordViewModelTest {
         assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
         assertEquals(null, viewModel.uiState.value.selectedDate)
         assertEquals("조회할 수 없는 연월이에요", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun cachedMonthIsVisibleBeforeRevalidationAndReplacedOnSuccess() = runTest {
+        val pending = returnToCachedMonth()
+        val cachedPosts = viewModel.uiState.value.posts
+
+        assertEquals(listOf("post-2", "post-5"), cachedPosts.map { it.postId })
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
+        assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(listOf(RecordTestMonth, RecordLatestMonth, RecordTestMonth), repository.requests)
+
+        val updated = cachedPosts.last().copy(status = PostStatus.PENDING, thumbnailImageUrl = "updated")
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, listOf(updated))))
+        advanceUntilIdle()
+
+        assertEquals(listOf(updated), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+
+        repository.pendingCalendarResult = null
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        repository.pendingCalendarResult = CompletableDeferred()
+        viewModel.moveToPreviousMonth()
+        assertEquals(listOf(updated), viewModel.uiState.value.posts)
+        repository.pendingCalendarResult!!.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun cachedMonthFailureKeepsPostsAndSelectionAndShowsToast() = runTest {
+        val pending = returnToCachedMonth()
+        val cachedPosts = viewModel.uiState.value.posts
+        viewModel.selectDate(RecordTestMonth.atDay(2))
+
+        pending.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        assertEquals(cachedPosts, viewModel.uiState.value.posts)
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+        assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+        assertEquals("기록을 불러오지 못했어요", (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun cachedMonthUnauthorizedShowsLoginRequiredInsteadOfCachedPosts() = runTest {
+        val pending = returnToCachedMonth()
+
+        pending.complete(HomeResult.Failure(HomeFailure.Unauthorized))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals("로그인이 필요해요", viewModel.uiState.value.errorMessage)
+        assertEquals(true, viewModel.uiState.value.isLoginRequired)
+    }
+
+    @Test
+    fun cachedMonthExceptionDoesNotRestoreDeletedPosts() = runTest {
+        val pending = returnToCachedMonth()
+        viewModel.removeDeletedPost("post-5")
+
+        pending.completeExceptionally(IllegalStateException("offline"))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("post-2"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+        assertEquals("offline", (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun uncachedMonthClearsContentWhileLoading() = runTest {
+        advanceUntilIdle()
+        val pending = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = pending
+
+        viewModel.moveToNextMonth()
+
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals(true, viewModel.uiState.value.isLoading)
+        pending.complete(HomeResult.Success(PostCalendar(RecordLatestMonth, emptyList())))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun deletingPostAlsoRemovesItFromInactiveMonthCache() = runTest {
+        advanceUntilIdle()
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        viewModel.removeDeletedPost("post-5")
+        val pending = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = pending
+
+        viewModel.moveToPreviousMonth()
+
+        assertEquals(
+            listOf("post-2"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+        pending.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun cachedMonthRefreshPreservesDateSelectedDuringRequest() = runTest {
+        val pending = returnToCachedMonth()
+        val posts = viewModel.uiState.value.posts
+        viewModel.selectDate(RecordTestMonth.atDay(2))
+
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, posts)))
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun cachedMonthRefreshSelectsLatestDateWhenSelectionWasNotChanged() = runTest {
+        val pending = returnToCachedMonth()
+        val newest = viewModel.uiState.value.posts
+            .last()
+            .copy(topicDate = RecordTestMonth.atDay(7))
+
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, listOf(newest))))
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(7), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun cachedMonthRefreshFallsBackWhenSelectedDateDisappears() = runTest {
+        val pending = returnToCachedMonth()
+        val remaining = viewModel.uiState.value.posts
+            .last()
+        viewModel.selectDate(RecordTestMonth.atDay(2))
+
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, listOf(remaining))))
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun lateCachedMonthResponseDoesNotReplaceNewerMonth() = runTest {
+        val pending = returnToCachedMonth()
+        repository.pendingCalendarResult = null
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        val currentState = viewModel.uiState.value
+
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, emptyList())))
+        advanceUntilIdle()
+
+        assertEquals(currentState, viewModel.uiState.value)
+    }
+
+    @Test
+    fun lateResponseDoesNotAllowDuplicateRevalidationOfCurrentMonth() = runTest {
+        val previousRequest = returnToCachedMonth()
+        val currentRequest = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = currentRequest
+        viewModel.moveToNextMonth()
+        previousRequest.complete(HomeResult.Success(PostCalendar(RecordTestMonth, emptyList())))
+        advanceUntilIdle()
+        val requestCount = repository.requests.size
+
+        viewModel.revalidate()
+
+        assertEquals(requestCount, repository.requests.size)
+        currentRequest.complete(HomeResult.Success(PostCalendar(RecordLatestMonth, emptyList())))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun emptyCachedMonthIsVisibleWithoutLoading() = runTest {
+        advanceUntilIdle()
+        viewModel.moveToPreviousMonth()
+        advanceUntilIdle()
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        val pending = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = pending
+
+        viewModel.moveToPreviousMonth()
+
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals(false, viewModel.uiState.value.isLoading)
+        pending.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+        assertEquals(null, viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun pendingSuccessCannotRestoreDeletedPostInScreenOrCache() = runTest {
+        val pending = returnToCachedMonth()
+        val oldPosts = viewModel.uiState.value.posts
+        viewModel.removeDeletedPost("post-5")
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, oldPosts)))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("post-2"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+        repository.pendingCalendarResult = null
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        val nextRequest = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = nextRequest
+        viewModel.moveToPreviousMonth()
+
+        assertEquals(
+            listOf("post-2"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+        nextRequest.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun lateSuccessUpdatesInactiveMonthCacheWithoutChangingScreen() = runTest {
+        val pending = returnToCachedMonth()
+        val updated = viewModel.uiState.value.posts
+            .last()
+            .copy(status = PostStatus.PENDING)
+        repository.pendingCalendarResult = null
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        val currentState = viewModel.uiState.value
+
+        pending.complete(HomeResult.Success(PostCalendar(RecordTestMonth, listOf(updated))))
+        advanceUntilIdle()
+        assertEquals(currentState, viewModel.uiState.value)
+        val nextRequest = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = nextRequest
+        viewModel.moveToPreviousMonth()
+
+        assertEquals(listOf(updated), viewModel.uiState.value.posts)
+        nextRequest.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun olderSuccessDoesNotOverwriteNewerResponseForSameMonth() = runTest {
+        val olderRequest = returnToCachedMonth()
+        repository.pendingCalendarResult = null
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        viewModel.moveToPreviousMonth()
+        advanceUntilIdle()
+        val newerPosts = viewModel.uiState.value.posts
+
+        olderRequest.complete(HomeResult.Success(PostCalendar(RecordTestMonth, emptyList())))
+        advanceUntilIdle()
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        val nextRequest = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = nextRequest
+        viewModel.moveToPreviousMonth()
+
+        assertEquals(newerPosts, viewModel.uiState.value.posts)
+        nextRequest.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    private fun TestScope.returnToCachedMonth(): CompletableDeferred<HomeResult<PostCalendar>> {
+        advanceUntilIdle()
+        viewModel.moveToNextMonth()
+        advanceUntilIdle()
+        return CompletableDeferred<HomeResult<PostCalendar>>().also {
+            repository.pendingCalendarResult = it
+            viewModel.moveToPreviousMonth()
+        }
     }
 
     @Test
