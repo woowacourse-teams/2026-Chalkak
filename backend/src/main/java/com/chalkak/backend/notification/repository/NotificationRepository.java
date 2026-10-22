@@ -11,9 +11,11 @@ public interface NotificationRepository {
 
     PublicationBacklog getPublicationBacklog();
 
-    List<UUID> findTopicPushRecipientIds(UUID topicId);
-
     List<UUID> findTopicPushEnabledUserIds();
+
+    List<UUID> findTopicPushEnabledNonParticipantIds(UUID topicId);
+
+    List<UUID> findTopicPushEnabledParticipantIds(UUID topicId);
 
     List<UUID> findDuePublicationIds(Instant now, int limit);
 

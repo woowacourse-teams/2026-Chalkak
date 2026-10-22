@@ -6,8 +6,12 @@ import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.repository.TopicRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,7 +27,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class ReminderPushService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final ReminderRepository reminderRepository;
+    private final TopicRepository topicRepository;
     private final NotificationRepository notificationRepository;
     private final DirectPushPublisher directPushPublisher;
     private final Clock clock;
@@ -34,12 +41,14 @@ public class ReminderPushService {
 
     public ReminderPushService(
             ReminderRepository reminderRepository,
+            TopicRepository topicRepository,
             NotificationRepository notificationRepository,
             DirectPushPublisher directPushPublisher,
             Clock clock,
             PlatformTransactionManager transactionManager
     ) {
         this.reminderRepository = reminderRepository;
+        this.topicRepository = topicRepository;
         this.notificationRepository = notificationRepository;
         this.directPushPublisher = directPushPublisher;
         this.clock = clock;
@@ -105,10 +114,26 @@ public class ReminderPushService {
         }
         // 발행 도중 중단되거나 결과가 불명이어도 같은 프로세스에서 다시 발행하지 않는다.
         attemptedReminders.put(reminderId, occurredAt);
-        if (current.getTarget() != ReminderTarget.ALL) {
-            return PublicationTargets.skipped("TARGET_NOT_SUPPORTED");
+        if (current.getTarget() == ReminderTarget.ALL) {
+            return PublicationTargets.of(notificationRepository.findTopicPushEnabledUserIds());
         }
-        return PublicationTargets.of(notificationRepository.findTopicPushEnabledUserIds());
+        return findTopicTargets(current.getTarget(), occurredAt);
+    }
+
+    // 오늘 주제는 회차의 KST 날짜로 찾는다. 참여 여부는 오늘 주제가 있어야 판단할 수 있으므로 주제가 없으면
+    // 보내지 않는다. 리마인더는 독려만이 아니므로 주제의 참여 가능 시간과 관계없이 보낸다.
+    private PublicationTargets findTopicTargets(ReminderTarget target, Instant occurredAt) {
+        Topic topic = topicRepository.findActiveByTopicDate(LocalDate.ofInstant(occurredAt, KST))
+                .orElse(null);
+        if (topic == null) {
+            return PublicationTargets.skipped("NO_TOPIC");
+        }
+        if (target == ReminderTarget.TOPIC_PARTICIPANTS) {
+            return PublicationTargets.of(
+                    notificationRepository.findTopicPushEnabledParticipantIds(topic.getId()));
+        }
+        return PublicationTargets.of(
+                notificationRepository.findTopicPushEnabledNonParticipantIds(topic.getId()));
     }
 
     private void publishTargets(

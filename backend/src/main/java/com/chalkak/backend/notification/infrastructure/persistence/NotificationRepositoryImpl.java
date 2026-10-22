@@ -30,8 +30,8 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
-    public List<UUID> findTopicPushRecipientIds(UUID topicId) {
-        return notificationJpaRepository.findTopicPushRecipientIds(
+    public List<UUID> findTopicPushEnabledNonParticipantIds(UUID topicId) {
+        return notificationJpaRepository.findTopicPushEnabledNonParticipantIds(
                 UserStatus.ACTIVE,
                 topicId,
                 ModerationStatus.REJECTED
@@ -41,6 +41,15 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     @Override
     public List<UUID> findTopicPushEnabledUserIds() {
         return notificationJpaRepository.findTopicPushEnabledUserIds(UserStatus.ACTIVE);
+    }
+
+    @Override
+    public List<UUID> findTopicPushEnabledParticipantIds(UUID topicId) {
+        return notificationJpaRepository.findTopicPushEnabledParticipantIds(
+                UserStatus.ACTIVE,
+                topicId,
+                ModerationStatus.REJECTED
+        );
     }
 
     @Override

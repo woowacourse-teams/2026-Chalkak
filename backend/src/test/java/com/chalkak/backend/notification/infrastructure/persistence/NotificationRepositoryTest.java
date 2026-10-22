@@ -38,7 +38,7 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
             "APPROVED, true, true", "REJECTED, true, true"
     })
     @DisplayName("오늘 주제에 처리 중·승인 대기·승인 게시물이 있으면 제외하고 반려·삭제만 있으면 포함한다")
-    void findTopicPushRecipientIds_postState_selectsEligibleUsers(
+    void findTopicPushEnabledNonParticipantIds_postState_selectsEligibleUsers(
             ModerationStatus status,
             boolean deleted,
             boolean eligible
@@ -57,7 +57,8 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        List<UUID> recipients = notificationRepository.findTopicPushRecipientIds(topicId);
+        List<UUID> recipients = notificationRepository
+                .findTopicPushEnabledNonParticipantIds(topicId);
 
         // Then
         assertThat(recipients).contains(nonAuthorId);
@@ -70,7 +71,7 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("다른 주제에 승인된 게시물이 있어도 해당 주제 발송 대상에 포함한다")
-    void findTopicPushRecipientIds_otherTopicPost_includesUser() {
+    void findTopicPushEnabledNonParticipantIds_otherTopicPost_includesUser() {
         // Given
         UUID authorId = insertUser();
         UUID todayTopicId = insertTopic("2026-10-12");
@@ -85,7 +86,8 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        List<UUID> recipients = notificationRepository.findTopicPushRecipientIds(todayTopicId);
+        List<UUID> recipients = notificationRepository
+                .findTopicPushEnabledNonParticipantIds(todayTopicId);
 
         // Then
         assertThat(recipients).contains(authorId);
@@ -93,7 +95,7 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("반려 후 다시 제출한 승인 대기 게시물이 있으면 주제 발송 대상에서 제외한다")
-    void findTopicPushRecipientIds_resubmittedPost_excludesUser() {
+    void findTopicPushEnabledNonParticipantIds_resubmittedPost_excludesUser() {
         // Given
         UUID authorId = insertUser();
         UUID topicId = insertTopic("2026-10-12");
@@ -113,10 +115,124 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         entityManager.clear();
 
         // When
-        List<UUID> recipients = notificationRepository.findTopicPushRecipientIds(topicId);
+        List<UUID> recipients = notificationRepository
+                .findTopicPushEnabledNonParticipantIds(topicId);
 
         // Then
         assertThat(recipients).doesNotContain(authorId);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "VALIDATING, false, true", "PENDING, false, true", "APPROVED, false, true",
+            "REJECTED, false, false", "VALIDATING, true, false", "PENDING, true, false",
+            "APPROVED, true, false", "REJECTED, true, false"
+    })
+    @DisplayName("오늘 주제에 처리 중·승인 대기·승인 게시물이 있으면 참여자로 포함하고 반려·삭제만 있으면 제외한다")
+    void findTopicPushEnabledParticipantIds_postState_selectsParticipants(
+            ModerationStatus status,
+            boolean deleted,
+            boolean participant
+    ) {
+        // Given
+        UUID authorId = insertUser();
+        UUID nonAuthorId = insertUser();
+        UUID topicId = insertTopic("2026-10-12");
+        insertPost(
+                authorId,
+                topicId,
+                status,
+                deleted
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        List<UUID> participants = notificationRepository
+                .findTopicPushEnabledParticipantIds(topicId);
+
+        // Then
+        assertThat(participants).doesNotContain(nonAuthorId);
+        if (participant) {
+            assertThat(participants).containsExactly(authorId);
+            return;
+        }
+        assertThat(participants).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 주제에만 게시물이 있으면 오늘 주제 참여자에서 제외한다")
+    void findTopicPushEnabledParticipantIds_otherTopicPost_excludesUser() {
+        // Given
+        UUID authorId = insertUser();
+        UUID todayTopicId = insertTopic("2026-10-12");
+        UUID otherTopicId = insertTopic("2026-10-11");
+        insertPost(
+                authorId,
+                otherTopicId,
+                ModerationStatus.APPROVED,
+                false
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(notificationRepository.findTopicPushEnabledParticipantIds(todayTopicId))
+                .doesNotContain(authorId);
+    }
+
+    @Test
+    @DisplayName("반려 후 다시 제출한 승인 대기 게시물이 있으면 참여자로 포함한다")
+    void findTopicPushEnabledParticipantIds_resubmittedPost_includesUser() {
+        // Given
+        UUID authorId = insertUser();
+        UUID topicId = insertTopic("2026-10-12");
+        insertPost(
+                authorId,
+                topicId,
+                ModerationStatus.REJECTED,
+                false
+        );
+        insertPost(
+                authorId,
+                topicId,
+                ModerationStatus.PENDING,
+                false
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(notificationRepository.findTopicPushEnabledParticipantIds(topicId))
+                .containsExactly(authorId);
+    }
+
+    @Test
+    @DisplayName("주제 알림을 끈 참여자와 정지된 참여자는 제외한다")
+    void findTopicPushEnabledParticipantIds_disabledOrBannedUser_excludesUser() {
+        // Given
+        UUID disabledId = insertUser();
+        UUID bannedId = insertUser();
+        UUID topicId = insertTopic("2026-10-12");
+        insertPost(
+                disabledId,
+                topicId,
+                ModerationStatus.APPROVED,
+                false
+        );
+        insertPost(
+                bannedId,
+                topicId,
+                ModerationStatus.APPROVED,
+                false
+        );
+        jdbc.update("UPDATE users SET topic_push_enabled = false WHERE id = ?", disabledId);
+        jdbc.update("UPDATE users SET status = 'BANNED' WHERE id = ?", bannedId);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(notificationRepository.findTopicPushEnabledParticipantIds(topicId)).isEmpty();
     }
 
     private UUID insertUser() {

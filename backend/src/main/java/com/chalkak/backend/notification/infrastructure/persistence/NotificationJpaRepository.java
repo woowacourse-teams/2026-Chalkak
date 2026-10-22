@@ -43,7 +43,7 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
                 )
             ORDER BY user.id
             """)
-    List<UUID> findTopicPushRecipientIds(
+    List<UUID> findTopicPushEnabledNonParticipantIds(
             @Param("status") UserStatus status,
             @Param("topicId") UUID topicId,
             @Param("excludedStatus") ModerationStatus excludedStatus
@@ -59,6 +59,28 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             ORDER BY user.id
             """)
     List<UUID> findTopicPushEnabledUserIds(@Param("status") UserStatus status);
+
+    // 오늘 주제 참여자 대상 리마인더의 발행 대상이다. 참여 판정은 미참여자 조회와 같다(삭제되지 않고
+    // 반려되지 않은 게시물이 있으면 참여).
+    @Query("""
+            SELECT user.id FROM User user
+            WHERE user.deletedAt IS NULL
+                AND user.status = :status
+                AND user.topicPushEnabled = true
+                AND EXISTS (
+                    SELECT post.id FROM Post post
+                    WHERE post.author.id = user.id
+                        AND post.topic.id = :topicId
+                        AND post.deletedAt IS NULL
+                        AND post.moderationStatus <> :excludedStatus
+                )
+            ORDER BY user.id
+            """)
+    List<UUID> findTopicPushEnabledParticipantIds(
+            @Param("status") UserStatus status,
+            @Param("topicId") UUID topicId,
+            @Param("excludedStatus") ModerationStatus excludedStatus
+    );
 
     // 탈퇴하지 않은 회원 전체(정지 회원 포함)에게 공지 알림을 한 번에 만든다. 공지 ID를 사건 키로 써서 회원당 하나만 생긴다.
     @Modifying

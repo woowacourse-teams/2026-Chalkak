@@ -19,6 +19,8 @@ import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.repository.ReminderSlice;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.topic.repository.TopicRepository;
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
@@ -52,9 +54,13 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
 
     private static final Instant SCHEDULED_AT = Instant.parse("2026-10-22T12:00:00Z");
     private static final UUID ACTIVE_USER = new UUID(0, 1);
+    private static final Instant OPEN_ENDS_AT = Instant.parse("2026-10-22T15:00:00Z");
+    private static final Instant CLOSED_ENDS_AT = Instant.parse("2026-10-22T11:00:00Z");
 
     @Autowired
     private ReminderRepository reminders;
+    @Autowired
+    private TopicRepository topics;
     @Autowired
     private NotificationRepository notifications;
     @Autowired
@@ -76,6 +82,7 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
         clock = new FakeClock(SCHEDULED_AT.plusSeconds(10));
         service = new ReminderPushService(
                 reminders,
+                topics,
                 notifications,
                 new DirectPushPublisher(publisher, clock),
                 clock,
@@ -192,6 +199,7 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
         );
         service = new ReminderPushService(
                 changingRepository,
+                topics,
                 notifications,
                 new DirectPushPublisher(publisher, clock),
                 clock,
@@ -208,10 +216,78 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
                 .containsExactlyInAnyOrder("REMINDER_LOCKED_OR_DELETED", "SCHEDULE_CHANGED");
     }
 
+    @Test
+    @DisplayName("오늘 주제 참여자 대상은 오늘 주제에 게시물을 올린 회원에게만 발행한다")
+    void publishDueReminders_participantTarget_publishesToParticipants() {
+        // Given
+        UUID nonParticipant = new UUID(0, 2);
+        insertUser(nonParticipant, "ACTIVE");
+        UUID topicId = insertTopic(OPEN_ENDS_AT);
+        insertApprovedPost(ACTIVE_USER, topicId);
+        insertReminder("ONCE", "TOPIC_PARTICIPANTS");
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        assertThat(captureMessages(1)).extracting(PushMessage::userId).containsExactly(ACTIVE_USER);
+    }
+
+    @Test
+    @DisplayName("오늘 주제 미참여자 대상은 오늘 주제에 아직 올리지 않은 회원에게만 발행한다")
+    void publishDueReminders_nonParticipantTarget_publishesToNonParticipants() {
+        // Given
+        UUID nonParticipant = new UUID(0, 2);
+        insertUser(nonParticipant, "ACTIVE");
+        UUID topicId = insertTopic(OPEN_ENDS_AT);
+        insertApprovedPost(ACTIVE_USER, topicId);
+        insertReminder("ONCE", "TOPIC_NON_PARTICIPANTS");
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        assertThat(captureMessages(1)).extracting(PushMessage::userId)
+                .containsExactly(nonParticipant);
+    }
+
+    @Test
+    @DisplayName("오늘 주제 미참여자 대상은 오늘 주제가 마감된 뒤에도 아직 올리지 않은 회원에게 발행한다")
+    void publishDueReminders_nonParticipantTargetAfterClose_publishes() {
+        // Given
+        UUID nonParticipant = new UUID(0, 2);
+        insertUser(nonParticipant, "ACTIVE");
+        UUID topicId = insertTopic(CLOSED_ENDS_AT);
+        insertApprovedPost(ACTIVE_USER, topicId);
+        insertReminder("ONCE", "TOPIC_NON_PARTICIPANTS");
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        assertThat(captureMessages(1)).extracting(PushMessage::userId)
+                .containsExactly(nonParticipant);
+    }
+
+    @Test
+    @DisplayName("오늘 주제 참여자 대상은 오늘 주제가 마감된 뒤에도 발행한다")
+    void publishDueReminders_participantTargetAfterClose_publishes() {
+        // Given
+        UUID topicId = insertTopic(CLOSED_ENDS_AT);
+        insertApprovedPost(ACTIVE_USER, topicId);
+        insertReminder("ONCE", "TOPIC_PARTICIPANTS");
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        assertThat(captureMessages(1)).extracting(PushMessage::userId).containsExactly(ACTIVE_USER);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"TOPIC_PARTICIPANTS", "TOPIC_NON_PARTICIPANTS"})
-    @DisplayName("오늘 주제 대상 리마인더는 아직 발행하지 않고 한 번만 생략을 남긴다")
-    void publishDueReminders_topicTarget_skipsOnce(String target) {
+    @DisplayName("오늘 주제가 없으면 주제 대상 리마인더는 발행하지 않고 한 번만 생략을 남긴다")
+    void publishDueReminders_topicTargetWithoutTopic_skipsOnce(String target) {
         // Given
         insertReminder("ONCE", target);
 
@@ -223,7 +299,7 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
         // Then
         verifyNoInteractions(publisher);
         assertThat(logsAtStage("reminder_execution_skipped")).singleElement()
-                .satisfies(log -> assertThat(log).containsEntry("reason", "TARGET_NOT_SUPPORTED"));
+                .satisfies(log -> assertThat(log).containsEntry("reason", "NO_TOPIC"));
     }
 
     @Test
@@ -284,6 +360,42 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
                 id + "@reminder-test.example",
                 status,
                 "reminder/signature/" + id
+        );
+    }
+
+    // 회차 날짜(KST 2026-10-22)의 주제다. 시작은 KST 자정이고 마감 시각만 바꿔 열림·마감 상태를 만든다.
+    private UUID insertTopic(Instant endsAt) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "INSERT INTO topics(id,title,topic_date,starts_at,ends_at) VALUES (?,'빛과 그림자',?,?,?)",
+                id,
+                Date.valueOf("2026-10-22"),
+                Timestamp.from(Instant.parse("2026-10-21T15:00:00Z")),
+                Timestamp.from(endsAt)
+        );
+        return id;
+    }
+
+    private void insertApprovedPost(UUID userId, UUID topicId) {
+        UUID photoId = UUID.randomUUID();
+        jdbc.update(
+                """
+                        INSERT INTO photos(id,original_storage_key,thumbnail_storage_key)
+                        VALUES (?,?,?)
+                        """,
+                photoId,
+                "original/" + photoId,
+                "thumbnail/" + photoId
+        );
+        jdbc.update(
+                """
+                        INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status)
+                        VALUES (?,?,?,?,'APPROVED')
+                        """,
+                UUID.randomUUID(),
+                userId,
+                topicId,
+                photoId
         );
     }
 
