@@ -146,9 +146,7 @@ fun DisplayPhotoCard(
             likeCount = photo.likeCount,
             isLiked = photo.isLiked,
             onClick = onLikeClick,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp),
+            modifier = Modifier.align(Alignment.BottomStart),
         )
 
         if (isFeatured) {
@@ -180,6 +178,15 @@ private fun aspectRatioForSize(
     null
 }
 
+/**
+ * 사진 카드 좌하단에 올리는 좋아요 아이콘과 개수.
+ *
+ * 카드 모서리와 하트 사이 여백([LikeCardInset])까지 클릭 영역에 포함해서,
+ * 하트 바깥 모서리 쪽을 눌러도 사진 클릭(피드 진입)이 아닌 좋아요로 처리한다.
+ * 위·오른쪽으로는 [LikeTouchExpansion]만큼 더 넓혀 손가락이 하트를 조금 벗어나도 눌리게 한다.
+ * 그래서 호출부는 바깥 여백 없이 카드의 BottomStart에 정렬만 하면 된다.
+ * 예) 하트 18dp + 숫자 한 자리일 때 클릭 영역은 약 54×42dp이고, 하트는 카드 모서리에서 10dp 안쪽에 그려진다.
+ */
 @Composable
 fun DisplayLikeCount(
     likeCount: Int,
@@ -202,7 +209,13 @@ fun DisplayLikeCount(
             .semantics {
                 contentDescription = "좋아요 $likeCount"
                 stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
-            }.then(clickModifier),
+            }.then(clickModifier)
+            .padding(
+                start = LikeCardInset,
+                top = LikeTouchExpansion,
+                end = LikeTouchExpansion,
+                bottom = LikeCardInset,
+            ),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -236,6 +249,12 @@ private fun DisplayPhotoCardPreview() {
 }
 
 private const val DEFAULT_GRID_IMAGE_ASPECT_RATIO = 1f
+
+// 카드 좌하단 모서리에서 하트까지의 거리. 이 여백도 좋아요 클릭 영역에 포함된다.
+private val LikeCardInset = 10.dp
+
+// 하트·숫자 위쪽과 오른쪽으로 클릭 영역을 더 넓히는 폭.
+private val LikeTouchExpansion = 14.dp
 
 @Preview(showBackground = true)
 @Composable

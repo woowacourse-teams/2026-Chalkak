@@ -15,8 +15,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Velocity
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.rememberScreenBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.BottomBarScrollState
-import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -236,7 +237,7 @@ fun rememberDisplayScrollBehaviorState(
     scrollToTopToggleThresholdPx: Float,
     hasFilter: Boolean,
 ): DisplayScrollBehaviorState {
-    val bottomBarState = rememberBottomBarScrollState()
+    val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.DISPLAY)
     val state = rememberSaveable(
         scrollToTopToggleThresholdPx,
         saver = DisplayScrollBehaviorState.saver(

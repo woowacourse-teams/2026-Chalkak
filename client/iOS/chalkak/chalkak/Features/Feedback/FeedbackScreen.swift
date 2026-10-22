@@ -2,14 +2,13 @@ import SwiftUI
 
 struct FeedbackScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
 
     @Bindable var viewModel: FeedbackViewModel
     let onDismiss: () -> Void
     let onSubmitted: () -> Void
     let onReauthenticationRequired: () -> Void
 
-    @State private var message: String?
-    @State private var messageDismissTask: Task<Void, Never>?
     @State private var inputFrame: CGRect = .zero
     @State private var submitButtonFrame: CGRect = .zero
     @State private var isKeyboardVisible = false
@@ -85,19 +84,6 @@ struct FeedbackScreen: View {
             .padding(.bottom, theme.spacing.lg)
             .background(theme.colors.background)
         }
-        .overlay(alignment: .bottom) {
-            if let message {
-                Text(message)
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .background(theme.colors.actionPrimary, in: Capsule())
-                    .padding(.bottom, Metrics.toastBottomPadding)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel(message)
-            }
-        }
         .contentShape(Rectangle())
         .coordinateSpace(name: "feedback.dismiss")
         .simultaneousGesture(dismissGesture)
@@ -109,9 +95,6 @@ struct FeedbackScreen: View {
         }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
-        }
-        .onDisappear {
-            messageDismissTask?.cancel()
         }
         .accessibilityIdentifier("feedbackScreen")
     }
@@ -131,17 +114,7 @@ struct FeedbackScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 
     private var dismissGesture: some Gesture {
@@ -171,7 +144,6 @@ private enum Metrics {
     static let contentBottomPadding: CGFloat = ChalkakSpacing.lg
     static let inputTopPadding: CGFloat = 28
     static let inputHeight: CGFloat = 240
-    static let toastBottomPadding: CGFloat = 96
 }
 
 #Preview("Feedback") {

@@ -170,6 +170,7 @@ struct ContentView: View {
                         onReauthenticationRequired: showLogin
                     )
                 }
+                .chalkakToastHost()
                 .interactiveDismissDisabled()
             }
         }
@@ -194,6 +195,7 @@ struct ContentView: View {
                         .chalkakNavigationBackground()
                     }
                 }
+                .chalkakToastHost()
                 .interactiveDismissDisabled(feedbackViewModel.viewState.isSubmitting)
             }
         }
@@ -218,19 +220,8 @@ struct ContentView: View {
                 await homeViewModel.resume()
             }
         }
-        .overlay(alignment: .bottom) {
-            if let message {
-                Text(message)
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .background(theme.colors.actionPrimary, in: Capsule())
-                    .padding(.bottom, ContentMetrics.messageBottomPadding)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel(message)
-            }
-        }
+        .chalkakToast(message)
+        .environment(\.chalkakShowToast, showMessage)
         .overlay {
             if let storeURL = appVersionGate.requiredUpdateStoreURL {
                 ChalkakConfirmDialog(
@@ -1176,7 +1167,6 @@ private extension ChalkakBottomBarItem {
 }
 
 private enum ContentMetrics {
-    static let messageBottomPadding: CGFloat = 32
 }
 
 #Preview {
