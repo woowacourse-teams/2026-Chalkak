@@ -1,17 +1,8 @@
 name: Public Web Pages CI
 
 on:
-  workflow_dispatch:
   push:
     branches:
-      - web/pages
-    paths:
-      - web-pages/**
-      - .github/workflows/web-pages-ci.yml
-      - .vercelignore
-  pull_request:
-    branches:
-      - main
       - web/pages
     paths:
       - web-pages/**
@@ -22,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

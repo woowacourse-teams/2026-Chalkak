@@ -7,7 +7,7 @@
   "trailingSlash": true,
   "git": {
     "deploymentEnabled": {
-      "web/**": true,
+      "web/pages": true,
       "**": false
     }
   },
