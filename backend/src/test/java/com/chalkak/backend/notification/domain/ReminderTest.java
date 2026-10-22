@@ -147,19 +147,15 @@ class ReminderTest {
 
     @ParameterizedTest
     @EnumSource(ReminderRepeat.class)
-    @DisplayName("반복 방식과 관계없이 현재보다 정확히 5분 전까지는 허용하고 그보다 과거는 거절한다")
-    void create_pastScheduledAtBoundary_acceptsUpToFiveMinutes(ReminderRepeat repeat) {
-        // Given
-        Instant fiveMinutesAgo = NOW.minus(Duration.ofMinutes(5));
-
+    @DisplayName("반복 방식과 관계없이 현재 시각부터는 허용하고 현재보다 과거는 거절한다")
+    void create_pastScheduledAtBoundary_acceptsFromNow(ReminderRepeat repeat) {
         // When & Then
-        assertThat(createScheduledAt(repeat, fiveMinutesAgo.plusSeconds(1)).getScheduledAt())
-                .isEqualTo(fiveMinutesAgo.plusSeconds(1));
-        assertThat(createScheduledAt(repeat, fiveMinutesAgo).getScheduledAt())
-                .isEqualTo(fiveMinutesAgo);
-        assertThatThrownBy(() -> createScheduledAt(repeat, fiveMinutesAgo.minusNanos(1)))
+        assertThat(createScheduledAt(repeat, NOW.plusSeconds(1)).getScheduledAt())
+                .isEqualTo(NOW.plusSeconds(1));
+        assertThat(createScheduledAt(repeat, NOW).getScheduledAt()).isEqualTo(NOW);
+        assertThatThrownBy(() -> createScheduledAt(repeat, NOW.minusNanos(1)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
     }
 
     @Test
@@ -258,7 +254,7 @@ class ReminderTest {
     }
 
     @Test
-    @DisplayName("시작일이 지난 매일 반복의 발송 시각을 5분 넘게 과거로 바꾸면 거절하고 기존 내용을 유지한다")
+    @DisplayName("시작일이 지난 매일 반복의 발송 시각을 과거로 바꾸면 거절하고 기존 내용을 유지한다")
     void update_dailyScheduleChangedToPast_throwsBusinessException() {
         // Given
         Reminder reminder = createScheduledAt(ReminderRepeat.DAILY, NOW);
@@ -274,7 +270,7 @@ class ReminderTest {
                 tenDaysLater
         ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
         assertThat(reminder.getTitle()).isEqualTo(TITLE);
         assertThat(reminder.getScheduledAt()).isEqualTo(NOW);
     }
@@ -296,7 +292,7 @@ class ReminderTest {
                 tenDaysLater
         ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
         assertThat(reminder.getRepeat()).isEqualTo(ReminderRepeat.DAILY);
     }
 

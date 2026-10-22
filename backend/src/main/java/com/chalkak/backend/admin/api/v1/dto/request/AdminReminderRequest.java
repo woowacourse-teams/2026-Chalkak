@@ -28,7 +28,7 @@ public record AdminReminderRequest(
 
         @NotNull
         @Schema(
-                description = "발송 시각. 매일 반복이면 첫 발송 날짜와 매일 보낼 시각입니다. 현재보다 5분 넘게 과거인 시각은 거절합니다.",
+                description = "발송 시각. 매일 반복이면 첫 발송 날짜와 매일 보낼 시각입니다. 현재보다 과거인 시각은 거절합니다.",
                 example = "2026-10-25T12:00:00Z")
         Instant scheduledAt
 ) {

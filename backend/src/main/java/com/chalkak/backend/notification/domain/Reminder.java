@@ -8,7 +8,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -29,7 +28,6 @@ public class Reminder {
 
     private static final int MAX_TITLE_LENGTH = 50;
     private static final int MAX_BODY_LENGTH = 500;
-    private static final Duration PAST_SCHEDULE_TOLERANCE = Duration.ofMinutes(5);
 
     @Id
     @Generated
@@ -126,8 +124,8 @@ public class Reminder {
         return deletedAt != null;
     }
 
-    // 회차 시각부터 30분 기한 안일 때만 보낸다. 지난 시각은 등록·일정 변경 때 5분까지만 허용하므로
-    // 마지막 수정 시각과 비교하지 않으며, 문구만 고쳐도 그날 회차는 그대로 보낸다.
+    // 회차 시각부터 30분 기한 안일 때만 보낸다. 등록·일정 변경 때 지난 시각을 거절하므로 이미 보낸 회차를
+    // 다시 지정할 수 없어 마지막 수정 시각과 비교하지 않으며, 문구만 고쳐도 그날 회차는 그대로 보낸다.
     public Instant findDueOccurrence(Instant now) {
         if (isDeleted()) {
             return null;
@@ -206,9 +204,9 @@ public class Reminder {
 
     // 발송 시각이 없으면 applyContent에서 필수 값으로 거절한다.
     private static void validateNotPast(Instant scheduledAt, Instant now) {
-        if (scheduledAt != null && scheduledAt.isBefore(now.minus(PAST_SCHEDULE_TOLERANCE))) {
+        if (scheduledAt != null && scheduledAt.isBefore(now)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                    "리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                    "리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
         }
     }
 }
