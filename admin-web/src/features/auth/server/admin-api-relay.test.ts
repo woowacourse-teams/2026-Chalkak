@@ -345,6 +345,8 @@ describe("admin write and path restrictions", () => {
     ["posts", "POST"], ["auth/login", "GET"], ["auth/me", "POST"],
     ["topics", "PATCH"], ["posts", "HEAD"], ["posts", "OPTIONS"],
     ["feedbacks", "POST"], ["feedbacks", "DELETE"],
+    ["ai-prompt-previews", "GET"], ["ai-prompt-versions", "DELETE"],
+    [`ai-prompt-versions/${resourceId}`, "PUT"], [`ai-prompt-versions/${resourceId}`, "DELETE"],
   ])("rejects unsupported method on %s: %s", async (path, method) => {
     const response = await relay(path, { method, cookie: token });
     expect(response.status).toBe(405);
@@ -358,11 +360,72 @@ describe("admin write and path restrictions", () => {
     [`users/${resourceId}/status`, "PATCH"], ["topics", "GET"], ["topics", "POST"],
     [`topics/${resourceId}`, "GET"], [`topics/${resourceId}`, "PUT"], [`topics/${resourceId}`, "DELETE"],
     ["audit-logs", "GET"], ["feedbacks", "GET"],
+    ["ai-prompt-previews", "POST"], ["ai-prompt-versions", "GET"], ["ai-prompt-versions", "POST"],
+    [`ai-prompt-versions/${resourceId}`, "GET"],
   ])("allows supported path %s: %s", async (path, method) => {
     fetchMock.mockResolvedValue(Response.json({ success: true }));
     const response = await relay(path, { method, cookie: token, body: method === "GET" ? undefined : { reason: "test" } });
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AI prompt relay", () => {
+  // Over the 64KB default, under the 256KB AI prompt limit.
+  const largeBody = { systemPrompt: "가".repeat(30_000) };
+
+  it.each(["ai-prompt-previews", "ai-prompt-versions"])("accepts a body above 64KB on POST %s", async (path) => {
+    fetchMock.mockResolvedValue(Response.json({ ok: true }));
+    const response = await relay(path, { method: "POST", cookie: token, body: largeBody });
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify(largeBody));
+  });
+
+  it.each(["ai-prompt-previews", "ai-prompt-versions"])("still rejects a body above 256KB on POST %s", async (path) => {
+    const response = await relay(path, { method: "POST", cookie: token, body: { systemPrompt: "가".repeat(100_000) } });
+    expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["topics", "banners", "notices"])("keeps the 64KB limit on POST %s", async (path) => {
+    const response = await relay(path, { method: "POST", cookie: token, body: largeBody });
+    expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("relays version queries and the upstream 400 message", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ promptVersions: [] }));
+    const list = await relay("ai-prompt-versions?type=PHOTO_REVIEW&page=1&pageSize=20", { cookie: token });
+    expect(await list.json()).toEqual({ promptVersions: [] });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${upstream}/ai-prompt-versions?type=PHOTO_REVIEW&page=1&pageSize=20`);
+    const error = { errorCode: "BUSINESS_ERROR", message: "허용되지 않은 모델입니다." };
+    fetchMock.mockResolvedValueOnce(Response.json(error, { status: 400 }));
+    const rejected = await relay("ai-prompt-previews", { method: "POST", cookie: token, body: {} });
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toEqual(error);
+  });
+
+  it("gives only the preview the long upstream timeout", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation((_url, options) => new Promise<Response>((_resolve, reject) => {
+      options?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }));
+
+    const preview = relay("ai-prompt-previews", { method: "POST", cookie: token, body: {} });
+    const version = relay("ai-prompt-versions", { method: "POST", cookie: token, body: {} });
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect((await version).status).toBe(504);
+    const [, previewOptions] = fetchMock.mock.calls[0];
+    expect(previewOptions?.signal?.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(61_999);
+    expect(previewOptions?.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const response = await preview;
+    expect(response.status).toBe(504);
+    expect(await response.json()).toEqual({
+      errorCode: "ADMIN_API_TIMEOUT", message: "관리자 서버 응답 시간이 초과되었습니다.",
+    });
   });
 });
 
@@ -616,6 +679,43 @@ describe("notice relay", () => {
     expect((await relay("notices", { method: "POST", cookie: token, omitOrigin: true })).status).toBe(403);
     expect((await relay(`notices/${resourceId}`, { method: "DELETE", cookie: token })).status).toBe(415);
     expect((await relay(`notices/${resourceId}`, { method: "PATCH", cookie: token })).status).toBe(405);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("banner relay", () => {
+  it("routes only banner list GET to the public backend path and forwards session auth", async () => {
+    fetchMock.mockResolvedValue(Response.json({ currentPage: 2, pageSize: 20, hasNext: false, banners: [] }));
+    const response = await relay("banners?page=2&pageSize=20", { cookie: token });
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith("https://backend.example.test/api/v1/banners?page=2&pageSize=20", expect.objectContaining({ method: "GET", cache: "no-store" }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+  });
+  it("posts banners to the admin backend path", async () => {
+    const body = { title: "제목", subtitle: "부제목", webViewUrl: "https://example.com/event", thumbnailUrl: "https://example.com/image.png" };
+    fetchMock.mockResolvedValue(Response.json({ id: resourceId, ...body }, { status: 201 }));
+    const response = await relay("banners", { method: "POST", body, cookie: token });
+    expect(response.status).toBe(201);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/banners`, expect.objectContaining({ method: "POST", body: JSON.stringify(body) }));
+  });
+  it("deletes banners without any upstream body or content type", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const response = await relay(`banners/${resourceId}`, { method: "DELETE", cookie: token });
+    expect(response.status).toBe(204);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/banners/${resourceId}`, expect.objectContaining({ method: "DELETE", body: undefined }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Content-Type")).toBeNull();
+  });
+  it("rejects delete bodies before contacting the backend", async () => {
+    expect((await relay(`banners/${resourceId}`, { method: "DELETE", body: { reason: "ignored" }, cookie: token })).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("requires the admin session even for the public upstream list", async () => {
+    expect((await relay("banners")).status).toBe(401); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("does not allow detail GET or update PUT", async () => {
+    expect((await relay(`banners/${resourceId}`, { cookie: token })).status).toBe(405);
+    expect((await relay(`banners/${resourceId}`, { method: "PUT", cookie: token, body: {} })).status).toBe(405);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
