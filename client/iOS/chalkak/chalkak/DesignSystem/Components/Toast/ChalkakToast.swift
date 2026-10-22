@@ -90,6 +90,6 @@ private enum ToastMetrics {
 }
 
 #Preview {
-    ChalkakToast(message: "사인반영까지 시간이 좀 걸릴 수 있어요!")
+    ChalkakToast(message: "사인 반영까지 시간이 좀 걸릴 수 있어요!")
         .chalkakTheme(.light)
 }

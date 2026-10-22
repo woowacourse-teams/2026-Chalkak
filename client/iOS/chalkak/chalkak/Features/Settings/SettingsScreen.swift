@@ -179,7 +179,7 @@ struct SettingsScreen: View {
             onSignatureScreenChange(nil)
             if didUpdateSignature {
                 didUpdateSignature = false
-                showMessage("사인반영까지 시간이 좀 걸릴 수 있어요!")
+                showMessage("사인 반영까지 시간이 좀 걸릴 수 있어요!")
             }
         }) {
             SignatureChangeFlow(

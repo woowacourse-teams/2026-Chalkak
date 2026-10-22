@@ -77,7 +77,7 @@ private struct ToastTrigger: View {
 
     var body: some View {
         Color.clear.onAppear {
-            showToast("사인반영까지 시간이 좀 걸릴 수 있어요!")
+            showToast("사인 반영까지 시간이 좀 걸릴 수 있어요!")
         }
     }
 }

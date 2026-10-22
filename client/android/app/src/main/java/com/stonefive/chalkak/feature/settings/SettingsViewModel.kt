@@ -59,7 +59,7 @@ class SettingsViewModel(
     }
 
     fun applySignatureUpdate(signatureUrl: String) {
-        val pendingMessage = nextToast("사인반영까지 시간이 좀 걸릴 수 있어요!")
+        val pendingMessage = nextToast("사인 반영까지 시간이 좀 걸릴 수 있어요!")
         _uiState.update {
             it.copy(
                 signatureUrl = signatureUrl,
