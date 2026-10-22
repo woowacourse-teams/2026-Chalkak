@@ -6,7 +6,7 @@ import XCTest
 final class FeedAIReviewRenderingTests: XCTestCase {
     func testFeedbackPresentationStates() async throws {
         for status in [AIReviewStatus.none, .processing, .completed] {
-            let repository = FeedReviewRenderingRepository(status: status)
+            let repository = FeedReviewRenderingRepository(status: status, fetchDelay: .milliseconds(150))
             let model = FeedViewModel(
                 postID: FeedPreviewData.content.post.id,
                 seed: FeedPreviewData.content,
@@ -15,16 +15,16 @@ final class FeedAIReviewRenderingTests: XCTestCase {
             )
             let aiModel = try XCTUnwrap(model.aiReview)
             let observation = Task { await aiModel.observe() }
-            for _ in 0..<1000 {
-                if !aiModel.isLoading { break }
-                await Task.yield()
-            }
+            defer { observation.cancel() }
+            try await waitFor("AI 리뷰 로딩이 완료되어야 합니다") { !aiModel.isLoading }
             XCTAssertEqual(aiModel.review?.status, status)
             XCTAssertFalse(aiModel.isLoading)
             observation.cancel()
             await observation.value
             let screen = FeedScreen(viewModel: model, usesPhotoTransition: false).chalkakTheme(.light)
-            try await capture(screen, name: "feed-\(status.rawValue.lowercased())", height: 852)
+            try await capture(screen, name: "feed-\(status.rawValue.lowercased())", height: 852) {
+                !aiModel.isLoading && aiModel.review?.status == status
+            }
             XCTAssertEqual(aiModel.review?.status, status)
             XCTAssertFalse(aiModel.isLoading)
             try await capture(
@@ -49,16 +49,36 @@ final class FeedAIReviewRenderingTests: XCTestCase {
         )
     }
 
-    private func capture(_ content: some View, name: String, height: CGFloat, expectsSheet: Bool = false) async throws {
-        let host = UIHostingController(rootView: content)
+    private func capture(
+        _ content: some View,
+        name: String,
+        height: CGFloat,
+        expectsSheet: Bool = false,
+        isContentReady: () -> Bool = { true }
+    ) async throws {
+        let host = FeedReviewCaptureHostingController(rootView: content)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 393, height: height)
         window.rootViewController = host
         window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        defer {
+            host.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
         host.view.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(expectsSheet ? 700 : 200))
+        try await waitFor("\(name): 화면과 콘텐츠가 표시되어야 합니다") {
+            host.hasAppeared && isContentReady()
+        }
+        if expectsSheet {
+            try await waitFor("\(name): 피드백 시트 표시가 완료되어야 합니다") {
+                guard let sheet = host.presentedViewController else { return false }
+                return sheet.viewIfLoaded?.window != nil && !sheet.isBeingPresented
+            }
+        }
         host.view.layoutIfNeeded()
         XCTAssertEqual(host.presentedViewController != nil, expectsSheet)
         let image = UIGraphicsImageRenderer(bounds: host.view.bounds).image { _ in
@@ -71,12 +91,40 @@ final class FeedAIReviewRenderingTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    private func waitFor(
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(5))
+        while !condition() && clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        // XCTest에 실패를 기록하고, 준비되지 않은 화면의 캡처는 중단한다.
+        _ = try XCTUnwrap(condition() ? true : nil, message, file: file, line: line)
+    }
+}
+
+@MainActor
+private final class FeedReviewCaptureHostingController<Content: View>: UIHostingController<Content> {
+    private(set) var hasAppeared = false
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        hasAppeared = true
+    }
 }
 
 private struct FeedReviewRenderingRepository: AIReviewRepository {
     let status: AIReviewStatus
+    var fetchDelay: Duration = .zero
+
     func fetchReview(postID: String) async throws -> AIReview {
-        AIReview(
+        try await Task.sleep(for: fetchDelay)
+        return AIReview(
             status: status, requestedAt: nil, completedAt: nil, canRequestAgain: status != .completed,
             result: status == .completed ? Self.result : nil
         )
