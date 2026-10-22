@@ -181,7 +181,7 @@ class HomeAiReviewTest {
     }
 
     @Test
-    fun `active polling GET failure stops polling and retains processing`() = runTest {
+    fun `active polling network failure retains processing and keeps polling`() = runTest {
         val ai = FakeAiReviewRepository().apply {
             getResults += success(AiReview.Status.PROCESSING)
             requestResults += success(AiReview.Status.PROCESSING)
@@ -197,6 +197,28 @@ class HomeAiReviewTest {
         runCurrent()
         assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
         assertTrue(viewModel.uiState.value.feedbackMessage != null)
+        val calls = ai.getPostIds.size
+        advanceTimeBy(HomeViewModel.FEEDBACK_POLL_INTERVAL_MS * 2)
+        runCurrent()
+        assertEquals(calls + 2, ai.getPostIds.size)
+    }
+
+    @Test
+    fun `active polling unauthorized failure stops polling`() = runTest {
+        val ai = FakeAiReviewRepository().apply {
+            getResults += success(AiReview.Status.PROCESSING)
+            requestResults += success(AiReview.Status.PROCESSING)
+            getResults += failure(AiReviewFailure.Http(401, null, null))
+        }
+        val viewModel = createViewModel(ai)
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        viewModel.startFeedback()
+        runCurrent()
+        advanceTimeBy(HomeViewModel.FEEDBACK_POLL_INTERVAL_MS)
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
         val calls = ai.getPostIds.size
         advanceTimeBy(HomeViewModel.FEEDBACK_POLL_INTERVAL_MS * 2)
         runCurrent()

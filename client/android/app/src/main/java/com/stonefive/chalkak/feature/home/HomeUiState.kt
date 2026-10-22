@@ -4,6 +4,7 @@ import com.stonefive.chalkak.domain.model.AiReviewContent
 import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.feature.aireview.AiReviewPhase
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -42,12 +43,7 @@ val HomeUiState.showsFeedback: Boolean
     get() = (hero as? HomeHeroState.Photo)?.isPending == false && feedbackPhase != HomeFeedbackPhase.Hidden
 
 // FAILED 및 조회 전 상태는 별도 UI를 추가하지 않고 카드를 숨긴다.
-enum class HomeFeedbackPhase {
-    Hidden,
-    Ready,
-    Processing,
-    Completed,
-}
+typealias HomeFeedbackPhase = AiReviewPhase
 
 enum class HomeSectionStatus {
     Loading,

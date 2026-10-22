@@ -64,6 +64,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.home.component.HomeFeedbackCard
 import com.stonefive.chalkak.feature.home.component.HomeFeedbackStartSheet
 import com.stonefive.chalkak.feature.home.component.HomeHeroCard
@@ -250,12 +251,14 @@ private fun HomeFeedbackStartBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        dragHandle = null,
         // 화면 아래 끝과 좌우를 꽉 채우도록 위쪽 모서리만 둥글게 하고 기본 최대 너비(640dp) 제한을 푼다.
         sheetMaxWidth = Dp.Unspecified,
         shape = ChalkakTheme.shapes.sheet
             .copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize),
         containerColor = ChalkakTheme.colors.surfaceElevated,
     ) {
+        AiReviewSheetDragHandle(sheetState = sheetState, onDismiss = onDismiss, modifier = Modifier.fillMaxWidth())
         HomeFeedbackStartSheet(
             onStart = {
                 // 시트가 내려가는 애니메이션을 마친 뒤 닫힌 상태로 바꿔야 시트가 뚝 끊기지 않는다.

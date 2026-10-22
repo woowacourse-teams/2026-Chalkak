@@ -24,11 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -57,12 +60,15 @@ fun FeedPhoto(
     modifier: Modifier = Modifier,
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    onPhotoBoundsChanged: (Rect) -> Unit = {},
 ) {
     val postId = post?.id ?: entryPostId ?: return
     val entrySnapshot = LocalPhotoTransitionCoordinator.current.selectedSnapshot(postId)
     Column(modifier = modifier) {
         ZoomableFeedPhotoSurface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().onGloballyPositioned {
+                onPhotoBoundsChanged(it.boundsInWindow())
+            },
             resetKey = postId,
         ) {
             if (entrySnapshot != null || entryThumbnailImageUrl != null) {
