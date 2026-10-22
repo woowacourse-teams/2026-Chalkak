@@ -4,6 +4,7 @@ struct AIReviewStartSheet: View {
     @Environment(\.chalkakTheme) private var theme
 
     let onStart: () -> Void
+    var title = "AI 피드백을 시작할까요?"
     var durationNote = "결과가 나오기까지 몇 분 정도 소요될 수 있어요"
     var completionNote = "분석이 끝나면 알림으로 알려드릴게요"
     var completionSymbol = "bell"
@@ -11,7 +12,7 @@ struct AIReviewStartSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
-            Text("AI 피드백을 시작할까요?")
+            Text(title)
                 .font(theme.typography.title3)
                 .foregroundStyle(theme.colors.textPrimary)
 

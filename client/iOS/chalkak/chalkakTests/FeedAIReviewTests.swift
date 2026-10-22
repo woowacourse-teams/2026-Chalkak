@@ -37,6 +37,27 @@ struct FeedAIReviewTests {
         await observer.value
     }
 
+    @Test("실패 버튼과 이유는 재요청 가능 여부와 날짜에 따라 달라진다", arguments: [
+        (true, false, "AI 피드백 재요청", nil as String?),
+        (false, false, "AI 피드백 실패", "이 사진은 더 이상 AI 피드백을 요청할 수 없어요."),
+        (true, true, "AI 피드백 재요청", "AI 피드백은 오늘 올린 사진만 재요청할 수 있어요."),
+        (false, true, "AI 피드백 실패", "이 사진은 더 이상 AI 피드백을 요청할 수 없어요."),
+    ])
+    func failureCopy(canRequestAgain: Bool, isPast: Bool, title: String, reason: String?) async {
+        let repository = FeedReviewProbe(status: .failed, canRequestAgain: canRequestAgain)
+        let model = FeedAIReviewViewModel(
+            postID: "post", repository: repository, topicDate: isPast ? .distantPast : Date(),
+            sleep: { _ in try await Task.sleep(for: .seconds(3600)) }
+        )
+        let observer = Task { await model.observe() }
+        await wait { !model.isLoading }
+        #expect(model.buttonTitle == title)
+        #expect(model.failureReason == reason)
+        #expect(model.canRequest == (canRequestAgain && !isPast))
+        observer.cancel()
+        await observer.value
+    }
+
     @Test("재진입 시 완료 결과를 GET으로 갱신하고 자동 요청하지 않는다")
     func reentryFetchesCompletion() async {
         let repository = FeedReviewProbe(status: .processing)
