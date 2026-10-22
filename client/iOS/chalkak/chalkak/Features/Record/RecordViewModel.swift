@@ -14,28 +14,36 @@ final class RecordViewModel {
     private let monthProvider: MonthProvider
     private let calendarHandler: CalendarHandler
     private let monthListHandler: MonthListHandler
+    private var initialDate: Date?
     private var generation = 0
     private var isRevalidating = false
     private var shouldRetryMonthList = false
 
     init(
         initialState: RecordViewState? = nil,
+        initialDate: Date? = nil,
         monthProvider: @escaping MonthProvider = { .current() },
         monthListHandler: @escaping MonthListHandler = { .success([]) },
         calendarHandler: @escaping CalendarHandler = { _ in .failure(.generic) }
     ) {
         let latestMonth = monthProvider()
-        self.viewState = initialState ?? RecordViewState(month: latestMonth, latestMonth: latestMonth)
+        self.initialDate = initialDate
+        self.viewState = initialState ?? RecordViewState(
+            month: initialDate.map { RecordMonth.current(now: $0) } ?? latestMonth,
+            latestMonth: latestMonth
+        )
         self.monthProvider = monthProvider
         self.calendarHandler = calendarHandler
         self.monthListHandler = monthListHandler
     }
 
     convenience init(
+        initialDate: Date? = nil,
         monthProvider: @escaping MonthProvider = { .current() },
         apiClient: RecordAPIClient
     ) {
         self.init(
+            initialDate: initialDate,
             monthProvider: monthProvider,
             monthListHandler: {
                 do {
@@ -70,7 +78,7 @@ final class RecordViewModel {
             guard requestGeneration == generation else { return }
             shouldRetryMonthList = false
             let availableMonths = monthsIncludingCurrent(months)
-            let initialMonth = monthProvider()
+            let initialMonth = initialDate.map { RecordMonth.current(now: $0) } ?? monthProvider()
             viewState.availableMonths = availableMonths
             await loadCalendar(month: initialMonth)
         case .failure:
@@ -183,13 +191,24 @@ final class RecordViewModel {
 
         switch result {
         case let .success(calendar):
+            let selectedDate: Date?
+            if let requestedDate = initialDate {
+                selectedDate = calendar.posts.first {
+                    RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: requestedDate)
+                }?.topicDate
+                initialDate = nil
+            } else {
+                selectedDate = previousState?.selectedDate.flatMap { date in
+                    calendar.posts.first { RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: date) }?.topicDate
+                } ?? calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate
+            }
             viewState = RecordViewState(
                 contentStatus: .loaded,
                 month: calendar.month,
                 latestMonth: latestMonth,
                 availableMonths: availableMonths,
                 posts: calendar.posts,
-                selectedDate: calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate
+                selectedDate: selectedDate
             )
         case let .failure(error):
             if var previousState {
@@ -211,6 +230,7 @@ final class RecordViewModel {
     }
 
     private func monthsIncludingCurrent(_ months: [RecordMonth]) -> [RecordMonth] {
-        Array(Set(months + [monthProvider()])).sorted(by: >)
+        let requestedMonths = initialDate.map { [RecordMonth.current(now: $0)] } ?? []
+        return Array(Set(months + [monthProvider()] + requestedMonths)).sorted(by: >)
     }
 }

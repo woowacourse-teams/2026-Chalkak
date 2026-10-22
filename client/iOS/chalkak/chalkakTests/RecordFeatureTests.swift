@@ -105,6 +105,60 @@ struct RecordViewModelTests {
         #expect(viewModel.viewState.posts.isEmpty)
     }
 
+    @Test("홈에서 선택한 이전 월 날짜를 최신 사진보다 우선 선택하고 재검증에도 유지한다")
+    func weeklyRecordOpensRequestedMonthAndDate() async {
+        let current = RecordMonth(year: 2026, month: 10)
+        let previous = current.adding(months: -1)
+        let selected = Self.post(id: "selected", day: 29, month: previous)
+        let latest = Self.post(id: "latest", day: 30, month: previous)
+        let model = RecordViewModel(
+            initialDate: selected.topicDate.addingTimeInterval(3600),
+            monthProvider: { current },
+            monthListHandler: { .success([previous]) },
+            calendarHandler: { month in
+                #expect(month == previous)
+                return .success(RecordCalendar(month: month, posts: [selected, latest]))
+            }
+        )
+        await model.load()
+        #expect(model.viewState.month == previous)
+        #expect(model.viewState.selectedPost == selected)
+        await model.revalidate()
+        #expect(model.viewState.selectedPost == selected)
+    }
+
+    @Test("주간 기록의 선택 날짜가 삭제됐다면 다른 날짜의 사진을 대신 열지 않는다")
+    func missingRequestedDateDoesNotOpenAnotherPhoto() async {
+        let month = RecordMonth(year: 2026, month: 10)
+        let other = Self.post(id: "other", day: 2, month: month)
+        let model = RecordViewModel(
+            initialDate: month.date(day: 1),
+            monthProvider: { month },
+            calendarHandler: { .success(RecordCalendar(month: $0, posts: [other])) }
+        )
+        await model.load()
+        #expect(model.viewState.selectedPost == nil)
+    }
+
+    @Test("주간 기록 조회 실패 후 재시도에도 요청 날짜를 선택한다")
+    func retryKeepsRequestedDate() async {
+        let month = RecordMonth(year: 2026, month: 10)
+        let selected = Self.post(id: "selected", day: 1, month: month)
+        var shouldFail = true
+        let model = RecordViewModel(
+            initialDate: selected.topicDate,
+            monthProvider: { month },
+            calendarHandler: { month in
+                if shouldFail { return .failure(.network) }
+                return .success(RecordCalendar(month: month, posts: [selected]))
+            }
+        )
+        await model.load()
+        shouldFail = false
+        await model.retry()
+        #expect(model.viewState.selectedPost == selected)
+    }
+
     private static func post(id: String, day: Int, month: RecordMonth) -> RecordPost {
         RecordPost(
             postId: id,

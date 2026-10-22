@@ -6,6 +6,7 @@ import Observation
 final class HomeViewModel {
     private(set) var viewState: HomeViewState
     private(set) var scrollToTopRequestID = 0
+    private(set) var scrollOffset: CGFloat = 0
     private let loader: HomeDataLoader
     private let dateProvider: @MainActor () -> Date
     private let isAuthenticated: @MainActor () -> Bool
@@ -35,7 +36,12 @@ final class HomeViewModel {
         await load(showRefreshIndicator: true)
     }
 
+    func saveScrollOffset(_ offset: CGFloat) {
+        scrollOffset = max(0, offset)
+    }
+
     func scrollToTop() {
+        scrollOffset = 0
         scrollToTopRequestID += 1
     }
 
