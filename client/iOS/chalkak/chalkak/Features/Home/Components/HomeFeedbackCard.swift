@@ -45,6 +45,11 @@ struct HomeFeedbackCard: View {
                             .frame(width: Metrics.iconSize, height: Metrics.iconSize)
                             .accessibilityHidden(true)
                     } else {
+                        if phase == .failed(canRequestAgain: true) && !isSubmitting {
+                            Text("다시 요청")
+                                .font(theme.typography.footnote)
+                                .foregroundStyle(theme.colors.textSecondary)
+                        }
                         AudioWaveIcon(isAnimating: phase == .processing)
                             .frame(width: Metrics.audioIconSize, height: Metrics.audioIconSize)
                             .background(theme.colors.actionPrimary, in: Circle())
@@ -58,7 +63,11 @@ struct HomeFeedbackCard: View {
             }
             .buttonStyle(HomeFeedbackHeaderButtonStyle())
             .disabled(isDisabled)
-            .accessibilityLabel(title)
+            .accessibilityLabel(
+                phase == .failed(canRequestAgain: true) && !isSubmitting
+                    ? "\(title), 다시 요청"
+                    : title
+            )
             .accessibilityValue(phase == .completed ? (isExpanded ? "펼쳐짐" : "접힘") : "")
 
             if pollingTimedOut {
@@ -105,8 +114,7 @@ struct HomeFeedbackCard: View {
         case .loading: "AI 피드백 상태를 확인하고 있어요"
         case .unavailable: "AI 피드백을 확인할 수 없는 게시물이에요"
         case .loadError: "AI 피드백 상태 다시 확인"
-        case .failed(canRequestAgain: true): "다시 요청"
-        case .failed(canRequestAgain: false): "AI 피드백을 생성하지 못했어요"
+        case .failed: "AI 피드백을 생성하지 못했어요"
         case .ready: "이 사진, AI에게 피드백 받아보기"
         case .processing: "AI 피드백이 진행중이에요"
         case .completed: "AI 피드백이 완료되었어요"
@@ -327,6 +335,8 @@ private enum Metrics {
 
 #Preview("Feedback states") {
     VStack(spacing: ChalkakSpacing.lg) {
+        HomeFeedbackCard(phase: .failed(canRequestAgain: true), isExpanded: false, onStart: {}, onToggleExpanded: {})
+        HomeFeedbackCard(phase: .failed(canRequestAgain: false), isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .ready, isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .processing, isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .completed, isExpanded: true, onStart: {}, onToggleExpanded: {}, result: HomePreviewData.aiReviewResult)
