@@ -15,7 +15,11 @@ class TopicTest {
     private static final Instant NOW = Instant.parse("2026-08-28T03:00:00Z");
     private static final Instant STARTS_AT = Instant.parse("2026-08-29T15:00:00Z");
     private static final Instant ENDS_AT = Instant.parse("2026-08-30T15:00:00Z");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2026, 8, 30);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2026,
+            8,
+            30
+    );
 
     @Test
     @DisplayName("공개 전 제목과 날짜·참여 기간으로 주제를 생성한다")
@@ -49,7 +53,11 @@ class TopicTest {
     void create_startedPeriod_throwsBusinessException() {
         assertThatThrownBy(() -> Topic.create(
                 "오늘의 주제",
-                LocalDate.of(2026, 8, 28),
+                LocalDate.of(
+                        2026,
+                        8,
+                        28
+                ),
                 new ParticipationPeriod(NOW, NOW.plusSeconds(3600)),
                 NOW
         )).isInstanceOf(BusinessException.class);

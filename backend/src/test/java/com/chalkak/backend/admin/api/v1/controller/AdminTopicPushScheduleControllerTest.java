@@ -67,8 +67,12 @@ class AdminTopicPushScheduleControllerTest {
         // Given
         Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
         given(scheduleService.getSchedules()).willReturn(List.of(
-                new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(9, 0),
-                        createdAt, createdAt)));
+                new TopicPushScheduleResult(
+                        SCHEDULE_ID,
+                        LocalTime.of(9, 0),
+                        createdAt,
+                        createdAt
+                )));
 
         // When & Then
         mockMvc.perform(get(PATH))
@@ -98,8 +102,12 @@ class AdminTopicPushScheduleControllerTest {
         // Given
         Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
         given(scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)))
-                .willReturn(new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(9, 0),
-                        createdAt, createdAt));
+                .willReturn(new TopicPushScheduleResult(
+                        SCHEDULE_ID,
+                        LocalTime.of(9, 0),
+                        createdAt,
+                        createdAt
+                ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -150,9 +158,17 @@ class AdminTopicPushScheduleControllerTest {
         // Given
         Instant createdAt = Instant.parse("2026-10-08T05:00:00Z");
         Instant updatedAt = Instant.parse("2026-10-11T05:00:00Z");
-        given(scheduleService.updateSchedule(SCHEDULE_ID, ADMIN_ID, LocalTime.of(18, 30)))
-                .willReturn(new TopicPushScheduleResult(SCHEDULE_ID, LocalTime.of(18, 30),
-                        createdAt, updatedAt));
+        given(scheduleService.updateSchedule(
+                SCHEDULE_ID,
+                ADMIN_ID,
+                LocalTime.of(18, 30)
+        ))
+                .willReturn(new TopicPushScheduleResult(
+                        SCHEDULE_ID,
+                        LocalTime.of(18, 30),
+                        createdAt,
+                        updatedAt
+                ));
 
         // When & Then
         mockMvc.perform(put(PATH + "/" + SCHEDULE_ID).contentType(MediaType.APPLICATION_JSON)
@@ -191,7 +207,11 @@ class AdminTopicPushScheduleControllerTest {
     @DisplayName("없는 설정의 수정은 404로 응답한다")
     void updateSchedule_missingSchedule_returnsNotFound() throws Exception {
         // Given
-        given(scheduleService.updateSchedule(SCHEDULE_ID, ADMIN_ID, LocalTime.of(9, 0)))
+        given(scheduleService.updateSchedule(
+                SCHEDULE_ID,
+                ADMIN_ID,
+                LocalTime.of(9, 0)
+        ))
                 .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "주제 푸시 설정을 찾을 수 없습니다."));
 
         // When & Then
@@ -205,7 +225,11 @@ class AdminTopicPushScheduleControllerTest {
     @DisplayName("다른 설정과 중복되는 수정은 400으로 응답한다")
     void updateSchedule_duplicateTime_returnsBusinessError() throws Exception {
         // Given
-        given(scheduleService.updateSchedule(SCHEDULE_ID, ADMIN_ID, LocalTime.of(9, 0)))
+        given(scheduleService.updateSchedule(
+                SCHEDULE_ID,
+                ADMIN_ID,
+                LocalTime.of(9, 0)
+        ))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "해당 시각의 주제 푸시 설정이 이미 존재합니다."));
 

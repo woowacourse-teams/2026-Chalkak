@@ -86,10 +86,13 @@ class NotificationPublicationMonitorTest extends IntegrationTestSupport {
     void logBacklog_mixedStates_countsOnlyPendingIncludingExpired() {
         // Given
         for (PublishStatus status : PublishStatus.values()) {
-            Notification notification = Notification.approved(userId, UUID.randomUUID(),
+            Notification notification = Notification.approved(
+                    userId,
+                    UUID.randomUUID(),
                     UUID.randomUUID(),
                     NOW.minusSeconds(status == PublishStatus.PENDING ? 2500 : 3000),
-                    status != PublishStatus.NOT_REQUIRED);
+                    status != PublishStatus.NOT_REQUIRED
+            );
             if (status == PublishStatus.PUBLISHED) {
                 notification.markPublished(NOW);
             }
@@ -101,8 +104,13 @@ class NotificationPublicationMonitorTest extends IntegrationTestSupport {
             }
             repository.save(notification);
         }
-        Notification retrying = Notification.approved(userId, UUID.randomUUID(), UUID.randomUUID(),
-                NOW.minusSeconds(20), true);
+        Notification retrying = Notification.approved(
+                userId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NOW.minusSeconds(20),
+                true
+        );
         retrying.retryPublication(NOW);
         repository.save(retrying);
         entityManager.flush();
@@ -123,8 +131,13 @@ class NotificationPublicationMonitorTest extends IntegrationTestSupport {
     @DisplayName("생성 시각 직전·정각·직후에도 대기 나이가 음수가 되지 않는다")
     void logBacklog_creationBoundary_logsNonNegativeAge(long age) {
         // Given
-        repository.save(Notification.approved(userId, UUID.randomUUID(), UUID.randomUUID(),
-                NOW.minusSeconds(age), true));
+        repository.save(Notification.approved(
+                userId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NOW.minusSeconds(age),
+                true
+        ));
         entityManager.flush();
         entityManager.clear();
 

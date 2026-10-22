@@ -30,13 +30,15 @@ class AdminUserOpenApiTest extends IntegrationTestSupport {
                                 "email",
                                 "sort",
                                 "page",
-                                "pageSize")))
+                                "pageSize"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users'].get"
                         + ".parameters[?(@.name == 'status')].schema.enum")
                         .value(hasItem(containsInAnyOrder(
                                 "ACTIVE",
                                 "BANNED",
-                                "WITHDRAWN"))))
+                                "WITHDRAWN"
+                        ))))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}'].get"
                         + ".parameters[?(@.name == 'userId')].schema.format")
                         .value(containsInAnyOrder("uuid")))

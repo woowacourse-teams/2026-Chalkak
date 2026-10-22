@@ -56,6 +56,7 @@ class PostControllerTest {
 
     private static final String USER_ID_VALUE = "0198f6c1-62ba-7d30-8b12-0f733b6570a1";
     private static final UUID USER_ID = UUID.fromString(USER_ID_VALUE);
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b2");
     private static final UUID PHOTO_UPLOAD_ID = UUID
@@ -76,7 +77,11 @@ class PostControllerTest {
     @DisplayName("특정 날짜의 게시물 목록을 기본 조회 조건으로 조회한다")
     void getPosts_validTopicDate_returnsPostList() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                8,
+                12
+        );
         PostListResult result = new PostListResult(
                 1,
                 20,
@@ -84,6 +89,7 @@ class PostControllerTest {
                 null,
                 List.of(new PostListResult.PostSummary(
                         POST_ID,
+                        AUTHOR_ID,
                         "https://cdn.example.com/dev/posts/original.jpg",
                         "https://cdn.example.com/dev/posts/thumbnail.jpg",
                         "https://cdn.example.com/dev/signatures/signature.png",
@@ -92,14 +98,17 @@ class PostControllerTest {
                         Instant.parse("2026-08-12T03:30:00Z"),
                         43L,
                         false,
-                        false)));
+                        false
+                ))
+        );
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
                 1,
                 20,
-                Optional.empty()))
+                Optional.empty()
+        ))
                 .willReturn(result);
 
         // When & Then
@@ -114,6 +123,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.randomSeed").value(nullValue()))
                 .andExpect(jsonPath("$.topic").doesNotExist())
                 .andExpect(jsonPath("$.posts[0].id").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.posts[0].authorId").value(AUTHOR_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].originalImageUrl")
                         .value("https://cdn.example.com/dev/posts/original.jpg"))
                 .andExpect(jsonPath("$.posts[0].thumbnailImageUrl")
@@ -135,7 +145,11 @@ class PostControllerTest {
     @DisplayName("로그인 사용자는 게시물 목록에서 자신의 좋아요 여부를 조회한다")
     void getPosts_authenticatedUser_returnsPersonalLikeStatus() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                8,
+                12
+        );
         PostListResult result = new PostListResult(
                 1,
                 20,
@@ -143,6 +157,7 @@ class PostControllerTest {
                 null,
                 List.of(new PostListResult.PostSummary(
                         POST_ID,
+                        USER_ID,
                         "https://cdn.example.com/dev/posts/original.jpg",
                         "https://cdn.example.com/dev/posts/thumbnail.jpg",
                         "https://cdn.example.com/dev/signatures/signature.png",
@@ -151,19 +166,23 @@ class PostControllerTest {
                         Instant.parse("2026-08-12T03:30:00Z"),
                         43L,
                         true,
-                        true)));
+                        true
+                ))
+        );
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RECENT,
                 null,
                 1,
                 20,
-                Optional.of(USER_ID))).willReturn(result);
+                Optional.of(USER_ID)
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
                 .queryParam("topicDate", "2026-08-12"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].authorId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].likeCount").value(43L))
                 .andExpect(jsonPath("$.posts[0].isLiked").value(true))
                 .andExpect(jsonPath("$.posts[0].isMine").value(true));
@@ -173,20 +192,26 @@ class PostControllerTest {
     @DisplayName("소문자 랜덤 정렬 파라미터를 enum으로 변환한다")
     void getPosts_randomSort_bindsPostSortEnum() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                8,
+                12
+        );
         PostListResult result = new PostListResult(
                 1,
                 20,
                 false,
                 "f4c3a091",
-                List.of());
+                List.of()
+        );
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 null,
                 1,
                 20,
-                Optional.empty()))
+                Optional.empty()
+        ))
                 .willReturn(result);
 
         // When & Then
@@ -201,15 +226,26 @@ class PostControllerTest {
     @DisplayName("소문자 인기순 정렬 파라미터를 enum으로 변환한다")
     void getPosts_popularSort_bindsPostSortEnum() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 8, 12);
-        PostListResult result = new PostListResult(1, 20, false, null, List.of());
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                8,
+                12
+        );
+        PostListResult result = new PostListResult(
+                1,
+                20,
+                false,
+                null,
+                List.of()
+        );
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.POPULAR,
                 null,
                 1,
                 20,
-                Optional.empty())).willReturn(result);
+                Optional.empty()
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
@@ -223,20 +259,26 @@ class PostControllerTest {
     @DisplayName("랜덤 다음 페이지 조회 조건을 서비스에 전달한다")
     void getPosts_randomNextPage_passesQueryParameters() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 8, 12);
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                8,
+                12
+        );
         PostListResult result = new PostListResult(
                 2,
                 100,
                 false,
                 "f4c3a091",
-                List.of());
+                List.of()
+        );
         given(postQueryService.getPosts(
                 topicDate,
                 PostSort.RANDOM,
                 "f4c3a091",
                 2,
                 100,
-                Optional.empty())).willReturn(result);
+                Optional.empty()
+        )).willReturn(result);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts")
@@ -342,22 +384,30 @@ class PostControllerTest {
         // Given
         PostDetail detail = new PostDetail(
                 POST_ID,
+                AUTHOR_ID,
                 new PostDetail.TopicDetail(
                         TOPIC_ID,
                         "오늘 가장 기억에 남은 순간",
-                        LocalDate.of(2026, 8, 12)),
+                        LocalDate.of(
+                                2026,
+                                8,
+                                12
+                        )
+                ),
                 "https://cdn.example.com/dev/posts/original.jpg",
                 "https://cdn.example.com/dev/posts/thumbnail.jpg",
                 "https://cdn.example.com/dev/signatures/signature.png",
                 "오늘의 순간",
                 43L,
-                true);
+                true
+        );
         given(postQueryService.getPost(POST_ID, USER_ID)).willReturn(detail);
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.authorId").value(AUTHOR_ID.toString()))
                 .andExpect(jsonPath("$.topic.id").value(TOPIC_ID.toString()))
                 .andExpect(jsonPath("$.topic.title").value("오늘 가장 기억에 남은 순간"))
                 .andExpect(jsonPath("$.topic.topicDate").value("2026-08-12"))
@@ -435,7 +485,8 @@ class PostControllerTest {
                         UPLOAD_URL,
                         300L,
                         "image/webp",
-                        5_242_880L));
+                        5_242_880L
+                ));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts/uploads"))
@@ -469,7 +520,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록")).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+                "오늘의 기록"
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
         mockMvc.perform(post("/api/v1/posts")
@@ -489,7 +541,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록");
+                "오늘의 기록"
+        );
     }
 
     @Test
@@ -497,7 +550,11 @@ class PostControllerTest {
     @DisplayName("인증된 사용자가 게시물 제목을 수정하면 200과 수정 정보를 반환한다")
     void updatePost_validRequest_returnsUpdatedPost() throws Exception {
         // Given
-        given(postCommandService.updatePost(USER_ID, POST_ID, "수정한 제목"))
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목"
+        ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
                         "수정한 제목"));
@@ -515,7 +572,11 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.title").value("수정한 제목"))
                 .andExpect(jsonPath("$.moderationStatus").doesNotExist());
 
-        then(postCommandService).should().updatePost(USER_ID, POST_ID, "수정한 제목");
+        then(postCommandService).should().updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목"
+        );
     }
 
     @Test
@@ -523,7 +584,11 @@ class PostControllerTest {
     @DisplayName("제목에 명시적인 null을 보내면 제목 삭제 결과를 반환한다")
     void updatePost_nullTitle_returnsDeletedTitle() throws Exception {
         // Given
-        given(postCommandService.updatePost(USER_ID, POST_ID, null))
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                null
+        ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
                         null));
@@ -541,7 +606,11 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.title").value(nullValue()))
                 .andExpect(jsonPath("$.moderationStatus").doesNotExist());
 
-        then(postCommandService).should().updatePost(USER_ID, POST_ID, null);
+        then(postCommandService).should().updatePost(
+                USER_ID,
+                POST_ID,
+                null
+        );
     }
 
     @Test
@@ -763,7 +832,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle))
+                paddedTitle
+        ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
@@ -775,14 +845,19 @@ class PostControllerTest {
                           "photoUploadId": "%s",
                           "title": "%s"
                         }
-                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, paddedTitle)))
+                        """.formatted(
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        paddedTitle
+                )))
                 .andExpect(status().isCreated());
 
         then(postCommandService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle);
+                paddedTitle
+        );
     }
 
     @Test
@@ -795,7 +870,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle))
+                emojiTitle
+        ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
@@ -808,14 +884,19 @@ class PostControllerTest {
                           "photoUploadId": "%s",
                           "title": "%s"
                         }
-                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, emojiTitle)))
+                        """.formatted(
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        emojiTitle
+                )))
                 .andExpect(status().isCreated());
 
         then(postCommandService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle);
+                emojiTitle
+        );
     }
 
     @Test
@@ -828,7 +909,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle))
+                blankTitle
+        ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
@@ -840,14 +922,19 @@ class PostControllerTest {
                           "photoUploadId": "%s",
                           "title": "%s"
                         }
-                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID, blankTitle)))
+                        """.formatted(
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        blankTitle
+                )))
                 .andExpect(status().isCreated());
 
         then(postCommandService).should().createPost(
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle);
+                blankTitle
+        );
     }
 
     @Test
@@ -855,13 +942,18 @@ class PostControllerTest {
     @DisplayName("이미 작성한 게시물이 있으면 게시물 정보와 함께 작성함을 반환한다")
     void getMyTodayPostStatus_posted_returnsPostedStatus() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 9, 9);
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                9,
+                9
+        );
         given(postQueryService.getMyTodayPostStatus(USER_ID))
                 .willReturn(new TodayPostStatus(
                         topicDate,
                         true,
                         POST_ID,
-                        ModerationStatus.PENDING));
+                        ModerationStatus.PENDING
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/today"))
@@ -877,7 +969,11 @@ class PostControllerTest {
     @DisplayName("작성한 게시물이 없으면 게시물 정보를 비운 채 미작성을 반환한다")
     void getMyTodayPostStatus_notPosted_returnsNullPostFields() throws Exception {
         // Given
-        LocalDate topicDate = LocalDate.of(2026, 9, 9);
+        LocalDate topicDate = LocalDate.of(
+                2026,
+                9,
+                9
+        );
         given(postQueryService.getMyTodayPostStatus(USER_ID))
                 .willReturn(TodayPostStatus.notPosted(topicDate));
 
@@ -932,10 +1028,16 @@ class PostControllerTest {
                         8,
                         List.of(
                                 new PostCalendarResult.PostSummary(
-                                        LocalDate.of(2026, 8, 12),
+                                        LocalDate.of(
+                                                2026,
+                                                8,
+                                                12
+                                        ),
                                         POST_ID,
                                         "https://cdn.example.com/posts/calendar.webp",
-                                        moderationStatus))));
+                                        moderationStatus
+                                ))
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")
@@ -959,7 +1061,11 @@ class PostControllerTest {
     void getMyPostCalendar_noPosts_returnsEmptyResults() throws Exception {
         // Given
         given(postQueryService.getMyPostCalendar(USER_ID, YearMonth.of(2026, 8)))
-                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+                .willReturn(new PostCalendarResult(
+                        2026,
+                        8,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts/calendar")

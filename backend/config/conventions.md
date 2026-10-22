@@ -6,19 +6,23 @@ AI의 판단 규칙은 Skill에, 기계적으로 확인할 규칙은 아래 설�
 | 담당 | 규칙 원본 | 이번에 자동화한 범위 |
 | --- | --- | --- |
 | Spotless | [Gradle 설정](../build.gradle.kts), [포맷 설정](formatter/eclipse-java.xml) | 4칸 들여쓰기, 이어지는 줄 8칸, 같은 줄의 여는 중괄호, LF·끝 개행·후행 공백·불필요한 import |
+| JavaLayout | [검사기](../scripts/CheckJavaLayout.java)·[Gradle 연결](../build.gradle.kts) | 운영·테스트의 메서드·생성자 선언/호출, record, enum 생성자 호출에서 3개 이상이면 각 항목과 닫는 괄호를 별도 줄에 배치 |
 | Checkstyle | [문법 검사](checkstyle/checkstyle.xml) | 운영 코드의 if·for·while 중괄호, else·switch 금지, 제어문 빈 블록, 필드·매개변수·지역변수·record 컴포넌트 이름 |
 | ArchUnit | [아키텍처 테스트](../src/test/java/com/chalkak/backend/architecture/ArchitectureConventionTest.java) | 요청 패키지의 `*Request` record, Service의 Spring Data·AWS SDK 직접 의존 금지, 저장소 포트의 JpaRepository 상속 금지, JPA 저장소·Controller 위치 |
 
 API DTO는 기본 포맷에 [DTO 설정](formatter/java-dto.properties)을 더해 어노테이션과 필드 선언을 별도 줄에 둔다.
 `spotlessJavaDtoCheck`가 `src/main/java/**/api/**/dto/**/*.java`를 검사하고, 나머지 Java 파일은 기존 `spotlessJavaCheck`가 검사한다. `spotlessCheck`와 `checkConventions`에는 두 검사가 모두 포함되며 기준 커밋도 동일하다.
 DTO만 수정할 때는 `./gradlew spotlessJavaDtoApply`로 적용 범위를 제한할 수 있다.
-Eclipse 포맷터는 record 전용 어노테이션 줄바꿈을 지원하는 4.41을 사용한다. 일반 메서드 매개변수의 포맷은 기본 설정을 유지한다.
+Eclipse 포맷터는 record 전용 어노테이션 줄바꿈을 지원하는 4.41을 사용한다. 선언·호출·record·enum의 기존 괄호 줄바꿈을 보존한다. 3개 이상인지 판단하는 규칙은 포맷터와 별도로 JavaLayout이 검사한다.
 
 ## 실행
 
 backend 디렉터리에서 실행한다. 도구는 Gradle이 내려받으며 별도 AI 호출은 없다.
 
 ```bash
+# JDK 파서로 운영·테스트 줄바꿈만 검사 (컴파일·DB·외부 라이브러리 불필요)
+./gradlew checkJavaLayout
+
 # DB·Spring 실행 없이 컨벤션 검사
 ./gradlew checkConventions
 
@@ -30,7 +34,7 @@ backend 디렉터리에서 실행한다. 도구는 Gradle이 내려받으며 별
 ```
 
 `checkConventions`가 통과해도 기능·정책 테스트를 대신하지 않는다. `check`는 기존 DB 테스트 환경이 필요하다.
-기존 CI는 `test bootJar`를 호출하므로 ArchUnit은 실행되지만 Spotless·Checkstyle은 아직 CI 필수 단계가 아니다.
+`checkJavaLayout`은 `checkConventions`, `check`, `test`에 연결되어 기존 CI의 `test bootJar`에서도 줄바꿈 위반을 차단한다. Spotless·Checkstyle은 아직 CI 필수 단계가 아니다.
 CI에 전체 검사를 연결할 때는 기존 명령의 `test`를 `check`로 바꾼다.
 
 ## 검사 설정 자체의 동작 확인
@@ -43,19 +47,21 @@ python3 scripts/test_convention_tools.py
 ```
 
 첫 명령은 Spotless의 자동 수정·재실행 안정성·기존 줄바꿈 보존·중첩 DTO의 어노테이션 줄바꿈과 Checkstyle의 금지 문법·이름·예외 범위를 확인한다.
-가상 코드는 `build/convention-probe`에만 생성한다. 두 번째 명령은 실제 운영 코드와 ArchUnit 오류 주입 사례를 검사한다.
+JavaLayout 오류 주입 테스트도 실행하며, 0~2개/3개/4개 경계, 선언·호출·중첩·record·enum, 문자열·주석·제외 구문, 구문 오류를 확인한다.
+가상 코드는 `build/convention-probe`와 테스트 임시 디렉터리에만 생성한다. 두 번째 명령은 실제 운영 코드와 ArchUnit 오류 주입 사례를 검사한다.
 이 검사는 AI가 도구를 자발적으로 호출하거나 실패를 올바르게 수정하는지 평가하는 AI 행동 검사와는 별개다.
 
 ## 기존 코드와 예외
 
 - 포맷은 통합 브랜치에 존재하는 고정 기준 커밋 `50e3764ec85d26714710bb86086edcf493768f26` 이후 변경한 Java 파일 전체에 적용한다. 기준을 HEAD나 매번 움직이는 브랜치로 바꾸지 않는다. shallow clone이면 해당 커밋 이력이 필요하며 기준을 찾지 못하면 검사 실패로 처리한다.
+- JavaLayout은 `src/main/java`와 `src/test/java` 전체를 JDK 파서로 검사한다. 항목 수는 Java 구문 트리로 세며 제네릭·문자열·중첩 호출의 쉼표를 오인하지 않는다. 0~2개는 강제하지 않고, 어노테이션 속성·람다 매개변수·배열 초기화는 제외한다. 구문 오류·소스 누락은 실패로 처리하며 자동 수정은 하지 않는다.
 - Checkstyle은 운영 Java 전체, ArchUnit은 테스트·생성 코드가 아닌 운영 클래스를 검사한다. 테스트 코드에 운영 코드의 금지 문법이나 이름 규칙을 적용하지 않는다.
 - 기존 `AdminTopicQueryRepositoryImpl.appendOrder`의 switch 한 곳만 [기존 위반 목록](checkstyle/suppressions.xml)에 남긴다. 그 메서드를 정리할 때 제외도 제거한다. 패키지 전체 제외나 자동 baseline 갱신은 하지 않는다.
 - Request의 일반 클래스가 필요한 경우 기존 Skill대로 개발자에게 확인한다. 승인된 구체적인 대상·이유를 남겨 검사 예외를 변경하며 AI가 통과만을 위해 검사를 끄지 않는다.
 
 ## Skill에 유지하는 규칙
 
-상수의 파일 내부 용도 판단, 정확한 메서드 배치 순서, 매개변수 3개 이상 줄 나누기,
+상수의 파일 내부 용도 판단, 정확한 메서드 배치 순서,
 get/find 등 이름의 의미, 검증 재사용, 예외 분리, API 호환성, 날짜 정책, 테스트 전략과 TDD는 유지한다.
 외부에 노출된 JSON·URI·DB 이름도 단순 Java 이름 검사로 대체하지 않는다.
 패키지 배치표는 생성 전에 읽는 안내로 유지하며, ArchUnit이 모든 도메인 경계를 증명하지는 않는다.

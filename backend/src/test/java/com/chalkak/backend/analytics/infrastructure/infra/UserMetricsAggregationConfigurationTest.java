@@ -40,8 +40,8 @@ class UserMetricsAggregationConfigurationTest {
     @DisplayName("집계를 켜면 스케줄러와 집계 전용 단일 스레드를 만든다")
     void configuration_enabled_createsDedicatedScheduler() {
         // Given
-        ApplicationContextRunner enabled =
-                contextRunner.withPropertyValues("chalkak.analytics.aggregation.enabled=true");
+        ApplicationContextRunner enabled = contextRunner
+                .withPropertyValues("chalkak.analytics.aggregation.enabled=true");
 
         // When & Then
         enabled.run(context -> {

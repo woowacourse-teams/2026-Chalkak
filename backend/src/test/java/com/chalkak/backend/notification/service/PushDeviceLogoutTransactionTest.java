@@ -80,7 +80,11 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), "rollback-token");
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                "rollback-token"
+        );
         blockDeviceDeletion(issued.sessionId());
 
         // When & Then
@@ -88,7 +92,9 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM user_refresh_tokens WHERE session_id = ? AND revoked_at IS NULL",
-                Integer.class, issued.sessionId())).isEqualTo(1);
+                Integer.class,
+                issued.sessionId()
+        )).isEqualTo(1);
         assertThat(pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
                 .getFcmToken())
                 .isEqualTo("rollback-token");
@@ -102,7 +108,11 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
         // Given
         User user = userRepository.save(UserFixture.create());
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), "initial-token");
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                "initial-token"
+        );
         UUID deviceId = pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow()
                 .getId();
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
@@ -117,7 +127,11 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
                     userRefreshTokenService.logout(issued.value());
                 }
                 if (!logoutFirst) {
-                    pushDeviceService.register(user.getId(), issued.sessionId(), "updated-token");
+                    pushDeviceService.register(
+                            user.getId(),
+                            issued.sessionId(),
+                            "updated-token"
+                    );
                 }
                 firstCompleted.countDown();
                 awaitCommit(firstCanCommit);
@@ -129,8 +143,11 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
                         secondBackendPid.complete(jdbcTemplate
                                 .queryForObject("SELECT pg_backend_pid()", Integer.class));
                         if (logoutFirst) {
-                            pushDeviceService.register(user.getId(), issued.sessionId(),
-                                    "updated-token");
+                            pushDeviceService.register(
+                                    user.getId(),
+                                    issued.sessionId(),
+                                    "updated-token"
+                            );
                         }
                         if (!logoutFirst) {
                             userRefreshTokenService.logout(issued.value());
@@ -153,10 +170,14 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
             assertThat(result).isEqualTo(logoutFirst ? "REAUTHENTICATION_REQUIRED" : "SUCCESS");
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM user_refresh_tokens WHERE session_id = ? AND revoked_at IS NULL",
-                    Integer.class, issued.sessionId())).isZero();
+                    Integer.class,
+                    issued.sessionId()
+            )).isZero();
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM push_devices WHERE id = ?",
-                    Integer.class, deviceId)).isZero();
+                    Integer.class,
+                    deviceId
+            )).isZero();
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();
@@ -191,7 +212,10 @@ class PushDeviceLogoutTransactionTest extends IntegrationTestSupport {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
             Boolean blocked = jdbcTemplate.queryForObject(
-                    "SELECT cardinality(pg_blocking_pids(?)) > 0", Boolean.class, backendPid);
+                    "SELECT cardinality(pg_blocking_pids(?)) > 0",
+                    Boolean.class,
+                    backendPid
+            );
             if (Boolean.TRUE.equals(blocked)) {
                 return;
             }

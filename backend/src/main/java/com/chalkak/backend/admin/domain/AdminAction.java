@@ -6,72 +6,122 @@ public enum AdminAction {
     POST_APPROVED(
             AdminTargetType.POST,
             false,
-            AdminAuditTransitionRules::isPostApproved),
+            AdminAuditTransitionRules::isPostApproved
+    ),
 
     POST_REJECTED(
             AdminTargetType.POST,
             true,
-            AdminAuditTransitionRules::isPostRejected),
+            AdminAuditTransitionRules::isPostRejected
+    ),
 
     POST_DELETED(
             AdminTargetType.POST,
             true,
-            AdminAuditTransitionRules::isPostDeleted),
+            AdminAuditTransitionRules::isPostDeleted
+    ),
 
     USER_BANNED(
             AdminTargetType.USER,
             true,
-            AdminAuditTransitionRules::isUserBanned),
+            AdminAuditTransitionRules::isUserBanned
+    ),
 
     USER_UNBANNED(
             AdminTargetType.USER,
             true,
-            AdminAuditTransitionRules::isUserUnbanned),
+            AdminAuditTransitionRules::isUserUnbanned
+    ),
 
     TOPIC_CREATED(
             AdminTargetType.TOPIC,
             false,
-            AdminAuditTransitionRules::isTopicCreated),
+            AdminAuditTransitionRules::isTopicCreated
+    ),
 
     TOPIC_UPDATED(
             AdminTargetType.TOPIC,
             false,
-            AdminAuditTransitionRules::isTopicUpdated),
+            AdminAuditTransitionRules::isTopicUpdated
+    ),
 
     TOPIC_DELETED(
             AdminTargetType.TOPIC,
             true,
-            AdminAuditTransitionRules::isTopicDeleted),
+            AdminAuditTransitionRules::isTopicDeleted
+    ),
 
     TOPIC_PUSH_SCHEDULE_CREATED(
             AdminTargetType.TOPIC_PUSH_SCHEDULE,
             false,
-            AdminAuditTransitionRules::isTopicPushScheduleCreated),
+            AdminAuditTransitionRules::isTopicPushScheduleCreated
+    ),
 
     TOPIC_PUSH_SCHEDULE_UPDATED(
             AdminTargetType.TOPIC_PUSH_SCHEDULE,
             false,
-            AdminAuditTransitionRules::isTopicPushScheduleUpdated),
+            AdminAuditTransitionRules::isTopicPushScheduleUpdated
+    ),
 
     TOPIC_PUSH_SCHEDULE_DELETED(
             AdminTargetType.TOPIC_PUSH_SCHEDULE,
             false,
-            AdminAuditTransitionRules::isTopicPushScheduleDeleted),
+            AdminAuditTransitionRules::isTopicPushScheduleDeleted
+    ),
 
     NOTICE_CREATED(
             AdminTargetType.NOTICE,
             false,
-            AdminAuditTransitionRules::isNoticeCreated),
+            AdminAuditTransitionRules::isNoticeCreated
+    ),
 
     NOTICE_UPDATED(
             AdminTargetType.NOTICE,
             false,
-            AdminAuditTransitionRules::isNoticeUpdated),
+            AdminAuditTransitionRules::isNoticeUpdated
+    ),
 
     NOTICE_DELETED(
             AdminTargetType.NOTICE,
             true,
-            AdminAuditTransitionRules::isNoticeDeleted);
+            AdminAuditTransitionRules::isNoticeDeleted
+    ),
+
+    BANNER_CREATED(
+            AdminTargetType.BANNER,
+            false,
+            AdminAuditTransitionRules::isBannerCreated
+    ),
+
+    BANNER_DELETED(
+            AdminTargetType.BANNER,
+            false,
+            AdminAuditTransitionRules::isBannerDeleted
+    ),
+
+    AI_PROMPT_VERSION_CREATED(
+            AdminTargetType.AI_PROMPT_VERSION,
+            false,
+            AdminAuditTransitionRules::isAiPromptVersionCreated
+    ),
+
+    REMINDER_CREATED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderCreated
+    ),
+
+    REMINDER_UPDATED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderUpdated
+    ),
+
+    REMINDER_DELETED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderDeleted
+    );
 
     private final AdminTargetType targetType;
     private final boolean reasonRequired;
@@ -100,7 +150,11 @@ public enum AdminAction {
             AdminAuditSnapshot beforeState,
             AdminAuditSnapshot afterState
     ) {
-        return stateChangeValidator.isValid(actorAdminId, beforeState, afterState);
+        return stateChangeValidator.isValid(
+                actorAdminId,
+                beforeState,
+                afterState
+        );
     }
 
     @FunctionalInterface

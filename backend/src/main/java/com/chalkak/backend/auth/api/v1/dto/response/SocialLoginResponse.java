@@ -48,7 +48,8 @@ public record SocialLoginResponse(
                     null,
                     null,
                     null,
-                    null);
+                    null
+            );
         }
         IssuedRefreshToken refreshToken = result.refreshToken();
         return new SocialLoginResponse(
@@ -57,6 +58,7 @@ public record SocialLoginResponse(
                 accessToken.value(),
                 accessToken.expiresIn().toSeconds(),
                 refreshToken.value(),
-                refreshToken.expiresIn().toSeconds());
+                refreshToken.expiresIn().toSeconds()
+        );
     }
 }

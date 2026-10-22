@@ -29,6 +29,7 @@ public record SocialSignupSignatureUploadResponse(
                 result.upload().uploadId(),
                 result.upload().uploadUrl(),
                 result.upload().expiresInSeconds(),
-                result.signupToken().value());
+                result.signupToken().value()
+        );
     }
 }

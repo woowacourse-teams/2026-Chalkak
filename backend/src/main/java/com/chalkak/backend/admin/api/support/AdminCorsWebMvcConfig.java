@@ -17,6 +17,7 @@ public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
 
     private static final String ADMIN_API_PATH = "/api/v1/admin";
     private static final String ADMIN_API_PATH_PATTERN = ADMIN_API_PATH + "/**";
+    private static final String BANNER_API_PATH = "/api/v1/banners";
 
     private final AdminCorsProperties adminCorsProperties;
 
@@ -24,6 +25,7 @@ public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         configureCors(registry.addMapping(ADMIN_API_PATH));
         configureCors(registry.addMapping(ADMIN_API_PATH_PATTERN));
+        configureBannerCors(registry.addMapping(BANNER_API_PATH));
     }
 
     private void configureCors(CorsRegistration registration) {
@@ -35,13 +37,30 @@ public class AdminCorsWebMvcConfig implements WebMvcConfigurer {
                         HttpMethod.PUT.name(),
                         HttpMethod.PATCH.name(),
                         HttpMethod.DELETE.name(),
-                        HttpMethod.OPTIONS.name())
+                        HttpMethod.OPTIONS.name()
+                )
                 .allowedHeaders(
                         HttpHeaders.AUTHORIZATION,
                         HttpHeaders.CONTENT_TYPE,
-                        HttpHeaders.ACCEPT)
+                        HttpHeaders.ACCEPT
+                )
                 .exposedHeaders(LogFields.REQUEST_ID_HEADER)
                 .allowCredentials(false)
                 .maxAge(3_600);
     }
+
+    private void configureBannerCors(CorsRegistration registration) {
+        registration
+                .allowedOrigins(adminCorsProperties.allowedOrigins().toArray(String[]::new))
+                .allowedMethods(HttpMethod.GET.name())
+                .allowedHeaders(
+                        HttpHeaders.AUTHORIZATION,
+                        HttpHeaders.CONTENT_TYPE,
+                        HttpHeaders.ACCEPT
+                )
+                .exposedHeaders(LogFields.REQUEST_ID_HEADER)
+                .allowCredentials(false)
+                .maxAge(3_600);
+    }
+
 }

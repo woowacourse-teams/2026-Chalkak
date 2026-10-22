@@ -8,5 +8,6 @@ public record AdminLoginResult(
         UUID adminId,
         String username,
         IssuedAccessToken accessToken,
-        IssuedRefreshToken refreshToken) {
+        IssuedRefreshToken refreshToken
+) {
 }

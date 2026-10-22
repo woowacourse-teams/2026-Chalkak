@@ -59,7 +59,11 @@ public class RequestIdFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             status = response.getStatus();
         } finally {
-            logAccess(request, status, startNanos);
+            logAccess(
+                    request,
+                    status,
+                    startNanos
+            );
             MDC.remove(LogFields.REQUEST_ID);
         }
     }
@@ -84,7 +88,11 @@ public class RequestIdFilter extends OncePerRequestFilter {
         if (request.getAttribute(LogFields.USER_ID_REQUEST_ATTRIBUTE) instanceof String userId) {
             event = event.addKeyValue(LogFields.USER_ID, userId);
         }
-        if (isSuccessfulFeedQuery(request, route, status)) {
+        if (isSuccessfulFeedQuery(
+                request,
+                route,
+                status
+        )) {
             event = event.addKeyValue(
                     LogFields.TOPIC_DATE,
                     request.getParameter(TOPIC_DATE_PARAMETER));

@@ -67,7 +67,9 @@ class OidcIdTokenDecoderFactoryTest {
                 OidcIdTokenDecoderFactory.createJwkSource(
                         PROVIDER,
                         JWK_SET_URI,
-                        resourceRetriever));
+                        resourceRetriever
+                )
+        );
     }
 
     @Test
@@ -338,7 +340,11 @@ class OidcIdTokenDecoderFactoryTest {
         // Given
         JWKSetSource<SecurityContext> source = jwkSetSourceWithInjectableTime();
         long firstRetrievedAt = 1_000_000L;
-        source.getJWKSet(JWKSetCacheRefreshEvaluator.noRefresh(), firstRetrievedAt, null);
+        source.getJWKSet(
+                JWKSetCacheRefreshEvaluator.noRefresh(),
+                firstRetrievedAt,
+                null
+        );
         long refreshFailedAt = firstRetrievedAt + Duration.ofSeconds(299).toMillis();
         resourceRetriever.failNextRetrievals(4);
         for (int attempt = 0; attempt < 2; attempt++) {
@@ -351,7 +357,8 @@ class OidcIdTokenDecoderFactoryTest {
         JWKSet jwkSet = source.getJWKSet(
                 JWKSetCacheRefreshEvaluator.noRefresh(),
                 firstRetrievedAt + Duration.ofSeconds(300).toMillis() + 1,
-                null);
+                null
+        );
 
         // Then
         assertThat(jwkSet.getKeyByKeyId(KEY_ID)).isNotNull();
@@ -366,7 +373,8 @@ class OidcIdTokenDecoderFactoryTest {
         assertThatThrownBy(() -> OidcIdTokenDecoderFactory.createJwkSource(
                 PROVIDER,
                 "not a uri",
-                resourceRetriever))
+                resourceRetriever
+        ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("JWK Set URI 형식이 올바르지 않습니다");
     }
@@ -392,7 +400,8 @@ class OidcIdTokenDecoderFactoryTest {
                     PROVIDER,
                     ISSUER,
                     "http://127.0.0.1:" + server.getAddress().getPort() + "/certs",
-                    AUDIENCE);
+                    AUDIENCE
+            );
 
             // When
             Jwt jwt = httpDecoder.decode(sign(signingKey, validClaims().build()));
@@ -411,17 +420,27 @@ class OidcIdTokenDecoderFactoryTest {
      */
     private JWKSetSource<SecurityContext> jwkSetSourceWithInjectableTime() {
         JWKSetBasedJWKSource<SecurityContext> jwkSource = (JWKSetBasedJWKSource<SecurityContext>) OidcIdTokenDecoderFactory
-                .createJwkSource(PROVIDER, JWK_SET_URI, resourceRetriever);
+                .createJwkSource(
+                        PROVIDER,
+                        JWK_SET_URI,
+                        resourceRetriever
+                );
         return jwkSource.getJWKSetSource();
     }
 
     /** 디코더가 캐시에 없는 kid를 만났을 때처럼, 캐시된 목록을 확인한 뒤 그 목록이 그대로면 다시 조회하게 한다. */
     private void refreshUnknownKeyId(JWKSetSource<SecurityContext> source, long currentTime)
             throws Exception {
-        JWKSet cached = source.getJWKSet(JWKSetCacheRefreshEvaluator.noRefresh(), currentTime,
-                null);
-        source.getJWKSet(JWKSetCacheRefreshEvaluator.referenceComparison(cached), currentTime,
-                null);
+        JWKSet cached = source.getJWKSet(
+                JWKSetCacheRefreshEvaluator.noRefresh(),
+                currentTime,
+                null
+        );
+        source.getJWKSet(
+                JWKSetCacheRefreshEvaluator.referenceComparison(cached),
+                currentTime,
+                null
+        );
     }
 
     private JWTClaimsSet.Builder validClaims() {

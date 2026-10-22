@@ -38,7 +38,8 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
         } catch (S3Exception exception) {
             stagingFailure = exception;
         }
-        Optional<StoredImageMetadata> originalImage = findImage(toStorageKeys(uploadId).originalStorageKey());
+        Optional<StoredImageMetadata> originalImage = findImage(
+                toStorageKeys(uploadId).originalStorageKey());
         if (originalImage.isEmpty() && stagingFailure != null) {
             throw stagingFailure;
         }
@@ -72,7 +73,8 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
             HeadObjectResponse response = s3Client.headObject(request -> request
                     .bucket(imageProperties.bucket())
                     .key(storageKey));
-            return Optional.of(new StoredImageMetadata(response.contentType(), response.contentLength()));
+            return Optional
+                    .of(new StoredImageMetadata(response.contentType(), response.contentLength()));
         } catch (NoSuchKeyException exception) {
             return Optional.empty();
         } catch (S3Exception exception) {
@@ -86,7 +88,8 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
     }
 
     /**
-     * CloudFront 오리진이 {@code {bucket}/{root-prefix}}를 가리키므로 공개 URL에는 root-prefix가 들어가지 않는다.
+     * CloudFront 오리진이 {@code {bucket}/{root-prefix}}를 가리키므로 공개 URL에는 root-prefix가
+     * 들어가지 않는다.
      */
     private String removeRootPrefix(String storageKey) {
         String rootPrefix = imageProperties.rootPrefix();
@@ -98,11 +101,21 @@ public class S3SignatureImageStorage implements SignatureImageStorage {
 
     @Override
     public String toStagingStorageKey(UUID uploadId) {
-        return createKey(STAGING_PATH, imageProperties.environment(), SIGNATURE_PATH, uploadId);
+        return createKey(
+                STAGING_PATH,
+                imageProperties.environment(),
+                SIGNATURE_PATH,
+                uploadId
+        );
     }
 
     private String createSignatureKey(String variant, UUID uploadId) {
-        return createKey(SIGNATURE_PATH, imageProperties.environment(), variant, uploadId);
+        return createKey(
+                SIGNATURE_PATH,
+                imageProperties.environment(),
+                variant,
+                uploadId
+        );
     }
 
     private String createKey(

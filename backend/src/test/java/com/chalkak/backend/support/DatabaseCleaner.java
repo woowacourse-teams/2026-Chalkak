@@ -7,11 +7,13 @@ public final class DatabaseCleaner {
 
     private static final String TRUNCATE_TEST_TABLES = """
             TRUNCATE TABLE
+                banners,
                 pending_apple_authorizations,
                 notices,
                 posts,
                 photos,
                 post_image_uploads,
+                reminders,
                 topic_push_schedules,
                 topics,
                 users

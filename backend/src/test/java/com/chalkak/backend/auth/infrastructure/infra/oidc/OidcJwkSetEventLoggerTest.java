@@ -30,11 +30,13 @@ class OidcJwkSetEventLoggerTest {
         given(clock.millis()).willReturn(
                 FIRST_LOGGED_AT,
                 FIRST_LOGGED_AT + 29_999,
-                FIRST_LOGGED_AT + 30_000);
+                FIRST_LOGGED_AT + 30_000
+        );
         OidcJwkSetEventLogger eventLogger = new OidcJwkSetEventLogger(
                 SocialProvider.KAKAO,
                 Duration.ofSeconds(30),
-                clock);
+                clock
+        );
         Event<RateLimitedJWKSetSource<SecurityContext>, SecurityContext> event = rateLimitedEvent();
 
         // When

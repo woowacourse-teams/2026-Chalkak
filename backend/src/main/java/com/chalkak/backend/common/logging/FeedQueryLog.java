@@ -4,5 +4,6 @@ package com.chalkak.backend.common.logging;
 public record FeedQueryLog(
         String sort,
         int page,
-        int pageSize) {
+        int pageSize
+) {
 }

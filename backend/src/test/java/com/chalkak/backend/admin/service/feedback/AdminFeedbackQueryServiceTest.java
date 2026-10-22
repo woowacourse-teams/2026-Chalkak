@@ -43,12 +43,18 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_withdrawnAuthor_derivesWithdrawnStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
-                AdminFeedbackSort.CREATED_AT_DESC, 1, 20))
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        ))
                 .willReturn(page(UserStatus.ACTIVE, WITHDRAWN_AT));
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
-                AdminFeedbackSort.CREATED_AT_DESC, 1, 20);
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.feedbacks()).singleElement()
@@ -61,12 +67,18 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_bannedAuthor_derivesBannedStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
-                AdminFeedbackSort.CREATED_AT_ASC, 1, 20))
+                AdminFeedbackSort.CREATED_AT_ASC,
+                1,
+                20
+        ))
                 .willReturn(page(UserStatus.BANNED, null));
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
-                AdminFeedbackSort.CREATED_AT_ASC, 1, 20);
+                AdminFeedbackSort.CREATED_AT_ASC,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.feedbacks()).singleElement()
@@ -79,7 +91,10 @@ class AdminFeedbackQueryServiceTest {
     @DisplayName("페이지 조건이 범위를 벗어나면 조회하지 않는다")
     void getFeedbacks_invalidPagination_throwsBusinessException(int page, int pageSize) {
         assertThatThrownBy(() -> adminFeedbackQueryService.getFeedbacks(
-                AdminFeedbackSort.CREATED_AT_DESC, page, pageSize))
+                AdminFeedbackSort.CREATED_AT_DESC,
+                page,
+                pageSize
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("조회 조건이 올바르지 않습니다.");
 
@@ -97,9 +112,11 @@ class AdminFeedbackQueryServiceTest {
                         "user@example.com",
                         userStatus,
                         "1.2.3",
-                        userDeletedAt)),
+                        userDeletedAt
+                )),
                 1,
                 20,
-                false);
+                false
+        );
     }
 }

@@ -1,6 +1,10 @@
 package com.chalkak.backend.admin.domain;
 
+import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.notification.domain.Notice;
+import com.chalkak.backend.notification.domain.Reminder;
+import com.chalkak.backend.notification.domain.ReminderRepeat;
+import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.DateTimeException;
@@ -22,7 +26,8 @@ final class AdminAuditTransitionRules {
     private static final Set<String> POST_MODERATION_AFTER_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt",
-            "moderatedBy");
+            "moderatedBy"
+    );
     private static final Set<String> POST_DELETION_FIELDS = Set.of(
             "moderationStatus",
             "deletedAt");
@@ -31,24 +36,50 @@ final class AdminAuditTransitionRules {
     private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
             "title",
             "scheduledAt",
-            "bodySha256");
+            "bodySha256"
+    );
     private static final Set<String> DELETED_NOTICE_STATE_FIELDS = Set.of(
             "title",
             "scheduledAt",
             "bodySha256",
-            "deletedAt");
+            "deletedAt"
+    );
     private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
+    private static final Set<String> BANNER_STATE_FIELDS = Set.of("titleSha256", "subtitleSha256");
+    private static final Set<String> DELETED_BANNER_STATE_FIELDS = Set.of(
+            "titleSha256",
+            "subtitleSha256",
+            "deletedAt"
+    );
+    private static final Set<String> AI_PROMPT_VERSION_STATE_FIELDS = Set.of("type", "version");
+    private static final Set<String> REMINDER_STATE_FIELDS = Set.of(
+            "title",
+            "bodySha256",
+            "repeat",
+            "target",
+            "scheduledAt"
+    );
+    private static final Set<String> DELETED_REMINDER_STATE_FIELDS = Set.of(
+            "title",
+            "bodySha256",
+            "repeat",
+            "target",
+            "scheduledAt",
+            "deletedAt"
+    );
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
             "startsAt",
-            "endsAt");
+            "endsAt"
+    );
     private static final Set<String> DELETED_TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
             "startsAt",
             "endsAt",
-            "deletedAt");
+            "deletedAt"
+    );
 
     private AdminAuditTransitionRules() {
     }
@@ -62,7 +93,8 @@ final class AdminAuditTransitionRules {
                 actorAdminId,
                 beforeState,
                 afterState,
-                ModerationStatus.APPROVED);
+                ModerationStatus.APPROVED
+        );
     }
 
     static boolean isPostRejected(
@@ -74,7 +106,8 @@ final class AdminAuditTransitionRules {
                 actorAdminId,
                 beforeState,
                 afterState,
-                ModerationStatus.REJECTED);
+                ModerationStatus.REJECTED
+        );
     }
 
     static boolean isPostDeleted(
@@ -100,7 +133,8 @@ final class AdminAuditTransitionRules {
                 beforeState,
                 afterState,
                 UserStatus.ACTIVE,
-                UserStatus.BANNED);
+                UserStatus.BANNED
+        );
     }
 
     static boolean isUserUnbanned(
@@ -112,7 +146,8 @@ final class AdminAuditTransitionRules {
                 beforeState,
                 afterState,
                 UserStatus.BANNED,
-                UserStatus.ACTIVE);
+                UserStatus.ACTIVE
+        );
     }
 
     static boolean isTopicCreated(
@@ -202,6 +237,102 @@ final class AdminAuditTransitionRules {
                 && hasSameNoticeContent(beforeState, afterState);
     }
 
+    static boolean isBannerCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty()
+                && afterState.hasExactlyFields(BANNER_STATE_FIELDS)
+                && isSha256Hex(afterState.value("titleSha256"))
+                && isSha256Hex(afterState.value("subtitleSha256"));
+    }
+
+    static boolean isBannerDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(DELETED_BANNER_STATE_FIELDS)
+                && afterState.hasExactlyFields(DELETED_BANNER_STATE_FIELDS)
+                && isSha256Hex(beforeState.value("titleSha256"))
+                && isSha256Hex(beforeState.value("subtitleSha256"))
+                && BANNER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
+                        beforeState.value(field), afterState.value(field)))
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"));
+    }
+
+    static boolean isAiPromptVersionCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty()
+                && afterState.hasExactlyFields(AI_PROMPT_VERSION_STATE_FIELDS)
+                && isAiPromptType(afterState.value("type"))
+                && afterState.value("version") instanceof Integer version
+                && version > 0;
+    }
+
+    static boolean isReminderCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && isValidReminderState(afterState);
+    }
+
+    static boolean isReminderUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidReminderState(beforeState)
+                && isValidReminderState(afterState)
+                && !beforeState.values().equals(afterState.values());
+    }
+
+    static boolean isReminderDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidReminderState(beforeState, DELETED_REMINDER_STATE_FIELDS)
+                && isValidReminderState(afterState, DELETED_REMINDER_STATE_FIELDS)
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"))
+                && REMINDER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
+                        beforeState.value(field), afterState.value(field)));
+    }
+
+    private static boolean isValidReminderState(AdminAuditSnapshot state) {
+        return isValidReminderState(state, REMINDER_STATE_FIELDS);
+    }
+
+    private static boolean isValidReminderState(
+            AdminAuditSnapshot state,
+            Set<String> expectedFields
+    ) {
+        return state.hasExactlyFields(expectedFields)
+                && state.value("title") instanceof String title
+                && Reminder.isValidTitle(title)
+                && isSha256Hex(state.value("bodySha256"))
+                && isEnumName(state.value("repeat"), ReminderRepeat.values())
+                && isEnumName(state.value("target"), ReminderTarget.values())
+                && isInstant(state.value("scheduledAt"));
+    }
+
+    private static boolean isEnumName(Object value, Enum<?>[] constants) {
+        return value instanceof String name
+                && Arrays.stream(constants).anyMatch(constant -> constant.name().equals(name));
+    }
+
+    private static boolean isAiPromptType(Object value) {
+        return value instanceof String name
+                && Arrays.stream(AiPromptType.values()).anyMatch(type -> type.name().equals(name));
+    }
+
     private static boolean isValidNoticeState(AdminAuditSnapshot state) {
         return isValidNoticeState(state, NOTICE_STATE_FIELDS);
     }
@@ -253,11 +384,20 @@ final class AdminAuditTransitionRules {
                 && hasValue(
                         beforeState,
                         "moderationStatus",
-                        ModerationStatus.PENDING.name())
+                        ModerationStatus.PENDING.name()
+                )
                 && beforeState.value("moderatedAt") == null
-                && hasValue(afterState, "moderationStatus", decidedStatus.name())
+                && hasValue(
+                        afterState,
+                        "moderationStatus",
+                        decidedStatus.name()
+                )
                 && isInstant(afterState.value("moderatedAt"))
-                && hasValue(afterState, "moderatedBy", actorAdminId.toString());
+                && hasValue(
+                        afterState,
+                        "moderatedBy",
+                        actorAdminId.toString()
+                );
     }
 
     private static boolean isUserStatusChange(
@@ -268,8 +408,16 @@ final class AdminAuditTransitionRules {
     ) {
         return beforeState.hasExactlyFields(USER_STATUS_FIELDS)
                 && afterState.hasExactlyFields(USER_STATUS_FIELDS)
-                && hasValue(beforeState, "status", beforeStatus.name())
-                && hasValue(afterState, "status", afterStatus.name());
+                && hasValue(
+                        beforeState,
+                        "status",
+                        beforeStatus.name()
+                )
+                && hasValue(
+                        afterState,
+                        "status",
+                        afterStatus.name()
+                );
     }
 
     private static boolean isValidTopicState(

@@ -53,16 +53,19 @@ class AppleHttpTokenClientTest {
                 "APPLEKEY01",
                 "test-private-key",
                 TOKEN_URI.toString(),
-                REVOKE_URI.toString());
+                REVOKE_URI.toString()
+        );
         AppleOidcProperties oidcProperties = new AppleOidcProperties(
                 "https://appleid.apple.com",
                 "https://appleid.apple.com/auth/keys",
-                "com.chalkak.ios");
+                "com.chalkak.ios"
+        );
         tokenClient = new AppleHttpTokenClient(
                 builder.build(),
                 tokenProperties,
                 oidcProperties,
-                clientSecretGenerator);
+                clientSecretGenerator
+        );
     }
 
     @AfterEach
@@ -290,13 +293,42 @@ class AppleHttpTokenClientTest {
 
     private static Stream<String> invalidTokenResponses() {
         return Stream.of(
-                tokenResponse("", "bearer", 3600, "apple-refresh-token", "apple-id-token"),
-                tokenResponse("apple-access-token", "unknown", 3600, "apple-refresh-token",
-                        "apple-id-token"),
-                tokenResponse("apple-access-token", "bearer", 0, "apple-refresh-token",
-                        "apple-id-token"),
-                tokenResponse("apple-access-token", "bearer", 3600, "", "apple-id-token"),
-                tokenResponse("apple-access-token", "bearer", 3600, "apple-refresh-token", ""));
+                tokenResponse(
+                        "",
+                        "bearer",
+                        3600,
+                        "apple-refresh-token",
+                        "apple-id-token"
+                ),
+                tokenResponse(
+                        "apple-access-token",
+                        "unknown",
+                        3600,
+                        "apple-refresh-token",
+                        "apple-id-token"
+                ),
+                tokenResponse(
+                        "apple-access-token",
+                        "bearer",
+                        0,
+                        "apple-refresh-token",
+                        "apple-id-token"
+                ),
+                tokenResponse(
+                        "apple-access-token",
+                        "bearer",
+                        3600,
+                        "",
+                        "apple-id-token"
+                ),
+                tokenResponse(
+                        "apple-access-token",
+                        "bearer",
+                        3600,
+                        "apple-refresh-token",
+                        ""
+                )
+        );
     }
 
     private String validTokenResponse() {
@@ -305,7 +337,8 @@ class AppleHttpTokenClientTest {
                 "bearer",
                 3600,
                 "apple-refresh-token",
-                "apple-id-token");
+                "apple-id-token"
+        );
     }
 
     private static String tokenResponse(
@@ -323,6 +356,12 @@ class AppleHttpTokenClientTest {
                   "refresh_token": "%s",
                   "id_token": "%s"
                 }
-                """.formatted(accessToken, tokenType, expiresIn, refreshToken, idToken);
+                """.formatted(
+                accessToken,
+                tokenType,
+                expiresIn,
+                refreshToken,
+                idToken
+        );
     }
 }

@@ -45,7 +45,8 @@ public interface AdminTopicPushScheduleApiDocs {
     ResponseEntity<TopicPushScheduleResponse> updateSchedule(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(description = "주제 푸시 설정 ID", required = true, schema = @Schema(type = "string", format = "uuid")) String scheduleId,
-            TopicPushScheduleRequest request);
+            TopicPushScheduleRequest request
+    );
 
     @Operation(summary = "주제 푸시 설정 삭제", description = "발송 시각 설정을 삭제합니다. 해당 설정의 향후 정시 발송을 중단하며 이미 SQS에 발행한 작업은 취소하지 않습니다. 요청 본문은 없습니다.")
     @ApiResponses({

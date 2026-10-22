@@ -43,7 +43,8 @@ class SocialAccountRepositoryTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                GOOGLE_SUBJECT_HMAC));
+                GOOGLE_SUBJECT_HMAC
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -70,7 +71,8 @@ class SocialAccountRepositoryTest extends IntegrationTestSupport {
                 SocialAccount.create(
                         firstUser,
                         SocialProvider.GOOGLE,
-                        GOOGLE_SUBJECT_HMAC));
+                        GOOGLE_SUBJECT_HMAC
+                ));
         entityManager.flush();
 
         // When & Then
@@ -78,7 +80,8 @@ class SocialAccountRepositoryTest extends IntegrationTestSupport {
                 SocialAccount.create(
                         secondUser,
                         SocialProvider.GOOGLE,
-                        GOOGLE_SUBJECT_HMAC)))
+                        GOOGLE_SUBJECT_HMAC
+                )))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasRootCauseInstanceOf(SQLException.class);
     }
@@ -92,7 +95,8 @@ class SocialAccountRepositoryTest extends IntegrationTestSupport {
                 SocialAccount.create(
                         user,
                         SocialProvider.GOOGLE,
-                        GOOGLE_SUBJECT_HMAC));
+                        GOOGLE_SUBJECT_HMAC
+                ));
         entityManager.flush();
 
         // When & Then
@@ -100,7 +104,8 @@ class SocialAccountRepositoryTest extends IntegrationTestSupport {
                 SocialAccount.create(
                         user,
                         SocialProvider.KAKAO,
-                        KAKAO_SUBJECT_HMAC)))
+                        KAKAO_SUBJECT_HMAC
+                )))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasRootCauseInstanceOf(SQLException.class);
     }

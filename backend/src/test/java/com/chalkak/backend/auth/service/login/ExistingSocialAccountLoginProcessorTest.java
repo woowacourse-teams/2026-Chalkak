@@ -194,21 +194,24 @@ class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 provider,
-                fingerprintEncoder.encode(provider, SUBJECT)));
+                fingerprintEncoder.encode(provider, SUBJECT)
+        ));
     }
 
     private List<String> storedRefreshTokenHashes(User user) {
         return jdbcTemplate.queryForList(
                 "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
                 String.class,
-                user.getId());
+                user.getId()
+        );
     }
 
     private VerifiedSocialIdentity identity(SocialProvider provider) {
         return new VerifiedSocialIdentity(
                 provider,
                 SUBJECT,
-                "user@chalkak.test");
+                "user@chalkak.test"
+        );
     }
 
     private void flushAndClear() {

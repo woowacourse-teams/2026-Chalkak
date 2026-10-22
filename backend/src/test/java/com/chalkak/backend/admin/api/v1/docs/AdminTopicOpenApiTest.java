@@ -30,7 +30,8 @@ class AdminTopicOpenApiTest extends IntegrationTestSupport {
                                 "dateTo",
                                 "sort",
                                 "page",
-                                "pageSize")))
+                                "pageSize"
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/topics'].post.responses['201']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/topics/{topicId}'].get")
@@ -44,10 +45,15 @@ class AdminTopicOpenApiTest extends IntegrationTestSupport {
                                 "title",
                                 "topicDate",
                                 "startsAt",
-                                "endsAt")))
+                                "endsAt"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.AdminTopicDetailResponse"
                         + ".properties.phase.enum")
-                        .value(containsInAnyOrder("BEFORE_OPEN", "OPEN", "CLOSED")))
+                        .value(containsInAnyOrder(
+                                "BEFORE_OPEN",
+                                "OPEN",
+                                "CLOSED"
+                        )))
                 .andExpect(jsonPath("$.components.schemas.AdminTopicPostCounts"
                         + ".properties.total").doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AdminTopicPostCounts"

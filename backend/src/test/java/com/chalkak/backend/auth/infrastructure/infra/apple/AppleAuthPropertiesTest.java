@@ -30,7 +30,8 @@ class AppleAuthPropertiesTest {
                     "chalkak.auth.apple.token.private-key-base64=cHJpdmF0ZS1rZXk=",
                     "chalkak.auth.apple.token.token-uri=https://appleid.apple.com/auth/token",
                     "chalkak.auth.apple.token.revoke-uri=https://appleid.apple.com/auth/revoke",
-                    "chalkak.auth.apple.refresh-token-encryption.key=" + VALID_ENCRYPTION_KEY);
+                    "chalkak.auth.apple.refresh-token-encryption.key=" + VALID_ENCRYPTION_KEY
+            );
 
     @Test
     @DisplayName("Apple refresh token 암호화 키가 64자리 16진수가 아니면 시작을 거부한다")

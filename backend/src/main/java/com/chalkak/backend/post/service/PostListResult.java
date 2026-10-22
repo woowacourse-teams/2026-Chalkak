@@ -39,20 +39,15 @@ public record PostListResult(
                                 imageUrlProvider,
                                 likeCounts.getOrDefault(post.getId(), 0L),
                                 likedPostIds.contains(post.getId()),
-                                isAuthoredBy(post, viewerId)
+                                viewerId.map(post::isAuthoredBy).orElse(false)
                         ))
                         .toList()
         );
     }
 
-    private static boolean isAuthoredBy(Post post, Optional<UUID> viewerId) {
-        return viewerId
-                .map(post.getAuthor().getId()::equals)
-                .orElse(false);
-    }
-
     public record PostSummary(
             UUID id,
+            UUID authorId,
             String originalImageUrl,
             String thumbnailImageUrl,
             String signatureOriginalImageUrl,
@@ -73,6 +68,7 @@ public record PostListResult(
         ) {
             return new PostSummary(
                     post.getId(),
+                    post.getAuthor().getId(),
                     imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
                     imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                     imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),

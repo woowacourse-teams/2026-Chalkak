@@ -62,7 +62,11 @@ class NotificationControllerTest {
         String body = type == NotificationType.POST_APPROVED
                 ? "피드에서 사진을 확인해 보세요."
                 : "반려 사유를 확인해 주세요.";
-        given(notificationService.getNotifications(USER_ID, 2, 10))
+        given(notificationService.getNotifications(
+                USER_ID,
+                2,
+                10
+        ))
                 .willReturn(new NotificationListResult(
                         2,
                         10,
@@ -76,7 +80,9 @@ class NotificationControllerTest {
                                 body,
                                 "https://cdn.test/thumbnail.webp",
                                 null,
-                                Instant.parse("2026-09-29T09:00:00Z")))));
+                                Instant.parse("2026-09-29T09:00:00Z")
+                        ))
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/notifications")
@@ -113,7 +119,8 @@ class NotificationControllerTest {
                         "https://cdn.test/original.webp",
                         "사진 품질",
                         null,
-                        Instant.parse("2026-09-29T09:00:00Z")));
+                        Instant.parse("2026-09-29T09:00:00Z")
+                ));
 
         mockMvc.perform(get("/api/v1/notifications/{notificationId}", NOTIFICATION_ID))
                 .andExpect(status().isOk())
@@ -162,8 +169,11 @@ class NotificationControllerTest {
         mockMvc.perform(get("/api/v1/notifications").param("pageSize", "101"))
                 .andExpect(status().isBadRequest());
 
-        verify(notificationService, never()).getNotifications(any(), any(Integer.class),
-                any(Integer.class));
+        verify(notificationService, never()).getNotifications(
+                any(),
+                any(Integer.class),
+                any(Integer.class)
+        );
     }
 
     @Test

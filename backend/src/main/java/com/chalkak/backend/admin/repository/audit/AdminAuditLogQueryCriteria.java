@@ -12,5 +12,6 @@ public record AdminAuditLogQueryCriteria(
         UUID targetId,
         Instant occurredFrom,
         Instant occurredTo,
-        AdminAuditLogSort sort) {
+        AdminAuditLogSort sort
+) {
 }

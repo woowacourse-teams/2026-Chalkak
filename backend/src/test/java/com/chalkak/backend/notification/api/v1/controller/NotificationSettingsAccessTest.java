@@ -68,21 +68,31 @@ class NotificationSettingsAccessTest extends IntegrationTestSupport {
     void getSettings_legacyTokens_returnsEachUsersOwnSettings() throws Exception {
         // Given
         User first = userRepository.save(UserFixture.create());
-        first.updatePushPreferences(false, true);
+        first.updatePushPreferences(
+                false,
+                true,
+                true
+        );
         User second = userRepository.save(UserFixture.create());
-        second.updatePushPreferences(true, false);
+        second.updatePushPreferences(
+                true,
+                false,
+                false
+        );
 
         // When & Then
         mockMvc.perform(get("/api/v1/notification-settings")
                 .header(HttpHeaders.AUTHORIZATION, authorization(first)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(false))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(true));
         mockMvc.perform(get("/api/v1/notification-settings")
                 .header(HttpHeaders.AUTHORIZATION, authorization(second)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(true))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(false));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(false))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(false));
     }
 
     @Test
@@ -132,10 +142,37 @@ class NotificationSettingsAccessTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, authorization(first)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topicPushEnabled").value(false))
-                .andExpect(jsonPath("$.moderationPushEnabled").value(true));
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(true));
         User unchanged = userRepository.findById(second.getId()).orElseThrow();
         assertThat(unchanged.isTopicPushEnabled()).isTrue();
         assertThat(unchanged.isModerationPushEnabled()).isTrue();
+        assertThat(unchanged.isAiReviewPushEnabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 설정만 보낸 수정은 그 값만 바꾸고 나머지 설정은 유지한다")
+    void updateSettings_aiReviewOnly_changesOnlyAiReview() throws Exception {
+        // Given
+        User user = userRepository.save(UserFixture.create());
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        mockMvc.perform(patch("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, authorization(user))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"aiReviewPushEnabled\":false}"))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        mockMvc.perform(get("/api/v1/notification-settings")
+                .header(HttpHeaders.AUTHORIZATION, authorization(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topicPushEnabled").value(true))
+                .andExpect(jsonPath("$.moderationPushEnabled").value(true))
+                .andExpect(jsonPath("$.aiReviewPushEnabled").value(false));
     }
 
     private String authorization(User user) {

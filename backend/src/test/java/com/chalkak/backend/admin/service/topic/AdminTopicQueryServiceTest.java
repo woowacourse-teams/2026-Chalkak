@@ -58,31 +58,51 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
         insertTopic(
                 BEFORE_TOPIC_ID,
                 "공개 전 주제",
-                LocalDate.of(2026, 8, 30),
+                LocalDate.of(
+                        2026,
+                        8,
+                        30
+                ),
                 Instant.parse("2026-08-29T15:00:00Z"),
                 Instant.parse("2026-08-30T15:00:00Z"),
-                null);
+                null
+        );
         insertTopic(
                 OPEN_TOPIC_ID,
                 "참여 중 주제",
-                LocalDate.of(2026, 8, 28),
+                LocalDate.of(
+                        2026,
+                        8,
+                        28
+                ),
                 Instant.parse("2026-08-27T15:00:00Z"),
                 Instant.parse("2026-08-28T15:00:00Z"),
-                null);
+                null
+        );
         insertTopic(
                 CLOSED_TOPIC_ID,
                 "종료된 주제",
-                LocalDate.of(2026, 8, 26),
+                LocalDate.of(
+                        2026,
+                        8,
+                        26
+                ),
                 Instant.parse("2026-08-25T15:00:00Z"),
                 Instant.parse("2026-08-26T15:00:00Z"),
-                null);
+                null
+        );
         insertTopic(
                 DELETED_TOPIC_ID,
                 "삭제된 주제",
-                LocalDate.of(2026, 9, 1),
+                LocalDate.of(
+                        2026,
+                        9,
+                        1
+                ),
                 Instant.parse("2026-08-31T15:00:00Z"),
                 Instant.parse("2026-09-01T15:00:00Z"),
-                NOW);
+                NOW
+        );
         insertOpenTopicPost();
     }
 
@@ -91,11 +111,20 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
     void getTopics_phaseAndDateFilters_returnsMatchingActiveTopics() {
         AdminTopicListResult result = adminTopicQueryService.getTopics(
                 TopicPhase.BEFORE_OPEN,
-                LocalDate.of(2026, 8, 29),
-                LocalDate.of(2026, 8, 31),
+                LocalDate.of(
+                        2026,
+                        8,
+                        29
+                ),
+                LocalDate.of(
+                        2026,
+                        8,
+                        31
+                ),
                 AdminTopicSort.TOPIC_DATE_DESC,
                 1,
-                20);
+                20
+        );
 
         assertThat(result.topics()).singleElement().satisfies(topic -> {
             assertThat(topic.topicId()).isEqualTo(BEFORE_TOPIC_ID);
@@ -122,7 +151,11 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
         AdminTopicDetail result = adminTopicQueryService.getTopic(OPEN_TOPIC_ID);
 
         assertThat(result.postCounts()).isEqualTo(
-                new AdminTopicDetail.PostCounts(1, 0, 0));
+                new AdminTopicDetail.PostCounts(
+                        1,
+                        0,
+                        0
+                ));
     }
 
     @Test
@@ -146,7 +179,8 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
                 null,
                 AdminTopicSort.TOPIC_DATE_DESC,
                 page,
-                pageSize);
+                pageSize
+        );
 
         // Then
         assertThat(result.currentPage()).isEqualTo(page);
@@ -167,7 +201,8 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
                         null,
                         AdminTopicSort.TOPIC_DATE_DESC,
                         page,
-                        pageSize));
+                        pageSize
+                ));
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
@@ -182,18 +217,20 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
             Instant endsAt,
             Instant deletedAt
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at,
-                    created_at, updated_at, deleted_at
-                ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO topics (
+                            id, title, topic_date, starts_at, ends_at,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                        """,
                 id,
                 title,
                 topicDate,
                 Timestamp.from(startsAt),
                 Timestamp.from(endsAt),
-                deletedAt == null ? null : Timestamp.from(deletedAt));
+                deletedAt == null ? null : Timestamp.from(deletedAt)
+        );
     }
 
     private void insertOpenTopicPost() {
@@ -209,10 +246,16 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
                 INSERT INTO photos (id, original_storage_key, created_at, updated_at)
                 VALUES (?, 'posts/topic-count-original', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, PHOTO_ID);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, POST_ID, USER_ID, OPEN_TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                POST_ID,
+                USER_ID,
+                OPEN_TOPIC_ID,
+                PHOTO_ID
+        );
     }
 }

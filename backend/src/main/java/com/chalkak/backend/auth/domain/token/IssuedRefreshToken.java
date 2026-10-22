@@ -6,5 +6,6 @@ import java.util.UUID;
 public record IssuedRefreshToken(
         String value,
         Duration expiresIn,
-        UUID sessionId) {
+        UUID sessionId
+) {
 }

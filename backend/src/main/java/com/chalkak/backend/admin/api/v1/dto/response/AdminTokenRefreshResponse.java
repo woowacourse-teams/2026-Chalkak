@@ -29,6 +29,7 @@ public record AdminTokenRefreshResponse(
                 accessToken.value(),
                 accessToken.expiresIn().toSeconds(),
                 refreshToken.value(),
-                refreshToken.expiresIn().toSeconds());
+                refreshToken.expiresIn().toSeconds()
+        );
     }
 }

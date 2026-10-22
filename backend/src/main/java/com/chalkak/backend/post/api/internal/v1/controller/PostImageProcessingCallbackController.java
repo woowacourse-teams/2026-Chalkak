@@ -25,20 +25,23 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 본문을 DTO가 아니라 원문 바이트로 받는 이유는 서명 검증 때문이다. 역직렬화 후 다시 직렬화한 문자열은 공백과
- * 키 순서가 달라져 Lambda가 계산한 해시와 어긋난다. 인증을 통과한 뒤에만 파싱한다.
+ * 본문을 DTO가 아니라 원문 바이트로 받는 이유는 서명 검증 때문이다. 역직렬화 후 다시 직렬화한 문자열은 공백과 키 순서가 달라져
+ * Lambda가 계산한 해시와 어긋난다. 인증을 통과한 뒤에만 파싱한다.
  *
- * <p>인증 헤더를 {@code required = false}로 받는 이유는 누락을 400이 아니라 401로 다루기 위해서다.
+ * <p>
+ * 인증 헤더를 {@code required = false}로 받는 이유는 누락을 400이 아니라 401로 다루기 위해서다.
  *
- * <p>원문을 직접 파싱하는 탓에 {@code @Valid}가 걸리지 않으므로 검증기를 직접 호출한다. 본문에 실리는 값의
- * 상당 부분이 공격자가 만든 파일의 EXIF에서 오기 때문에 인증만으로는 충분하지 않다.
+ * <p>
+ * 원문을 직접 파싱하는 탓에 {@code @Valid}가 걸리지 않으므로 검증기를 직접 호출한다. 본문에 실리는 값의 상당 부분이 공격자가
+ * 만든 파일의 EXIF에서 오기 때문에 인증만으로는 충분하지 않다.
  */
 @Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(PostImageProcessingCallbackController.CALLBACK_PATH)
 public class PostImageProcessingCallbackController
-        implements PostImageProcessingCallbackApiDocs {
+        implements
+            PostImageProcessingCallbackApiDocs {
 
     static final String CALLBACK_PATH = "/internal/v1/post-image-processing";
 
@@ -84,8 +87,8 @@ public class PostImageProcessingCallbackController
                 timestamp,
                 signature
         );
-        PostImageProcessingCompleteRequest request =
-                readBody(rawBody, PostImageProcessingCompleteRequest.class);
+        PostImageProcessingCompleteRequest request = readBody(rawBody,
+                PostImageProcessingCompleteRequest.class);
         postCommandService.completePostImageProcessing(parsedUploadId, request.toMetadata());
 
         return ResponseEntity.noContent().build();
@@ -106,8 +109,8 @@ public class PostImageProcessingCallbackController
                 timestamp,
                 signature
         );
-        PostImageProcessingFailRequest request =
-                readBody(rawBody, PostImageProcessingFailRequest.class);
+        PostImageProcessingFailRequest request = readBody(rawBody,
+                PostImageProcessingFailRequest.class);
         postCommandService.failPostImageProcessing(parsedUploadId, request.reason());
 
         return ResponseEntity.noContent().build();
@@ -125,7 +128,11 @@ public class PostImageProcessingCallbackController
             return objectMapper.readValue(rawBody, type);
         } catch (Exception exception) {
             // 이 예외 하나로 콜백이 영구 실패하므로 원인을 남기지 않으면 추적할 방법이 없다.
-            log.error("이미지 처리 콜백 본문을 파싱하지 못했습니다. type={}", type.getSimpleName(), exception);
+            log.error(
+                    "이미지 처리 콜백 본문을 파싱하지 못했습니다. type={}",
+                    type.getSimpleName(),
+                    exception
+            );
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "이미지 처리 콜백 본문을 읽을 수 없습니다."

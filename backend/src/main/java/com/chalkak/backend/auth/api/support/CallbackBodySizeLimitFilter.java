@@ -115,8 +115,16 @@ public class CallbackBodySizeLimitFilter extends OncePerRequestFilter {
         }
 
         @Override
-        public int read(byte[] buffer, int offset, int length) throws IOException {
-            int count = delegate.read(buffer, offset, length);
+        public int read(
+                byte[] buffer,
+                int offset,
+                int length
+        ) throws IOException {
+            int count = delegate.read(
+                    buffer,
+                    offset,
+                    length
+            );
             if (count > 0) {
                 countRead(count);
             }
@@ -153,7 +161,12 @@ public class CallbackBodySizeLimitFilter extends OncePerRequestFilter {
     private static final class BodyTooLargeException extends RuntimeException {
 
         private BodyTooLargeException() {
-            super(null, null, false, false);
+            super(
+                    null,
+                    null,
+                    false,
+                    false
+            );
         }
     }
 }

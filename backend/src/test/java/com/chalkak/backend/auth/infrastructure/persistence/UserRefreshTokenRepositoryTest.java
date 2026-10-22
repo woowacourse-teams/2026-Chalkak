@@ -36,7 +36,11 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         // given
         User user = userRepository.save(createUser());
         String tokenHash = createTokenHash();
-        userRefreshTokenRepository.save(createRefreshToken(user, UUID.randomUUID(), tokenHash));
+        userRefreshTokenRepository.save(createRefreshToken(
+                user,
+                UUID.randomUUID(),
+                tokenHash
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -73,7 +77,8 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
                 sessionId,
                 tokenHash,
                 NOW.plusSeconds(3600),
-                NOW.plusSeconds(7200));
+                NOW.plusSeconds(7200)
+        );
 
         // when
         userRefreshTokenRepository.save(token);
@@ -96,9 +101,21 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         String liveTokenHash = createTokenHash();
         String otherTokenHash = createTokenHash();
         userRefreshTokenRepository
-                .save(createRefreshToken(user, targetSessionId, rotatedTokenHash));
-        userRefreshTokenRepository.save(createRefreshToken(user, targetSessionId, liveTokenHash));
-        userRefreshTokenRepository.save(createRefreshToken(user, otherSessionId, otherTokenHash));
+                .save(createRefreshToken(
+                        user,
+                        targetSessionId,
+                        rotatedTokenHash
+                ));
+        userRefreshTokenRepository.save(createRefreshToken(
+                user,
+                targetSessionId,
+                liveTokenHash
+        ));
+        userRefreshTokenRepository.save(createRefreshToken(
+                user,
+                otherSessionId,
+                otherTokenHash
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -119,10 +136,18 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         // given
         User user = userRepository.save(createUser());
         UUID sessionId = UUID.randomUUID();
-        UserRefreshToken revoked = createRefreshToken(user, sessionId, createTokenHash());
+        UserRefreshToken revoked = createRefreshToken(
+                user,
+                sessionId,
+                createTokenHash()
+        );
         revoked.revoke(NOW.minusSeconds(60));
         userRefreshTokenRepository.save(revoked);
-        userRefreshTokenRepository.save(createRefreshToken(user, sessionId, createTokenHash()));
+        userRefreshTokenRepository.save(createRefreshToken(
+                user,
+                sessionId,
+                createTokenHash()
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -143,11 +168,23 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         String secondTokenHash = createTokenHash();
         String otherUserTokenHash = createTokenHash();
         userRefreshTokenRepository.save(
-                createRefreshToken(user, UUID.randomUUID(), firstTokenHash));
+                createRefreshToken(
+                        user,
+                        UUID.randomUUID(),
+                        firstTokenHash
+                ));
         userRefreshTokenRepository.save(
-                createRefreshToken(user, UUID.randomUUID(), secondTokenHash));
+                createRefreshToken(
+                        user,
+                        UUID.randomUUID(),
+                        secondTokenHash
+                ));
         userRefreshTokenRepository.save(
-                createRefreshToken(otherUser, UUID.randomUUID(), otherUserTokenHash));
+                createRefreshToken(
+                        otherUser,
+                        UUID.randomUUID(),
+                        otherUserTokenHash
+                ));
         entityManager.flush();
         entityManager.clear();
 
@@ -173,15 +210,36 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         String longRevokedTokenHash = createTokenHash();
         String justRevokedTokenHash = createTokenHash();
         String liveTokenHash = createTokenHash();
-        saveRefreshToken(user, absolutelyExpiredTokenHash, NOW.minusSeconds(1), null);
-        saveRefreshToken(user, expiringNowTokenHash, NOW, null);
+        saveRefreshToken(
+                user,
+                absolutelyExpiredTokenHash,
+                NOW.minusSeconds(1),
+                null
+        );
+        saveRefreshToken(
+                user,
+                expiringNowTokenHash,
+                NOW,
+                null
+        );
         saveRefreshToken(
                 user,
                 longRevokedTokenHash,
                 NOW.plusSeconds(3600),
-                revokedThreshold.minusSeconds(1));
-        saveRefreshToken(user, justRevokedTokenHash, NOW.plusSeconds(3600), revokedThreshold);
-        saveRefreshToken(user, liveTokenHash, NOW.plusSeconds(3600), null);
+                revokedThreshold.minusSeconds(1)
+        );
+        saveRefreshToken(
+                user,
+                justRevokedTokenHash,
+                NOW.plusSeconds(3600),
+                revokedThreshold
+        );
+        saveRefreshToken(
+                user,
+                liveTokenHash,
+                NOW.plusSeconds(3600),
+                null
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -210,20 +268,26 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
                 sessionId,
                 tokenHash,
                 absoluteExpiresAt,
-                absoluteExpiresAt);
+                absoluteExpiresAt
+        );
         if (revokedAt != null) {
             refreshToken.revoke(revokedAt);
         }
         userRefreshTokenRepository.save(refreshToken);
     }
 
-    private UserRefreshToken createRefreshToken(User user, UUID sessionId, String tokenHash) {
+    private UserRefreshToken createRefreshToken(
+            User user,
+            UUID sessionId,
+            String tokenHash
+    ) {
         return UserRefreshToken.create(
                 user,
                 sessionId,
                 tokenHash,
                 NOW.plusSeconds(3600),
-                NOW.plusSeconds(7200));
+                NOW.plusSeconds(7200)
+        );
     }
 
     private Instant findRevokedAt(String tokenHash) {

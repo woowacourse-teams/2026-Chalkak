@@ -34,7 +34,11 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
             .fromString("0198fd22-0000-7000-8000-000000000002");
     private static final UUID UNKNOWN_ADMIN_ID = UUID
             .fromString("0198fd22-0000-7000-8000-000000000099");
-    private static final LocalDate TOPIC_DATE = LocalDate.of(2099, 1, 2);
+    private static final LocalDate TOPIC_DATE = LocalDate.of(
+            2099,
+            1,
+            2
+    );
     private static final Instant STARTS_AT = Instant.parse("2099-01-01T15:00:00Z");
     private static final Instant ENDS_AT = Instant.parse("2099-01-02T15:00:00Z");
 
@@ -63,9 +67,19 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
     @DisplayName("같은 날짜의 주제를 동시에 생성하면 하나만 저장하고 감사 로그도 하나만 남긴다")
     void createTopic_sameDateConcurrently_createsExactlyOnce() throws Exception {
         Callable<AdminTopicDetail> first = () -> adminTopicCommandService.createTopic(
-                FIRST_ADMIN_ID, "첫 번째 주제", TOPIC_DATE, STARTS_AT, ENDS_AT);
+                FIRST_ADMIN_ID,
+                "첫 번째 주제",
+                TOPIC_DATE,
+                STARTS_AT,
+                ENDS_AT
+        );
         Callable<AdminTopicDetail> second = () -> adminTopicCommandService.createTopic(
-                SECOND_ADMIN_ID, "두 번째 주제", TOPIC_DATE, STARTS_AT, ENDS_AT);
+                SECOND_ADMIN_ID,
+                "두 번째 주제",
+                TOPIC_DATE,
+                STARTS_AT,
+                ENDS_AT
+        );
 
         List<CreateAttempt> attempts = runConcurrently(first, second);
 
@@ -87,7 +101,8 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
                         "롤백 주제",
                         TOPIC_DATE,
                         STARTS_AT,
-                        ENDS_AT)));
+                        ENDS_AT
+                )));
 
         assertThat(exception).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(countTopics()).isZero();
@@ -128,22 +143,31 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM topics WHERE topic_date = ? AND deleted_at IS NULL",
                 Integer.class,
-                TOPIC_DATE);
+                TOPIC_DATE
+        );
     }
 
     private int countAuditLogs() {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM admin_audit_logs
-                WHERE target_type = CAST('TOPIC' AS admin_target_type)
-                  AND after_state ->> 'topicDate' = ?
-                """, Integer.class, TOPIC_DATE.toString());
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM admin_audit_logs
+                        WHERE target_type = CAST('TOPIC' AS admin_target_type)
+                          AND after_state ->> 'topicDate' = ?
+                        """,
+                Integer.class,
+                TOPIC_DATE.toString()
+        );
     }
 
     private void insertAdmin(UUID id, String username) {
-        jdbcTemplate.update("""
-                INSERT INTO admins (id, username, password, created_at, updated_at)
-                VALUES (?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, id, username);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (id, username, password, created_at, updated_at)
+                        VALUES (?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                id,
+                username
+        );
     }
 
     private void cleanUp() {
@@ -157,7 +181,8 @@ class AdminTopicConcurrencyTest extends IntegrationTestSupport {
                 "DELETE FROM admins WHERE id IN (?, ?, ?)",
                 FIRST_ADMIN_ID,
                 SECOND_ADMIN_ID,
-                UNKNOWN_ADMIN_ID);
+                UNKNOWN_ADMIN_ID
+        );
     }
 
     private record CreateAttempt(

@@ -30,7 +30,8 @@ class SocialAccountTest {
         SocialAccount socialAccount = SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                SUBJECT_HMAC);
+                SUBJECT_HMAC
+        );
 
         // Then
         assertThat(socialAccount.getUser()).isSameAs(user);
@@ -60,7 +61,8 @@ class SocialAccountTest {
         assertThatThrownBy(() -> SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac))
+                subjectHmac
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("소셜 계정 식별 정보가 올바르지 않습니다.");
     }
@@ -76,10 +78,18 @@ class SocialAccountTest {
                         "chalkak/signatures/dev/thumbnail/signature.png"));
 
         // When & Then
-        assertThatThrownBy(() -> SocialAccount.create(null, SocialProvider.GOOGLE, SUBJECT_HMAC))
+        assertThatThrownBy(() -> SocialAccount.create(
+                null,
+                SocialProvider.GOOGLE,
+                SUBJECT_HMAC
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("소셜 계정 연결 정보가 올바르지 않습니다.");
-        assertThatThrownBy(() -> SocialAccount.create(user, null, SUBJECT_HMAC))
+        assertThatThrownBy(() -> SocialAccount.create(
+                user,
+                null,
+                SUBJECT_HMAC
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("소셜 계정 연결 정보가 올바르지 않습니다.");
     }

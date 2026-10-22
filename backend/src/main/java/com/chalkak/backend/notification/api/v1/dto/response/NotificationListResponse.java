@@ -22,17 +22,22 @@ public record NotificationListResponse(
                 result.hasNext(),
                 result.notifications().stream()
                         .map(NotificationSummaryResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 
     public record NotificationSummaryResponse(
             UUID id,
+            @Schema(
+                    description = "알림 종류. 승인·반려(POST_APPROVED·POST_REJECTED), AI 리뷰 결과(AI_REVIEW_COMPLETED·AI_REVIEW_FAILED), 주제(TOPIC), 공지(NOTICE)")
             NotificationType type,
             @Schema(
-                    description = "관련 대상 종류. 현재 승인·반려는 POST이며 대상이 없으면 null",
+                    description = "관련 대상 종류. 승인·반려·AI 리뷰 결과 알림은 POST이며 대상이 없으면 null",
                     nullable = true)
             NotificationSourceType sourceType,
-            @Schema(description = "관련 대상 ID. 승인 알림은 이 게시물 ID로 이동하며 알림 ID와 구분", nullable = true)
+            @Schema(
+                    description = "관련 대상 ID. 승인 알림은 이 게시물 ID로 이동하고 AI 리뷰 결과 알림은 이 게시물의 AI 리뷰 화면으로 이동하며 알림 ID와 구분",
+                    nullable = true)
             UUID sourceId,
             String title,
             String body,
@@ -52,7 +57,8 @@ public record NotificationListResponse(
                     summary.body(),
                     summary.thumbnailImageUrl(),
                     summary.readAt(),
-                    summary.createdAt());
+                    summary.createdAt()
+            );
         }
     }
 }

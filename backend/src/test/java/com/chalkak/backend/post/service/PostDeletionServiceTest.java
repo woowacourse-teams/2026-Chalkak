@@ -24,26 +24,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostDeletionServiceTest extends IntegrationTestSupport {
 
-    private static final UUID AUTHOR_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574a1");
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574a2");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574b1");
-    private static final UUID PHOTO_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574c1");
-    private static final UUID POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574d1");
-    private static final UUID UNKNOWN_POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574df");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574e1");
-    private static final UUID SECOND_UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574e2");
-    private static final String ORIGINAL_STORAGE_KEY =
-            "chalkak/posts/test/original/" + UPLOAD_ID + ".webp";
-    private static final String THUMBNAIL_STORAGE_KEY =
-            "chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".webp";
+    private static final UUID AUTHOR_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574a1");
+    private static final UUID OTHER_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6574a2");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574b1");
+    private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574c1");
+    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574d1");
+    private static final UUID UNKNOWN_POST_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6574df");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6574e1");
+    private static final UUID SECOND_UPLOAD_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6574e2");
+    private static final String ORIGINAL_STORAGE_KEY = "chalkak/posts/test/original/" + UPLOAD_ID
+            + ".webp";
+    private static final String THUMBNAIL_STORAGE_KEY = "chalkak/posts/test/thumbnail/" + UPLOAD_ID
+            + ".webp";
 
     @Autowired
     private PostCommandService postCommandService;
@@ -101,10 +96,14 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                     moderated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """, POST_ID);
-        jdbcTemplate.update("""
-                INSERT INTO post_likes (post_id, user_id)
-                VALUES (?, ?)
-                """, POST_ID, AUTHOR_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_likes (post_id, user_id)
+                        VALUES (?, ?)
+                        """,
+                POST_ID,
+                AUTHOR_ID
+        );
 
         // When
         postCommandService.deletePost(AUTHOR_ID, POST_ID);
@@ -133,7 +132,11 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 LocalDate.now(),
                 LocalDate.now()
         )).isEmpty();
-        assertThat(postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 20).posts())
+        assertThat(postRepository.findVisibleRecentByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        ).posts())
                 .isEmpty();
     }
 
@@ -157,10 +160,14 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                     moderated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """, POST_ID);
-        jdbcTemplate.update("""
-                INSERT INTO post_likes (post_id, user_id)
-                VALUES (?, ?)
-                """, POST_ID, AUTHOR_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_likes (post_id, user_id)
+                        VALUES (?, ?)
+                        """,
+                POST_ID,
+                AUTHOR_ID
+        );
 
         // When
         ForbiddenException exception = catchThrowableOfType(
@@ -363,53 +370,73 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
     }
 
     private void insertPhoto() {
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, CAST('{}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, PHOTO_ID, ORIGINAL_STORAGE_KEY, THUMBNAIL_STORAGE_KEY);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, CAST('{}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                PHOTO_ID,
+                ORIGINAL_STORAGE_KEY,
+                THUMBNAIL_STORAGE_KEY
+        );
     }
 
     private void insertUpload() {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, image_metadata,
-                    expires_at, claimed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, UPLOAD_ID, AUTHOR_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, image_metadata,
+                            expires_at, claimed_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                UPLOAD_ID,
+                AUTHOR_ID
+        );
     }
 
     private void insertUnclaimedReadyUpload() {
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, image_metadata,
-                    expires_at, claimed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour', NULL,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, SECOND_UPLOAD_ID, AUTHOR_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, image_metadata,
+                            expires_at, claimed_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('READY' AS post_image_upload_status), CAST('{}' AS jsonb),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour', NULL,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                SECOND_UPLOAD_ID,
+                AUTHOR_ID
+        );
     }
 
     private void insertPendingPost() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, post_image_upload_id,
-                    title, moderation_status, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, '삭제 대상', CAST('PENDING' AS moderation_status),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, AUTHOR_ID, TOPIC_ID, PHOTO_ID, UPLOAD_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, post_image_upload_id,
+                            title, moderation_status, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, '삭제 대상', CAST('PENDING' AS moderation_status),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                AUTHOR_ID,
+                TOPIC_ID,
+                PHOTO_ID,
+                UPLOAD_ID
+        );
     }
 
     private Map<String, Object> findDeletionState() {

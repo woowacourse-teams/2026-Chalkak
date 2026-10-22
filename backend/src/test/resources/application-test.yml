@@ -3,6 +3,7 @@ CLOUDFRONT_ORIGIN_PATH: /chalkak
 IMAGE_PROCESSOR_CALLBACK_SECRET: test-callback-secret-with-enough-length
 SOCIAL_SIGNUP_TOKEN_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ACCESS_TOKEN_SECRET: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+OPENAI_API_KEY: test-openai-api-key
 SOCIAL_IDENTITY_HMAC_SECRET: aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899
 
 spring:
@@ -19,6 +20,10 @@ spring:
 
 # 존재하지 않는 버킷을 박아 테스트가 실제 S3에 닿지 않게 한다.
 chalkak:
+  ai-review:
+    worker:
+      # 실제 시각으로 도는 폴러가 테스트 DB의 행을 가져가지 않게 끈다. 테스트는 서비스 메서드를 직접 부른다.
+      enabled: false
   notification:
     fcm:
       worker-enabled: false

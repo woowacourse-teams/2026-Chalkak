@@ -69,9 +69,22 @@ class AdminNoticeControllerTest {
     void getNotices_validRequest_returnsNoticeList() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
-        given(noticeService.getNotices(2, 10)).willReturn(new AdminNoticeListResult(2, 10, true,
-                List.of(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
-                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, null, createdAt, createdAt))));
+        given(noticeService.getNotices(2, 10)).willReturn(new AdminNoticeListResult(
+                2,
+                10,
+                true,
+                List.of(new AdminNoticeResult(
+                        NOTICE_ID,
+                        "서비스 점검 안내",
+                        "점검합니다.",
+                        SCHEDULED_AT,
+                        NoticeStatus.SCHEDULED,
+                        null,
+                        null,
+                        createdAt,
+                        createdAt
+                ))
+        ));
 
         // When & Then
         mockMvc.perform(get(PATH).param("page", "2").param("pageSize", "10"))
@@ -93,7 +106,12 @@ class AdminNoticeControllerTest {
     void getNotices_omittedPagination_usesDefaults() throws Exception {
         // Given
         given(noticeService.getNotices(1, 20))
-                .willReturn(new AdminNoticeListResult(1, 20, false, List.of()));
+                .willReturn(new AdminNoticeListResult(
+                        1,
+                        20,
+                        false,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get(PATH))
@@ -119,9 +137,17 @@ class AdminNoticeControllerTest {
     void getNotice_existingNotice_returnsNotice() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
-        given(noticeService.getNotice(NOTICE_ID)).willReturn(new AdminNoticeResult(NOTICE_ID,
-                "서비스 점검 안내", "점검합니다.", SCHEDULED_AT, NoticeStatus.DISTRIBUTED,
-                SCHEDULED_AT, SCHEDULED_AT.plusSeconds(3600), createdAt, createdAt));
+        given(noticeService.getNotice(NOTICE_ID)).willReturn(new AdminNoticeResult(
+                NOTICE_ID,
+                "서비스 점검 안내",
+                "점검합니다.",
+                SCHEDULED_AT,
+                NoticeStatus.DISTRIBUTED,
+                SCHEDULED_AT,
+                SCHEDULED_AT.plusSeconds(3600),
+                createdAt,
+                createdAt
+        ));
 
         // When & Then
         mockMvc.perform(get(PATH + "/" + NOTICE_ID))
@@ -161,9 +187,23 @@ class AdminNoticeControllerTest {
     void createNotice_validRequest_returnsCreatedNotice() throws Exception {
         // Given
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
-        given(noticeService.createNotice(ADMIN_ID, "서비스 점검 안내", "점검합니다.", SCHEDULED_AT))
-                .willReturn(new AdminNoticeResult(NOTICE_ID, "서비스 점검 안내", "점검합니다.",
-                        SCHEDULED_AT, NoticeStatus.SCHEDULED, null, null, createdAt, createdAt));
+        given(noticeService.createNotice(
+                ADMIN_ID,
+                "서비스 점검 안내",
+                "점검합니다.",
+                SCHEDULED_AT
+        ))
+                .willReturn(new AdminNoticeResult(
+                        NOTICE_ID,
+                        "서비스 점검 안내",
+                        "점검합니다.",
+                        SCHEDULED_AT,
+                        NoticeStatus.SCHEDULED,
+                        null,
+                        null,
+                        createdAt,
+                        createdAt
+                ));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -201,7 +241,12 @@ class AdminNoticeControllerTest {
     @DisplayName("서비스의 업무 예외는 400과 BUSINESS_ERROR로 응답한다")
     void createNotice_businessException_returnsBadRequest() throws Exception {
         // Given
-        given(noticeService.createNotice(any(), anyString(), anyString(), any()))
+        given(noticeService.createNotice(
+                any(),
+                anyString(),
+                anyString(),
+                any()
+        ))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다."));
 
@@ -223,10 +268,23 @@ class AdminNoticeControllerTest {
         // Given
         Instant createdAt = Instant.parse("2026-10-12T09:00:00Z");
         Instant updatedAt = Instant.parse("2026-10-13T09:00:00Z");
-        given(noticeService.updateNotice(NOTICE_ID, ADMIN_ID, "점검 일정 변경", "점검합니다.",
-                SCHEDULED_AT)).willReturn(new AdminNoticeResult(NOTICE_ID, "점검 일정 변경",
-                        "점검합니다.", SCHEDULED_AT, NoticeStatus.SCHEDULED, null, null,
-                        createdAt, updatedAt));
+        given(noticeService.updateNotice(
+                NOTICE_ID,
+                ADMIN_ID,
+                "점검 일정 변경",
+                "점검합니다.",
+                SCHEDULED_AT
+        )).willReturn(new AdminNoticeResult(
+                NOTICE_ID,
+                "점검 일정 변경",
+                "점검합니다.",
+                SCHEDULED_AT,
+                NoticeStatus.SCHEDULED,
+                null,
+                null,
+                createdAt,
+                updatedAt
+        ));
 
         // When & Then
         mockMvc.perform(put(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
@@ -273,7 +331,13 @@ class AdminNoticeControllerTest {
     @DisplayName("배포된 공지의 수정은 400과 BUSINESS_ERROR로 응답한다")
     void updateNotice_distributedNotice_returnsBadRequest() throws Exception {
         // Given
-        given(noticeService.updateNotice(any(), any(), anyString(), anyString(), any()))
+        given(noticeService.updateNotice(
+                any(),
+                any(),
+                anyString(),
+                anyString(),
+                any()
+        ))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "배포된 공지는 수정할 수 없습니다."));
 
@@ -291,7 +355,13 @@ class AdminNoticeControllerTest {
     @DisplayName("없는 공지의 수정은 404로 응답한다")
     void updateNotice_unknownNotice_returnsNotFound() throws Exception {
         // Given
-        given(noticeService.updateNotice(any(), any(), anyString(), anyString(), any()))
+        given(noticeService.updateNotice(
+                any(),
+                any(),
+                anyString(),
+                anyString(),
+                any()
+        ))
                 .willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "공지를 찾을 수 없습니다."));
 
         // When & Then
@@ -311,7 +381,11 @@ class AdminNoticeControllerTest {
         mockMvc.perform(delete(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"점검 일정 취소\"}"))
                 .andExpect(status().isNoContent());
-        verify(noticeService).deleteNotice(NOTICE_ID, ADMIN_ID, "점검 일정 취소");
+        verify(noticeService).deleteNotice(
+                NOTICE_ID,
+                ADMIN_ID,
+                "점검 일정 취소"
+        );
     }
 
     @ParameterizedTest
@@ -350,7 +424,11 @@ class AdminNoticeControllerTest {
     void deleteNotice_unknownNotice_returnsNotFound() throws Exception {
         // Given
         willThrow(new NotFoundException(ErrorCode.BUSINESS_ERROR, "공지를 찾을 수 없습니다."))
-                .given(noticeService).deleteNotice(any(), any(), anyString());
+                .given(noticeService).deleteNotice(
+                        any(),
+                        any(),
+                        anyString()
+                );
 
         // When & Then
         mockMvc.perform(delete(PATH + "/" + NOTICE_ID).contentType(MediaType.APPLICATION_JSON)

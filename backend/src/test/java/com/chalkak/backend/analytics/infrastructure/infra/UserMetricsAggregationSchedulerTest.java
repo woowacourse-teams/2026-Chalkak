@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 
 class UserMetricsAggregationSchedulerTest {
 
-    private final UserMetricsAggregationRunner aggregationRunner =
-            mock(UserMetricsAggregationRunner.class);
+    private final UserMetricsAggregationRunner aggregationRunner = mock(
+            UserMetricsAggregationRunner.class);
 
     @Test
     @DisplayName("집계 작업은 KST 기준 어제 날짜를 집계한다")
@@ -22,13 +22,17 @@ class UserMetricsAggregationSchedulerTest {
         // Given
         // UTC 2030-01-02 16:30은 KST 2030-01-03 01:30이다.
         Clock clock = Clock.fixed(Instant.parse("2030-01-02T16:30:00Z"), ZoneOffset.UTC);
-        UserMetricsAggregationScheduler scheduler =
-                new UserMetricsAggregationScheduler(aggregationRunner, clock);
+        UserMetricsAggregationScheduler scheduler = new UserMetricsAggregationScheduler(
+                aggregationRunner, clock);
 
         // When
         scheduler.aggregateYesterday();
 
         // Then
-        verify(aggregationRunner).run(LocalDate.of(2030, 1, 2));
+        verify(aggregationRunner).run(LocalDate.of(
+                2030,
+                1,
+                2
+        ));
     }
 }

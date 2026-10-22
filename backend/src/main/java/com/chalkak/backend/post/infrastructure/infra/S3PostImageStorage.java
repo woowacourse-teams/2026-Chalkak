@@ -44,17 +44,32 @@ public class S3PostImageStorage implements PostImageStorage {
 
     @Override
     public String toStagingStorageKey(UUID uploadId) {
-        return createKey(STAGING_PATH, imageProperties.environment(), POST_PATH, uploadId);
+        return createKey(
+                STAGING_PATH,
+                imageProperties.environment(),
+                POST_PATH,
+                uploadId
+        );
     }
 
     @Override
     public String toOriginalStorageKey(UUID uploadId) {
-        return createKey(POST_PATH, imageProperties.environment(), ORIGINAL_PATH, uploadId);
+        return createKey(
+                POST_PATH,
+                imageProperties.environment(),
+                ORIGINAL_PATH,
+                uploadId
+        );
     }
 
     @Override
     public String toThumbnailStorageKey(UUID uploadId) {
-        return createKey(POST_PATH, imageProperties.environment(), THUMBNAIL_PATH, uploadId);
+        return createKey(
+                POST_PATH,
+                imageProperties.environment(),
+                THUMBNAIL_PATH,
+                uploadId
+        );
     }
 
     private String createKey(

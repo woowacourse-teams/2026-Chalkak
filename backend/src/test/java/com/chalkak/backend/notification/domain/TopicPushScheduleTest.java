@@ -96,7 +96,11 @@ class TopicPushScheduleTest {
         // Given
         Instant scheduledAt = Instant.parse("2026-10-12T00:00:00Z");
         TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
-        ReflectionTestUtils.setField(schedule, "updatedAt", scheduledAt.minusSeconds(60));
+        ReflectionTestUtils.setField(
+                schedule,
+                "updatedAt",
+                scheduledAt.minusSeconds(60)
+        );
 
         // When
         Instant occurrence = schedule.findDueOccurrence(scheduledAt.plusSeconds(seconds));
@@ -116,7 +120,11 @@ class TopicPushScheduleTest {
         // Given
         Instant scheduledAt = Instant.parse("2026-10-12T00:00:00Z");
         TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
-        ReflectionTestUtils.setField(schedule, "updatedAt", scheduledAt.plusSeconds(seconds));
+        ReflectionTestUtils.setField(
+                schedule,
+                "updatedAt",
+                scheduledAt.plusSeconds(seconds)
+        );
 
         // When
         Instant occurrence = schedule.findDueOccurrence(scheduledAt.plusSeconds(60));
@@ -135,7 +143,11 @@ class TopicPushScheduleTest {
         // Given
         Instant scheduledAt = Instant.parse("2026-10-12T00:00:00Z");
         TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(9, 0));
-        ReflectionTestUtils.setField(schedule, "updatedAt", scheduledAt.plusSeconds(1));
+        ReflectionTestUtils.setField(
+                schedule,
+                "updatedAt",
+                scheduledAt.plusSeconds(1)
+        );
 
         // When & Then
         assertThat(schedule.findDueOccurrence(scheduledAt.plusSeconds(60))).isNull();
@@ -149,7 +161,11 @@ class TopicPushScheduleTest {
         // Given
         Instant midnight = Instant.parse("2026-10-12T15:00:00Z");
         TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.MIDNIGHT);
-        ReflectionTestUtils.setField(schedule, "updatedAt", midnight.minusSeconds(60));
+        ReflectionTestUtils.setField(
+                schedule,
+                "updatedAt",
+                midnight.minusSeconds(60)
+        );
 
         // When
         Instant occurrence = schedule.findDueOccurrence(midnight);
@@ -164,7 +180,11 @@ class TopicPushScheduleTest {
         // Given
         Instant midnight = Instant.parse("2026-10-12T15:00:00Z");
         TopicPushSchedule schedule = new TopicPushSchedule(LocalTime.of(23, 59));
-        ReflectionTestUtils.setField(schedule, "updatedAt", midnight.minusSeconds(3600));
+        ReflectionTestUtils.setField(
+                schedule,
+                "updatedAt",
+                midnight.minusSeconds(3600)
+        );
 
         // When
         Instant occurrence = schedule.findDueOccurrence(midnight);

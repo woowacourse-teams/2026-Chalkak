@@ -44,7 +44,11 @@ class RequestIdFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/posts");
         request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/posts");
         request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
-                new FeedQueryLog("recent", 1, 20));
+                new FeedQueryLog(
+                        "recent",
+                        1,
+                        20
+                ));
         MockHttpServletResponse response = new MockHttpServletResponse();
         IllegalStateException failure = new IllegalStateException("예상하지 못한 장애");
         FilterChain failingChain = (req, res) -> {
@@ -52,7 +56,11 @@ class RequestIdFilterTest {
         };
 
         // When & Then
-        assertThatThrownBy(() -> filter.doFilter(request, response, failingChain))
+        assertThatThrownBy(() -> filter.doFilter(
+                request,
+                response,
+                failingChain
+        ))
                 .isSameAs(failure);
         assertThat(appender.list).hasSize(1);
         ILoggingEvent event = appender.list.getFirst();
@@ -66,7 +74,12 @@ class RequestIdFilterTest {
                 event.getMDCPropertyMap().get("requestId"));
         assertThat(MDC.get("requestId")).isNull();
         assertThat(event.getKeyValuePairs()).noneSatisfy(
-                pair -> assertThat(pair.key).isIn("sort", "page", "pageSize", "postIds"));
+                pair -> assertThat(pair.key).isIn(
+                        "sort",
+                        "page",
+                        "pageSize",
+                        "postIds"
+                ));
     }
 
     @ParameterizedTest
@@ -81,17 +94,30 @@ class RequestIdFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, path);
         request.setAttribute(LogFields.FEED_QUERY_REQUEST_ATTRIBUTE,
-                new FeedQueryLog("recent", 1, 20));
+                new FeedQueryLog(
+                        "recent",
+                        1,
+                        20
+                ));
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = (req, res) -> response.setStatus(status);
 
         // When
-        filter.doFilter(request, response, chain);
+        filter.doFilter(
+                request,
+                response,
+                chain
+        );
 
         // Then
         assertThat(appender.list).hasSize(1);
         for (org.slf4j.event.KeyValuePair pair : appender.list.getFirst().getKeyValuePairs()) {
-            assertThat(pair.key).isNotIn("sort", "page", "pageSize", "postIds");
+            assertThat(pair.key).isNotIn(
+                    "sort",
+                    "page",
+                    "pageSize",
+                    "postIds"
+            );
         }
     }
 
@@ -105,7 +131,11 @@ class RequestIdFilterTest {
         };
 
         // When
-        filter.doFilter(request, response, chain);
+        filter.doFilter(
+                request,
+                response,
+                chain
+        );
 
         // Then
         assertThat(appender.list).hasSize(1);
@@ -121,7 +151,11 @@ class RequestIdFilterTest {
         };
 
         // When
-        filter.doFilter(request, response, chain);
+        filter.doFilter(
+                request,
+                response,
+                chain
+        );
 
         // Then
         assertThat(appender.list).isEmpty();

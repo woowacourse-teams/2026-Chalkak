@@ -35,7 +35,11 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.StopQueryRequest;
 class CloudWatchLogsAccessLogMetricsReaderTest {
 
     private static final String LOG_GROUP = "/chalkak/test/application";
-    private static final LocalDate METRIC_DATE = LocalDate.of(2026, 10, 2);
+    private static final LocalDate METRIC_DATE = LocalDate.of(
+            2026,
+            10,
+            2
+    );
     private static final int RETENTION_DAYS = 7;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
@@ -84,7 +88,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
                         + "| stats count(*) as server5xx",
                 "filter type = \"access\" and method = \"POST\" and route = \"/api/v1/posts\" "
                         + "and status = 201\n"
-                        + "| stats count(*) as postCreations");
+                        + "| stats count(*) as postCreations"
+        );
     }
 
     @Test
@@ -100,8 +105,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
 
         // Then
         String clause = "| filter userId not in [\"" + first + "\",\"" + second + "\"]";
-        List<String> queries =
-                startRequests(5).stream().map(StartQueryRequest::queryString).toList();
+        List<String> queries = startRequests(5).stream().map(StartQueryRequest::queryString)
+                .toList();
         assertThat(queries.get(0)).contains(clause);
         assertThat(queries.get(1)).contains(clause);
         assertThat(queries.get(2)).doesNotContain("not in");
@@ -128,11 +133,23 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
         // Given
         when(client.startQuery(any(StartQueryRequest.class)))
                 .thenReturn(
-                        started("q1"), started("q2"), started("q3"), started("q4"), started("q5"));
+                        started("q1"),
+                        started("q2"),
+                        started("q3"),
+                        started("q4"),
+                        started("q5")
+                );
         stubResult("q1", completed(row("visitors", "7")));
         stubResult("q2", completed(row("topicViewers", "6")));
         stubResult("q3", completed(
-                row("requests", "1200", "latencyAvg", "12.6", "latencyP95", "80.4")));
+                row(
+                        "requests",
+                        "1200",
+                        "latencyAvg",
+                        "12.6",
+                        "latencyP95",
+                        "80.4"
+                )));
         stubResult("q4", completed(row("server5xx", "3")));
         stubResult("q5", completed(row("postCreations", "9")));
 
@@ -140,7 +157,15 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
         AccessLogMetrics metrics = reader(List.of()).read(METRIC_DATE).orElseThrow();
 
         // Then
-        assertThat(metrics).isEqualTo(new AccessLogMetrics(7, 6, 1200, 3, 13, 80, 9));
+        assertThat(metrics).isEqualTo(new AccessLogMetrics(
+                7,
+                6,
+                1200,
+                3,
+                13,
+                80,
+                9
+        ));
     }
 
     @Test
@@ -156,14 +181,29 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
         AccessLogMetrics metrics = reader(List.of()).read(METRIC_DATE).orElseThrow();
 
         // Then
-        assertThat(metrics).isEqualTo(new AccessLogMetrics(0, 0, 0, 0, 0, 0, 0));
+        assertThat(metrics).isEqualTo(new AccessLogMetrics(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+        ));
     }
 
     @Test
     @DisplayName("값이 비었거나 NaN이면 0으로 센다")
     void read_blankOrNanValues_areZero() {
         // Given
-        stubQueries(completed(row("visitors", "", "topicViewers", "NaN", "requests", "5")));
+        stubQueries(completed(row(
+                "visitors",
+                "",
+                "topicViewers",
+                "NaN",
+                "requests",
+                "5"
+        )));
 
         // When
         AccessLogMetrics metrics = reader(List.of()).read(METRIC_DATE).orElseThrow();
@@ -178,10 +218,14 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
     void read_runningThenComplete_pollsWithInterval() {
         // Given
         when(client.startQuery(any(StartQueryRequest.class))).thenReturn(started("q"));
-        GetQueryResultsResponse running =
-                GetQueryResultsResponse.builder().status(QueryStatus.RUNNING).build();
+        GetQueryResultsResponse running = GetQueryResultsResponse.builder()
+                .status(QueryStatus.RUNNING).build();
         when(client.getQueryResults(any(GetQueryResultsRequest.class)))
-                .thenReturn(running, running, completed("1"));
+                .thenReturn(
+                        running,
+                        running,
+                        completed("1")
+                );
 
         // When
         reader(List.of()).read(METRIC_DATE);
@@ -199,7 +243,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
                 QueryStatus.FAILED,
                 QueryStatus.CANCELLED,
                 QueryStatus.TIMEOUT,
-                QueryStatus.UNKNOWN_TO_SDK_VERSION);
+                QueryStatus.UNKNOWN_TO_SDK_VERSION
+        );
 
         // When & Then
         for (QueryStatus status : statuses) {
@@ -287,7 +332,8 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
     @Test
     @DisplayName("하루의 시작이 보존 기간 경계보다 1초라도 앞서면 쿼리 없이 빈 값을 돌려준다")
     void read_dayStartJustBeforeRetentionBoundary_returnsEmptyWithoutQueries() {
-        // Given: 현재가 10-09 00:00:01 KST이면 경계는 10-02 00:00:01 KST라 10-02 00:00:00은 1초 만료됐다
+        // Given: 현재가 10-09 00:00:01 KST이면 경계는 10-02 00:00:01 KST라 10-02 00:00:00은 1초
+        // 만료됐다
         clock = Clock.fixed(instant("2026-10-09T00:00:01+09:00"), KST);
 
         // When
@@ -319,11 +365,21 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
     private CloudWatchLogsAccessLogMetricsReader reader(List<UUID> excludedUserIds) {
         return new CloudWatchLogsAccessLogMetricsReader(
                 client,
-                new AnalyticsProperties(excludedUserIds, LOG_GROUP, LocalDate.of(2026, 10, 2), RETENTION_DAYS),
+                new AnalyticsProperties(
+                        excludedUserIds,
+                        LOG_GROUP,
+                        LocalDate.of(
+                                2026,
+                                10,
+                                2
+                        ),
+                        RETENTION_DAYS
+                ),
                 clock,
                 sleeps::add,
                 Duration.ofSeconds(1),
-                Duration.ofSeconds(60));
+                Duration.ofSeconds(60)
+        );
     }
 
     private void stubQueries(GetQueryResultsResponse response) {
@@ -351,13 +407,21 @@ class CloudWatchLogsAccessLogMetricsReaderTest {
 
     private GetQueryResultsResponse completed(String value) {
         return completed(row(
-                "visitors", value,
-                "topicViewers", value,
-                "requests", value,
-                "server5xx", value,
-                "latencyAvg", value,
-                "latencyP95", value,
-                "postCreations", value));
+                "visitors",
+                value,
+                "topicViewers",
+                value,
+                "requests",
+                value,
+                "server5xx",
+                value,
+                "latencyAvg",
+                value,
+                "latencyP95",
+                value,
+                "postCreations",
+                value
+        ));
     }
 
     private GetQueryResultsResponse completed(List<ResultField> row) {

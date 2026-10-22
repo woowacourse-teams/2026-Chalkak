@@ -27,8 +27,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 게시물 이미지 업로드 권한. presigned URL을 발급하는 시점에 만들어지므로 Lambda 완료 콜백과 게시물 생성 요청 중
- * 어느 쪽이 먼저 도착해도 상대가 남긴 상태를 읽을 수 있다.
+ * 게시물 이미지 업로드 권한. presigned URL을 발급하는 시점에 만들어지므로 Lambda 완료 콜백과 게시물 생성 요청 중 어느
+ * 쪽이 먼저 도착해도 상대가 남긴 상태를 읽을 수 있다.
  */
 @Entity
 @Table(name = "post_image_uploads")
@@ -39,16 +39,22 @@ public class PostImageUpload {
     public static final Duration CLAIM_TTL = Duration.ofHours(1);
 
     private static final Map<String, String> REJECTION_MESSAGES = Map.of(
-            "UNSUPPORTED_FORMAT", "WebP 이미지만 업로드할 수 있습니다.",
-            "CORRUPTED_IMAGE", "사진 파일이 손상되었습니다. 다시 업로드해 주세요.",
-            "ANIMATED_IMAGE", "움직이는 이미지는 업로드할 수 없습니다.",
-            "TOO_LARGE", "더 작은 용량의 이미지를 업로드해 주세요.",
-            "TOO_MANY_PIXELS", "해상도가 너무 큰 이미지입니다. 크기를 줄여 다시 업로드해 주세요.",
-            "MISSING_OBJECT", "업로드한 사진을 찾을 수 없습니다. 다시 업로드해 주세요.",
-            "PROCESSING_ERROR", "사진을 처리하지 못했습니다. 다시 업로드해 주세요."
+            "UNSUPPORTED_FORMAT",
+            "WebP 이미지만 업로드할 수 있습니다.",
+            "CORRUPTED_IMAGE",
+            "사진 파일이 손상되었습니다. 다시 업로드해 주세요.",
+            "ANIMATED_IMAGE",
+            "움직이는 이미지는 업로드할 수 없습니다.",
+            "TOO_LARGE",
+            "더 작은 용량의 이미지를 업로드해 주세요.",
+            "TOO_MANY_PIXELS",
+            "해상도가 너무 큰 이미지입니다. 크기를 줄여 다시 업로드해 주세요.",
+            "MISSING_OBJECT",
+            "업로드한 사진을 찾을 수 없습니다. 다시 업로드해 주세요.",
+            "PROCESSING_ERROR",
+            "사진을 처리하지 못했습니다. 다시 업로드해 주세요."
     );
-    private static final String DEFAULT_REJECTION_MESSAGE =
-            "처리할 수 없는 사진입니다. 다시 업로드해 주세요.";
+    private static final String DEFAULT_REJECTION_MESSAGE = "처리할 수 없는 사진입니다. 다시 업로드해 주세요.";
 
     @Id
     @Generated
@@ -103,8 +109,8 @@ public class PostImageUpload {
     }
 
     /**
-     * 중복·역순 콜백은 상태를 바꾸지 않는다. SQS가 같은 메시지를 다시 전달할 수 있고, 처리 실패 뒤에 도착한
-     * 완료 콜백이 거절된 이미지를 되살리면 안 되기 때문이다.
+     * 중복·역순 콜백은 상태를 바꾸지 않는다. SQS가 같은 메시지를 다시 전달할 수 있고, 처리 실패 뒤에 도착한 완료 콜백이 거절된 이미지를
+     * 되살리면 안 되기 때문이다.
      */
     public void completeProcessing(Map<String, Object> imageMetadata) {
         if (status != PostImageUploadStatus.ISSUED) {
@@ -139,8 +145,8 @@ public class PostImageUpload {
     }
 
     /**
-     * {@code Map.of}가 만드는 불변 맵은 null 키로 조회하면 기본값이 아니라 NPE를 던진다. 콜백 본문에 사유가
-     * 없으면 사유 없는 REJECTED 행이 저장될 수 있으므로 조회 전에 null을 걸러 낸다.
+     * {@code Map.of}가 만드는 불변 맵은 null 키로 조회하면 기본값이 아니라 NPE를 던진다. 콜백 본문에 사유가 없으면 사유
+     * 없는 REJECTED 행이 저장될 수 있으므로 조회 전에 null을 걸러 낸다.
      */
     private String rejectionMessage() {
         if (rejectionReason == null) {

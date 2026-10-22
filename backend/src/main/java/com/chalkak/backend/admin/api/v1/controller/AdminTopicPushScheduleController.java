@@ -55,8 +55,11 @@ public class AdminTopicPushScheduleController implements AdminTopicPushScheduleA
             @Valid @RequestBody TopicPushScheduleRequest request
     ) {
         return ResponseEntity.ok(TopicPushScheduleResponse.from(
-                scheduleService.updateSchedule(CanonicalUuidParser.parse(scheduleId),
-                        authenticatedAdmin.adminId(), request.sendTime())));
+                scheduleService.updateSchedule(
+                        CanonicalUuidParser.parse(scheduleId),
+                        authenticatedAdmin.adminId(),
+                        request.sendTime()
+                )));
     }
 
     @Override

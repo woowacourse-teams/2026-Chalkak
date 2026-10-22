@@ -39,10 +39,16 @@ import tools.jackson.databind.json.JsonMapper;
 class SqsPushMessagePublisherTest {
 
     private static final Instant OCCURRED_AT = Instant.parse("2026-10-06T00:00:00Z");
-    private static final PushMessage MESSAGE = new PushMessage(UUID.randomUUID(), UUID.randomUUID(),
+    private static final PushMessage MESSAGE = new PushMessage(
             UUID.randomUUID(),
-            NotificationType.POST_REJECTED, NotificationSourceType.POST, UUID.randomUUID(),
-            OCCURRED_AT, OCCURRED_AT.plusSeconds(1800));
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            NotificationType.POST_REJECTED,
+            NotificationSourceType.POST,
+            UUID.randomUUID(),
+            OCCURRED_AT,
+            OCCURRED_AT.plusSeconds(1800)
+    );
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
     private final AtomicInteger requests = new AtomicInteger();
@@ -93,8 +99,11 @@ class SqsPushMessagePublisherTest {
                 .overrideConfiguration(configuration -> configuration
                         .retryStrategy(StandardRetryStrategy.builder().maxAttempts(1).build()))
                 .build();
-        publisher = new SqsPushMessagePublisher(client,
-                endpoint + "/000000000000/chalkak-test-push", objectMapper);
+        publisher = new SqsPushMessagePublisher(
+                client,
+                endpoint + "/000000000000/chalkak-test-push",
+                objectMapper
+        );
     }
 
     @AfterEach
@@ -136,9 +145,16 @@ class SqsPushMessagePublisherTest {
     @DisplayName("주제 메시지도 원본 시각과 null 알림함 ID를 JSON으로 전달하고 그대로 복원된다")
     void publish_topicMessage_preservesContractAndRoundTrip() {
         // Given
-        PushMessage topic = new PushMessage(MESSAGE.eventId(), null, MESSAGE.userId(),
-                NotificationType.TOPIC, NotificationSourceType.TOPIC, MESSAGE.sourceId(),
-                OCCURRED_AT, MESSAGE.expiresAt());
+        PushMessage topic = new PushMessage(
+                MESSAGE.eventId(),
+                null,
+                MESSAGE.userId(),
+                NotificationType.TOPIC,
+                NotificationSourceType.TOPIC,
+                MESSAGE.sourceId(),
+                OCCURRED_AT,
+                MESSAGE.expiresAt()
+        );
         // When
         PushPublicationResult result = publisher.publish(topic);
         // Then
@@ -204,8 +220,11 @@ class SqsPushMessagePublisherTest {
                 .willReturn(SendMessageResponse.builder().messageId(id).build());
 
         // When
-        PushPublicationResult result = new SqsPushMessagePublisher(unknownClient, "test-queue",
-                objectMapper).publish(MESSAGE);
+        PushPublicationResult result = new SqsPushMessagePublisher(
+                unknownClient,
+                "test-queue",
+                objectMapper
+        ).publish(MESSAGE);
 
         // Then
         assertThat(result.isAccepted()).isFalse();
@@ -223,8 +242,11 @@ class SqsPushMessagePublisherTest {
                 .willThrow(SdkClientException.create("SECRET_REQUEST_BODY"));
 
         // When
-        PushPublicationResult result = new SqsPushMessagePublisher(failingClient, "test-queue",
-                objectMapper).publish(MESSAGE);
+        PushPublicationResult result = new SqsPushMessagePublisher(
+                failingClient,
+                "test-queue",
+                objectMapper
+        ).publish(MESSAGE);
 
         // Then
         assertThat(result.retryable()).isTrue();
@@ -241,8 +263,11 @@ class SqsPushMessagePublisherTest {
         given(failingMapper.writeValueAsString(MESSAGE)).willThrow(mock(JacksonException.class));
 
         // When
-        PushPublicationResult result = new SqsPushMessagePublisher(client, "test-queue",
-                failingMapper).publish(MESSAGE);
+        PushPublicationResult result = new SqsPushMessagePublisher(
+                client,
+                "test-queue",
+                failingMapper
+        ).publish(MESSAGE);
 
         // Then
         assertThat(result.retryable()).isFalse();

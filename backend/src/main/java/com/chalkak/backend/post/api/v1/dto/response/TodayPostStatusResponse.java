@@ -32,6 +32,7 @@ public record TodayPostStatusResponse(
                 status.topicDate(),
                 status.isPosted(),
                 status.postId(),
-                status.moderationStatus());
+                status.moderationStatus()
+        );
     }
 }

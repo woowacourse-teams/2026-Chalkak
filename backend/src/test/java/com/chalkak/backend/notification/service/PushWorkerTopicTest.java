@@ -71,8 +71,11 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
                 USER_ID);
         jdbc.update(
                 "INSERT INTO topics(id,title,topic_date,starts_at,ends_at) VALUES (?, '빛과 그림자', ?, ?, ?)",
-                TOPIC_ID, Date.valueOf(LocalDate.ofInstant(NOW, ZoneId.of("Asia/Seoul"))),
-                Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.plusSeconds(3600)));
+                TOPIC_ID,
+                Date.valueOf(LocalDate.ofInstant(NOW, ZoneId.of("Asia/Seoul"))),
+                Timestamp.from(NOW.minusSeconds(3600)),
+                Timestamp.from(NOW.plusSeconds(3600))
+        );
         addDevice("topic-token");
         message = topicMessage(NOW);
         sender = mock(DevicePushSender.class);
@@ -118,7 +121,12 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
             boolean sendable
     ) {
         // Given
-        insertPost(USER_ID, TOPIC_ID, status, deleted);
+        insertPost(
+                USER_ID,
+                TOPIC_ID,
+                status,
+                deleted
+        );
 
         // When
         PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
@@ -136,8 +144,18 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     @DisplayName("반려 후 재제출한 승인 대기 게시물이 있으면 재시도 없이 완료한다")
     void process_resubmittedPost_completesWithoutSending() {
         // Given
-        insertPost(USER_ID, TOPIC_ID, ModerationStatus.REJECTED, false);
-        insertPost(USER_ID, TOPIC_ID, ModerationStatus.PENDING, false);
+        insertPost(
+                USER_ID,
+                TOPIC_ID,
+                ModerationStatus.REJECTED,
+                false
+        );
+        insertPost(
+                USER_ID,
+                TOPIC_ID,
+                ModerationStatus.PENDING,
+                false
+        );
 
         // When
         PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
@@ -156,21 +174,35 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         UUID topicId = TOPIC_ID;
         if (state.equals("otherTopic")) {
             topicId = UUID.randomUUID();
-            jdbc.update("""
-                    INSERT INTO topics(id,title,topic_date,starts_at,ends_at)
-                    VALUES (?,'다른 주제',?,?,?)
-                    """, topicId, Date.valueOf("2026-10-11"),
+            jdbc.update(
+                    """
+                            INSERT INTO topics(id,title,topic_date,starts_at,ends_at)
+                            VALUES (?,'다른 주제',?,?,?)
+                            """,
+                    topicId,
+                    Date.valueOf("2026-10-11"),
                     Timestamp.from(NOW.minusSeconds(86400)),
-                    Timestamp.from(NOW.minusSeconds(3600)));
+                    Timestamp.from(NOW.minusSeconds(3600))
+            );
         }
         if (state.equals("otherUser")) {
             authorId = UUID.randomUUID();
-            jdbc.update("""
-                    INSERT INTO users(id,email,status,signature_original_storage_key)
-                    VALUES (?,?,'ACTIVE',?)
-                    """, authorId, authorId + "@topic-worker.test", "signature/" + authorId);
+            jdbc.update(
+                    """
+                            INSERT INTO users(id,email,status,signature_original_storage_key)
+                            VALUES (?,?,'ACTIVE',?)
+                            """,
+                    authorId,
+                    authorId + "@topic-worker.test",
+                    "signature/" + authorId
+            );
         }
-        insertPost(authorId, topicId, ModerationStatus.APPROVED, false);
+        insertPost(
+                authorId,
+                topicId,
+                ModerationStatus.APPROVED,
+                false
+        );
 
         // When
         PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
@@ -187,7 +219,12 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         given(sender.send(any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"));
         PushWorkerService service = worker(NOW.plusSeconds(60));
         assertThat(service.process(message).retryable()).isTrue();
-        insertPost(USER_ID, TOPIC_ID, ModerationStatus.PENDING, false);
+        insertPost(
+                USER_ID,
+                TOPIC_ID,
+                ModerationStatus.PENDING,
+                false
+        );
 
         // When
         PushProcessingResult result = service.process(message);
@@ -203,7 +240,12 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         // Given
         addDevice("second-topic-token");
         given(sender.send(any())).willAnswer(call -> {
-            insertPost(USER_ID, TOPIC_ID, ModerationStatus.PENDING, false);
+            insertPost(
+                    USER_ID,
+                    TOPIC_ID,
+                    ModerationStatus.PENDING,
+                    false
+            );
             return DevicePushResult.accepted();
         });
 
@@ -238,8 +280,16 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         if (state.equals("deletedTopic"))
             jdbc.update("UPDATE topics SET deleted_at=?", Timestamp.from(NOW));
         if (state.equals("differentTopic")) {
-            message = new PushMessage(message.eventId(), null, USER_ID, NotificationType.TOPIC,
-                    NotificationSourceType.TOPIC, UUID.randomUUID(), NOW, message.expiresAt());
+            message = new PushMessage(
+                    message.eventId(),
+                    null,
+                    USER_ID,
+                    NotificationType.TOPIC,
+                    NotificationSourceType.TOPIC,
+                    UUID.randomUUID(),
+                    NOW,
+                    message.expiresAt()
+            );
         }
         // When & Then
         assertThat(worker(NOW.plusSeconds(60)).process(message))
@@ -296,9 +346,16 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         }
         if (invalidField.equals("eventId"))
             eventId = null;
-        PushMessage invalid = new PushMessage(eventId, notificationId, USER_ID,
+        PushMessage invalid = new PushMessage(
+                eventId,
+                notificationId,
+                USER_ID,
                 NotificationType.TOPIC,
-                sourceType, TOPIC_ID, occurredAt, expiresAt);
+                sourceType,
+                TOPIC_ID,
+                occurredAt,
+                expiresAt
+        );
         // When & Then
         assertThat(worker(NOW).process(invalid)).isEqualTo(PushProcessingResult.completed());
         verifyNoInteractions(sender);
@@ -368,25 +425,50 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     }
 
     private PushMessage topicMessage(Instant scheduledAt) {
-        return new PushMessage(UUID.randomUUID(), null, USER_ID, NotificationType.TOPIC,
-                NotificationSourceType.TOPIC, TOPIC_ID, scheduledAt, scheduledAt.plusSeconds(1800));
+        return new PushMessage(
+                UUID.randomUUID(),
+                null,
+                USER_ID,
+                NotificationType.TOPIC,
+                NotificationSourceType.TOPIC,
+                TOPIC_ID,
+                scheduledAt,
+                scheduledAt.plusSeconds(1800)
+        );
     }
 
     private PushWorkerService worker(Instant now) {
-        return new PushWorkerService(notifications, topics, posts, devices, sessions, sender,
-                Clock.fixed(now, ZoneOffset.UTC), manager);
+        return new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(now, ZoneOffset.UTC),
+                manager
+        );
     }
 
     private void addDevice(String token) {
         UUID sessionId = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO user_refresh_tokens(user_id,session_id,token_hash,expires_at,absolute_expires_at) VALUES (?,?,?,?,?)",
-                USER_ID, sessionId, new FcmToken(UUID.randomUUID().toString()).getHash(),
-                Timestamp.from(NOW.plusSeconds(3600)), Timestamp.from(NOW.plusSeconds(7200)));
+                USER_ID,
+                sessionId,
+                new FcmToken(UUID.randomUUID().toString()).getHash(),
+                Timestamp.from(NOW.plusSeconds(3600)),
+                Timestamp.from(NOW.plusSeconds(7200))
+        );
         jdbc.update(
                 "INSERT INTO push_devices(user_id,session_id,fcm_token,fcm_token_hash,registered_at,updated_at) VALUES (?,?,?,?,?,?)",
-                USER_ID, sessionId, token, new FcmToken(token).getHash(),
-                Timestamp.from(NOW.plusSeconds(1)), Timestamp.from(NOW.plusSeconds(1)));
+                USER_ID,
+                sessionId,
+                token,
+                new FcmToken(token).getHash(),
+                Timestamp.from(NOW.plusSeconds(1)),
+                Timestamp.from(NOW.plusSeconds(1))
+        );
     }
 
     private void insertPost(
@@ -396,8 +478,11 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
             boolean deleted
     ) {
         UUID photoId = UUID.randomUUID();
-        jdbc.update("INSERT INTO photos(id,original_storage_key) VALUES (?,?)", photoId,
-                "topic/photo/" + photoId);
+        jdbc.update(
+                "INSERT INTO photos(id,original_storage_key) VALUES (?,?)",
+                photoId,
+                "topic/photo/" + photoId
+        );
         Timestamp deletedAt = null;
         if (deleted) {
             deletedAt = Timestamp.from(NOW.plusSeconds(30));
@@ -407,7 +492,13 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
                         INSERT INTO posts(id,user_id,topic_id,photo_id,moderation_status,deleted_at,created_at)
                         VALUES (?,?,?,?,CAST(? AS moderation_status),?,?)
                         """,
-                UUID.randomUUID(), userId, topicId, photoId, status.name(), deletedAt,
-                Timestamp.from(NOW.plusSeconds(10)));
+                UUID.randomUUID(),
+                userId,
+                topicId,
+                photoId,
+                status.name(),
+                deletedAt,
+                Timestamp.from(NOW.plusSeconds(10))
+        );
     }
 }

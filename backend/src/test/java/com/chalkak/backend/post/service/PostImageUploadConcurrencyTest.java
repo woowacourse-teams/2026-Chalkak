@@ -25,22 +25,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * 업로드 행의 비관적 락이 실제로 경합하는지 확인한다. 다른 통합 테스트는 모두 단일 스레드 트랜잭션 안에서
- * 돌기 때문에 이 잠금이 한 번도 실제로 겨루지 않는다.
+ * 업로드 행의 비관적 락이 실제로 경합하는지 확인한다. 다른 통합 테스트는 모두 단일 스레드 트랜잭션 안에서 돌기 때문에 이 잠금이 한 번도
+ * 실제로 겨루지 않는다.
  */
 class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
 
     private static final String SUCCESS = "success";
-    private static final UUID USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e1");
-    private static final UUID TOPIC_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e2");
-    private static final UUID UPLOAD_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e3");
-    private static final String ORIGINAL_STORAGE_KEY =
-            "chalkak/posts/test/original/" + UPLOAD_ID + ".webp";
-    private static final String THUMBNAIL_STORAGE_KEY =
-            "chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".webp";
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e1");
+    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e2");
+    private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e3");
+    private static final String ORIGINAL_STORAGE_KEY = "chalkak/posts/test/original/" + UPLOAD_ID
+            + ".webp";
+    private static final String THUMBNAIL_STORAGE_KEY = "chalkak/posts/test/thumbnail/" + UPLOAD_ID
+            + ".webp";
 
     @Autowired
     private PostCommandService postCommandService;
@@ -79,15 +76,19 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, TOPIC_ID);
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, expires_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('ISSUED' AS post_image_upload_status),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, UPLOAD_ID, USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, expires_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('ISSUED' AS post_image_upload_status),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                UPLOAD_ID,
+                USER_ID
+        );
 
         given(postImageStorage.existsUploadedImage(UPLOAD_ID)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(UPLOAD_ID))
@@ -115,7 +116,12 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     void createPost_concurrentSameUpload_createsSinglePost() throws Exception {
         // Given
         Callable<Void> createPost = () -> {
-            postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+            postCommandService.createPost(
+                    USER_ID,
+                    TOPIC_ID,
+                    UPLOAD_ID,
+                    null
+            );
             return null;
         };
 
@@ -135,13 +141,23 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     void createPost_concurrentWithCompleteCallback_keepsStateConsistent() throws Exception {
         // Given
         Callable<Void> createPost = () -> {
-            postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+            postCommandService.createPost(
+                    USER_ID,
+                    TOPIC_ID,
+                    UPLOAD_ID,
+                    null
+            );
             return null;
         };
         Callable<Void> completeCallback = () -> {
             postCommandService.completePostImageProcessing(
                     UPLOAD_ID,
-                    Map.of("width", 4032, "height", 3024)
+                    Map.of(
+                            "width",
+                            4032,
+                            "height",
+                            3024
+                    )
             );
             return null;
         };
@@ -161,11 +177,21 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     @DisplayName("완료와 실패 콜백이 겹쳐도 업로드와 게시물 상태가 같은 결과로 수렴한다")
     void processImage_concurrentCompleteAndFail_keepsStatesConsistent() throws Exception {
         // Given
-        postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+        postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                UPLOAD_ID,
+                null
+        );
         Callable<Void> completeCallback = () -> {
             postCommandService.completePostImageProcessing(
                     UPLOAD_ID,
-                    Map.of("width", 4032, "height", 3024)
+                    Map.of(
+                            "width",
+                            4032,
+                            "height",
+                            3024
+                    )
             );
             return null;
         };
@@ -187,7 +213,12 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     @DisplayName("시간 초과 게시물 재시도와 완료 콜백이 겹쳐도 잠금 교착 없이 끝난다")
     void createPost_stalledRetryWithCompleteCallback_avoidsDeadlock() throws Exception {
         // Given
-        postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+        postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                UPLOAD_ID,
+                null
+        );
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = CURRENT_TIMESTAMP - INTERVAL '8 minutes'"
                         + " WHERE user_id = ?",
@@ -209,7 +240,12 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
         });
 
         Callable<Void> retryCreate = () -> {
-            postCommandService.createPost(USER_ID, TOPIC_ID, UPLOAD_ID, null);
+            postCommandService.createPost(
+                    USER_ID,
+                    TOPIC_ID,
+                    UPLOAD_ID,
+                    null
+            );
             return null;
         };
         Callable<Void> completeCallback = () -> {
@@ -218,7 +254,12 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
             }
             postCommandService.completePostImageProcessing(
                     UPLOAD_ID,
-                    Map.of("width", 4032, "height", 3024)
+                    Map.of(
+                            "width",
+                            4032,
+                            "height",
+                            3024
+                    )
             );
             return null;
         };
@@ -257,7 +298,10 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
 
     private int countPosts() {
         return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM posts WHERE user_id = ?", Integer.class, USER_ID);
+                "SELECT COUNT(*) FROM posts WHERE user_id = ?",
+                Integer.class,
+                USER_ID
+        );
     }
 
     private int countPhotos() {

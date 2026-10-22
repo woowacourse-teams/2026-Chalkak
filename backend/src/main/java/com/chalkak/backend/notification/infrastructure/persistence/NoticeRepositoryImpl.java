@@ -18,8 +18,11 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class NoticeRepositoryImpl implements NoticeRepository {
 
-    private static final Sort LATEST_CREATED_FIRST = Sort.by(Sort.Direction.DESC, "createdAt",
-            "id");
+    private static final Sort LATEST_CREATED_FIRST = Sort.by(
+            Sort.Direction.DESC,
+            "createdAt",
+            "id"
+    );
 
     private final NoticeJpaRepository noticeJpaRepository;
 
@@ -41,7 +44,11 @@ public class NoticeRepositoryImpl implements NoticeRepository {
     @Override
     public NoticeSlice findNotices(int page, int pageSize) {
         Slice<Notice> slice = noticeJpaRepository.findSliceBy(
-                PageRequest.of(page - 1, pageSize, LATEST_CREATED_FIRST));
+                PageRequest.of(
+                        page - 1,
+                        pageSize,
+                        LATEST_CREATED_FIRST
+                ));
         return new NoticeSlice(slice.getContent(), slice.hasNext());
     }
 
@@ -55,8 +62,12 @@ public class NoticeRepositoryImpl implements NoticeRepository {
         if (after == null) {
             return noticeJpaRepository.findDistributableNotices(now, firstPage);
         }
-        return noticeJpaRepository.findDistributableNoticesAfter(now, after.scheduledAt(),
-                after.noticeId(), firstPage);
+        return noticeJpaRepository.findDistributableNoticesAfter(
+                now,
+                after.scheduledAt(),
+                after.noticeId(),
+                firstPage
+        );
     }
 
     @Override

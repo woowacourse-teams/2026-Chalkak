@@ -93,10 +93,16 @@ public class PushWorkerConfiguration {
             Clock clock,
             PlatformTransactionManager transactionManager
     ) {
-        return new PushWorkerService(notificationRepository, topicRepository, postRepository,
+        return new PushWorkerService(
+                notificationRepository,
+                topicRepository,
+                postRepository,
                 deviceRepository,
                 loginSessionService,
-                sender, clock, transactionManager);
+                sender,
+                clock,
+                transactionManager
+        );
     }
 
     // SQS 대기·발송은 전용 스레드에서 실행하고 애플리케이션 공용 스케줄러는 유지한다.
@@ -136,7 +142,13 @@ public class PushWorkerConfiguration {
             Clock clock,
             @Qualifier("notificationVisibilityExtensionExecutor") ScheduledExecutorService visibilityExtensionExecutor
     ) {
-        return new SqsPushService(sqsClient, properties.queueUrl(), mapper, service, clock,
-                visibilityExtensionExecutor);
+        return new SqsPushService(
+                sqsClient,
+                properties.queueUrl(),
+                mapper,
+                service,
+                clock,
+                visibilityExtensionExecutor
+        );
     }
 }

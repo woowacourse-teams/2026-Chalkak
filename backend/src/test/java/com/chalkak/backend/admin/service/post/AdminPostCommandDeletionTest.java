@@ -84,7 +84,8 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
         adminPostCommandService.deletePost(
                 POST_ID,
                 ADMIN_ID,
-                "  운영 정책 위반  ");
+                "  운영 정책 위반  "
+        );
 
         // Then
         SoftDeletionRow softDeletion = findSoftDeletion();
@@ -115,10 +116,15 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 POST_ID,
-                USER_ID);
+                USER_ID
+        );
 
         // When
-        adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "운영 정책 위반");
+        adminPostCommandService.deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "운영 정책 위반"
+        );
 
         // Then
         SoftDeletionRow softDeletion = findSoftDeletion();
@@ -140,7 +146,8 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
                 () -> adminPostCommandService.deletePost(
                         POST_ID,
                         ADMIN_ID,
-                        "운영 정책 위반"),
+                        "운영 정책 위반"
+                ),
                 BusinessException.class);
 
         // Then
@@ -161,7 +168,8 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
                 () -> adminPostCommandService.deletePost(
                         POST_ID,
                         ADMIN_ID,
-                        "운영 정책 위반"),
+                        "운영 정책 위반"
+                ),
                 NotFoundException.class);
 
         // Then
@@ -175,11 +183,19 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
     void deletePost_alreadyDeletedPost_keepsFirstDeletionAndAudit() {
         // Given
         insertPost(ModerationStatus.APPROVED);
-        adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "최초 삭제 사유");
+        adminPostCommandService.deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "최초 삭제 사유"
+        );
         SoftDeletionRow firstDeletion = findSoftDeletion();
 
         // When
-        adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "중복 삭제 사유");
+        adminPostCommandService.deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "중복 삭제 사유"
+        );
 
         // Then
         SoftDeletionRow repeatedDeletion = findSoftDeletion();
@@ -206,7 +222,8 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
                 () -> adminPostCommandService.deletePost(
                         POST_ID,
                         UNKNOWN_ADMIN_ID,
-                        "운영 정책 위반"),
+                        "운영 정책 위반"
+                ),
                 DataIntegrityViolationException.class);
 
         // Then
@@ -225,7 +242,11 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
         insertPost(ModerationStatus.APPROVED);
 
         // When
-        adminPostCommandService.deletePost(POST_ID, ADMIN_ID, "운영 정책 위반");
+        adminPostCommandService.deletePost(
+                POST_ID,
+                ADMIN_ID,
+                "운영 정책 위반"
+        );
 
         // Then
         LocalDate topicDate = LocalDate.now();
@@ -233,60 +254,80 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
         assertThat(postRepository.findCalendarPostsByAuthorIdAndTopicDateBetween(
                 USER_ID,
                 topicDate,
-                topicDate)).isEmpty();
-        assertThat(postRepository.findVisibleRecentByTopicId(TOPIC_ID, 0, 20).posts())
+                topicDate
+        )).isEmpty();
+        assertThat(postRepository.findVisibleRecentByTopicId(
+                TOPIC_ID,
+                0,
+                20
+        ).posts())
                 .isEmpty();
     }
 
     private SoftDeletionRow findSoftDeletion() {
-        return jdbcTemplate.queryForObject("""
-                SELECT post.deleted_at, photo.deleted_at,
-                       photo.original_storage_key, photo.thumbnail_storage_key
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, (resultSet, rowNumber) -> new SoftDeletionRow(
-                instant(resultSet.getTimestamp(1)),
-                instant(resultSet.getTimestamp(2)),
-                resultSet.getString(3),
-                resultSet.getString(4)), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT post.deleted_at, photo.deleted_at,
+                               photo.original_storage_key, photo.thumbnail_storage_key
+                        FROM posts post
+                        JOIN photos photo ON photo.id = post.photo_id
+                        WHERE post.id = ?
+                        """,
+                (resultSet, rowNumber) -> new SoftDeletionRow(
+                        instant(resultSet.getTimestamp(1)),
+                        instant(resultSet.getTimestamp(2)),
+                        resultSet.getString(3),
+                        resultSet.getString(4)
+                ),
+                POST_ID
+        );
     }
 
     private DeletionAuditRow findSingleAudit() {
-        return jdbcTemplate.queryForObject("""
-                SELECT CAST(action AS TEXT), actor_admin_id, reason,
-                       before_state ->> 'moderationStatus',
-                       before_state ->> 'deletedAt',
-                       after_state ->> 'moderationStatus',
-                       after_state ->> 'deletedAt'
-                FROM admin_audit_logs
-                WHERE target_type = CAST('POST' AS admin_target_type)
-                  AND target_id = ?
-                  AND action = CAST('POST_DELETED' AS admin_action)
-                """, (resultSet, rowNumber) -> new DeletionAuditRow(
-                resultSet.getString(1),
-                resultSet.getObject(2, UUID.class),
-                resultSet.getString(3),
-                resultSet.getString(4),
-                resultSet.getString(5),
-                resultSet.getString(6),
-                resultSet.getString(7)), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT CAST(action AS TEXT), actor_admin_id, reason,
+                               before_state ->> 'moderationStatus',
+                               before_state ->> 'deletedAt',
+                               after_state ->> 'moderationStatus',
+                               after_state ->> 'deletedAt'
+                        FROM admin_audit_logs
+                        WHERE target_type = CAST('POST' AS admin_target_type)
+                          AND target_id = ?
+                          AND action = CAST('POST_DELETED' AS admin_action)
+                        """,
+                (resultSet, rowNumber) -> new DeletionAuditRow(
+                        resultSet.getString(1),
+                        resultSet.getObject(2, UUID.class),
+                        resultSet.getString(3),
+                        resultSet.getString(4),
+                        resultSet.getString(5),
+                        resultSet.getString(6),
+                        resultSet.getString(7)
+                ),
+                POST_ID
+        );
     }
 
     private int countAudits() {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM admin_audit_logs
-                WHERE target_id = ?
-                  AND action = CAST('POST_DELETED' AS admin_action)
-                """, Integer.class, POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM admin_audit_logs
+                        WHERE target_id = ?
+                          AND action = CAST('POST_DELETED' AS admin_action)
+                        """,
+                Integer.class,
+                POST_ID
+        );
     }
 
     private int countPostLikes() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
                 Integer.class,
-                POST_ID);
+                POST_ID
+        );
     }
 
     private void cleanUp() {
@@ -300,7 +341,8 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
         jdbcTemplate.update(
                 "DELETE FROM admins WHERE id IN (?, ?)",
                 ADMIN_ID,
-                UNKNOWN_ADMIN_ID);
+                UNKNOWN_ADMIN_ID
+        );
     }
 
     private void insertAdmin() {
@@ -315,15 +357,19 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
     }
 
     private void insertUser() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, 'post-deletion@example.com', CAST('ACTIVE' AS user_status), ?,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, USER_ID, SIGNATURE_STORAGE_KEY);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, 'post-deletion@example.com', CAST('ACTIVE' AS user_status), ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                USER_ID,
+                SIGNATURE_STORAGE_KEY
+        );
     }
 
     private void insertTopic() {
@@ -341,35 +387,42 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
     }
 
     private void insertPhoto() {
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, metadata,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, CAST('{}' AS jsonb),
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, PHOTO_ID, ORIGINAL_STORAGE_KEY, THUMBNAIL_STORAGE_KEY);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO photos (
+                            id, original_storage_key, thumbnail_storage_key, metadata,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, CAST('{}' AS jsonb),
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                PHOTO_ID,
+                ORIGINAL_STORAGE_KEY,
+                THUMBNAIL_STORAGE_KEY
+        );
     }
 
     private void insertUpload(String status) {
         String rejectionReason = status.equals("REJECTED") ? "PROCESSING_ERROR" : null;
         String imageMetadata = status.equals("READY") ? "{}" : null;
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, rejection_reason, image_metadata,
-                    expires_at, claimed_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST(? AS post_image_upload_status), ?, CAST(? AS jsonb),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, rejection_reason, image_metadata,
+                            expires_at, claimed_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST(? AS post_image_upload_status), ?, CAST(? AS jsonb),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
                 UPLOAD_ID,
                 USER_ID,
                 status,
                 rejectionReason,
-                imageMetadata);
+                imageMetadata
+        );
     }
 
     private void insertPost(ModerationStatus moderationStatus) {
@@ -377,23 +430,25 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
                 || moderationStatus == ModerationStatus.VALIDATING
                         ? null
                         : Instant.parse("2026-08-28T03:30:00Z");
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, post_image_upload_id,
-                    title, moderation_status, moderated_at,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, '삭제 대상', CAST(? AS moderation_status), ?,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, post_image_upload_id,
+                            title, moderation_status, moderated_at,
+                            created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, '삭제 대상', CAST(? AS moderation_status), ?,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
                 POST_ID,
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_ID,
                 UPLOAD_ID,
                 moderationStatus.name(),
-                timestamp(moderatedAt));
+                timestamp(moderatedAt)
+        );
     }
 
     private Timestamp timestamp(Instant instant) {
@@ -414,7 +469,8 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
             Instant postDeletedAt,
             Instant photoDeletedAt,
             String originalStorageKey,
-            String thumbnailStorageKey) {
+            String thumbnailStorageKey
+    ) {
     }
 
     private record DeletionAuditRow(
@@ -424,6 +480,7 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
             String beforeStatus,
             String beforeDeletedAt,
             String afterStatus,
-            String afterDeletedAt) {
+            String afterDeletedAt
+    ) {
     }
 }

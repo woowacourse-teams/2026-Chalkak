@@ -39,12 +39,18 @@ class LoginSessionServiceTest extends IntegrationTestSupport {
         userId = users.save(UserFixture.create()).getId();
         entityManager.flush();
         sessionId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO user_refresh_tokens
-                    (user_id, session_id, token_hash, expires_at, absolute_expires_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, userId, sessionId, "a".repeat(64), Timestamp.from(NOW.plusSeconds(3600)),
-                Timestamp.from(NOW.plusSeconds(7200)));
+        jdbc.update(
+                """
+                        INSERT INTO user_refresh_tokens
+                            (user_id, session_id, token_hash, expires_at, absolute_expires_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                userId,
+                sessionId,
+                "a".repeat(64),
+                Timestamp.from(NOW.plusSeconds(3600)),
+                Timestamp.from(NOW.plusSeconds(7200))
+        );
     }
 
     @ParameterizedTest
@@ -52,11 +58,19 @@ class LoginSessionServiceTest extends IntegrationTestSupport {
     @DisplayName("탈퇴하지 않은 회원의 유효한 로그인은 회원을 반환하고 정지 회원도 허용한다")
     void findUsableUser_liveSession_returnsUser(String status) {
         // Given
-        jdbc.update("UPDATE users SET status=CAST(? AS user_status) WHERE id=?", status, userId);
+        jdbc.update(
+                "UPDATE users SET status=CAST(? AS user_status) WHERE id=?",
+                status,
+                userId
+        );
         entityManager.flush();
         entityManager.clear();
         // When
-        var result = service.findUsableUser(userId, sessionId, NOW);
+        var result = service.findUsableUser(
+                userId,
+                sessionId,
+                NOW
+        );
         // Then
         assertThat(result).hasValueSatisfying(user -> assertThat(user.getId()).isEqualTo(userId));
     }
@@ -70,25 +84,43 @@ class LoginSessionServiceTest extends IntegrationTestSupport {
         UUID requestedUserId = userId;
         UUID requestedSessionId = sessionId;
         if (state.equals("withdrawn")) {
-            jdbc.update("UPDATE users SET deleted_at=? WHERE id=?", Timestamp.from(NOW), userId);
+            jdbc.update(
+                    "UPDATE users SET deleted_at=? WHERE id=?",
+                    Timestamp.from(NOW),
+                    userId
+            );
         }
         if (state.equals("revoked")) {
-            jdbc.update("UPDATE user_refresh_tokens SET revoked_at=? WHERE session_id=?",
-                    Timestamp.from(NOW), sessionId);
+            jdbc.update(
+                    "UPDATE user_refresh_tokens SET revoked_at=? WHERE session_id=?",
+                    Timestamp.from(NOW),
+                    sessionId
+            );
         }
         if (state.equals("rotated")) {
-            jdbc.update("UPDATE user_refresh_tokens SET rotated_at=? WHERE session_id=?",
-                    Timestamp.from(NOW), sessionId);
+            jdbc.update(
+                    "UPDATE user_refresh_tokens SET rotated_at=? WHERE session_id=?",
+                    Timestamp.from(NOW),
+                    sessionId
+            );
         }
         if (state.equals("expired")) {
-            jdbc.update("UPDATE user_refresh_tokens SET expires_at=? WHERE session_id=?",
-                    Timestamp.from(NOW), sessionId);
+            jdbc.update(
+                    "UPDATE user_refresh_tokens SET expires_at=? WHERE session_id=?",
+                    Timestamp.from(NOW),
+                    sessionId
+            );
         }
         if (state.equals("absoluteExpired")) {
-            jdbc.update("""
-                    UPDATE user_refresh_tokens SET expires_at=?, absolute_expires_at=?
-                    WHERE session_id=?
-                    """, Timestamp.from(NOW), Timestamp.from(NOW), sessionId);
+            jdbc.update(
+                    """
+                            UPDATE user_refresh_tokens SET expires_at=?, absolute_expires_at=?
+                            WHERE session_id=?
+                            """,
+                    Timestamp.from(NOW),
+                    Timestamp.from(NOW),
+                    sessionId
+            );
         }
         if (state.equals("missingToken")) {
             jdbc.update("DELETE FROM user_refresh_tokens WHERE session_id=?", sessionId);
@@ -107,7 +139,11 @@ class LoginSessionServiceTest extends IntegrationTestSupport {
         entityManager.flush();
         entityManager.clear();
         // When
-        var result = service.findUsableUser(requestedUserId, requestedSessionId, NOW);
+        var result = service.findUsableUser(
+                requestedUserId,
+                requestedSessionId,
+                NOW
+        );
         // Then
         assertThat(result).isEmpty();
     }

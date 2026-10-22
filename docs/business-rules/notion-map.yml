@@ -15,7 +15,7 @@ rule_pages:
     pages:
       작성하기: [POST-001, POST-002, POST-003, POST-004, POST-005, POST-011]
       사진 처리와 검수: [POST-006]
-      공개와 조회: [POST-007, POST-008, POST-009]
+      공개와 조회: [POST-007, POST-008, POST-009, POST-012]
       삭제와 수정: [POST-010]
   docs/business-rules/rules/topic.md:
     domain: 주제
@@ -58,6 +58,16 @@ rule_pages:
       관리자 활동 기록: [ADMIN-006, ADMIN-007]
       검수 요청 알림: [ADMIN-008]
       피드백 조회: [ADMIN-009]
+      AI 프롬프트 미리보기: [ADMIN-010]
+      AI 프롬프트 버전: [ADMIN-011]
+  docs/business-rules/rules/banner.md:
+    domain: 배너
+    pages:
+      등록 정보와 입력 조건: [BANNER-001, BANNER-002]
+      웹뷰 URL 중복: [BANNER-003]
+      관리자 목록 조회: [BANNER-004]
+      관리자 삭제: [BANNER-005]
+      앱 공개 목록 조회: [BANNER-006]
   docs/business-rules/rules/notification.md:
     domain: 알림함
     pages:
@@ -71,3 +81,11 @@ rule_pages:
       주제 푸시 설정: [NOTIFICATION-009, NOTIFICATION-011]
       주제 푸시 발송과 화면 이동: [NOTIFICATION-010]
       관리자 공지: [NOTIFICATION-012, NOTIFICATION-013]
+      관리자 리마인더: [NOTIFICATION-014]
+      AI 리뷰 결과 알림: [NOTIFICATION-015]
+  docs/business-rules/rules/ai-review.md:
+    domain: AI 리뷰
+    pages:
+      요청 자격과 횟수: [AIREVIEW-001, AIREVIEW-002]
+      공개 범위와 삭제: [AIREVIEW-003, AIREVIEW-004]
+      결과와 개인정보: [AIREVIEW-005, AIREVIEW-006]

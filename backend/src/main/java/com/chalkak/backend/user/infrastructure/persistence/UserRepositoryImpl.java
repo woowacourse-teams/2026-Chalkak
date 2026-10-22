@@ -24,6 +24,11 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public boolean existsActiveById(UUID id) {
+        return userJpaRepository.existsByIdAndDeletedAtIsNull(id);
+    }
+
+    @Override
     public Optional<User> findActiveByIdForUpdate(UUID id) {
         return userJpaRepository.findActiveByIdForUpdate(id);
     }

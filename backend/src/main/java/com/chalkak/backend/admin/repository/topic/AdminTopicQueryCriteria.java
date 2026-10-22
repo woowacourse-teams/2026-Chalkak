@@ -9,5 +9,6 @@ public record AdminTopicQueryCriteria(
         LocalDate dateFrom,
         LocalDate dateTo,
         AdminTopicSort sort,
-        Instant now) {
+        Instant now
+) {
 }

@@ -78,12 +78,14 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
                 POST_ID,
                 APPROVING_ADMIN_ID,
                 ModerationStatus.APPROVED,
-                null);
+                null
+        );
         Callable<AdminPostModerationResult> reject = () -> adminPostCommandService.moderate(
                 POST_ID,
                 REJECTING_ADMIN_ID,
                 ModerationStatus.REJECTED,
-                REJECTION_REASON);
+                REJECTION_REASON
+        );
 
         // When
         List<ModerationAttempt> attempts = runConcurrently(approve, reject);
@@ -131,7 +133,8 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
                         POST_ID,
                         UNKNOWN_ADMIN_ID,
                         ModerationStatus.APPROVED,
-                        null)));
+                        null
+                )));
 
         // Then
         assertThat(exception).isInstanceOf(DataIntegrityViolationException.class);
@@ -174,42 +177,52 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
     }
 
     private PostModerationRow findPost() {
-        return jdbcTemplate.queryForObject("""
-                SELECT CAST(moderation_status AS TEXT), moderated_at
-                FROM posts
-                WHERE id = ?
-                """, (resultSet, rowNumber) -> new PostModerationRow(
-                resultSet.getString(1),
-                instant(resultSet.getTimestamp(2))), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT CAST(moderation_status AS TEXT), moderated_at
+                        FROM posts
+                        WHERE id = ?
+                        """,
+                (resultSet, rowNumber) -> new PostModerationRow(
+                        resultSet.getString(1),
+                        instant(resultSet.getTimestamp(2))),
+                POST_ID
+        );
     }
 
     private ModerationAuditRow findSingleAuditLog() {
-        return jdbcTemplate.queryForObject("""
-                SELECT CAST(action AS TEXT), actor_admin_id, reason,
-                       before_state ->> 'moderationStatus',
-                       before_state ->> 'moderatedAt',
-                       after_state ->> 'moderationStatus',
-                       after_state ->> 'moderatedAt',
-                       after_state ->> 'moderatedBy'
-                FROM admin_audit_logs
-                WHERE target_type = CAST('POST' AS admin_target_type)
-                  AND target_id = ?
-                """, (resultSet, rowNumber) -> new ModerationAuditRow(
-                resultSet.getString(1),
-                resultSet.getObject(2, UUID.class),
-                resultSet.getString(3),
-                resultSet.getString(4),
-                resultSet.getString(5),
-                resultSet.getString(6),
-                resultSet.getString(7),
-                resultSet.getString(8)), POST_ID);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT CAST(action AS TEXT), actor_admin_id, reason,
+                               before_state ->> 'moderationStatus',
+                               before_state ->> 'moderatedAt',
+                               after_state ->> 'moderationStatus',
+                               after_state ->> 'moderatedAt',
+                               after_state ->> 'moderatedBy'
+                        FROM admin_audit_logs
+                        WHERE target_type = CAST('POST' AS admin_target_type)
+                          AND target_id = ?
+                        """,
+                (resultSet, rowNumber) -> new ModerationAuditRow(
+                        resultSet.getString(1),
+                        resultSet.getObject(2, UUID.class),
+                        resultSet.getString(3),
+                        resultSet.getString(4),
+                        resultSet.getString(5),
+                        resultSet.getString(6),
+                        resultSet.getString(7),
+                        resultSet.getString(8)
+                ),
+                POST_ID
+        );
     }
 
     private int countAuditLogs() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ?",
                 Integer.class,
-                POST_ID);
+                POST_ID
+        );
     }
 
     private void cleanUp() {
@@ -224,17 +237,22 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
                 "DELETE FROM admins WHERE id IN (?, ?, ?)",
                 APPROVING_ADMIN_ID,
                 REJECTING_ADMIN_ID,
-                UNKNOWN_ADMIN_ID);
+                UNKNOWN_ADMIN_ID
+        );
     }
 
     private void insertAdmin(UUID adminId, String username) {
-        jdbcTemplate.update("""
-                INSERT INTO admins (
-                    id, username, password, created_at, updated_at
-                ) VALUES (
-                    ?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, adminId, username);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO admins (
+                            id, username, password, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, 'test-password', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                adminId,
+                username
+        );
     }
 
     private void insertUser() {
@@ -277,15 +295,21 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void insertPendingPost() {
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title,
-                    moderation_status, moderated_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, '동시 검수', CAST('PENDING' AS moderation_status), NULL,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, POST_ID, USER_ID, TOPIC_ID, PHOTO_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title,
+                            moderation_status, moderated_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, '동시 검수', CAST('PENDING' AS moderation_status), NULL,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                POST_ID,
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_ID
+        );
     }
 
     private Instant instant(Timestamp timestamp) {
@@ -313,6 +337,7 @@ class AdminPostModerationConcurrencyTest extends IntegrationTestSupport {
             String beforeModeratedAt,
             String afterStatus,
             String afterModeratedAt,
-            String afterModeratedBy) {
+            String afterModeratedBy
+    ) {
     }
 }

@@ -9,7 +9,8 @@ public record AdminNoticeListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AdminNoticeResponse> notices) {
+        List<AdminNoticeResponse> notices
+) {
 
     public static AdminNoticeListResponse from(AdminNoticeListResult result) {
         return new AdminNoticeListResponse(
@@ -18,6 +19,7 @@ public record AdminNoticeListResponse(
                 result.hasNext(),
                 result.notices().stream()
                         .map(AdminNoticeResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 }

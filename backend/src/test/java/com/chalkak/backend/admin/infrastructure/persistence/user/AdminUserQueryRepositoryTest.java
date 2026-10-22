@@ -68,11 +68,15 @@ class AdminUserQueryRepositoryTest {
         AdminUserQueryCriteria criteria = new AdminUserQueryCriteria(
                 null,
                 null,
-                AdminUserSort.CREATED_AT_DESC);
+                AdminUserSort.CREATED_AT_DESC
+        );
 
         // When
-        AdminPage<AdminUserSummaryProjection> result = adminUserQueryRepository.findUsers(criteria,
-                1, 2);
+        AdminPage<AdminUserSummaryProjection> result = adminUserQueryRepository.findUsers(
+                criteria,
+                1,
+                2
+        );
 
         // Then
         assertThat(result.hasNext()).isTrue();
@@ -89,11 +93,15 @@ class AdminUserQueryRepositoryTest {
         AdminUserQueryCriteria criteria = new AdminUserQueryCriteria(
                 AdminUserStatus.BANNED,
                 "BANNED@EXAMPLE",
-                AdminUserSort.CREATED_AT_ASC);
+                AdminUserSort.CREATED_AT_ASC
+        );
 
         // When
-        AdminPage<AdminUserSummaryProjection> result = adminUserQueryRepository.findUsers(criteria,
-                1, 20);
+        AdminPage<AdminUserSummaryProjection> result = adminUserQueryRepository.findUsers(
+                criteria,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.items()).singleElement().satisfies(user -> {
@@ -142,15 +150,25 @@ class AdminUserQueryRepositoryTest {
     void findUsers_eachStatus_returnsMatchingDerivedStatus(AdminUserStatus status) {
         // Given
         Map<AdminUserStatus, UUID> expectedIds = Map.of(
-                AdminUserStatus.ACTIVE, ACTIVE_USER_ID,
-                AdminUserStatus.BANNED, BANNED_USER_ID,
-                AdminUserStatus.WITHDRAWN, WITHDRAWN_USER_ID);
+                AdminUserStatus.ACTIVE,
+                ACTIVE_USER_ID,
+                AdminUserStatus.BANNED,
+                BANNED_USER_ID,
+                AdminUserStatus.WITHDRAWN,
+                WITHDRAWN_USER_ID
+        );
         AdminUserQueryCriteria criteria = new AdminUserQueryCriteria(
-                status, null, AdminUserSort.CREATED_AT_ASC);
+                status,
+                null,
+                AdminUserSort.CREATED_AT_ASC
+        );
 
         // When
-        AdminPage<AdminUserSummaryProjection> result = adminUserQueryRepository.findUsers(criteria,
-                1, 20);
+        AdminPage<AdminUserSummaryProjection> result = adminUserQueryRepository.findUsers(
+                criteria,
+                1,
+                20
+        );
 
         // Then
         assertThat(result.items()).extracting(AdminUserSummaryProjection::userId)
@@ -159,23 +177,24 @@ class AdminUserQueryRepositoryTest {
     }
 
     private void insertUsers() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, app_version,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, 'active@example.com', 'ACTIVE',
-                    'signatures/active-original', 'signatures/active-thumbnail',
-                    '1.2.3', ?, ?, NULL
-                ), (
-                    ?, 'banned@example.com', 'BANNED',
-                    'signatures/banned-original', 'signatures/banned-thumbnail',
-                    '1.2.2', ?, ?, NULL
-                ), (
-                    ?, ?, 'ACTIVE', ?, NULL, NULL, ?, ?, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            signature_thumbnail_storage_key, app_version,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, 'active@example.com', 'ACTIVE',
+                            'signatures/active-original', 'signatures/active-thumbnail',
+                            '1.2.3', ?, ?, NULL
+                        ), (
+                            ?, 'banned@example.com', 'BANNED',
+                            'signatures/banned-original', 'signatures/banned-thumbnail',
+                            '1.2.2', ?, ?, NULL
+                        ), (
+                            ?, ?, 'ACTIVE', ?, NULL, NULL, ?, ?, ?
+                        )
+                        """,
                 ACTIVE_USER_ID,
                 Timestamp.from(ACTIVE_CREATED_AT),
                 Timestamp.from(ACTIVE_CREATED_AT),
@@ -187,18 +206,21 @@ class AdminUserQueryRepositoryTest {
                 "withdrawn/" + WITHDRAWN_USER_ID,
                 Timestamp.from(WITHDRAWN_CREATED_AT),
                 Timestamp.from(WITHDRAWN_AT),
-                Timestamp.from(WITHDRAWN_AT));
+                Timestamp.from(WITHDRAWN_AT)
+        );
     }
 
     private void insertSocialAccounts() {
-        jdbcTemplate.update("""
-                INSERT INTO social_accounts (user_id, provider, subject_hmac)
-                VALUES (?, 'GOOGLE', ?), (?, 'KAKAO', ?)
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO social_accounts (user_id, provider, subject_hmac)
+                        VALUES (?, 'GOOGLE', ?), (?, 'KAKAO', ?)
+                        """,
                 ACTIVE_USER_ID,
                 "a".repeat(64),
                 BANNED_USER_ID,
-                "b".repeat(64));
+                "b".repeat(64)
+        );
     }
 
     private void insertPostsForActiveUser() {
@@ -209,41 +231,51 @@ class AdminUserQueryRepositoryTest {
                     "0198fb20-0000-7000-8000-00000000000" + (index + 1));
             UUID postId = UUID.fromString(
                     "0198fb30-0000-7000-8000-00000000000" + (index + 1));
-            LocalDate topicDate = LocalDate.of(2026, 8, 10 + index);
-            jdbcTemplate.update("""
-                    INSERT INTO topics (
-                        id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """,
+            LocalDate topicDate = LocalDate.of(
+                    2026,
+                    8,
+                    10 + index
+            );
+            jdbcTemplate.update(
+                    """
+                            INSERT INTO topics (
+                                id, title, topic_date, starts_at, ends_at, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """,
                     topicId,
                     "주제 " + index,
                     topicDate,
                     Timestamp.from(
                             Instant.parse("2026-08-10T00:00:00Z").plusSeconds(index * 86400L)),
                     Timestamp.from(
-                            Instant.parse("2026-08-11T00:00:00Z").plusSeconds(index * 86400L)));
-            jdbcTemplate.update("""
-                    INSERT INTO photos (
-                        id, original_storage_key, thumbnail_storage_key,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """,
+                            Instant.parse("2026-08-11T00:00:00Z").plusSeconds(index * 86400L))
+            );
+            jdbcTemplate.update(
+                    """
+                            INSERT INTO photos (
+                                id, original_storage_key, thumbnail_storage_key,
+                                created_at, updated_at
+                            ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """,
                     photoId,
                     "posts/original/" + index,
-                    "posts/thumbnail/" + index);
-            jdbcTemplate.update("""
-                    INSERT INTO posts (
-                        id, user_id, topic_id, photo_id, title,
-                        moderation_status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, CAST(? AS moderation_status),
-                              CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """,
+                    "posts/thumbnail/" + index
+            );
+            jdbcTemplate.update(
+                    """
+                            INSERT INTO posts (
+                                id, user_id, topic_id, photo_id, title,
+                                moderation_status, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, CAST(? AS moderation_status),
+                                      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """,
                     postId,
                     ACTIVE_USER_ID,
                     topicId,
                     photoId,
                     "게시물 " + index,
-                    new String[]{"VALIDATING", "PENDING", "APPROVED", "REJECTED"}[index]);
+                    new String[]{"VALIDATING", "PENDING", "APPROVED", "REJECTED"}[index]
+            );
         }
     }
 }

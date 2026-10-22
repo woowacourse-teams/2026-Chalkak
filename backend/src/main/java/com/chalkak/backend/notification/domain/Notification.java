@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -93,7 +94,12 @@ public class Notification {
             Instant createdAt,
             boolean pushEnabled
     ) {
-        validateRequired(userId, postId, eventKey, createdAt);
+        validateRequired(
+                userId,
+                postId,
+                eventKey,
+                createdAt
+        );
         Notification notification = new Notification();
         notification.userId = userId;
         notification.sourceType = NotificationSourceType.POST;
@@ -115,7 +121,12 @@ public class Notification {
             Instant createdAt,
             boolean pushEnabled
     ) {
-        validateRequired(userId, postId, eventKey, createdAt);
+        validateRequired(
+                userId,
+                postId,
+                eventKey,
+                createdAt
+        );
         if (rejectionReason == null || rejectionReason.isBlank()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
@@ -136,6 +147,36 @@ public class Notification {
         notification.title = REJECTED_TITLE;
         notification.body = REJECTED_BODY;
         notification.payload = new NotificationPayload(rejectionReason);
+        notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
+        return notification;
+    }
+
+    /** AI 리뷰 결과 알림을 만든다. 같은 리뷰의 같은 회차는 같은 사건 키를 가진다. */
+    public static Notification aiReview(
+            UUID userId,
+            UUID postId,
+            UUID aiReviewId,
+            int round,
+            AiReviewOutcome outcome,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        validateRequired(
+                userId,
+                postId,
+                aiReviewId,
+                outcome,
+                createdAt
+        );
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.POST;
+        notification.sourceId = postId;
+        notification.eventKey = createAiReviewEventKey(aiReviewId, round);
+        notification.type = outcome.getType();
+        notification.title = outcome.getTitle();
+        notification.body = outcome.getBody();
         notification.createdAt = createdAt;
         notification.initializePublication(pushEnabled);
         return notification;
@@ -187,6 +228,15 @@ public class Notification {
         }
     }
 
+    // 승인·반려는 감사 로그 ID, 공지는 공지 ID처럼 사건을 대표하는 행이 있어 그 ID를 키로 쓴다. AI 리뷰는 회차마다 대응하는 행이
+    // 없어(재요청해도 같은 리뷰 행을 쓴다) (리뷰 ID, 회차)에서 키를 만든다. 같은 리뷰의 같은 회차는 항상 같은 키가 되어 회차마다
+    // 알림이
+    // 한 건만 생긴다.
+    private static UUID createAiReviewEventKey(UUID aiReviewId, int round) {
+        return UUID.nameUUIDFromBytes(
+                ("AI_REVIEW:" + aiReviewId + ":" + round).getBytes(StandardCharsets.UTF_8));
+    }
+
     private void initializePublication(boolean pushEnabled) {
         if (!pushEnabled) {
             publishStatus = PublishStatus.NOT_REQUIRED;
@@ -196,16 +246,13 @@ public class Notification {
         nextAttemptAt = createdAt;
     }
 
-    private static void validateRequired(
-            UUID userId,
-            UUID postId,
-            UUID eventKey,
-            Instant createdAt
-    ) {
-        if (userId == null || postId == null || eventKey == null || createdAt == null) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "알림 생성 정보가 올바르지 않습니다.");
+    private static void validateRequired(Object... requiredValues) {
+        for (Object value : requiredValues) {
+            if (value == null) {
+                throw new BusinessException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "알림 생성 정보가 올바르지 않습니다.");
+            }
         }
     }
 

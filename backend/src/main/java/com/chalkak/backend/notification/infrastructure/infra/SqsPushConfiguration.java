@@ -55,7 +55,10 @@ public class SqsPushConfiguration {
             SqsPushProperties properties,
             ObjectMapper objectMapper
     ) {
-        return new SqsPushMessagePublisher(notificationSqsClient, properties.queueUrl(),
-                objectMapper);
+        return new SqsPushMessagePublisher(
+                notificationSqsClient,
+                properties.queueUrl(),
+                objectMapper
+        );
     }
 }

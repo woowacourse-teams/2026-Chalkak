@@ -155,7 +155,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         List<String> storedHashes = jdbcTemplate.queryForList(
                 "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
                 String.class,
-                userId);
+                userId
+        );
         assertThat(storedHashes).hasSize(1);
         assertThat(storedHashes.getFirst()).matches("^[0-9a-f]{64}$");
     }
@@ -270,7 +271,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 existingUser,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -297,7 +299,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 withdrawnUser,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         UUID withdrawnUserId = withdrawnUser.getId();
         userWithdrawalService.withdraw(withdrawnUserId);
         entityManager.flush();
@@ -429,7 +432,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 bannedUser,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -455,7 +459,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         user.ban();
         user.withdraw();
         entityManager.flush();
@@ -479,7 +484,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         user.withdraw();
         entityManager.flush();
         entityManager.clear();
@@ -612,7 +618,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .willAnswer(invocation -> new SignatureImageUpload(
                         invocation.getArgument(0),
                         "https://s3.example.com/presigned",
-                        300L));
+                        300L
+                ));
         given(socialSignupTokenIssuer.issue(any(), any(UUID.class)))
                 .willReturn(new IssuedSocialSignupToken("social-signup-token"));
 
@@ -620,7 +627,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         SocialSignupSignatureUploadResult result = socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE
+        );
 
         // Then
         assertThat(result.upload().uploadId()).isNotNull();
@@ -645,7 +653,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         SocialSignupSignatureUploadResult result = socialSignupService.createSignatureUpload(
                 SocialProvider.APPLE,
                 APPLE_ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE
+        );
 
         // Then
         assertThat(result.upload().uploadUrl())
@@ -663,7 +672,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.APPLE,
                 APPLE_ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
         verifyNoInteractions(signatureImageUploadIssuer);
@@ -680,7 +690,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.APPLE,
                 APPLE_ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Apple 회원가입 인증 정보가 만료되었거나 없습니다. 다시 로그인해 주세요.");
         verifyNoInteractions(signatureImageUploadIssuer);
@@ -700,7 +711,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialSignupService.createSignatureUpload(
                 SocialProvider.APPLE,
                 APPLE_ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -721,7 +733,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialSignupService.createSignatureUpload(
                 SocialProvider.APPLE,
                 APPLE_ID_TOKEN,
-                RAW_NONCE);
+                RAW_NONCE
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -741,13 +754,15 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
 
         // When & Then
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
     }
@@ -763,7 +778,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         user.withdraw();
         entityManager.flush();
         entityManager.clear();
@@ -772,7 +788,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR)
                 .hasMessage("이미 가입된 소셜 계정입니다.");
@@ -792,7 +809,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 bannedUser,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         entityManager.flush();
         entityManager.clear();
 
@@ -800,7 +818,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE
+        ))
                 .isInstanceOf(ForbiddenException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
@@ -816,7 +835,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         socialAccountRepository.save(SocialAccount.create(
                 user,
                 SocialProvider.GOOGLE,
-                subjectHmac()));
+                subjectHmac()
+        ));
         user.ban();
         user.withdraw();
         entityManager.flush();
@@ -826,7 +846,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> socialSignupService.createSignatureUpload(
                 SocialProvider.GOOGLE,
                 ID_TOKEN,
-                RAW_NONCE))
+                RAW_NONCE
+        ))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("차단된 소셜 계정입니다.");
         verifyNoInteractions(signatureImageUploadIssuer, socialSignupTokenIssuer);
@@ -836,7 +857,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         return new VerifiedSocialIdentity(
                 SocialProvider.GOOGLE,
                 SUBJECT,
-                EMAIL);
+                EMAIL
+        );
     }
 
     private String subjectHmac() {
@@ -853,7 +875,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 uploadId,
                 email,
                 newTokenId(),
-                defaultTokenExpiresAt());
+                defaultTokenExpiresAt()
+        );
     }
 
     private VerifiedSocialSignupToken verifiedAppleSignupToken(UUID uploadId) {
@@ -863,7 +886,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 uploadId,
                 "user@privaterelay.appleid.com",
                 newTokenId(),
-                defaultTokenExpiresAt());
+                defaultTokenExpiresAt()
+        );
     }
 
     private void savePendingAppleAuthorization() {
@@ -874,7 +898,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         pendingAuthorizationRepository.save(PendingAppleAuthorization.create(
                 appleSubjectHmac(),
                 "encrypted-apple-refresh-token",
-                expiresAt));
+                expiresAt
+        ));
     }
 
     private void givenAppleSignatureUploadRequest(Instant signupTokenExpiresAt) {
@@ -889,14 +914,16 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
                 .willAnswer(invocation -> new SignatureImageUpload(
                         invocation.getArgument(0),
                         "https://s3.example.com/presigned",
-                        300L));
+                        300L
+                ));
     }
 
     private VerifiedSocialIdentity appleIdentity() {
         return new VerifiedSocialIdentity(
                 SocialProvider.APPLE,
                 "apple-subject",
-                "user@privaterelay.appleid.com");
+                "user@privaterelay.appleid.com"
+        );
     }
 
     /**

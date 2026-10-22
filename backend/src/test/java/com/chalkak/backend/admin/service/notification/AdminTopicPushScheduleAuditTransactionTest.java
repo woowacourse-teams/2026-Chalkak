@@ -57,7 +57,11 @@ class AdminTopicPushScheduleAuditTransactionTest extends IntegrationTestSupport 
         UUID scheduleId = prepareSchedule(operation);
 
         // When & Then
-        assertThatThrownBy(() -> mutateSchedule(operation, scheduleId, UNKNOWN_ADMIN_ID))
+        assertThatThrownBy(() -> mutateSchedule(
+                operation,
+                scheduleId,
+                UNKNOWN_ADMIN_ID
+        ))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertOriginalState(operation, scheduleId);
     }
@@ -72,7 +76,11 @@ class AdminTopicPushScheduleAuditTransactionTest extends IntegrationTestSupport 
 
         // When & Then
         assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
-            mutateSchedule(operation, scheduleId, ADMIN_ID);
+            mutateSchedule(
+                    operation,
+                    scheduleId,
+                    ADMIN_ID
+            );
             throw new IllegalStateException("업무 트랜잭션 실패");
         })).isInstanceOf(IllegalStateException.class);
         assertOriginalState(operation, scheduleId);
@@ -85,13 +93,21 @@ class AdminTopicPushScheduleAuditTransactionTest extends IntegrationTestSupport 
         return scheduleService.createSchedule(ADMIN_ID, LocalTime.of(9, 0)).scheduleId();
     }
 
-    private void mutateSchedule(String operation, UUID scheduleId, UUID adminId) {
+    private void mutateSchedule(
+            String operation,
+            UUID scheduleId,
+            UUID adminId
+    ) {
         if (operation.equals("CREATE")) {
             scheduleService.createSchedule(adminId, LocalTime.of(9, 0));
             return;
         }
         if (operation.equals("UPDATE")) {
-            scheduleService.updateSchedule(scheduleId, adminId, LocalTime.of(18, 0));
+            scheduleService.updateSchedule(
+                    scheduleId,
+                    adminId,
+                    LocalTime.of(18, 0)
+            );
             return;
         }
         scheduleService.deleteSchedule(scheduleId, adminId);
@@ -112,8 +128,10 @@ class AdminTopicPushScheduleAuditTransactionTest extends IntegrationTestSupport 
 
     private int countAuditLogs() {
         return jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM admin_audit_logs WHERE actor_admin_id = ?", Integer.class,
-                ADMIN_ID);
+                "SELECT count(*) FROM admin_audit_logs WHERE actor_admin_id = ?",
+                Integer.class,
+                ADMIN_ID
+        );
     }
 
     private void clean() {

@@ -9,10 +9,15 @@ public record TopicPushScheduleResult(
         UUID scheduleId,
         LocalTime sendTime,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt
+) {
 
     public static TopicPushScheduleResult from(TopicPushSchedule schedule) {
-        return new TopicPushScheduleResult(schedule.getId(), schedule.getSendTime(),
-                schedule.getCreatedAt(), schedule.getUpdatedAt());
+        return new TopicPushScheduleResult(
+                schedule.getId(),
+                schedule.getSendTime(),
+                schedule.getCreatedAt(),
+                schedule.getUpdatedAt()
+        );
     }
 }

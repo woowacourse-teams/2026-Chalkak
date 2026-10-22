@@ -77,7 +77,8 @@ class TopicRepositoryImplTest {
         ConstraintViolationException cause = new ConstraintViolationException(
                 "database constraint violation",
                 new SQLException(),
-                constraintName);
+                constraintName
+        );
         return new DataIntegrityViolationException("data integrity violation", cause);
     }
 }

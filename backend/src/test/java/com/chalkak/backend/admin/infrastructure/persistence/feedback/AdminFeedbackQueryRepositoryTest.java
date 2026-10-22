@@ -64,12 +64,19 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtDesc_returnsNewestFirstWithAuthor() {
         // When
         AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                AdminFeedbackSort.CREATED_AT_DESC, 1, 20);
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
 
         // Then
         assertThat(page.items())
                 .extracting(AdminFeedbackSummaryProjection::feedbackId)
-                .containsExactly(NEWEST_FEEDBACK_ID, MIDDLE_FEEDBACK_ID, OLDEST_FEEDBACK_ID);
+                .containsExactly(
+                        NEWEST_FEEDBACK_ID,
+                        MIDDLE_FEEDBACK_ID,
+                        OLDEST_FEEDBACK_ID
+                );
         assertThat(page.hasNext()).isFalse();
 
         AdminFeedbackSummaryProjection newest = page.items().getFirst();
@@ -87,12 +94,19 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtAsc_returnsOldestFirst() {
         // When
         AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                AdminFeedbackSort.CREATED_AT_ASC, 1, 20);
+                AdminFeedbackSort.CREATED_AT_ASC,
+                1,
+                20
+        );
 
         // Then
         assertThat(page.items())
                 .extracting(AdminFeedbackSummaryProjection::feedbackId)
-                .containsExactly(OLDEST_FEEDBACK_ID, MIDDLE_FEEDBACK_ID, NEWEST_FEEDBACK_ID);
+                .containsExactly(
+                        OLDEST_FEEDBACK_ID,
+                        MIDDLE_FEEDBACK_ID,
+                        NEWEST_FEEDBACK_ID
+                );
     }
 
     @Test
@@ -101,10 +115,16 @@ class AdminFeedbackQueryRepositoryTest {
         // When
         AdminPage<AdminFeedbackSummaryProjection> firstPage = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        AdminFeedbackSort.CREATED_AT_DESC, 1, 2);
+                        AdminFeedbackSort.CREATED_AT_DESC,
+                        1,
+                        2
+                );
         AdminPage<AdminFeedbackSummaryProjection> lastPage = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        AdminFeedbackSort.CREATED_AT_DESC, 2, 2);
+                        AdminFeedbackSort.CREATED_AT_DESC,
+                        2,
+                        2
+                );
 
         // Then
         assertThat(firstPage.items())
@@ -122,7 +142,10 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_bannedAndWithdrawnAuthors_areIncluded() {
         // When
         AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                AdminFeedbackSort.CREATED_AT_ASC, 1, 20);
+                AdminFeedbackSort.CREATED_AT_ASC,
+                1,
+                20
+        );
 
         // Then
         AdminFeedbackSummaryProjection bannedFeedback = page.items().getFirst();
@@ -136,37 +159,40 @@ class AdminFeedbackQueryRepositoryTest {
     }
 
     private void insertUsers() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, app_version,
-                    created_at, updated_at, deleted_at
-                ) VALUES (
-                    ?, 'active@example.com', 'ACTIVE',
-                    'signatures/active-original', 'signatures/active-thumbnail',
-                    '1.2.3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL
-                ), (
-                    ?, 'banned@example.com', 'BANNED',
-                    'signatures/banned-original', 'signatures/banned-thumbnail',
-                    '1.2.2', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL
-                ), (
-                    ?, ?, 'ACTIVE', ?, NULL, NULL,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key,
+                            signature_thumbnail_storage_key, app_version,
+                            created_at, updated_at, deleted_at
+                        ) VALUES (
+                            ?, 'active@example.com', 'ACTIVE',
+                            'signatures/active-original', 'signatures/active-thumbnail',
+                            '1.2.3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL
+                        ), (
+                            ?, 'banned@example.com', 'BANNED',
+                            'signatures/banned-original', 'signatures/banned-thumbnail',
+                            '1.2.2', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL
+                        ), (
+                            ?, ?, 'ACTIVE', ?, NULL, NULL,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
+                        )
+                        """,
                 ACTIVE_USER_ID,
                 BANNED_USER_ID,
                 WITHDRAWN_USER_ID,
                 "withdrawn+" + WITHDRAWN_USER_ID + "@chalkak.invalid",
                 "withdrawn/" + WITHDRAWN_USER_ID,
-                Timestamp.from(WITHDRAWN_AT));
+                Timestamp.from(WITHDRAWN_AT)
+        );
     }
 
     private void insertFeedbacks() {
-        jdbcTemplate.update("""
-                INSERT INTO feedbacks (id, user_id, content, created_at)
-                VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO feedbacks (id, user_id, content, created_at)
+                        VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)
+                        """,
                 OLDEST_FEEDBACK_ID,
                 BANNED_USER_ID,
                 "정지 사유가 궁금해요.",
@@ -178,6 +204,7 @@ class AdminFeedbackQueryRepositoryTest {
                 NEWEST_FEEDBACK_ID,
                 ACTIVE_USER_ID,
                 "사진 업로드가 느려요.",
-                Timestamp.from(NEWEST_CREATED_AT));
+                Timestamp.from(NEWEST_CREATED_AT)
+        );
     }
 }

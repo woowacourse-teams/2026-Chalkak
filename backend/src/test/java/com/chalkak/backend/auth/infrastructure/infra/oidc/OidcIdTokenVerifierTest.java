@@ -129,7 +129,8 @@ class OidcIdTokenVerifierTest {
                     decoded.set(true);
                     return jwtBuilder().build();
                 },
-                OidcEmailPolicy.AS_PROVIDED);
+                OidcEmailPolicy.AS_PROVIDED
+        );
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, rawNonce))
@@ -163,7 +164,8 @@ class OidcIdTokenVerifierTest {
                 token -> {
                     throw new JwtException("invalid token");
                 },
-                OidcEmailPolicy.VERIFIED_ONLY);
+                OidcEmailPolicy.VERIFIED_ONLY
+        );
 
         // When & Then
         assertThatThrownBy(() -> verifier.verify(ID_TOKEN, RAW_NONCE))
@@ -226,7 +228,8 @@ class OidcIdTokenVerifierTest {
         return new OidcIdTokenVerifier(
                 provider,
                 jwtDecoder,
-                OidcEmailPolicy.VERIFIED_ONLY);
+                OidcEmailPolicy.VERIFIED_ONLY
+        );
     }
 
     private Jwt.Builder jwtBuilder() {

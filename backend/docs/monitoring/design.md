@@ -43,6 +43,14 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | `runtime` | dev·prod에서 1분마다 (`RuntimeSnapshotLogger`) | `heapUsedBytes`, `heapMaxBytes`, `gcTimeMsTotal`, `threads`, `hikariActive`, `hikariPending` | 측정하지 못한 값은 0이 아니라 키를 뺀다. JVM 관리 빈과 Hikari 풀 관리 빈에서 직접 읽는다. |
 | `moderation` | 검수 흐름 (`PostCommandService`, `AdminPostCommandService`) | `event`(`pending`, `approved`, `rejected`), `postId`, `waitSeconds` | `waitSeconds`는 `approved`·`rejected`에만 있고 게시물 제출(`created_at`)부터 처리(`moderated_at`)까지의 초다. 트랜잭션 안에서 남기므로 드물게 롤백돼도 로그가 남을 수 있다. |
 | `aggregation` | 매일 01:00(KST) 사용자 지표 집계 (prod 스케줄러, 관리자 API 재집계) | `metricDate`, `dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, `visitors`, `topicViewers`, `requests`, `server5xx`, `latencyAvgMs`, `latencyP95Ms`(마지막 여섯 개는 2026-10-02 이후 날짜부터), `message`("사용자 지표 집계"). `metricDate`가 일요일인 월요일 집계에는 `retentionW{k}Cohort`, `retentionW{k}Retained`, `retentionW{k}Rate`(k=1~4)가 더해진다. 코호트가 비면 `Rate` 키는 뺀다 | 하루에 INFO 한 줄이다. DB 게시물 수와 접근 로그의 `POST /api/v1/posts` 201 수가 다르면 같은 `type`에 `event=posts_mismatch`, `dbPosts`, `logPosts`를 담은 WARN 줄을 남긴다. 집계가 실패하면(예약 실행이 수동 실행과 겹칠 때도) `type=error` ERROR 줄에 `metricDate`와 "사용자 지표 집계 실패"를 남긴다. 구현 #504. |
+| `ai_review` | AI 리뷰 요청과 처리 워커 (`PostAiReviewService`, `AiReviewWorkerService`, `AiReviewWorker`, 로거 `chalkak.aireview`) | `event`(`review_requested`, `review_retry_scheduled`, `review_completed`, `review_failed`, `review_stale_update`, `review_abandoned`, `result_notification_failed`, `worker_poll_failed`), `aiReviewId`, `postId`, `userId`, `promptVersion`, `model`, `attempt` | `review_requested`는 새 행을 만든 요청과 실패한 리뷰의 재요청 때 남기며 `aiReviewId`·`postId`·`userId`·`promptVersion`(재요청이면 다시 고정한 버전)·`model`에 더해 `requestCount`(사용자 요청 횟수, 처음 포함), `created`(새 행이면 true, 재요청이면 false)를 담는다. 이 요청의 `requestId`는 명시 필드가 아니라 요청 문맥(MDC)으로 모든 로그 줄에 붙는 공통 필드다. `review_retry_scheduled`(WARN)는 일시적 실패로 자동 재시도를 예약했을 때 남기며 `attempt`, `roundAttempt`(이번 요청 안의 시도 번호), `requestCount`, `promptVersion`, `model`, `errorCode`(이번 시도의 실패 사유), `retryInMs`(적용한 대기 시간), `retryAfterUsed`(OpenAI가 알려 준 대기 시간이 백오프보다 길어 따랐는지)를 담고 `latencyMs`·토큰 4종·`openaiResponseId`는 받은 경우만 담는다. DB에는 마지막 시도의 값만 남으므로 재시도 비용은 이 로그로 합산한다. `review_completed`(INFO)·`review_failed`(WARN)는 처리를 끝낸 건마다 `attempt`, `queueWaitMs`(이번 요청 시각부터 처음 가져간 때까지), `totalMs`(이번 요청 시각부터 완료까지, 재요청이면 재요청 시각 기준), `latencyMs`(OpenAI 호출, 응답을 받은 경우만), `inputTokens`·`cachedInputTokens`·`outputTokens`·`reasoningTokens`(받은 경우만)를 담고 실패에는 `errorCode`가 더해진다. 재시도를 예약한 시도에는 종료 로그를 남기지 않으며 종료 로그는 처리를 끝낸 때 한 번만 남는다. `review_stale_update`(WARN)는 늦은 워커의 반영을 버렸을 때, `review_abandoned`(WARN)는 종료·DB 오류·준비 실패·처리 중 예상 못 한 예외로 처리 중 상태를 두고 임대 만료 뒤 다시 가져가게 할 때(`reason`은 `SHUTDOWN`·`DB_ERROR`·`PREPARE_FAILED`·`UNEXPECTED_WHILE_PROCESSING`, 예외가 있으면 `errorCode`), `result_notification_failed`(ERROR)는 리뷰 결과를 확정한 뒤 알림 저장이 실패한 건마다 남기며(`errorCode`는 예외 클래스 이름), 그 회차의 알림 한 건이 빠졌다는 뜻이다. 소진으로 끝난 건도 같다, `worker_poll_failed`(ERROR)는 폴링 예외를 삼키고 다음 주기로 넘어갈 때(`errorCode`) 남긴다. 피드백·프롬프트·이미지 주소·주제 제목은 기록하지 않는다. 구현 #689, 재시도·재요청 #690, 결과 알림 #739. |
+
+#### AI 리뷰 지표 정의 메모 (#692)
+
+- 일별 요청 수는 최초 요청 시각(`requested_at`) 기준으로 센다. 재요청은 세지 않는다.
+- 재요청 수는 `review_requested`에서 `created=false`인 로그로 센다. DB의 `last_requested_at`은 재요청 때마다 덮어써져 합산할 수 없다.
+- "대기열 최고 대기 시간" 경보에서는 자동 재시도를 기다리는 행(`next_attempt_at`이 미래인 대기 행)을 뺀다. 의도된 대기라 지연이 아니다.
+- `error_code`는 "마지막 시도 사유"다. 재시도를 기다리는 동안에도 직전 시도의 사유가 남고, 시도별 사유와 사용량은 `review_retry_scheduled` 로그에서 본다.
 
 ### 요청 추적
 
@@ -61,17 +69,17 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | --- | --- | --- | --- |
 | API 요청 수 | 메트릭 필터 `RequestCount` (`type=access`) | 대시보드 요청 수 위젯 | 구현 #503 |
 | 5xx 건수 | 메트릭 필터 `Server5xx` | 알람 `chalkak-{env}-5xx`, 대시보드 | 구현 #503 |
-| 5xx 원인 (`errorCode`, `requestId`, `stack_trace`) | Logs Insights 위젯 | 대시보드 원인 분석 섹션 | 구현 #503 |
-| API별 5xx 건수 (`method`, `route`) | Logs Insights 위젯 (`type=access`, `status >= 500`) | 대시보드 원인 분석 섹션, 5xx 알람 Slack 메시지의 조회 링크 | 구현 #504 |
-| 401·403 건수와 라우트 | Logs Insights 위젯 (`type=access`, `status in [401,403]`) | 대시보드 원인 분석 섹션 | 구현 #503 |
+| 5xx 원인 (`errorCode`, `requestId`, `stack_trace`) | Logs Insights 위젯 | 대시보드 prod API 품질 섹션 | 구현 #503 |
+| API별 5xx 건수 (`method`, `route`) | Logs Insights 위젯 (`type=access`, `status >= 500`) | 대시보드 prod API 품질 섹션, 5xx 알람 Slack 메시지의 조회 링크 | 구현 #504 |
+| 401·403 건수와 라우트 | Logs Insights 위젯 (`type=access`, `status in [401,403]`) | 대시보드 prod API 품질 섹션 | 구현 #503 |
 
 ### 4.2 성능
 
 | 항목 | 수집 방식 | 확인하는 곳 | 상태 |
 | --- | --- | --- | --- |
-| API 응답시간 p95·p99 | 메트릭 필터 `LatencyMs` (prod만, 기본값 없음) | 대시보드 prod 상태 섹션 | 구현 #503 |
-| 라우트별 p95 상위 10 | Logs Insights 위젯 | 대시보드 원인 분석 섹션 | 구현 #503 |
-| JVM 힙·스레드, Hikari active·pending | Logs Insights 위젯 (`type=runtime`) | 대시보드 prod 운영·사용자 섹션 | 구현 #501, #503 |
+| API 응답시간 p95·p99 | 메트릭 필터 `LatencyMs` (prod만, 기본값 없음) | 대시보드 prod API 품질 섹션 | 구현 #503 |
+| 라우트별 p95 상위 10 | Logs Insights 위젯 | 대시보드 prod API 품질 섹션 | 구현 #503 |
+| JVM 힙·스레드, Hikari active·pending | Logs Insights 위젯 (`type=runtime`) | 대시보드 prod 서버·DB 리소스 섹션 | 구현 #501, #503 |
 
 ### 4.3 인프라
 
@@ -103,8 +111,8 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 항목 | 수집 방식 | 확인하는 곳 | 상태 |
 | --- | --- | --- | --- |
 | 오늘(요청한 날짜) 주제 행 없음 | 메트릭 필터 `TopicNotFound` (`GET /api/v1/topics` 404, 요청한 날짜의 주제가 없을 때. 앱이 오늘 날짜로 조회한다는 전제). 주제 등록 누락이나 삭제를 잡고, 주제가 있어도 BEFORE_OPEN인 경우는 잡지 못한다 | 알람 `chalkak-prod-no-open-topic` | 구현 #503 |
-| 검수 소요 시간 (일별 평균·p95) | Logs Insights 위젯 (`type=moderation`, `waitSeconds`) | 대시보드 prod 운영·사용자 섹션 | 구현 #501, #503 |
-| 검수 대기가 오래된 게시물 | Logs Insights 위젯 (`postId`별 마지막 `event`가 `pending`, 조회 기간 안에 접수된 것만. 정확한 현황은 관리자 페이지) | 대시보드 prod 운영·사용자 섹션 | 구현 #501, #503 |
+| 검수 소요 시간 (일별 평균·p95) | Logs Insights 위젯 (`type=moderation`, `waitSeconds`) | 대시보드 prod 검수 운영 섹션 | 구현 #501, #503 |
+| 검수 대기가 오래된 게시물 | Logs Insights 위젯 (`postId`별 마지막 `event`가 `pending`, 조회 기간 안에 접수된 것만. 정확한 현황은 관리자 페이지) | 대시보드 prod 검수 운영 섹션 | 구현 #501, #503 |
 | 검수 소요 시간 장기 추세 (주별 평균·p95) | DB SQL (`posts.created_at`, `moderated_at`) | [리포트 쿼리](report-queries.md) | 구현 #504 |
 | 게시물 제출 성공·실패 수 | | | 보류 (7절) |
 
@@ -114,16 +122,16 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 
 | 항목 | 수집 방식 | 확인하는 곳 | 상태 |
 | --- | --- | --- | --- |
-| DAU (일별) | Logs Insights 위젯 (`POST /api/v1/posts` 201의 `count_distinct(userId)`)과 집계 메트릭 `Dau` (DB 기준, 내부 계정 제외) | 대시보드 prod 운영·사용자 섹션(실시간), prod 사용자 지표 섹션(일별 집계) | 구현 #503, 기준 변경·집계 #504 |
-| 당일 접속 사용자 수 (일별) | Logs Insights 위젯 (`userId`가 있는 접근 로그의 `count_distinct(userId)`)과 집계 메트릭 `Visitors` (내부 계정 제외) | 대시보드 prod 운영·사용자 섹션, prod 사용자 지표 섹션 | 구현 #504 |
-| WAU | 집계 메트릭 `Wau` | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
-| W+1~W+4 리텐션 | 집계 메트릭 `RetentionW{k}Rate` (월요일 집계) | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
+| DAU (일별) | Logs Insights 위젯 (`POST /api/v1/posts` 201의 `count_distinct(userId)`)과 집계 메트릭 `Dau` (DB 기준, 내부 계정 제외) | 대시보드 prod 사용자 활동 섹션(실시간), prod 사용자 성장 섹션(일별 집계) | 구현 #503, 기준 변경·집계 #504 |
+| 당일 접속 사용자 수 (일별) | Logs Insights 위젯 (`userId`가 있는 접근 로그의 `count_distinct(userId)`)과 집계 메트릭 `Visitors` (내부 계정 제외) | 대시보드 prod 사용자 활동 섹션, prod 사용자 성장 섹션 | 구현 #504 |
+| WAU | 집계 메트릭 `Wau` | 대시보드 prod 사용자 성장 섹션 | 구현 #504 |
+| W+1~W+4 리텐션 | 집계 메트릭 `RetentionW{k}Rate` (월요일 집계) | 대시보드 prod 사용자 성장 섹션 | 구현 #504 |
 | 코호트별 리텐션 표 | DB SQL (코호트 주마다 W+1~W+4) | [리포트 쿼리](report-queries.md) | 구현 #504 |
-| 일별 게시물 수 | 집계 메트릭 `Posts` | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
+| 일별 게시물 수 | 집계 메트릭 `Posts` | 대시보드 prod 사용자 성장 섹션 | 구현 #504 |
 | 총 좋아요 수 | 집계 로그 `likesTotal`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
 | 주제 조회 사용자 수 | 집계 로그 `topicViewers`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
-| 주제별 피드 조회 수 | 피드 조회 접근 로그의 `topicDate` 필드, Logs Insights 위젯 | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
-| 참여 가능 사용자 수 | 집계 메트릭 `EligibleUsers` (집계 시점 스냅샷) | 대시보드 prod 사용자 지표 섹션 | 구현 #504 |
+| 주제별 피드 조회 수 | 피드 조회 접근 로그의 `topicDate` 필드, Logs Insights 위젯 | 대시보드 prod 사용자 활동 섹션 | 구현 #504 |
+| 참여 가능 사용자 수 | 집계 메트릭 `EligibleUsers` (집계 시점 스냅샷) | 대시보드 prod 사용자 성장 섹션 | 구현 #504 |
 | API 요청 수·5xx 수·평균·p95 일별 요약 | 집계 로그 `requests`, `server5xx`, `latencyAvgMs`, `latencyP95Ms`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
 | 주제 알림 발행 대상·수락 건수 | 회차 집계 로그 | 알림 조사 절차 | #572 구현, #494 관측 구성 |
 | 주제별 게시물 상세 조회 수 | | | 보류 (7절) |
@@ -184,6 +192,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 - 이미지 binary, 민감 EXIF 정보
 - 원본 URL과 쿼리 문자열 (접근 로그는 `route` 템플릿만 남긴다)
 - 예외 메시지 (사용자 입력이 섞일 수 있어 예외 종류만 남긴다)
+- AI 리뷰의 피드백, 프롬프트, 이미지 주소, 주제 제목 (`type=ai_review`에는 식별자·모델·시간·토큰 수·오류 코드만 남긴다)
 - Slack webhook URL (Lambda 환경 변수에만 입력하고 저장소·이슈·PR·채팅에 남기지 않는다)
 
 ## 9. 관련 문서

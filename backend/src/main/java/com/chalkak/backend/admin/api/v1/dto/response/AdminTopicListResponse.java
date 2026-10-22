@@ -9,7 +9,8 @@ public record AdminTopicListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<AdminTopicDetailResponse> topics) {
+        List<AdminTopicDetailResponse> topics
+) {
 
     public static AdminTopicListResponse from(AdminTopicListResult result) {
         return new AdminTopicListResponse(
@@ -18,6 +19,7 @@ public record AdminTopicListResponse(
                 result.hasNext(),
                 result.topics().stream()
                         .map(AdminTopicDetailResponse::from)
-                        .toList());
+                        .toList()
+        );
     }
 }

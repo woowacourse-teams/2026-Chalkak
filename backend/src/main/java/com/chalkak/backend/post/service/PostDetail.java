@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record PostDetail(
         UUID id,
+        UUID authorId,
         TopicDetail topic,
         String originalImageUrl,
         String thumbnailImageUrl,
@@ -25,6 +26,7 @@ public record PostDetail(
     ) {
         return new PostDetail(
                 post.getId(),
+                post.getAuthor().getId(),
                 TopicDetail.from(post.getTopic()),
                 imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
                 imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),

@@ -84,15 +84,19 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, TOPIC_ID);
-        jdbcTemplate.update("""
-                INSERT INTO post_image_uploads (
-                    id, user_id, status, expires_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, CAST('ISSUED' AS post_image_upload_status),
-                    CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, PHOTO_UPLOAD_ID, USER_ID);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO post_image_uploads (
+                            id, user_id, status, expires_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, CAST('ISSUED' AS post_image_upload_status),
+                            CURRENT_TIMESTAMP + INTERVAL '1 hour',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                PHOTO_UPLOAD_ID,
+                USER_ID
+        );
         given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
         given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
                 .willReturn(ORIGINAL_STORAGE_KEY);
@@ -115,7 +119,11 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
             boolean deleted
     ) {
         // Given
-        insertExistingPost(moderationStatus, createdBefore, deleted);
+        insertExistingPost(
+                moderationStatus,
+                createdBefore,
+                deleted
+        );
 
         // When
         boolean isPosted = postQueryService.getMyTodayPostStatus(USER_ID).isPosted();
@@ -144,7 +152,12 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
      */
     private boolean isCreateRejectedAsDuplicate() {
         try {
-            postCommandService.createPost(USER_ID, TOPIC_ID, PHOTO_UPLOAD_ID, "제목");
+            postCommandService.createPost(
+                    USER_ID,
+                    TOPIC_ID,
+                    PHOTO_UPLOAD_ID,
+                    "제목"
+            );
             return false;
         } catch (BusinessException exception) {
             if (DUPLICATE_MESSAGE.equals(exception.getMessage())) {
@@ -167,23 +180,25 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """, EXISTING_PHOTO_ID);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, moderation_status,
-                    deleted_at, created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?::moderation_status,
-                    CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,
-                    CURRENT_TIMESTAMP - CAST(? AS INTERVAL), CURRENT_TIMESTAMP
-                )
-                """,
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, moderation_status,
+                            deleted_at, created_at, updated_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?::moderation_status,
+                            CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,
+                            CURRENT_TIMESTAMP - CAST(? AS INTERVAL), CURRENT_TIMESTAMP
+                        )
+                        """,
                 EXISTING_POST_ID,
                 USER_ID,
                 TOPIC_ID,
                 EXISTING_PHOTO_ID,
                 moderationStatus.name(),
                 deleted,
-                createdBefore);
+                createdBefore
+        );
         entityManager.flush();
         entityManager.clear();
     }

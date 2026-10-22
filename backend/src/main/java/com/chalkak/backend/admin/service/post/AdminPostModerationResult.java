@@ -9,5 +9,6 @@ public record AdminPostModerationResult(
         ModerationStatus moderationStatus,
         UUID moderatedBy,
         Instant moderatedAt,
-        String rejectionReason) {
+        String rejectionReason
+) {
 }

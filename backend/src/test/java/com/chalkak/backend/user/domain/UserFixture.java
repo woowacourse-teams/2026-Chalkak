@@ -24,17 +24,29 @@ public final class UserFixture {
                 new SignatureStorageKeys(
                         "signatures/" + unique,
                         "thumbnails/" + unique));
-        setField(user, "id", id);
+        setField(
+                user,
+                "id",
+                id
+        );
         return user;
     }
 
     public static User createBanned(UUID id) {
         User user = create(id);
-        setField(user, "status", UserStatus.BANNED);
+        setField(
+                user,
+                "status",
+                UserStatus.BANNED
+        );
         return user;
     }
 
-    private static void setField(User user, String name, Object value) {
+    private static void setField(
+            User user,
+            String name,
+            Object value
+    ) {
         try {
             Field field = User.class.getDeclaredField(name);
             field.setAccessible(true);

@@ -57,7 +57,11 @@ public class PendingAppleAuthorization {
             String encryptedRefreshToken,
             Instant expiresAt
     ) {
-        validate(subjectHmac, encryptedRefreshToken, expiresAt);
+        validate(
+                subjectHmac,
+                encryptedRefreshToken,
+                expiresAt
+        );
 
         PendingAppleAuthorization authorization = new PendingAppleAuthorization();
         authorization.subjectHmac = subjectHmac;

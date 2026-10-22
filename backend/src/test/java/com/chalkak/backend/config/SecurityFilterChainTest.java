@@ -27,6 +27,7 @@ import com.chalkak.backend.auth.service.token.TokenRefreshResult;
 import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.like.service.PostLikeResult;
 import com.chalkak.backend.like.service.PostLikeService;
+import com.chalkak.backend.post.service.AuthorPostListResult;
 import com.chalkak.backend.post.service.PostCalendarResult;
 import com.chalkak.backend.post.service.PostListResult;
 import com.chalkak.backend.post.service.PostQueryService;
@@ -42,6 +43,8 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -124,7 +127,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         UUID userId = createUser();
         UUID postId = UUID.randomUUID();
         given(postLikeService.likePost(postId, userId))
-                .willReturn(new PostLikeResult(postId, 1L, true));
+                .willReturn(new PostLikeResult(
+                        postId,
+                        1L,
+                        true
+                ));
         String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
@@ -160,7 +167,8 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 new VerifiedSocialIdentity(
                         SocialProvider.GOOGLE,
                         "google-subject",
-                        "user@chalkak.test"),
+                        "user@chalkak.test"
+                ),
                 UUID.randomUUID())
                 .value();
 
@@ -174,7 +182,12 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("로그인 API는 토큰 없이 호출할 수 있다")
     void authApi_withoutToken_reachesController() throws Exception {
         // Given
-        given(socialLoginService.login(any(), any(), any(), any()))
+        given(socialLoginService.login(
+                any(),
+                any(),
+                any(),
+                any()
+        ))
                 .willReturn(SocialLoginResult.signUpRequired());
 
         // When & Then
@@ -202,8 +215,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         given(userRefreshTokenService.refresh(any()))
                 .willReturn(new TokenRefreshResult(
                         new IssuedAccessToken("chalkak-access-token", Duration.ofMinutes(15)),
-                        new IssuedRefreshToken("chalkak-refresh-token", Duration.ofDays(30),
-                                UUID.randomUUID())));
+                        new IssuedRefreshToken(
+                                "chalkak-refresh-token",
+                                Duration.ofDays(30),
+                                UUID.randomUUID()
+                        )));
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
@@ -243,8 +259,21 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("게시물 목록은 토큰 없이 조회할 수 있다")
     void posts_withoutToken_reachesController() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
-                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
+                .willReturn(new PostListResult(
+                        0,
+                        10,
+                        false,
+                        null,
+                        List.of()
+                ));
 
         // When & Then
         mockMvc.perform(get("/api/v1/posts").queryParam("topicDate", "2026-08-12"))
@@ -262,7 +291,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         // Given
         UUID userId = createUser();
         given(postQueryService.getMyPostCalendar(eq(userId), any()))
-                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+                .willReturn(new PostCalendarResult(
+                        2026,
+                        8,
+                        List.of()
+                ));
         String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When & Then
@@ -283,7 +316,11 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
         // Given
         UUID adminId = UUID.randomUUID();
         given(postQueryService.getMyPostCalendar(eq(adminId), any()))
-                .willReturn(new PostCalendarResult(2026, 8, List.of()));
+                .willReturn(new PostCalendarResult(
+                        2026,
+                        8,
+                        List.of()
+                ));
         String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
 
         // When & Then
@@ -319,8 +356,21 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("선택적 회원 인증에서도 관리자 JWT를 일반 사용자로 해석하지 않는다")
     void posts_adminToken_returnsForbidden() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
-                .willReturn(new PostListResult(0, 10, false, null, List.of()));
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
+                .willReturn(new PostListResult(
+                        0,
+                        10,
+                        false,
+                        null,
+                        List.of()
+                ));
         String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
 
         // When & Then
@@ -429,7 +479,14 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     @DisplayName("공개 경로에서 예외가 나면 익명 요청도 500을 받는다")
     void publicPath_unhandledException_returnsInternalServerError() throws Exception {
         // Given
-        given(postQueryService.getPosts(any(), any(), any(), anyInt(), anyInt(), any()))
+        given(postQueryService.getPosts(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt(),
+                any()
+        ))
                 .willThrow(new IllegalStateException("예상하지 못한 장애"));
 
         // When & Then
@@ -452,6 +509,71 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
     private ResultMatcher notBlockedBySecurity() {
         return result -> assertThat(result.getResponse().getStatus())
                 .isNotIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
+    }
+
+    @Test
+    @DisplayName("배너 목록은 익명 조회와 관리자 토큰을 모두 허용한다")
+    void banners_anonymousAndAdmin_returnsPublicList() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/banners"))
+                .andExpect(status().isOk());
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+        mockMvc.perform(get("/api/v1/banners")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("기존 관리자 배너 목록 경로는 더 이상 GET을 제공하지 않는다")
+    void banners_oldAdminList_returnsMethodNotAllowed() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/banners")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("공개 배너는 유효한 회원 토큰의 회원 상태와 무관하게 같은 목록을 반환한다")
+    void banners_memberStates_returnsPublicList(String state) throws Exception {
+        // Given
+        UUID userId = createUser();
+        if (state.equals("BANNED")) {
+            jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", userId);
+        }
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    userId);
+        }
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/banners").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("공개 배너도 잘못된 토큰과 scope 없는 토큰은 거절한다")
+    void banners_invalidCredentials_returnsAuthenticationOrScopeError() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/banners").header(HttpHeaders.AUTHORIZATION, "Bearer invalid"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/banners").header(HttpHeaders.AUTHORIZATION,
+                "Bearer " + issueTokenWithoutScope(UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("배너의 공개 허용은 목록 GET 경로에만 적용한다")
+    void banners_otherPathsAndMethods_remainProtected() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/banners"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/banners/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
     }
 
     /**
@@ -496,6 +618,62 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 )
                 """, userId);
         return userId;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("작성자 사진 조회는 정상·정지 회원을 허용하고 탈퇴한 조회자는 거절한다")
+    void authorPosts_viewerState_appliesExistingUserPolicy(String state) throws Exception {
+        // Given
+        UUID viewerId = createUser();
+        UUID authorId = UUID.randomUUID();
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    viewerId);
+        }
+        if (state.equals("BANNED")) {
+            jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", viewerId);
+        }
+        given(postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        ))
+                .willReturn(new AuthorPostListResult(
+                        1,
+                        20,
+                        false,
+                        List.of()
+                ));
+        String token = accessTokenProvider.issueForSession(viewerId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", authorId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(state.equals("WITHDRAWN") ? status().isUnauthorized() : status().isOk());
+    }
+
+    @Test
+    @DisplayName("작성자 사진 조회는 토큰이 없으면 필터에서 거절한다")
+    void authorPosts_withoutToken_returnsUnauthorized() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+    }
+
+    @Test
+    @DisplayName("작성자 사진 조회는 관리자 토큰을 거절한다")
+    void authorPosts_adminToken_returnsForbidden() throws Exception {
+        // Given
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/users/{userId}/posts", UUID.randomUUID())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 
     @Test

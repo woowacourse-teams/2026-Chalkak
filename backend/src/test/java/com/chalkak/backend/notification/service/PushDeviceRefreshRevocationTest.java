@@ -149,8 +149,11 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
         assertThat(result.refreshToken().sessionId()).isEqualTo(issued.sessionId());
         assertActive(issued, "normal-device");
         assertThat(countLiveTokens(issued.sessionId())).isEqualTo(2);
-        pushDeviceService.register(user.getId(), result.refreshToken().sessionId(),
-                "updated-device");
+        pushDeviceService.register(
+                user.getId(),
+                result.refreshToken().sessionId(),
+                "updated-device"
+        );
         assertActive(issued, "updated-device");
     }
 
@@ -202,7 +205,11 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
 
     private IssuedRefreshToken register(User user, String token) {
         IssuedRefreshToken issued = userRefreshTokenService.issue(user);
-        pushDeviceService.register(user.getId(), issued.sessionId(), token);
+        pushDeviceService.register(
+                user.getId(),
+                issued.sessionId(),
+                token
+        );
         registeredDeviceIds.put(issued.sessionId(),
                 pushDeviceRepository.findBySessionId(issued.sessionId()).orElseThrow().getId());
         return issued;
@@ -225,12 +232,18 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
             case REUSED -> userRefreshTokenService.refresh(issued.value());
             case INACTIVITY_EXPIRED -> jdbcTemplate.update(
                     "UPDATE user_refresh_tokens SET expires_at = ? WHERE session_id = ?",
-                    Timestamp.from(REVOKED_AT), issued.sessionId());
-            case ABSOLUTE_EXPIRED -> jdbcTemplate.update("""
-                    UPDATE user_refresh_tokens SET expires_at = ?, absolute_expires_at = ?
-                    WHERE session_id = ?
-                    """, Timestamp.from(REVOKED_AT), Timestamp.from(REVOKED_AT),
-                    issued.sessionId());
+                    Timestamp.from(REVOKED_AT),
+                    issued.sessionId()
+            );
+            case ABSOLUTE_EXPIRED -> jdbcTemplate.update(
+                    """
+                            UPDATE user_refresh_tokens SET expires_at = ?, absolute_expires_at = ?
+                            WHERE session_id = ?
+                            """,
+                    Timestamp.from(REVOKED_AT),
+                    Timestamp.from(REVOKED_AT),
+                    issued.sessionId()
+            );
         }
         given(clock.instant()).willReturn(REVOKED_AT);
     }
@@ -244,17 +257,26 @@ class PushDeviceRefreshRevocationTest extends IntegrationTestSupport {
 
     private void assertRevoked(UUID sessionId) {
         assertThat(countLiveTokens(sessionId)).isZero();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE session_id = ? AND revoked_at = ?
-                """, Integer.class, sessionId, Timestamp.from(REVOKED_AT))).isPositive();
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE session_id = ? AND revoked_at = ?
+                        """,
+                Integer.class,
+                sessionId,
+                Timestamp.from(REVOKED_AT)
+        )).isPositive();
     }
 
     private int countLiveTokens(UUID sessionId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM user_refresh_tokens
-                WHERE session_id = ? AND revoked_at IS NULL
-                """, Integer.class, sessionId);
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM user_refresh_tokens
+                        WHERE session_id = ? AND revoked_at IS NULL
+                        """,
+                Integer.class,
+                sessionId
+        );
     }
 
     private void assertDeleted(IssuedRefreshToken issued) {

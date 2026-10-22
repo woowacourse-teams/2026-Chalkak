@@ -26,7 +26,12 @@ class NoticeTest {
         Instant scheduledAt = NOW.plus(Duration.ofHours(1));
 
         // When
-        Notice notice = Notice.create("  " + TITLE + "  ", "\n" + BODY + " ", scheduledAt, NOW);
+        Notice notice = Notice.create(
+                "  " + TITLE + "  ",
+                "\n" + BODY + " ",
+                scheduledAt,
+                NOW
+        );
 
         // Then
         assertThat(notice.getTitle()).isEqualTo(TITLE);
@@ -41,8 +46,18 @@ class NoticeTest {
         String fifty = "가".repeat(50);
 
         // When & Then
-        assertThat(Notice.create(" " + fifty + " ", BODY, NOW, NOW).getTitle()).isEqualTo(fifty);
-        assertThatThrownBy(() -> Notice.create("가".repeat(51), BODY, NOW, NOW))
+        assertThat(Notice.create(
+                " " + fifty + " ",
+                BODY,
+                NOW,
+                NOW
+        ).getTitle()).isEqualTo(fifty);
+        assertThatThrownBy(() -> Notice.create(
+                "가".repeat(51),
+                BODY,
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 제목은 1자 이상 50자 이하여야 합니다.");
     }
@@ -54,8 +69,18 @@ class NoticeTest {
         String fiveHundred = "가".repeat(500);
 
         // When & Then
-        assertThat(Notice.create(TITLE, fiveHundred, NOW, NOW).getBody()).isEqualTo(fiveHundred);
-        assertThatThrownBy(() -> Notice.create(TITLE, "가".repeat(501), NOW, NOW))
+        assertThat(Notice.create(
+                TITLE,
+                fiveHundred,
+                NOW,
+                NOW
+        ).getBody()).isEqualTo(fiveHundred);
+        assertThatThrownBy(() -> Notice.create(
+                TITLE,
+                "가".repeat(501),
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 본문은 1자 이상 500자 이하여야 합니다.");
     }
@@ -67,8 +92,18 @@ class NoticeTest {
         String fiftyEmojis = "📢".repeat(50);
 
         // When & Then
-        assertThat(Notice.create(fiftyEmojis, BODY, NOW, NOW).getTitle()).isEqualTo(fiftyEmojis);
-        assertThatThrownBy(() -> Notice.create("📢".repeat(51), BODY, NOW, NOW))
+        assertThat(Notice.create(
+                fiftyEmojis,
+                BODY,
+                NOW,
+                NOW
+        ).getTitle()).isEqualTo(fiftyEmojis);
+        assertThatThrownBy(() -> Notice.create(
+                "📢".repeat(51),
+                BODY,
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -78,7 +113,12 @@ class NoticeTest {
     @DisplayName("제목이 없거나 공백뿐이면 거절한다")
     void create_blankTitle_throwsBusinessException(String title) {
         // When & Then
-        assertThatThrownBy(() -> Notice.create(title, BODY, NOW, NOW))
+        assertThatThrownBy(() -> Notice.create(
+                title,
+                BODY,
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 제목은 1자 이상 50자 이하여야 합니다.");
     }
@@ -89,7 +129,12 @@ class NoticeTest {
     @DisplayName("본문이 없거나 공백뿐이면 거절한다")
     void create_blankBody_throwsBusinessException(String body) {
         // When & Then
-        assertThatThrownBy(() -> Notice.create(TITLE, body, NOW, NOW))
+        assertThatThrownBy(() -> Notice.create(
+                TITLE,
+                body,
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 본문은 1자 이상 500자 이하여야 합니다.");
     }
@@ -98,7 +143,12 @@ class NoticeTest {
     @DisplayName("예약 시각이 없으면 거절한다")
     void create_nullScheduledAt_throwsBusinessException() {
         // When & Then
-        assertThatThrownBy(() -> Notice.create(TITLE, BODY, null, NOW))
+        assertThatThrownBy(() -> Notice.create(
+                TITLE,
+                BODY,
+                null,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 예약 시각이 필요합니다.");
     }
@@ -110,11 +160,26 @@ class NoticeTest {
         Instant fiveMinutesAgo = NOW.minus(Duration.ofMinutes(5));
 
         // When & Then
-        assertThat(Notice.create(TITLE, BODY, fiveMinutesAgo.plusSeconds(1), NOW).getScheduledAt())
+        assertThat(Notice.create(
+                TITLE,
+                BODY,
+                fiveMinutesAgo.plusSeconds(1),
+                NOW
+        ).getScheduledAt())
                 .isEqualTo(fiveMinutesAgo.plusSeconds(1));
-        assertThat(Notice.create(TITLE, BODY, fiveMinutesAgo, NOW).getScheduledAt())
+        assertThat(Notice.create(
+                TITLE,
+                BODY,
+                fiveMinutesAgo,
+                NOW
+        ).getScheduledAt())
                 .isEqualTo(fiveMinutesAgo);
-        assertThatThrownBy(() -> Notice.create(TITLE, BODY, fiveMinutesAgo.minusNanos(1), NOW))
+        assertThatThrownBy(() -> Notice.create(
+                TITLE,
+                BODY,
+                fiveMinutesAgo.minusNanos(1),
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("공지 예약 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
     }
@@ -126,7 +191,12 @@ class NoticeTest {
         Instant nextYear = NOW.plus(Duration.ofDays(365));
 
         // When
-        Notice notice = Notice.create(TITLE, BODY, nextYear, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                nextYear,
+                NOW
+        );
 
         // Then
         assertThat(notice.getScheduledAt()).isEqualTo(nextYear);
@@ -165,7 +235,12 @@ class NoticeTest {
     @DisplayName("공지를 생성하면 예약 상태이고 배포 시각이 없다")
     void create_validInput_startsScheduled() {
         // When
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
 
         // Then
         assertThat(notice.getStatus()).isEqualTo(NoticeStatus.SCHEDULED);
@@ -176,7 +251,12 @@ class NoticeTest {
     @DisplayName("예약 상태의 공지를 배포하면 배포 상태와 배포 시각을 기록한다")
     void distribute_scheduledNotice_marksDistributed() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         Instant distributedAt = NOW.plusSeconds(60);
 
         // When
@@ -191,7 +271,12 @@ class NoticeTest {
     @DisplayName("이미 배포한 공지는 다시 배포할 수 없고 최초 배포 시각을 유지한다")
     void distribute_distributedNotice_throwsBusinessException() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         notice.distribute(NOW);
 
         // When & Then
@@ -208,7 +293,12 @@ class NoticeTest {
         Instant scheduledAt = NOW.plusNanos(1_234_567);
 
         // When
-        Notice notice = Notice.create(TITLE, BODY, scheduledAt, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                scheduledAt,
+                NOW
+        );
 
         // Then
         assertThat(notice.getScheduledAt()).isEqualTo(NOW.plusNanos(1_234_000));
@@ -218,11 +308,21 @@ class NoticeTest {
     @DisplayName("예약 상태의 공지는 제목·본문의 앞뒤 공백을 제거해 수정하고 예약 시각을 바꾼다")
     void update_scheduledNotice_updatesNormalizedContent() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         Instant scheduledAt = NOW.plus(Duration.ofDays(1));
 
         // When
-        notice.update(" 수정한 안내 ", "\n수정한 본문 ", scheduledAt, NOW);
+        notice.update(
+                " 수정한 안내 ",
+                "\n수정한 본문 ",
+                scheduledAt,
+                NOW
+        );
 
         // Then
         assertThat(notice.getTitle()).isEqualTo("수정한 안내");
@@ -234,11 +334,21 @@ class NoticeTest {
     @DisplayName("배포된 공지는 수정할 수 없고 내용을 유지한다")
     void update_distributedNotice_throwsBusinessException() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         notice.distribute(NOW);
 
         // When & Then
-        assertThatThrownBy(() -> notice.update("수정한 안내", BODY, NOW, NOW))
+        assertThatThrownBy(() -> notice.update(
+                "수정한 안내",
+                BODY,
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("배포된 공지는 수정할 수 없습니다.");
         assertThat(notice.getTitle()).isEqualTo(TITLE);
@@ -257,10 +367,20 @@ class NoticeTest {
             String message
     ) {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
 
         // When & Then
-        assertThatThrownBy(() -> notice.update(title, body, NOW.minusSeconds(secondsAgo), NOW))
+        assertThatThrownBy(() -> notice.update(
+                title,
+                body,
+                NOW.minusSeconds(secondsAgo),
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(message);
         assertThat(notice.getTitle()).isEqualTo(TITLE);
@@ -272,7 +392,12 @@ class NoticeTest {
     @DisplayName("예약 상태의 공지를 삭제하면 삭제 시각을 마이크로초까지 기록하고 예약 상태를 유지한다")
     void delete_scheduledNotice_recordsDeletedAt() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
 
         // When
         notice.delete(NOW.plusNanos(1_234_567));
@@ -287,7 +412,12 @@ class NoticeTest {
     @DisplayName("배포된 공지도 삭제할 수 있고 배포 시각을 유지한다")
     void delete_distributedNotice_recordsDeletedAt() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         notice.distribute(NOW);
 
         // When
@@ -302,7 +432,12 @@ class NoticeTest {
     @DisplayName("이미 삭제된 공지는 다시 삭제할 수 없고 최초 삭제 시각을 유지한다")
     void delete_deletedNotice_throwsBusinessException() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         notice.delete(NOW);
 
         // When & Then
@@ -316,11 +451,21 @@ class NoticeTest {
     @DisplayName("삭제된 공지는 수정할 수 없다")
     void update_deletedNotice_throwsBusinessException() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         notice.delete(NOW);
 
         // When & Then
-        assertThatThrownBy(() -> notice.update("수정한 안내", BODY, NOW, NOW))
+        assertThatThrownBy(() -> notice.update(
+                "수정한 안내",
+                BODY,
+                NOW,
+                NOW
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("삭제된 공지는 수정할 수 없습니다.");
     }
@@ -329,7 +474,12 @@ class NoticeTest {
     @DisplayName("삭제된 공지는 배포할 수 없다")
     void distribute_deletedNotice_throwsBusinessException() {
         // Given
-        Notice notice = Notice.create(TITLE, BODY, NOW, NOW);
+        Notice notice = Notice.create(
+                TITLE,
+                BODY,
+                NOW,
+                NOW
+        );
         notice.delete(NOW);
 
         // When & Then
@@ -341,7 +491,12 @@ class NoticeTest {
 
     private boolean canCreateWithTitle(String title) {
         try {
-            Notice.create(title, BODY, NOW, NOW);
+            Notice.create(
+                    title,
+                    BODY,
+                    NOW,
+                    NOW
+            );
             return true;
         } catch (BusinessException exception) {
             return false;

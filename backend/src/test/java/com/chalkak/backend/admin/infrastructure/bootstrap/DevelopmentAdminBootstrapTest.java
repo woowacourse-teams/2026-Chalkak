@@ -65,7 +65,8 @@ class DevelopmentAdminBootstrapTest extends IntegrationTestSupport {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM admins WHERE username = ?",
                 Integer.class,
-                DevelopmentAdminBootstrap.DEVELOPMENT_ADMIN_USERNAME);
+                DevelopmentAdminBootstrap.DEVELOPMENT_ADMIN_USERNAME
+        );
         assertThat(count).isOne();
         assertThat(currentAdmin.getId()).isEqualTo(firstAdmin.getId());
         assertThat(currentAdmin.getPasswordHash()).isEqualTo(firstAdmin.getPasswordHash());

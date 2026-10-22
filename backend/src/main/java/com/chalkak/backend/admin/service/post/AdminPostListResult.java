@@ -14,7 +14,8 @@ public record AdminPostListResult(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<PostSummary> posts) {
+        List<PostSummary> posts
+) {
 
     public static AdminPostListResult from(
             AdminPage<AdminPostSummaryProjection> page,
@@ -26,7 +27,8 @@ public record AdminPostListResult(
                 page.hasNext(),
                 page.items().stream()
                         .map(post -> PostSummary.from(post, imageUrlProvider))
-                        .toList());
+                        .toList()
+        );
     }
 
     public record PostSummary(
@@ -39,7 +41,8 @@ public record AdminPostListResult(
             long likeCount,
             Instant createdAt,
             Instant moderatedAt,
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
 
         private static PostSummary from(
                 AdminPostSummaryProjection post,
@@ -53,19 +56,23 @@ public record AdminPostListResult(
                             post.authorId(),
                             post.authorEmail(),
                             post.authorStatus(),
-                            post.authorDeletedAt()),
+                            post.authorDeletedAt()
+                    ),
                     new TopicSummary(
                             post.topicId(),
                             post.topicTitle(),
-                            post.topicDate()),
+                            post.topicDate()
+                    ),
                     new PhotoSummary(
                             post.photoId(),
                             imageUrlProvider.getUrl(post.originalStorageKey()),
-                            imageUrlProvider.getUrl(post.thumbnailStorageKey())),
+                            imageUrlProvider.getUrl(post.thumbnailStorageKey())
+                    ),
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
-                    post.deletedAt());
+                    post.deletedAt()
+            );
         }
     }
 
@@ -73,18 +80,21 @@ public record AdminPostListResult(
             UUID userId,
             String email,
             UserStatus status,
-            Instant deletedAt) {
+            Instant deletedAt
+    ) {
     }
 
     public record TopicSummary(
             UUID topicId,
             String title,
-            LocalDate topicDate) {
+            LocalDate topicDate
+    ) {
     }
 
     public record PhotoSummary(
             UUID photoId,
             String originalImageUrl,
-            String thumbnailImageUrl) {
+            String thumbnailImageUrl
+    ) {
     }
 }

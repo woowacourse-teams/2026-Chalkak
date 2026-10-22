@@ -99,7 +99,11 @@ public interface PostApiDocs {
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(summary = "게시물 목록 조회", description = "인증 정보가 없으면 isLiked와 isMine은 false입니다. 랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다.")
+    @Operation(summary = "게시물 목록 조회", description = """
+            authorId는 사진 작성자의 회원 ID이며 비로그인 응답에도 제공합니다.
+            인증 정보가 없으면 isLiked와 isMine은 false입니다.
+            랜덤 정렬의 다음 페이지 요청에는 최초 응답의 randomSeed를 사용합니다.
+            """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "게시물 목록 조회 성공", useReturnTypeSchema = true),
@@ -163,7 +167,7 @@ public interface PostApiDocs {
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(summary = "게시물 상세 조회")
+    @Operation(summary = "게시물 상세 조회", description = "authorId는 사진 작성자의 회원 ID이며 작성자의 공개 사진 목록 조회에 사용합니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "게시물 상세 조회 성공", useReturnTypeSchema = true),

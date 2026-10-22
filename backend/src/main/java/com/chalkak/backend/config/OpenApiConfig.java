@@ -34,7 +34,8 @@ public class OpenApiConfig {
     private static final Set<String> PUBLIC_ADMIN_AUTH_PATHS = Set.of(
             "/api/v1/admin/auth/login",
             "/api/v1/admin/auth/refresh",
-            "/api/v1/admin/auth/logout");
+            "/api/v1/admin/auth/logout"
+    );
 
     @Bean
     public GroupedOpenApi userApi() {

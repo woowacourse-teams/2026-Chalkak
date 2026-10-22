@@ -136,7 +136,11 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
             MapSqlParameterSource parameters
     ) {
         parameters.addValue("excludedUserIds", excludedUserIds);
-        Long count = jdbcTemplate.queryForObject(sql, parameters, Long.class);
+        Long count = jdbcTemplate.queryForObject(
+                sql,
+                parameters,
+                Long.class
+        );
         return count == null ? 0L : count;
     }
 }
