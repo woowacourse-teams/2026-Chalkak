@@ -93,11 +93,12 @@ class PushWorkerConfigurationTest {
             "https://example.com/000000000000/test",
             "https://sqs.ap-northeast-2.amazonaws.com/123/test",
             "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test.fifo"})
-    @DisplayName("Relay와 Worker는 같은 조건으로 잘못된 Standard 큐 URL을 거절한다")
-    void configuration_invalidQueueUrl_rejectsRelayAndWorker(String queueUrl) {
+    @DisplayName("Relay·주제·리마인더 발행과 Worker는 같은 조건으로 잘못된 Standard 큐 URL을 거절한다")
+    void configuration_invalidQueueUrl_rejectsPublishersAndWorker(String queueUrl) {
         // Given
         PushWorkerConfiguration configuration = new PushWorkerConfiguration("test", "test.json");
         SqsPushProperties properties = new SqsPushProperties(
+                false,
                 false,
                 false,
                 queueUrl,
@@ -107,12 +108,22 @@ class PushWorkerConfigurationTest {
         assertThatThrownBy(() -> new SqsPushProperties(
                 true,
                 false,
+                false,
                 queueUrl,
                 "ap-northeast-2"
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("알림 푸시를 사용하려면 Standard SQS 큐 URL이 필요합니다.");
         assertThatThrownBy(() -> new SqsPushProperties(
+                false,
+                true,
+                false,
+                queueUrl,
+                "ap-northeast-2"
+        ))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SqsPushProperties(
+                false,
                 false,
                 true,
                 queueUrl,
@@ -300,6 +311,7 @@ class PushWorkerConfigurationTest {
                 .withBean(FakePollingProbe.class, () -> probe)
                 .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
                 .withBean(SqsPushProperties.class, () -> new SqsPushProperties(
+                        false,
                         false,
                         false,
                         "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",

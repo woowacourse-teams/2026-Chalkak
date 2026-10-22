@@ -30,11 +30,10 @@ chalkak:
     sqs:
       relay-enabled: false
       topic-push-enabled: false
+      reminder-enabled: false
       queue-url: https://sqs.ap-northeast-2.amazonaws.com/000000000000/chalkak-test-push
     notice:
       distribution-enabled: false
-    reminder:
-      enabled: false
   admin:
     authentication:
       development-bypass-enabled: true

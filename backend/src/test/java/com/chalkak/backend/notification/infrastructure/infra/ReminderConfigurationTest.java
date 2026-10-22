@@ -20,7 +20,7 @@ class ReminderConfigurationTest {
     void configuration_disabled_doesNotCreateScheduler() {
         // When & Then
         contextRunner
-                .withPropertyValues("chalkak.notification.reminder.enabled=false")
+                .withPropertyValues("chalkak.notification.sqs.reminder-enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).doesNotHaveBean(ReminderScheduler.class);
@@ -33,7 +33,7 @@ class ReminderConfigurationTest {
     void configuration_enabled_createsDedicatedScheduler() {
         // When & Then
         contextRunner
-                .withPropertyValues("chalkak.notification.reminder.enabled=true")
+                .withPropertyValues("chalkak.notification.sqs.reminder-enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ReminderScheduler.class);
