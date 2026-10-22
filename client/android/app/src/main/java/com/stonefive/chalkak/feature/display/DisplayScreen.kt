@@ -25,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -36,8 +35,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
@@ -273,16 +272,14 @@ fun DisplayScreen(
                     ),
             )
         }
-        ChalkakBottomBar(
+        ChalkakScreenBottomBar(
             selectedItem = ChalkakBottomBarItem.DISPLAY,
             onItemSelected = onNavigateToBottomBar,
             onAddClick = onOpenPhotoUpload,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .photoTransitionChrome()
-                .fillMaxWidth()
-                .onSizeChanged { scrollState.bottomBarState.height = it.height }
-                .graphicsLayer { translationY = scrollState.bottomBarState.offset },
+                .fillMaxWidth(),
+            scrollState = scrollState.bottomBarState,
         )
     }
 }

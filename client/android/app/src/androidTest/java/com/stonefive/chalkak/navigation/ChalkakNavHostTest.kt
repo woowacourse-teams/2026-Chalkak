@@ -3,11 +3,13 @@ package com.stonefive.chalkak.navigation
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -37,6 +39,102 @@ import org.junit.Test
 class ChalkakNavHostTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun bottomBarKeepsTheSameInstanceThroughoutMainTabTransitions() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+        val bottomBarId = composeRule
+            .onNodeWithTag("main_bottom_bar")
+            .fetchSemanticsNode()
+            .id
+        composeRule.mainClock.autoAdvance = false
+        try {
+            val navigateToTabs = listOf(
+                { navController.navigate(Display(date = LocalDate.now().toString())) },
+                { navController.navigate(Settings) },
+            )
+            navigateToTabs.forEach { navigate ->
+                composeRule.runOnIdle { navigate() }
+                // Sample both the initial frame and the middle of the destination transition.
+                listOf(16L, 120L, 200L).forEach { frameDuration ->
+                    composeRule.mainClock.advanceTimeBy(frameDuration)
+                    composeRule.waitForIdle()
+                    composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+                    composeRule.onNodeWithTag("main_bottom_bar").assertIsDisplayed()
+                    assertEquals(
+                        bottomBarId,
+                        composeRule
+                            .onNodeWithTag("main_bottom_bar")
+                            .fetchSemanticsNode()
+                            .id,
+                    )
+                }
+                composeRule.mainClock.advanceTimeBy(1_000)
+                composeRule.waitForIdle()
+            }
+        } finally {
+            composeRule.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
+    fun bottomBarIsHiddenInFeedAndReturnsWithDisplay() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Display(date = LocalDate.now().toString()),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "bottom-bar-visibility",
+                    originalImageUrl = "",
+                    thumbnailImageUrl = "",
+                    signatureOriginalImageUrl = "",
+                    contentDescription = "photo",
+                    title = "title",
+                    likeCount = 0,
+                    dateLabel = "오늘",
+                    topic = "주제",
+                    fetchDetail = false,
+                ),
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(0)
+
+        composeRule.runOnIdle { navController.popBackStack() }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+        composeRule.onNodeWithTag("main_bottom_bar").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Display>() == true)
+        }
+    }
 
     @Test
     fun displayResumesAfterPhotoReturnsWithoutWaitingForOpeningFade() {
