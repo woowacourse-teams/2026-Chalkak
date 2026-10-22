@@ -470,6 +470,11 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
         }
 
         @Override
+        public Optional<Reminder> findActiveById(UUID reminderId) {
+            return delegate.findActiveById(reminderId);
+        }
+
+        @Override
         public Optional<Reminder> findActiveForPublication(UUID reminderId) {
             if (!changed) {
                 change.run();

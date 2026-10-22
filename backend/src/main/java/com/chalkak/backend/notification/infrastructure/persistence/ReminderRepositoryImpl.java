@@ -45,6 +45,11 @@ public class ReminderRepositoryImpl implements ReminderRepository {
     }
 
     @Override
+    public Optional<Reminder> findActiveById(UUID reminderId) {
+        return reminderJpaRepository.findByIdAndDeletedAtIsNull(reminderId);
+    }
+
+    @Override
     public Optional<Reminder> findActiveForPublication(UUID reminderId) {
         return reminderJpaRepository.findActiveForPublication(reminderId);
     }

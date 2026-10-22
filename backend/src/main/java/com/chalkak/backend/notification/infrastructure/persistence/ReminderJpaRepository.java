@@ -23,6 +23,8 @@ public interface ReminderJpaRepository extends JpaRepository<Reminder, UUID> {
 
     List<Reminder> findByDeletedAtIsNullOrderByIdAsc();
 
+    Optional<Reminder> findByIdAndDeletedAtIsNull(UUID reminderId);
+
     // 정시 발행은 수정·삭제 중인 리마인더를 기다리지 않고 건너뛴 뒤 다음 확인 때 새 내용으로 발행한다.
     @Query(value = """
             SELECT * FROM reminders

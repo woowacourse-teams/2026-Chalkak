@@ -17,5 +17,7 @@ public interface ReminderRepository {
 
     List<Reminder> findActiveReminders();
 
+    Optional<Reminder> findActiveById(UUID reminderId);
+
     Optional<Reminder> findActiveForPublication(UUID reminderId);
 }

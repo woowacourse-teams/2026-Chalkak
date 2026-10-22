@@ -7,8 +7,11 @@ import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
+import com.chalkak.backend.notification.domain.Reminder;
+import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
@@ -33,6 +36,7 @@ public class PushWorkerService {
     private final NotificationRepository notificationRepository;
     private final TopicRepository topicRepository;
     private final PostRepository postRepository;
+    private final ReminderRepository reminderRepository;
     private final PushDeviceRepository deviceRepository;
     private final LoginSessionService loginSessionService;
     private final DevicePushSender sender;
@@ -43,6 +47,7 @@ public class PushWorkerService {
             NotificationRepository notificationRepository,
             TopicRepository topicRepository,
             PostRepository postRepository,
+            ReminderRepository reminderRepository,
             PushDeviceRepository deviceRepository,
             LoginSessionService loginSessionService,
             DevicePushSender sender,
@@ -52,6 +57,7 @@ public class PushWorkerService {
         this.notificationRepository = notificationRepository;
         this.topicRepository = topicRepository;
         this.postRepository = postRepository;
+        this.reminderRepository = reminderRepository;
         this.deviceRepository = deviceRepository;
         this.loginSessionService = loginSessionService;
         this.sender = sender;
@@ -226,6 +232,13 @@ public class PushWorkerService {
                     user
             );
         }
+        if (message.type() == NotificationType.REMINDER) {
+            return findReminderRequest(
+                    message,
+                    device,
+                    user
+            );
+        }
         return findNotificationRequest(
                 message,
                 device,
@@ -274,6 +287,89 @@ public class PushWorkerService {
                 device.getFcmToken(),
                 TOPIC_PUSH_TITLE,
                 topic.getTitle(),
+                message.expiresAt()
+        );
+    }
+
+    // 발행 뒤 바뀐 회원 상태·수신 설정·리마인더 삭제·참여 여부를 기기별 발송 직전에 다시 확인하고,
+    // 문구는 이때의 리마인더에서 읽는다. 오늘 주제는 발행과 같이 회차의 KST 날짜로 찾는다.
+    private DevicePushRequest findReminderRequest(
+            PushMessage message,
+            PushDevice device,
+            User user
+    ) {
+        if (!user.isActive()) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "USER_INACTIVE"
+            );
+        }
+        if (!message.type().isPushEnabledFor(user)) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "PUSH_DISABLED"
+            );
+        }
+        Reminder reminder = reminderRepository.findActiveById(message.sourceId()).orElse(null);
+        if (reminder == null) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "REMINDER_UNAVAILABLE"
+            );
+        }
+        if (reminder.getTarget() == ReminderTarget.ALL) {
+            return createReminderRequest(
+                    message,
+                    device,
+                    reminder
+            );
+        }
+        LocalDate occurredDate = LocalDate.ofInstant(message.occurredAt(), KST);
+        Topic topic = topicRepository.findActiveByTopicDate(occurredDate).orElse(null);
+        if (topic == null) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "TOPIC_UNAVAILABLE"
+            );
+        }
+        boolean participated = postRepository
+                .findActiveByAuthorIdAndTopicId(user.getId(), topic.getId())
+                .isPresent();
+        if (reminder.getTarget() == ReminderTarget.TOPIC_PARTICIPANTS && !participated) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "NOT_PARTICIPATED"
+            );
+        }
+        if (reminder.getTarget() == ReminderTarget.TOPIC_NON_PARTICIPANTS && participated) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "ALREADY_PARTICIPATED"
+            );
+        }
+        return createReminderRequest(
+                message,
+                device,
+                reminder
+        );
+    }
+
+    private DevicePushRequest createReminderRequest(
+            PushMessage message,
+            PushDevice device,
+            Reminder reminder
+    ) {
+        return new DevicePushRequest(
+                message,
+                device.getFcmToken(),
+                reminder.getTitle(),
+                reminder.getBody(),
                 message.expiresAt()
         );
     }
@@ -360,7 +456,9 @@ public class PushWorkerService {
         if (!message.type().isSourceOf(message.sourceType())) {
             return false;
         }
-        if (message.type() == NotificationType.TOPIC) {
+        // 주제·리마인더는 알림함 없이 SQS로 직접 발행하므로 알림 ID가 없고 원래 예정 시각의 수명을 지닌다.
+        if (message.type() == NotificationType.TOPIC
+                || message.type() == NotificationType.REMINDER) {
             return message.notificationId() == null
                     && !message.occurredAt().isAfter(clock.instant())
                     && PushDeadlinePolicy.isValidLifetime(message.occurredAt(),

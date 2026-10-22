@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.config.SchedulingConfig;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
@@ -307,6 +308,7 @@ class PushWorkerConfigurationTest {
                 .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
                 .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
                 .withBean(PostRepository.class, () -> mock(PostRepository.class))
+                .withBean(ReminderRepository.class, () -> mock(ReminderRepository.class))
                 .withBean(PushDeviceRepository.class, () -> mock(PushDeviceRepository.class))
                 .withBean(LoginSessionService.class, () -> mock(LoginSessionService.class))
                 .withBean(PlatformTransactionManager.class,
