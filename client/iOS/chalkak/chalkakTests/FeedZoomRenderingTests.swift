@@ -4,6 +4,86 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFeedTitleRowMatchesTodayForShortLongAndBlankTitles() async throws {
+        for width: CGFloat in [320, 402] {
+            for title in ["  하늘을 담은 하루  ", String(repeating: "아주 긴 사진 제목 ", count: 10), " \n "] {
+                var post = FeedPreviewData.content.post
+                post.title = title
+                let photo = TodayPhoto(
+                    id: post.id,
+                    imageSource: post.originalImageSource,
+                    signatureSource: post.signatureImageSource,
+                    contentDescription: post.contentDescription,
+                    title: title,
+                    likeCount: post.likeCount
+                )
+                let feed = FeedLikeRow(
+                    title: post.title,
+                    likeCount: post.likeCount,
+                    isLiked: post.isLiked,
+                    isEnabled: true,
+                    onLike: {}
+                )
+                    .frame(width: width)
+                    .background(ChalkakTheme.light.colors.surfaceElevated)
+                    .chalkakTheme(.light)
+                let today = TodayPhotoCard(
+                    photo: photo,
+                    isLiked: post.isLiked,
+                    isLikeEnabled: true,
+                    imageReloadGeneration: 0,
+                    imageRatio: 1,
+                    onImageRatioChanged: { _ in },
+                    onLike: {}
+                )
+                .frame(width: width)
+                .chalkakTheme(.light)
+                let feedRenderer = ImageRenderer(content: feed)
+                let todayRenderer = ImageRenderer(content: today)
+                feedRenderer.scale = 1
+                todayRenderer.scale = 1
+                let feedImage = try XCTUnwrap(feedRenderer.uiImage)
+                let todayImage = try XCTUnwrap(todayRenderer.uiImage)
+                XCTAssertEqual(feedImage.size.height, 57)
+                XCTAssertEqual(todayImage.size.height, width + 57)
+                let row = CGRect(x: 0, y: width, width: width, height: 57)
+                let feedRow = feedImage
+                let todayRow = UIImage(cgImage: try XCTUnwrap(todayImage.cgImage?.cropping(to: row)))
+                // Today 카드 그림자는 행 위쪽과 글자 가장자리에도 그려진다.
+                // 중앙 터치 영역을 비교하고 그림자 수준의 색 차이만 허용한다.
+                let contentRect = CGRect(x: 0, y: 7, width: width, height: 44)
+                let actual = UIImage(cgImage: try XCTUnwrap(feedRow.cgImage?.cropping(to: contentRect)))
+                let expected = UIImage(cgImage: try XCTUnwrap(todayRow.cgImage?.cropping(to: contentRect)))
+                let maximumDifference = zip(try rgbaData(actual), try rgbaData(expected))
+                    .map { abs(Int($0.0) - Int($0.1)) }.max() ?? 0
+                XCTAssertLessThanOrEqual(maximumDifference, 8, "Feed title layout must match Today at width \(width)")
+                let attachment = XCTAttachment(image: feedRow)
+                attachment.name = "Feed title row \(Int(width)) \(title.prefix(10))"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let reference = XCTAttachment(image: todayRow)
+                reference.name = "Today title row \(Int(width)) \(title.prefix(10))"
+                reference.lifetime = .keepAlways
+                add(reference)
+            }
+        }
+    }
+
+    private func rgbaData(_ image: UIImage) throws -> Data {
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: cgImage.width,
+            height: cgImage.height,
+            bitsPerComponent: 8,
+            bytesPerRow: cgImage.width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        return Data(bytes: try XCTUnwrap(context.data), count: context.bytesPerRow * cgImage.height)
+    }
+
     func testFeaturedPhotoClipPreservesContainerCornersAcrossAspectRatios() {
         let card = CGRect(x: 50, y: 100, width: 300, height: 400)
         for ratio: CGFloat in [4.0 / 3.0, 1.32, 0.75, 2] {
