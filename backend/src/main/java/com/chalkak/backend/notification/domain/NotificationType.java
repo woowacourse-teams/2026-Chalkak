@@ -7,7 +7,8 @@ public enum NotificationType {
     POST_APPROVED(NotificationSourceType.POST, User::isModerationPushEnabled), // 게시물 승인
     POST_REJECTED(NotificationSourceType.POST, User::isModerationPushEnabled), // 게시물 반려
     TOPIC(NotificationSourceType.TOPIC, User::isTopicPushEnabled), // 오늘의 주제
-    NOTICE(NotificationSourceType.NOTICE, user -> true); // 관리자 공지, 전용 수신 설정 없이 항상 보낸다.
+    NOTICE(NotificationSourceType.NOTICE, user -> true), // 관리자 공지, 전용 수신 설정 없이 항상 보낸다.
+    REMINDER(NotificationSourceType.REMINDER, User::isTopicPushEnabled); // 관리자 리마인더, 주제 설정을 따름
 
     private final NotificationSourceType sourceType;
     private final Predicate<User> pushEnabled;

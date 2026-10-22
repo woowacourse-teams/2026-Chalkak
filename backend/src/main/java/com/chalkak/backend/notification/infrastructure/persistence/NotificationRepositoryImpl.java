@@ -39,6 +39,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
+    public List<UUID> findTopicPushEnabledUserIds() {
+        return notificationJpaRepository.findTopicPushEnabledUserIds(UserStatus.ACTIVE);
+    }
+
+    @Override
     public int createNoticeNotifications(Notice notice, Instant createdAt) {
         return notificationJpaRepository.insertNoticeNotifications(
                 notice.getId(),

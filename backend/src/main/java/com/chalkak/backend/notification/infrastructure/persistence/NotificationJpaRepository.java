@@ -49,6 +49,17 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             @Param("excludedStatus") ModerationStatus excludedStatus
     );
 
+    // 주제 알림 수신 설정은 리마인더에도 적용된다(참여 알림). 전체 대상 리마인더는 이 설정을 켠
+    // 정상 회원에게 보낸다. 정지·탈퇴 회원은 뺀다.
+    @Query("""
+            SELECT user.id FROM User user
+            WHERE user.deletedAt IS NULL
+                AND user.status = :status
+                AND user.topicPushEnabled = true
+            ORDER BY user.id
+            """)
+    List<UUID> findTopicPushEnabledUserIds(@Param("status") UserStatus status);
+
     // 탈퇴하지 않은 회원 전체(정지 회원 포함)에게 공지 알림을 한 번에 만든다. 공지 ID를 사건 키로 써서 회원당 하나만 생긴다.
     @Modifying
     @Query(value = """

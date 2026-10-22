@@ -1,0 +1,422 @@
+package com.chalkak.backend.notification.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.notification.domain.NotificationSourceType;
+import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.domain.Reminder;
+import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.ReminderRepository;
+import com.chalkak.backend.notification.repository.ReminderSlice;
+import com.chalkak.backend.support.DatabaseCleaner;
+import com.chalkak.backend.support.IntegrationTestSupport;
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+class ReminderPushServiceTest extends IntegrationTestSupport {
+
+    private static final Instant SCHEDULED_AT = Instant.parse("2026-10-22T12:00:00Z");
+    private static final UUID ACTIVE_USER = new UUID(0, 1);
+
+    @Autowired
+    private ReminderRepository reminders;
+    @Autowired
+    private NotificationRepository notifications;
+    @Autowired
+    private PlatformTransactionManager manager;
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    private PushMessagePublisher publisher;
+    private FakeClock clock;
+    private ReminderPushService service;
+
+    @BeforeEach
+    void setUp() {
+        new DatabaseCleaner(jdbc).clean();
+        insertUser(ACTIVE_USER, "ACTIVE");
+        publisher = mock(PushMessagePublisher.class);
+        given(publisher.publish(any())).willReturn(PushPublicationResult.accepted("sqs-message"));
+        clock = new FakeClock(SCHEDULED_AT.plusSeconds(10));
+        service = new ReminderPushService(
+                reminders,
+                notifications,
+                new DirectPushPublisher(publisher, clock),
+                clock,
+                manager
+        );
+        appender.start();
+        ((Logger) LoggerFactory.getLogger(ReminderPushService.class)).addAppender(appender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ((Logger) LoggerFactory.getLogger(ReminderPushService.class)).detachAppender(appender);
+        appender.stop();
+        new DatabaseCleaner(jdbc).clean();
+    }
+
+    @Test
+    @DisplayName("전체 대상은 정상이면서 주제 알림을 켠 회원에게만 회차 값으로 발행하고 집계를 남긴다")
+    void publishDueReminders_allTarget_publishesToTopicPushEnabledActiveUsers() {
+        // Given
+        insertUser(new UUID(0, 2), "ACTIVE");
+        jdbc.update("UPDATE users SET topic_push_enabled = false WHERE id = ?", new UUID(0, 2));
+        insertUser(new UUID(0, 3), "BANNED");
+        insertWithdrawnUser(new UUID(0, 4));
+        UUID reminderId = insertReminder("ONCE", "ALL");
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        PushMessage message = captureMessages(1).getFirst();
+        assertThat(message.userId()).isEqualTo(ACTIVE_USER);
+        assertThat(message.notificationId()).isNull();
+        assertThat(message.type()).isEqualTo(NotificationType.REMINDER);
+        assertThat(message.sourceType()).isEqualTo(NotificationSourceType.REMINDER);
+        assertThat(message.sourceId()).isEqualTo(reminderId);
+        assertThat(message.occurredAt()).isEqualTo(SCHEDULED_AT);
+        assertThat(message.expiresAt()).isEqualTo(SCHEDULED_AT.plusSeconds(1800));
+        assertThat(logsAtStage("reminder_publication_summary")).singleElement()
+                .satisfies(log -> assertThat(log)
+                        .containsEntry("reminderId", reminderId)
+                        .containsEntry("eventId", message.eventId())
+                        .containsEntry("targetCount", 1)
+                        .containsEntry("acceptedCount", 1));
+    }
+
+    @Test
+    @DisplayName("같은 회차는 매 분 다시 확인해도 한 번만 발행한다")
+    void publishDueReminders_sameOccurrence_publishesOnce() {
+        // Given
+        insertReminder("DAILY", "ALL");
+
+        // When
+        service.publishDueReminders();
+        clock.set(SCHEDULED_AT.plusSeconds(70));
+        service.publishDueReminders();
+
+        // Then
+        verify(publisher, times(1)).publish(any());
+    }
+
+    @Test
+    @DisplayName("다른 요청이 리마인더 행을 잠그고 있으면 이번 확인은 건너뛰고 잠금이 풀린 뒤 다음 확인 때 발행한다")
+    void publishDueReminders_lockedReminder_skipsAndPublishesNextMinute() throws Exception {
+        // Given
+        UUID reminderId = insertReminder("ONCE", "ALL");
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        // When
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            Future<?> holder = executor.submit(() -> new TransactionTemplate(manager)
+                    .executeWithoutResult(status -> {
+                        jdbc.queryForObject(
+                                "SELECT id FROM reminders WHERE id = ? FOR UPDATE",
+                                UUID.class,
+                                reminderId
+                        );
+                        locked.countDown();
+                        awaitQuietly(release);
+                    }));
+            assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
+            service.publishDueReminders();
+            release.countDown();
+            holder.get(5, TimeUnit.SECONDS);
+        }
+        verifyNoInteractions(publisher);
+        clock.set(SCHEDULED_AT.plusSeconds(70));
+        service.publishDueReminders();
+
+        // Then
+        verify(publisher, times(1)).publish(any());
+        assertThat(logsAtStage("reminder_execution_skipped")).singleElement()
+                .satisfies(log -> assertThat(log)
+                        .containsEntry("reason", "REMINDER_LOCKED_OR_DELETED"));
+    }
+
+    @Test
+    @DisplayName("목록을 읽은 뒤 발행 전에 삭제되거나 일정이 바뀐 리마인더는 발행하지 않는다")
+    void publishDueReminders_changedBeforePublication_skips() {
+        // Given
+        UUID deleted = insertReminder("ONCE", "ALL");
+        UUID rescheduled = insertReminder("ONCE", "ALL");
+        ReminderRepository changingRepository = new ChangingReminderRepository(
+                reminders,
+                () -> {
+                    updateTimestamp("UPDATE reminders SET deleted_at = ? WHERE id = ?", deleted);
+                    updateTimestamp(
+                            "UPDATE reminders SET scheduled_at = ? WHERE id = ?",
+                            SCHEDULED_AT.plusSeconds(3600),
+                            rescheduled
+                    );
+                }
+        );
+        service = new ReminderPushService(
+                changingRepository,
+                notifications,
+                new DirectPushPublisher(publisher, clock),
+                clock,
+                manager
+        );
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        verifyNoInteractions(publisher);
+        assertThat(logsAtStage("reminder_execution_skipped"))
+                .extracting(log -> log.get("reason"))
+                .containsExactlyInAnyOrder("REMINDER_LOCKED_OR_DELETED", "SCHEDULE_CHANGED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"TOPIC_PARTICIPANTS", "TOPIC_NON_PARTICIPANTS"})
+    @DisplayName("오늘 주제 대상 리마인더는 아직 발행하지 않고 한 번만 생략을 남긴다")
+    void publishDueReminders_topicTarget_skipsOnce(String target) {
+        // Given
+        insertReminder("ONCE", target);
+
+        // When
+        service.publishDueReminders();
+        clock.set(SCHEDULED_AT.plusSeconds(70));
+        service.publishDueReminders();
+
+        // Then
+        verifyNoInteractions(publisher);
+        assertThat(logsAtStage("reminder_execution_skipped")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("reason", "TARGET_NOT_SUPPORTED"));
+    }
+
+    @Test
+    @DisplayName("예정 시각부터 30분이 지난 회차는 발행하지 않는다")
+    void publishDueReminders_expiredOccurrence_doesNotPublish() {
+        // Given
+        insertReminder("ONCE", "ALL");
+        clock.set(SCHEDULED_AT.plusSeconds(1800));
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        verifyNoInteractions(publisher);
+    }
+
+    @Test
+    @DisplayName("삭제된 리마인더의 시도 기록을 지워, 같은 ID가 다시 나타나도 회차를 새로 판단한다")
+    void publishDueReminders_deletedReminder_forgetsAttempt() {
+        // Given
+        UUID reminderId = insertReminder("DAILY", "ALL");
+        service.publishDueReminders();
+        updateTimestamp("UPDATE reminders SET deleted_at = ? WHERE id = ?", reminderId);
+        clock.set(SCHEDULED_AT.plusSeconds(70));
+        service.publishDueReminders();
+
+        // When
+        jdbc.update("UPDATE reminders SET deleted_at = NULL WHERE id = ?", reminderId);
+        clock.set(SCHEDULED_AT.plusSeconds(130));
+        service.publishDueReminders();
+
+        // Then
+        verify(publisher, times(2)).publish(any());
+    }
+
+    private UUID insertReminder(String repeat, String target) {
+        return jdbc.queryForObject(
+                """
+                        INSERT INTO reminders (title, body, repeat, target, scheduled_at, created_at, updated_at)
+                        VALUES ('오늘이 얼마 남지 않았어요', '사진을 자랑해 주세요!', ?, ?, ?,
+                            '2026-10-21T00:00:00Z', '2026-10-21T00:00:00Z')
+                        RETURNING id
+                        """,
+                UUID.class,
+                repeat,
+                target,
+                Timestamp.from(SCHEDULED_AT)
+        );
+    }
+
+    private void insertUser(UUID id, String status) {
+        jdbc.update(
+                """
+                        INSERT INTO users(id,email,status,signature_original_storage_key)
+                        VALUES (?,?,CAST(? AS user_status),?)
+                        """,
+                id,
+                id + "@reminder-test.example",
+                status,
+                "reminder/signature/" + id
+        );
+    }
+
+    private void insertWithdrawnUser(UUID id) {
+        insertUser(id, "ACTIVE");
+        updateTimestamp("UPDATE users SET deleted_at = ? WHERE id = ?", id);
+    }
+
+    private void updateTimestamp(String sql, UUID id) {
+        updateTimestamp(
+                sql,
+                SCHEDULED_AT,
+                id
+        );
+    }
+
+    private void updateTimestamp(
+            String sql,
+            Instant value,
+            UUID id
+    ) {
+        jdbc.update(
+                sql,
+                Timestamp.from(value),
+                id
+        );
+    }
+
+    private List<PushMessage> captureMessages(int count) {
+        ArgumentCaptor<PushMessage> messages = ArgumentCaptor.forClass(PushMessage.class);
+        verify(publisher, times(count)).publish(messages.capture());
+        return messages.getAllValues();
+    }
+
+    private List<Map<String, Object>> logsAtStage(String stage) {
+        List<Map<String, Object>> logs = new ArrayList<>();
+        for (ILoggingEvent event : appender.list) {
+            Map<String, Object> values = new HashMap<>();
+            for (var entry : event.getKeyValuePairs()) {
+                values.put(entry.key, entry.value);
+            }
+            if (stage.equals(values.get("stage"))) {
+                logs.add(values);
+            }
+        }
+        return logs;
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // 목록 조회 뒤 발행 직전 확인 전에 다른 요청이 리마인더를 바꾼 상황을 만든다.
+    private static class ChangingReminderRepository implements ReminderRepository {
+
+        private final ReminderRepository delegate;
+        private final Runnable change;
+        private boolean changed;
+
+        ChangingReminderRepository(ReminderRepository delegate, Runnable change) {
+            this.delegate = delegate;
+            this.change = change;
+        }
+
+        @Override
+        public List<Reminder> findActiveReminders() {
+            return delegate.findActiveReminders();
+        }
+
+        @Override
+        public Optional<Reminder> findActiveForPublication(UUID reminderId) {
+            if (!changed) {
+                change.run();
+                changed = true;
+            }
+            return delegate.findActiveForPublication(reminderId);
+        }
+
+        @Override
+        public Reminder save(
+                Reminder reminder) {
+            return delegate.save(reminder);
+        }
+
+        @Override
+        public Reminder saveAndFlush(
+                Reminder reminder) {
+            return delegate.saveAndFlush(reminder);
+        }
+
+        @Override
+        public Optional<Reminder> findByIdForUpdate(
+                UUID reminderId) {
+            return delegate.findByIdForUpdate(reminderId);
+        }
+
+        @Override
+        public ReminderSlice findReminders(
+                int page,
+                int pageSize
+        ) {
+            return delegate.findReminders(page, pageSize);
+        }
+    }
+
+    private static class FakeClock extends Clock {
+        private Instant now;
+
+        FakeClock(Instant now) {
+            this.now = now;
+        }
+
+        void set(Instant now) {
+            this.now = now;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return Clock.fixed(now, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+}

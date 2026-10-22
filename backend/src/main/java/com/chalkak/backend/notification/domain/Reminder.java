@@ -126,6 +126,23 @@ public class Reminder {
         return deletedAt != null;
     }
 
+    // 회차 시각부터 30분 기한 안일 때만 보낸다. 지난 시각은 등록·일정 변경 때 5분까지만 허용하므로
+    // 마지막 수정 시각과 비교하지 않으며, 문구만 고쳐도 그날 회차는 그대로 보낸다.
+    public Instant findDueOccurrence(Instant now) {
+        if (isDeleted()) {
+            return null;
+        }
+        Instant occurrence = repeat.findOccurrence(scheduledAt, now);
+        if (occurrence == null || now.isBefore(occurrence)) {
+            return null;
+        }
+        if (PushDeadlinePolicy.isExpiredAt(PushDeadlinePolicy.calculateExpiresAt(occurrence),
+                now)) {
+            return null;
+        }
+        return occurrence;
+    }
+
     public static boolean isValidTitle(String title) {
         return title != null && isValidNormalizedText(title.trim(), MAX_TITLE_LENGTH);
     }

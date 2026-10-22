@@ -13,6 +13,8 @@ public interface NotificationRepository {
 
     List<UUID> findTopicPushRecipientIds(UUID topicId);
 
+    List<UUID> findTopicPushEnabledUserIds();
+
     List<UUID> findDuePublicationIds(Instant now, int limit);
 
     Optional<Notification> findPendingPublicationForUpdate(UUID notificationId, Instant now);
