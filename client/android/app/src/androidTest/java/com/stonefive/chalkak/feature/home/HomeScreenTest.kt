@@ -103,6 +103,38 @@ class HomeScreenTest {
     }
 
     @Test
+    fun weeklyPhotoOpensItsDateAndEmptyCellHasNoClickAction() {
+        var selectedDate: LocalDate? = null
+        val state = readyState()
+        val date = state.week
+            .first()
+            .date
+        showHome(
+            state.copy(
+                week = state.week.map { day ->
+                    day.copy(
+                        post = if (day.date == date) {
+                            PostCalendarItem("weekly", date, image(R.drawable.home_feed_photo), PostStatus.APPROVED)
+                        } else {
+                            null
+                        },
+                    )
+                },
+            ),
+            onRecordDate = { selectedDate = it },
+        )
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(3)
+        composeRule
+            .onNodeWithContentDescription("${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일 기록 있음")
+            .performClick()
+        assertEquals(date, selectedDate)
+        val emptyDate = date.plusDays(1)
+        composeRule
+            .onNodeWithContentDescription("${emptyDate.year}년 ${emptyDate.monthValue}월 ${emptyDate.dayOfMonth}일 기록 없음")
+            .assertHasNoClickAction()
+    }
+
+    @Test
     fun feedbackCardIsHiddenForPendingPhoto() {
         showHome(readyState().copy(hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo), isPending = true)))
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
@@ -304,6 +336,7 @@ class HomeScreenTest {
         state: HomeUiState,
         onUpload: () -> Unit = {},
         onRecord: () -> Unit = {},
+        onRecordDate: (LocalDate) -> Unit = {},
         onDisplay: (LocalDate) -> Unit = {},
         onFeed: (Post) -> Unit = {},
         onTab: (ChalkakBottomBarItem) -> Unit = {},
@@ -317,6 +350,7 @@ class HomeScreenTest {
                     uiState = state,
                     onOpenPhotoUpload = onUpload,
                     onOpenRecord = onRecord,
+                    onOpenRecordDate = onRecordDate,
                     onOpenDisplay = onDisplay,
                     onOpenFeed = onFeed,
                     onNavigateToBottomBar = onTab,

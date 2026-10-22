@@ -91,6 +91,7 @@ fun HomeScreen(
     onStartFeedback: () -> Unit,
     modifier: Modifier = Modifier,
     onLoadMoreBanners: () -> Unit = {},
+    onOpenRecordDate: (LocalDate) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     // 날짜가 바뀌면 다른 사진의 카드이므로 펼침·시트 상태를 처음으로 되돌린다.
@@ -165,6 +166,7 @@ fun HomeScreen(
                     uiState = uiState,
                     onOpenPhotoUpload = onOpenPhotoUpload,
                     onOpenRecord = onOpenRecord,
+                    onOpenRecordDate = onOpenRecordDate,
                     onOpenDisplay = onOpenDisplay,
                     onOpenFeed = onOpenFeed,
                     onRetry = onRetry,
@@ -271,6 +273,7 @@ private fun HomeContent(
     onRetry: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
     isFeedbackExpanded: Boolean,
+    onOpenRecordDate: (LocalDate) -> Unit,
     onFeedbackStartClick: () -> Unit,
     onFeedbackToggleExpanded: () -> Unit,
     onLoadMoreBanners: () -> Unit,
@@ -366,6 +369,7 @@ private fun HomeContent(
                     days = uiState.week,
                     status = uiState.recordsStatus,
                     onOpenRecord = onOpenRecord,
+                    onOpenRecordDate = onOpenRecordDate,
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )

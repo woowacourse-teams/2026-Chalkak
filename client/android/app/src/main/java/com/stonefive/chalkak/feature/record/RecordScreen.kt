@@ -74,6 +74,8 @@ fun RecordRoute(
     onOpenFeed: (String, String) -> Unit = { _, _ -> },
     deletedPostId: String? = null,
     onDeletedPostConsumed: () -> Unit = {},
+    requestedDate: LocalDate? = null,
+    onRequestedDateConsumed: () -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
@@ -88,6 +90,13 @@ fun RecordRoute(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(requestedDate) {
+        requestedDate?.let {
+            viewModel.openDate(it)
+            onRequestedDateConsumed()
+        }
     }
 
     LaunchedEffect(deletedPostId) {

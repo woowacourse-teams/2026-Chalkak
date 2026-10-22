@@ -35,6 +35,7 @@ class RecordViewModel(
     )
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
+    private var requestedDate: LocalDate? = null
     private var latestLoadGeneration = 0
     private var isRevalidating = false
     private var hasBeenPresented = false
@@ -53,6 +54,7 @@ class RecordViewModel(
             .filter { it < state.month }
             .maxOrNull()
             ?: return
+        requestedDate = null
         loadRecord(previousMonth)
     }
 
@@ -64,13 +66,28 @@ class RecordViewModel(
             .filter { it > state.month }
             .minOrNull()
             ?: return
+        requestedDate = null
         loadRecord(nextMonth)
+    }
+
+    fun openDate(date: LocalDate) {
+        requestedDate = date
+        val state = _uiState.value
+        val month = YearMonth.from(date)
+        if (!state.isLoading && !isRevalidating && state.month == month &&
+            state.posts.any { it.topicDate == date }
+        ) {
+            selectDate(date)
+        } else {
+            loadAvailableMonths(month)
+        }
     }
 
     fun selectDate(date: LocalDate) {
         val state = _uiState.value
         if (date !in state.posts.map { it.topicDate }) return
 
+        requestedDate = date
         _uiState.update { it.copy(selectedDate = date) }
     }
 
@@ -221,9 +238,19 @@ class RecordViewModel(
                             it.copy(
                                 month = content.value.month,
                                 posts = content.value.posts,
-                                selectedDate = content.value.posts
-                                    .maxByOrNull { it.topicDate }
-                                    ?.topicDate,
+                                selectedDate = if (requestedDate != null) {
+                                    requestedDate?.takeIf { date ->
+                                        content.value.posts
+                                            .any { post -> post.topicDate == date }
+                                    }
+                                } else {
+                                    it.selectedDate?.takeIf { date ->
+                                        content.value.posts
+                                            .any { post -> post.topicDate == date }
+                                    } ?: content.value.posts
+                                        .maxByOrNull { post -> post.topicDate }
+                                        ?.topicDate
+                                },
                                 isLoading = false,
                                 errorMessage = null,
                                 isLoginRequired = false,

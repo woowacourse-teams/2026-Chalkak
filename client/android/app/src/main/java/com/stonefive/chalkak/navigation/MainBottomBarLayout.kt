@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -28,6 +29,12 @@ internal fun MainBottomBarLayout(
     modifier: Modifier = Modifier,
     content: @Composable SharedTransitionScope.() -> Unit,
 ) {
+    LaunchedEffect(hostState, selectedItem) {
+        if (selectedItem == ChalkakBottomBarItem.HOME) {
+            hostState.stateFor(ChalkakBottomBarItem.HOME).reset()
+        }
+    }
+
     CompositionLocalProvider(LocalBottomBarHostState provides hostState) {
         Box(modifier.fillMaxSize()) {
             SharedTransitionLayout(modifier = Modifier.fillMaxSize(), content = content)
