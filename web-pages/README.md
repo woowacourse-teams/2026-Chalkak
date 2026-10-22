@@ -4,6 +4,10 @@
 
 관련 작업: [이슈 #761](https://github.com/woowacourse-teams/2026-Chalkak/issues/761)
 
+- [공개 페이지 목록](https://2026-chalkak-pages.vercel.app/)
+- [AI 피드백 사용 후기 페이지](https://2026-chalkak-pages.vercel.app/ai-feedback/)
+- [Vercel 프로젝트](https://vercel.com/chalkak/2026-chalkak-pages)
+
 ## 실행과 검증
 
 Node.js 22 이상이 필요합니다. CI와 Vercel은 Node.js 24를 사용합니다. 런타임·개발 외부 패키지 의존성은 없습니다.
@@ -104,6 +108,7 @@ HTML은 아래 템플릿을 사용합니다. 설정이 있으면 빌드 결과�
 
 | 설정 | 값 |
 | --- | --- |
+| Vercel 프로젝트 | `chalkak / 2026-chalkak-pages` |
 | Git 저장소 | `woowacourse-teams/2026-Chalkak` |
 | Production 브랜치 | `web/pages` |
 | Root Directory | `web-pages` |
@@ -132,3 +137,11 @@ HTML은 아래 템플릿을 사용합니다. 설정이 있으면 빌드 결과�
 - 표지는 이 작업에서 생성하고 사용자가 선택한 이미지입니다. WebP로 최적화했습니다.
 - 예시 사진과 로고는 사용자가 제공한 앱 화면에서 추출했습니다. 페이지의 예시 피드백은 실시간 AI 분석 결과가 아닙니다.
 - 실제 AI API, 회원·게시물 정책, 설문 응답 저장, 계정 기능은 이 프로젝트에서 변경하지 않습니다.
+
+## 최초 배포 확인 · 2026-10-22
+
+- `web/pages`의 초기 구현 커밋 `fd4fc26a`를 GitHub에 푸시했고, 전용 CI가 통과했습니다.
+- Vercel 프로젝트의 Root Directory `web-pages`, Production 브랜치 `web/pages`, Node.js `24.x`, 정적 출력 `dist`를 확인했습니다.
+- 공개 목록·AI 피드백 페이지·썸네일·예시 사진·공통 스크립트가 비로그인 HTTP 200으로 응답했습니다. canonical도 실제 Vercel 주소를 사용합니다.
+- 로컬 테스트 8개와 빌드가 통과했고, 1280px·390px·320px 화면, 상단 고정 바와 설문 준비 중 안내를 확인했습니다.
+- 구글폼 생성·실제 응답 수집은 아직 하지 않았습니다.
