@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -27,6 +28,7 @@ fun FeedContent(
     modifier: Modifier = Modifier,
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    onPhotoBoundsChanged: (Rect) -> Unit = {},
 ) {
     if (content == null && (entryPostId == null || entryThumbnailImageUrl == null)) return
 
@@ -36,6 +38,7 @@ fun FeedContent(
         modifier = modifier,
         entryPostId = entryPostId,
         entryThumbnailImageUrl = entryThumbnailImageUrl,
+        onPhotoBoundsChanged = onPhotoBoundsChanged,
     )
 }
 
@@ -76,6 +79,7 @@ private fun FeedPostContent(
     modifier: Modifier = Modifier,
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    onPhotoBoundsChanged: (Rect) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -96,6 +100,7 @@ private fun FeedPostContent(
             modifier = Modifier.fillMaxWidth(),
             entryPostId = entryPostId,
             entryThumbnailImageUrl = entryThumbnailImageUrl,
+            onPhotoBoundsChanged = onPhotoBoundsChanged,
         )
     }
 }

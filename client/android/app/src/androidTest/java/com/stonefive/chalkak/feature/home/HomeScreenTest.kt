@@ -14,6 +14,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.AiReviewContent
+import com.stonefive.chalkak.domain.model.AiReviewCriterion
+import com.stonefive.chalkak.domain.model.AiReviewFeedback
 import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -142,6 +145,13 @@ class HomeScreenTest {
     }
 
     @Test
+    fun feedbackCardIsHiddenWhenFeedbackPhaseIsHidden() {
+        showHome(approvedState().copy(feedbackPhase = HomeFeedbackPhase.Hidden))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithContentDescription(FEEDBACK_READY_TITLE).assertDoesNotExist()
+    }
+
+    @Test
     fun readyFeedbackOpensStartSheetAndStartsAnalysis() {
         var starts = 0
         showHome(approvedState(), onStartFeedback = { starts++ })
@@ -167,11 +177,19 @@ class HomeScreenTest {
 
     @Test
     fun completedFeedbackExpandsShowsTipAndCollapses() {
-        showHome(approvedState().copy(feedbackPhase = HomeFeedbackPhase.Completed))
+        showHome(
+            approvedState().copy(
+                feedbackPhase = HomeFeedbackPhase.Completed,
+                feedbackResult = sampleFeedbackResult,
+            ),
+        )
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
         val header = composeRule.onNodeWithContentDescription("AI 피드백이 완료되었어요")
         header.performClick()
         composeRule.onNodeWithText(FEEDBACK_HEADLINE).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("전체 점수 10점 만점에 8.7점").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("구도 8.7점").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("빛 8.2점").assertDoesNotExist()
         screenshot("home-feedback-expanded")
 
         composeRule.onNodeWithText("작가님의 해석이 돋보이는 작품이에요").performClick()
@@ -189,6 +207,19 @@ class HomeScreenTest {
         showHome(readyState().copy(hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo), isPending = true)))
         composeRule.onNodeWithContentDescription("오늘 제출한 사진, 검수 대기").assertIsDisplayed()
         composeRule.onNodeWithText("검수 대기", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun completedFeedbackDoesNotShowDistinctiveBadgeWhenResultIsFalse() {
+        showHome(
+            approvedState().copy(
+                feedbackPhase = HomeFeedbackPhase.Completed,
+                feedbackResult = sampleFeedbackResult.copy(distinctivePerspective = false),
+            ),
+        )
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithContentDescription("AI 피드백이 완료되었어요").performClick()
+        composeRule.onNodeWithText("작가님의 해석이 돋보이는 작품이에요").assertDoesNotExist()
     }
 
     @Test
@@ -390,9 +421,27 @@ private fun readyState() = HomeUiState(
     yesterday = HomeRankingState(HomeSectionStatus.Ready, samplePhotos()),
     trending = HomeRankingState(HomeSectionStatus.Ready, samplePhotos().reversed()),
     isAuthenticated = true,
+    feedbackPhase = HomeFeedbackPhase.Ready,
 )
 
-private fun approvedState() = readyState().copy(hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo)))
+private fun approvedState() = readyState().copy(
+    hero = HomeHeroState.Photo(image(R.drawable.home_feed_photo), postId = "today-post"),
+)
+
+private val sampleFeedbackResult = AiReviewContent(
+    overallScore = 8.7,
+    criteria = listOf(
+        AiReviewCriterion(key = "composition", label = "구도", score = 8.7),
+        AiReviewCriterion(key = "light", label = "빛", score = 8.2),
+    ),
+    distinctivePerspective = true,
+    feedback = AiReviewFeedback(
+        summary = FEEDBACK_HEADLINE,
+        strength = "좋았던 점이에요.",
+        weakness = "아쉬운 점이에요.",
+        suggestion = "다음엔 이렇게 해보세요.",
+    ),
+)
 
 private fun samplePhotos(): List<Post> = List(4) { index ->
     Post(

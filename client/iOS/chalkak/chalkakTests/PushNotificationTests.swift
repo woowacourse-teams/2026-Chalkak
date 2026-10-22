@@ -38,6 +38,29 @@ struct PushNotificationTapTests {
         #expect(tap?.notificationID == Self.notificationID)
     }
 
+    @Test("AI 완료·실패 푸시는 게시물 피드로 이동하며 알림 ID는 읽음에 사용한다",
+          arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
+    func parsesAIReviewPush(type: String) {
+        let tap = PushNotificationTap(userInfo: Self.userInfo(type: type))
+        #expect(tap == .aiReview(postID: Self.postID, notificationID: Self.notificationID))
+        #expect(tap?.notificationID == Self.notificationID)
+    }
+
+    @Test("AI 푸시는 유효한 게시물·알림 ID와 POST 종류가 필요하다",
+          arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
+    func rejectsInvalidAIReviewPush(type: String) {
+        for (key, value) in [
+            ("sourceId", "not-a-uuid"), ("notificationId", "not-a-uuid"),
+            ("sourceType", "TOPIC")
+        ] {
+            var payload = Self.userInfo(type: type)
+            payload[key] = value
+            #expect(PushNotificationTap(userInfo: payload) == nil)
+            payload[key] = nil
+            #expect(PushNotificationTap(userInfo: payload) == nil)
+        }
+    }
+
     @Test("반려 푸시는 notificationId의 알림 상세로 이동한다")
     func parsesRejectedPush() {
         let tap = PushNotificationTap(userInfo: Self.userInfo(type: "POST_REJECTED"))

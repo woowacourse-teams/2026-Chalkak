@@ -13,7 +13,10 @@ import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostSort
+import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.feature.aireview.AiReviewSession
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
@@ -25,6 +28,8 @@ import kotlinx.coroutines.launch
 
 class FeedViewModel(
     private val repository: PostRepository,
+    private val aiReviewRepository: AiReviewRepository,
+    private val sessionState: StateFlow<UserSessionState>,
     private val initialContent: FeedContentState.Success? = null,
     private val postId: String? = initialContent?.post?.id,
     private val isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
@@ -43,12 +48,65 @@ class FeedViewModel(
     private var latestLikeGeneration = 0
     private var nextMessageId = 0L
 
+    private var contentOwnerUserId = currentUserId()
+    private val aiReviewSession = AiReviewSession(
+        scope = viewModelScope,
+        repository = aiReviewRepository,
+        currentUserId = ::currentUserId,
+        onStateChanged = { review -> _uiState.update { it.copy(aiReview = review) } },
+        // Temporary client-side limit: only today's topic photo can start a new AI review.
+        canRequestReview = { isTodayTopic(_uiState.value.content) },
+    )
+
     init {
+        syncFeedbackTarget()
+        val initialSession = sessionState.value
+        viewModelScope.launch {
+            var previousSession = initialSession
+            sessionState.collect { session ->
+                if (session != previousSession) {
+                    previousSession = session
+                    syncFeedbackTarget()
+                }
+            }
+        }
+
         if (postId != null) {
             loadPostDetail(postId)
         } else if (initialContent == null) {
             loadFeed()
         }
+    }
+
+    fun onResume() {
+        syncFeedbackTarget()
+        aiReviewSession.onResume()
+    }
+
+    fun onPause() = aiReviewSession.onPause()
+
+    fun startFeedback() {
+        syncFeedbackTarget(refresh = false)
+        if (!_uiState.value.isDeleting) aiReviewSession.startReview()
+    }
+
+    fun dismissFeedbackMessage() = aiReviewSession.dismissMessage()
+
+    private fun currentUserId(): String? = (sessionState.value as? UserSessionState.Authenticated)?.userId
+
+    private fun isTodayTopic(content: FeedContentState.Success?): Boolean =
+        content != null && content.topicDate == dateProvider()
+
+    private fun syncFeedbackTarget(refresh: Boolean = true) {
+        val state = _uiState.value
+        val target = state.content
+            ?.post
+            ?.takeIf {
+                it.isOwnedByCurrentUser && currentUserId() != null &&
+                    contentOwnerUserId == currentUserId() && state.deleteSuccessPostId == null
+            }?.id
+        aiReviewSession.setTarget(target)
+        if (refresh) aiReviewSession.refresh()
     }
 
     fun retry() {
@@ -145,6 +203,7 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> {
+                    aiReviewSession.setTarget(null)
                     _uiState.update {
                         it.copy(
                             isDeleting = false,
@@ -232,6 +291,7 @@ class FeedViewModel(
     }
 
     private fun loadFeed() {
+        val requestUserId = currentUserId()
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val result = try {
@@ -265,6 +325,7 @@ class FeedViewModel(
                 return@launch
             }
 
+            contentOwnerUserId = requestUserId
             _uiState.value = FeedUiState(
                 isLoading = false,
                 content = FeedContentState.Success(
@@ -276,10 +337,12 @@ class FeedViewModel(
                 ),
                 isTitleEditable = content.topicDate == dateProvider(),
             )
+            syncFeedbackTarget()
         }
     }
 
     private fun loadPostDetail(postId: String) {
+        val requestUserId = currentUserId()
         val likeGenerationAtRequestStart = latestLikeGeneration
         _uiState.update {
             it.copy(
@@ -298,13 +361,14 @@ class FeedViewModel(
             }
 
             when (result) {
-                is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart)
+                is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart, requestUserId)
                 is HomeResult.Failure -> handleDetailFailure(result.reason)
             }
         }
     }
 
     private fun handleDetailFailure(failure: HomeFailure) {
+        if (failure.isPostNotFound()) aiReviewSession.setTarget(null)
         val current = _uiState.value
         if (current.content != null && !failure.isPostNotFound()) {
             val pendingMessage = nextToast(failure.toFeedErrorMessage())
@@ -332,6 +396,7 @@ class FeedViewModel(
     private fun applyPostDetail(
         detail: PostDetail,
         likeGenerationAtRequestStart: Int,
+        requestUserId: String?,
     ) {
         val previousContent = _uiState.value.content
         val previousPost = previousContent?.post
@@ -348,6 +413,7 @@ class FeedViewModel(
                 previousPost?.isOwnedByCurrentUser == true ||
                 isOwnedByCurrentUser,
         )
+        contentOwnerUserId = requestUserId
         val updatedContent = FeedContentState.Success(
             dateLabel = detail.topicDate.toFeedDateLabel(),
             topic = detail.topic,
@@ -364,6 +430,7 @@ class FeedViewModel(
                 errorMessage = null,
             )
         }
+        syncFeedbackTarget()
     }
 
     private fun HomeFailure.toFeedErrorMessage(): String = when (this) {
@@ -427,6 +494,8 @@ class FeedViewModel(
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedViewModel(
                     repository = application.appContainer.postRepository,
+                    aiReviewRepository = application.appContainer.aiReviewRepository,
+                    sessionState = application.appContainer.authRepository.sessionState,
                     initialContent = initialContent,
                     postId = postId,
                     isOwnedByCurrentUser = isOwnedByCurrentUser,

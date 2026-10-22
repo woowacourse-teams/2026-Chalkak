@@ -24,6 +24,29 @@ struct RemoteImageCacheTests {
         #expect(image.size.height == 100)
     }
 
+    @Test("같은 URL이라도 최대 폭이 다르면 따로 디코딩해 캐시한다")
+    func cachesEachMaxPixelWidthSeparately() async throws {
+        let data = try #require(Self.pngData(width: 1_200, height: 1_600))
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remote-image-cache-\(UUID().uuidString).png")
+        try data.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let cache = RemoteImageCache(maxPixelWidth: 600)
+
+        let small = try await cache.load(url, maxPixelWidth: 240)
+
+        #expect(small.size.width == 240)
+        #expect(cache.image(for: url, maxPixelWidth: 240) === small)
+        #expect(cache.image(for: url) == nil)
+
+        let large = try await cache.load(url)
+
+        #expect(large.size.width == 600)
+        #expect(cache.image(for: url) === large)
+        #expect(cache.image(for: url, maxPixelWidth: 600) === large)
+        #expect(cache.image(for: url, maxPixelWidth: 240) === small)
+    }
+
     private static func pngData(width: CGFloat, height: CGFloat) -> Data? {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1

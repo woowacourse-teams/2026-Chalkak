@@ -244,6 +244,50 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `AI 피드백 알림 토글은 다른 설정과 독립적으로 저장한다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply {
+            settings = NotificationPushSettings(true, false, true)
+        }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updateAiReviewPushEnabled(false)
+        advanceUntilIdle()
+
+        assertEquals(
+            NotificationPushSettingsUpdate(aiReviewPushEnabled = false),
+            repository.updates.last(),
+        )
+        assertEquals(NotificationPushSettings(true, false, false), viewModel.uiState.value.pushSettings)
+    }
+
+    @Test
+    fun `AI 알림 저장 실패는 동시에 저장한 주제 설정을 유지한다`() = runTest {
+        authRepository.setAuthenticated()
+        val repository = FakeSettingsNotificationRepository().apply { suspendUpdates = true }
+        val viewModel = SettingsViewModel(authRepository, userRepository, "1.2.4", repository)
+        advanceUntilIdle()
+
+        viewModel.updateAiReviewPushEnabled(false)
+        viewModel.updateAiReviewPushEnabled(true)
+        viewModel.updateTopicPushEnabled(false)
+        assertEquals(2, repository.updates.size)
+        assertTrue(viewModel.uiState.value.isAiReviewPushSaving)
+        assertTrue(viewModel.uiState.value.isTopicPushSaving)
+
+        repository.completePendingUpdate(1, NotificationResult.Success(Unit))
+        advanceUntilIdle()
+        repository.completePendingUpdate(0, NotificationResult.Failure(NotificationFailure.Network))
+        advanceUntilIdle()
+
+        assertEquals(NotificationPushSettings(false, true, true), viewModel.uiState.value.pushSettings)
+        assertFalse(viewModel.uiState.value.isAiReviewPushSaving)
+        assertFalse(viewModel.uiState.value.isTopicPushSaving)
+        assertTrue(viewModel.uiState.value.pendingMessage != null)
+    }
+
+    @Test
     fun `개별 설정 저장 실패 시 실패한 설정만 복원한다`() = runTest {
         authRepository.setAuthenticated()
         val repository = FakeSettingsNotificationRepository().apply {

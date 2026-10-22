@@ -16,9 +16,12 @@ import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.feature.aireview.AiReviewSession
+import com.stonefive.chalkak.feature.aireview.AiReviewUiState
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -27,7 +30,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,15 +46,22 @@ class HomeViewModel(
     private val uploadEntryRepository: PhotoUploadEntryRepository,
     private val sessionState: StateFlow<UserSessionState>,
     private val bannerRepository: BannerRepository,
+    private val aiReviewRepository: AiReviewRepository,
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
-    private var feedbackJob: Job? = null
     private var bannerLoadMoreJob: Job? = null
     private var hasBeenPresented = false
+    private var isResumed = false
     private val isPreloadingEnabled = MutableStateFlow(false)
+    private val aiReviewSession = AiReviewSession(
+        scope = viewModelScope,
+        repository = aiReviewRepository,
+        currentUserId = { (sessionState.value as? UserSessionState.Authenticated)?.userId },
+        onStateChanged = ::updateFeedbackState,
+    )
     private val _isReadyForInitialDisplay = MutableStateFlow(false)
     val isReadyForInitialDisplay: StateFlow<Boolean> = _isReadyForInitialDisplay.asStateFlow()
 
@@ -103,30 +112,41 @@ class HomeViewModel(
         val isFirstPresentation = !hasBeenPresented
         hasBeenPresented = true
         if (!sessionState.value.canLoadHome()) return
+        isResumed = true
         if (_uiState.value.date != dateProvider()) {
             loadHome(reset = true)
         } else if (!isFirstPresentation && loadJob?.isActive != true) {
             loadHome(reset = false)
+        } else {
+            aiReviewSession.onResume()
         }
     }
 
-    /**
-     * 피드백 카드의 "분석 시작하기"에서 호출한다. [HomeFeedbackPhase.Ready]일 때만 [HomeFeedbackPhase.Processing]으로
-     * 바꾸고, [MOCK_FEEDBACK_DURATION_MS] 뒤 [HomeFeedbackPhase.Completed]로 바꾼다.
-     * 서버 API가 생기면 이 지연 대신 분석 요청과 결과 조회로 바꾼다.
-     */
+    fun onPause() {
+        isResumed = false
+        aiReviewSession.onPause()
+    }
+
+    fun dismissFeedbackMessage() {
+        aiReviewSession.dismissMessage()
+    }
+
     fun startFeedback() {
-        if (_uiState.value.feedbackPhase != HomeFeedbackPhase.Ready) return
-        _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Processing) }
-        feedbackJob = viewModelScope.launch {
-            delay(MOCK_FEEDBACK_DURATION_MS)
-            _uiState.update { it.copy(feedbackPhase = HomeFeedbackPhase.Completed) }
+        aiReviewSession.startReview()
+    }
+
+    private fun updateFeedbackState(state: AiReviewUiState) {
+        _uiState.update {
+            it.copy(
+                feedbackPhase = state.phase,
+                feedbackResult = state.result,
+                feedbackMessage = state.message,
+            )
         }
     }
 
-    // 날짜·세션이 바뀌어 화면 상태를 새로 만들 때 이전 사진의 피드백 목업이 새 상태를 완료로 바꾸지 않게 멈춘다.
     private fun resetState(state: HomeUiState) {
-        feedbackJob?.cancel()
+        aiReviewSession.setTarget(null)
         _uiState.value = state
     }
 
@@ -299,7 +319,10 @@ class HomeViewModel(
         } else {
             loadMissingHero(date)
         }
+        val nextPostId = (hero as? HomeHeroState.Photo)?.takeUnless { it.isPending }?.postId
+        aiReviewSession.setTarget(nextPostId)
         _uiState.update { it.copy(hero = hero) }
+        if (isResumed) aiReviewSession.onResume()
     }
 
     private suspend fun loadHero(record: PostCalendarItem): HomeHeroState {
@@ -312,10 +335,11 @@ class HomeViewModel(
                 thumbnailUrl = record.thumbnailImageUrl,
                 signatureUrl = detail.value.post.signatureOriginalImageUrl,
                 signatureThumbnailUrl = detail.value.post.signatureThumbnailImageUrl,
+                postId = record.postId,
             )
 
             // The calendar already proves ownership and provides a usable image.
-            is HomeResult.Failure -> HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl)
+            is HomeResult.Failure -> HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, postId = record.postId)
         }
     }
 
@@ -355,7 +379,8 @@ class HomeViewModel(
 
     companion object {
         private const val HOME_PRELOAD_MAX_WAIT_MS = 700L
-        internal const val MOCK_FEEDBACK_DURATION_MS = 3_000L
+        internal const val FEEDBACK_POLL_INTERVAL_MS = AiReviewSession.POLL_INTERVAL_MS
+        internal const val FEEDBACK_POLL_WINDOW_MS = AiReviewSession.POLL_WINDOW_MS
         private const val BANNER_PAGE_SIZE = 10
 
         val Factory = viewModelFactory {
@@ -366,6 +391,7 @@ class HomeViewModel(
                     uploadEntryRepository = application.appContainer.photoUploadEntryRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
                     bannerRepository = application.appContainer.bannerRepository,
+                    aiReviewRepository = application.appContainer.aiReviewRepository,
                 )
             }
         }

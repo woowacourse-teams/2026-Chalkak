@@ -7,6 +7,8 @@ struct DisplayDateHeader: View {
     let canGoNext: Bool
     let onPrevious: () -> Void
     let onNext: () -> Void
+    var canPickDate = false
+    var onDateTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: theme.spacing.none) {
@@ -17,11 +19,7 @@ struct DisplayDateHeader: View {
                 action: onPrevious
             )
 
-            Text(dateText)
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.textPrimary)
-                .lineLimit(1)
-                .accessibilityAddTraits(.isHeader)
+            dateTitle
 
             navigationButton(
                 systemName: "chevron.right",
@@ -34,6 +32,28 @@ struct DisplayDateHeader: View {
         }
         .padding(.leading, -Metrics.edgeCorrection)
         .frame(height: Metrics.height)
+    }
+
+    // 휠로 고를 수 있을 때만 버튼으로 둔다.
+    @ViewBuilder
+    private var dateTitle: some View {
+        let title = Text(dateText)
+            .font(theme.typography.headline)
+            .foregroundStyle(theme.colors.textPrimary)
+            .lineLimit(1)
+            .accessibilityAddTraits(.isHeader)
+
+        if canPickDate {
+            Button(action: onDateTap) {
+                title
+                    .frame(minHeight: Metrics.touchSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("눌러서 날짜를 선택해요")
+        } else {
+            title
+        }
     }
 
     private func navigationButton(

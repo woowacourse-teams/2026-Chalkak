@@ -9,6 +9,7 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
@@ -35,7 +36,11 @@ class RecordViewModel(
     )
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
+    // 홈 주간 기록에서 연 날짜. 재검증해도 이 날짜를 다시 고르고, 사용자가 날짜나 달을 바꾸면 비운다.
     private var requestedDate: LocalDate? = null
+    private val calendarCache = mutableMapOf<YearMonth, PostCalendar>()
+    private val monthLoadGenerations = mutableMapOf<YearMonth, Int>()
+    private val deletedPostIds = mutableSetOf<String>()
     private var latestLoadGeneration = 0
     private var isRevalidating = false
     private var hasBeenPresented = false
@@ -77,17 +82,27 @@ class RecordViewModel(
         if (!state.isLoading && !isRevalidating && state.month == month &&
             state.posts.any { it.topicDate == date }
         ) {
-            selectDate(date)
+            _uiState.update { it.copy(selectedDate = date) }
         } else {
             loadAvailableMonths(month)
         }
+    }
+
+    /** 년/월 휠에서 고른 달로 이동한다. 기록이 있는 달(+이번 달)만 받고, 같은 달이면 다시 불러오지 않는다. */
+    fun moveToMonth(month: YearMonth) {
+        val state = _uiState.value
+        if (state.isLoading) return
+        if (month == state.month || month !in state.availableMonths) return
+
+        requestedDate = null
+        loadRecord(month)
     }
 
     fun selectDate(date: LocalDate) {
         val state = _uiState.value
         if (date !in state.posts.map { it.topicDate }) return
 
-        requestedDate = date
+        requestedDate = null
         _uiState.update { it.copy(selectedDate = date) }
     }
 
@@ -112,7 +127,7 @@ class RecordViewModel(
         val state = _uiState.value
         if (state.isLoading || isRevalidating) return
 
-        var previousState = state.takeIf { it.errorMessage == null }
+        val keepsContentVisible = state.errorMessage == null
         isRevalidating = true
         val generation = ++latestLoadGeneration
         viewModelScope.launch {
@@ -124,7 +139,6 @@ class RecordViewModel(
                 is HomeResult.Success -> {
                     shouldRetryMonthList = false
                     val availableMonths = includeCurrentMonth(monthsResult.value)
-                    previousState = previousState?.copy(availableMonths = availableMonths)
                     _uiState.update {
                         it.copy(availableMonths = availableMonths)
                     }
@@ -133,12 +147,11 @@ class RecordViewModel(
                 is HomeResult.Failure -> {
                     shouldRetryMonthList = true
                     val availableMonths = includeCurrentMonth(_uiState.value.availableMonths)
-                    previousState = previousState?.copy(availableMonths = availableMonths)
                     _uiState.update {
                         val updatedState = it.copy(
                             availableMonths = availableMonths,
                         )
-                        if (previousState != null) {
+                        if (keepsContentVisible) {
                             updatedState.copy(
                                 pendingMessage = nextToast(monthsResult.reason.toRecordMessage()),
                             )
@@ -152,13 +165,17 @@ class RecordViewModel(
             isRevalidating = false
             loadRecord(
                 state.month,
-                previousState = previousState,
-                keepsContentVisible = previousState != null,
+                keepsContentVisible = keepsContentVisible,
             )
         }
     }
 
     fun removeDeletedPost(postId: String) {
+        // 삭제 전에 보낸 달력 요청이 삭제 뒤에 도착해도 이 게시물을 다시 보여주지 않도록 ID를 기억한다.
+        deletedPostIds += postId
+        calendarCache.replaceAll { _, calendar ->
+            calendar.copy(posts = calendar.posts.filterNot { it.postId == postId })
+        }
         _uiState.update { state ->
             val updatedPosts = state.posts.filterNot { it.postId == postId }
             val currentMonth = currentMonthProvider()
@@ -179,6 +196,9 @@ class RecordViewModel(
                     ?: updatedPosts.maxByOrNull { it.topicDate }?.topicDate,
             )
         }
+        val hasRequestedPost = _uiState.value.posts
+            .any { it.topicDate == requestedDate }
+        if (!hasRequestedPost) requestedDate = null
     }
 
     fun onMessageShown(messageId: Long) {
@@ -208,14 +228,23 @@ class RecordViewModel(
 
     private fun loadRecord(
         month: YearMonth,
-        previousState: RecordUiState? = null,
         keepsContentVisible: Boolean = false,
     ) {
         val generation = ++latestLoadGeneration
-        isRevalidating = keepsContentVisible
-        if (keepsContentVisible) {
-            _uiState.update { it.copy(month = month) }
-        } else {
+        monthLoadGenerations[month] = generation
+        val cachedCalendar = calendarCache[month]
+        val hasVisibleContent = keepsContentVisible || cachedCalendar != null
+        isRevalidating = hasVisibleContent
+        if (cachedCalendar != null && !keepsContentVisible) {
+            _uiState.update {
+                val selectedDate = if (requestedDate != null) {
+                    cachedCalendar.requestedTopicDate()
+                } else {
+                    cachedCalendar.latestTopicDate()
+                }
+                it.withCalendar(cachedCalendar, selectedDate)
+            }
+        } else if (!hasVisibleContent) {
             _uiState.update {
                 it.copy(
                     month = month,
@@ -228,42 +257,53 @@ class RecordViewModel(
             }
         }
 
+        val selectedDateBeforeLoad = _uiState.value.selectedDate
         viewModelScope.launch {
             runCatching { repository.getPostCalendar(month) }
-                .onSuccess { content ->
+                .onSuccess { result ->
+                    val content = if (result is HomeResult.Success) {
+                        val calendar = result.value.copy(
+                            posts = result.value.posts
+                                .filterNot { it.postId in deletedPostIds },
+                        )
+                        // 다른 달로 넘어간 뒤 도착한 응답도 캐시에 담는다.
+                        // 단, 같은 달에 더 나중에 보낸 요청이 있으면 이 응답이 그 결과를 덮어쓰지 않게 한다.
+                        if (monthLoadGenerations[month] == generation) calendarCache[month] = calendar
+                        HomeResult.Success(calendar)
+                    } else {
+                        result
+                    }
                     if (generation != latestLoadGeneration) return@onSuccess
 
                     when (content) {
-                        is HomeResult.Success -> _uiState.update {
-                            it.copy(
-                                month = content.value.month,
-                                posts = content.value.posts,
-                                selectedDate = if (requestedDate != null) {
-                                    requestedDate?.takeIf { date ->
-                                        content.value.posts
-                                            .any { post -> post.topicDate == date }
-                                    }
+                        is HomeResult.Success -> {
+                            _uiState.update {
+                                // 홈 주간 기록에서 연 날짜는 그 날짜만 고르고, 사진이 없으면 다른 사진을 대신 열지 않는다.
+                                // 그 외에는 요청 중에 사용자가 직접 고른 날짜를 유지하고,
+                                // 고르지 않았으면 새 목록의 최신 날짜를 선택해 새로 올라온 사진이 보이게 한다.
+                                val selectedDate = if (requestedDate != null) {
+                                    content.value.requestedTopicDate()
                                 } else {
                                     it.selectedDate?.takeIf { date ->
-                                        content.value.posts
-                                            .any { post -> post.topicDate == date }
-                                    } ?: content.value.posts
-                                        .maxByOrNull { post -> post.topicDate }
-                                        ?.topicDate
-                                },
-                                isLoading = false,
-                                errorMessage = null,
-                                isLoginRequired = false,
-                            )
+                                        date != selectedDateBeforeLoad &&
+                                            content.value.posts
+                                                .any { post -> post.topicDate == date }
+                                    } ?: content.value.latestTopicDate()
+                                }
+                                it.withCalendar(content.value, selectedDate)
+                            }
                         }
 
-                        is HomeResult.Failure -> if (previousState != null) {
-                            _uiState.value = previousState.copy(
-                                pendingMessage = nextToast(content.reason.toRecordMessage()),
-                            )
+                        // 로그인이 풀렸으면 이전에 보던 기록 대신 로그인 화면을 보여준다.
+                        is HomeResult.Failure -> if (hasVisibleContent && content.reason != HomeFailure.Unauthorized) {
+                            _uiState.update {
+                                it.copy(pendingMessage = nextToast(content.reason.toRecordMessage()))
+                            }
                         } else {
                             _uiState.update {
                                 it.copy(
+                                    posts = emptyList(),
+                                    selectedDate = null,
                                     isLoading = false,
                                     errorMessage = content.reason.toRecordMessage(),
                                     isLoginRequired = content.reason == HomeFailure.Unauthorized,
@@ -274,10 +314,10 @@ class RecordViewModel(
                 }.onFailure { error ->
                     if (generation != latestLoadGeneration) return@onFailure
 
-                    if (previousState != null) {
-                        _uiState.value = previousState.copy(
-                            pendingMessage = nextToast(error.message ?: "기록을 불러오지 못했어요"),
-                        )
+                    if (hasVisibleContent) {
+                        _uiState.update {
+                            it.copy(pendingMessage = nextToast(error.message ?: "기록을 불러오지 못했어요"))
+                        }
                     } else {
                         _uiState.update {
                             it.copy(
@@ -288,7 +328,7 @@ class RecordViewModel(
                         }
                     }
                 }
-            isRevalidating = false
+            if (generation == latestLoadGeneration) isRevalidating = false
         }
     }
 
@@ -331,6 +371,24 @@ class RecordViewModel(
                 }
             }
         }
+    }
+
+    private fun RecordUiState.withCalendar(
+        calendar: PostCalendar,
+        selectedDate: LocalDate?,
+    ): RecordUiState = copy(
+        month = calendar.month,
+        posts = calendar.posts,
+        selectedDate = selectedDate,
+        isLoading = false,
+        errorMessage = null,
+        isLoginRequired = false,
+    )
+
+    private fun PostCalendar.latestTopicDate(): LocalDate? = posts.maxByOrNull { it.topicDate }?.topicDate
+
+    private fun PostCalendar.requestedTopicDate(): LocalDate? = requestedDate?.takeIf { date ->
+        posts.any { it.topicDate == date }
     }
 
     private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(

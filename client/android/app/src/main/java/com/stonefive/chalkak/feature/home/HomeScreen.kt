@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -61,6 +62,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.home.component.HomeFeedbackCard
 import com.stonefive.chalkak.feature.home.component.HomeFeedbackStartSheet
 import com.stonefive.chalkak.feature.home.component.HomeHeroCard
@@ -92,11 +94,13 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onLoadMoreBanners: () -> Unit = {},
     onOpenRecordDate: (LocalDate) -> Unit = {},
+    onDismissFeedbackMessage: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     // 날짜가 바뀌면 다른 사진의 카드이므로 펼침·시트 상태를 처음으로 되돌린다.
-    var isFeedbackExpanded by rememberSaveable(uiState.date) { mutableStateOf(false) }
-    var isFeedbackSheetVisible by rememberSaveable(uiState.date) { mutableStateOf(false) }
+    val feedbackIdentity = uiState.date to (uiState.hero as? HomeHeroState.Photo)?.postId
+    var isFeedbackExpanded by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
+    var isFeedbackSheetVisible by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
     val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.HOME)
     val interactionScope = rememberCoroutineScope()
     val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
@@ -217,6 +221,21 @@ fun HomeScreen(
             onDismiss = { isFeedbackSheetVisible = false },
         )
     }
+    uiState.feedbackMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissFeedbackMessage,
+            confirmButton = {
+                TextButton(onClick = onDismissFeedbackMessage) {
+                    Text("확인", color = ChalkakTheme.colors.actionPrimary, style = ChalkakTheme.typography.callout)
+                }
+            },
+            text = {
+                Text(message, color = ChalkakTheme.colors.textPrimary, style = ChalkakTheme.typography.callout)
+            },
+            shape = ChalkakTheme.shapes.large,
+            containerColor = ChalkakTheme.colors.surfaceElevated,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -230,12 +249,14 @@ private fun HomeFeedbackStartBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        dragHandle = null,
         // 화면 아래 끝과 좌우를 꽉 채우도록 위쪽 모서리만 둥글게 하고 기본 최대 너비(640dp) 제한을 푼다.
         sheetMaxWidth = Dp.Unspecified,
         shape = ChalkakTheme.shapes.sheet
             .copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize),
         containerColor = ChalkakTheme.colors.surfaceElevated,
     ) {
+        AiReviewSheetDragHandle(sheetState = sheetState, onDismiss = onDismiss, modifier = Modifier.fillMaxWidth())
         HomeFeedbackStartSheet(
             onStart = {
                 // 시트가 내려가는 애니메이션을 마친 뒤 닫힌 상태로 바꿔야 시트가 뚝 끊기지 않는다.
@@ -352,6 +373,7 @@ private fun HomeContent(
                     Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
                     HomeFeedbackCard(
                         phase = uiState.feedbackPhase,
+                        result = uiState.feedbackResult,
                         isExpanded = isFeedbackExpanded,
                         onStart = onFeedbackStartClick,
                         onToggleExpanded = onFeedbackToggleExpanded,

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onOpenRecord: () -> Void = {}
@@ -12,10 +13,11 @@ struct HomeScreen: View {
     var hasUnreadNotifications = false
     var onIssueClick: (URL) -> Void = { _ in }
     var bottomBarCompact: Binding<Bool> = .constant(false)
+    var isActive = true
 
     @State private var scrollPosition = ScrollPosition()
     @State private var currentScrollOffset: CGFloat = 0
-    @State private var feedbackPhase: HomeFeedbackPhase = .ready
+    @State private var feedbackRetryID = 0
     @State private var isFeedbackSheetPresented = false
     @State private var isFeedbackExpanded = false
     @State private var visibleBannerIDs: Set<Banner.ID> = []
@@ -58,8 +60,11 @@ struct HomeScreen: View {
                         HomeFeedbackCard(
                             phase: feedbackPhase,
                             isExpanded: isFeedbackExpanded,
-                            onStart: { isFeedbackSheetPresented = true },
-                            onToggleExpanded: { withAnimation(.easeInOut) { isFeedbackExpanded.toggle() } }
+                            onStart: handleFeedbackAction,
+                            onToggleExpanded: { withAnimation(.easeInOut) { isFeedbackExpanded.toggle() } },
+                            result: viewModel.viewState.aiReview.review?.result,
+                            isSubmitting: viewModel.viewState.aiReview.isSubmitting,
+                            pollingTimedOut: viewModel.viewState.aiReview.pollingTimedOut
                         )
                         .padding(.horizontal, theme.spacing.screenHorizontal)
                         .padding(.top, theme.spacing.lg)
@@ -173,10 +178,7 @@ struct HomeScreen: View {
             .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
                 scrollToTop()
             }
-            .onChange(of: viewModel.viewState.date) { _, _ in
-                resetFeedback()
-            }
-            .onChange(of: viewModel.viewState.hero) { _, _ in
+            .onChange(of: feedbackPostID) { _, _ in
                 resetFeedback()
             }
             .onChange(of: bannerPaginationTrigger) { _, trigger in
@@ -191,20 +193,26 @@ struct HomeScreen: View {
                 .presentationDetents([.height(Metrics.feedbackSheetHeight)])
                 .presentationDragIndicator(.visible)
         }
-        .task(id: feedbackPhase) {
-            guard feedbackPhase == .processing else { return }
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
-            feedbackPhase = .completed
+        .task(id: feedbackObservationID) {
+            guard let postID = feedbackPostID, scenePhase == .active, isActive else { return }
+            await viewModel.observeAIReview(postID: postID)
+        }
+        .alert("AI 피드백", isPresented: Binding(
+            get: { viewModel.viewState.aiReview.message != nil },
+            set: { if !$0 { viewModel.dismissAIReviewMessage() } }
+        )) {
+            Button("확인", role: .cancel) { viewModel.dismissAIReviewMessage() }
+        } message: {
+            Text(viewModel.viewState.aiReview.message ?? "")
         }
     }
 
     @ViewBuilder
     private var feedbackStartSheet: some View {
-        let content = HomeFeedbackStartSheet(
+        let content = AIReviewStartSheet(
             onStart: {
                 isFeedbackSheetPresented = false
-                feedbackPhase = .processing
+                Task { await viewModel.requestAIReview() }
             }
         )
 
@@ -222,15 +230,48 @@ struct HomeScreen: View {
             ?? viewModel.viewState.date
     }
 
-    private var showsFeedback: Bool {
-        if case let .photo(photo) = viewModel.viewState.hero {
-            return !photo.isPending
+    private var feedbackPostID: String? {
+        guard viewModel.hasAIReviewRepository,
+              viewModel.viewState.isAuthenticated,
+              case let .photo(photo) = viewModel.viewState.hero,
+              !photo.isPending else { return nil }
+        return photo.postID
+    }
+
+    private var showsFeedback: Bool { feedbackPostID != nil }
+
+    private var feedbackObservationID: String? {
+        guard scenePhase == .active, isActive, let postID = feedbackPostID else { return nil }
+        return "\(postID):\(feedbackRetryID)"
+    }
+
+    private var feedbackPhase: HomeFeedbackPhase {
+        let state = viewModel.viewState.aiReview
+        if state.isUnavailable { return .unavailable }
+        if state.isLoading { return .loading }
+        guard let review = state.review else { return .loadError }
+        switch review.status {
+        case .none: return .ready
+        case .processing: return .processing
+        case .completed: return .completed
+        case .failed: return .failed(canRequestAgain: review.canRequestAgain)
         }
-        return false
+    }
+
+    private func handleFeedbackAction() {
+        switch feedbackPhase {
+        case .loadError:
+            feedbackRetryID += 1
+        case .ready:
+            isFeedbackSheetPresented = true
+        case .failed(canRequestAgain: true):
+            Task { await viewModel.requestAIReview() }
+        default:
+            break
+        }
     }
 
     private func resetFeedback() {
-        feedbackPhase = .ready
         isFeedbackExpanded = false
         isFeedbackSheetPresented = false
     }

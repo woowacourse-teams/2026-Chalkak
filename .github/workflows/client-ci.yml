@@ -236,15 +236,30 @@ jobs:
 
       - name: Run unit tests
         run: |
+          set -o pipefail
           xcodebuild \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
+            -resultBundlePath "$RUNNER_TEMP/chalkak-unit-tests.xcresult" \
             -parallel-testing-enabled NO \
             test \
-            -only-testing:chalkakTests
+            -only-testing:chalkakTests 2>&1 | tee "$RUNNER_TEMP/chalkak-unit-tests.log"
+
+      - name: Upload iOS failure reports
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-ci-failure-reports-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/chalkak-unit-tests.xcresult
+            ${{ runner.temp }}/chalkak-unit-tests.log
+            ~/Library/Logs/DiagnosticReports/chalkak*.ips
+            ~/Library/Logs/DiagnosticReports/chalkak*.crash
+          if-no-files-found: warn
+          retention-days: 7
 
   required:
     name: Client CI gate

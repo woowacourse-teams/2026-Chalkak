@@ -11,6 +11,7 @@ struct DisplayScreen: View {
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
     var bottomBarCompact: Binding<Bool> = .constant(false)
+    @State private var isDatePickerPresented = false
 
     // Feed가 원본을 로드할 때까지 출발 카드에 떠 있던 이미지를 대신 보여준다.
     private func feedTarget(
@@ -58,6 +59,24 @@ struct DisplayScreen: View {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
         }
+        .sheet(isPresented: $isDatePickerPresented) {
+            datePickerSheet
+        }
+    }
+
+    @ViewBuilder
+    private var datePickerSheet: some View {
+        if let selectedDate = viewModel.viewState.selectedDate,
+           let latestDate = viewModel.viewState.latestDate {
+            DisplayDatePickerSheet(
+                selectedDate: selectedDate,
+                startDate: viewModel.viewState.earliestDate ?? selectedDate,
+                endDate: latestDate
+            ) { date in
+                isDatePickerPresented = false
+                Task { await viewModel.moveToDate(date) }
+            }
+        }
     }
 
     private var dateHeader: some View {
@@ -66,7 +85,9 @@ struct DisplayScreen: View {
             canGoPrevious: viewModel.viewState.canGoPrevious,
             canGoNext: viewModel.viewState.canGoNext,
             onPrevious: { Task { await viewModel.moveToPreviousDate() } },
-            onNext: { Task { await viewModel.moveToNextDate() } }
+            onNext: { Task { await viewModel.moveToNextDate() } },
+            canPickDate: viewModel.viewState.canPickDate,
+            onDateTap: { isDatePickerPresented = true }
         )
         .padding(.horizontal, theme.spacing.screenHorizontal)
         .background(theme.colors.background)

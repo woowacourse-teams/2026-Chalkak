@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.BannerPage
 import com.stonefive.chalkak.domain.model.HomeFailure
@@ -21,6 +22,9 @@ import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewFailure
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -105,7 +109,13 @@ class HomeViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("own-$TODAY"), repository.details)
         assertEquals(
-            HomeHeroState.Photo("original-own-$TODAY", "thumb-$TODAY", "signature", "signature-thumb"),
+            HomeHeroState.Photo(
+                "original-own-$TODAY",
+                "thumb-$TODAY",
+                "signature",
+                "signature-thumb",
+                postId = "own-$TODAY",
+            ),
             viewModel.uiState.value.hero,
         )
     }
@@ -118,7 +128,7 @@ class HomeViewModelTest {
         }
         val viewModel = createViewModel(repository)
         advanceUntilIdle()
-        assertEquals(HomeHeroState.Photo("thumb-$TODAY"), viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.Photo("thumb-$TODAY", postId = "own-$TODAY"), viewModel.uiState.value.hero)
     }
 
     @Test
@@ -337,43 +347,6 @@ class HomeViewModelTest {
         assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true), viewModel.uiState.value.hero)
         assertEquals(listOf(date.minusDays(1), date), repository.contentQueries.map { it.date })
         assertEquals(listOf(date.minusDays(2), date.minusDays(1)), repository.pageQueries.map { it.date })
-    }
-
-    @Test
-    fun `feedback start moves to processing and completes after mock duration`() = runTest {
-        val viewModel = createViewModel(FakeHomeRepository())
-        advanceUntilIdle()
-        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
-
-        viewModel.startFeedback()
-        assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
-        advanceTimeBy(HomeViewModel.MOCK_FEEDBACK_DURATION_MS - 1)
-        assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
-        advanceTimeBy(1)
-        runCurrent()
-        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
-
-        viewModel.startFeedback()
-        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
-        viewModel.refresh()
-        advanceUntilIdle()
-        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
-    }
-
-    @Test
-    fun `crossing KST midnight during feedback resets it for the new day`() = runTest {
-        var date = LocalDate.of(2026, 10, 10)
-        val viewModel = createViewModel(FakeHomeRepository(), dateProvider = { date })
-        advanceUntilIdle()
-        viewModel.onResume()
-        viewModel.startFeedback()
-
-        date = date.plusDays(1)
-        viewModel.onResume()
-        advanceUntilIdle()
-
-        assertEquals(date, viewModel.uiState.value.date)
-        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
     }
 
     @Test
@@ -676,7 +649,7 @@ class HomeViewModelTest {
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
-    ) = HomeViewModel(repository, repository, session, repository, dateProvider).also {
+    ) = HomeViewModel(repository, repository, session, repository, repository, dateProvider).also {
         it.startPreloading()
     }
 }
@@ -684,7 +657,8 @@ class HomeViewModelTest {
 private class FakeHomeRepository :
     PostRepository,
     PhotoUploadEntryRepository,
-    BannerRepository {
+    BannerRepository,
+    AiReviewRepository {
     val contentQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val months = mutableListOf<YearMonth>()
@@ -700,6 +674,13 @@ private class FakeHomeRepository :
     var yesterdayFailure: HomeFailure? = null
     var calendarGate: CompletableDeferred<Unit>? = null
     var uploadStatus: TodayPostStatusResult = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+
+    override suspend fun getReview(postId: String): AiReviewResponseResult = AiReviewResponseResult.Success(
+        AiReview(AiReview.Status.NONE, null, null, null, false),
+    )
+
+    override suspend fun requestReview(postId: String): AiReviewResponseResult =
+        AiReviewResponseResult.Failure(AiReviewFailure.Network)
 
     override suspend fun getBanners(
         page: Int,

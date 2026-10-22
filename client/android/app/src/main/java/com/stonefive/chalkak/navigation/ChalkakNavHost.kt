@@ -203,6 +203,14 @@ fun ChalkakNavHost(
         val push = pendingNotificationPush ?: return@LaunchedEffect
         if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
         if (currentBackStackEntry == null) return@LaunchedEffect
+        val destination = currentBackStackEntry?.destination
+        if (destination?.hasRoute<Login>() == true ||
+            destination?.hasRoute<Terms>() == true ||
+            destination?.hasRoute<OnboardingSignature>() == true ||
+            destination?.hasRoute<OnboardingSignaturePreview>() == true
+        ) {
+            return@LaunchedEffect
+        }
 
         if (push.type == TOPIC) {
             application.appContainer.pendingNotificationNavigation
@@ -215,8 +223,6 @@ fun ChalkakNavHost(
             )
             return@LaunchedEffect
         }
-
-        if (currentBackStackEntry?.destination?.hasRoute<Home>() != true) return@LaunchedEffect
 
         val notificationId = push.notificationId?.takeIf(String::isNotBlank)
         if (notificationId == null) {
@@ -623,6 +629,7 @@ fun ChalkakNavHost(
                         postId = feed.postId,
                         entryThumbnailImageUrl = feed.thumbnailImageUrl,
                         isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
+                        openAiReviewResult = feed.openAiReviewResult,
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.popBackStack()
                         },
@@ -852,6 +859,24 @@ internal fun NavHostController.openNotificationTarget(
             ) { launchSingleTop = true }
         }
 
+        (type == AI_REVIEW_COMPLETED || type == AI_REVIEW_FAILED) &&
+            sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
+            // Replace the feed of the same post if it is on top so the back stack does not hold it twice.
+            val samePostFeedId = currentBackStackEntry
+                ?.takeIf { it.feedPostId() == sourceId }
+                ?.destination
+                ?.id
+            navigate(
+                FeedById(
+                    postId = sourceId,
+                    isOwnedByCurrentUser = true,
+                    openAiReviewResult = true,
+                ),
+            ) {
+                if (samePostFeedId != null) popUpTo(samePostFeedId) { inclusive = true }
+            }
+        }
+
         type == POST_REJECTED && !notificationId.isNullOrBlank() -> {
             navigate(NotificationDetail(notificationId)) { launchSingleTop = true }
         }
@@ -860,10 +885,18 @@ internal fun NavHostController.openNotificationTarget(
     }
 }
 
+private fun NavBackStackEntry.feedPostId(): String? = when {
+    destination.hasRoute<Feed>() -> toRoute<Feed>().postId
+    destination.hasRoute<FeedById>() -> toRoute<FeedById>().postId
+    else -> null
+}
+
 private const val POST_APPROVED = "POST_APPROVED"
 private const val POST_REJECTED = "POST_REJECTED"
 private const val POST_SOURCE_TYPE = "POST"
 private const val TOPIC = "TOPIC"
+private const val AI_REVIEW_COMPLETED = "AI_REVIEW_COMPLETED"
+private const val AI_REVIEW_FAILED = "AI_REVIEW_FAILED"
 
 private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
