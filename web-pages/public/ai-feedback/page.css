@@ -2,9 +2,9 @@ html {
   scroll-padding-top: 24px;
 }
 .cover-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
 }
 .cover-survey {
   display: inline-flex;
@@ -17,6 +17,7 @@ html {
   font-size: 14px;
   line-height: 1.6;
   background: #fffdf9;
+  box-shadow: 0 2px 12px #28251e18;
   transition: background 0.15s;
 }
 .cover-survey:hover {
@@ -27,11 +28,10 @@ html {
   height: 14px;
 }
 .cover-section {
+  position: relative;
   max-width: 1040px;
   width: calc(100% - 104px);
   margin: auto;
-}
-.cover-section {
   margin-top: 32px;
 }
 .cover {
@@ -176,6 +176,7 @@ html {
 }
 .feedback-example {
   padding: 62px 0;
+  border-top: 1px solid var(--line);
 }
 .example-figure {
   display: grid;
@@ -267,6 +268,10 @@ dialog h2 {
   }
 }
 @media (max-width: 700px) {
+  .cover-actions {
+    right: 10px;
+    bottom: 10px;
+  }
   .cover-survey {
     min-height: 44px;
   }
