@@ -9,6 +9,7 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
@@ -35,6 +36,9 @@ class RecordViewModel(
     )
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
+    private val calendarCache = mutableMapOf<YearMonth, PostCalendar>()
+    private val monthLoadGenerations = mutableMapOf<YearMonth, Int>()
+    private val deletedPostIds = mutableSetOf<String>()
     private var latestLoadGeneration = 0
     private var isRevalidating = false
     private var hasBeenPresented = false
@@ -95,7 +99,7 @@ class RecordViewModel(
         val state = _uiState.value
         if (state.isLoading || isRevalidating) return
 
-        var previousState = state.takeIf { it.errorMessage == null }
+        val keepsContentVisible = state.errorMessage == null
         isRevalidating = true
         val generation = ++latestLoadGeneration
         viewModelScope.launch {
@@ -107,7 +111,6 @@ class RecordViewModel(
                 is HomeResult.Success -> {
                     shouldRetryMonthList = false
                     val availableMonths = includeCurrentMonth(monthsResult.value)
-                    previousState = previousState?.copy(availableMonths = availableMonths)
                     _uiState.update {
                         it.copy(availableMonths = availableMonths)
                     }
@@ -116,12 +119,11 @@ class RecordViewModel(
                 is HomeResult.Failure -> {
                     shouldRetryMonthList = true
                     val availableMonths = includeCurrentMonth(_uiState.value.availableMonths)
-                    previousState = previousState?.copy(availableMonths = availableMonths)
                     _uiState.update {
                         val updatedState = it.copy(
                             availableMonths = availableMonths,
                         )
-                        if (previousState != null) {
+                        if (keepsContentVisible) {
                             updatedState.copy(
                                 pendingMessage = nextToast(monthsResult.reason.toRecordMessage()),
                             )
@@ -135,13 +137,17 @@ class RecordViewModel(
             isRevalidating = false
             loadRecord(
                 state.month,
-                previousState = previousState,
-                keepsContentVisible = previousState != null,
+                keepsContentVisible = keepsContentVisible,
             )
         }
     }
 
     fun removeDeletedPost(postId: String) {
+        // Ignore deleted posts even when an earlier calendar request completes after deletion.
+        deletedPostIds += postId
+        calendarCache.replaceAll { _, calendar ->
+            calendar.copy(posts = calendar.posts.filterNot { it.postId == postId })
+        }
         _uiState.update { state ->
             val updatedPosts = state.posts.filterNot { it.postId == postId }
             val currentMonth = currentMonthProvider()
@@ -191,14 +197,27 @@ class RecordViewModel(
 
     private fun loadRecord(
         month: YearMonth,
-        previousState: RecordUiState? = null,
         keepsContentVisible: Boolean = false,
     ) {
         val generation = ++latestLoadGeneration
-        isRevalidating = keepsContentVisible
-        if (keepsContentVisible) {
-            _uiState.update { it.copy(month = month) }
-        } else {
+        monthLoadGenerations[month] = generation
+        val cachedCalendar = calendarCache[month]
+        val hasVisibleContent = keepsContentVisible || cachedCalendar != null
+        isRevalidating = hasVisibleContent
+        if (cachedCalendar != null && !keepsContentVisible) {
+            _uiState.update {
+                it.copy(
+                    month = month,
+                    posts = cachedCalendar.posts,
+                    selectedDate = cachedCalendar.posts
+                        .maxByOrNull { post -> post.topicDate }
+                        ?.topicDate,
+                    isLoading = false,
+                    errorMessage = null,
+                    isLoginRequired = false,
+                )
+            }
+        } else if (!hasVisibleContent) {
             _uiState.update {
                 it.copy(
                     month = month,
@@ -211,29 +230,48 @@ class RecordViewModel(
             }
         }
 
+        val selectedDateBeforeLoad = _uiState.value.selectedDate
         viewModelScope.launch {
             runCatching { repository.getPostCalendar(month) }
-                .onSuccess { content ->
+                .onSuccess { result ->
+                    val content = if (result is HomeResult.Success) {
+                        val calendar = result.value.copy(
+                            posts = result.value.posts
+                                .filterNot { it.postId in deletedPostIds },
+                        )
+                        // Cache off-screen months too, without overwriting a newer request for the same month.
+                        if (monthLoadGenerations[month] == generation) calendarCache[month] = calendar
+                        HomeResult.Success(calendar)
+                    } else {
+                        result
+                    }
                     if (generation != latestLoadGeneration) return@onSuccess
 
                     when (content) {
-                        is HomeResult.Success -> _uiState.update {
-                            it.copy(
-                                month = content.value.month,
-                                posts = content.value.posts,
-                                selectedDate = content.value.posts
-                                    .maxByOrNull { it.topicDate }
-                                    ?.topicDate,
-                                isLoading = false,
-                                errorMessage = null,
-                                isLoginRequired = false,
-                            )
+                        is HomeResult.Success -> {
+                            _uiState.update {
+                                val selectedDate = it.selectedDate?.takeIf { date ->
+                                    date != selectedDateBeforeLoad &&
+                                        content.value.posts
+                                            .any { post -> post.topicDate == date }
+                                } ?: content.value.posts
+                                    .maxByOrNull { post -> post.topicDate }
+                                    ?.topicDate
+                                it.copy(
+                                    month = content.value.month,
+                                    posts = content.value.posts,
+                                    selectedDate = selectedDate,
+                                    isLoading = false,
+                                    errorMessage = null,
+                                    isLoginRequired = false,
+                                )
+                            }
                         }
 
-                        is HomeResult.Failure -> if (previousState != null) {
-                            _uiState.value = previousState.copy(
-                                pendingMessage = nextToast(content.reason.toRecordMessage()),
-                            )
+                        is HomeResult.Failure -> if (hasVisibleContent) {
+                            _uiState.update {
+                                it.copy(pendingMessage = nextToast(content.reason.toRecordMessage()))
+                            }
                         } else {
                             _uiState.update {
                                 it.copy(
@@ -247,10 +285,10 @@ class RecordViewModel(
                 }.onFailure { error ->
                     if (generation != latestLoadGeneration) return@onFailure
 
-                    if (previousState != null) {
-                        _uiState.value = previousState.copy(
-                            pendingMessage = nextToast(error.message ?: "기록을 불러오지 못했어요"),
-                        )
+                    if (hasVisibleContent) {
+                        _uiState.update {
+                            it.copy(pendingMessage = nextToast(error.message ?: "기록을 불러오지 못했어요"))
+                        }
                     } else {
                         _uiState.update {
                             it.copy(
@@ -261,7 +299,7 @@ class RecordViewModel(
                         }
                     }
                 }
-            isRevalidating = false
+            if (generation == latestLoadGeneration) isRevalidating = false
         }
     }
 
