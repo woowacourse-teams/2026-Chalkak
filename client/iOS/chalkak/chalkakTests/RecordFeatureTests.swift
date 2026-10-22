@@ -105,6 +105,159 @@ struct RecordViewModelTests {
         #expect(viewModel.viewState.posts.isEmpty)
     }
 
+    @Test("본 적 있는 달로 돌아오면 응답 전에도 캐시한 기록을 보여주고 최신 값으로 교체한다")
+    func returningToCachedMonthShowsCachedContentUntilUpdated() async {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let previousMonth = currentMonth.adding(months: -1)
+        let cachedPost = Self.post(id: "cached-post", day: 1, month: currentMonth)
+        let newPost = Self.post(id: "new-post", day: 2, month: currentMonth)
+        let gate = RecordCalendarGate()
+        let viewModel = await Self.viewModelVisitedPreviousMonth(
+            currentMonth: currentMonth,
+            currentPosts: [cachedPost],
+            previousPosts: [Self.post(id: "previous-post", day: 1, month: previousMonth)],
+            gate: gate
+        )
+
+        let moving = Task { await viewModel.moveToNextMonth() }
+        await gate.waitForRequest()
+
+        #expect(viewModel.viewState.contentStatus == .loaded)
+        #expect(viewModel.viewState.month == currentMonth)
+        #expect(viewModel.viewState.posts == [cachedPost])
+        #expect(viewModel.viewState.selectedDate == cachedPost.topicDate)
+
+        gate.complete(with: .success(RecordCalendar(month: currentMonth, posts: [cachedPost, newPost])))
+        await moving.value
+
+        #expect(viewModel.viewState.posts == [cachedPost, newPost])
+        #expect(viewModel.viewState.selectedDate == newPost.topicDate)
+    }
+
+    @Test("캐시한 달의 재조회가 실패하면 캐시한 기록을 유지하고 토스트를 띄운다")
+    func failedRefreshOfCachedMonthKeepsCachedContent() async {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let previousMonth = currentMonth.adding(months: -1)
+        let cachedPost = Self.post(id: "cached-post", day: 1, month: currentMonth)
+        let gate = RecordCalendarGate()
+        let viewModel = await Self.viewModelVisitedPreviousMonth(
+            currentMonth: currentMonth,
+            currentPosts: [cachedPost],
+            previousPosts: [Self.post(id: "previous-post", day: 1, month: previousMonth)],
+            gate: gate
+        )
+
+        let moving = Task { await viewModel.moveToNextMonth() }
+        await gate.waitForRequest()
+        gate.complete(with: .failure(.network))
+        await moving.value
+
+        #expect(viewModel.viewState.contentStatus == .loaded)
+        #expect(viewModel.viewState.posts == [cachedPost])
+        #expect(viewModel.event == .showToast(RecordError.network.message))
+    }
+
+    @Test("처음 가는 달은 기존 기록을 비우고 로딩한다")
+    func movingToUncachedMonthStartsLoading() async {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let previousMonth = currentMonth.adding(months: -1)
+        let currentPost = Self.post(id: "current-post", day: 1, month: currentMonth)
+        let gate = RecordCalendarGate()
+        let viewModel = RecordViewModel(
+            monthProvider: { currentMonth },
+            monthListHandler: { .success([previousMonth]) },
+            calendarHandler: { month in await gate.request(month: month) }
+        )
+        let loading = Task { await viewModel.load() }
+        await gate.waitForRequest()
+        gate.complete(with: .success(RecordCalendar(month: currentMonth, posts: [currentPost])))
+        await loading.value
+
+        let moving = Task { await viewModel.moveToPreviousMonth() }
+        await gate.waitForRequest()
+
+        #expect(viewModel.viewState.contentStatus == .loading)
+        #expect(viewModel.viewState.month == previousMonth)
+        #expect(viewModel.viewState.posts.isEmpty)
+
+        gate.complete(with: .success(RecordCalendar(month: previousMonth, posts: [])))
+        await moving.value
+    }
+
+    @Test("삭제한 게시물은 캐시한 달로 돌아와도 다시 보이지 않는다")
+    func deletedPostIsRemovedFromCachedMonths() async {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let previousMonth = currentMonth.adding(months: -1)
+        let deletedPost = Self.post(id: "deleted-post", day: 1, month: currentMonth)
+        let remainingPost = Self.post(id: "remaining-post", day: 2, month: currentMonth)
+        let gate = RecordCalendarGate()
+        let viewModel = await Self.viewModelVisitedPreviousMonth(
+            currentMonth: currentMonth,
+            currentPosts: [deletedPost, remainingPost],
+            previousPosts: [Self.post(id: "previous-post", day: 1, month: previousMonth)],
+            gate: gate
+        )
+
+        viewModel.removeDeletedPost(deletedPost.postId)
+        let moving = Task { await viewModel.moveToNextMonth() }
+        await gate.waitForRequest()
+
+        #expect(viewModel.viewState.posts == [remainingPost])
+
+        gate.complete(with: .success(RecordCalendar(month: currentMonth, posts: [remainingPost])))
+        await moving.value
+    }
+
+    @Test("캐시를 보여주는 동안 사용자가 고른 날짜는 최신 값으로 교체돼도 유지한다")
+    func refreshKeepsDateSelectedWhileShowingCache() async {
+        let currentMonth = RecordMonth(year: 2026, month: 9)
+        let previousMonth = currentMonth.adding(months: -1)
+        let olderPost = Self.post(id: "older-post", day: 1, month: currentMonth)
+        let latestPost = Self.post(id: "latest-post", day: 2, month: currentMonth)
+        let gate = RecordCalendarGate()
+        let viewModel = await Self.viewModelVisitedPreviousMonth(
+            currentMonth: currentMonth,
+            currentPosts: [olderPost, latestPost],
+            previousPosts: [Self.post(id: "previous-post", day: 1, month: previousMonth)],
+            gate: gate
+        )
+
+        let moving = Task { await viewModel.moveToNextMonth() }
+        await gate.waitForRequest()
+        viewModel.selectDate(olderPost.topicDate)
+        gate.complete(with: .success(RecordCalendar(month: currentMonth, posts: [olderPost, latestPost])))
+        await moving.value
+
+        #expect(viewModel.viewState.selectedDate == olderPost.topicDate)
+    }
+
+    /// 현재 달을 불러온 뒤 이전 달로 이동한 뷰모델을 만든다. 현재 달 기록은 캐시에 남아 있다.
+    private static func viewModelVisitedPreviousMonth(
+        currentMonth: RecordMonth,
+        currentPosts: [RecordPost],
+        previousPosts: [RecordPost],
+        gate: RecordCalendarGate
+    ) async -> RecordViewModel {
+        let previousMonth = currentMonth.adding(months: -1)
+        let viewModel = RecordViewModel(
+            monthProvider: { currentMonth },
+            monthListHandler: { .success([currentMonth, previousMonth]) },
+            calendarHandler: { month in await gate.request(month: month) }
+        )
+
+        let loading = Task { await viewModel.load() }
+        await gate.waitForRequest()
+        gate.complete(with: .success(RecordCalendar(month: currentMonth, posts: currentPosts)))
+        await loading.value
+
+        let moving = Task { await viewModel.moveToPreviousMonth() }
+        await gate.waitForRequest()
+        gate.complete(with: .success(RecordCalendar(month: previousMonth, posts: previousPosts)))
+        await moving.value
+
+        return viewModel
+    }
+
     private static func post(id: String, day: Int, month: RecordMonth) -> RecordPost {
         RecordPost(
             postId: id,
