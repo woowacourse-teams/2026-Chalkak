@@ -78,6 +78,29 @@ public final class AiReviewFixture {
         );
     }
 
+    /** 새 회원과 그 회원의 승인된 공개 게시물을 넣는다. insertPublicPost 뒤에 부른다. */
+    public void insertPublicPostFor(UUID postId, UUID userId) {
+        insertUser(
+                userId,
+                "ai-review-" + userId + "@example.com",
+                "ACTIVE",
+                false
+        );
+        UUID photoId = UUID.randomUUID();
+        insertPhoto(
+                photoId,
+                "original-" + postId + ".webp",
+                false
+        );
+        insertPostRow(
+                postId,
+                userId,
+                photoId,
+                "APPROVED",
+                false
+        );
+    }
+
     public void insertOtherUser() {
         insertUser(
                 OTHER_USER_ID,
@@ -229,7 +252,31 @@ public final class AiReviewFixture {
             int attempt,
             Instant leaseExpiresAt
     ) {
-        UUID id = insertQueuedReview(promptVersionId, REQUESTED_AT);
+        return insertProcessingReview(
+                POST_ID,
+                AUTHOR_ID,
+                promptVersionId,
+                attempt,
+                leaseExpiresAt,
+                REQUESTED_AT
+        );
+    }
+
+    /** 지정한 게시물의 처리 중 행을 넣는다. 시작 시각은 요청 시각과 같다. */
+    public UUID insertProcessingReview(
+            UUID postId,
+            UUID userId,
+            UUID promptVersionId,
+            int attempt,
+            Instant leaseExpiresAt,
+            Instant requestedAt
+    ) {
+        UUID id = insertQueuedReview(
+                postId,
+                userId,
+                promptVersionId,
+                requestedAt
+        );
         jdbcTemplate.update(
                 """
                         UPDATE ai_reviews SET status = 'PROCESSING', attempt = ?, round_attempt = ?,

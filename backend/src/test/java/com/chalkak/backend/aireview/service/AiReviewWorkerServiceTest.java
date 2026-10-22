@@ -70,6 +70,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -373,6 +374,59 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 .contains("event=\"worker_poll_failed\""));
         assertThat(singleEventKeyValues("review_failed"))
                 .contains("aiReviewId=\"" + exhausted + "\"");
+    }
+
+    @Test
+    @DisplayName("소진 행의 알림 저장이 길어져 시계가 임대보다 오래 흘러도 정상 행의 임대는 반환 직전 시각부터 시작한다")
+    void claimNext_slowExhaustedNotifications_startsLeaseAfterNotifications() {
+        // Given
+        List<UUID> exhausted = insertExhaustedReviews(5);
+        UUID next = fixture.insertQueuedReview(versionId, REQUESTED_AT.plusSeconds(100));
+        AiReviewWorkerService slowService = createService(
+                reviewRepository,
+                slowNotificationService(Duration.ofSeconds(30))
+        );
+
+        // When
+        Claim claim = slowService.claimNext().orElseThrow();
+
+        // Then
+        Instant claimedAt = CLAIMED_AT.plusSeconds(150);
+        assertThat(claim.reviewId()).isEqualTo(next);
+        Map<String, Object> row = findRow(next);
+        assertThat(row).containsEntry("status", "PROCESSING").containsEntry("attempt", 1);
+        assertThat(instant(row, "lease_expires_at")).isEqualTo(claimedAt.plus(LEASE));
+        assertThat(instant(row, "started_at")).isEqualTo(claimedAt);
+        assertThat(instant(row, "lease_expires_at")).isAfter(clock.instant());
+        assertThat(slowService.claimNext()).isEmpty();
+        assertThat(findRow(next)).containsEntry("attempt", 1);
+        assertThat(findNotifications()).hasSize(exhausted.size());
+    }
+
+    @Test
+    @DisplayName("소진 행과 정상 행이 섞여 있으면 소진 행은 모두 실패와 알림으로 끝내고 정상 행은 한 번만 가져간다")
+    void claimNext_mixedExhaustedAndQueued_failsAllExhaustedAndClaimsNormalOnce() {
+        // Given
+        List<UUID> exhausted = insertExhaustedReviews(3);
+        UUID next = fixture.insertQueuedReview(versionId, REQUESTED_AT.plusSeconds(100));
+
+        // When
+        Optional<Claim> first = service.claimNext();
+        Optional<Claim> second = service.claimNext();
+
+        // Then
+        assertThat(first).map(Claim::reviewId).contains(next);
+        assertThat(second).isEmpty();
+        for (UUID reviewId : exhausted) {
+            assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
+                    .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name());
+        }
+        assertThat(findRow(next)).containsEntry("status", "PROCESSING")
+                .containsEntry("attempt", 1)
+                .containsEntry("round_attempt", 1);
+        assertThat(findNotifications()).hasSize(exhausted.size())
+                .allSatisfy(notification -> assertThat(notification)
+                        .containsEntry("type", "AI_REVIEW_FAILED"));
     }
 
     @Test
@@ -1342,6 +1396,43 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                         any()
                 );
         return failing;
+    }
+
+    // 임대가 끝나 가져간 횟수를 모두 쓴 처리 중 행을 새 게시물마다 하나씩 넣는다.
+    private List<UUID> insertExhaustedReviews(int count) {
+        List<UUID> reviewIds = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            fixture.insertPublicPostFor(postId, userId);
+            reviewIds.add(fixture.insertProcessingReview(
+                    postId,
+                    userId,
+                    versionId,
+                    MAX_CLAIMS,
+                    CLAIMED_AT.minusSeconds(1),
+                    REQUESTED_AT.plusSeconds(index)
+            ));
+        }
+        return reviewIds;
+    }
+
+    // 알림 하나를 저장하는 데 delay만큼 시계가 흐르는 서비스. 저장은 실제 서비스가 한다.
+    private NotificationService slowNotificationService(Duration delay) {
+        NotificationService slow = mock(NotificationService.class);
+        Answer<Object> real = AdditionalAnswers.delegatesTo(notificationService);
+        doAnswer(invocation -> {
+            clock.advance(delay);
+            return real.answer(invocation);
+        }).when(slow).createForAiReview(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                any(),
+                any()
+        );
+        return slow;
     }
 
     private Map<String, Object> findRow(UUID reviewId) {

@@ -138,6 +138,13 @@ public class AiReview {
     }
 
     /**
+     * 이번 회차에서 한 번 더 가져가면 가져간 횟수 상한을 넘는지. 넘으면 {@link #claim}이 처리하지 않고 실패로 끝낸다.
+     */
+    public boolean isClaimLimitReached(int maxClaims) {
+        return roundAttempt + 1 > maxClaims;
+    }
+
+    /**
      * 워커가 이 행을 가져간다. 대기 중(다음 시도 시각이 지난 것)이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도
      * 번호와 회차 시도 횟수가 늘고 줄지 않는다. 회차 시도 횟수가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고
      * 처리하지 않고 실패로 끝낸다(시도 번호와 회차 시도 횟수는 늘리지 않는다). 마지막 시도는 결과를 모르는 중단이므로 이전 시도의 사용량과
@@ -153,7 +160,7 @@ public class AiReview {
         if (!isClaimableAt(now)) {
             throw new IllegalStateException("가져갈 수 없는 AI 리뷰입니다. 상태: " + status);
         }
-        if (roundAttempt + 1 > maxClaims) {
+        if (isClaimLimitReached(maxClaims)) {
             invocation = null;
             finish(
                     Status.FAILED,
