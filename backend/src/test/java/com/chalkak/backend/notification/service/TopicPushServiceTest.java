@@ -99,11 +99,13 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         appender.list.clear();
         appender.start();
         ((Logger) LoggerFactory.getLogger(TopicPushService.class)).addAppender(appender);
+        ((Logger) LoggerFactory.getLogger(DirectPushPublisher.class)).addAppender(appender);
     }
 
     @AfterEach
     void tearDown() {
         ((Logger) LoggerFactory.getLogger(TopicPushService.class)).detachAppender(appender);
+        ((Logger) LoggerFactory.getLogger(DirectPushPublisher.class)).detachAppender(appender);
         appender.stop();
         new DatabaseCleaner(jdbc).clean();
     }
@@ -434,13 +436,13 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                         .containsEntry("result", "UNKNOWN"));
         assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
         assertThat(appender.list)
-                .filteredOn(event -> "주제 푸시 SQS 발행 결과".equals(event.getFormattedMessage()))
+                .filteredOn(event -> "푸시 SQS 직접 발행 결과".equals(event.getFormattedMessage()))
                 .extracting(ILoggingEvent::getLevel).containsExactly(Level.WARN, Level.WARN);
         assertThat(appender.list)
                 .filteredOn(event -> "주제 푸시 SQS 발행 집계".equals(event.getFormattedMessage()))
                 .extracting(ILoggingEvent::getLevel).containsExactly(Level.INFO);
         assertThat(appender.list)
-                .filteredOn(event -> "주제 푸시 SQS 발행 결과 확인 실패".equals(event.getFormattedMessage()))
+                .filteredOn(event -> "푸시 SQS 직접 발행 결과 확인 실패".equals(event.getFormattedMessage()))
                 .extracting(ILoggingEvent::getLevel).containsExactly(Level.ERROR);
         assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
                 .noneMatch(message -> message.contains("private-message-must-not-be-logged"));
@@ -522,7 +524,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 schedules,
                 topics,
                 notifications,
-                publisher,
+                new DirectPushPublisher(publisher, clock),
                 clock,
                 manager
         );
