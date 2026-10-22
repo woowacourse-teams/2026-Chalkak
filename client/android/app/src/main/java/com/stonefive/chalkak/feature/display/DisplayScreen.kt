@@ -48,6 +48,7 @@ import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.feature.display.component.DisplayDateHeader
+import com.stonefive.chalkak.feature.display.component.DisplayDatePickerSheet
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
 import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
@@ -85,6 +86,7 @@ fun DisplayRoute(
         uiState = uiState,
         onPreviousDateClick = viewModel::moveToPreviousDate,
         onNextDateClick = viewModel::moveToNextDate,
+        onDatePicked = viewModel::moveToDate,
         onSortSelected = viewModel::selectSort,
         onFeaturedPageChanged = viewModel::updateFeaturedPage,
         onEndThresholdChanged = viewModel::updateEndThreshold,
@@ -115,7 +117,9 @@ fun DisplayScreen(
     onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
     onLikeClick: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
+    onDatePicked: (LocalDate) -> Unit = {},
 ) {
+    var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
     val gridState = rememberSaveable(uiState.selectedDate, saver = LazyStaggeredGridState.Saver) {
         LazyStaggeredGridState()
@@ -227,6 +231,8 @@ fun DisplayScreen(
                         canGoNext = uiState.canGoNext,
                         onPreviousClick = onPreviousDateClick,
                         onNextClick = onNextDateClick,
+                        onDateClick = { isDatePickerVisible = true },
+                        canPickDate = uiState.canPickDate,
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -280,6 +286,20 @@ fun DisplayScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth(),
             scrollState = scrollState.bottomBarState,
+        )
+    }
+    val selectedDate = uiState.selectedDate
+    val latestDate = uiState.latestDate
+    if (isDatePickerVisible && selectedDate != null && latestDate != null) {
+        DisplayDatePickerSheet(
+            selectedDate = selectedDate,
+            startDate = uiState.earliestDate ?: selectedDate,
+            endDate = latestDate,
+            onConfirm = { date ->
+                isDatePickerVisible = false
+                onDatePicked(date)
+            },
+            onDismiss = { isDatePickerVisible = false },
         )
     }
 }
