@@ -372,6 +372,9 @@ struct FeedLikeRow: View {
                 }
                 .padding(.horizontal, Metrics.horizontalInset)
             }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(theme.colors.border).frame(height: 0.5).accessibilityHidden(true)
+            }
     }
 
     private var displayTitle: String {

@@ -487,3 +487,30 @@ private extension ISO8601DateFormatter {
         return formatter.date(from: value)
     }
 }
+
+struct AIReviewNotificationDestinationTests {
+    @Test("AI 결과 알림함도 같은 게시물 피드로 연결한다",
+          arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
+    func opensPostFeed(type: String) {
+        let postID = "019a0010-0000-7000-8000-000000000003"
+        let notificationID = "019a0010-0000-7000-8000-000000000002"
+        let item = NotificationItem(
+            id: notificationID, type: type, sourceType: "POST", sourceID: postID,
+            title: "AI 피드백", body: "결과 안내", thumbnailURL: nil,
+            readAt: nil, createdAt: Date()
+        )
+        #expect(item.destination == .aiReview(postID: postID, notificationID: notificationID))
+    }
+
+    @Test("AI 결과 알림의 대상이 잘못되면 피드로 이동하지 않는다")
+    func ignoresInvalidSource() {
+        for (sourceType, sourceID) in [("NOTICE", "019a0010-0000-7000-8000-000000000003"), ("POST", "bad-id")] {
+            let item = NotificationItem(
+                id: "019a0010-0000-7000-8000-000000000002", type: "AI_REVIEW_COMPLETED",
+                sourceType: sourceType, sourceID: sourceID, title: "", body: "",
+                thumbnailURL: nil, readAt: nil, createdAt: Date()
+            )
+            #expect(item.destination == nil)
+        }
+    }
+}

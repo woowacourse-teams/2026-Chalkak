@@ -5,6 +5,18 @@ enum HomePreviewData {
         from: DateComponents(year: 2026, month: 8, day: 3)
     )!
 
+    static let aiReviewResult = AIReviewResult(
+        overallScore: 8.7,
+        criteria: [AIReviewCriterion(key: "COMPOSITION", label: "구도", score: 8.7)],
+        distinctivePerspective: true,
+        feedback: AIReviewFeedback(
+            summary: "건물의 크기와 높이 차이가 잘 비교되는 구도예요",
+            strength: "아래쪽 계단과 겹겹이 쌓인 집들, 위쪽 아파트가 한 화면에 같이 담겼어요.",
+            weakness: "맨 아래 담장과 검은 옥상이 골목의 흐름을 끊어요.",
+            suggestion: "왼쪽 계단 입구와 붉은 도로는 남기면서 맨 아래 담장이 덜 나오게 담아보세요."
+        )
+    )
+
     static let banner = Banner(
         id: "preview-banner",
         title: "함께 만들어주신 찰캌",
@@ -18,7 +30,8 @@ enum HomePreviewData {
         imageSource: .asset("preview_photo"),
         thumbnailSource: .asset("preview_photo"),
         signatureSource: .asset("preview_signature"),
-        isPending: false
+        isPending: false,
+        postID: "preview-post"
     )
 
     static let contentState: HomeViewState = {
@@ -112,7 +125,8 @@ enum HomePreviewData {
             initialState: state,
             loader: loader,
             dateProvider: { date },
-            isAuthenticated: { state.isAuthenticated }
+            isAuthenticated: { state.isAuthenticated },
+            aiReviewRepository: HomePreviewAIReviewRepository()
         )
     }
 
@@ -146,5 +160,25 @@ enum HomePreviewData {
             isLiked: false,
             isOwnedByCurrentUser: false
         )
+    }
+}
+
+private actor HomePreviewAIReviewRepository: AIReviewRepository {
+    private var requested = false
+
+    func fetchReview(postID: String) async throws -> AIReview {
+        let result = await MainActor.run { HomePreviewData.aiReviewResult }
+        return AIReview(
+            status: requested ? .completed : .none,
+            requestedAt: nil,
+            completedAt: nil,
+            canRequestAgain: false,
+            result: requested ? result : nil
+        )
+    }
+
+    func requestReview(postID: String) async throws -> AIReview {
+        requested = true
+        return AIReview(status: .processing, requestedAt: nil, completedAt: nil, canRequestAgain: false)
     }
 }

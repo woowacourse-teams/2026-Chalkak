@@ -11,6 +11,7 @@ final class FeedViewModel {
 
     private(set) var viewState: FeedViewState
     private(set) var event: FeedEvent?
+    let aiReview: FeedAIReviewViewModel?
 
     private let postID: String
     private let isOwnedByCurrentUser: Bool
@@ -31,8 +32,16 @@ final class FeedViewModel {
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
         deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) },
-        updateTitleHandler: @escaping UpdateTitleHandler = { _, _ in .failure(.generic) }
+        updateTitleHandler: @escaping UpdateTitleHandler = { _, _ in .failure(.generic) },
+        aiReviewRepository: (any AIReviewRepository)? = nil
     ) {
+        self.aiReview = aiReviewRepository.map {
+            FeedAIReviewViewModel(
+                postID: postID,
+                repository: $0,
+                topicDate: (initialState?.content ?? seed)?.topicDate ?? .distantPast
+            )
+        }
         self.postID = postID
         self.isOwnedByCurrentUser = isOwnedByCurrentUser
         if let initialState {
@@ -52,7 +61,7 @@ final class FeedViewModel {
         self.updateTitleHandler = updateTitleHandler
     }
 
-    convenience init(target: FeedTarget, apiClient: FeedAPIClient) {
+    convenience init(target: FeedTarget, apiClient: FeedAPIClient, aiReviewRepository: (any AIReviewRepository)? = nil) {
         self.init(
             postID: target.id,
             seed: target.seed,
@@ -71,7 +80,8 @@ final class FeedViewModel {
                 await feedResult {
                     try await apiClient.updatePostTitle(postID: postID, title: title)
                 }
-            }
+            },
+            aiReviewRepository: aiReviewRepository
         )
     }
 
@@ -100,6 +110,7 @@ final class FeedViewModel {
             if isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
             }
+            aiReview?.updateTopicDate(merged.topicDate)
             viewState.content = merged
             viewState.contentStatus = .loaded
             // 상세 조회로 실제 좋아요 값이 확정되면 좋아요 동작을 허용한다.
