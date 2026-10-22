@@ -22,6 +22,8 @@ struct NotificationItem: Identifiable, Equatable, Sendable {
             return .aiReview(postID: sourceID, notificationID: id)
         case "POST_REJECTED":
             return .postRejected(notificationID: id)
+        case "NOTICE":
+            return .notice(notificationID: id)
         default:
             return nil
         }

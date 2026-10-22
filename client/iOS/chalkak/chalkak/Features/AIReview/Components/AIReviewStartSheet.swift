@@ -57,4 +57,3 @@ struct AIReviewStartSheet: View {
         static let noteCircleSize: CGFloat = 36
     }
 }
-

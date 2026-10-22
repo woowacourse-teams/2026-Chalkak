@@ -27,4 +27,3 @@ struct ChalkakAudioWaveIcon: View {
         return CGFloat(0.7 + 0.3 * sin(phase))
     }
 }
-
