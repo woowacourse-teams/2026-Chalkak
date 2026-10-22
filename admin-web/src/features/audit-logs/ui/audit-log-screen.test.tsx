@@ -82,6 +82,22 @@ it("shows banner actions and returns to the list without inventing a detail rout
   expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=BANNER");
 });
 
+it("shows reminder actions and returns to the reminder list without a detail route", async () => {
+  const result = await getApiClient().request<{ reminderId: string }>("/reminders", { method: "POST", body: { title: "새 리마인더", body: "본문", repeat: "ONCE", target: "ALL", scheduledAt: "2099-10-25T12:00:00Z" } });
+  await getApiClient().request(`/reminders/${result.reminderId}`, { method: "PUT", body: { title: "고친 리마인더", body: "본문", repeat: "ONCE", target: "ALL", scheduledAt: "2099-10-25T12:00:00Z" } });
+  await getApiClient().request(`/reminders/${result.reminderId}`, { method: "DELETE" });
+  mount();
+  const links = await screen.findAllByRole("link", { name: "리마인더 보기 →" });
+  expect(links).toHaveLength(3);
+  for (const link of links) expect(link).toHaveAttribute("href", "/reminders");
+  expect(screen.getAllByText("리마인더 등록")).toHaveLength(2);
+  expect(screen.getAllByText("리마인더 수정")).toHaveLength(2);
+  expect(screen.getAllByText("리마인더 삭제")).toHaveLength(2);
+  fireEvent.change(screen.getByRole("combobox", { name: "대상" }), { target: { value: "REMINDER" } });
+  fireEvent.click(screen.getByRole("button", { name: "조회" }));
+  expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=REMINDER");
+});
+
 it("labels AI prompt version creation and links to the version detail", async () => {
   const created = await getApiClient().request<{ promptVersionId: string }>("/ai-prompt-versions", { method: "POST", body: {
     type: "PHOTO_REVIEW", systemPrompt: "사진을 평가하세요.", userPromptTemplate: '{"주제": "{{topicTitle}}"}', model: "gpt-6-luna",

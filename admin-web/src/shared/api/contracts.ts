@@ -179,7 +179,7 @@ export interface AdminAuditLogResponse {
   actorAdminId: string;
   actorUsername: string;
   action: string;
-  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER" | "AI_PROMPT_VERSION";
+  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER" | "REMINDER" | "AI_PROMPT_VERSION";
   targetId: string;
   reason: string | null;
   beforeState: Record<string, unknown>;
@@ -261,6 +261,29 @@ export interface AdminNoticeListResponse {
 }
 
 export type AdminNoticeInput = Pick<AdminNotice, "title" | "body" | "scheduledAt">;
+
+export type AdminReminderRepeat = "ONCE" | "DAILY";
+export type AdminReminderTarget = "ALL" | "TOPIC_PARTICIPANTS" | "TOPIC_NON_PARTICIPANTS";
+
+export interface AdminReminder {
+  reminderId: string;
+  title: string;
+  body: string;
+  repeat: AdminReminderRepeat;
+  target: AdminReminderTarget;
+  scheduledAt: Instant;
+  createdAt: Instant;
+  updatedAt: Instant;
+}
+
+export interface AdminReminderListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  reminders: AdminReminder[];
+}
+
+export type AdminReminderInput = Pick<AdminReminder, "title" | "body" | "repeat" | "target" | "scheduledAt">;
 
 export type AiPromptType = "PHOTO_REVIEW";
 export type AiImageDetail = "LOW" | "HIGH" | "AUTO";
