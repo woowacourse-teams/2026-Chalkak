@@ -50,7 +50,8 @@ struct HomeFeedbackCard: View {
                                 .font(theme.typography.footnote)
                                 .foregroundStyle(theme.colors.textSecondary)
                         }
-                        AudioWaveIcon(isAnimating: phase == .processing)
+                        ChalkakAudioWaveIcon(isAnimating: phase == .processing)
+                            .foregroundStyle(theme.colors.onActionPrimary)
                             .frame(width: Metrics.audioIconSize, height: Metrics.audioIconSize)
                             .background(theme.colors.actionPrimary, in: Circle())
                             .accessibilityHidden(true)
@@ -189,6 +190,8 @@ struct HomeFeedbackCard: View {
                 title: "다음엔 이렇게",
                 body: result.feedback.suggestion
             )
+
+            AIReviewScoreExplanationButton()
         }
     }
 
@@ -245,78 +248,6 @@ private struct HomeFeedbackHeaderButtonStyle: ButtonStyle {
     }
 }
 
-struct HomeFeedbackStartSheet: View {
-    @Environment(\.chalkakTheme) private var theme
-
-    let onStart: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.lg) {
-            Text("AI 피드백을 시작할까요?")
-                .font(theme.typography.title3)
-                .foregroundStyle(theme.colors.textPrimary)
-
-            VStack(alignment: .leading, spacing: theme.spacing.lg) {
-                note("clock", "결과가 나오기까지 몇 분 정도 소요될 수 있어요")
-                note("iphone", "앱을 나가도 분석은 계속되니 걱정마세요")
-                note("arrow.clockwise", "나중에 홈에서도 결과를 확인할 수 있어요")
-            }
-            .padding(theme.spacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.colors.background, in: RoundedRectangle(cornerRadius: theme.shapes.large))
-
-            ChalkakButton(title: "분석 시작하기", action: onStart, fillsWidth: true)
-        }
-        .padding(.horizontal, theme.spacing.xl)
-        .padding(.top, theme.spacing.xxl)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(ChalkakPlatformAppearance.usesLiquidGlass ? Color.clear : theme.colors.surfaceElevated)
-    }
-
-    private func note(_ symbol: String, _ text: String) -> some View {
-        HStack(spacing: theme.spacing.md) {
-            Image(systemName: symbol)
-                .font(.system(size: Metrics.noteIconSize))
-                .foregroundStyle(theme.colors.iconSecondary)
-                .frame(width: Metrics.noteCircleSize, height: Metrics.noteCircleSize)
-                .background(theme.colors.surfaceElevated, in: Circle())
-                .accessibilityHidden(true)
-            Text(text)
-                .font(theme.typography.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(theme.colors.textPrimary)
-        }
-    }
-}
-
-private struct AudioWaveIcon: View {
-    @Environment(\.chalkakTheme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    let isAnimating: Bool
-
-    private let barHeights: [CGFloat] = [9, 15, 11, 18, 8]
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isAnimating || reduceMotion)) { context in
-            HStack(alignment: .center, spacing: 2) {
-                ForEach(barHeights.indices, id: \.self) { index in
-                    Capsule()
-                        .fill(theme.colors.onActionPrimary)
-                        .frame(width: 2, height: barHeights[index])
-                        .scaleEffect(y: barScale(at: context.date, index: index))
-                }
-            }
-            .frame(height: 18)
-        }
-    }
-
-    private func barScale(at date: Date, index: Int) -> CGFloat {
-        guard isAnimating, !reduceMotion else { return 1 }
-        let phase = date.timeIntervalSinceReferenceDate * 7 + Double(index) * 1.2
-        return CGFloat(0.7 + 0.3 * sin(phase))
-    }
-}
 
 private enum Metrics {
     static let borderWidth: CGFloat = 1

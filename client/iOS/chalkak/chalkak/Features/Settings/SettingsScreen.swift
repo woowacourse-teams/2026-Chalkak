@@ -68,8 +68,10 @@ struct SettingsScreen: View {
                             SettingsNotificationCard(
                                 topicPushEnabled: notificationSettingsViewModel.viewState.settings?.topicPushEnabled ?? false,
                                 moderationPushEnabled: notificationSettingsViewModel.viewState.settings?.moderationPushEnabled ?? false,
+                                aiReviewPushEnabled: notificationSettingsViewModel.viewState.settings?.aiReviewPushEnabled ?? false,
                                 isTopicDisabled: notificationSettingsViewModel.viewState.isTopicDisabled,
                                 isModerationDisabled: notificationSettingsViewModel.viewState.isModerationDisabled,
+                                isAIReviewDisabled: notificationSettingsViewModel.viewState.isAIReviewDisabled,
                                 errorMessage: notificationSettingsViewModel.viewState.errorMessage,
                                 onTopicToggle: { enabled in
                                     Task {
@@ -81,6 +83,13 @@ struct SettingsScreen: View {
                                 onModerationToggle: { enabled in
                                     Task {
                                         async let save: Void = notificationSettingsViewModel.setModerationPushEnabled(enabled)
+                                        await openNotificationSettingsIfNeeded(enabled: enabled)
+                                        await save
+                                    }
+                                },
+                                onAIReviewToggle: { enabled in
+                                    Task {
+                                        async let save: Void = notificationSettingsViewModel.setAIReviewPushEnabled(enabled)
                                         await openNotificationSettingsIfNeeded(enabled: enabled)
                                         await save
                                     }

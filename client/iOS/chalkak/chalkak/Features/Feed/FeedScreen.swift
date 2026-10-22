@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: FeedViewModel
@@ -15,8 +16,11 @@ struct FeedScreen: View {
     @State private var hasStartedOpening = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
+    private let opensAIReviewOnEntry: Bool
+    @State private var hasOpenedInitialAIReview = false
     private let usesPhotoTransition: Bool
     @State private var showsDeleteDialog = false
+    @State private var showsAIReviewSheet = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
     @State private var message: String?
@@ -34,6 +38,7 @@ struct FeedScreen: View {
         zoomSource: FeedZoomSource? = nil,
         transitionSource: FeedZoomRegistry.Source? = nil,
         usesPhotoTransition: Bool = true,
+        opensAIReviewOnEntry: Bool = false,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
@@ -41,6 +46,7 @@ struct FeedScreen: View {
         _transitionSource = State(initialValue: transitionSource)
         self.placeholder = placeholder
         self.zoomSource = zoomSource
+        self.opensAIReviewOnEntry = opensAIReviewOnEntry
         self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
@@ -75,6 +81,36 @@ struct FeedScreen: View {
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
             .opacity(contentProgress)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if canShowAIReview, let aiReview = viewModel.aiReview {
+                FeedAIReviewButton(model: aiReview) { showsAIReviewSheet = true }
+                    .padding(.trailing, theme.spacing.lg)
+                    .padding(.bottom, theme.spacing.md)
+                    .opacity(contentProgress)
+            }
+        }
+        .sheet(isPresented: $showsAIReviewSheet) {
+            if let aiReview = viewModel.aiReview {
+                FeedAIReviewSheet(model: aiReview) {
+                    Task {
+                        await aiReview.request()
+                        if aiReview.review?.status == .processing || aiReview.review?.status == .completed {
+                            showsAIReviewSheet = false
+                        }
+                    }
+                }
+                .presentationDetents(aiReview.canRequest ? [.height(320)] : [.height(510), .large])
+            }
+        }
+        .onChange(of: canObserveAIReview, initial: true) { _, canObserve in
+            guard opensAIReviewOnEntry, canObserve, !hasOpenedInitialAIReview else { return }
+            hasOpenedInitialAIReview = true
+            showsAIReviewSheet = true
+        }
+        .task(id: scenePhase == .active && canObserveAIReview) {
+            guard scenePhase == .active, canObserveAIReview else { return }
+            await viewModel.aiReview?.observe()
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
@@ -140,6 +176,14 @@ struct FeedScreen: View {
         .overlay(alignment: .bottom) { toast }
     }
 
+    private var canShowAIReview: Bool {
+        canObserveAIReview && viewModel.aiReview?.isButtonVisible == true
+    }
+
+    private var canObserveAIReview: Bool {
+        viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
+    }
+
     @ViewBuilder
     private var content: some View {
         switch viewModel.viewState.contentStatus {
@@ -191,22 +235,10 @@ struct FeedScreen: View {
                 // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
                 .zIndex(1)
 
-                if let content {
-                    FeedCaption(title: content.post.title)
-                        .padding(.horizontal, Metrics.captionHorizontal)
-                        .padding(.vertical, Metrics.captionVertical)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .overlay(alignment: .top) {
-                            Rectangle()
-                                .fill(theme.colors.border)
-                                .frame(height: Metrics.dividerHeight)
-                                .accessibilityHidden(true)
-                        }
-                        .opacity(contentProgress)
-                }
+
             }
             .padding(.top, ChalkakNavigationButton.diameter + 2 * theme.spacing.md)
-            .padding(.bottom, Metrics.contentBottom)
+            .padding(.bottom, canShowAIReview ? Metrics.aiContentBottom : Metrics.contentBottom)
         }
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
@@ -381,10 +413,8 @@ struct FeedScreen: View {
 private enum Metrics {
     static let topicTop: CGFloat = 16
     static let topicBottom: CGFloat = 40
-    static let captionHorizontal: CGFloat = 20
-    static let captionVertical: CGFloat = 5
-    static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
+    static let aiContentBottom: CGFloat = 90
     static let toastBottomPadding: CGFloat = 32
     // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
     // 스프링이 아닌 고정 시간 곡선이라 실제 이동 시간도 0.3초로 같다.

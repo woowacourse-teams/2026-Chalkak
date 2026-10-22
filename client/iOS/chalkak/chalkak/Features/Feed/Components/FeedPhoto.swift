@@ -129,6 +129,7 @@ struct FeedPhoto: View {
             if let post {
                 FeedLikeRow(
                     likeCount: post.likeCount,
+                    title: post.title,
                     isLiked: post.isLiked,
                     isEnabled: isLikeEnabled,
                     onLike: onLike
@@ -319,6 +320,7 @@ private struct FeedPlaceholderImage: View {
 private struct FeedLikeRow: View {
     @Environment(\.chalkakTheme) private var theme
     let likeCount: Int
+    let title: String?
     let isLiked: Bool
     let isEnabled: Bool
     let onLike: () -> Void
@@ -350,10 +352,17 @@ private struct FeedLikeRow: View {
                         .font(theme.typography.body)
                         .fontWeight(.regular)
                         .foregroundStyle(theme.colors.textSecondary)
+
+                    FeedCaption(title: title, alignment: .trailing)
+                        .padding(.leading, theme.spacing.lg)
+                        .padding(.trailing, Metrics.horizontalInset)
                 }
                 // 하트와 숫자 위치는 유지하고 하트 주변만 터치할 수 있게 한다.
                 .padding(.top, Metrics.topInset - Metrics.heartTouchInset)
                 .padding(.leading, Metrics.horizontalInset - Metrics.heartTouchInset)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(theme.colors.border).frame(height: 0.5).accessibilityHidden(true)
             }
     }
 }

@@ -194,7 +194,7 @@ struct HomeScreen: View {
 
     @ViewBuilder
     private var feedbackStartSheet: some View {
-        let content = HomeFeedbackStartSheet(
+        let content = AIReviewStartSheet(
             onStart: {
                 isFeedbackSheetPresented = false
                 Task { await viewModel.requestAIReview() }

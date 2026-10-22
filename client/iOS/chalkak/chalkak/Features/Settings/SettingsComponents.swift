@@ -134,11 +134,14 @@ struct SettingsNotificationCard: View {
     @Environment(\.chalkakTheme) private var theme
     let topicPushEnabled: Bool
     let moderationPushEnabled: Bool
+    let aiReviewPushEnabled: Bool
     let isTopicDisabled: Bool
     let isModerationDisabled: Bool
+    let isAIReviewDisabled: Bool
     let errorMessage: String?
     let onTopicToggle: (Bool) -> Void
     let onModerationToggle: (Bool) -> Void
+    let onAIReviewToggle: (Bool) -> Void
     let onRetry: () -> Void
 
     var body: some View {
@@ -163,6 +166,17 @@ struct SettingsNotificationCard: View {
                     .disabled(isModerationDisabled)
                     .accessibilityLabel("게시물 승인·반려 알림")
                     .accessibilityValue(moderationPushEnabled ? "켬" : "끔")
+            }
+            SettingsDivider()
+            SettingsRow(title: "AI 피드백 완료 알림", verticalPadding: Metrics.notificationRowVerticalPadding) {
+                Toggle("", isOn: Binding(get: { aiReviewPushEnabled }, set: onAIReviewToggle))
+                    .toggleStyle(.switch)
+                    .tint(theme.colors.actionPrimary)
+                    .controlSize(.regular)
+                    .labelsHidden()
+                    .disabled(isAIReviewDisabled)
+                    .accessibilityLabel("AI 피드백 완료 알림")
+                    .accessibilityValue(aiReviewPushEnabled ? "켬" : "끔")
             }
             if let errorMessage {
                 HStack(spacing: theme.spacing.xs) {

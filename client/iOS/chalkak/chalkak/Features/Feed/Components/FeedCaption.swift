@@ -3,17 +3,15 @@ import SwiftUI
 struct FeedCaption: View {
     @Environment(\.chalkakTheme) private var theme
     let title: String?
+    var alignment: Alignment = .leading
 
     var body: some View {
-        HStack(spacing: 0) {
-            Text(displayTitle)
+        Text(displayTitle)
                 .font(theme.typography.subheadline)
                 .foregroundStyle(theme.colors.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-
-            Spacer(minLength: 0)
-        }
+        .frame(maxWidth: .infinity, alignment: alignment)
         .padding(.vertical, Metrics.verticalPadding)
     }
 
