@@ -25,15 +25,23 @@ final class FeedAIReviewRenderingTests: XCTestCase {
         expectsSheet: Bool = false,
         isContentReady: () -> Bool = { true }
     ) async throws {
-        let host = FeedReviewCaptureHostingController(rootView: content)
+        let host = FeedReviewCaptureHostingController(rootView: AnyView(content))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 393, height: height)
         window.rootViewController = host
         window.makeKeyAndVisible()
-        defer {
-            host.dismiss(animated: false)
+        addTeardownBlock { @MainActor in
+            // Keep the window alive until UIKit finishes dismissing its presented sheet.
+            if host.presentedViewController != nil {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    host.dismiss(animated: false) { continuation.resume() }
+                }
+            }
+            // Remove the SwiftUI content and its tasks before releasing the hosting window.
+            host.rootView = AnyView(EmptyView())
+            host.view.layoutIfNeeded()
             window.isHidden = true
             window.rootViewController = nil
             previousKeyWindow?.makeKey()

@@ -64,6 +64,7 @@ data class FeedById(
     val postId: String,
     val isOwnedByCurrentUser: Boolean,
     val thumbnailImageUrl: String? = null,
+    val openAiReviewResult: Boolean = false,
 )
 
 @Serializable

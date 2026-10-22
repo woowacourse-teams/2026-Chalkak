@@ -200,7 +200,52 @@ class NotificationViewModelTest {
         assertEquals(1, repository.listRequestCount)
     }
 
+    @Test
+    fun `AI 결과 알림은 서버 데이터와 알림 ID를 유지한다`() = runTest {
+        listOf("AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED").forEach { type ->
+            val repository = FakeNotificationRepository().apply {
+                items = listOf(
+                    NotificationItem(
+                        id = "ai-notification",
+                        type = type,
+                        sourceType = "POST",
+                        sourceId = "reviewed-post",
+                        title = "서버가 정한 제목",
+                        body = "서버가 정한 본문",
+                        thumbnailImageUrl = "https://example.com/photo.jpg",
+                        readAt = null,
+                        createdAt = "2026-10-22T00:00:00Z",
+                    ),
+                )
+            }
+            val viewModel = NotificationViewModel(repository)
+            advanceUntilIdle()
+
+            val item = viewModel.uiState.value.notifications
+                .single()
+            assertEquals(type, item.type)
+            assertEquals("POST", item.sourceType)
+            assertEquals("reviewed-post", item.sourceId)
+            assertEquals("서버가 정한 제목", item.title)
+            assertEquals("서버가 정한 본문", item.body)
+            assertEquals("https://example.com/photo.jpg", item.thumbnailModel)
+            assertTrue(item.isUnread)
+            assertTrue(repository.readIds.isEmpty())
+
+            assertTrue(viewModel.markAsRead(item.id))
+
+            assertEquals(listOf("ai-notification"), repository.readIds)
+            assertFalse(
+                viewModel.uiState.value.notifications
+                    .single()
+                    .isUnread,
+            )
+        }
+    }
+
     private class FakeNotificationRepository : NotificationRepository {
+        var items = listOf(notification)
+        val readIds = mutableListOf<String>()
         var readResult: NotificationResult<Unit> = NotificationResult.Success(Unit)
         var readException: Exception? = null
         var listRequestCount = 0
@@ -212,7 +257,7 @@ class NotificationViewModelTest {
         ): NotificationResult<NotificationPage> {
             listRequestCount++
             return NotificationResult.Success(
-                NotificationPage(page, pageSize, false, listOf(notification)),
+                NotificationPage(page, pageSize, false, items),
             )
         }
 
@@ -222,6 +267,7 @@ class NotificationViewModelTest {
         }
 
         override suspend fun markAsRead(notificationId: String): NotificationResult<Unit> {
+            readIds += notificationId
             readException?.let { throw it }
             return readResult
         }

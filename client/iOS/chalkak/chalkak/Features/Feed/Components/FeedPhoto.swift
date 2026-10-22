@@ -14,7 +14,6 @@ struct FeedPhoto: View {
     @State private var resolvedImageRatio: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var imageFrame: CGRect?
-    @State private var signatureFrame: CGRect?
     @State private var isOriginalLoaded = false
     @State private var gestureScale: CGFloat = 1
     @State private var gestureOffset: CGSize = .zero
@@ -70,11 +69,6 @@ struct FeedPhoto: View {
                                 source: signatureZoomSource,
                                 destinationFrame: signatureFrame
                             )
-                            .onGeometryChange(for: CGRect.self) { proxy in
-                                proxy.frame(in: .global)
-                            } action: { frame in
-                                if !isGestureActive { signatureFrame = frame }
-                            }
                             .opacity(signatureOpacity)
                             .padding(theme.spacing.sm)
                         }
@@ -95,7 +89,7 @@ struct FeedPhoto: View {
                         proxy.frame(in: .global)
                     } action: { frame in
                         // 핀치 중 전환용 프레임을 다시 적용하면 확대 크기가 다음 프레임에 되먹임된다.
-                        if !isGestureActive { imageFrame = frame }
+                        if !isGestureActive, zoom.isSettled || imageFrame == nil { imageFrame = frame }
                     }
             }
             // clip 분기가 바뀌어도 ZStack 바깥의 터치 뷰는 유지한다.
@@ -240,7 +234,7 @@ struct FeedPhoto: View {
                     onImageLoad: { isOriginalLoaded = true }
                 )
                 .opacity(isOriginalRevealed ? 1 : 0)
-                .animation(Metrics.originalRevealAnimation, value: isOriginalRevealed)
+                .animation(zoom.isSettled ? Metrics.originalRevealAnimation : nil, value: isOriginalRevealed)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -273,6 +267,19 @@ struct FeedPhoto: View {
 
     private var signatureZoomSource: FeedZoomRegistry.Source? {
         zoom.source?.signatureFrame.map { FeedZoomRegistry.Source(frame: $0, cornerRadius: 0) }
+    }
+
+    // 변환된 서명의 global 좌표를 다시 목적지로 쓰면 느린 스와이프 중 위치가 되먹임된다.
+    // 목적지는 움직이지 않는 사진 영역과 동일한 우하단 배치 규칙에서 구한다.
+    private var signatureFrame: CGRect? {
+        imageFrame.map { frame in
+            CGRect(
+                x: frame.maxX - theme.spacing.sm - Metrics.signatureSize.width,
+                y: frame.maxY - theme.spacing.sm - Metrics.signatureSize.height,
+                width: Metrics.signatureSize.width,
+                height: Metrics.signatureSize.height
+            )
+        }
     }
 
     // 사진은 날아가는데 출발 서명 위치를 모르면, 서명은 제자리에서 다른 콘텐츠와 함께 페이드된다.

@@ -13,6 +13,8 @@ struct FeedScreen: View {
     @State private var contentProgress: CGFloat = 0
     @State private var isPhotoMoving = true
     @State private var isPhotoInteracting = false
+    @State private var isBackSwiping = false
+    @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
     @State private var hasStartedOpening = false
     @State private var transitionSource: FeedZoomRegistry.Source?
@@ -236,7 +238,7 @@ struct FeedScreen: View {
         }
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
-        .scrollDisabled(isPhotoInteracting)
+        .scrollDisabled(isPhotoMoving || isPhotoInteracting)
     }
 
     // MARK: - 줌 전환
@@ -314,17 +316,28 @@ struct FeedScreen: View {
     private var backSwipeGesture: some Gesture {
         DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
             .onChanged { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
-                if !isPhotoMoving { captureTransitionSource() }
-                isPhotoMoving = true
+                guard !isClosing, !isPhotoInteracting else { return }
+                if !isBackSwiping {
+                    guard !isPhotoMoving,
+                          value.startLocation.x <= Metrics.backSwipeEdgeWidth,
+                          value.translation.width > abs(value.translation.height) else { return }
+                    isBackSwiping = true
+                    backSwipeTracking = FeedBackSwipeTracking()
+                    captureTransitionSource()
+                    isPhotoMoving = true
+                }
                 zoomRegistry?.activeSource = nil
-                let dragged = max(0, value.translation.width) / Metrics.backSwipeFullDistance
+                backSwipeTracking.update(to: value.translation)
+                let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
                 photoProgress = 1 - min(dragged, 1)
                 contentProgress = photoProgress
             }
             .onEnded { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
-                if value.predictedEndTranslation.width >= Metrics.backSwipeCloseDistance {
+                guard isBackSwiping else { return }
+                isBackSwiping = false
+                guard !isClosing else { return }
+                backSwipeTracking.update(to: value.translation)
+                if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
                     close()
                 } else {
                     open()
@@ -377,6 +390,25 @@ struct FeedScreen: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct FeedBackSwipeTracking {
+    private(set) var distance: CGFloat = 0
+    private var previousTranslation: CGSize = .zero
+
+    mutating func update(to translation: CGSize) {
+        let delta = CGSize(width: translation.width - previousTranslation.width, height: translation.height - previousTranslation.height)
+        // 무시한 세로 움직임의 가로 흔들림이 다음 가로 이동에 한꺼번에 반영되지 않게 한다.
+        previousTranslation = translation
+        guard abs(delta.width) > abs(delta.height) else { return }
+        distance = max(0, distance + delta.width)
+    }
+
+    func projectedDistance(to translation: CGSize) -> CGFloat {
+        let delta = CGSize(width: translation.width - previousTranslation.width, height: translation.height - previousTranslation.height)
+        guard abs(delta.width) > abs(delta.height) else { return distance }
+        return max(0, distance + delta.width)
     }
 }
 

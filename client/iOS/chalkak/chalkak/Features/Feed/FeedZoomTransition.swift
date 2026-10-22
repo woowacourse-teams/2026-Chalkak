@@ -291,16 +291,26 @@ private struct FeedZoomEffect: ViewModifier, Animatable {
         let remaining = 1 - progress
         let scale = geometry?.scale ?? (startScale + (1 - startScale) * progress)
         let offset = geometry?.offset ?? CGSize(width: startOffset.width * remaining, height: startOffset.height * remaining)
+        let contentSize = geometry == nil ? nil : destinationFrame?.size
+        let fillScale: CGFloat
+        if let geometry, let contentSize {
+            fillScale = max(1, geometry.size.height / contentSize.height)
+        } else {
+            fillScale = 1
+        }
 
-        // 도착 프레임 측정으로 분기가 바뀌어도 사진의 identity와 애니메이션을 보존한다.
+        // 사진 레이아웃은 고정한다. 매 프레임 높이를 바꾸면 이미지가 재배치되며
+        // 소수점 크기가 픽셀 경계에 반올림되어 느린 드래그 중 사진 내부가 떨린다.
         return content
-            .frame(width: geometry?.size.width, height: geometry?.size.height)
-            .clipped()
+            .frame(width: contentSize?.width, height: contentSize?.height)
+            .scaleEffect(fillScale)
+            .clipShape(FeedZoomCropBounds(size: geometry?.size))
             .clipShape(FeedZoomPhotoClip(
                 source: source,
                 remaining: remaining,
                 scale: scale,
-                cornerRadius: geometry?.cornerRadius ?? (source?.cornerRadius ?? 0) * remaining / scale
+                cornerRadius: geometry?.cornerRadius ?? (source?.cornerRadius ?? 0) * remaining / scale,
+                cropSize: geometry?.size
             ))
             .scaleEffect(scale)
             .offset(offset)
@@ -331,6 +341,15 @@ private struct FeedZoomEffect: ViewModifier, Animatable {
             width: source.frame.midX - destinationFrame.midX,
             height: source.frame.midY - destinationFrame.midY
         )
+    }
+}
+
+private struct FeedZoomCropBounds: Shape {
+    let size: CGSize?
+
+    func path(in rect: CGRect) -> Path {
+        let size = size ?? rect.size
+        return Path(CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height))
     }
 }
 
@@ -371,16 +390,19 @@ struct FeedZoomPhotoClip: Shape {
     let remaining: CGFloat
     let scale: CGFloat
     let cornerRadius: CGFloat
+    var cropSize: CGSize? = nil
 
     func path(in rect: CGRect) -> Path {
-        var bounds = rect
+        let size = cropSize ?? rect.size
+        let crop = CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height)
+        var bounds = crop
         if let source, let clipFrame = source.clipFrame, scale > 0 {
             let factor = remaining / scale
             bounds = CGRect(
-                x: rect.minX + (clipFrame.minX - source.frame.minX) * factor,
-                y: rect.minY + (clipFrame.minY - source.frame.minY) * factor,
-                width: rect.width + (clipFrame.width - source.frame.width) * factor,
-                height: rect.height + (clipFrame.height - source.frame.height) * factor
+                x: crop.minX + (clipFrame.minX - source.frame.minX) * factor,
+                y: crop.minY + (clipFrame.minY - source.frame.minY) * factor,
+                width: crop.width + (clipFrame.width - source.frame.width) * factor,
+                height: crop.height + (clipFrame.height - source.frame.height) * factor
             )
         }
         return RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
