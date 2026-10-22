@@ -658,6 +658,42 @@ class ChalkakNavHostTest {
     }
 
     @Test
+    fun noticeNotificationOpensDetailUsingMemberNotificationId() {
+        lateinit var navController: NavHostController
+        val notificationId = "019a0010-0000-7000-8000-000000000009"
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "NOTICE",
+                sourceType = "NOTICE",
+                sourceId = "019a0000-0000-7000-8000-000000000592",
+                notificationId = notificationId,
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<NotificationDetail>() == true
+        }
+        composeRule.runOnIdle {
+            val detail = navController.currentBackStackEntry!!.toRoute<NotificationDetail>()
+            val previous = navController.previousBackStackEntry!!
+            assertEquals(notificationId, detail.notificationId)
+            assertTrue(previous.destination.hasRoute<Home>())
+        }
+    }
+
+    @Test
     fun topicNotificationWithoutNotificationIdOpensHomeFromOtherTab() {
         lateinit var navController: NavHostController
 

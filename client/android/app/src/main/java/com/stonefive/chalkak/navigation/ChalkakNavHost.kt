@@ -826,7 +826,7 @@ internal fun NavHostController.openNotificationTarget(
             ) { launchSingleTop = true }
         }
 
-        type == POST_REJECTED && !notificationId.isNullOrBlank() -> {
+        (type == POST_REJECTED || type == NOTICE) && !notificationId.isNullOrBlank() -> {
             navigate(NotificationDetail(notificationId)) { launchSingleTop = true }
         }
 
@@ -836,6 +836,7 @@ internal fun NavHostController.openNotificationTarget(
 
 private const val POST_APPROVED = "POST_APPROVED"
 private const val POST_REJECTED = "POST_REJECTED"
+private const val NOTICE = "NOTICE"
 private const val POST_SOURCE_TYPE = "POST"
 private const val TOPIC = "TOPIC"
 
