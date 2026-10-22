@@ -1,23 +1,38 @@
-.topbar {
-  border-bottom: 0;
+html {
+  scroll-padding-top: 24px;
 }
-.topbar-inner {
-  max-width: 1040px;
+.cover-actions {
+  display: flex;
   justify-content: flex-end;
+  margin-top: 12px;
 }
-.nav-survey {
+.cover-survey {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #d8d0c3;
+  border-radius: 100px;
   font-size: 14px;
-  min-height: 48px;
-  padding: 13px 23px;
+  line-height: 1.6;
+  background: #fffdf9;
+  transition: background 0.15s;
 }
-.cover-section,
-.perspective-inner {
+.cover-survey:hover {
+  background: #ebe8df;
+}
+.cover-survey svg {
+  width: 14px;
+  height: 14px;
+}
+.cover-section {
   max-width: 1040px;
   width: calc(100% - 104px);
   margin: auto;
 }
 .cover-section {
-  margin-top: 18px;
+  margin-top: 32px;
 }
 .cover {
   width: 100%;
@@ -42,7 +57,6 @@
 }
 .introduction > p,
 .section-opening > p,
-.perspective-inner > p,
 .example-figure figcaption > p,
 .survey-section > p {
   font-size: 16px;
@@ -160,26 +174,6 @@
 .mobile-break {
   display: none;
 }
-.perspective {
-  background: #eeece5;
-  border-top: 1px solid #e9e4d9;
-  border-bottom: 1px solid #e9e4d9;
-}
-.perspective-inner {
-  padding: 64px 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 70px;
-  align-items: center;
-}
-.perspective-inner > p {
-  margin-top: 0;
-}
-.perspective-inner h2 {
-  font-size: 37px;
-  line-height: 1.55;
-  font-weight: 500;
-}
 .feedback-example {
   padding: 62px 0;
 }
@@ -259,9 +253,7 @@ dialog h2 {
   margin-top: 0;
 }
 @media (max-width: 1000px) {
-  .cover-section,
-  .perspective-inner,
-  .topbar-inner {
+  .cover-section {
     width: calc(100% - 64px);
   }
   .article-body {
@@ -270,33 +262,22 @@ dialog h2 {
   .guidelines {
     grid-template-columns: 1fr;
   }
-  .perspective-inner {
-    gap: 36px;
-  }
   .desktop-break {
     display: none;
   }
 }
 @media (max-width: 700px) {
-  .topbar-inner {
-    width: calc(100% - 28px);
-    height: 72px;
-  }
-  .nav-survey {
-    font-size: 14px;
-    min-height: 46px;
-    padding: 12px 19px;
-    gap: 16px;
+  .cover-survey {
+    min-height: 44px;
   }
   .cover-section {
     width: calc(100% - 28px);
-    margin-top: 4px;
+    margin-top: 16px;
   }
   .cover {
     border-radius: 12px;
   }
-  .article-body,
-  .perspective-inner {
+  .article-body {
     width: calc(100% - 44px);
   }
   .introduction {
@@ -311,7 +292,6 @@ dialog h2 {
   }
   .introduction > p,
   .section-opening > p,
-  .perspective-inner > p,
   .example-figure figcaption > p,
   .survey-section > p {
     font-size: 15px;
@@ -345,14 +325,6 @@ dialog h2 {
   }
   .guideline p br {
     display: none;
-  }
-  .perspective-inner {
-    padding: 40px 0;
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .perspective-inner h2 {
-    font-size: 31px;
   }
   .feedback-example {
     padding: 40px 0;

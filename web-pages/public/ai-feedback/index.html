@@ -26,19 +26,6 @@
   </head>
   <body>
     <a class="skip" href="#main">본문 바로가기</a>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a
-          class="nav-survey"
-          data-survey-link
-          href="{{survey:ai-feedback}}"
-          aria-haspopup="dialog"
-          >설문하러 가기
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 18 18 6M6 6h12v12" /></svg
-        ></a>
-      </div>
-    </header>
     <main id="main">
       <section class="cover-section" id="top">
         <img
@@ -48,6 +35,17 @@
           height="941"
           alt="찰캌 AI 피드백, 어떠셨나요? 아이보리 카메라와 사진, 말풍선이 놓인 사용 후기 설문 썸네일"
         />
+        <div class="cover-actions">
+          <a
+            class="cover-survey"
+            data-survey-link
+            href="{{survey:ai-feedback}}"
+            aria-haspopup="dialog"
+            >설문하러 가기
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 18 18 6M6 6h12v12" /></svg
+          ></a>
+        </div>
       </section>
       <div class="article-body">
         <section class="introduction" id="how">
@@ -60,8 +58,8 @@
             Nikon·Canon의 구도 가이드와 PPA의 사진 평가 자료,<br
               class="desktop-break"
             />
-            네 가지 자료를 참고해 사진의 구성을 살펴보고, 주제를 해석한 방식과
-            사진에 드러난 독창성, 그리고 여러분의 시선을 함께 피드백합니다.
+            네 가지 자료를 참고해 사진의 구성을 살펴보고, 주제 해석의 독창성을
+            피드백합니다.
           </p>
           <details class="references">
             <summary>AI가 참고하는 네 가지 자료</summary>
@@ -242,14 +240,6 @@
           </div>
         </section>
       </div>
-      <section class="perspective" id="perspective">
-        <div class="perspective-inner">
-          <h2>주제 해석의 독창성도<br />AI가 평가해요.</h2>
-          <p>
-            같은 주제를 자신만의 시선으로 해석하고 표현했는지 평가하도록 했어요.
-          </p>
-        </div>
-      </section>
       <div class="article-body">
         <section class="feedback-example">
           <div class="section-opening">
