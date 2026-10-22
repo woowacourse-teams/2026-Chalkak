@@ -103,6 +103,24 @@ public enum AdminAction {
             AdminTargetType.AI_PROMPT_VERSION,
             false,
             AdminAuditTransitionRules::isAiPromptVersionCreated
+    ),
+
+    REMINDER_CREATED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderCreated
+    ),
+
+    REMINDER_UPDATED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderUpdated
+    ),
+
+    REMINDER_DELETED(
+            AdminTargetType.REMINDER,
+            false,
+            AdminAuditTransitionRules::isReminderDeleted
     );
 
     private final AdminTargetType targetType;

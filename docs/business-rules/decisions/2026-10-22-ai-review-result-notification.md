@@ -1,4 +1,4 @@
-# NOTIFICATION-014 AI 리뷰 결과 알림 도입
+# NOTIFICATION-015 AI 리뷰 결과 알림 도입
 
 - 결정일: 2026-10-22
 - 상태: 확정
@@ -27,5 +27,5 @@
   - 기존 데이터: 배포 전에 끝난 AI 리뷰에는 결과 알림을 소급 생성하지 않는다.
   - 대기열 정지 방지의 대가: 횟수를 모두 써서 실패로 끝내는 처리에서 알림 저장이 예외로 막히면, 같은 건이 대기열 맨 앞에서 계속 실패해 다른 건을 처리하지 못한다. 이를 막으려고 첫 시도가 실패하면 알림 없이 한 번 더 가져가 그 건을 실패로 끝낸다. 대가로 그 폴링에서 소진으로 끝나는 건들의 실패 알림이 빠질 수 있고, 이때 오류 로그를 남긴다. 사용자는 AI 리뷰 조회에서 실패 상태를 확인할 수 있다. 대기열 전체가 멈추는 것보다 낫다고 판단했다.
   - 알려진 한계: 관리자 숨김처럼 게시물이 삭제되지는 않고 공개 조건만 깨진 경우에는 알림이 보이고 누르면 AI 리뷰 조회가 찾을 수 없음이 된다. 승인 알림에도 같은 틈이 있으며 이번 범위 밖이다. 현재는 승인 뒤 숨기는 상태가 코드에 없어 드물다. 푸시를 보내기 전에 사용자가 이미 다시 요청했는지는 확인하지 않아 실패 푸시가 나갈 수 있다.
-- 관련 규칙: NOTIFICATION-001, NOTIFICATION-002, NOTIFICATION-006, NOTIFICATION-014, AIREVIEW-002, AIREVIEW-005
+- 관련 규칙: NOTIFICATION-001, NOTIFICATION-002, NOTIFICATION-006, NOTIFICATION-015, AIREVIEW-002, AIREVIEW-005
 - 관련 이슈·PR: [#739](https://github.com/woowacourse-teams/2026-Chalkak/issues/739), 상위 [#686](https://github.com/woowacourse-teams/2026-Chalkak/issues/686). PR은 아직 등록하지 않았다.

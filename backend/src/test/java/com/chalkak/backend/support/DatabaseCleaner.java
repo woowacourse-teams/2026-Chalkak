@@ -13,6 +13,7 @@ public final class DatabaseCleaner {
                 posts,
                 photos,
                 post_image_uploads,
+                reminders,
                 topic_push_schedules,
                 topics,
                 users

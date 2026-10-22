@@ -2,6 +2,9 @@ package com.chalkak.backend.admin.domain;
 
 import com.chalkak.backend.aireview.domain.AiPromptType;
 import com.chalkak.backend.notification.domain.Notice;
+import com.chalkak.backend.notification.domain.Reminder;
+import com.chalkak.backend.notification.domain.ReminderRepeat;
+import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.DateTimeException;
@@ -49,6 +52,21 @@ final class AdminAuditTransitionRules {
             "deletedAt"
     );
     private static final Set<String> AI_PROMPT_VERSION_STATE_FIELDS = Set.of("type", "version");
+    private static final Set<String> REMINDER_STATE_FIELDS = Set.of(
+            "title",
+            "bodySha256",
+            "repeat",
+            "target",
+            "scheduledAt"
+    );
+    private static final Set<String> DELETED_REMINDER_STATE_FIELDS = Set.of(
+            "title",
+            "bodySha256",
+            "repeat",
+            "target",
+            "scheduledAt",
+            "deletedAt"
+    );
     private static final Set<String> TOPIC_STATE_FIELDS = Set.of(
             "title",
             "topicDate",
@@ -255,6 +273,59 @@ final class AdminAuditTransitionRules {
                 && isAiPromptType(afterState.value("type"))
                 && afterState.value("version") instanceof Integer version
                 && version > 0;
+    }
+
+    static boolean isReminderCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && isValidReminderState(afterState);
+    }
+
+    static boolean isReminderUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidReminderState(beforeState)
+                && isValidReminderState(afterState)
+                && !beforeState.values().equals(afterState.values());
+    }
+
+    static boolean isReminderDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidReminderState(beforeState, DELETED_REMINDER_STATE_FIELDS)
+                && isValidReminderState(afterState, DELETED_REMINDER_STATE_FIELDS)
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"))
+                && REMINDER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
+                        beforeState.value(field), afterState.value(field)));
+    }
+
+    private static boolean isValidReminderState(AdminAuditSnapshot state) {
+        return isValidReminderState(state, REMINDER_STATE_FIELDS);
+    }
+
+    private static boolean isValidReminderState(
+            AdminAuditSnapshot state,
+            Set<String> expectedFields
+    ) {
+        return state.hasExactlyFields(expectedFields)
+                && state.value("title") instanceof String title
+                && Reminder.isValidTitle(title)
+                && isSha256Hex(state.value("bodySha256"))
+                && isEnumName(state.value("repeat"), ReminderRepeat.values())
+                && isEnumName(state.value("target"), ReminderTarget.values())
+                && isInstant(state.value("scheduledAt"));
+    }
+
+    private static boolean isEnumName(Object value, Enum<?>[] constants) {
+        return value instanceof String name
+                && Arrays.stream(constants).anyMatch(constant -> constant.name().equals(name));
     }
 
     private static boolean isAiPromptType(Object value) {

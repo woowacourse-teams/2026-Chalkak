@@ -1,6 +1,6 @@
 # 알림함 조회·보관 연동 안내
 
-현재 정책은 [알림함 규칙](../rules/notification.md)의 NOTIFICATION-001~004, NOTIFICATION-007~008, 관리자 공지 배포(NOTIFICATION-013), AI 리뷰 결과 알림(NOTIFICATION-014)을 따른다.
+현재 정책은 [알림함 규칙](../rules/notification.md)의 NOTIFICATION-001~004, NOTIFICATION-007~008, 관리자 공지 배포(NOTIFICATION-013), AI 리뷰 결과 알림(NOTIFICATION-015)을 따른다.
 
 ## 조회와 읽음 처리
 

@@ -1,6 +1,6 @@
 # 게시물 AI 리뷰 요청과 결과 조회
 
-작성자는 본인의 공개된 게시물에 AI 리뷰를 요청하고, 처리가 끝나면 구도 점수·독특한 시각 여부·피드백을 확인한다. 실패하면 정해진 횟수까지 다시 요청할 수 있다. 요청과 조회 API는 [#689](https://github.com/woowacourse-teams/2026-Chalkak/issues/689), 자동 재시도와 재요청은 [#690](https://github.com/woowacourse-teams/2026-Chalkak/issues/690) 범위이며, 정책은 [AIREVIEW-001~006](../rules/ai-review.md), 결과 알림은 [NOTIFICATION-014](../rules/notification.md#notification-014-ai-리뷰-결과-알림), 이용 정지는 [USER-002](../rules/user.md#user-002-이용-정지)를 따른다.
+작성자는 본인의 공개된 게시물에 AI 리뷰를 요청하고, 처리가 끝나면 구도 점수·독특한 시각 여부·피드백을 확인한다. 실패하면 정해진 횟수까지 다시 요청할 수 있다. 요청과 조회 API는 [#689](https://github.com/woowacourse-teams/2026-Chalkak/issues/689), 자동 재시도와 재요청은 [#690](https://github.com/woowacourse-teams/2026-Chalkak/issues/690) 범위이며, 정책은 [AIREVIEW-001~006](../rules/ai-review.md), 결과 알림은 [NOTIFICATION-015](../rules/notification.md#notification-015-ai-리뷰-결과-알림), 이용 정지는 [USER-002](../rules/user.md#user-002-이용-정지)를 따른다.
 
 ## 요청과 조회 흐름
 
@@ -129,7 +129,7 @@ Authorization: Bearer {accessToken}
 
 ## 결과 알림
 
-AI 리뷰가 완료되거나 실패로 끝나면 서버가 알림함에 결과 알림(`AI_REVIEW_COMPLETED`, `AI_REVIEW_FAILED`)을 저장하고, 'AI 리뷰 결과' 수신 설정(`aiReviewPushEnabled`)이 켜져 있으면 푸시도 보낸다. 앱을 떠난 사용자가 결과를 알 수 있게 하기 위한 것이다([NOTIFICATION-014](../rules/notification.md#notification-014-ai-리뷰-결과-알림)). 푸시 필드와 알림함 표시는 [푸시 메시지 연동 계약](notification-push-contract.md)과 [알림함 연동 안내](notification-inbox.md)를 따른다.
+AI 리뷰가 완료되거나 실패로 끝나면 서버가 알림함에 결과 알림(`AI_REVIEW_COMPLETED`, `AI_REVIEW_FAILED`)을 저장하고, 'AI 리뷰 결과' 수신 설정(`aiReviewPushEnabled`)이 켜져 있으면 푸시도 보낸다. 앱을 떠난 사용자가 결과를 알 수 있게 하기 위한 것이다([NOTIFICATION-015](../rules/notification.md#notification-015-ai-리뷰-결과-알림)). 푸시 필드와 알림함 표시는 [푸시 메시지 연동 계약](notification-push-contract.md)과 [알림함 연동 안내](notification-inbox.md)를 따른다.
 
 - 자동 재시도를 기다리는 동안(`PROCESSING`)에는 알림이 없다. 알림은 최종 상태인 `COMPLETED`·`FAILED`가 될 때 한 번 오고, 실패한 리뷰를 다시 요청해 또 끝나면 회차마다 온다(게시물당 최대 3건). 게시물을 쓸 수 없어 실패한 경우에는 오지 않는다.
 - 알림을 누르면 `sourceId`의 게시물 AI 리뷰 화면으로 진입한다. 진입하면 `GET`부터 시작해 `status`에 맞게 이어가며, 결과는 알림이 아니라 이 조회로 가져온다. 알림 본문은 결과 내용이나 실패 사유를 담지 않는다. 실패 알림의 문구는 다시 요청할 수 있는지만 구분하므로 버튼 표시는 `canRequestAgain`을 기준으로 한다.
