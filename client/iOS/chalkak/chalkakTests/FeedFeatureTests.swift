@@ -4,6 +4,48 @@ import CoreGraphics
 import Testing
 @testable import chalkak
 
+struct FeedBackSwipeTrackingTests {
+    @Test("뒤로 드래그 중 상하 움직임에 섞인 가로 흔들림은 축소 진행도를 바꾸지 않는다")
+    func verticalMovementDoesNotChangeDistance() {
+        var swipe = FeedBackSwipeTracking()
+        swipe.update(to: CGSize(width: 60, height: 0))
+        for translation in [
+            CGSize(width: 63, height: 20),
+            CGSize(width: 59, height: 45),
+            CGSize(width: 62, height: 10),
+            CGSize(width: 58, height: -20)
+        ] {
+            swipe.update(to: translation)
+            #expect(swipe.distance == 60)
+        }
+        // 가로 드래그를 다시 시작해도 무시했던 가로 흔들림이 뒤늦게 반영되지 않는다.
+        swipe.update(to: CGSize(width: 78, height: -18))
+        #expect(swipe.distance == 80)
+    }
+
+    @Test("느린 가로 드래그와 반대 방향 이동은 계속 반영한다")
+    func horizontalMovementCanContinueAndReverse() {
+        var swipe = FeedBackSwipeTracking()
+        for x in stride(from: CGFloat(0.5), through: 20, by: 0.5) {
+            swipe.update(to: CGSize(width: x, height: x / 10))
+        }
+        #expect(swipe.distance == 20)
+        swipe.update(to: CGSize(width: 5, height: 2))
+        #expect(swipe.distance == 5)
+        swipe.update(to: CGSize(width: -10, height: 2))
+        #expect(swipe.distance == 0)
+    }
+
+    @Test("세로 방향으로 손을 떼는 속도는 뒤로가기 완료 거리로 계산하지 않는다")
+    func verticalReleaseDoesNotProjectHorizontalNoise() {
+        var swipe = FeedBackSwipeTracking()
+        swipe.update(to: CGSize(width: 80, height: 0))
+        swipe.update(to: CGSize(width: 100, height: 100))
+        #expect(swipe.projectedDistance(to: CGSize(width: 160, height: 300)) == 80)
+        #expect(swipe.projectedDistance(to: CGSize(width: 160, height: 102)) == 140)
+    }
+}
+
 @MainActor
 struct FeedViewStateTests {
     @Test("기본 상태는 로딩이며 좋아요가 비활성화된다")

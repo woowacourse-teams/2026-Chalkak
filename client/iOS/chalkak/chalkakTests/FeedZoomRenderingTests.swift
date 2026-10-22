@@ -4,6 +4,82 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testAspectRatioTransitionKeepsPhotoLayoutSizeFixed() async throws {
+        let destination = CGRect(x: 0, y: 0, width: 400, height: 400)
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 20, y: 100, width: 150, height: 250), cornerRadius: 12)
+        var sizes: [CGSize] = []
+        func photo(progress: CGFloat) -> some View {
+            Color.clear.frame(width: 400, height: 400)
+                .overlay {
+                    Color.red
+                        .onGeometryChange(for: CGSize.self) { $0.size } action: { sizes.append($0) }
+                        .feedZoomEffect(progress: progress, source: source, destinationFrame: destination, morphsAspectRatio: true)
+                }
+        }
+        let host = UIHostingController(rootView: photo(progress: 1))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 400, height: 500)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        for progress: CGFloat in [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0] {
+            host.rootView = photo(progress: progress)
+            host.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertFalse(sizes.isEmpty)
+        XCTAssertTrue(sizes.allSatisfy { $0 == destination.size }, "Moving the crop must not relayout the image: \(sizes)")
+    }
+
+    func testPhotoAndSignatureStayStillWhenReturnSwipeProgressIsHeld() async throws {
+        let source = FeedZoomRegistry.Source(
+            frame: CGRect(x: 20, y: 100, width: 160, height: 160),
+            cornerRadius: 12,
+            signatureFrame: CGRect(x: 137, y: 226, width: 35, height: 26)
+        )
+        let image = try XCTUnwrap(UIImage(named: "preview_photo"))
+        func photo(progress: CGFloat, isSettled: Bool = false) -> some View {
+            FeedPhoto(
+                post: FeedPreviewData.content.post,
+                placeholder: FeedPhotoPlaceholder(
+                    imageSource: .asset("preview_sunset"),
+                    signatureImageSource: .asset("preview_signature"),
+                    heightToWidthRatio: image.size.height / image.size.width
+                ),
+                zoom: FeedPhotoZoom(photoProgress: progress, source: source, isSettled: isSettled),
+                onLike: {}
+            )
+            .frame(width: 400, height: 400)
+            .chalkakTheme(.light)
+        }
+        let host = UIHostingController(rootView: photo(progress: 1, isSettled: true))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 400, height: 500)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(500))
+
+        for progress: CGFloat in [0.8, 0.5, 0.2, 0.5, 1] {
+            host.rootView = photo(progress: progress)
+            host.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(30))
+            func snapshot() throws -> Data {
+                host.view.layoutIfNeeded()
+                let renderer = UIGraphicsImageRenderer(size: host.view.bounds.size)
+                return try rgbaData(renderer.image { _ in
+                    host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+                })
+            }
+            let first = try snapshot()
+            try await Task.sleep(for: .milliseconds(100))
+            XCTAssertTrue(first == (try snapshot()), "Holding swipe progress at \(progress) must not change the photo or signature")
+        }
+    }
+
     func testFeedTitleRowMatchesTodayForShortLongAndBlankTitles() async throws {
         for width: CGFloat in [320, 402] {
             for title in ["  하늘을 담은 하루  ", String(repeating: "아주 긴 사진 제목 ", count: 10), " \n "] {
