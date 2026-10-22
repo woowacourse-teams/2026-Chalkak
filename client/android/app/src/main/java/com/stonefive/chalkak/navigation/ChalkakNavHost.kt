@@ -861,7 +861,6 @@ internal fun NavHostController.openNotificationTarget(
 
         (type == AI_REVIEW_COMPLETED || type == AI_REVIEW_FAILED) &&
             sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
-            // Replace the feed of the same post if it is on top so the back stack does not hold it twice.
             val samePostFeedId = currentBackStackEntry
                 ?.takeIf { it.feedPostId() == sourceId }
                 ?.destination

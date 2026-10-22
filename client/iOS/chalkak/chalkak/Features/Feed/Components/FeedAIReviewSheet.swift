@@ -3,6 +3,7 @@ import SwiftUI
 struct FeedAIReviewSheet: View {
     @Environment(\.chalkakTheme) private var theme
     let model: FeedAIReviewViewModel
+    let onDismiss: () -> Void
     let onStart: () -> Void
 
     var body: some View {
@@ -27,8 +28,11 @@ struct FeedAIReviewSheet: View {
             if model.canRequest {
                 AIReviewStartSheet(
                     onStart: onStart,
+                    title: model.review?.status == .failed ? "AI 피드백을 재요청할까요?" : "AI 피드백을 시작할까요?",
                     message: model.message
                 )
+            } else if let reason = model.failureReason {
+                failureContent(reason)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: theme.spacing.xl) {
@@ -78,6 +82,24 @@ struct FeedAIReviewSheet: View {
             .foregroundStyle(theme.colors.actionPrimary)
             .frame(minHeight: 44)
             .disabled(model.isLoading || model.isSubmitting)
+    }
+
+    // 기다려도 상태가 바뀌지 않는 실패라 다시 확인 대신 이유와 닫기만 보여 준다.
+    private func failureContent(_ reason: String) -> some View {
+        VStack(alignment: .leading, spacing: theme.spacing.lg) {
+            Text("AI 피드백을 생성하지 못했어요")
+                .font(theme.typography.headline)
+                .foregroundStyle(theme.colors.textPrimary)
+            Text(reason)
+                .font(theme.typography.body)
+                .foregroundStyle(theme.colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ChalkakButton(title: "확인", action: onDismiss, fillsWidth: true)
+        }
+        .padding(.horizontal, theme.spacing.xl)
+        .padding(.top, theme.spacing.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(ChalkakPlatformAppearance.usesLiquidGlass ? Color.clear : theme.colors.surfaceElevated)
     }
 
     private func resultContent(_ result: AIReviewResult) -> some View {

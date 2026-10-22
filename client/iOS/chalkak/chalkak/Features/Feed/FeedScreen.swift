@@ -93,7 +93,7 @@ struct FeedScreen: View {
         }
         .sheet(isPresented: $showsAIReviewSheet) {
             if let aiReview = viewModel.aiReview {
-                FeedAIReviewSheet(model: aiReview) {
+                FeedAIReviewSheet(model: aiReview, onDismiss: { showsAIReviewSheet = false }) {
                     Task {
                         await aiReview.request()
                         if aiReview.review?.status == .processing || aiReview.review?.status == .completed {
@@ -101,7 +101,7 @@ struct FeedScreen: View {
                         }
                     }
                 }
-                .presentationDetents(aiReview.canRequest ? [.height(320)] : [.height(510), .large])
+                .presentationDetents(aiReviewSheetDetents(aiReview))
             }
         }
         .onChange(of: canObserveAIReview, initial: true) { _, canObserve in
@@ -171,6 +171,13 @@ struct FeedScreen: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+    }
+
+    // 시작 안내와 실패 이유는 내용이 짧아 낮은 높이로, 결과·진행 상태는 펼칠 수 있는 높이로 연다.
+    private func aiReviewSheetDetents(_ aiReview: FeedAIReviewViewModel) -> Set<PresentationDetent> {
+        if aiReview.canRequest { return [.height(Metrics.aiStartSheetHeight)] }
+        if aiReview.failureReason != nil { return [.height(Metrics.aiFailureSheetHeight)] }
+        return [.height(Metrics.aiStatusSheetHeight), .large]
     }
 
     private var canShowAIReview: Bool {
@@ -417,6 +424,9 @@ private enum Metrics {
     static let topicBottom: CGFloat = 40
     static let contentBottom: CGFloat = 40
     static let aiContentBottom: CGFloat = 90
+    static let aiStartSheetHeight: CGFloat = 320
+    static let aiFailureSheetHeight: CGFloat = 240
+    static let aiStatusSheetHeight: CGFloat = 510
     // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
     // 스프링이 아닌 고정 시간 곡선이라 실제 이동 시간도 0.3초로 같다.
     static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)

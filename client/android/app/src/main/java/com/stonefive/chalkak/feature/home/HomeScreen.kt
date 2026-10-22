@@ -176,7 +176,14 @@ fun HomeScreen(
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
                     isFeedbackExpanded = isFeedbackExpanded,
-                    onFeedbackStartClick = { isFeedbackSheetVisible = true },
+                    onFeedbackStartClick = {
+                        // 실패한 리뷰는 시작 안내 없이 바로 다시 요청한다.
+                        if (uiState.feedbackPhase == HomeFeedbackPhase.Failed) {
+                            onStartFeedback()
+                        } else {
+                            isFeedbackSheetVisible = true
+                        }
+                    },
                     onFeedbackToggleExpanded = { isFeedbackExpanded = !isFeedbackExpanded },
                     onLoadMoreBanners = onLoadMoreBanners,
                     listState = listState,
@@ -374,6 +381,7 @@ private fun HomeContent(
                     HomeFeedbackCard(
                         phase = uiState.feedbackPhase,
                         result = uiState.feedbackResult,
+                        canRequestAgain = uiState.feedbackCanRequestAgain,
                         isExpanded = isFeedbackExpanded,
                         onStart = onFeedbackStartClick,
                         onToggleExpanded = onFeedbackToggleExpanded,

@@ -304,9 +304,72 @@ class FeedScreenTest {
         composeRule.runOnIdle {
             state = state.copy(aiReview = AiReviewUiState(status = AiReview.Status.FAILED))
         }
-        composeRule.onNodeWithText("AI 피드백을 만들지 못했어요.").assertIsDisplayed()
+        composeRule.onNodeWithText("AI 피드백을 생성하지 못했어요").assertIsDisplayed()
+        composeRule.onNodeWithText("이 사진은 더 이상 AI 피드백을 요청할 수 없어요.").assertIsDisplayed()
+    }
+
+    @Test
+    fun notificationEntryForPastPhotoExplainsTodayOnlyRetry() {
+        var state by mutableStateOf(feedUiState.copy(aiReview = AiReviewUiState()))
+        composeRule.setContent {
+            ChalkakTheme {
+                FeedScreen(
+                    uiState = state,
+                    onNavigateBack = {},
+                    onDeleteClick = {},
+                    onLikeClick = {},
+                    snackbarHostState = SnackbarHostState(),
+                    openAiReviewResult = true,
+                )
+            }
+        }
+        composeRule.runOnIdle {
+            state = state.copy(aiReview = AiReviewUiState(status = AiReview.Status.FAILED, canRequestAgain = true))
+        }
+        composeRule.onNodeWithText("AI 피드백은 오늘 올린 사진만 재요청할 수 있어요.").assertIsDisplayed()
+    }
+
+    @Test
+    fun notificationEntryWithRetryLeftOpensStartSheet() {
+        var state by mutableStateOf(feedUiState.copy(aiReview = AiReviewUiState()))
+        composeRule.setContent {
+            ChalkakTheme {
+                FeedScreen(
+                    uiState = state,
+                    onNavigateBack = {},
+                    onDeleteClick = {},
+                    onLikeClick = {},
+                    snackbarHostState = SnackbarHostState(),
+                    openAiReviewResult = true,
+                )
+            }
+        }
+        composeRule.runOnIdle {
+            state = state.copy(aiReview = failedAiReview(canRequestAgain = true))
+        }
+        composeRule.onNodeWithText("AI 피드백을 재요청할까요?").assertIsDisplayed()
+    }
+
+    @Test
+    fun failedPillWithRetryLeftOpensStartSheetAndStartsFeedback() {
+        var started = false
+        setFeedContent(
+            uiState = feedUiState.copy(aiReview = failedAiReview(canRequestAgain = true)),
+            onStartFeedback = { started = true },
+        )
+        composeRule.onNodeWithText("AI 피드백 재요청").performClick()
+        composeRule.onNodeWithText("AI 피드백을 재요청할까요?").assertIsDisplayed()
+        composeRule.onNodeWithText("분석 시작하기").performClick()
+        composeRule.runOnIdle { assertTrue(started) }
+    }
+
+    @Test
+    fun failedPillWithoutRetryExplainsAndCloses() {
+        setFeedContent(uiState = feedUiState.copy(aiReview = failedAiReview(canRequestAgain = false)))
+        composeRule.onNodeWithText("AI 피드백 실패").performClick()
+        composeRule.onNodeWithText("이 사진은 더 이상 AI 피드백을 요청할 수 없어요.").assertIsDisplayed()
         composeRule.onNodeWithText("확인").performClick()
-        composeRule.onNodeWithText("AI 피드백을 만들지 못했어요.").assertDoesNotExist()
+        composeRule.onNodeWithText("이 사진은 더 이상 AI 피드백을 요청할 수 없어요.").assertDoesNotExist()
     }
 
     @Test
@@ -392,6 +455,12 @@ class FeedScreenTest {
         }
     }
 }
+
+private fun failedAiReview(canRequestAgain: Boolean) = AiReviewUiState(
+    phase = AiReviewPhase.Failed,
+    status = AiReview.Status.FAILED,
+    canRequestAgain = canRequestAgain,
+)
 
 private val sampleAiResult = AiReviewContent(
     overallScore = 8.7,

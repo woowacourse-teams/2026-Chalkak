@@ -46,7 +46,7 @@ struct HomeFeedbackCard: View {
                             .accessibilityHidden(true)
                     } else {
                         if phase == .failed(canRequestAgain: true) && !isSubmitting {
-                            Text("다시 요청")
+                            Text("재요청")
                                 .font(theme.typography.footnote)
                                 .foregroundStyle(theme.colors.textSecondary)
                         }
@@ -66,7 +66,7 @@ struct HomeFeedbackCard: View {
             .disabled(isDisabled)
             .accessibilityLabel(
                 phase == .failed(canRequestAgain: true) && !isSubmitting
-                    ? "\(title), 다시 요청"
+                    ? "\(title), 재요청"
                     : title
             )
             .accessibilityValue(phase == .completed ? (isExpanded ? "펼쳐짐" : "접힘") : "")

@@ -57,7 +57,6 @@ class NetworkModule(
 
     // AI review POSTs are not transparently retried: a retry could consume a
     // server-side request attempt after the first request was already accepted.
-    // GETs stay on backendClient so a stale pooled connection is retried.
     private val aiReviewClient = backendClient
         .newBuilder()
         .retryOnConnectionFailure(false)

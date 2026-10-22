@@ -55,10 +55,19 @@ final class FeedAIReviewViewModel {
         switch review?.status {
         case .processing: return "AI 분석중"
         case .completed: return "AI 피드백 보기"
-        case .failed: return "AI 피드백 다시 확인"
+        case .failed: return review?.canRequestAgain == true ? "AI 피드백 재요청" : "AI 피드백 실패"
         case .none?: return "AI 피드백 받기"
         case nil: return "AI 상태 다시 확인"
         }
+    }
+
+    /// 재요청할 수 없는 최종 실패에서 시트에 보여 줄 이유다. 재요청할 수 있거나, 실패가 아니거나,
+    /// 조회·요청 중이면 nil이다. 요청 횟수를 모두 쓴 경우가 오늘 사진이 아닌 경우보다 우선한다.
+    var failureReason: String? {
+        guard review?.status == .failed, !isLoading, !isSubmitting else { return nil }
+        if review?.canRequestAgain != true { return "이 사진은 더 이상 AI 피드백을 요청할 수 없어요." }
+        if !FeedDateLabel.isToday(topicDate, now: now()) { return "AI 피드백은 오늘 올린 사진만 재요청할 수 있어요." }
+        return nil
     }
 
     // The screen owns this task: leaving or backgrounding cancels it, reentry starts with GET.

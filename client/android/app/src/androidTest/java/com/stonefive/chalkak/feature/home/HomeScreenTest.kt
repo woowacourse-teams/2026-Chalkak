@@ -166,6 +166,32 @@ class HomeScreenTest {
     }
 
     @Test
+    fun failedFeedbackWithRetryLeftRequestsAgainWithoutStartSheet() {
+        var starts = 0
+        showHome(
+            approvedState().copy(feedbackPhase = HomeFeedbackPhase.Failed, feedbackCanRequestAgain = true),
+            onStartFeedback = { starts++ },
+        )
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule.onNodeWithText("재요청").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("$FEEDBACK_FAILED_TITLE, 재요청").performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, starts)
+        composeRule.onNodeWithText("AI 피드백을 시작할까요?").assertDoesNotExist()
+    }
+
+    @Test
+    fun failedFeedbackWithoutRetryCannotBeRequested() {
+        showHome(approvedState().copy(feedbackPhase = HomeFeedbackPhase.Failed, feedbackCanRequestAgain = false))
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
+        composeRule
+            .onNodeWithContentDescription(FEEDBACK_FAILED_TITLE)
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+        composeRule.onNodeWithText("재요청").assertDoesNotExist()
+    }
+
+    @Test
     fun processingFeedbackCannotBeOpened() {
         showHome(approvedState().copy(feedbackPhase = HomeFeedbackPhase.Processing))
         composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(2)
@@ -409,6 +435,7 @@ class HomeScreenTest {
 
 private val DATE = LocalDate.of(2026, 10, 8)
 private const val FEEDBACK_READY_TITLE = "이 사진, AI에게 피드백 받아보기"
+private const val FEEDBACK_FAILED_TITLE = "AI 피드백을 생성하지 못했어요"
 private const val FEEDBACK_HEADLINE = "건물의 크기와 높이 차이가 잘 비교되는 구도예요"
 private const val FEEDBACK_TIP = "구도 점수와 별개로, 주제 해석이 특별한 사진이라는 의미예요."
 

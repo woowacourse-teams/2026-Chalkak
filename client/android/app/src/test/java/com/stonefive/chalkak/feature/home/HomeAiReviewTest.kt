@@ -135,7 +135,7 @@ class HomeAiReviewTest {
     }
 
     @Test
-    fun `failed review is hidden and never automatically retried`() = runTest {
+    fun `failed review shows failure and is never automatically retried`() = runTest {
         val ai = FakeAiReviewRepository().apply {
             getResults += success(
                 AiReview.Status.FAILED,
@@ -146,22 +146,31 @@ class HomeAiReviewTest {
         advanceUntilIdle()
         viewModel.onResume()
         runCurrent()
-        assertEquals(HomeFeedbackPhase.Hidden, viewModel.uiState.value.feedbackPhase)
+        assertEquals(HomeFeedbackPhase.Failed, viewModel.uiState.value.feedbackPhase)
+        assertTrue(viewModel.uiState.value.feedbackCanRequestAgain)
         assertTrue(ai.requestPostIds.isEmpty())
     }
 
     @Test
-    fun `failed review is hidden whether retry is available or exhausted`() = runTest {
+    fun `failed review is requested again only while retry is left`() = runTest {
         for (canRequestAgain in listOf(true, false)) {
             val ai = FakeAiReviewRepository().apply {
                 getResults += success(AiReview.Status.FAILED, canRequestAgain = canRequestAgain)
+                requestResults += success(AiReview.Status.PROCESSING)
             }
             val viewModel = createViewModel(ai)
             advanceUntilIdle()
             viewModel.onResume()
             runCurrent()
-            assertEquals(HomeFeedbackPhase.Hidden, viewModel.uiState.value.feedbackPhase)
-            assertTrue(ai.requestPostIds.isEmpty())
+            assertEquals(HomeFeedbackPhase.Failed, viewModel.uiState.value.feedbackPhase)
+            assertEquals(canRequestAgain, viewModel.uiState.value.feedbackCanRequestAgain)
+            viewModel.startFeedback()
+            runCurrent()
+            assertEquals(if (canRequestAgain) 1 else 0, ai.requestPostIds.size)
+            assertEquals(
+                if (canRequestAgain) HomeFeedbackPhase.Processing else HomeFeedbackPhase.Failed,
+                viewModel.uiState.value.feedbackPhase,
+            )
         }
     }
 

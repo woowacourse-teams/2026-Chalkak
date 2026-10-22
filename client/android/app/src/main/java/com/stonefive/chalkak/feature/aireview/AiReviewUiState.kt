@@ -8,6 +8,7 @@ data class AiReviewUiState(
     val result: AiReviewContent? = null,
     val message: String? = null,
     val status: AiReview.Status? = null,
+    val canRequestAgain: Boolean = false,
 )
 
 enum class AiReviewPhase {
@@ -15,4 +16,5 @@ enum class AiReviewPhase {
     Ready,
     Processing,
     Completed,
+    Failed,
 }
