@@ -23,6 +23,11 @@ describe("mobile fixed-control spacing", () => {
     expect(shellCss).toMatch(/\.navigation\s*\{[^}]*min-height:\s*var\(--admin-bottom-nav-height\)/);
   });
 
+  it("fits all eight bottom menus on the narrowest phones", () => {
+    expect(shellCss).toMatch(/\.navigation\s*\{[^}]*grid-template-columns:\s*repeat\(8,\s*minmax\(0,\s*1fr\)\)/);
+    expect(shellCss).toMatch(/@media\s*\(max-width:\s*360px\)\s*\{[^}]*\.navigation\s*\{\s*padding-inline:\s*2px/);
+  });
+
   it("uses a focused review bar instead of navigation through tablet and landscape widths", () => {
     expect(globalCss).toMatch(/--admin-bottom-actions-height:\s*0px/);
     expect(globalCss).toMatch(/@media\s*\(max-width:\s*1024px\)\s*\{\s*body:has\(\[data-review-mode="true"\]\)\s*\{\s*--admin-bottom-nav-height:\s*0px/);

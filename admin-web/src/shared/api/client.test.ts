@@ -13,6 +13,7 @@ const config = {
 
 afterEach(() => {
   cancelAdminRequests();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -40,6 +41,24 @@ describe("ApiClient", () => {
       errorCode: "FORBIDDEN",
       message: "관리자 API에 접근할 수 없습니다.",
     } satisfies Partial<ApiError>);
+  });
+
+  it("lets a request override the default timeout", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }));
+    const client = createApiClient(config);
+    const slow = client.request("/slow", { timeoutMs: 5_000 }).catch((error: unknown) => error);
+    const normal = client.request("/normal").catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await normal).toMatchObject({ kind: "timeout" });
+    expect(fetchSpy.mock.calls[0][1]?.signal?.aborted).toBe(false);
+    expect(fetchSpy.mock.calls[0][1]).not.toHaveProperty("timeoutMs");
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(await slow).toMatchObject({ name: "ApiError", kind: "timeout" });
   });
 
   it("does not let an old request's delayed 401 expire the new session", async () => {

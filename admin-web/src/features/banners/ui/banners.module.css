@@ -1,0 +1,27 @@
+.intro { display: grid; gap: 8px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 20px; color: #656776; font-size: 13px; line-height: 1.7; }
+.intro p { margin: 0; color: #41434f; font-weight: 600; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; color: #77798d; font-size: 12px; }
+.heading a { min-height: 44px; display: inline-flex; align-items: center; color: #5557a1; }
+.list { display: grid; gap: 14px; list-style: none; padding: 0; margin: 0; }
+.card { display: flex; align-items: center; gap: 24px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 20px; min-width: 0; }
+.thumbnail { position: relative; width: 200px; flex: 0 0 200px; aspect-ratio: 2 / 1; border-radius: 6px; overflow: hidden; background: #f0f1f7; display: grid; place-items: center; color: #77798d; font-size: 12px; text-align: center; }
+.thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.content { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.content h3 { margin: 0; color: #252631; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
+.content p { margin: 0; color: #656776; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.content time, .helper { color: #77798d; font-size: 12px; }
+.webLink { display: grid; gap: 4px; color: #5557a1; font-size: 12px; padding-block: 6px; overflow-wrap: anywhere; }
+.webLink span { color: #77798d; font-size: 11px; }
+.formLayout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.fields { display: grid; gap: 22px; margin: 0; border: 0; padding: 0; min-width: 0; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.preview { display: grid; gap: 14px; padding: 24px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; min-width: 0; }
+.preview h3 { margin: 0; color: #77798d; font-size: 13px; font-weight: 500; }
+.preview .thumbnail { width: 100%; }
+.preview strong { font-size: 16px; color: #252631; overflow-wrap: anywhere; }
+.preview p { margin: 0; font-size: 13px; line-height: 1.7; color: #656776; overflow-wrap: anywhere; }
+.preview > span { font-size: 12px; color: #77798d; line-height: 1.7; }
+.failure { color: #a13f33; font-size: 13px; line-height: 1.7; }
+.failure p { margin: 0 0 8px; }
+.failure a { text-decoration: underline; }
+@media (max-width: 760px) { .card { flex-wrap: wrap; gap: 16px; padding: 16px; } .thumbnail { width: 100%; flex-basis: 100%; } .content { flex-basis: calc(100% - 80px); } .formLayout { grid-template-columns: 1fr; gap: 16px; } .preview { padding: 16px; } .intro { padding: 16px; } }

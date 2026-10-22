@@ -5,16 +5,25 @@ import { NextRequest, NextResponse } from "next/server";
 const SESSION_COOKIE = "chalkak_admin_session";
 const COOKIE_PATH = "/api/admin";
 const MAX_BODY_BYTES = 64 * 1024;
+// A 50,000-character Korean system prompt is about 150KB in UTF-8.
+const MAX_AI_PROMPT_BODY_BYTES = 256 * 1024;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 // Leave time for the browser's 10-second timeout to receive errors and cookie deletion.
 const UPSTREAM_TIMEOUT_MS = 8_000;
+// The backend waits up to 60s for OpenAI plus 5s to connect. The browser's preview timeout must stay longer.
+const AI_PROMPT_PREVIEW_TIMEOUT_MS = 70_000;
 // A browser session may be shorter, but never longer, than the backend token.
 const MAX_SESSION_SECONDS = 7 * 24 * 60 * 60;
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const UUID_PATTERN = new RegExp(`^${UUID}$`);
 const ROUTES = [
+  { pattern: /^\/banners$/, methods: ["GET", "POST"] },
+  { pattern: new RegExp(`^/banners/${UUID}$`), methods: ["DELETE"] },
   { pattern: /^\/notices$/, methods: ["GET", "POST"] },
   { pattern: new RegExp(`^/notices/${UUID}$`), methods: ["GET", "PUT", "DELETE"] },
+  { pattern: /^\/ai-prompt-previews$/, methods: ["POST"] },
+  { pattern: /^\/ai-prompt-versions$/, methods: ["GET", "POST"] },
+  { pattern: new RegExp(`^/ai-prompt-versions/${UUID}$`), methods: ["GET"] },
   { pattern: /^\/auth\/login$/, methods: ["POST"] },
   { pattern: /^\/auth\/me$/, methods: ["GET"] },
   { pattern: /^\/auth\/logout$/, methods: ["POST"] },
@@ -90,7 +99,7 @@ function identity(payload: unknown) {
   return { adminId: payload.adminId, username: payload.username };
 }
 
-function upstreamUrl(path: string, search: string) {
+function upstreamUrl(path: string, search: string, method: string) {
   let url: URL;
   try {
     url = new URL(process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL?.trim() ?? "");
@@ -103,7 +112,8 @@ function upstreamUrl(path: string, search: string) {
   } catch {
     throw new RelayError(503, "ADMIN_API_UNAVAILABLE", "관리자 API 연결 설정을 확인해 주세요.");
   }
-  url.pathname = url.pathname.replace(/\/+$/, "") + path;
+  const basePath = url.pathname.replace(/\/+$/, "");
+  url.pathname = (method === "GET" && path === "/banners" ? basePath.replace(/\/admin$/, "") : basePath) + path;
   url.search = search;
   return url.toString();
 }
@@ -157,14 +167,14 @@ async function upstreamPayload(response: Response): Promise<unknown> {
   }
 }
 
-async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boolean, isScheduleDelete: boolean) {
+async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boolean, isBodylessDelete: boolean, bodyLimit: number) {
   if (request.method === "GET") return undefined;
-  if (isScheduleDelete) {
+  if (isBodylessDelete) {
     if (request.headers.has("Content-Encoding") && request.headers.get("Content-Encoding") !== "identity") {
       throw new RelayError(415, "ADMIN_JSON_REQUIRED", "압축된 요청 본문은 지원하지 않습니다.");
     }
     if ((await readBoundedBody(request, MAX_BODY_BYTES)).byteLength !== 0) {
-      throw new RelayError(400, "ADMIN_INVALID_REQUEST", "발송 시간 삭제에는 요청 본문을 보내지 않습니다.");
+      throw new RelayError(400, "ADMIN_INVALID_REQUEST", "삭제 요청에는 본문을 보내지 않습니다.");
     }
     return undefined;
   }
@@ -183,7 +193,7 @@ async function requestBody(request: NextRequest, isLogout: boolean, isLogin: boo
   }
   let body: unknown;
   try {
-    body = JSON.parse(await readBoundedText(request, MAX_BODY_BYTES));
+    body = JSON.parse(await readBoundedText(request, bodyLimit));
   } catch (error) {
     if (error instanceof RelayError) throw error;
     throw new RelayError(400, "ADMIN_INVALID_REQUEST", "요청 본문이 올바른 JSON이 아닙니다.");
@@ -223,14 +233,18 @@ async function upstreamError(response: Response, secrets: string[]) {
 async function forward(request: NextRequest, path: string, token: string | undefined) {
   const isLogin = path === "/auth/login";
   const isLogout = path === "/auth/logout";
-  const isScheduleDelete = request.method === "DELETE" && new RegExp(`^/topic-push-schedules/${UUID}$`).test(path);
-  const body = await requestBody(request, isLogout, isLogin, isScheduleDelete);
-  const url = upstreamUrl(path, request.nextUrl.search);
+  const isBodylessDelete = request.method === "DELETE" && new RegExp(`^/(topic-push-schedules|banners)/${UUID}$`).test(path);
+  const isAiPromptWrite = request.method === "POST" && (path === "/ai-prompt-previews" || path === "/ai-prompt-versions");
+  const body = await requestBody(request, isLogout, isLogin, isBodylessDelete, isAiPromptWrite ? MAX_AI_PROMPT_BODY_BYTES : MAX_BODY_BYTES);
+  const url = upstreamUrl(path, request.nextUrl.search, request.method);
   const headers = new Headers({ Accept: "application/json" });
   if (body !== undefined) headers.set("Content-Type", "application/json");
   if (!isLogin && token) headers.set("Authorization", `Bearer ${token}`);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    request.method === "POST" && path === "/ai-prompt-previews" ? AI_PROMPT_PREVIEW_TIMEOUT_MS : UPSTREAM_TIMEOUT_MS,
+  );
   try {
     const response = await fetch(url, {
       method: request.method, headers,

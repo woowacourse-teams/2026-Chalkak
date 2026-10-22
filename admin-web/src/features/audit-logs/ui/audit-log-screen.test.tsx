@@ -67,3 +67,43 @@ it("shows schedule audit labels and links to the settings even after deletion", 
   fireEvent.click(screen.getByRole("button", { name: "조회" }));
   expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=TOPIC_PUSH_SCHEDULE");
 });
+
+
+it("shows banner actions and returns to the list without inventing a detail route", async () => {
+  const result = await getApiClient().request<{ id: string }>("/banners", { method: "POST", body: { title: "새 배너", subtitle: "부제목", webViewUrl: "https://example.com/test", thumbnailUrl: "https://example.com/image.png" } });
+  await getApiClient().request(`/banners/${result.id}`, { method: "DELETE" });
+  mount();
+  const links = await screen.findAllByRole("link", { name: "배너 보기 →" });
+  expect(links).toHaveLength(2);
+  for (const link of links) expect(link).toHaveAttribute("href", "/banners");
+  expect(screen.getAllByText("배너 등록")).toHaveLength(2);
+  fireEvent.change(screen.getByRole("combobox", { name: "대상" }), { target: { value: "BANNER" } });
+  fireEvent.click(screen.getByRole("button", { name: "조회" }));
+  expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&targetType=BANNER");
+});
+
+it("labels AI prompt version creation and links to the version detail", async () => {
+  const created = await getApiClient().request<{ promptVersionId: string }>("/ai-prompt-versions", { method: "POST", body: {
+    type: "PHOTO_REVIEW", systemPrompt: "사진을 평가하세요.", userPromptTemplate: '{"주제": "{{topicTitle}}"}', model: "gpt-6-luna",
+  } });
+  mount();
+  const link = await screen.findByRole("link", { name: "AI 프롬프트 버전 보기 →" });
+  expect(link).toHaveAttribute("href", `/ai-prompts/${created.promptVersionId}`);
+  expect(screen.getByText("AI 프롬프트 버전 생성", { selector: "strong" })).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("combobox", { name: "작업" }), { target: { value: "AI_PROMPT_VERSION_CREATED" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "대상" }), { target: { value: "AI_PROMPT_VERSION" } });
+  fireEvent.click(screen.getByRole("button", { name: "조회" }));
+  expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&action=AI_PROMPT_VERSION_CREATED&targetType=AI_PROMPT_VERSION");
+});
+
+it("does not link an AI prompt audit entry whose target id is not a UUID", async () => {
+  server.use(http.get("*/api/v1/admin/audit-logs", () => HttpResponse.json({
+    currentPage: 1, pageSize: 20, hasNext: false, auditLogs: [{
+      auditLogId: "a", actorAdminId: "b", actorUsername: "demo-admin", action: "AI_PROMPT_VERSION_CREATED", targetType: "AI_PROMPT_VERSION",
+      targetId: "../users", reason: null, beforeState: {}, afterState: {}, occurredAt: "2026-10-20T00:00:00Z", requestId: "r",
+    }],
+  })));
+  mount();
+  expect(await screen.findByText("AI 프롬프트 버전 생성", { selector: "strong" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /보기/ })).not.toBeInTheDocument();
+});
