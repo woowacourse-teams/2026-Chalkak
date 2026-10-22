@@ -1,7 +1,8 @@
 package com.stonefive.chalkak.data.remote
 
 import com.stonefive.chalkak.data.local.auth.SessionStore
-import com.stonefive.chalkak.data.remote.aireview.AiReviewApi
+import com.stonefive.chalkak.data.remote.aireview.AiReviewQueryApi
+import com.stonefive.chalkak.data.remote.aireview.AiReviewRequestApi
 import com.stonefive.chalkak.data.remote.auth.AuthApi
 import com.stonefive.chalkak.data.remote.auth.RefreshApi
 import com.stonefive.chalkak.data.remote.banner.BannerApi
@@ -56,6 +57,7 @@ class NetworkModule(
 
     // AI review POSTs are not transparently retried: a retry could consume a
     // server-side request attempt after the first request was already accepted.
+    // GETs stay on backendClient so a stale pooled connection is retried.
     private val aiReviewClient = backendClient
         .newBuilder()
         .retryOnConnectionFailure(false)
@@ -85,7 +87,8 @@ class NetworkModule(
     val userApi: UserApi = retrofit.create(UserApi::class.java)
     val feedbackApi: FeedbackApi = retrofit.create(FeedbackApi::class.java)
     val notificationApi: NotificationApi = retrofit.create(NotificationApi::class.java)
-    val aiReviewApi: AiReviewApi = aiReviewRetrofit.create(AiReviewApi::class.java)
+    val aiReviewQueryApi: AiReviewQueryApi = retrofit.create(AiReviewQueryApi::class.java)
+    val aiReviewRequestApi: AiReviewRequestApi = aiReviewRetrofit.create(AiReviewRequestApi::class.java)
     val apiRequestExecutor = ApiRequestExecutor(json = json)
 
     val presignedUploadClient = OkHttpClient

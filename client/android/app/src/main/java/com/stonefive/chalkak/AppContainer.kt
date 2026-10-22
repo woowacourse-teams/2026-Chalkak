@@ -165,7 +165,8 @@ class AppContainer(context: Context) {
     val aiReviewRepository: AiReviewRepository by lazy {
         AiReviewRepositoryImpl(
             AiReviewDataSourceImpl(
-                api = networkModule.aiReviewApi,
+                queryApi = networkModule.aiReviewQueryApi,
+                requestApi = networkModule.aiReviewRequestApi,
                 requestExecutor = networkModule.apiRequestExecutor,
             ),
         )

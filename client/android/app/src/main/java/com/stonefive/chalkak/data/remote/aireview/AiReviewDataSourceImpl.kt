@@ -5,12 +5,13 @@ import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.aireview.model.AiReviewResponse
 
 class AiReviewDataSourceImpl(
-    private val api: AiReviewApi,
+    private val queryApi: AiReviewQueryApi,
+    private val requestApi: AiReviewRequestApi,
     private val requestExecutor: ApiRequestExecutor,
 ) : AiReviewDataSource {
     override suspend fun getReview(postId: String): ApiResult<AiReviewResponse> =
-        requestExecutor.execute { api.getReview(postId) }
+        requestExecutor.execute { queryApi.getReview(postId) }
 
     override suspend fun requestReview(postId: String): ApiResult<AiReviewResponse> =
-        requestExecutor.execute { api.requestReview(postId) }
+        requestExecutor.execute { requestApi.requestReview(postId) }
 }

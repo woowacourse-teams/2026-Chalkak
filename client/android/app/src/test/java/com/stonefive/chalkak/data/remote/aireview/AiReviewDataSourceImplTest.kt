@@ -22,13 +22,16 @@ class AiReviewDataSourceImplTest {
         server = MockWebServer()
         server.start()
         val json = Json { ignoreUnknownKeys = true }
-        val api = Retrofit
+        val retrofit = Retrofit
             .Builder()
             .baseUrl(server.url("/"))
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(AiReviewApi::class.java)
-        dataSource = AiReviewDataSourceImpl(api, ApiRequestExecutor(json))
+        dataSource = AiReviewDataSourceImpl(
+            queryApi = retrofit.create(AiReviewQueryApi::class.java),
+            requestApi = retrofit.create(AiReviewRequestApi::class.java),
+            requestExecutor = ApiRequestExecutor(json),
+        )
     }
 
     @After
