@@ -297,6 +297,29 @@ struct NotificationAPIClientTests {
         }
     }
 
+    @Test("공지 상세는 회원 알림 ID로 조회하며 사진과 반려 사유 없이 본문 전문을 유지한다")
+    func fetchNoticeDetail() async throws {
+        let recorder = NotificationAPIRequestRecorder()
+        let notificationID = "019a0010-0000-7000-8000-000000000009"
+        let body = String(repeating: "공지 본문입니다.\n", count: 20)
+        let data = try JSONSerialization.data(withJSONObject: [
+            "id": notificationID, "title": "서비스 점검 안내", "body": body,
+            "originalImageUrl": NSNull(), "rejectionReason": NSNull()
+        ])
+        let json = String(decoding: data, as: UTF8.self)
+        NotificationAPIMockURLProtocol.install { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: json)
+        }
+        defer { NotificationAPIMockURLProtocol.uninstall() }
+        let detail = try await Self.client().fetchDetail(notificationID: notificationID)
+        #expect(await recorder.firstRequest?.url?.path == "/api/v1/notifications/\(notificationID)")
+        #expect(detail.title == "서비스 점검 안내")
+        #expect(detail.body == body)
+        #expect(detail.originalImageURL == nil)
+        #expect(detail.rejectionReason == nil)
+    }
+
     private static func client(accessToken: String = "access-token") -> NotificationAPIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [NotificationAPIMockURLProtocol.self]
@@ -485,5 +508,20 @@ private extension ISO8601DateFormatter {
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
+    }
+}
+
+struct NoticeNotificationDestinationTests {
+    @Test("공지 알림함 항목은 회원별 알림 ID로 공지 상세를 연다")
+    func opensNoticeDetail() {
+        let notificationID = "019a0010-0000-7000-8000-000000000009"
+        let item = NotificationItem(
+            id: notificationID, type: "NOTICE", sourceType: "NOTICE",
+            sourceID: "019a0000-0000-7000-8000-000000000592",
+            title: "서비스 점검 안내", body: "점검 공지 본문", thumbnailURL: nil,
+            readAt: nil, createdAt: Date()
+        )
+        #expect(item.destination == .notice(notificationID: notificationID))
+        #expect(item.destination?.notificationID == notificationID)
     }
 }

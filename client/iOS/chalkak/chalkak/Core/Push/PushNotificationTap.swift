@@ -7,6 +7,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
     case topic
     case postApproved(postID: String, notificationID: String)
     case postRejected(notificationID: String)
+    case notice(notificationID: String)
 
     /// 필드가 빠졌거나 알 수 없는 종류면 nil을 반환해 화면 이동 없이 앱만 연다.
     init?(userInfo: [AnyHashable: Any]) {
@@ -23,6 +24,8 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
             self = .postApproved(postID: postID, notificationID: notificationID)
         case NotificationType.postRejected:
             self = .postRejected(notificationID: notificationID)
+        case NotificationType.notice:
+            self = .notice(notificationID: notificationID)
         default:
             return nil
         }
@@ -32,7 +35,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         switch self {
         case .topic:
             nil
-        case let .postApproved(_, notificationID), let .postRejected(notificationID):
+        case let .postApproved(_, notificationID), let .postRejected(notificationID), let .notice(notificationID):
             notificationID
         }
     }
@@ -55,6 +58,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         static let topic = "TOPIC"
         static let postApproved = "POST_APPROVED"
         static let postRejected = "POST_REJECTED"
+        static let notice = "NOTICE"
     }
 }
 

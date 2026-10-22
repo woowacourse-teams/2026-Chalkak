@@ -19,6 +19,8 @@ struct NotificationItem: Identifiable, Equatable, Sendable {
             return .postApproved(postID: sourceID, notificationID: id)
         case "POST_REJECTED":
             return .postRejected(notificationID: id)
+        case "NOTICE":
+            return .notice(notificationID: id)
         default:
             return nil
         }

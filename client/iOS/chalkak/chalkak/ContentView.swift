@@ -112,7 +112,7 @@ struct ContentView: View {
                                 )
                                 .id(postID)
                                 .background(InteractivePopGestureEnabler())
-                            case let .rejected(target):
+                            case let .rejected(target), let .notice(target):
                                 NotificationDetailScreen(
                                     viewModel: Self.makeNotificationDetailViewModel(target),
                                     onBackClick: { closeNotificationDestination(destination) },
@@ -661,6 +661,8 @@ struct ContentView: View {
                 notificationPath.append(.approved(postID))
             case let .postRejected(notificationID):
                 notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
+            case let .notice(notificationID):
+                notificationPath.append(.notice(NotificationDetailTarget(id: notificationID)))
             }
         }
     }
@@ -1109,7 +1111,7 @@ struct ContentView: View {
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
             case .approved:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
-            case .rejected:
+            case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
             }
         }
@@ -1167,6 +1169,7 @@ private enum NotificationRoute: Hashable {
     case inbox
     case approved(String)
     case rejected(NotificationDetailTarget)
+    case notice(NotificationDetailTarget)
 }
 
 

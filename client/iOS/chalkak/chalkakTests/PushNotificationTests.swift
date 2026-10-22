@@ -45,6 +45,24 @@ struct PushNotificationTapTests {
         #expect(tap == .postRejected(notificationID: Self.notificationID))
     }
 
+    @Test("공지 푸시는 공지 sourceId가 아닌 회원 알림 notificationId로 상세를 연다")
+    func parsesNoticePush() {
+        var payload = Self.userInfo(type: "NOTICE")
+        payload["sourceType"] = "NOTICE"
+        let tap = PushNotificationTap(userInfo: payload)
+        #expect(tap == .notice(notificationID: Self.notificationID))
+        #expect(tap?.notificationID == Self.notificationID)
+    }
+
+    @Test("알림 ID가 없거나 올바르지 않은 공지는 상세를 열지 않는다", arguments: ["", "../notices/1", "not-a-uuid"])
+    func rejectsInvalidNoticeID(value: String) {
+        var payload = Self.userInfo(type: "NOTICE")
+        payload["notificationId"] = value
+        #expect(PushNotificationTap(userInfo: payload) == nil)
+        payload["notificationId"] = nil
+        #expect(PushNotificationTap(userInfo: payload) == nil)
+    }
+
     @Test("알 수 없는 종류·누락된 필드·UUID가 아닌 식별자는 이동하지 않는다")
     func ignoresUnusablePayloads() {
         var missingNotificationID = Self.userInfo(type: "POST_REJECTED")
