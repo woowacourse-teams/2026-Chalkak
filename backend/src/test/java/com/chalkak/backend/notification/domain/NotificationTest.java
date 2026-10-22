@@ -301,13 +301,14 @@ class NotificationTest {
 
     @Test
     @DisplayName("AI 리뷰 완료 알림은 게시물 대상에 고정 문구와 회차 키를 담아 발행 대기로 만든다")
-    void aiReviewCompleted_pushEnabled_createsPendingNotification() {
+    void aiReview_completed_createsPendingNotification() {
         // When
-        Notification notification = Notification.aiReviewCompleted(
+        Notification notification = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 true
         );
@@ -327,21 +328,21 @@ class NotificationTest {
 
     @ParameterizedTest
     @CsvSource({
-            "true, 잠시 후 다시 요청해 주세요.",
-            "false, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+            "FAILED_RETRYABLE, 잠시 후 다시 요청해 주세요.",
+            "FAILED_FINAL, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
     })
     @DisplayName("AI 리뷰 실패 알림은 다시 요청할 수 있는지에 따라 본문이 다르다")
-    void aiReviewFailed_canRequestAgain_choosesBody(
-            boolean canRequestAgain,
+    void aiReview_failedOutcome_choosesBody(
+            AiReviewOutcome outcome,
             String expectedBody
     ) {
         // When
-        Notification notification = Notification.aiReviewFailed(
+        Notification notification = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 2,
-                canRequestAgain,
+                outcome,
                 OCCURRED_AT,
                 true
         );
@@ -359,36 +360,39 @@ class NotificationTest {
     @DisplayName("AI 리뷰 알림 키는 리뷰와 회차가 같으면 같고 하나라도 다르면 다르며 종류와 무관하다")
     void aiReviewEventKey_reviewAndRound_isDeterministic() {
         // When
-        Notification first = Notification.aiReviewCompleted(
+        Notification first = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 true
         );
-        Notification sameRound = Notification.aiReviewFailed(
+        Notification sameRound = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                true,
+                AiReviewOutcome.FAILED_RETRYABLE,
                 OCCURRED_AT.plusSeconds(5),
                 false
         );
-        Notification nextRound = Notification.aiReviewCompleted(
+        Notification nextRound = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 2,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 true
         );
-        Notification otherReview = Notification.aiReviewCompleted(
+        Notification otherReview = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 UUID.randomUUID(),
                 1,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 true
         );
@@ -404,20 +408,21 @@ class NotificationTest {
     @DisplayName("AI 리뷰 알림은 푸시 필요 여부에 따라 즉시 발행 대기 또는 발행 불필요로 생성한다")
     void aiReview_pushPreference_setsInitialPublicationState(boolean pushEnabled) {
         // When
-        Notification completed = Notification.aiReviewCompleted(
+        Notification completed = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 pushEnabled
         );
-        Notification failed = Notification.aiReviewFailed(
+        Notification failed = Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                true,
+                AiReviewOutcome.FAILED_RETRYABLE,
                 OCCURRED_AT,
                 pushEnabled
         );
@@ -432,43 +437,61 @@ class NotificationTest {
     }
 
     @Test
+    @DisplayName("AI 리뷰 알림은 결과가 없으면 NPE가 아니라 필수값 위반으로 만들지 않는다")
+    void aiReview_nullOutcome_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                null,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     @DisplayName("AI 리뷰 알림은 회원·게시물·리뷰·발생 시각이 없으면 만들지 않는다")
     void aiReview_missingRequiredValue_throwsBusinessException() {
         // When & Then
-        assertThatThrownBy(() -> Notification.aiReviewCompleted(
+        assertThatThrownBy(() -> Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 null,
                 1,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 true
         ))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> Notification.aiReviewFailed(
+        assertThatThrownBy(() -> Notification.aiReview(
                 USER_ID,
                 null,
                 AI_REVIEW_ID,
                 1,
-                true,
+                AiReviewOutcome.FAILED_RETRYABLE,
                 OCCURRED_AT,
                 true
         ))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> Notification.aiReviewCompleted(
+        assertThatThrownBy(() -> Notification.aiReview(
                 null,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
+                AiReviewOutcome.COMPLETED,
                 OCCURRED_AT,
                 true
         ))
                 .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> Notification.aiReviewFailed(
+        assertThatThrownBy(() -> Notification.aiReview(
                 USER_ID,
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                true,
+                AiReviewOutcome.FAILED_RETRYABLE,
                 null,
                 true
         ))

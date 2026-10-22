@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
@@ -489,14 +490,13 @@ class NotificationServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @CsvSource({
-            "true, true, AI_REVIEW_COMPLETED, AI 피드백이 도착했어요, 사진의 구도 점수와 피드백을 확인해 보세요.",
-            "false, true, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 잠시 후 다시 요청해 주세요.",
-            "false, false, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+            "COMPLETED, AI_REVIEW_COMPLETED, AI 피드백이 도착했어요, 사진의 구도 점수와 피드백을 확인해 보세요.",
+            "FAILED_RETRYABLE, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 잠시 후 다시 요청해 주세요.",
+            "FAILED_FINAL, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
     })
-    @DisplayName("AI 리뷰 결과 알림은 결과와 재요청 가능 여부로 종류와 문구를 정해 게시물 대상으로 저장한다")
-    void createForAiReview_result_storesTypeAndMessage(
-            boolean completed,
-            boolean canRequestAgain,
+    @DisplayName("AI 리뷰 결과 알림은 결과로 종류와 문구를 정해 게시물 대상으로 저장한다")
+    void createForAiReview_outcome_storesTypeAndMessage(
+            AiReviewOutcome outcome,
             String type,
             String title,
             String body
@@ -507,8 +507,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                completed,
-                canRequestAgain,
+                outcome,
                 NOW
         );
 
@@ -552,8 +551,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                true,
-                true,
+                AiReviewOutcome.COMPLETED,
                 NOW
         );
 
@@ -576,8 +574,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                true,
-                true,
+                AiReviewOutcome.COMPLETED,
                 NOW
         );
         entityManager.flush();
@@ -617,8 +614,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 AI_REVIEW_ID,
                 1,
-                true,
-                true,
+                AiReviewOutcome.COMPLETED,
                 NOW
         );
         entityManager.flush();

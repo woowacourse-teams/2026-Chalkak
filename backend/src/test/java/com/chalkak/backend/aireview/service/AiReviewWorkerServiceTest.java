@@ -8,7 +8,6 @@ import static com.chalkak.backend.aireview.service.AiReviewFixture.TOPIC_TITLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -33,6 +32,7 @@ import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService.Claim;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.service.NotificationService;
@@ -319,12 +319,12 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         );
         UUID next = fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> notifications
-                .insertIfAbsent(Notification.aiReviewFailed(
+                .insertIfAbsent(Notification.aiReview(
                         AUTHOR_ID,
                         POST_ID,
                         exhausted,
                         1,
-                        true,
+                        AiReviewOutcome.FAILED_RETRYABLE,
                         REQUESTED_AT,
                         true
                 )));
@@ -342,8 +342,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("소진 행의 알림 저장이 실패하면 알림 없이 한 번 더 가져가 실패로 끝내고 생략 로그를 남기며 다음 행을 가져간다")
-    void claimNext_notificationSaveFails_retriesWithoutNotificationAndClaimsNext() {
+    @DisplayName("소진 행의 알림 저장이 실패해도 행은 실패로 끝나고 실패 로그를 남기며 다음 행을 가져간다")
+    void claimNext_notificationSaveFails_failsExhaustedAndClaimsNext() {
         // Given
         fixture.insertSecondPublicPost();
         UUID exhausted = fixture.insertProcessingReview(
@@ -365,10 +365,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(findRow(exhausted)).containsEntry("status", "FAILED")
                 .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name());
         assertThat(findNotifications()).isEmpty();
-        assertThat(singleEventKeyValues("result_notification_skipped"))
-                .contains("aiReviewId=\"" + exhausted + "\"");
-        assertThat(singleEventKeyValues("claim_retried_without_notification"))
-                .contains("errorCode=\"DataAccessResourceFailureException\"");
+        assertThat(singleEventKeyValues("result_notification_failed")).contains(
+                "aiReviewId=\"" + exhausted + "\"",
+                "errorCode=\"DataAccessResourceFailureException\""
+        );
         assertThat(appender.list).noneMatch(event -> event.getKeyValuePairs().toString()
                 .contains("event=\"worker_poll_failed\""));
         assertThat(singleEventKeyValues("review_failed"))
@@ -437,7 +437,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("완료하면 같은 트랜잭션에서 완료 알림을 하나 만들고 생성 시각은 리뷰 완료 시각이다")
+    @DisplayName("완료하면 완료 알림을 하나 만들고 생성 시각은 리뷰 완료 시각이다")
     void process_success_createsCompletedNotification() {
         // Given
         given(aiReviewGenerator.generate(any())).willAnswer(invocation -> {
@@ -535,8 +535,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("다시 가져가기까지 실패하면 예외를 그대로 던지고 worker_poll_failed는 서비스가 남기지 않는다")
-    void claimNext_retryAlsoFails_throwsWithoutPollFailedLog() {
+    @DisplayName("가져가기가 실패하면 다시 시도하지 않고 예외를 그대로 던진다")
+    void claimNext_claimFails_throwsWithoutRetry() {
         // Given
         AiReviewRepository failing = mock(AiReviewRepository.class,
                 AdditionalAnswers.delegatesTo(reviewRepository));
@@ -547,15 +547,13 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(failingService::claimNext)
                 .isInstanceOf(DataAccessResourceFailureException.class);
-        assertThat(singleEventKeyValues("claim_retried_without_notification"))
-                .contains("errorCode=\"DataAccessResourceFailureException\"");
-        assertThat(appender.list).noneMatch(event -> event.getKeyValuePairs().toString()
-                .contains("event=\"worker_poll_failed\""));
+        verify(failing, times(1)).findClaimableForUpdate(any());
+        assertThat(appender.list).isEmpty();
     }
 
     @Test
-    @DisplayName("알림 저장이 실패하면 결과 반영도 롤백해 처리 중으로 남기고 알림은 없다")
-    void process_notificationSaveFails_leavesProcessingWithoutNotification() {
+    @DisplayName("완료 알림 저장이 실패해도 리뷰는 완료로 확정하고 생성기를 다시 호출하지 않으며 실패 로그를 남긴다")
+    void process_completionNotificationSaveFails_keepsCompleted() {
         // Given
         UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
         given(aiReviewGenerator.generate(any())).willReturn(generation());
@@ -569,10 +567,43 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         failingService.process(claim, () -> false);
 
         // Then
-        assertThat(findRow(reviewId)).containsEntry("status", "PROCESSING");
+        assertThat(findRow(reviewId)).containsEntry("status", "COMPLETED");
         assertThat(findNotifications()).isEmpty();
-        assertThat(singleEventKeyValues("review_abandoned"))
-                .contains("aiReviewId=\"" + reviewId + "\"", "reason=\"DB_ERROR\"");
+        verify(aiReviewGenerator, times(1)).generate(any());
+        assertThat(singleEventKeyValues("result_notification_failed")).contains(
+                "aiReviewId=\"" + reviewId + "\"",
+                "errorCode=\"DataAccessResourceFailureException\""
+        );
+        assertThat(singleEventKeyValues("review_completed"))
+                .contains("aiReviewId=\"" + reviewId + "\"");
+        assertThat(appender.list).noneMatch(event -> event.getKeyValuePairs().toString()
+                .contains("event=\"review_abandoned\""));
+    }
+
+    @Test
+    @DisplayName("실패 알림 저장이 실패해도 리뷰는 실패로 확정하고 실패 로그를 남긴다")
+    void process_failureNotificationSaveFails_keepsFailed() {
+        // Given
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(AiReviewGenerationException.of(FailureType.INVALID_OUTPUT));
+        AiReviewWorkerService failingService = createService(
+                reviewRepository,
+                failingNotificationService()
+        );
+        Claim claim = failingService.claimNext().orElseThrow();
+
+        // When
+        failingService.process(claim, () -> false);
+
+        // Then
+        assertThat(findRow(reviewId)).containsEntry("status", "FAILED");
+        assertThat(findNotifications()).isEmpty();
+        verify(aiReviewGenerator, times(1)).generate(any());
+        assertThat(singleEventKeyValues("result_notification_failed"))
+                .contains("aiReviewId=\"" + reviewId + "\"");
+        assertThat(singleEventKeyValues("review_failed"))
+                .contains("aiReviewId=\"" + reviewId + "\"");
     }
 
     @Test
@@ -1307,8 +1338,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                         any(),
                         any(),
                         anyInt(),
-                        anyBoolean(),
-                        anyBoolean(),
+                        any(),
                         any()
                 );
         return failing;

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -211,12 +212,12 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         // Given
         UUID postId = UUID.randomUUID();
         UUID id = new TransactionTemplate(transactionManager).execute(status -> {
-            repository.insertIfAbsent(Notification.aiReviewFailed(
+            repository.insertIfAbsent(Notification.aiReview(
                     USER_ID,
                     postId,
                     UUID.randomUUID(),
                     1,
-                    true,
+                    AiReviewOutcome.FAILED_RETRYABLE,
                     NOW,
                     true
             ));

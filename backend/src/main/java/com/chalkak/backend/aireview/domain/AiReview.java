@@ -282,7 +282,7 @@ public class AiReview {
         if (isCompleted()) {
             return true;
         }
-        return isFailed() && !FailureReason.POST_UNAVAILABLE.name().equals(errorCode);
+        return isFailed() && !FailureReason.POST_UNAVAILABLE.matches(errorCode);
     }
 
     public boolean isCompleted() {
@@ -345,7 +345,14 @@ public class AiReview {
      * 워커가 직접 정하는 실패 사유. 생성기 실패는 생성기의 실패 유형 이름을 그대로 오류 코드로 저장한다.
      */
     public enum FailureReason {
-        POST_UNAVAILABLE, PROMPT_VERSION_UNAVAILABLE, LEASE_EXHAUSTED, UNEXPECTED_ERROR
+        POST_UNAVAILABLE, PROMPT_VERSION_UNAVAILABLE, LEASE_EXHAUSTED, UNEXPECTED_ERROR;
+
+        /**
+         * 저장된 errorCode가 이 사유인지. errorCode 컬럼은 호출 실패 종류까지 담는 문자열이라 이름으로 비교한다.
+         */
+        public boolean matches(String errorCode) {
+            return name().equals(errorCode);
+        }
     }
 
     /**

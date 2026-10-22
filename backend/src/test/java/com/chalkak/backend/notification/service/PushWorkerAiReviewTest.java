@@ -12,6 +12,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
@@ -197,11 +198,12 @@ class PushWorkerAiReviewTest extends IntegrationTestSupport {
     // 결과 알림 저장 경로로 알림을 만들고, Relay가 발행하는 것과 같은 메시지를 구성한다.
     private PushMessage createNotificationMessage() {
         return new TransactionTemplate(manager).execute(status -> {
-            notifications.insertIfAbsent(Notification.aiReviewCompleted(
+            notifications.insertIfAbsent(Notification.aiReview(
                     USER_ID,
                     POST_ID,
                     AI_REVIEW_ID,
                     1,
+                    AiReviewOutcome.COMPLETED,
                     NOW,
                     true
             ));

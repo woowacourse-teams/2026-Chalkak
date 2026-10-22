@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -71,29 +72,17 @@ public class NotificationService {
             UUID postId,
             UUID aiReviewId,
             int round,
-            boolean completed,
-            boolean canRequestAgain,
+            AiReviewOutcome outcome,
             Instant occurredAt
     ) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean pushEnabled = !user.isDeleted() && user.isAiReviewPushEnabled();
-        if (completed) {
-            notificationRepository.insertIfAbsent(Notification.aiReviewCompleted(
-                    userId,
-                    postId,
-                    aiReviewId,
-                    round,
-                    occurredAt,
-                    pushEnabled
-            ));
-            return;
-        }
-        notificationRepository.insertIfAbsent(Notification.aiReviewFailed(
+        notificationRepository.insertIfAbsent(Notification.aiReview(
                 userId,
                 postId,
                 aiReviewId,
                 round,
-                canRequestAgain,
+                outcome,
                 occurredAt,
                 pushEnabled
         ));

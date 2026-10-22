@@ -9,12 +9,15 @@ import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewRetryBackoff.RetryDelay;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -79,21 +82,19 @@ public class AiReviewWorkerService {
     }
 
     /**
-     * 가장 오래 기다린 처리 대상을 하나 가져간다. 가져간 횟수 상한을 넘은 행은 처리하지 않고 실패로 끝낸 뒤 다음 행을 찾는다. 이때 실패
-     * 결과 알림 저장이 예외로 막히면 알림 없이 한 번 더 가져가, 같은 행이 대기열을 막지 않게 한다.
+     * 가장 오래 기다린 처리 대상을 하나 가져간다. 가져간 횟수 상한을 넘은 행은 처리하지 않고 실패로 끝낸 뒤 다음 행을 찾는다.
      *
      * <p>
-     * 첫 시도가 어떤 이유로든 실패하면 그 폴링에서 소진으로 끝나는 행들의 실패 알림은 남기지 않는다. 소진 자체가 드물고 대기열 정지를 막는
-     * 것이 우선이다. 다시 가져가기도 실패하면 예외를 그대로 던진다.
+     * 소진으로 끝난 행의 종료 로그와 결과 알림은 가져가기 트랜잭션이 커밋된 뒤에 남긴다. 알림 저장이 실패해도 행은 실패로 확정된 채 두고
+     * 다음 행을 가져간다. 가져가기 자체가 실패하면 예외를 그대로 던진다.
      */
     public Optional<Claim> claimNext() {
-        try {
-            return Optional.ofNullable(transactionTemplate.execute(status -> claimOne(true)));
-        } catch (RuntimeException exception) {
-            // 소진된 행의 결과 알림 저장이 막혀도 같은 행이 대기열 맨 앞에서 반복되지 않게, 알림 없이 한 번 더 가져간다.
-            AiReviewWorkerLog.claimRetriedWithoutNotification(exception);
-            return Optional.ofNullable(transactionTemplate.execute(status -> claimOne(false)));
+        Claimed claimed = transactionTemplate.execute(status -> claimOne());
+        for (Exhausted exhausted : claimed.exhausted()) {
+            AiReviewWorkerLog.finished(exhausted.review(), exhausted.claim());
+            notifyResult(exhausted.review(), exhausted.claim());
         }
+        return Optional.ofNullable(claimed.claim());
     }
 
     /**
@@ -181,8 +182,9 @@ public class AiReviewWorkerService {
         );
     }
 
-    private Claim claimOne(boolean notifyExhausted) {
+    private Claimed claimOne() {
         Instant now = clock.instant();
+        List<Exhausted> exhausted = new ArrayList<>();
         Optional<AiReview> found = reviewRepository.findClaimableForUpdate(now);
         while (found.isPresent()) {
             AiReview review = found.get();
@@ -193,31 +195,12 @@ public class AiReviewWorkerService {
                     now.plus(leaseDuration),
                     maxClaims
             )) {
-                return toClaim(review, version);
+                return new Claimed(toClaim(review, version), exhausted);
             }
-            finishExhausted(
-                    review,
-                    toClaim(review, version),
-                    notifyExhausted
-            );
+            exhausted.add(new Exhausted(review, toClaim(review, version)));
             found = reviewRepository.findClaimableForUpdate(now);
         }
-        return null;
-    }
-
-    // 소진으로 끝난 행을 마무리한다. 알림을 만들거나, 만들지 않았다는 로그를 남기고 종료 로그를 남긴다.
-    private void finishExhausted(
-            AiReview review,
-            Claim claim,
-            boolean notify
-    ) {
-        if (notify) {
-            notifyResult(review);
-            AiReviewWorkerLog.finished(review, claim);
-            return;
-        }
-        AiReviewWorkerLog.resultNotificationSkipped(claim);
-        AiReviewWorkerLog.finished(review, claim);
+        return new Claimed(null, exhausted);
     }
 
     private void handleGenerationFailure(
@@ -289,7 +272,6 @@ public class AiReviewWorkerService {
                 if (!transition.test(review)) {
                     return null;
                 }
-                notifyResult(review);
                 return review;
             });
         } catch (RuntimeException exception) {
@@ -317,24 +299,40 @@ public class AiReviewWorkerService {
                 applied,
                 toClaim(applied, claim.version())
         );
+        notifyResult(applied, claim);
     }
 
     /**
-     * 리뷰 상태를 바꾼 트랜잭션 안에서 결과 알림을 만든다. 재시도 대기처럼 끝나지 않았거나 알릴 필요 없는 상태는 건너뛴다.
+     * 리뷰 상태가 커밋된 뒤 별도 트랜잭션에서 결과 알림을 만든다. 재시도 대기처럼 끝나지 않았거나 알릴 필요 없는 상태는 건너뛴다. 알림
+     * 저장이 실패해도 확정한 리뷰 결과는 그대로 두고 로그만 남긴다.
      */
-    private void notifyResult(AiReview review) {
+    private void notifyResult(AiReview review, Claim claim) {
         if (!review.isResultNotifiable()) {
             return;
         }
-        notificationService.createForAiReview(
-                review.getUserId(),
-                review.getPostId(),
-                review.getId(),
-                review.getRequestCount(),
-                review.isCompleted(),
-                review.canRequestAgain(),
-                review.getCompletedAt()
-        );
+        try {
+            transactionTemplate.executeWithoutResult(status -> notificationService
+                    .createForAiReview(
+                            review.getUserId(),
+                            review.getPostId(),
+                            review.getId(),
+                            review.getRequestCount(),
+                            toOutcome(review),
+                            review.getCompletedAt()
+                    ));
+        } catch (RuntimeException exception) {
+            AiReviewWorkerLog.resultNotificationFailed(claim, exception);
+        }
+    }
+
+    private AiReviewOutcome toOutcome(AiReview review) {
+        if (review.isCompleted()) {
+            return AiReviewOutcome.COMPLETED;
+        }
+        if (review.canRequestAgain()) {
+            return AiReviewOutcome.FAILED_RETRYABLE;
+        }
+        return AiReviewOutcome.FAILED_FINAL;
     }
 
     private Invocation toInvocation(Optional<Attempt> found) {
@@ -385,6 +383,12 @@ public class AiReviewWorkerService {
                     Optional.empty()
             );
         }
+    }
+
+    private record Claimed(Claim claim, List<Exhausted> exhausted) {
+    }
+
+    private record Exhausted(AiReview review, Claim claim) {
     }
 
     /**

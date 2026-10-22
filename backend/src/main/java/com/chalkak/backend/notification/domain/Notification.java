@@ -32,11 +32,6 @@ public class Notification {
     private static final String APPROVED_BODY = "내 사진이 피드에 공개되었습니다.";
     private static final String REJECTED_TITLE = "게시물이 반려되었습니다.";
     private static final String REJECTED_BODY = "반려 사유를 확인해 주세요.";
-    private static final String AI_REVIEW_COMPLETED_TITLE = "AI 피드백이 도착했어요";
-    private static final String AI_REVIEW_COMPLETED_BODY = "사진의 구도 점수와 피드백을 확인해 보세요.";
-    private static final String AI_REVIEW_FAILED_TITLE = "AI 피드백을 만들지 못했어요";
-    private static final String AI_REVIEW_RETRYABLE_BODY = "잠시 후 다시 요청해 주세요.";
-    private static final String AI_REVIEW_EXHAUSTED_BODY = "이 사진은 더 이상 AI 피드백을 요청할 수 없어요.";
     private static final int MAX_REJECTION_REASON_LENGTH = 500;
 
     @Id
@@ -157,47 +152,34 @@ public class Notification {
         return notification;
     }
 
-    public static Notification aiReviewCompleted(
+    /** AI 리뷰 결과 알림을 만든다. 같은 리뷰의 같은 회차는 같은 사건 키를 가진다. */
+    public static Notification aiReview(
             UUID userId,
             UUID postId,
             UUID aiReviewId,
             int round,
+            AiReviewOutcome outcome,
             Instant createdAt,
             boolean pushEnabled
     ) {
-        return createAiReview(
+        validateRequired(
                 userId,
                 postId,
                 aiReviewId,
-                round,
-                NotificationType.AI_REVIEW_COMPLETED,
-                AI_REVIEW_COMPLETED_TITLE,
-                AI_REVIEW_COMPLETED_BODY,
-                createdAt,
-                pushEnabled
+                outcome,
+                createdAt
         );
-    }
-
-    public static Notification aiReviewFailed(
-            UUID userId,
-            UUID postId,
-            UUID aiReviewId,
-            int round,
-            boolean canRequestAgain,
-            Instant createdAt,
-            boolean pushEnabled
-    ) {
-        return createAiReview(
-                userId,
-                postId,
-                aiReviewId,
-                round,
-                NotificationType.AI_REVIEW_FAILED,
-                AI_REVIEW_FAILED_TITLE,
-                canRequestAgain ? AI_REVIEW_RETRYABLE_BODY : AI_REVIEW_EXHAUSTED_BODY,
-                createdAt,
-                pushEnabled
-        );
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.POST;
+        notification.sourceId = postId;
+        notification.eventKey = createAiReviewEventKey(aiReviewId, round);
+        notification.type = outcome.getType();
+        notification.title = outcome.getTitle();
+        notification.body = outcome.getBody();
+        notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
+        return notification;
     }
 
     public void markPublished(Instant acceptedAt) {
@@ -246,37 +228,10 @@ public class Notification {
         }
     }
 
-    private static Notification createAiReview(
-            UUID userId,
-            UUID postId,
-            UUID aiReviewId,
-            int round,
-            NotificationType type,
-            String title,
-            String body,
-            Instant createdAt,
-            boolean pushEnabled
-    ) {
-        validateRequired(
-                userId,
-                postId,
-                aiReviewId,
-                createdAt
-        );
-        Notification notification = new Notification();
-        notification.userId = userId;
-        notification.sourceType = NotificationSourceType.POST;
-        notification.sourceId = postId;
-        notification.eventKey = createAiReviewEventKey(aiReviewId, round);
-        notification.type = type;
-        notification.title = title;
-        notification.body = body;
-        notification.createdAt = createdAt;
-        notification.initializePublication(pushEnabled);
-        return notification;
-    }
-
-    // 같은 리뷰의 같은 회차는 항상 같은 키가 되어 회차마다 알림이 한 건만 생긴다.
+    // 승인·반려는 감사 로그 ID, 공지는 공지 ID처럼 사건을 대표하는 행이 있어 그 ID를 키로 쓴다. AI 리뷰는 회차마다 대응하는 행이
+    // 없어(재요청해도 같은 리뷰 행을 쓴다) (리뷰 ID, 회차)에서 키를 만든다. 같은 리뷰의 같은 회차는 항상 같은 키가 되어 회차마다
+    // 알림이
+    // 한 건만 생긴다.
     private static UUID createAiReviewEventKey(UUID aiReviewId, int round) {
         return UUID.nameUUIDFromBytes(
                 ("AI_REVIEW:" + aiReviewId + ":" + round).getBytes(StandardCharsets.UTF_8));
@@ -291,16 +246,13 @@ public class Notification {
         nextAttemptAt = createdAt;
     }
 
-    private static void validateRequired(
-            UUID userId,
-            UUID postId,
-            UUID eventKey,
-            Instant createdAt
-    ) {
-        if (userId == null || postId == null || eventKey == null || createdAt == null) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "알림 생성 정보가 올바르지 않습니다.");
+    private static void validateRequired(Object... requiredValues) {
+        for (Object value : requiredValues) {
+            if (value == null) {
+                throw new BusinessException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "알림 생성 정보가 올바르지 않습니다.");
+            }
         }
     }
 

@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -131,29 +132,30 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         Instant createdAt = Instant.parse("2026-10-21T01:00:00Z");
 
         // When
-        int first = notificationRepository.insertIfAbsent(Notification.aiReviewCompleted(
+        int first = notificationRepository.insertIfAbsent(Notification.aiReview(
                 userId,
                 postId,
                 aiReviewId,
                 1,
+                AiReviewOutcome.COMPLETED,
                 createdAt,
                 true
         ));
-        int duplicate = notificationRepository.insertIfAbsent(Notification.aiReviewFailed(
+        int duplicate = notificationRepository.insertIfAbsent(Notification.aiReview(
                 userId,
                 postId,
                 aiReviewId,
                 1,
-                true,
+                AiReviewOutcome.FAILED_RETRYABLE,
                 createdAt.plusSeconds(1),
                 true
         ));
-        int nextRound = notificationRepository.insertIfAbsent(Notification.aiReviewFailed(
+        int nextRound = notificationRepository.insertIfAbsent(Notification.aiReview(
                 userId,
                 postId,
                 aiReviewId,
                 2,
-                true,
+                AiReviewOutcome.FAILED_RETRYABLE,
                 createdAt.plusSeconds(2),
                 true
         ));
@@ -181,12 +183,12 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
         UUID userId = insertUser();
         UUID postId = UUID.randomUUID();
         Instant createdAt = Instant.parse("2026-10-21T01:00:00Z");
-        Notification notification = Notification.aiReviewFailed(
+        Notification notification = Notification.aiReview(
                 userId,
                 postId,
                 UUID.randomUUID(),
                 3,
-                false,
+                AiReviewOutcome.FAILED_FINAL,
                 createdAt,
                 pushEnabled
         );

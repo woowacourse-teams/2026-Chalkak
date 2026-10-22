@@ -489,6 +489,16 @@ class AiReviewTest {
     }
 
     @Test
+    @DisplayName("실패 사유는 저장된 errorCode가 자신의 이름과 같을 때만 일치하고 null은 일치하지 않는다")
+    void failureReasonMatches_byErrorCodeName() {
+        // When & Then
+        assertThat(FailureReason.POST_UNAVAILABLE.matches("POST_UNAVAILABLE")).isTrue();
+        assertThat(FailureReason.POST_UNAVAILABLE.matches("LEASE_EXHAUSTED")).isFalse();
+        assertThat(FailureReason.POST_UNAVAILABLE.matches("INVALID_OUTPUT")).isFalse();
+        assertThat(FailureReason.POST_UNAVAILABLE.matches(null)).isFalse();
+    }
+
+    @Test
     @DisplayName("결과 알림 대상은 완료와 게시물 사용 불가를 제외한 실패뿐이다")
     void isResultNotifiable_byStateAndErrorCode() {
         // Given
