@@ -645,6 +645,9 @@ fun ChalkakNavHost(
 
                 SettingsRoute(
                     signatureUpdateUrl = updatedSignatureUrl,
+                    onSignatureUpdateConsumed = {
+                        backStackEntry.savedStateHandle[SETTINGS_SIGNATURE_UPDATED_KEY] = null
+                    },
                     onNavigateToSignature = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(ChangeSignature)
                     },
