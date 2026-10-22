@@ -22,14 +22,18 @@ public class NotificationSettingsService {
                         ErrorCode.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
         user.validateNotWithdrawn();
         return new NotificationSettingsResult(
-                user.isTopicPushEnabled(), user.isModerationPushEnabled());
+                user.isTopicPushEnabled(),
+                user.isModerationPushEnabled(),
+                user.isAiReviewPushEnabled()
+        );
     }
 
     @Transactional
     public void updateSettings(
             UUID userId,
             Boolean topicPushEnabled,
-            Boolean moderationPushEnabled
+            Boolean moderationPushEnabled,
+            Boolean aiReviewPushEnabled
     ) {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new UnauthorizedException(
@@ -38,6 +42,10 @@ public class NotificationSettingsService {
                 topicPushEnabled == null ? user.isTopicPushEnabled() : topicPushEnabled,
                 moderationPushEnabled == null
                         ? user.isModerationPushEnabled()
-                        : moderationPushEnabled);
+                        : moderationPushEnabled,
+                aiReviewPushEnabled == null
+                        ? user.isAiReviewPushEnabled()
+                        : aiReviewPushEnabled
+        );
     }
 }

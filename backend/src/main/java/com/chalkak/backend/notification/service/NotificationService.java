@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -10,6 +11,8 @@ import com.chalkak.backend.notification.repository.NotificationSummary;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
     private final ImageUrlProvider imageUrlProvider;
     private final Clock clock;
 
@@ -57,6 +61,28 @@ public class NotificationService {
                 postId,
                 eventKey,
                 rejectionReason,
+                occurredAt,
+                pushEnabled
+        ));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForAiReview(
+            UUID userId,
+            UUID postId,
+            UUID aiReviewId,
+            int round,
+            AiReviewOutcome outcome,
+            Instant occurredAt
+    ) {
+        User user = userRepository.findById(userId).orElseThrow();
+        boolean pushEnabled = !user.isDeleted() && user.isAiReviewPushEnabled();
+        notificationRepository.insertIfAbsent(Notification.aiReview(
+                userId,
+                postId,
+                aiReviewId,
+                round,
+                outcome,
                 occurredAt,
                 pushEnabled
         ));

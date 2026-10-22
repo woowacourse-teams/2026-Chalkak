@@ -65,7 +65,8 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
                 notificationSettingsService.updateSettings(
                         userId,
                         topicFirst ? false : null,
-                        topicFirst ? null : false
+                        topicFirst ? null : false,
+                        null
                 );
                 firstUpdated.countDown();
                 awaitCommit(firstCanCommit);
@@ -77,7 +78,8 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
                 notificationSettingsService.updateSettings(
                         userId,
                         topicFirst ? null : false,
-                        topicFirst ? false : null
+                        topicFirst ? false : null,
+                        null
                 );
             }));
 
@@ -90,7 +92,11 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
 
             // Then
             assertThat(notificationSettingsService.getSettings(userId))
-                    .isEqualTo(new NotificationSettingsResult(false, false));
+                    .isEqualTo(new NotificationSettingsResult(
+                            false,
+                            false,
+                            true
+                    ));
         } finally {
             firstCanCommit.countDown();
             executor.shutdownNow();

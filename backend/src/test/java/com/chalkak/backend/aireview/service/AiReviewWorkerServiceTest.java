@@ -6,7 +6,9 @@ import static com.chalkak.backend.aireview.service.AiReviewFixture.ORIGINAL_STOR
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.TOPIC_TITLE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
@@ -30,6 +32,10 @@ import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewGenerationException.FailureType;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService.Claim;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
+import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -64,6 +70,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -109,6 +116,12 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private AiReviewGenerationRequestFactory requestFactory;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private NotificationRepository notifications;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -283,6 +296,137 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 "errorCode=\"LEASE_EXHAUSTED\"",
                 "attempt=\"" + MAX_CLAIMS + "\""
         );
+        assertThat(findNotifications()).singleElement().satisfies(notification -> {
+            assertThat(notification).containsEntry("user_id", AUTHOR_ID)
+                    .containsEntry("source_type", "POST")
+                    .containsEntry("source_id", POST_ID)
+                    .containsEntry("type", "AI_REVIEW_FAILED")
+                    .containsEntry("body", "잠시 후 다시 요청해 주세요.")
+                    .containsEntry("sqs_publish_status", "PENDING");
+            assertThat(instant(notification, "created_at")).isEqualTo(CLAIMED_AT);
+            assertThat(instant(notification, "next_attempt_at")).isEqualTo(CLAIMED_AT);
+        });
+    }
+
+    @Test
+    @DisplayName("같은 키의 알림이 이미 있는 행이 소진돼도 예외 없이 실패로 끝내고 알림은 그대로 두며 다음 행을 가져간다")
+    void claimNext_notificationAlreadyExists_failsExhaustedAndClaimsNext() {
+        // Given
+        fixture.insertSecondPublicPost();
+        UUID exhausted = fixture.insertProcessingReview(
+                versionId,
+                MAX_CLAIMS,
+                CLAIMED_AT.minusSeconds(1)
+        );
+        UUID next = fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> notifications
+                .insertIfAbsent(Notification.aiReview(
+                        AUTHOR_ID,
+                        POST_ID,
+                        exhausted,
+                        1,
+                        AiReviewOutcome.FAILED_RETRYABLE,
+                        REQUESTED_AT,
+                        true
+                )));
+
+        // When
+        Optional<Claim> claim = service.claimNext();
+
+        // Then
+        assertThat(claim).map(Claim::reviewId).contains(next);
+        assertThat(findRow(exhausted)).containsEntry("status", "FAILED")
+                .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name());
+        assertThat(findNotifications()).singleElement()
+                .satisfies(notification -> assertThat(instant(notification, "created_at"))
+                        .isEqualTo(REQUESTED_AT));
+    }
+
+    @Test
+    @DisplayName("소진 행의 알림 저장이 실패해도 행은 실패로 끝나고 실패 로그를 남기며 다음 행을 가져간다")
+    void claimNext_notificationSaveFails_failsExhaustedAndClaimsNext() {
+        // Given
+        fixture.insertSecondPublicPost();
+        UUID exhausted = fixture.insertProcessingReview(
+                versionId,
+                MAX_CLAIMS,
+                CLAIMED_AT.minusSeconds(1)
+        );
+        UUID next = fixture.insertSecondQueuedReview(versionId, REQUESTED_AT.plusSeconds(5));
+        AiReviewWorkerService failingService = createService(
+                reviewRepository,
+                failingNotificationService()
+        );
+
+        // When
+        Optional<Claim> claim = failingService.claimNext();
+
+        // Then
+        assertThat(claim).map(Claim::reviewId).contains(next);
+        assertThat(findRow(exhausted)).containsEntry("status", "FAILED")
+                .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name());
+        assertThat(findNotifications()).isEmpty();
+        assertThat(singleEventKeyValues("result_notification_failed")).contains(
+                "aiReviewId=\"" + exhausted + "\"",
+                "errorCode=\"DataAccessResourceFailureException\""
+        );
+        assertThat(appender.list).noneMatch(event -> event.getKeyValuePairs().toString()
+                .contains("event=\"worker_poll_failed\""));
+        assertThat(singleEventKeyValues("review_failed"))
+                .contains("aiReviewId=\"" + exhausted + "\"");
+    }
+
+    @Test
+    @DisplayName("소진 행의 알림 저장이 길어져 시계가 임대보다 오래 흘러도 정상 행의 임대는 반환 직전 시각부터 시작한다")
+    void claimNext_slowExhaustedNotifications_startsLeaseAfterNotifications() {
+        // Given
+        List<UUID> exhausted = insertExhaustedReviews(5);
+        UUID next = fixture.insertQueuedReview(versionId, REQUESTED_AT.plusSeconds(100));
+        AiReviewWorkerService slowService = createService(
+                reviewRepository,
+                slowNotificationService(Duration.ofSeconds(30))
+        );
+
+        // When
+        Claim claim = slowService.claimNext().orElseThrow();
+
+        // Then
+        Instant claimedAt = CLAIMED_AT.plusSeconds(150);
+        assertThat(claim.reviewId()).isEqualTo(next);
+        Map<String, Object> row = findRow(next);
+        assertThat(row).containsEntry("status", "PROCESSING").containsEntry("attempt", 1);
+        assertThat(instant(row, "lease_expires_at")).isEqualTo(claimedAt.plus(LEASE));
+        assertThat(instant(row, "started_at")).isEqualTo(claimedAt);
+        assertThat(instant(row, "lease_expires_at")).isAfter(clock.instant());
+        assertThat(slowService.claimNext()).isEmpty();
+        assertThat(findRow(next)).containsEntry("attempt", 1);
+        assertThat(findNotifications()).hasSize(exhausted.size());
+    }
+
+    @Test
+    @DisplayName("소진 행과 정상 행이 섞여 있으면 소진 행은 모두 실패와 알림으로 끝내고 정상 행은 한 번만 가져간다")
+    void claimNext_mixedExhaustedAndQueued_failsAllExhaustedAndClaimsNormalOnce() {
+        // Given
+        List<UUID> exhausted = insertExhaustedReviews(3);
+        UUID next = fixture.insertQueuedReview(versionId, REQUESTED_AT.plusSeconds(100));
+
+        // When
+        Optional<Claim> first = service.claimNext();
+        Optional<Claim> second = service.claimNext();
+
+        // Then
+        assertThat(first).map(Claim::reviewId).contains(next);
+        assertThat(second).isEmpty();
+        for (UUID reviewId : exhausted) {
+            assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
+                    .containsEntry("error_code", FailureReason.LEASE_EXHAUSTED.name());
+        }
+        assertThat(findRow(next)).containsEntry("status", "PROCESSING")
+                .containsEntry("attempt", 1)
+                .containsEntry("round_attempt", 1);
+        assertThat(findNotifications()).hasSize(exhausted.size())
+                .allSatisfy(notification -> assertThat(notification)
+                        .containsEntry("type", "AI_REVIEW_FAILED"));
     }
 
     @Test
@@ -344,6 +488,176 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                         "original.webp",
                         IMAGE_URL
                 );
+    }
+
+    @Test
+    @DisplayName("완료하면 완료 알림을 하나 만들고 생성 시각은 리뷰 완료 시각이다")
+    void process_success_createsCompletedNotification() {
+        // Given
+        given(aiReviewGenerator.generate(any())).willAnswer(invocation -> {
+            clock.advance(Duration.ofSeconds(21));
+            return generation();
+        });
+
+        // When
+        processQueuedReview();
+
+        // Then
+        assertThat(findNotifications()).singleElement().satisfies(notification -> {
+            assertThat(notification).containsEntry("user_id", AUTHOR_ID)
+                    .containsEntry("source_type", "POST")
+                    .containsEntry("source_id", POST_ID)
+                    .containsEntry("type", "AI_REVIEW_COMPLETED")
+                    .containsEntry("title", "AI 피드백이 도착했어요")
+                    .containsEntry("body", "사진의 구도 점수와 피드백을 확인해 보세요.")
+                    .containsEntry("sqs_publish_status", "PENDING");
+            assertThat(instant(notification, "created_at")).isEqualTo(CLAIMED_AT.plusSeconds(21));
+            assertThat(instant(notification, "next_attempt_at"))
+                    .isEqualTo(CLAIMED_AT.plusSeconds(21));
+        });
+    }
+
+    @Test
+    @DisplayName("실패로 끝나면 다시 요청할 수 있다는 문구의 실패 알림을 하나 만든다")
+    void process_finalFailure_createsFailedNotification() {
+        // Given
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(AiReviewGenerationException.of(FailureType.INVALID_OUTPUT));
+
+        // When
+        processQueuedReview();
+
+        // Then
+        assertThat(findNotifications()).singleElement().satisfies(notification -> {
+            assertThat(notification).containsEntry("type", "AI_REVIEW_FAILED")
+                    .containsEntry("source_id", POST_ID)
+                    .containsEntry("title", "AI 피드백을 만들지 못했어요")
+                    .containsEntry("body", "잠시 후 다시 요청해 주세요.");
+            assertThat(instant(notification, "created_at")).isEqualTo(CLAIMED_AT);
+        });
+    }
+
+    @Test
+    @DisplayName("실패한 뒤 다시 요청해 완료되면 회차마다 알림이 하나씩 생기고 키가 서로 다르다")
+    void process_requestedAgainAndCompleted_createsNotificationPerRound() {
+        // Given
+        UUID reviewId = failedReview();
+        requestAgain(
+                reviewId,
+                versionId,
+                CLAIMED_AT.plusSeconds(600)
+        );
+        clock.set(CLAIMED_AT.plusSeconds(601));
+        doReturn(generation()).when(aiReviewGenerator).generate(any());
+
+        // When
+        service.process(service.claimNext().orElseThrow(), () -> false);
+
+        // Then
+        List<Map<String, Object>> found = findNotifications();
+        assertThat(found).extracting(row -> row.get("type"))
+                .containsExactly("AI_REVIEW_FAILED", "AI_REVIEW_COMPLETED");
+        assertThat(found).extracting(row -> row.get("event_key")).doesNotHaveDuplicates();
+        assertThat(instant(found.get(1), "created_at")).isEqualTo(CLAIMED_AT.plusSeconds(601));
+    }
+
+    @Test
+    @DisplayName("요청 세 번을 모두 실패하면 마지막 알림만 더는 요청할 수 없다는 문구다")
+    void process_thirdRequestFails_lastNotificationSaysNoMoreRequests() {
+        // Given
+        UUID reviewId = failedReview();
+
+        // When
+        for (int round = 2; round <= MAX_CLAIMS; round++) {
+            requestAgain(
+                    reviewId,
+                    versionId,
+                    CLAIMED_AT.plusSeconds(600L * round)
+            );
+            clock.set(CLAIMED_AT.plusSeconds(600L * round + 1));
+            service.process(service.claimNext().orElseThrow(), () -> false);
+        }
+
+        // Then
+        List<Map<String, Object>> found = findNotifications();
+        assertThat(found).extracting(row -> row.get("body")).containsExactly(
+                "잠시 후 다시 요청해 주세요.",
+                "잠시 후 다시 요청해 주세요.",
+                "이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+        );
+        assertThat(found).extracting(row -> row.get("event_key")).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("가져가기가 실패하면 다시 시도하지 않고 예외를 그대로 던진다")
+    void claimNext_claimFails_throwsWithoutRetry() {
+        // Given
+        AiReviewRepository failing = mock(AiReviewRepository.class,
+                AdditionalAnswers.delegatesTo(reviewRepository));
+        doThrow(new DataAccessResourceFailureException("connection lost"))
+                .when(failing).findClaimableForUpdate(any());
+        AiReviewWorkerService failingService = createService(failing);
+
+        // When & Then
+        assertThatThrownBy(failingService::claimNext)
+                .isInstanceOf(DataAccessResourceFailureException.class);
+        verify(failing, times(1)).findClaimableForUpdate(any());
+        assertThat(appender.list).isEmpty();
+    }
+
+    @Test
+    @DisplayName("완료 알림 저장이 실패해도 리뷰는 완료로 확정하고 생성기를 다시 호출하지 않으며 실패 로그를 남긴다")
+    void process_completionNotificationSaveFails_keepsCompleted() {
+        // Given
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+        given(aiReviewGenerator.generate(any())).willReturn(generation());
+        AiReviewWorkerService failingService = createService(
+                reviewRepository,
+                failingNotificationService()
+        );
+        Claim claim = failingService.claimNext().orElseThrow();
+
+        // When
+        failingService.process(claim, () -> false);
+
+        // Then
+        assertThat(findRow(reviewId)).containsEntry("status", "COMPLETED");
+        assertThat(findNotifications()).isEmpty();
+        verify(aiReviewGenerator, times(1)).generate(any());
+        assertThat(singleEventKeyValues("result_notification_failed")).contains(
+                "aiReviewId=\"" + reviewId + "\"",
+                "errorCode=\"DataAccessResourceFailureException\""
+        );
+        assertThat(singleEventKeyValues("review_completed"))
+                .contains("aiReviewId=\"" + reviewId + "\"");
+        assertThat(appender.list).noneMatch(event -> event.getKeyValuePairs().toString()
+                .contains("event=\"review_abandoned\""));
+    }
+
+    @Test
+    @DisplayName("실패 알림 저장이 실패해도 리뷰는 실패로 확정하고 실패 로그를 남긴다")
+    void process_failureNotificationSaveFails_keepsFailed() {
+        // Given
+        UUID reviewId = fixture.insertQueuedReview(versionId, REQUESTED_AT);
+        given(aiReviewGenerator.generate(any()))
+                .willThrow(AiReviewGenerationException.of(FailureType.INVALID_OUTPUT));
+        AiReviewWorkerService failingService = createService(
+                reviewRepository,
+                failingNotificationService()
+        );
+        Claim claim = failingService.claimNext().orElseThrow();
+
+        // When
+        failingService.process(claim, () -> false);
+
+        // Then
+        assertThat(findRow(reviewId)).containsEntry("status", "FAILED");
+        assertThat(findNotifications()).isEmpty();
+        verify(aiReviewGenerator, times(1)).generate(any());
+        assertThat(singleEventKeyValues("result_notification_failed"))
+                .contains("aiReviewId=\"" + reviewId + "\"");
+        assertThat(singleEventKeyValues("review_failed"))
+                .contains("aiReviewId=\"" + reviewId + "\"");
     }
 
     @Test
@@ -441,6 +755,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(instant(row, "started_at")).isEqualTo(CLAIMED_AT);
         assertThat(row.get("lease_expires_at")).isNull();
         assertThat(row.get("completed_at")).isNull();
+        assertThat(findNotifications()).isEmpty();
     }
 
     @Test
@@ -497,6 +812,10 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(instant(row, "completed_at")).isEqualTo(thirdAt);
         assertThat(service.claimNext()).isEmpty();
         verify(aiReviewGenerator, times(3)).generate(any());
+        assertThat(findNotifications()).singleElement().satisfies(notification -> {
+            assertThat(notification).containsEntry("type", "AI_REVIEW_FAILED");
+            assertThat(instant(notification, "created_at")).isEqualTo(thirdAt);
+        });
     }
 
     @Test
@@ -701,6 +1020,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
                 .containsEntry("error_code", FailureReason.POST_UNAVAILABLE.name());
         verify(aiReviewGenerator, never()).generate(any());
+        assertThat(findNotifications()).isEmpty();
     }
 
     @ParameterizedTest
@@ -729,6 +1049,8 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(findRow(reviewId)).containsEntry("status", "FAILED")
                 .containsEntry("error_code", FailureReason.PROMPT_VERSION_UNAVAILABLE.name());
         verify(aiReviewGenerator, never()).generate(any());
+        assertThat(findNotifications()).extracting(row -> row.get("type"))
+                .containsExactly("AI_REVIEW_FAILED");
     }
 
     @Test
@@ -748,9 +1070,11 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
         assertThat(findRow(reviewId)).containsEntry("status", "PROCESSING");
         assertThat(singleEventKeyValues("review_stale_update"))
                 .contains("aiReviewId=\"" + reviewId + "\"", "attempt=\"1\"");
+        assertThat(findNotifications()).isEmpty();
 
         service.process(second, () -> false);
         assertThat(findRow(reviewId)).containsEntry("status", "COMPLETED");
+        assertThat(findNotifications()).hasSize(1);
         // 재회수돼도 대기 시간은 요청부터 처음 가져간 때까지다.
         assertThat(singleEventKeyValues("review_completed")).contains("queueWaitMs=\"10000\"");
     }
@@ -915,6 +1239,7 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 failingPosts,
                 aiReviewGenerator,
                 requestFactory,
+                notificationService,
                 transactionManager,
                 clock,
                 LEASE,
@@ -983,12 +1308,20 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
     }
 
     private AiReviewWorkerService createService(AiReviewRepository repository) {
+        return createService(repository, notificationService);
+    }
+
+    private AiReviewWorkerService createService(
+            AiReviewRepository repository,
+            NotificationService notifications
+    ) {
         return new AiReviewWorkerService(
                 repository,
                 promptVersionRepository,
                 postRepository,
                 aiReviewGenerator,
                 requestFactory,
+                notifications,
                 transactionManager,
                 clock,
                 LEASE,
@@ -1043,6 +1376,63 @@ class AiReviewWorkerServiceTest extends IntegrationTestSupport {
                 Duration.ofMillis(21_000),
                 "resp_abc"
         );
+    }
+
+    private List<Map<String, Object>> findNotifications() {
+        return jdbcTemplate.queryForList("SELECT * FROM notifications ORDER BY created_at, id");
+    }
+
+    // 알림 저장만 실패하는 서비스. 나머지 동작은 실제 서비스를 그대로 쓴다.
+    private NotificationService failingNotificationService() {
+        NotificationService failing = mock(NotificationService.class,
+                AdditionalAnswers.delegatesTo(notificationService));
+        doThrow(new DataAccessResourceFailureException("connection lost"))
+                .when(failing).createForAiReview(
+                        any(),
+                        any(),
+                        any(),
+                        anyInt(),
+                        any(),
+                        any()
+                );
+        return failing;
+    }
+
+    // 임대가 끝나 가져간 횟수를 모두 쓴 처리 중 행을 새 게시물마다 하나씩 넣는다.
+    private List<UUID> insertExhaustedReviews(int count) {
+        List<UUID> reviewIds = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            fixture.insertPublicPostFor(postId, userId);
+            reviewIds.add(fixture.insertProcessingReview(
+                    postId,
+                    userId,
+                    versionId,
+                    MAX_CLAIMS,
+                    CLAIMED_AT.minusSeconds(1),
+                    REQUESTED_AT.plusSeconds(index)
+            ));
+        }
+        return reviewIds;
+    }
+
+    // 알림 하나를 저장하는 데 delay만큼 시계가 흐르는 서비스. 저장은 실제 서비스가 한다.
+    private NotificationService slowNotificationService(Duration delay) {
+        NotificationService slow = mock(NotificationService.class);
+        Answer<Object> real = AdditionalAnswers.delegatesTo(notificationService);
+        doAnswer(invocation -> {
+            clock.advance(delay);
+            return real.answer(invocation);
+        }).when(slow).createForAiReview(
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                any(),
+                any()
+        );
+        return slow;
     }
 
     private Map<String, Object> findRow(UUID reviewId) {

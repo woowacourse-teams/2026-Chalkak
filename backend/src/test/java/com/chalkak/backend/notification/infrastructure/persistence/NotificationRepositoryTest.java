@@ -2,6 +2,8 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
+import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -10,6 +12,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -117,6 +120,98 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
 
         // Then
         assertThat(recipients).doesNotContain(authorId);
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림 저장은 처음이면 1, 같은 회원·같은 키면 0, 다른 회차면 1을 돌려준다")
+    void insertIfAbsent_byEventKey_returnsInsertedRowCount() {
+        // Given
+        UUID userId = insertUser();
+        UUID postId = UUID.randomUUID();
+        UUID aiReviewId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-10-21T01:00:00Z");
+
+        // When
+        int first = notificationRepository.insertIfAbsent(Notification.aiReview(
+                userId,
+                postId,
+                aiReviewId,
+                1,
+                AiReviewOutcome.COMPLETED,
+                createdAt,
+                true
+        ));
+        int duplicate = notificationRepository.insertIfAbsent(Notification.aiReview(
+                userId,
+                postId,
+                aiReviewId,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                createdAt.plusSeconds(1),
+                true
+        ));
+        int nextRound = notificationRepository.insertIfAbsent(Notification.aiReview(
+                userId,
+                postId,
+                aiReviewId,
+                2,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                createdAt.plusSeconds(2),
+                true
+        ));
+
+        // Then
+        assertThat(first).isEqualTo(1);
+        assertThat(duplicate).isZero();
+        assertThat(nextRound).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE user_id = ?",
+                Integer.class,
+                userId
+        )).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, PENDING, true", "false, NOT_REQUIRED, false"})
+    @DisplayName("AI 리뷰 알림 저장은 도메인이 만든 종류·대상·문구·발행 상태를 그대로 저장한다")
+    void insertIfAbsent_notification_persistsDomainValues(
+            boolean pushEnabled,
+            String publishStatus,
+            boolean hasNextAttemptAt
+    ) {
+        // Given
+        UUID userId = insertUser();
+        UUID postId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-10-21T01:00:00Z");
+        Notification notification = Notification.aiReview(
+                userId,
+                postId,
+                UUID.randomUUID(),
+                3,
+                AiReviewOutcome.FAILED_FINAL,
+                createdAt,
+                pushEnabled
+        );
+
+        // When
+        notificationRepository.insertIfAbsent(notification);
+
+        // Then
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT * FROM notifications WHERE user_id = ?",
+                userId
+        );
+        assertThat(row).containsEntry("type", "AI_REVIEW_FAILED")
+                .containsEntry("source_type", "POST")
+                .containsEntry("source_id", postId)
+                .containsEntry("event_key", notification.getEventKey())
+                .containsEntry("title", "AI 피드백을 만들지 못했어요")
+                .containsEntry("body", "이 사진은 더 이상 AI 피드백을 요청할 수 없어요.")
+                .containsEntry("sqs_publish_status", publishStatus);
+        assertThat(((Timestamp) row.get("created_at")).toInstant()).isEqualTo(createdAt);
+        assertThat(row.get("next_attempt_at") != null).isEqualTo(hasNextAttemptAt);
+        assertThat(row.get("read_at")).isNull();
+        assertThat(row.get("payload")).isNull();
     }
 
     private UUID insertUser() {

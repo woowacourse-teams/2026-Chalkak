@@ -101,6 +101,127 @@ class NotificationMigrationTest extends IntegrationTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("AI 리뷰 알림 설정을 추가해도 기존 회원은 켜짐이고 기존 종류 알림 저장은 막히지 않는다")
+    void migrate_aiReviewNotificationSettings_keepsExistingRowsAndKinds() throws Exception {
+        // Given
+        String schema = "notification_migration_" + UUID.randomUUID().toString().replace("-", "");
+        JdbcTemplate admin = new JdbcTemplate(dataSource);
+        admin.execute("CREATE SCHEMA " + schema);
+        try {
+            migrate(schema, "202610211414");
+            try (Connection connection = dataSource.getConnection()) {
+                String previousSchema = connection.getSchema();
+                connection.setSchema(schema);
+                try {
+                    JdbcTemplate jdbc = new JdbcTemplate(
+                            new SingleConnectionDataSource(connection, true));
+                    UUID userId = UUID.randomUUID();
+                    jdbc.update("""
+                            INSERT INTO users (id, email, signature_original_storage_key,
+                                topic_push_enabled, moderation_push_enabled)
+                            VALUES (?, 'ai-review-migration@test.chalkak', 'signatures/test',
+                                FALSE, FALSE)
+                            """, userId);
+                    insertNotification(
+                            jdbc,
+                            userId,
+                            "POST_APPROVED",
+                            "POST",
+                            UUID.randomUUID(),
+                            null
+                    );
+
+                    // When
+                    migrate(schema, "202610212350");
+
+                    // Then
+                    assertThat(jdbc.queryForObject(
+                            "SELECT ai_review_push_enabled FROM users WHERE id = ?",
+                            Boolean.class,
+                            userId
+                    )).isTrue();
+                    assertThat(jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM notifications WHERE type = 'POST_APPROVED'
+                            """, Integer.class)).isEqualTo(1);
+                    assertExistingKindsStillStorable(jdbc, userId);
+                    assertAiReviewSourceConstraint(jdbc, userId);
+                } finally {
+                    connection.setSchema(previousSchema);
+                }
+            }
+        } finally {
+            admin.execute("DROP SCHEMA " + schema + " CASCADE");
+        }
+    }
+
+    private void assertExistingKindsStillStorable(JdbcTemplate jdbc, UUID userId) {
+        // 새 CHECK는 AI 리뷰 종류만 제한하므로 기존 종류는 그대로 저장된다.
+        insertNotification(
+                jdbc,
+                userId,
+                "POST_APPROVED",
+                "POST",
+                UUID.randomUUID(),
+                null
+        );
+        insertNotification(
+                jdbc,
+                userId,
+                "POST_REJECTED",
+                "POST",
+                UUID.randomUUID(),
+                "{\"rejectionReason\":\"사유\"}"
+        );
+        insertNotification(
+                jdbc,
+                userId,
+                "NOTICE",
+                "NOTICE",
+                UUID.randomUUID(),
+                null
+        );
+        insertNotification(
+                jdbc,
+                userId,
+                "TOPIC",
+                "TOPIC",
+                UUID.randomUUID(),
+                null
+        );
+    }
+
+    private void assertAiReviewSourceConstraint(JdbcTemplate jdbc, UUID userId) {
+        for (String type : List.of("AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED")) {
+            insertNotification(
+                    jdbc,
+                    userId,
+                    type,
+                    "POST",
+                    UUID.randomUUID(),
+                    null
+            );
+            assertThatThrownBy(() -> insertNotification(
+                    jdbc,
+                    userId,
+                    type,
+                    null,
+                    null,
+                    null
+            ))
+                    .hasMessageContaining("ck_notifications_ai_review_source");
+            assertThatThrownBy(() -> insertNotification(
+                    jdbc,
+                    userId,
+                    type,
+                    "TOPIC",
+                    UUID.randomUUID(),
+                    null
+            ))
+                    .hasMessageContaining("ck_notifications_ai_review_source");
+        }
+    }
+
     private void assertSqsPublishStateConstraints(JdbcTemplate jdbc, UUID notificationId) {
         // 정상적인 상태·시각 조합은 저장하고, 불완전한 발행 상태는 DB에서 거부한다.
         updateSqsState(

@@ -180,6 +180,23 @@ class AiReviewTest {
     }
 
     @Test
+    @DisplayName("가져간 횟수가 상한 직전이면 한 번 더 가져갈 수 있고 상한에 닿으면 가져갈 수 없다")
+    void isClaimLimitReached_aroundMaxClaims_reachedOnlyAfterMaxClaims() {
+        // Given
+        AiReview review = queuedReview();
+        Instant claimedAt = NOW;
+        for (int count = 1; count < MAX_CLAIMS; count++) {
+            claim(review, claimedAt);
+            claimedAt = claimedAt.plusSeconds(121);
+        }
+
+        // When & Then
+        assertThat(review.isClaimLimitReached(MAX_CLAIMS)).isFalse();
+        claim(review, claimedAt);
+        assertThat(review.isClaimLimitReached(MAX_CLAIMS)).isTrue();
+    }
+
+    @Test
     @DisplayName("재시도 뒤 임대 회수로 회차를 소진하면 이전 시도의 사용량과 응답 ID를 비우고 LEASE_EXHAUSTED로 끝낸다")
     void claim_exhaustedAfterRetry_clearsPreviousInvocation() {
         // Given
@@ -486,6 +503,46 @@ class AiReviewTest {
         assertThat(failedReview().isFailed()).isTrue();
         assertThat(queuedReview().isFailed()).isFalse();
         assertThat(processingReview().isFailed()).isFalse();
+    }
+
+    @Test
+    @DisplayName("실패 사유는 저장된 errorCode가 자신의 이름과 같을 때만 일치하고 null은 일치하지 않는다")
+    void failureReasonMatches_byErrorCodeName() {
+        // When & Then
+        assertThat(FailureReason.POST_UNAVAILABLE.matches("POST_UNAVAILABLE")).isTrue();
+        assertThat(FailureReason.POST_UNAVAILABLE.matches("LEASE_EXHAUSTED")).isFalse();
+        assertThat(FailureReason.POST_UNAVAILABLE.matches("INVALID_OUTPUT")).isFalse();
+        assertThat(FailureReason.POST_UNAVAILABLE.matches(null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("결과 알림 대상은 완료와 게시물 사용 불가를 제외한 실패뿐이다")
+    void isResultNotifiable_byStateAndErrorCode() {
+        // Given
+        AiReview postUnavailable = processingReview();
+        failOrRetry(
+                postUnavailable,
+                1,
+                FailureReason.POST_UNAVAILABLE.name(),
+                false
+        );
+        AiReview leaseExhausted = processingReview();
+        leaseExhausted.claim(
+                LEASE_END.plusSeconds(1),
+                LEASE_END.plusSeconds(120),
+                1
+        );
+
+        // When & Then
+        assertThat(reviewInStatus(Status.COMPLETED, 1).isResultNotifiable()).isTrue();
+        assertThat(failedReview().isResultNotifiable()).isTrue();
+        assertThat(leaseExhausted.getErrorCode())
+                .isEqualTo(FailureReason.LEASE_EXHAUSTED.name());
+        assertThat(leaseExhausted.isResultNotifiable()).isTrue();
+        assertThat(postUnavailable.isResultNotifiable()).isFalse();
+        assertThat(retryWaitingReview().isResultNotifiable()).isFalse();
+        assertThat(queuedReview().isResultNotifiable()).isFalse();
+        assertThat(processingReview().isResultNotifiable()).isFalse();
     }
 
     @ParameterizedTest

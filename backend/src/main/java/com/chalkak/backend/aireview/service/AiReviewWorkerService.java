@@ -9,11 +9,15 @@ import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Attempt;
 import com.chalkak.backend.aireview.service.AiReviewGeneration.Usage;
 import com.chalkak.backend.aireview.service.AiReviewRetryBackoff.RetryDelay;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -42,6 +46,7 @@ public class AiReviewWorkerService {
     private final PostRepository postRepository;
     private final AiReviewGenerator aiReviewGenerator;
     private final AiReviewGenerationRequestFactory requestFactory;
+    private final NotificationService notificationService;
     private final Clock clock;
     private final Duration leaseDuration;
     private final int maxClaims;
@@ -54,6 +59,7 @@ public class AiReviewWorkerService {
             PostRepository postRepository,
             AiReviewGenerator aiReviewGenerator,
             AiReviewGenerationRequestFactory requestFactory,
+            NotificationService notificationService,
             PlatformTransactionManager transactionManager,
             Clock clock,
             Duration leaseDuration,
@@ -65,6 +71,7 @@ public class AiReviewWorkerService {
         this.postRepository = postRepository;
         this.aiReviewGenerator = aiReviewGenerator;
         this.requestFactory = requestFactory;
+        this.notificationService = notificationService;
         this.clock = clock;
         this.leaseDuration = leaseDuration;
         this.maxClaims = maxClaims;
@@ -76,9 +83,22 @@ public class AiReviewWorkerService {
 
     /**
      * 가장 오래 기다린 처리 대상을 하나 가져간다. 가져간 횟수 상한을 넘은 행은 처리하지 않고 실패로 끝낸 뒤 다음 행을 찾는다.
+     *
+     * <p>
+     * 소진 행을 정리한 가져가기 트랜잭션은 정상 행을 가져가지 않고 커밋한다. 소진 행의 종료 로그와 결과 알림은 그 커밋 뒤에 남기고, 새
+     * 트랜잭션에서 다시 가져간다. 그래서 정상 행의 임대는 알림 저장이 끝난 뒤 시작해 알림이 느려도 줄어들지 않는다. 알림 저장이 실패해도
+     * 행은 실패로 확정된 채 두고 다음 행을 가져간다. 가져가기 자체가 실패하면 예외를 그대로 던진다.
      */
     public Optional<Claim> claimNext() {
-        return Optional.ofNullable(transactionTemplate.execute(status -> claimOne()));
+        ClaimRound round;
+        do {
+            round = transactionTemplate.execute(status -> claimRound());
+            for (Exhausted exhausted : round.exhausted()) {
+                AiReviewWorkerLog.finished(exhausted.review(), exhausted.claim());
+                notifyResult(exhausted.review(), exhausted.claim());
+            }
+        } while (round.claim() == null && !round.exhausted().isEmpty());
+        return Optional.ofNullable(round.claim());
     }
 
     /**
@@ -166,11 +186,19 @@ public class AiReviewWorkerService {
         );
     }
 
-    private Claim claimOne() {
+    /**
+     * 한 트랜잭션 안에서 앞쪽 소진 행을 실패로 확정하고, 소진 행이 없을 때만 정상 행을 가져간다. 소진 행을 정리했다면 정상 행은 건드리지
+     * 않고 끝내 잠금을 풀며, 가져가는 일은 다음 트랜잭션에 맡긴다.
+     */
+    private ClaimRound claimRound() {
         Instant now = clock.instant();
+        List<Exhausted> exhausted = new ArrayList<>();
         Optional<AiReview> found = reviewRepository.findClaimableForUpdate(now);
         while (found.isPresent()) {
             AiReview review = found.get();
+            if (!review.isClaimLimitReached(maxClaims) && !exhausted.isEmpty()) {
+                return new ClaimRound(null, exhausted);
+            }
             AiPromptVersion version = promptVersionRepository.findById(review.getPromptVersionId())
                     .orElseThrow();
             if (review.claim(
@@ -178,15 +206,12 @@ public class AiReviewWorkerService {
                     now.plus(leaseDuration),
                     maxClaims
             )) {
-                return toClaim(review, version);
+                return new ClaimRound(toClaim(review, version), exhausted);
             }
-            AiReviewWorkerLog.finished(
-                    review,
-                    toClaim(review, version)
-            );
+            exhausted.add(new Exhausted(review, toClaim(review, version)));
             found = reviewRepository.findClaimableForUpdate(now);
         }
-        return null;
+        return new ClaimRound(null, exhausted);
     }
 
     private void handleGenerationFailure(
@@ -255,7 +280,10 @@ public class AiReviewWorkerService {
             applied = transactionTemplate.execute(status -> {
                 AiReview review = reviewRepository.findByIdForUpdate(claim.reviewId())
                         .orElseThrow();
-                return transition.test(review) ? review : null;
+                if (!transition.test(review)) {
+                    return null;
+                }
+                return review;
             });
         } catch (RuntimeException exception) {
             abandon(
@@ -282,6 +310,40 @@ public class AiReviewWorkerService {
                 applied,
                 toClaim(applied, claim.version())
         );
+        notifyResult(applied, claim);
+    }
+
+    /**
+     * 리뷰 상태가 커밋된 뒤 별도 트랜잭션에서 결과 알림을 만든다. 재시도 대기처럼 끝나지 않았거나 알릴 필요 없는 상태는 건너뛴다. 알림
+     * 저장이 실패해도 확정한 리뷰 결과는 그대로 두고 로그만 남긴다.
+     */
+    private void notifyResult(AiReview review, Claim claim) {
+        if (!review.isResultNotifiable()) {
+            return;
+        }
+        try {
+            transactionTemplate.executeWithoutResult(status -> notificationService
+                    .createForAiReview(
+                            review.getUserId(),
+                            review.getPostId(),
+                            review.getId(),
+                            review.getRequestCount(),
+                            toOutcome(review),
+                            review.getCompletedAt()
+                    ));
+        } catch (RuntimeException exception) {
+            AiReviewWorkerLog.resultNotificationFailed(claim, exception);
+        }
+    }
+
+    private AiReviewOutcome toOutcome(AiReview review) {
+        if (review.isCompleted()) {
+            return AiReviewOutcome.COMPLETED;
+        }
+        if (review.canRequestAgain()) {
+            return AiReviewOutcome.FAILED_RETRYABLE;
+        }
+        return AiReviewOutcome.FAILED_FINAL;
     }
 
     private Invocation toInvocation(Optional<Attempt> found) {
@@ -332,6 +394,15 @@ public class AiReviewWorkerService {
                     Optional.empty()
             );
         }
+    }
+
+    /**
+     * 가져가기 트랜잭션 한 번의 결과. 정상 행을 가져갔으면 claim이 있고, 이 트랜잭션에서 소진으로 끝낸 행은 exhausted에 담는다.
+     */
+    private record ClaimRound(Claim claim, List<Exhausted> exhausted) {
+    }
+
+    private record Exhausted(AiReview review, Claim claim) {
     }
 
     /**
