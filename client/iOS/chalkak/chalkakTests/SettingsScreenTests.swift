@@ -191,6 +191,69 @@ struct SettingsViewModelTests {
         )
     }
 
+    @Test("사인 변경 전에 시작된 조회 결과는 변경 성공 후 반영하지 않는다", arguments: ["success", "network", "unauthorized", "cancelled"])
+    func ignoresSignatureLoadStartedBeforeSuccessfulUpdate(outcome: String) async throws {
+        let oldURL = URL(string: "https://cdn.example.com/old.png")!
+        let updatedURL = URL(string: "https://cdn.example.com/updated.png")!
+        let refreshedURL = URL(string: "https://cdn.example.com/refreshed.png")!
+        var resumeLoad: CheckedContinuation<URL?, Error>?
+        var loadCount = 0
+        let viewModel = SettingsViewModel(
+            initialState: SettingsViewState(isLoading: false, isLoggedIn: true, signatureURL: oldURL),
+            isAuthenticated: { true },
+            loadSignature: {
+                loadCount += 1
+                if loadCount > 1 { return refreshedURL }
+                return try await withCheckedThrowingContinuation { resumeLoad = $0 }
+            },
+            updateSignature: { _ in updatedURL }
+        )
+
+        let loading = Task { await viewModel.load() }
+        while resumeLoad == nil { await Task.yield() }
+        try await viewModel.updateSignature(Data([1]))
+
+        switch outcome {
+        case "network": resumeLoad?.resume(throwing: SettingsAPIError.network)
+        case "unauthorized": resumeLoad?.resume(throwing: SettingsAPIError.unauthorized)
+        case "cancelled": resumeLoad?.resume(throwing: CancellationError())
+        default: resumeLoad?.resume(returning: oldURL)
+        }
+        await loading.value
+
+        #expect(viewModel.viewState.signatureURL == updatedURL)
+        #expect(viewModel.viewState.isLoggedIn)
+        #expect(!viewModel.viewState.isLoading)
+        #expect(viewModel.event == nil)
+
+        await viewModel.load()
+        #expect(loadCount == 2)
+        #expect(viewModel.viewState.signatureURL == refreshedURL)
+    }
+
+    @Test("사인 변경이 실패하면 진행 중이던 조회 결과를 반영한다")
+    func preservesPendingLoadWhenUpdateFails() async {
+        let loadedURL = URL(string: "https://cdn.example.com/loaded.png")!
+        var resumeLoad: CheckedContinuation<URL?, Never>?
+        let viewModel = SettingsViewModel(
+            initialState: SettingsViewState(isLoading: false, isLoggedIn: true),
+            isAuthenticated: { true },
+            loadSignature: { await withCheckedContinuation { resumeLoad = $0 } },
+            updateSignature: { _ in throw SettingsAPIError.network }
+        )
+        let loading = Task { await viewModel.load() }
+        while resumeLoad == nil { await Task.yield() }
+        do {
+            try await viewModel.updateSignature(Data([1]))
+            Issue.record("Expected signature update to fail")
+        } catch {}
+        resumeLoad?.resume(returning: loadedURL)
+        await loading.value
+
+        #expect(viewModel.viewState.signatureURL == loadedURL)
+        #expect(viewModel.viewState.isLoggedIn)
+    }
+
     @Test("서명 변경 성공 시 설정 카드 이미지를 즉시 갱신한다")
     func updatesSignatureURLAfterChange() async throws {
         let expectedURL = URL(string: "https://cdn.example.com/signature-updated.png")!

@@ -18,6 +18,7 @@ final class SettingsViewModel {
     private let logout: AccountAction
     private let withdraw: AccountAction
     private var isLoadingSignature = false
+    private var signatureRevision = 0
 
     init(
         initialState: SettingsViewState? = nil,
@@ -48,19 +49,25 @@ final class SettingsViewModel {
             return
         }
 
+        let revision = signatureRevision
         isLoadingSignature = true
         defer { isLoadingSignature = false }
         viewState.isLoading = !viewState.isLoggedIn
         viewState.isLoggedIn = true
         do {
-            viewState.signatureURL = try await loadSignature()
+            let signatureURL = try await loadSignature()
+            guard revision == signatureRevision else { return }
+            viewState.signatureURL = signatureURL
             viewState.isLoading = false
         } catch SettingsAPIError.unauthorized {
+            guard revision == signatureRevision else { return }
             await finishSignedOut()
         } catch is CancellationError {
+            guard revision == signatureRevision else { return }
             viewState.isLoading = false
             return
         } catch {
+            guard revision == signatureRevision else { return }
             viewState.isLoading = false
             publish(.showMessage("사인을 불러오지 못했어요. 다시 시도해 주세요."))
         }
@@ -72,7 +79,10 @@ final class SettingsViewModel {
 
     func updateSignature(_ pngData: Data) async throws {
         do {
-            viewState.signatureURL = try await updateSignatureHandler(pngData)
+            let signatureURL = try await updateSignatureHandler(pngData)
+            signatureRevision += 1
+            viewState.signatureURL = signatureURL
+            viewState.isLoading = false
         } catch SettingsAPIError.unauthorized {
             await finishSignedOut()
             throw SettingsAPIError.unauthorized
