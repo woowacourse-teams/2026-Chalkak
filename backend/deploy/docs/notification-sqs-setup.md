@@ -59,6 +59,7 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 
 - `NOTIFICATION_RELAY_ENABLED`: 준비 전 `false`. PushWorker·FCM 준비 후 개발 연동 시험에서 `true`.
 - `NOTIFICATION_TOPIC_PUSH_ENABLED`: 관리자가 설정한 KST 시각에 주제 푸시를 회원별 SQS 메시지로 직접 발행한다. Relay와 별도로 켠다. 기본 `false`. 큐·Worker 준비 후 개발 연동 시험에서 `true`. 켜면 `NOTIFICATION_SQS_QUEUE_URL`이 필요하다.
+- `NOTIFICATION_REMINDER_ENABLED`: 관리자가 등록한 리마인더를 예정 시각(KST 매 분 0초 확인)에 회원별 SQS 메시지로 직접 발행한다. 주제 푸시·Relay와 별도로 켠다. 기본 `false`. 큐·Worker 준비 후 개발 연동 시험에서 `true`. 켜면 `NOTIFICATION_SQS_QUEUE_URL`이 필요하다. 끈 동안 지나간 회차는 다시 켜도 30분 기한이 지났으면 보내지 않는다.
 - `NOTIFICATION_SQS_QUEUE_URL`: 해당 환경 원본 Standard 큐 URL.
 - `NOTIFICATION_WORKER_ENABLED`: Firebase 서버 인증·앱 등록 준비 전 `false`, 개발 전체 연동 시험 시 `true`.
 - `NOTIFICATION_FCM_PROJECT_ID`: 기기 토큰을 발급한 Firebase 프로젝트 ID.
@@ -95,17 +96,19 @@ AWS 보존 기간이 바뀌지는 않는다. 변경 전 로그는 기존 `applic
 
 | 필드 | 의미 |
 | --- | --- |
-| `eventId` | 사건 ID. 주제 발행은 한 회차가 같은 값을 사용한다. |
-| `userId` | 대상 회원 ID. 주제 회차 안에서 회원을 구분한다. |
-| `notificationId` | 승인·반려 알림함 ID. 주제에는 없다. |
+| `eventId` | 사건 ID. 주제·리마인더 발행은 한 회차가 같은 값을 사용한다. |
+| `userId` | 대상 회원 ID. 주제·리마인더 회차 안에서 회원을 구분한다. |
+| `notificationId` | 승인·반려 알림함 ID. 주제·리마인더에는 없다. |
 | `sqsMessageId` | SQS가 부여한 메시지 ID. 발행 수락 전에는 알 수 없다. |
 | `receiveCount` | 최초 수신을 포함한 SQS 수신 횟수. Worker 로그에서는 MDC로 함께 기록한다. SDK 내부 HTTP 요청 횟수가 아니다. |
 | `deviceId` | 처리한 등록 기기 ID. 기기별 결과·생략·오류에 기록한다. |
 
-승인·반려는 `notificationId`, 주제는 `eventId + userId`로 `worker_received`를 찾은 뒤,
+승인·반려는 `notificationId`, 주제·리마인더는 `eventId + userId`로 `worker_received`를 찾은 뒤,
 같은 `sqsMessageId`로 삭제·처리 실패·숨김 연장 오류까지 연결한다. 잘못된 JSON은 사건 ID를
 해석할 수 없어도 큐 메시지 ID로 조사한다. 재수신별 결과는 `receiveCount`를 함께 본다.
-주제의 정상 SQS 발행은 기존 회차 집계만 남기며 회원별 성공 로그를 추가하지 않는다.
+주제·리마인더의 정상 SQS 발행은 회차 집계(`topic_publication_summary`·`reminder_publication_summary`)만 남기며
+회원별 성공 로그를 추가하지 않는다. 리마인더 회차는 `reminderId`로 집계·생략(`reminder_execution_skipped`)·실패 로그를 찾고,
+집계의 `eventId`로 Worker 처리를 이어서 조회한다.
 
 ```sql
 fields @timestamp, stage, eventId, userId, notificationId, sqsMessageId, receiveCount, deviceId, result, reason, errorCode
@@ -129,7 +132,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
   기기 도착·클릭을 보장하지 않는다. SDK 내부 재요청 하나마다 별도 로그를 남기지 않는다.
 - `stage=worker_skipped`: `INVALID_MESSAGE`, `EXPIRED`, `NO_DEVICES`, `DEVICE_MISSING`,
   `LOGIN_UNUSABLE`, `USER_INACTIVE`, `PUSH_DISABLED`, `TOPIC_UNAVAILABLE`,
-  `ALREADY_PARTICIPATED`, `NOTIFICATION_UNAVAILABLE`, `ALREADY_READ`, `MESSAGE_MISMATCH`,
+  `ALREADY_PARTICIPATED`, `NOT_PARTICIPATED`, `REMINDER_UNAVAILABLE`, `NOTIFICATION_UNAVAILABLE`, `ALREADY_READ`, `MESSAGE_MISMATCH`,
   `PUBLICATION_INACTIVE` 등 실제 발송 생략 사유를 기록한다. 어댑터 직전 만료는 어댑터의 사유를 사용한다.
 - `stage=worker_summary`: 이번 수신의 `targetCount`, `acceptedCount`, `retryableCount`,
   `permanentFailureCount`, `invalidTokenCount`, `skippedCount`를 기록한다.

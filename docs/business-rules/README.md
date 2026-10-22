@@ -51,7 +51,7 @@
 | FCM 메시지 필드·플랫폼별 수신·클릭 후 화면 이동 | [Android·iOS 푸시 메시지 연동 계약](guides/notification-push-contract.md) |
 | 관리자 주제 푸시 설정 생성과 변경 적용 정책 | [주제 푸시 설정 연동 안내](guides/topic-push-schedules.md) |
 | 관리자 공지 등록·조회와 예약 시각 정책 | [관리자 공지 연동 안내](guides/admin-notices.md) |
-| 관리자 리마인더 등록·조회·수정·삭제와 반복·발송 시각 정책 | [관리자 리마인더 연동 안내](guides/admin-reminders.md) |
+| 관리자 리마인더 등록·조회·수정·삭제, 반복·발송 시각과 발송 대상·조건 | [관리자 리마인더 연동 안내](guides/admin-reminders.md) |
 | 게시물 AI 리뷰 요청·결과 조회, 상태 분기와 폴링 | [AI 리뷰 연동 안내](guides/ai-review.md) |
 
 ## 변경 이유
