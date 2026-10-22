@@ -90,8 +90,6 @@ fun FeedRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
-    // Navigation keeps an entering destination STARTED until its enter transition ends, so
-    // following START/STOP lets the AI review load while the feed is fading in, not after it.
     DisposableEffect(lifecycleOwner, viewModel) {
         var isStarted = false
         val observer = LifecycleEventObserver { _, event ->

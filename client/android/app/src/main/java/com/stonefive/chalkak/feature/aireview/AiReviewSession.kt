@@ -21,7 +21,6 @@ class AiReviewSession(
     private val repository: AiReviewRepository,
     private val currentUserId: () -> String?,
     private val onStateChanged: (AiReviewUiState) -> Unit = {},
-    // Gates new requests only; reviews that already exist keep showing their progress or result.
     private val canRequestReview: () -> Boolean = { true },
 ) {
     private val _state = MutableStateFlow(AiReviewUiState())
@@ -52,7 +51,6 @@ class AiReviewSession(
     fun onPause() {
         visible = false
         cancelWork()
-        // The message belongs to work that was just cancelled; resume re-fetches the state.
         if (_state.value.message != null) updateState(_state.value.copy(message = null))
     }
 
@@ -136,8 +134,6 @@ class AiReviewSession(
 
                             is AiReviewResponseResult.Failure -> {
                                 val isMissing = (response.error as? AiReviewFailure.Http)?.statusCode == 404
-                                // A transient failure while processing must not freeze the processing
-                                // indicator: tell the user once, then keep polling.
                                 val keepPolling = _state.value.phase == AiReviewPhase.Processing &&
                                     response.error.isTransient()
                                 if (!keepPolling || !failureNotified) {

@@ -54,7 +54,6 @@ class FeedViewModel(
         repository = aiReviewRepository,
         currentUserId = ::currentUserId,
         onStateChanged = { review -> _uiState.update { it.copy(aiReview = review) } },
-        // Temporary client-side limit: only today's topic photo can start a new AI review.
         canRequestReview = { isTodayTopic(_uiState.value.content) },
     )
 
