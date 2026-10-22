@@ -188,22 +188,9 @@ struct FeedScreen: View {
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
                     onLike: { viewModel.toggleLike() }
                 )
-                // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
+                // 이동 중인 사진이 주제 위로 그려지게 한다.
                 .zIndex(1)
 
-                if let content {
-                    FeedCaption(title: content.post.title)
-                        .padding(.horizontal, Metrics.captionHorizontal)
-                        .padding(.vertical, Metrics.captionVertical)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .overlay(alignment: .top) {
-                            Rectangle()
-                                .fill(theme.colors.border)
-                                .frame(height: Metrics.dividerHeight)
-                                .accessibilityHidden(true)
-                        }
-                        .opacity(contentProgress)
-                }
             }
             .padding(.top, ChalkakNavigationButton.diameter + 2 * theme.spacing.md)
             .padding(.bottom, Metrics.contentBottom)
@@ -381,9 +368,6 @@ struct FeedScreen: View {
 private enum Metrics {
     static let topicTop: CGFloat = 16
     static let topicBottom: CGFloat = 40
-    static let captionHorizontal: CGFloat = 20
-    static let captionVertical: CGFloat = 5
-    static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
     static let toastBottomPadding: CGFloat = 32
     // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
