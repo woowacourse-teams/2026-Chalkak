@@ -3,6 +3,7 @@ import UIKit
 
 struct RecordScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.displayScale) private var displayScale
     @Bindable var viewModel: RecordViewModel
     var onOpenPhotoUpload: () -> Void = {}
@@ -13,9 +14,7 @@ struct RecordScreen: View {
     var onNavigateToLogin: () -> Void = {}
 
     @State private var calendarWidth: CGFloat = 0
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
     @State private var isSavingCalendarImage = false
 
     var body: some View {
@@ -34,16 +33,12 @@ struct RecordScreen: View {
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .overlay(alignment: .bottom) { toast }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
         .task {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
-        }
-        .onDisappear {
-            messageDismissTask?.cancel()
         }
     }
 
@@ -153,23 +148,6 @@ struct RecordScreen: View {
         .padding(.top, Metrics.errorTopPadding)
     }
 
-    // MARK: - Toast
-
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
-        }
-    }
-
     // MARK: - 이미지 저장
 
     @MainActor
@@ -224,17 +202,7 @@ struct RecordScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 }
 
@@ -251,7 +219,6 @@ private enum Metrics {
     static let saveLinkTrailingPadding: CGFloat = 20
     static let errorTopPadding: CGFloat = 24
     static let retryTouchHeight: CGFloat = 44
-    static let toastBottomPadding: CGFloat = 88
 }
 
 #Preview("Record Loaded") {

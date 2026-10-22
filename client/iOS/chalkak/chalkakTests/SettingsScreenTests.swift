@@ -56,6 +56,58 @@ struct SettingsViewModelTests {
         #expect(viewModel.viewState.signatureURL == expectedURL)
     }
 
+    @Test("설정에 다시 진입하면 기존 사인을 유지하면서 최신 사인을 조회한다")
+    func reloadsSignatureOnSubsequentLoad() async {
+        let firstURL = URL(string: "https://cdn.example.com/first-signature.png")!
+        let updatedURL = URL(string: "https://cdn.example.com/updated-signature.png")!
+        var loadCount = 0
+        var resumeRefresh: CheckedContinuation<URL?, Never>?
+        let viewModel = SettingsViewModel(
+            isAuthenticated: { true },
+            loadSignature: {
+                loadCount += 1
+                if loadCount == 1 { return firstURL }
+                return await withCheckedContinuation { resumeRefresh = $0 }
+            }
+        )
+
+        await viewModel.load()
+        let refresh = Task { await viewModel.load() }
+        while resumeRefresh == nil { await Task.yield() }
+
+        #expect(viewModel.viewState.signatureURL == firstURL)
+        #expect(!viewModel.viewState.isLoading)
+        await viewModel.load()
+        #expect(loadCount == 2)
+
+        resumeRefresh?.resume(returning: updatedURL)
+        await refresh.value
+
+        #expect(viewModel.viewState.signatureURL == updatedURL)
+        #expect(!viewModel.viewState.isLoading)
+    }
+
+    @Test("사인 재조회가 실패하면 기존 사인을 유지한다")
+    func preservesSignatureAfterRefreshFailure() async {
+        let existingURL = URL(string: "https://cdn.example.com/signature.png")!
+        let viewModel = SettingsViewModel(
+            initialState: SettingsViewState(
+                isLoading: false,
+                isLoggedIn: true,
+                signatureURL: existingURL
+            ),
+            isAuthenticated: { true },
+            loadSignature: { throw SettingsAPIError.network }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.signatureURL == existingURL)
+        #expect(viewModel.viewState.isLoggedIn)
+        #expect(!viewModel.viewState.isLoading)
+        #expect(viewModel.event == .showMessage("사인을 불러오지 못했어요. 다시 시도해 주세요."))
+    }
+
     @Test("비회원은 서명 API를 호출하지 않는다")
     func skipsSignatureForGuest() async {
         var loadCount = 0
