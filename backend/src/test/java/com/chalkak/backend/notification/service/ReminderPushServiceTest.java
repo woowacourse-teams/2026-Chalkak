@@ -303,6 +303,30 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("자정을 넘겨 발행한 일회성 회차도 회차 날짜의 주제로 대상을 고른다")
+    void publishDueReminders_onceAfterKstMidnight_usesOccurrenceDateTopic() {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-22T14:59:30Z");
+        UUID topicId = insertTopic(OPEN_ENDS_AT);
+        insertApprovedPost(ACTIVE_USER, topicId);
+        UUID reminderId = insertReminder("ONCE", "TOPIC_PARTICIPANTS");
+        updateTimestamp(
+                "UPDATE reminders SET scheduled_at = ? WHERE id = ?",
+                scheduledAt,
+                reminderId
+        );
+        clock.set(Instant.parse("2026-10-22T15:00:00Z"));
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        PushMessage message = captureMessages(1).getFirst();
+        assertThat(message.userId()).isEqualTo(ACTIVE_USER);
+        assertThat(message.occurredAt()).isEqualTo(scheduledAt);
+    }
+
+    @Test
     @DisplayName("예정 시각부터 30분이 지난 회차는 발행하지 않는다")
     void publishDueReminders_expiredOccurrence_doesNotPublish() {
         // Given

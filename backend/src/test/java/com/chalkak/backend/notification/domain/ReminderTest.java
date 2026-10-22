@@ -488,6 +488,18 @@ class ReminderTest {
     }
 
     @Test
+    @DisplayName("일회성은 KST 자정을 넘겨도 30분 기한 안이면 예약 시각을 회차로 돌려준다")
+    void findDueOccurrence_onceAfterKstMidnight_returnsScheduledAt() {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-22T14:59:30Z");
+        Reminder reminder = createScheduledAt(ReminderRepeat.ONCE, scheduledAt);
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-22T15:00:00Z")))
+                .isEqualTo(scheduledAt);
+    }
+
+    @Test
     @DisplayName("삭제된 리마인더는 회차가 없다")
     void findDueOccurrence_deletedReminder_returnsNull() {
         // Given
