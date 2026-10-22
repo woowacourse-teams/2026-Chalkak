@@ -10,6 +10,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +41,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
+import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_TRANSITION_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionProvider
 import com.stonefive.chalkak.core.designsystem.component.image.rememberPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.legal.LegalDocument
@@ -271,6 +273,12 @@ fun ChalkakNavHost(
             navController = navController,
             startDestination = startDestination,
             modifier = modifier,
+            popEnterTransition = {
+                fadeIn(tween(initialState.destination.popFadeDurationMillis()))
+            },
+            popExitTransition = {
+                fadeOut(tween(initialState.destination.popFadeDurationMillis()))
+            },
         ) {
             composable<Login> {
                 LoginRoute(
@@ -942,6 +950,13 @@ private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
     navigate(PhotoUpload(topicDate = topicDate.toString())) {
         launchSingleTop = true
     }
+}
+
+// Both sides must settle together before Navigation resumes the returning screen's input.
+private fun NavDestination.popFadeDurationMillis(): Int = if (hasRoute<Feed>() || hasRoute<FeedById>()) {
+    PHOTO_TRANSITION_DURATION_MILLIS
+} else {
+    PHOTO_CONTENT_FADE_DURATION_MILLIS
 }
 
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {

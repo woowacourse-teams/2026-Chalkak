@@ -39,6 +39,52 @@ class ChalkakNavHostTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
+    fun displayResumesAfterPhotoReturnsWithoutWaitingForOpeningFade() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Display(date = LocalDate.now().toString()),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        val displayEntry = navController.currentBackStackEntry!!
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "return-timing",
+                    originalImageUrl = "",
+                    thumbnailImageUrl = "",
+                    signatureOriginalImageUrl = "",
+                    contentDescription = "photo",
+                    title = "title",
+                    likeCount = 0,
+                    dateLabel = "오늘",
+                    topic = "주제",
+                    fetchDetail = false,
+                ),
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { navController.popBackStack() }
+        // Allow frame scheduling beyond the 300ms photo motion, but stay well below 700ms.
+        composeRule.mainClock.advanceTimeBy(350)
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertSame(displayEntry, navController.currentBackStackEntry)
+            assertEquals(Lifecycle.State.RESUMED, displayEntry.lifecycle.currentState)
+        }
+        composeRule.mainClock.autoAdvance = true
+    }
+
+    @Test
     fun issueWebPageTracksOneScreenViewOnEntry() {
         lateinit var navController: NavHostController
         val screenViews = mutableListOf<Pair<String, String>>()
