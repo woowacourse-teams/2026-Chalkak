@@ -92,6 +92,12 @@ fun SettingsRoute(
                 context.openDeviceNotificationSettings()
             }
         },
+        onAiReviewPushChanged = { enabled ->
+            viewModel.updateAiReviewPushEnabled(enabled)
+            if (enabled && !context.areDeviceNotificationsEnabled()) {
+                context.openDeviceNotificationSettings()
+            }
+        },
     )
 }
 
@@ -112,6 +118,7 @@ fun SettingsScreen(
     onTopicPushChanged: (Boolean) -> Unit,
     onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    onAiReviewPushChanged: (Boolean) -> Unit = {},
 ) {
     uiState.accountDialog?.let { accountDialog ->
         ChalkakConfirmDialog(
@@ -168,8 +175,10 @@ fun SettingsScreen(
                     settings = uiState.pushSettings,
                     isTopicSaving = uiState.isTopicPushSaving,
                     isModerationSaving = uiState.isModerationPushSaving,
+                    isAiReviewSaving = uiState.isAiReviewPushSaving,
                     onTopicPushChanged = onTopicPushChanged,
                     onModerationPushChanged = onModerationPushChanged,
+                    onAiReviewPushChanged = onAiReviewPushChanged,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -284,6 +293,7 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onAddClick = {},
         onTopicPushChanged = {},
         onModerationPushChanged = {},
+        onAiReviewPushChanged = {},
     )
 }
 

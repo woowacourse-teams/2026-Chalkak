@@ -76,6 +76,10 @@ class SettingsViewModel(
         updatePushSettings(NotificationPushSettingsUpdate(moderationPushEnabled = enabled))
     }
 
+    fun updateAiReviewPushEnabled(enabled: Boolean) {
+        updatePushSettings(NotificationPushSettingsUpdate(aiReviewPushEnabled = enabled))
+    }
+
     fun dismissAccountDialog() {
         _uiState.update { it.copy(accountDialog = null) }
     }
@@ -212,22 +216,26 @@ class SettingsViewModel(
         val repository = notificationRepository ?: return
         val previous = _uiState.value.pushSettings ?: return
         val isTopicUpdate = update.topicPushEnabled != null
-        val isSaving = if (isTopicUpdate) {
-            _uiState.value.isTopicPushSaving
-        } else {
-            _uiState.value.isModerationPushSaving
+        val isModerationUpdate = update.moderationPushEnabled != null
+        val isAiReviewUpdate = update.aiReviewPushEnabled != null
+        val isSaving = when {
+            isTopicUpdate -> _uiState.value.isTopicPushSaving
+            isModerationUpdate -> _uiState.value.isModerationPushSaving
+            else -> _uiState.value.isAiReviewPushSaving
         }
         if (isSaving) return
 
         val optimistic = previous.copy(
             topicPushEnabled = update.topicPushEnabled ?: previous.topicPushEnabled,
             moderationPushEnabled = update.moderationPushEnabled ?: previous.moderationPushEnabled,
+            aiReviewPushEnabled = update.aiReviewPushEnabled ?: previous.aiReviewPushEnabled,
         )
         _uiState.update {
             it.copy(
                 pushSettings = optimistic,
                 isTopicPushSaving = if (isTopicUpdate) true else it.isTopicPushSaving,
-                isModerationPushSaving = if (isTopicUpdate) it.isModerationPushSaving else true,
+                isModerationPushSaving = if (isModerationUpdate) true else it.isModerationPushSaving,
+                isAiReviewPushSaving = if (isAiReviewUpdate) true else it.isAiReviewPushSaving,
             )
         }
         viewModelScope.launch {
@@ -235,7 +243,8 @@ class SettingsViewModel(
                 is NotificationResult.Success -> _uiState.update {
                     it.copy(
                         isTopicPushSaving = if (isTopicUpdate) false else it.isTopicPushSaving,
-                        isModerationPushSaving = if (isTopicUpdate) it.isModerationPushSaving else false,
+                        isModerationPushSaving = if (isModerationUpdate) false else it.isModerationPushSaving,
+                        isAiReviewPushSaving = if (isAiReviewUpdate) false else it.isAiReviewPushSaving,
                     )
                 }
 
@@ -249,14 +258,20 @@ class SettingsViewModel(
                                 } else {
                                     it.pushSettings.topicPushEnabled
                                 },
-                                moderationPushEnabled = if (isTopicUpdate) {
-                                    it.pushSettings.moderationPushEnabled
-                                } else {
+                                moderationPushEnabled = if (isModerationUpdate) {
                                     previous.moderationPushEnabled
+                                } else {
+                                    it.pushSettings.moderationPushEnabled
+                                },
+                                aiReviewPushEnabled = if (isAiReviewUpdate) {
+                                    previous.aiReviewPushEnabled
+                                } else {
+                                    it.pushSettings.aiReviewPushEnabled
                                 },
                             ),
                             isTopicPushSaving = if (isTopicUpdate) false else it.isTopicPushSaving,
-                            isModerationPushSaving = if (isTopicUpdate) it.isModerationPushSaving else false,
+                            isModerationPushSaving = if (isModerationUpdate) false else it.isModerationPushSaving,
+                            isAiReviewPushSaving = if (isAiReviewUpdate) false else it.isAiReviewPushSaving,
                             pendingMessage = pendingMessage,
                         )
                     }
