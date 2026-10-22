@@ -54,6 +54,10 @@ public class DirectPushPublisher {
         );
     }
 
+    // 단계 이름은 "{접두사}_publication_result"·"{접두사}_publication_unknown"이다.
+    // 예: topic_publication_result, topic_publication_unknown
+    // 운영 PublicationErrors 지표가 이 이름으로 거른다.
+    // 지표 정의: backend/deploy/docs/notification-monitoring.md
     private PushPublicationResult publishMessage(PushMessage message, String stagePrefix) {
         try {
             PushPublicationResult result = publisher.publish(message);
