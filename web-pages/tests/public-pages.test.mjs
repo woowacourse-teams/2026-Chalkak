@@ -165,7 +165,7 @@ test("a broken in-page link fails validation", async (t) => {
   await writeFile(
     path,
     (await readFile(path, "utf8")).replace(
-      'href="#how"',
+      'href="#main"',
       'href="#missing-section"',
     ),
   );
