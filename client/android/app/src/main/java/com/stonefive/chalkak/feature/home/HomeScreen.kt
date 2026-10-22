@@ -93,6 +93,7 @@ fun HomeScreen(
     onStartFeedback: () -> Unit,
     modifier: Modifier = Modifier,
     onLoadMoreBanners: () -> Unit = {},
+    onOpenRecordDate: (LocalDate) -> Unit = {},
     onDismissFeedbackMessage: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
@@ -169,6 +170,7 @@ fun HomeScreen(
                     uiState = uiState,
                     onOpenPhotoUpload = onOpenPhotoUpload,
                     onOpenRecord = onOpenRecord,
+                    onOpenRecordDate = onOpenRecordDate,
                     onOpenDisplay = onOpenDisplay,
                     onOpenFeed = onOpenFeed,
                     onRetry = onRetry,
@@ -292,6 +294,7 @@ private fun HomeContent(
     onRetry: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
     isFeedbackExpanded: Boolean,
+    onOpenRecordDate: (LocalDate) -> Unit,
     onFeedbackStartClick: () -> Unit,
     onFeedbackToggleExpanded: () -> Unit,
     onLoadMoreBanners: () -> Unit,
@@ -388,6 +391,7 @@ private fun HomeContent(
                     days = uiState.week,
                     status = uiState.recordsStatus,
                     onOpenRecord = onOpenRecord,
+                    onOpenRecordDate = onOpenRecordDate,
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )

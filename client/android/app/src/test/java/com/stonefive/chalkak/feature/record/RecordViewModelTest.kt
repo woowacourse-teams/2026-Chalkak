@@ -58,6 +58,101 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun opensRequestedDateAfterInitialLoading() = runTest {
+        val date = RecordTestMonth.atDay(2)
+        viewModel.openDate(date)
+        advanceUntilIdle()
+
+        assertEquals(date, viewModel.uiState.value.selectedDate)
+        assertEquals(
+            "post-2",
+            viewModel.uiState.value.selectedPost
+                ?.postId,
+        )
+    }
+
+    @Test
+    fun opensRequestedDateInAnotherMonthAndSupportsReusedRecordScreen() = runTest {
+        advanceUntilIdle()
+        viewModel.openDate(RecordLatestMonth.atDay(1))
+        advanceUntilIdle()
+        assertEquals(RecordLatestMonth, viewModel.uiState.value.month)
+        assertEquals(RecordLatestMonth.atDay(1), viewModel.uiState.value.selectedDate)
+
+        viewModel.openDate(RecordTestMonth.atDay(2))
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth, viewModel.uiState.value.month)
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun retainsRequestedDateDuringResumeRevalidation() = runTest {
+        advanceUntilIdle()
+        viewModel.openDate(RecordTestMonth.atDay(2))
+        viewModel.onResume()
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun loadsRequestedDateAfterSuspendedCalendarResponse() = runTest {
+        advanceUntilIdle()
+        val result = CompletableDeferred<HomeResult<PostCalendar>>()
+        repository.pendingCalendarResult = result
+        val date = RecordLatestMonth.atDay(1)
+        viewModel.openDate(date)
+        assertEquals(true, viewModel.uiState.value.isLoading)
+        result.complete(
+            HomeResult.Success(
+                PostCalendar(
+                    month = RecordLatestMonth,
+                    posts = listOf(
+                        PostCalendarItem("requested", date, "photo", PostStatus.APPROVED),
+                        PostCalendarItem("later", date.plusDays(1), "photo-later", PostStatus.APPROVED),
+                    ),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(date, viewModel.uiState.value.selectedDate)
+        assertEquals(
+            "requested",
+            viewModel.uiState.value.selectedPost
+                ?.postId,
+        )
+    }
+
+    @Test
+    fun doesNotSelectAnotherPhotoWhenRequestedDateIsMissing() = runTest {
+        advanceUntilIdle()
+        viewModel.openDate(RecordTestMonth.atDay(3))
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.uiState.value.posts.size)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals(null, viewModel.uiState.value.selectedPost)
+    }
+
+    @Test
+    fun retainsRequestedMonthAndDateAfterFailureAndRetry() = runTest {
+        advanceUntilIdle()
+        val date = RecordLatestMonth.atDay(1)
+        repository.failureMonth = RecordLatestMonth
+        viewModel.openDate(date)
+        advanceUntilIdle()
+        assertEquals(RecordLatestMonth, viewModel.uiState.value.month)
+        assertEquals(null, viewModel.uiState.value.selectedPost)
+
+        repository.failureMonth = null
+        viewModel.retryCurrentMonth()
+        advanceUntilIdle()
+        assertEquals(date, viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
     fun selectsPostDate() = runTest {
         advanceUntilIdle()
 

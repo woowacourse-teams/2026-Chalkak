@@ -86,6 +86,29 @@ final class HomeScreenUITests: XCTestCase {
     }
 
     @MainActor
+    func testHomeScrollPositionSurvivesTabRoundTrip() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview"]
+        app.launch()
+
+        let photo = app.buttons["랭킹 사진 1"].firstMatch
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+        for _ in 0..<6 where !photo.isHittable { app.swipeUp() }
+        XCTAssertTrue(photo.isHittable)
+        let originalY = photo.frame.minY
+
+        app.buttons["설정"].tap()
+        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        app.buttons["홈"].tap()
+        XCTAssertTrue(photo.wait(for: \.isHittable, toEqual: true, timeout: 5))
+        XCTAssertEqual(photo.frame.minY, originalY, accuracy: 8)
+
+        // 홈을 다시 누르는 명시적인 맨 위 이동은 유지한다.
+        app.buttons["홈"].tap()
+        XCTAssertTrue(app.staticTexts["하늘"].wait(for: \.isHittable, toEqual: true, timeout: 5))
+    }
+
+    @MainActor
     func testIssueOpensWebScreenAndBackReturnsHome() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview"]

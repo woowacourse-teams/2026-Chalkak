@@ -418,6 +418,16 @@ fun ChalkakNavHost(
                         onOpenRecord = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navigateToBottomBar(backStackEntry, ChalkakBottomBarItem.RECORD)
                         },
+                        onOpenRecordDate = { date ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navigateToBottomBar(backStackEntry, ChalkakBottomBarItem.RECORD)
+                                if (sessionState is UserSessionState.Authenticated) {
+                                    navController.currentBackStackEntry
+                                        ?.savedStateHandle
+                                        ?.set(RECORD_SELECTED_DATE_KEY, date.toString())
+                                }
+                            }
+                        },
                         onOpenDisplay = { date ->
                             if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
                                 navController.navigate(
@@ -508,7 +518,15 @@ fun ChalkakNavHost(
                 ) {
                     val display = backStackEntry.toRoute<Display>()
 
+                    val scrollToTopRequested by backStackEntry.savedStateHandle
+                        .getStateFlow(DISPLAY_SCROLL_TO_TOP_KEY, false)
+                        .collectAsStateWithLifecycle()
+
                     DisplayRoute(
+                        scrollToTopRequested = scrollToTopRequested,
+                        onScrollToTopHandled = {
+                            backStackEntry.savedStateHandle[DISPLAY_SCROLL_TO_TOP_KEY] = false
+                        },
                         onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
                         onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         initialDate = display.date.toLocalDateOrNull(),
@@ -637,7 +655,15 @@ fun ChalkakNavHost(
                         .getStateFlow<String?>(POST_DELETED_KEY, null)
                         .collectAsStateWithLifecycle()
 
+                    val selectedDate by backStackEntry.savedStateHandle
+                        .getStateFlow<String?>(RECORD_SELECTED_DATE_KEY, null)
+                        .collectAsStateWithLifecycle()
+
                     RecordRoute(
+                        requestedDate = selectedDate?.let(LocalDate::parse),
+                        onRequestedDateConsumed = {
+                            backStackEntry.savedStateHandle[RECORD_SELECTED_DATE_KEY] = null
+                        },
                         onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
                         onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         onOpenFeed = { postId, thumbnailImageUrl ->
@@ -879,6 +905,11 @@ private fun NavHostController.navigateToBottomBar(
 ) {
     if (item == ChalkakBottomBarItem.HOME && currentDestination?.hasRoute<Home>() == true) return
 
+    if (item == ChalkakBottomBarItem.DISPLAY && currentDestination?.hasRoute<Display>() == true) {
+        currentBackStackEntry?.savedStateHandle?.set(DISPLAY_SCROLL_TO_TOP_KEY, true)
+        return
+    }
+
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
     val isDisplayOpenedFromRecord =
@@ -964,6 +995,8 @@ private val ChangeSignaturePreviewAnalyticsScreen = AnalyticsScreen(
 )
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
+private const val DISPLAY_SCROLL_TO_TOP_KEY = "display_scroll_to_top"
+private const val RECORD_SELECTED_DATE_KEY = "record_selected_date"
 private const val POST_DELETED_KEY = "post_deleted"
 private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"

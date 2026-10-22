@@ -6,6 +6,7 @@ struct HomeScreen: View {
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onOpenRecord: () -> Void = {}
+    var onOpenRecordDate: (Date) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
     var onOpenNotifications: () -> Void = {}
@@ -15,6 +16,7 @@ struct HomeScreen: View {
     var isActive = true
 
     @State private var scrollPosition = ScrollPosition()
+    @State private var currentScrollOffset: CGFloat = 0
     @State private var feedbackRetryID = 0
     @State private var isFeedbackSheetPresented = false
     @State private var isFeedbackExpanded = false
@@ -72,7 +74,8 @@ struct HomeScreen: View {
                         days: viewModel.viewState.week,
                         status: viewModel.viewState.recordsStatus,
                         onOpenRecord: onOpenRecord,
-                        onRetry: { Task { await viewModel.refresh() } }
+                        onRetry: { Task { await viewModel.refresh() } },
+                        onOpenRecordDate: onOpenRecordDate
                     )
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
@@ -155,6 +158,18 @@ struct HomeScreen: View {
             }
             .feedZoomViewport(.home)
             .scrollPosition($scrollPosition, anchor: .top)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                currentScrollOffset = offset
+            }
+            .onAppear {
+                currentScrollOffset = viewModel.scrollOffset
+                scrollPosition.scrollTo(y: viewModel.scrollOffset)
+            }
+            .onDisappear {
+                viewModel.saveScrollOffset(currentScrollOffset)
+            }
             .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
             .refreshable {
                 let refreshTask = Task { await viewModel.refresh() }

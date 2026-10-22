@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
@@ -39,7 +38,6 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.COLLAPSING_FLOATING_BACKGROUND_ALPHA
-import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
 import com.stonefive.chalkak.core.designsystem.scroll.collapsingArea
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
@@ -52,7 +50,6 @@ import com.stonefive.chalkak.feature.display.component.DisplayDatePickerSheet
 import com.stonefive.chalkak.feature.display.component.DisplaySortTabs
 import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
-import kotlinx.coroutines.launch
 
 @Composable
 fun DisplayRoute(
@@ -69,6 +66,8 @@ fun DisplayRoute(
         ),
     ),
     onOpenFeed: (Post, String, String, LocalDate?) -> Boolean = { _, _, _, _ -> false },
+    scrollToTopRequested: Boolean = false,
+    onScrollToTopHandled: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -100,6 +99,8 @@ fun DisplayRoute(
         },
         onLikeClick = viewModel::updateLike,
         modifier = modifier,
+        scrollToTopRequested = scrollToTopRequested,
+        onScrollToTopHandled = onScrollToTopHandled,
     )
 }
 
@@ -117,6 +118,8 @@ fun DisplayScreen(
     onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
     onLikeClick: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
+    scrollToTopRequested: Boolean = false,
+    onScrollToTopHandled: () -> Unit = {},
     onDatePicked: (LocalDate) -> Unit = {},
 ) {
     var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
@@ -142,10 +145,6 @@ fun DisplayScreen(
     val bodyTopContentPadding = with(density) {
         scrollState.visibleTopAreaHeight(statusBarHeightPx).toDp()
     }
-    val bottomBarHeight = with(density) {
-        scrollState.bottomBarState.height
-            .toDp()
-    }
 
     SideEffect {
         val scrollKey = uiState.selectedDate to selectedSort
@@ -162,12 +161,13 @@ fun DisplayScreen(
         }
     }
 
-    LaunchedEffect(
-        gridState.canScrollBackward,
-        scrollState.headerOffset,
-        scrollState.filterOffset,
-    ) {
-        scrollState.updateScrollToTopVisibility()
+    LaunchedEffect(scrollToTopRequested) {
+        if (scrollToTopRequested) {
+            scrollState.reset()
+            gridState.animateScrollToItem(0)
+            scrollState.reset()
+            onScrollToTopHandled()
+        }
     }
 
     Box(
@@ -260,23 +260,6 @@ fun DisplayScreen(
                     )
                 }
             }
-        }
-        if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
-            ChalkakScrollToTopButton(
-                onClick = {
-                    settleScope.launch {
-                        scrollState.reset()
-                        gridState.animateScrollToItem(0)
-                    }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .photoTransitionChrome()
-                    .padding(
-                        end = 24.dp,
-                        bottom = bottomBarHeight + 18.dp,
-                    ),
-            )
         }
         ChalkakScreenBottomBar(
             selectedItem = ChalkakBottomBarItem.DISPLAY,

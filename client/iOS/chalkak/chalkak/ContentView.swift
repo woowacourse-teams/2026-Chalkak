@@ -468,6 +468,7 @@ struct ContentView: View {
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .home) },
                 onOpenRecord: { select(.record) },
+                onOpenRecordDate: openRecord(at:),
                 onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
                 onOpenFeed: openHomeFeed,
                 onOpenNotifications: {
@@ -490,6 +491,15 @@ struct ContentView: View {
                 await homeViewModel.resume()
             }
         }
+    }
+
+    private func openRecord(at date: Date) {
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            showMessage("기록을 보려면 로그인이 필요해요")
+            return
+        }
+        recordViewModel = Self.makeRecordViewModel(initialDate: date)
+        select(.record)
     }
 
     private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
@@ -533,6 +543,9 @@ struct ContentView: View {
             homeViewModel.scrollToTop()
             Task { await homeViewModel.refresh() }
         } else {
+            if selectedTab == .display, item == .display {
+                displayViewModel.scrollToTop()
+            }
             select(item)
         }
     }
@@ -914,8 +927,9 @@ struct ContentView: View {
         )
     }
 
-    private static func makeRecordViewModel() -> RecordViewModel {
+    private static func makeRecordViewModel(initialDate: Date? = nil) -> RecordViewModel {
         RecordViewModel(
+            initialDate: initialDate,
             apiClient: RecordAPIClient(
                 configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }

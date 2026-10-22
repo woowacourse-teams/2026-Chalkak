@@ -49,6 +49,7 @@ fun HomeWeeklyRecord(
     onOpenRecord: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenRecordDate: (LocalDate) -> Unit = {},
 ) {
     androidx.compose.foundation.layout.Column(modifier = modifier) {
         HomeSectionHeader(
@@ -62,19 +63,22 @@ fun HomeWeeklyRecord(
         when (status) {
             HomeSectionStatus.Loading -> WeeklyLoading()
             HomeSectionStatus.Error -> WeeklyError(onRetry)
-            HomeSectionStatus.Ready -> WeeklyRecordRow(days)
+            HomeSectionStatus.Ready -> WeeklyRecordRow(days, onOpenRecordDate)
         }
     }
 }
 
 @Composable
-private fun WeeklyRecordRow(days: List<HomeWeekDay>) {
+private fun WeeklyRecordRow(
+    days: List<HomeWeekDay>,
+    onOpenRecordDate: (LocalDate) -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm),
     ) {
         days.forEach { day ->
-            WeeklyRecordCell(day = day, modifier = Modifier.weight(1f))
+            WeeklyRecordCell(day = day, onOpenRecordDate = onOpenRecordDate, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -82,6 +86,7 @@ private fun WeeklyRecordRow(days: List<HomeWeekDay>) {
 @Composable
 private fun WeeklyRecordCell(
     day: HomeWeekDay,
+    onOpenRecordDate: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val post = day.post
@@ -96,6 +101,7 @@ private fun WeeklyRecordCell(
             .aspectRatio(1f)
             .clip(ChalkakTheme.shapes.small)
             .background(ChalkakTheme.colors.calendarCell)
+            .then(if (post != null) Modifier.clickable { onOpenRecordDate(day.date) } else Modifier)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {

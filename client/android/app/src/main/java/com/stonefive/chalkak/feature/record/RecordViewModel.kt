@@ -36,6 +36,8 @@ class RecordViewModel(
     )
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
+    // 홈 주간 기록에서 연 날짜. 재검증해도 이 날짜를 다시 고르고, 사용자가 날짜나 달을 바꾸면 비운다.
+    private var requestedDate: LocalDate? = null
     private val calendarCache = mutableMapOf<YearMonth, PostCalendar>()
     private val monthLoadGenerations = mutableMapOf<YearMonth, Int>()
     private val deletedPostIds = mutableSetOf<String>()
@@ -57,6 +59,7 @@ class RecordViewModel(
             .filter { it < state.month }
             .maxOrNull()
             ?: return
+        requestedDate = null
         loadRecord(previousMonth)
     }
 
@@ -68,7 +71,21 @@ class RecordViewModel(
             .filter { it > state.month }
             .minOrNull()
             ?: return
+        requestedDate = null
         loadRecord(nextMonth)
+    }
+
+    fun openDate(date: LocalDate) {
+        requestedDate = date
+        val state = _uiState.value
+        val month = YearMonth.from(date)
+        if (!state.isLoading && !isRevalidating && state.month == month &&
+            state.posts.any { it.topicDate == date }
+        ) {
+            _uiState.update { it.copy(selectedDate = date) }
+        } else {
+            loadAvailableMonths(month)
+        }
     }
 
     /** 년/월 휠에서 고른 달로 이동한다. 기록이 있는 달(+이번 달)만 받고, 같은 달이면 다시 불러오지 않는다. */
@@ -77,6 +94,7 @@ class RecordViewModel(
         if (state.isLoading) return
         if (month == state.month || month !in state.availableMonths) return
 
+        requestedDate = null
         loadRecord(month)
     }
 
@@ -84,6 +102,7 @@ class RecordViewModel(
         val state = _uiState.value
         if (date !in state.posts.map { it.topicDate }) return
 
+        requestedDate = null
         _uiState.update { it.copy(selectedDate = date) }
     }
 
@@ -177,6 +196,9 @@ class RecordViewModel(
                     ?: updatedPosts.maxByOrNull { it.topicDate }?.topicDate,
             )
         }
+        val hasRequestedPost = _uiState.value.posts
+            .any { it.topicDate == requestedDate }
+        if (!hasRequestedPost) requestedDate = null
     }
 
     fun onMessageShown(messageId: Long) {
@@ -215,7 +237,12 @@ class RecordViewModel(
         isRevalidating = hasVisibleContent
         if (cachedCalendar != null && !keepsContentVisible) {
             _uiState.update {
-                it.withCalendar(cachedCalendar, selectedDate = cachedCalendar.latestTopicDate())
+                val selectedDate = if (requestedDate != null) {
+                    cachedCalendar.requestedTopicDate()
+                } else {
+                    cachedCalendar.latestTopicDate()
+                }
+                it.withCalendar(cachedCalendar, selectedDate)
             }
         } else if (!hasVisibleContent) {
             _uiState.update {
@@ -251,13 +278,18 @@ class RecordViewModel(
                     when (content) {
                         is HomeResult.Success -> {
                             _uiState.update {
-                                // 요청 중에 사용자가 직접 고른 날짜는 새 목록에 남아 있으면 유지한다.
+                                // 홈 주간 기록에서 연 날짜는 그 날짜만 고르고, 사진이 없으면 다른 사진을 대신 열지 않는다.
+                                // 그 외에는 요청 중에 사용자가 직접 고른 날짜를 유지하고,
                                 // 고르지 않았으면 새 목록의 최신 날짜를 선택해 새로 올라온 사진이 보이게 한다.
-                                val selectedDate = it.selectedDate?.takeIf { date ->
-                                    date != selectedDateBeforeLoad &&
-                                        content.value.posts
-                                            .any { post -> post.topicDate == date }
-                                } ?: content.value.latestTopicDate()
+                                val selectedDate = if (requestedDate != null) {
+                                    content.value.requestedTopicDate()
+                                } else {
+                                    it.selectedDate?.takeIf { date ->
+                                        date != selectedDateBeforeLoad &&
+                                            content.value.posts
+                                                .any { post -> post.topicDate == date }
+                                    } ?: content.value.latestTopicDate()
+                                }
                                 it.withCalendar(content.value, selectedDate)
                             }
                         }
@@ -354,6 +386,10 @@ class RecordViewModel(
     )
 
     private fun PostCalendar.latestTopicDate(): LocalDate? = posts.maxByOrNull { it.topicDate }?.topicDate
+
+    private fun PostCalendar.requestedTopicDate(): LocalDate? = requestedDate?.takeIf { date ->
+        posts.any { it.topicDate == date }
+    }
 
     private fun nextToast(text: String): UiMessage.Toast = UiMessage.Toast(
         id = nextMessageId++,

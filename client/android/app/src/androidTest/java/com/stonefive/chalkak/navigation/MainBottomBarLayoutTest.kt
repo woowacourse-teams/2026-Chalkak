@@ -27,7 +27,7 @@ class MainBottomBarLayoutTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun sharedBarUsesEachTabsRetainedScrollOffset() {
+    fun sharedBarKeepsOtherTabOffsetButRestoresHomeWhenReturning() {
         val hostState = ChalkakBottomBarHostState()
         val selectedItem = mutableStateOf(ChalkakBottomBarItem.HOME)
         composeRule.setContent {
@@ -73,7 +73,44 @@ class MainBottomBarLayoutTest {
         composeRule.runOnIdle { selectedItem.value = ChalkakBottomBarItem.HOME }
         composeRule.waitForIdle()
         assertEquals(
-            restingBounds.top.value + restingBounds.height.value / 4f,
+            restingBounds.top.value,
+            bar
+                .getUnclippedBoundsInRoot()
+                .top.value,
+            0.5f,
+        )
+    }
+
+    @Test
+    fun returningFromRecordRevealsHomeBarAndClearsHiddenTarget() {
+        val hostState = ChalkakBottomBarHostState()
+        val selectedItem = mutableStateOf(ChalkakBottomBarItem.HOME)
+        composeRule.setContent {
+            ChalkakTheme {
+                MainBottomBarLayout(
+                    hostState = hostState,
+                    selectedItem = selectedItem.value,
+                    onItemSelected = { selectedItem.value = it },
+                    onAddClick = {},
+                ) {}
+            }
+        }
+        composeRule.waitForIdle()
+        val bar = composeRule.onNodeWithTag("main_bottom_bar")
+        val restingBounds = bar.getUnclippedBoundsInRoot()
+        val homeState = hostState.stateFor(ChalkakBottomBarItem.HOME)
+        composeRule.runOnIdle {
+            homeState.restoreState(homeState.height.toFloat(), homeState.height, isTargetHidden = true)
+            selectedItem.value = ChalkakBottomBarItem.RECORD
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { selectedItem.value = ChalkakBottomBarItem.HOME }
+        composeRule.waitForIdle()
+
+        assertEquals(0f, homeState.offset)
+        assertEquals(false, homeState.isTargetHidden)
+        assertEquals(
+            restingBounds.top.value,
             bar
                 .getUnclippedBoundsInRoot()
                 .top.value,

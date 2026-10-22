@@ -23,6 +23,7 @@ final class DisplayViewModel {
 
     private(set) var viewState: DisplayViewState
     private(set) var event: DisplayEvent?
+    private(set) var scrollToTopRequestID = 0
 
     private let initialDate: Date?
     private let dateProvider: DateProvider
@@ -133,6 +134,10 @@ final class DisplayViewModel {
             ? initialDate ?? latestDate
             : viewState.selectedDate ?? initialDate ?? latestDate
         await loadFirstPage(date: requestedDate, latestDate: latestDate, preserves: previous)
+    }
+
+    func scrollToTop() {
+        scrollToTopRequestID += 1
     }
 
     /// 현재 화면의 콘텐츠를 유지한 채 같은 전시를 최신 데이터로 갱신한다.
