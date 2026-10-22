@@ -49,14 +49,22 @@ fun SettingsRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     signatureUpdateUrl: String? = null,
+    onSignatureUpdateConsumed: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
+    LaunchedEffect(viewModel) {
+        viewModel.refreshSignature()
+    }
+
     LaunchedEffect(signatureUpdateUrl) {
-        signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
+        signatureUpdateUrl?.let {
+            viewModel.applySignatureUpdate(it)
+            onSignatureUpdateConsumed()
+        }
     }
 
     SettingsScreen(

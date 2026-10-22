@@ -31,6 +31,7 @@ enum SettingsAccountDialog: Equatable {
 
 struct SettingsScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
@@ -45,10 +46,9 @@ struct SettingsScreen: View {
     var onOpenPhotoUpload: () -> Void = {}
     var onSignatureScreenChange: (AnalyticsScreen?) -> Void = { _ in }
 
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
     @State private var isSignatureChangePresented = false
+    @State private var didUpdateSignature = false
 
     var body: some View {
         ScrollView {
@@ -151,7 +151,6 @@ struct SettingsScreen: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .overlay(alignment: .bottom) { toast }
         .animation(.easeOut(duration: 0.16), value: viewModel.viewState.accountDialog)
         .task {
             await viewModel.load()
@@ -176,31 +175,20 @@ struct SettingsScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .onDisappear {
-            messageDismissTask?.cancel()
-        }
         .fullScreenCover(isPresented: $isSignatureChangePresented, onDismiss: {
             onSignatureScreenChange(nil)
+            if didUpdateSignature {
+                didUpdateSignature = false
+                showMessage("사인 반영까지 시간이 좀 걸릴 수 있어요!")
+            }
         }) {
             SignatureChangeFlow(
-                onUpdate: viewModel.updateSignature,
+                onUpdate: { data in
+                    try await viewModel.updateSignature(data)
+                    didUpdateSignature = true
+                },
                 onScreenChange: { onSignatureScreenChange($0) }
             )
-        }
-    }
-
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
         }
     }
 
@@ -228,17 +216,7 @@ struct SettingsScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 
 }
@@ -247,7 +225,6 @@ private enum Metrics {
     static let topPadding: CGFloat = 48
     static let appToAccountSpacing: CGFloat = 36
     static let loadingHeight: CGFloat = 56
-    static let toastBottomPadding: CGFloat = 88
 }
 
 #Preview("Member settings") {
