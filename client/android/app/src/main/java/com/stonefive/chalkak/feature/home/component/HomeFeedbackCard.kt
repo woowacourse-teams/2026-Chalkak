@@ -53,6 +53,8 @@ import com.stonefive.chalkak.feature.home.HomeFeedbackPhase
  * - [HomeFeedbackPhase.Ready]: 헤더를 누르면 [onStart]를 호출한다. 호출한 쪽이 시작 안내 시트를 연다.
  * - [HomeFeedbackPhase.Processing]: 헤더를 누를 수 없고, 오른쪽 음성 파형 아이콘만 움직인다.
  * - [HomeFeedbackPhase.Completed]: 헤더를 누르면 [onToggleExpanded]를 호출한다. [isExpanded]가 true면 결과를 펼친다.
+ * - [HomeFeedbackPhase.Failed]: 실패 안내를 보여 준다. [canRequestAgain]이 true면 "재요청"을 함께 보여 주고
+ *   헤더를 누르면 [onStart]를 호출한다. 호출한 쪽이 시작 안내 없이 바로 다시 요청한다. false면 누를 수 없다.
  *
  */
 @Composable
@@ -63,6 +65,7 @@ fun HomeFeedbackCard(
     onToggleExpanded: () -> Unit,
     modifier: Modifier = Modifier,
     result: AiReviewContent? = null,
+    canRequestAgain: Boolean = false,
 ) {
     if (phase == HomeFeedbackPhase.Hidden) return
 
@@ -84,6 +87,7 @@ fun HomeFeedbackCard(
             FeedbackHeader(
                 phase = phase,
                 isExpanded = isExpanded,
+                canRequestAgain = canRequestAgain,
                 onClick = if (phase == HomeFeedbackPhase.Completed) onToggleExpanded else onStart,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -111,6 +115,7 @@ fun HomeFeedbackCard(
 private fun FeedbackHeader(
     phase: HomeFeedbackPhase,
     isExpanded: Boolean,
+    canRequestAgain: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -119,6 +124,13 @@ private fun FeedbackHeader(
         HomeFeedbackPhase.Ready -> "이 사진, AI에게 피드백 받아보기"
         HomeFeedbackPhase.Processing -> "AI 피드백이 진행중이에요"
         HomeFeedbackPhase.Completed -> "AI 피드백이 완료되었어요"
+        HomeFeedbackPhase.Failed -> "AI 피드백을 생성하지 못했어요"
+    }
+    val showsRequestAgain = phase == HomeFeedbackPhase.Failed && canRequestAgain
+    val enabled = when (phase) {
+        HomeFeedbackPhase.Processing -> false
+        HomeFeedbackPhase.Failed -> canRequestAgain
+        else -> true
     }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -129,11 +141,11 @@ private fun FeedbackHeader(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                enabled = phase != HomeFeedbackPhase.Processing,
+                enabled = enabled,
                 role = Role.Button,
                 onClick = onClick,
             ).semantics {
-                contentDescription = title
+                contentDescription = if (showsRequestAgain) "$title, 재요청" else title
                 if (phase == HomeFeedbackPhase.Completed) {
                     stateDescription = if (isExpanded) "펼쳐짐" else "접힘"
                 }
@@ -178,6 +190,13 @@ private fun FeedbackHeader(
                 )
             }
         } else {
+            if (showsRequestAgain) {
+                Text(
+                    text = "재요청",
+                    color = ChalkakTheme.colors.textSecondary,
+                    style = ChalkakTheme.typography.footnote,
+                )
+            }
             Box(
                 modifier = Modifier
                     .size(FeedbackWaveCircleSize)

@@ -141,6 +141,7 @@ class HomeViewModel(
                 feedbackPhase = state.phase,
                 feedbackResult = state.result,
                 feedbackMessage = state.message,
+                feedbackCanRequestAgain = state.canRequestAgain,
             )
         }
     }

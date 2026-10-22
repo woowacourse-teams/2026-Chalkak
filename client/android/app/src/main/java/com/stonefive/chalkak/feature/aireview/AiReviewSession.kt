@@ -65,7 +65,7 @@ class AiReviewSession(
 
     fun startReview() {
         resetIfUserChanged()
-        if (!visible || submitting || job?.isActive == true || _state.value.phase != AiReviewPhase.Ready) return
+        if (!visible || submitting || job?.isActive == true || !_state.value.canStartReview()) return
         if (!canRequestReview()) {
             updateState(_state.value.copy(phase = AiReviewPhase.Hidden))
             return
@@ -73,15 +73,19 @@ class AiReviewSession(
         val postId = targetPostId ?: return
         val userId = currentUserId() ?: return
         if (targetUserId != userId) return
+        val startPhase = _state.value.phase
         updateState(_state.value.copy(phase = AiReviewPhase.Processing, message = null))
-        launchReview(requestReview = true)
+        launchReview(requestReview = true, startPhase = startPhase)
     }
 
     fun dismissMessage() {
         updateState(_state.value.copy(message = null))
     }
 
-    private fun launchReview(requestReview: Boolean) {
+    private fun launchReview(
+        requestReview: Boolean,
+        startPhase: AiReviewPhase = AiReviewPhase.Ready,
+    ) {
         val postId = targetPostId ?: return
         val userId = currentUserId() ?: return
         cancelWork()
@@ -106,7 +110,7 @@ class AiReviewSession(
                                         phase = if (error.statusCode == 404) {
                                             AiReviewPhase.Hidden
                                         } else {
-                                            AiReviewPhase.Ready
+                                            startPhase
                                         },
                                         message = error.message ?: errorMessage(error),
                                     ),
@@ -164,10 +168,20 @@ class AiReviewSession(
             AiReview.Status.NONE -> if (canRequestReview()) AiReviewPhase.Ready else AiReviewPhase.Hidden
             AiReview.Status.PROCESSING -> AiReviewPhase.Processing
             AiReview.Status.COMPLETED -> AiReviewPhase.Completed
-            AiReview.Status.FAILED -> AiReviewPhase.Hidden
+            AiReview.Status.FAILED -> if (canRequestReview()) AiReviewPhase.Failed else AiReviewPhase.Hidden
         }
-        updateState(AiReviewUiState(phase = phase, result = review.result, status = review.status))
+        updateState(
+            AiReviewUiState(
+                phase = phase,
+                result = review.result,
+                status = review.status,
+                canRequestAgain = review.canRequestAgain,
+            ),
+        )
     }
+
+    private fun AiReviewUiState.canStartReview(): Boolean =
+        phase == AiReviewPhase.Ready || (phase == AiReviewPhase.Failed && canRequestAgain)
 
     private suspend fun ensureCurrent(
         postId: String,

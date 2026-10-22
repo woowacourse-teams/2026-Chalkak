@@ -29,6 +29,7 @@ data class HomeUiState(
     val feedbackPhase: HomeFeedbackPhase = HomeFeedbackPhase.Hidden,
     val feedbackResult: AiReviewContent? = null,
     val feedbackMessage: String? = null,
+    val feedbackCanRequestAgain: Boolean = false,
 )
 
 val HomeUiState.isInitialLoadComplete: Boolean
@@ -42,7 +43,7 @@ val HomeUiState.isInitialLoadComplete: Boolean
 val HomeUiState.showsFeedback: Boolean
     get() = (hero as? HomeHeroState.Photo)?.isPending == false && feedbackPhase != HomeFeedbackPhase.Hidden
 
-// FAILED 및 조회 전 상태는 별도 UI를 추가하지 않고 카드를 숨긴다.
+// 조회 전 상태는 카드를 숨긴다. FAILED는 실패 안내를 보여 주고, 다시 요청할 수 있으면(feedbackCanRequestAgain) 카드를 눌러 바로 다시 요청한다.
 typealias HomeFeedbackPhase = AiReviewPhase
 
 enum class HomeSectionStatus {

@@ -75,9 +75,10 @@ import kotlinx.coroutines.launch
 fun AiReviewStartSheet(
     onStart: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = "AI 피드백을 시작할까요?",
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg)) {
-        Text("AI 피드백을 시작할까요?", color = ChalkakTheme.colors.textPrimary, style = ChalkakTheme.typography.title3)
+        Text(title, color = ChalkakTheme.colors.textPrimary, style = ChalkakTheme.typography.title3)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,6 +193,61 @@ fun AiReviewResultSheet(
             )
             AiReviewResultContent(result = result)
         }
+    }
+}
+
+/**
+ * 다시 요청할 수 없는 실패 리뷰를 알리는 바텀 시트다. [message]에 다시 요청할 수 없는 이유를 보여 주고 "확인"으로 닫는다.
+ * 다시 요청할 수 있는 실패는 이 시트 대신 시작 안내 시트를 연다.
+ *
+ * 예: 요청 3번을 모두 쓴 경우 "이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun AiReviewFailureSheet(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = null,
+        modifier = modifier,
+    ) {
+        AiReviewSheetDragHandle(sheetState = sheetState, onDismiss = onDismiss, modifier = Modifier.fillMaxWidth())
+        AiReviewFailureContent(
+            message = message,
+            onConfirm = onDismiss,
+            modifier = Modifier.padding(
+                start = ChalkakTheme.spacing.xl,
+                end = ChalkakTheme.spacing.xl,
+                bottom = ChalkakTheme.spacing.xl,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun AiReviewFailureContent(
+    message: String,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg)) {
+        Text(
+            text = "AI 피드백을 생성하지 못했어요",
+            color = ChalkakTheme.colors.textPrimary,
+            style = ChalkakTheme.typography.headline,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = message,
+            color = ChalkakTheme.colors.textSecondary,
+            style = ChalkakTheme.typography.body,
+        )
+        ChalkakButton(text = "확인", onClick = onConfirm, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -443,6 +499,18 @@ private fun AiReviewComponentsPreview() {
                 distinctivePerspective = true,
                 feedback = AiReviewFeedback("요약", "장점", "아쉬움", "제안"),
             ),
+            modifier = Modifier.padding(ChalkakTheme.spacing.xl),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun AiReviewFailureContentPreview() {
+    ChalkakTheme {
+        AiReviewFailureContent(
+            message = "이 사진은 더 이상 AI 피드백을 요청할 수 없어요.",
+            onConfirm = {},
             modifier = Modifier.padding(ChalkakTheme.spacing.xl),
         )
     }

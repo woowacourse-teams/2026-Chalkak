@@ -153,13 +153,70 @@ class FeedAiReviewTest {
     }
 
     @Test
-    fun `failed review is hidden`() = runTest {
+    fun `failed review shows failure and is never automatically retried`() = runTest {
         val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.FAILED, canRequestAgain = true) }
         val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true))
         viewModel.onResume()
         runCurrent()
+        assertEquals(AiReviewPhase.Failed, viewModel.uiState.value.aiReview.phase)
+        assertEquals(AiReview.Status.FAILED, viewModel.uiState.value.aiReview.status)
+        assertTrue(viewModel.uiState.value.aiReview.canRequestAgain)
+        assertTrue(ai.requestPostIds.isEmpty())
+    }
+
+    @Test
+    fun `failed review with retry left can be requested again`() = runTest {
+        val ai = FeedAiReviewFake().apply {
+            getResults += success(AiReview.Status.FAILED, canRequestAgain = true)
+            requestResults += success(AiReview.Status.PROCESSING)
+        }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true))
+        viewModel.onResume()
+        runCurrent()
+        viewModel.startFeedback()
+        runCurrent()
+        assertEquals(listOf(PHOTO_ID), ai.requestPostIds)
+        assertEquals(AiReviewPhase.Processing, viewModel.uiState.value.aiReview.phase)
+    }
+
+    @Test
+    fun `failed review without retry left cannot be requested again`() = runTest {
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.FAILED, canRequestAgain = false) }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true))
+        viewModel.onResume()
+        runCurrent()
+        viewModel.startFeedback()
+        runCurrent()
+        assertTrue(ai.requestPostIds.isEmpty())
+        assertEquals(AiReviewPhase.Failed, viewModel.uiState.value.aiReview.phase)
+    }
+
+    @Test
+    fun `rejected request again returns to failure with server message`() = runTest {
+        val message = "더 이상 AI 리뷰를 다시 요청할 수 없습니다."
+        val ai = FeedAiReviewFake().apply {
+            getResults += success(AiReview.Status.FAILED, canRequestAgain = true)
+            requestResults += failure(AiReviewFailure.Http(400, "BUSINESS_ERROR", message))
+        }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true))
+        viewModel.onResume()
+        runCurrent()
+        viewModel.startFeedback()
+        runCurrent()
+        assertEquals(AiReviewPhase.Failed, viewModel.uiState.value.aiReview.phase)
+        assertEquals(message, viewModel.uiState.value.aiReview.message)
+    }
+
+    @Test
+    fun `past photo hides failed review`() = runTest {
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.FAILED, canRequestAgain = true) }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true, topicDate = YESTERDAY))
+        viewModel.onResume()
+        runCurrent()
         assertEquals(AiReviewPhase.Hidden, viewModel.uiState.value.aiReview.phase)
         assertEquals(AiReview.Status.FAILED, viewModel.uiState.value.aiReview.status)
+        viewModel.startFeedback()
+        runCurrent()
         assertTrue(ai.requestPostIds.isEmpty())
     }
 
