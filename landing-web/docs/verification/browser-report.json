@@ -1,0 +1,270 @@
+{
+  "base": "http://localhost:3100",
+  "report": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 900,
+      "hero": [
+        {
+          "alt": "같은 주제의 다양한 사진을 감상하는 찰캌 전시 화면",
+          "loaded": true
+        },
+        {
+          "alt": "오늘의 주제를 받아 내 시선으로 사진을 남기는 찰캌 홈 화면",
+          "loaded": true
+        },
+        {
+          "alt": "사진의 사인을 보고 좋아요를 남기는 찰캌 작품 상세 화면",
+          "loaded": true
+        }
+      ],
+      "guide": [
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fsignature.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Ftoday.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fupload.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-feed.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-detail.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        }
+      ],
+      "signatureBytes": 36334,
+      "bounds": {
+        "height": 632.65625,
+        "view": 900,
+        "scroll": 633,
+        "client": 633,
+        "buttons": [
+          {
+            "text": "↶ 되돌리기",
+            "height": 44,
+            "bottom": 688.328125
+          },
+          {
+            "text": "전체 지우기",
+            "height": 44,
+            "bottom": 688.328125
+          },
+          {
+            "text": "예시 사인으로 채우기",
+            "height": 44,
+            "bottom": 688.328125
+          },
+          {
+            "text": "이 사인으로 할래요",
+            "height": 48,
+            "bottom": 748.328125
+          }
+        ]
+      },
+      "checks": "PASS"
+    },
+    {
+      "name": "tablet",
+      "width": 960,
+      "height": 900,
+      "hero": [
+        {
+          "alt": "같은 주제의 다양한 사진을 감상하는 찰캌 전시 화면",
+          "loaded": true
+        },
+        {
+          "alt": "오늘의 주제를 받아 내 시선으로 사진을 남기는 찰캌 홈 화면",
+          "loaded": true
+        }
+      ],
+      "guide": [
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fsignature.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Ftoday.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fupload.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-feed.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-detail.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        }
+      ],
+      "signatureBytes": 36334,
+      "bounds": {
+        "height": 632.65625,
+        "view": 900,
+        "scroll": 633,
+        "client": 633,
+        "buttons": [
+          {
+            "text": "↶ 되돌리기",
+            "height": 44,
+            "bottom": 688.328125
+          },
+          {
+            "text": "전체 지우기",
+            "height": 44,
+            "bottom": 688.328125
+          },
+          {
+            "text": "예시 사인으로 채우기",
+            "height": 44,
+            "bottom": 688.328125
+          },
+          {
+            "text": "이 사인으로 할래요",
+            "height": 48,
+            "bottom": 748.328125
+          }
+        ]
+      },
+      "checks": "PASS"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "hero": [
+        {
+          "alt": "오늘의 주제를 받아 내 시선으로 사진을 남기는 찰캌 홈 화면",
+          "loaded": true
+        }
+      ],
+      "guide": [
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fsignature.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Ftoday.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fupload.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-feed.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-detail.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        }
+      ],
+      "signatureBytes": 36334,
+      "bounds": {
+        "height": 632.65625,
+        "view": 844,
+        "scroll": 633,
+        "client": 633,
+        "buttons": [
+          {
+            "text": "↶ 되돌리기",
+            "height": 44,
+            "bottom": 660.328125
+          },
+          {
+            "text": "전체 지우기",
+            "height": 44,
+            "bottom": 660.328125
+          },
+          {
+            "text": "예시 사인으로 채우기",
+            "height": 44,
+            "bottom": 660.328125
+          },
+          {
+            "text": "이 사인으로 할래요",
+            "height": 48,
+            "bottom": 720.328125
+          }
+        ]
+      },
+      "checks": "PASS"
+    },
+    {
+      "name": "mobile-short",
+      "width": 390,
+      "height": 600,
+      "hero": [
+        {
+          "alt": "오늘의 주제를 받아 내 시선으로 사진을 남기는 찰캌 홈 화면",
+          "loaded": true
+        }
+      ],
+      "guide": [
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fsignature.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Ftoday.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fupload.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-feed.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image?url=%2Fapp-screens%2Fdisplay-detail.webp%3Fv%3D2026-10-13-00d4741a&w=3840&q=75",
+          "loaded": true
+        }
+      ],
+      "signatureBytes": 36334,
+      "bounds": {
+        "height": 564.65625,
+        "view": 600,
+        "scroll": 565,
+        "client": 565,
+        "buttons": [
+          {
+            "text": "↶ 되돌리기",
+            "height": 44,
+            "bottom": 504.328125
+          },
+          {
+            "text": "전체 지우기",
+            "height": 44,
+            "bottom": 504.328125
+          },
+          {
+            "text": "예시 사인으로 채우기",
+            "height": 44,
+            "bottom": 504.328125
+          },
+          {
+            "text": "이 사인으로 할래요",
+            "height": 48,
+            "bottom": 564.328125
+          }
+        ]
+      },
+      "checks": "PASS"
+    }
+  ],
+  "failures": []
+}

@@ -1,0 +1,80 @@
+/* 색상은 iOS DesignSystem/Foundation의 라이트 테마 토큰과 같은 값을 쓴다. */
+:root {
+  --color-bg: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #eae7de;
+  --color-border: #dcd8ce;
+  --color-border-soft: rgb(136 136 136 / 0.15);
+  --color-text: #2b2724;
+  --color-text-secondary: rgb(43 39 36 / 0.68);
+  --color-text-muted: rgb(43 39 36 / 0.48);
+  --color-accent: #b0563b;
+  --color-brand: #17332d;
+  --color-stage: #1f1a18;
+
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans), system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  line-height: 1.5;
+  word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+img {
+  max-width: 100%;
+}
+
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--color-text);
+  color: #fff;
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

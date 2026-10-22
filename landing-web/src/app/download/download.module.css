@@ -1,0 +1,30 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.page h1 {
+  margin: 20px 0 8px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.page p {
+  margin: 0 0 24px;
+  color: var(--color-text-secondary);
+}
+
+.badges {
+  justify-content: center;
+}
+
+.home {
+  margin-top: 28px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}

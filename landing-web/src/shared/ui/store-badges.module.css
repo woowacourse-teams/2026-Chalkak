@@ -1,0 +1,32 @@
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.badge {
+  display: inline-flex;
+  border-radius: 10px;
+  transition: transform 0.15s ease;
+}
+
+.badge img {
+  display: block;
+  height: 48px;
+  width: auto;
+}
+
+.badge:hover {
+  transform: translateY(-1px);
+}
+
+.badge:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* 어두운 배경 위에서 검은 배지 테두리가 묻히지 않게 한다. */
+.badges[data-tone="dark"] .badge {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.35);
+}

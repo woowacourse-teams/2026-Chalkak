@@ -1,0 +1,706 @@
+.experience {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 단계 표시 */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.steps li + li::before {
+  content: "";
+  width: 18px;
+  height: 1px;
+  margin-right: 2px;
+  background: var(--color-border);
+}
+
+.steps li span {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-surface-sunken);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.steps .stepOn {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.steps .stepOn span {
+  background: var(--color-text);
+  color: #fff;
+}
+
+/* 무대와 가상 카메라 */
+.stage {
+  position: relative;
+  height: min(76svh, 760px);
+  min-height: 440px;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--color-stage);
+  touch-action: none;
+  isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+/* 풍경 위아래로 남는 무대를 흐린 풍경으로 채운다. */
+.stage::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  background: var(--stage-backdrop) center / cover no-repeat;
+  filter: blur(24px) brightness(0.45);
+}
+
+.stage[data-phase="shoot"] {
+  cursor: grab;
+}
+
+.stage[data-phase="shoot"]:active {
+  cursor: grabbing;
+}
+
+.stage:focus-visible {
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+.scene {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  max-width: none;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.viewfinder {
+  position: absolute;
+  border-radius: 22px;
+  box-shadow: 0 0 0 200vmax rgb(24 18 16 / 0.6);
+  pointer-events: none;
+}
+
+.viewfinder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgb(255 255 255 / 0.92);
+  border-radius: inherit;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.35;
+  background:
+    linear-gradient(to right, transparent calc(33.33% - 0.5px), #fff 0 calc(33.33% + 0.5px), transparent 0 calc(66.66% - 0.5px), #fff 0 calc(66.66% + 0.5px), transparent 0),
+    linear-gradient(to bottom, transparent calc(33.33% - 0.5px), #fff 0 calc(33.33% + 0.5px), transparent 0 calc(66.66% - 0.5px), #fff 0 calc(66.66% + 0.5px), transparent 0);
+}
+
+.focus {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  height: 54px;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid rgb(255 214 120 / 0.9);
+  border-radius: 6px;
+}
+
+.topicChip,
+.zoomChip,
+.coach {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.topicChip {
+  top: 14px;
+}
+
+.zoomChip {
+  bottom: 14px;
+  font-weight: 600;
+}
+
+.coach {
+  top: 50%;
+  margin-top: 44px;
+  animation: coach 2.4s ease-in-out infinite;
+}
+
+@keyframes coach {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  animation: flash 0.45s ease-out;
+}
+
+@keyframes flash {
+  from { opacity: 0.95; }
+  to { opacity: 0; }
+}
+
+/* 주제 카드 */
+.intro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(24 18 16 / 0.35);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.topicCard {
+  width: min(360px, 100%);
+  padding: 26px 22px 20px;
+  border-radius: var(--radius-xl);
+  background: var(--color-bg);
+  text-align: center;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.3);
+}
+
+.topicDate {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.topicTitle {
+  margin: 4px 0 10px;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.topicText {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* 버튼 */
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.primary {
+  width: 100%;
+  border: 0;
+  background: var(--color-text);
+  color: #fff;
+}
+
+.secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.round:focus-visible,
+.shutter:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 조작부 */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 0 4px;
+}
+
+.round {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.round:disabled,
+.range:disabled {
+  opacity: 0.4;
+}
+
+.range {
+  width: 120px;
+  accent-color: var(--color-text);
+}
+
+.shutter {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  margin: 0 6px;
+  padding: 5px;
+  border: 4px solid var(--color-text);
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+
+.shutter span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transition: transform 0.1s ease;
+}
+
+.shutter:active span {
+  transform: scale(0.88);
+}
+
+.shutter:disabled {
+  opacity: 0.4;
+}
+
+.note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* 미리보기 */
+.sheet {
+  width: min(340px, calc(100% - 32px));
+  max-height: calc(100svh - 32px);
+  padding: 18px;
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--color-bg);
+  color: var(--color-text);
+  overflow-y: auto;
+}
+
+.sheet::backdrop {
+  background: rgb(24 18 16 / 0.6);
+}
+
+.sheetTitle {
+  margin: 2px 0 12px;
+  font-size: 17px;
+  text-align: center;
+}
+
+.crop {
+  width: min(240px, 60vw);
+  aspect-ratio: 9 / 16;
+  margin: 0 auto 14px;
+  border-radius: 14px;
+  background-color: var(--color-surface-sunken);
+  background-repeat: no-repeat;
+}
+
+.sheetActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.signatureTitle { margin: 2px 0 8px; font-size: 28px; line-height: 1.3; text-align: center; }
+.signatureDescription { margin: 0 0 14px; text-align: center; font-size: 14px; line-height: 1.55; color: var(--color-text-secondary); }
+.signatureInput { margin-bottom: 14px; padding: 16px 16px 14px; border: 1px solid rgb(43 39 36 / 0.12); border-radius: 16px; background: #fcfaf6; }
+.signatureCanvasWrap { position: relative; width: min(100%, 280px, max(80px, calc(100svh - 398px))); height: auto; aspect-ratio: 1; margin: 0 auto; }
+.signatureCanvas { display: block; width: 100%; height: 100%; border: 1px dashed rgb(255 255 255 / 0.28); border-radius: 10px; background: #2b2724; touch-action: none; }
+.signaturePlaceholder { position: absolute; inset: 0; display: grid; place-items: center; color: rgb(255 255 255 / 0.56); font-family: var(--font-hand); font-size: 56px; pointer-events: none; }
+.signatureCaption { margin: 7px 0 10px; text-align: center; font-size: 13px; color: var(--color-text-muted); }
+.signatureControls { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 12px; }
+.signatureControl, .signatureExample { min-height: 44px; padding: 0 11px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); font-size: 12px; }
+.signatureExample { border-style: dashed; color: var(--color-text-secondary); }
+.signaturePreview { position: relative; width: min(240px, 60vw, max(100px, calc(56.25svh - 118px))); aspect-ratio: 9 / 16; margin: 0 auto 14px; border-radius: 18px; background-color: var(--color-surface-sunken); background-repeat: no-repeat; overflow: hidden; }
+.signaturePreview img { position: absolute; right: 8px; bottom: 8px; width: min(112px, calc(100% - 16px)); height: auto; aspect-ratio: 4 / 3; object-fit: contain; }
+.signImage { position: absolute; right: 8px; bottom: 8px; width: min(112px, 38%); height: auto; aspect-ratio: 4 / 3; object-fit: contain; }
+
+/* 공개 */
+.revealAnchor {
+  scroll-margin-top: 80px;
+}
+
+.reveal {
+  padding-top: 64px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.revealTitle {
+  margin: 0 0 8px;
+  font-size: clamp(24px, 4vw, 34px);
+  letter-spacing: -0.02em;
+}
+
+.match {
+  margin: 0 0 22px;
+  color: var(--color-text-secondary);
+}
+
+.map {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background-size: 100% 100%;
+}
+
+.frame {
+  position: absolute;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.08);
+  /* 애니메이션이 돌지 않아도 보이도록 대기 시간에만 시작 상태를 적용한다. */
+  animation: pop 0.5s ease-out backwards;
+}
+
+.frameMine {
+  z-index: 1;
+  border: 3px solid var(--color-accent);
+  background: rgb(176 86 59 / 0.18);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.7);
+}
+
+.frameMine::after {
+  content: "내 시선";
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(1.15); }
+  to { opacity: 1; transform: none; }
+}
+
+.galleryHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 44px 0 16px;
+}
+
+.galleryTitle {
+  margin: 0;
+  font-size: 26px;
+}
+
+.gallerySub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.sorts {
+  display: flex;
+  gap: 4px;
+}
+
+.sorts button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.sorts button[aria-pressed="true"] {
+  border-bottom-color: var(--color-text);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: 18px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cardImage {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: var(--color-surface-sunken);
+  background-repeat: no-repeat;
+}
+
+.cardMine .cardImage {
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+/* 누르기 쉽도록 아이콘과 터치 영역을 넉넉하게 둔다. */
+.like {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 64px;
+  min-height: 64px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.55);
+}
+
+/* 숫자는 하트보다 한 단계 작게 둔다. */
+.likeCount {
+  font-size: 18px;
+}
+
+.like[aria-pressed="true"] .likeIcon {
+  color: #ff8a7a;
+}
+
+.sign {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-family: var(--font-hand);
+  font-size: 22px;
+  color: #fff;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+}
+
+.cardLine {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mineTag {
+  margin-right: 4px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.visitorTag {
+  margin-right: 4px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.cardLineEmpty {
+  color: var(--color-text-muted);
+}
+
+/* 미리보기의 제목 입력 */
+.titleField {
+  margin: 0 0 14px;
+}
+
+.titleField label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.titleField label span {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.titleInputRow {
+  position: relative;
+}
+
+.titleInputRow input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 56px 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.titleInputRow input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.titleInputRow input[aria-invalid="true"] {
+  border-color: var(--color-accent);
+}
+
+.titleCount {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.titleCount[data-over] {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.titleHelp,
+.titleError {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.titleError {
+  color: var(--color-accent);
+}
+
+.revealCta {
+  margin-top: 56px;
+  padding: 32px 24px;
+  border-radius: var(--radius-xl);
+  background: var(--color-brand);
+  color: #fff;
+  text-align: center;
+}
+
+.revealCta h3 {
+  margin: 0 0 8px;
+  font-size: clamp(20px, 3.4vw, 28px);
+}
+
+.revealCta p {
+  margin: 0 0 20px;
+  color: rgb(255 255 255 / 0.75);
+}
+
+.revealBadges {
+  justify-content: center;
+}
+
+.again {
+  align-self: center;
+  margin: 20px auto 0;
+  display: flex;
+}
+
+@media (max-width: 640px) {
+  .stage {
+    height: 68svh;
+    min-height: 400px;
+    border-radius: var(--radius-lg);
+  }
+
+  .range {
+    display: none;
+  }
+
+  .gallery {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-height: 520px) {
+  .signatureCanvasWrap { width: min(100%, max(80px, calc(100svh - 398px))); }
+  .signaturePreview { width: min(240px, max(100px, calc(56.25svh - 118px))); }
+  .signatureTitle { margin-top: 0; margin-bottom: 4px; font-size: 21px; }
+  .signatureDescription { margin-bottom: 8px; line-height: 1.35; }
+  .signatureCaption { margin-top: 4px; margin-bottom: 6px; }
+  .signatureControls { margin-bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash,
+  .coach {
+    animation: none;
+  }
+
+  .frame {
+    animation: none;
+  }
+}

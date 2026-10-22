@@ -1,0 +1,39 @@
+import QRCode from "qrcode";
+
+import { siteUrl } from "@/shared/store-links";
+import { StoreBadges } from "@/shared/ui/store-badges";
+
+import styles from "./landing-v3.module.css";
+
+export async function V3Ticket() {
+  // 데스크톱 방문자가 휴대폰으로 찍으면 /download가 기기에 맞는 스토어로 보낸다.
+  const qr = await QRCode.toString(`${siteUrl()}/download`, {
+    type: "svg",
+    margin: 0,
+    errorCorrectionLevel: "M",
+    color: { dark: "#3A1E2A", light: "#00000000" },
+  });
+
+  return (
+    <section id="start" className={styles.section} aria-labelledby="start-title">
+      <div className={styles.container}>
+        <div className={styles.ticket}>
+          <div className={styles.ticketMain}>
+            <p className={styles.eyebrowLight}>시작하기</p>
+            <h2 id="start-title" className={styles.ticketTitle}>
+              오늘의 주제가
+              <br />
+              당신의 한 장을 기다려요
+            </h2>
+            <p className={styles.ticketLead}>iPhone과 Android에서 무료로 시작할 수 있어요.</p>
+            <StoreBadges tone="dark" className={styles.ticketBadges} />
+          </div>
+          <div className={styles.ticketStub}>
+            <div className={styles.qr} role="img" aria-label="앱 설치 페이지로 연결되는 QR 코드" dangerouslySetInnerHTML={{ __html: qr }} />
+            <p className={styles.stubHint}>휴대폰 카메라로 찍으면 기기에 맞는 스토어로 이동해요</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

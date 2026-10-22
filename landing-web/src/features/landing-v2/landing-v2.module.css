@@ -1,0 +1,876 @@
+/* 새 디자인. 노을빛 풍경의 보색인 파란색을 포인트로, 넓은 여백과 큰 라운드 카드를 쓴다. */
+.page {
+  --v2-bg: #ffffff;
+  --v2-tint: #f4f6fa;
+  --v2-ink: #0f172a;
+  --v2-ink-2: #475569;
+  --v2-muted: #94a3b8;
+  --v2-line: #e6e9f0;
+  --v2-blue: #2f5be7;
+  --v2-blue-deep: #1a3591;
+  --v2-navy: #0c1631;
+  --v2-radius: 24px;
+
+  /* 체험 컴포넌트가 쓰는 공통 토큰을 새 디자인 색으로 바꾼다. */
+  --color-accent: var(--v2-blue);
+  --color-text: var(--v2-ink);
+  --color-text-secondary: rgb(15 23 42 / 0.66);
+  --color-text-muted: rgb(15 23 42 / 0.46);
+  --color-bg: var(--v2-tint);
+  --color-surface-sunken: #e9edf5;
+  --color-border: #d9dee8;
+
+  background: var(--v2-bg);
+  color: var(--v2-ink);
+  overflow-x: clip;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.section {
+  padding: 112px 0;
+  scroll-margin-top: 88px;
+}
+
+.sectionTinted {
+  background: var(--v2-tint);
+}
+
+/* 작은 라벨 */
+.tag,
+.tagLight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tag {
+  border: 1px solid var(--v2-line);
+  background: #fff;
+  color: var(--v2-ink-2);
+}
+
+.tagLight {
+  border: 1px solid rgb(255 255 255 / 0.32);
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.tagDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--v2-blue);
+}
+
+.tagLight .tagDot {
+  background: #fff;
+}
+
+/* 헤더: 화면 위에 떠 있는 유리 막대 */
+.header {
+  position: fixed;
+  top: 14px;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.headerBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 1168px;
+  height: 60px;
+  padding: 0 8px 0 18px;
+  border: 1px solid rgb(255 255 255 / 0.6);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.82);
+  box-shadow: 0 8px 30px rgb(15 23 42 / 0.1);
+  backdrop-filter: saturate(1.6) blur(16px);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px);
+  pointer-events: auto;
+}
+
+.homeLink {
+  color: var(--v2-ink);
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.nav a {
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--v2-ink-2);
+  text-decoration: none;
+}
+
+.nav a:hover {
+  background: var(--v2-tint);
+  color: var(--v2-ink);
+}
+
+/* 메뉴가 숨는 좁은 화면에서도 앱 받기 버튼을 오른쪽 끝에 둔다. */
+.headerCta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--v2-ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.headerCta:hover {
+  background: var(--v2-blue);
+}
+
+/* 히어로 */
+.hero {
+  position: relative;
+  display: flex;
+  height: min(100svh, 880px);
+  min-height: 640px;
+  color: #fff;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.heroImage {
+  z-index: -2;
+  object-fit: cover;
+}
+
+/* 휴대폰이 화면 가로 60% 언저리에 오도록 맞춘다 */
+.heroImageWide {
+  object-position: 67% 50%;
+}
+
+.heroImagePortrait {
+  display: none;
+  object-position: 50% 100%;
+}
+
+.heroShade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(105deg, rgb(12 22 49 / 0.62) 0%, rgb(12 22 49 / 0.3) 42%, rgb(12 22 49 / 0) 68%),
+    linear-gradient(0deg, rgb(12 22 49 / 0.32) 0%, rgb(12 22 49 / 0) 30%);
+}
+
+.heroInner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 150px;
+  padding-bottom: 40px;
+}
+
+.heroCopy {
+  max-width: 560px;
+}
+
+.heroTitle {
+  margin: 0 0 20px;
+  font-size: clamp(42px, 6.6vw, 76px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+.heroLead {
+  max-width: 440px;
+  margin: 0 0 32px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: rgb(255 255 255 / 0.86);
+  text-wrap: pretty;
+}
+
+.pillButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 6px 6px 22px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--v2-ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+
+.pillButton:hover {
+  transform: translateY(-1px);
+}
+
+.pillArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--v2-blue);
+  color: #fff;
+}
+
+/* 히어로의 "지금 한 장 찍어보기" 버튼 아래에 놓는 App Store·Google Play 배지 줄 */
+.heroBadges {
+  margin-top: 20px;
+}
+
+.centerTitle {
+  margin: 0;
+  font-size: clamp(30px, 4.2vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+/* 체험: 짙은 남색 띠 위의 흰 패널 */
+.experienceBand {
+  padding: 112px 0;
+  background:
+    radial-gradient(70% 60% at 85% 0%, rgb(47 91 231 / 0.45) 0%, rgb(47 91 231 / 0) 70%),
+    var(--v2-navy);
+  color: #fff;
+  scroll-margin-top: 72px;
+}
+
+.experienceHead {
+  max-width: 680px;
+  margin-bottom: 40px;
+}
+
+.experienceTitle {
+  margin: 0 0 12px;
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.experienceLead {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: rgb(255 255 255 / 0.74);
+}
+
+.experiencePanel {
+  padding: 20px;
+  border-radius: 32px;
+  background: #fff;
+  color: var(--v2-ink);
+}
+
+/* 가운데 제목 */
+.centerHead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 720px;
+  margin: 0 auto 56px;
+  text-align: center;
+}
+
+.centerLead {
+  margin: 14px 0 0;
+  font-size: 16px;
+  color: var(--v2-ink-2);
+}
+
+/* 앱에서는: 가운데 앱 화면과 양옆 카드 */
+.whyGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.whyColumn {
+  display: grid;
+  gap: 16px;
+}
+
+.whyCard {
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border: 1px solid var(--v2-line);
+  border-radius: var(--v2-radius);
+  background: #fff;
+}
+
+.whyCard h3 {
+  margin: auto 0 8px;
+  padding-top: 40px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.whyCard p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--v2-ink-2);
+}
+
+.iconSquare {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #eaf0ff;
+  color: var(--v2-blue);
+}
+
+.whyVisual {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 480px;
+  overflow: hidden;
+  border-radius: var(--v2-radius);
+  background:
+    radial-gradient(80% 60% at 50% 100%, rgb(255 255 255 / 0.35) 0%, rgb(255 255 255 / 0) 70%),
+    linear-gradient(180deg, #8fb0ff 0%, var(--v2-blue) 100%);
+}
+
+.whyPhone {
+  width: 62%;
+  max-width: 250px;
+  margin-bottom: -18%;
+  overflow: hidden;
+  border: 6px solid #fff;
+  border-radius: 34px;
+  box-shadow: 0 24px 60px rgb(12 22 49 / 0.35);
+}
+
+.whyPhone img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 사용법: 앱 화면 카드 다섯 장 */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+}
+
+.stepVisual {
+  display: flex;
+  justify-content: center;
+  height: 300px;
+  margin-bottom: 18px;
+  padding-top: 26px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #dfe7fb 0%, #c9d6f6 100%);
+}
+
+.stepVisual img {
+  display: block;
+  width: 78%;
+  height: auto;
+  align-self: flex-start;
+  border-radius: 18px;
+  box-shadow: 0 14px 30px rgb(12 22 49 / 0.18);
+}
+
+.stepNumber {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-blue);
+}
+
+.stepBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--v2-ink-2);
+}
+
+/* 자주 묻는 질문 */
+.faqList {
+  display: grid;
+  gap: 12px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.faqItem {
+  border: 1px solid var(--v2-line);
+  border-radius: 18px;
+  background: var(--v2-tint);
+}
+
+.faqItem[open] {
+  background: #fff;
+  box-shadow: 0 10px 30px rgb(15 23 42 / 0.06);
+}
+
+.faqItem summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 16px 22px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faqItem summary::-webkit-details-marker {
+  display: none;
+}
+
+.faqToggle {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid var(--v2-line);
+}
+
+.faqToggle::before,
+.faqToggle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 1.8px;
+  border-radius: 2px;
+  background: var(--v2-ink);
+  transform: translate(-50%, -50%);
+  transition: transform 0.2s ease;
+}
+
+.faqToggle::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.faqItem[open] .faqToggle {
+  background: var(--v2-blue);
+  border-color: var(--v2-blue);
+}
+
+.faqItem[open] .faqToggle::before,
+.faqItem[open] .faqToggle::after {
+  background: #fff;
+}
+
+.faqItem[open] .faqToggle::after {
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+
+.faqItem p {
+  margin: 0;
+  padding: 0 22px 20px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--v2-ink-2);
+}
+
+/* 시작하기: 풍경 사진 카드 */
+.startSection {
+  padding: 0 0 96px;
+  scroll-margin-top: 88px;
+}
+
+.startCard {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  min-height: 520px;
+  padding: 56px;
+  overflow: hidden;
+  border-radius: 32px;
+  background: var(--v2-navy);
+  color: #fff;
+  isolation: isolate;
+}
+
+/* 넓은 화면은 카드 전체, 모바일은 위쪽에만 사진을 깐다 */
+.startPhoto {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+}
+
+.startImage {
+  object-fit: cover;
+  object-position: 50% 85%;
+}
+
+.startShade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(0deg, rgb(12 22 49 / 0.82) 0%, rgb(12 22 49 / 0.35) 55%, rgb(12 22 49 / 0.15) 100%);
+}
+
+.startTitle {
+  margin: 0 0 14px;
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+
+.startLead {
+  margin: 0 0 26px;
+  font-size: 16px;
+  color: rgb(255 255 255 / 0.84);
+}
+
+.startQr {
+  flex: none;
+  width: 200px;
+  padding: 18px;
+  border-radius: 22px;
+  background: #fff;
+  color: var(--v2-ink-2);
+  text-align: center;
+}
+
+.qr {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 10px;
+}
+
+.qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.startQr p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 푸터: 아래에 큰 워드마크 */
+.footer {
+  padding: 72px 0 0;
+  border-top: 1px solid var(--v2-line);
+  background: var(--v2-tint);
+  font-size: 14px;
+  color: var(--v2-ink-2);
+  overflow: hidden;
+}
+
+.footerTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 48px;
+}
+
+.footerTagline {
+  margin: 12px 0 0;
+}
+
+.footerColumns {
+  display: flex;
+  gap: 64px;
+}
+
+.footerColumns nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footerColumns nav p {
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: var(--v2-ink);
+}
+
+.footerColumns a {
+  color: var(--v2-ink-2);
+  text-decoration: none;
+}
+
+.footerColumns a:hover {
+  color: var(--v2-ink);
+}
+
+.footerBottom {
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid var(--v2-line);
+}
+
+.footerBottom p {
+  margin: 0;
+}
+
+.wordmark {
+  margin: 0;
+  font-size: clamp(88px, 21vw, 300px);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 0.8;
+  text-align: center;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #d5dceb 0%, rgb(213 220 235 / 0) 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  user-select: none;
+}
+
+@media (max-width: 1080px) {
+  .steps {
+    display: flex;
+    gap: 14px;
+    margin: 0 -16px;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 16px;
+  }
+
+  .step {
+    flex: 0 0 240px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 960px) {
+  .nav {
+    display: none;
+  }
+
+  .section,
+  .experienceBand {
+    padding: 88px 0;
+  }
+
+  .whyGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .whyVisual {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 420px;
+  }
+
+  .whyPhone {
+    width: 46%;
+  }
+
+  .startCard {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 40px 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    top: 10px;
+  }
+
+  .headerBar {
+    gap: 8px;
+    width: calc(100% - 20px);
+    height: 54px;
+    padding: 0 6px 0 14px;
+  }
+
+  .headerCta {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  /*
+   * 히어로는 최소한 화면 높이(100svh)만큼 채운다. 단, 830px보다 낮아지지 않게 한다.
+   * 세로 사진은 히어로 높이에 맞춰 늘고 줄어서, 사진 속 휴대폰의 윗변이 히어로 높이의 약 53% 지점에 온다.
+   * 제목·버튼·배지는 위에서부터 약 440px까지 차지하므로, 높이가 830px 이상이어야 휴대폰(약 440px 지점)과 겹치지 않는다.
+   * 예: 390×844 화면은 844px(화면 높이), 360×740 화면은 830px가 되어 사진 아랫부분이 첫 화면 밖으로 조금 밀려난다.
+   */
+  .hero {
+    height: auto;
+    min-height: max(100svh, 830px);
+  }
+
+  .heroImageWide {
+    display: none;
+  }
+
+  .heroImagePortrait {
+    display: block;
+  }
+
+  .heroShade {
+    background:
+      linear-gradient(180deg, rgb(12 22 49 / 0.55) 0%, rgb(12 22 49 / 0.2) 48%, rgb(12 22 49 / 0) 62%, rgb(12 22 49 / 0.5) 100%);
+  }
+
+  .heroInner {
+    padding-top: 112px;
+    padding-bottom: 24px;
+  }
+
+  .heroLead {
+    margin-bottom: 24px;
+    font-size: 15px;
+  }
+
+  /* 휴대폰 화면에서는 배경 사진 속 휴대폰이 배지 바로 아래에 오므로, 간격과 배지를 줄여 겹치지 않게 한다. */
+  .heroBadges {
+    margin-top: 14px;
+  }
+
+  .heroBadges img {
+    height: 40px;
+  }
+
+  .section,
+  .experienceBand {
+    padding: 72px 0;
+  }
+
+  .whyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .whyCard h3 {
+    padding-top: 24px;
+  }
+
+  .whyVisual {
+    min-height: 380px;
+  }
+
+  .whyPhone {
+    width: 58%;
+  }
+
+  .experiencePanel {
+    margin: 0 -8px;
+    padding: 12px;
+    border-radius: 24px;
+  }
+
+  .centerHead {
+    margin-bottom: 40px;
+  }
+
+  .faqItem summary {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+
+  .faqItem p {
+    padding: 0 16px 18px;
+  }
+
+  .startSection {
+    padding-bottom: 64px;
+  }
+
+  .startCard {
+    justify-content: flex-end;
+    min-height: 600px;
+    padding: 32px 22px;
+    border-radius: 26px;
+  }
+
+  .startPhoto {
+    bottom: auto;
+    height: 62%;
+  }
+
+  .startImage {
+    object-position: 46% 50%;
+  }
+
+  .startShade {
+    background: linear-gradient(180deg, rgb(12 22 49 / 0.05) 0%, rgb(12 22 49 / 0.2) 34%, var(--v2-navy) 62%);
+  }
+
+  .startQr {
+    display: none;
+  }
+
+  .footerTop {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .footerColumns {
+    gap: 48px;
+  }
+}
+
+@media (max-width: 380px) {
+  .homeLink span span {
+    display: none;
+  }
+}

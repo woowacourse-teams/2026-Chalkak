@@ -1,0 +1,33 @@
+import { DesignSwitch } from "@/shared/ui/design-switch";
+import { Logo } from "@/shared/ui/logo";
+
+import styles from "./landing.module.css";
+
+const links = [
+  { href: "#experience", label: "체험하기" },
+  { href: "#how", label: "사용법" },
+  { href: "#faq", label: "자주 묻는 질문" },
+];
+
+export function SiteHeader() {
+  return (
+    <header className={styles.header}>
+      <div className={`${styles.container} ${styles.headerInner}`}>
+        <a href="#top" className={styles.homeLink} aria-label="찰캌 처음으로">
+          <Logo />
+        </a>
+        <nav aria-label="주 메뉴" className={styles.nav}>
+          {links.map((link) => (
+            <a key={link.href} href={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+        <DesignSwitch current="classic" className={styles.headerSwitch} />
+        <a href="#start" className={styles.headerCta}>
+          앱 받기
+        </a>
+      </div>
+    </header>
+  );
+}
