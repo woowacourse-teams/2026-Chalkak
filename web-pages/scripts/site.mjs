@@ -128,7 +128,16 @@ export async function validateLocalReferences(root) {
         .slice(resolve(root).length + 1)
         .split(sep)
         .join("/");
-    for (const [, raw] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) {
+    const references = [
+      ...[...html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)].map(
+        ([, value]) => value,
+      ),
+      ...[...html.matchAll(/\bsrcset=["']([^"']+)["']/g)].flatMap(
+        ([, value]) =>
+          value.split(",").map((candidate) => candidate.trim().split(/\s+/)[0]),
+      ),
+    ];
+    for (const raw of references) {
       if (/^(?:https?:|mailto:|tel:|data:)/i.test(raw)) continue;
       const url = new URL(raw, `https://local.invalid${route}`);
       let target = documentPath(root, url.pathname);

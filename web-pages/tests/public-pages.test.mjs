@@ -153,13 +153,22 @@ test("broken assets fail the build instead of publishing a broken page", async (
   await writeFile(
     path,
     (await readFile(path, "utf8")).replace(
-      "/ai-feedback/assets/example.webp",
+      "/ai-feedback/assets/example-1054.jpg",
       "/ai-feedback/assets/missing.webp",
     ),
   );
   await assert.rejects(
     buildSite({ projectRoot: root, env: {} }),
     /Broken local reference/,
+  );
+});
+
+test("a missing responsive image candidate fails the build", async (t) => {
+  const root = await fixture(t);
+  await rm(join(root, "public/ai-feedback/assets/cover-640.jpg"));
+  await assert.rejects(
+    buildSite({ projectRoot: root, env: {} }),
+    /Broken local reference \/ai-feedback\/assets\/cover-640\.jpg/,
   );
 });
 

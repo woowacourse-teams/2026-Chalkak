@@ -1,21 +1,28 @@
 html {
   scroll-padding-top: 24px;
+  /* Keep WebView text inflation from changing individual cards on rotation. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 .cover-actions {
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
+  grid-area: 1 / 1;
+  align-self: end;
+  justify-self: end;
+  z-index: 1;
+  margin: 20px;
+  max-width: calc(100% - 40px);
 }
 .cover-survey {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
   border: 1px solid #d8d0c3;
   border-radius: 100px;
   font-size: 14px;
   line-height: 1.6;
+  white-space: nowrap;
   background: #fffdf9;
   box-shadow: 0 2px 12px #28251e18;
   transition: background 0.15s;
@@ -26,26 +33,33 @@ html {
 .cover-survey svg {
   width: 14px;
   height: 14px;
+  flex-shrink: 0;
 }
 .cover-section {
-  position: relative;
+  /* Let the image determine section height; keep its action in the same cell. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #eee7dc;
   max-width: 1040px;
   width: calc(100% - 104px);
   margin: auto;
   margin-top: 32px;
 }
 .cover {
+  grid-area: 1 / 1;
   width: 100%;
   height: auto;
-  aspect-ratio: 16/9;
-  object-fit: cover;
-  border-radius: 20px;
-  background: #eee7dc;
+  align-self: start;
 }
 .article-body {
   max-width: 820px;
   width: calc(100% - 104px);
   margin: auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .introduction {
   padding: 68px 0 56px;
@@ -121,7 +135,7 @@ html {
 }
 .guidelines {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-top: 30px;
 }
@@ -130,13 +144,13 @@ html {
   border: 1px solid #eae3d7;
   border-radius: 18px;
   padding: 24px 20px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
   align-items: center;
   gap: 18px;
 }
 .guide-drawing {
-  width: 100px;
-  flex-shrink: 0;
+  width: 100%;
   color: #7a705e;
 }
 .guide-drawing svg {
@@ -180,7 +194,7 @@ html {
 }
 .example-figure {
   display: grid;
-  grid-template-columns: 1fr 1.1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   align-items: center;
   margin-top: 30px;
   background: #fffdf9;
@@ -189,7 +203,8 @@ html {
   border-radius: 20px;
 }
 .example-photo {
-  height: 100%;
+  display: grid;
+  align-self: stretch;
   min-height: 290px;
   min-width: 0;
 }
@@ -200,6 +215,7 @@ html {
   object-position: center;
 }
 .example-figure figcaption {
+  min-width: 0;
   padding: 30px;
 }
 .example-figure h3 {
@@ -261,7 +277,7 @@ dialog h2 {
     width: calc(100% - 80px);
   }
   .guidelines {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .desktop-break {
     display: none;
@@ -269,17 +285,12 @@ dialog h2 {
 }
 @media (max-width: 700px) {
   .cover-actions {
-    right: 10px;
-    bottom: 10px;
-  }
-  .cover-survey {
-    min-height: 44px;
+    margin: 10px;
+    max-width: calc(100% - 20px);
   }
   .cover-section {
     width: calc(100% - 28px);
     margin-top: 16px;
-  }
-  .cover {
     border-radius: 12px;
   }
   .article-body {
@@ -293,7 +304,7 @@ dialog h2 {
     padding: 16px;
   }
   .introduction h1 {
-    font-size: 32px;
+    font-size: clamp(27px, 8vw, 32px);
   }
   .introduction > p,
   .section-opening > p,
@@ -317,9 +328,7 @@ dialog h2 {
     padding: 22px 16px;
     gap: 16px;
     border-radius: 16px;
-  }
-  .guide-drawing {
-    width: 90px;
+    grid-template-columns: clamp(56px, 18vw, 90px) minmax(0, 1fr);
   }
   .guideline h3 {
     font-size: 17px;
@@ -335,13 +344,18 @@ dialog h2 {
     padding: 40px 0;
   }
   .example-figure {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     border-radius: 17px;
     margin-top: 24px;
   }
   .example-photo {
-    height: 210px;
+    height: auto;
+    aspect-ratio: 16 / 10;
     min-height: 0;
+  }
+  .example-photo > img {
+    /* A definite ratio avoids percentage heights depending on auto grid rows. */
+    aspect-ratio: 16 / 10;
   }
   .example-figure figcaption {
     padding: 24px 22px;
@@ -372,14 +386,8 @@ dialog h2 {
   }
 }
 @media (max-width: 360px) {
-  .introduction h1 {
-    font-size: 29px;
-  }
   .section-opening h2 {
     font-size: 24px;
-  }
-  .guide-drawing {
-    width: 70px;
   }
   .guideline {
     gap: 12px;
@@ -387,5 +395,10 @@ dialog h2 {
   }
   .survey-section h2 {
     font-size: 25px;
+  }
+}
+@media (hover: none) {
+  .button.dark:hover {
+    transform: none;
   }
 }
