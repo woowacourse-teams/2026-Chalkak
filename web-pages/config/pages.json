@@ -1,0 +1,13 @@
+{
+  "title": "찰캌 소식",
+  "description": "찰캌의 새로운 이야기와 사용 경험을 함께 나눠요.",
+  "pages": [
+    {
+      "slug": "ai-feedback",
+      "title": "AI 피드백, 어떠셨나요?",
+      "description": "구도 평가부터 주제 해석의 독창성과 사진가의 시선까지. AI 피드백의 기준을 읽고 사용 경험을 들려주세요.",
+      "category": "AI 피드백 · 사용 후기",
+      "thumbnail": "/ai-feedback/assets/cover.webp"
+    }
+  ]
+}

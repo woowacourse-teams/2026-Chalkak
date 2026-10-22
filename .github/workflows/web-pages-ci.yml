@@ -1,0 +1,50 @@
+name: Public Web Pages CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - web/pages
+    paths:
+      - web-pages/**
+      - .github/workflows/web-pages-ci.yml
+      - .vercelignore
+  pull_request:
+    branches:
+      - main
+      - web/pages
+    paths:
+      - web-pages/**
+      - .github/workflows/web-pages-ci.yml
+      - .vercelignore
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify public web pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: web-pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web-pages/package-lock.json
+      - name: Install project
+        run: npm ci
+      - name: Test routes, assets, page registration and survey settings
+        run: npm test
+      - name: Build static pages
+        run: npm run build

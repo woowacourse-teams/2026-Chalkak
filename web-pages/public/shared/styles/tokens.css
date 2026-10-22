@@ -1,0 +1,13 @@
+:root {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+  --paper: #f7f6f2;
+  --ink: #2b2724;
+  --muted: #837d73;
+  --line: #e1ddd4;
+  --accent: #ac6045;
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}

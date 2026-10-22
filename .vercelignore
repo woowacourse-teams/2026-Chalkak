@@ -10,3 +10,9 @@ admin-web/.vercel
 admin-web/.env*
 !admin-web/.env.example
 admin-web/*.tsbuildinfo
+!web-pages
+!web-pages/**
+web-pages/dist
+web-pages/node_modules
+web-pages/.vercel
+web-pages/.env*
