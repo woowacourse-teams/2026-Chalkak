@@ -44,6 +44,69 @@ struct HomeAIReviewTests {
         await observer.value
     }
 
+    @Test("반복 폴링 실패는 메시지 없이 재시도하고 복구 후 완료된다")
+    func pollingFailuresAreSilent() async {
+        let repository = ReviewRepositoryProbe(fetches: [
+            .value(Self.review(.processing)),
+            .failure(.network),
+            .failure(.http(statusCode: 500, message: "서버 오류")),
+            .value(Self.review(.completed))
+        ])
+        let sleep = ReviewSleepProbe()
+        let model = Self.model(repository, sleep: sleep)
+        let observer = Task { await model.observeAIReview(postID: "post") }
+        await sleep.waitForCalls(1)
+        for checkpoint in 2...3 {
+            await sleep.advance()
+            await sleep.waitForCalls(checkpoint)
+            #expect(model.viewState.aiReview.message == nil)
+            #expect(model.viewState.aiReview.review?.status == .processing)
+            #expect(!model.viewState.aiReview.isUnavailable)
+            model.dismissAIReviewMessage()
+        }
+        await sleep.advance()
+        await sleep.waitForCalls(4)
+        #expect(model.viewState.aiReview.review?.status == .completed)
+        #expect(model.viewState.aiReview.message == nil)
+        #expect(await repository.fetchIDs.count == 4)
+        observer.cancel()
+        await observer.value
+    }
+
+    @Test("첫 조회 실패는 오류 메시지를 표시한다")
+    func initialFailureShowsMessage() async {
+        let repository = ReviewRepositoryProbe(fetches: [.failure(.network)])
+        let sleep = ReviewSleepProbe()
+        let model = Self.model(repository, sleep: sleep)
+        let observer = Task { await model.observeAIReview(postID: "post") }
+        await sleep.waitForCalls(1)
+        #expect(model.viewState.aiReview.message != nil)
+        #expect(!model.viewState.aiReview.isLoading)
+        observer.cancel()
+        await observer.value
+    }
+
+    @Test("폴링 중 404는 메시지 없이 조회 불가 상태로 바꾸고 추가 조회를 막는다")
+    func pollingNotFoundStopsFetching() async {
+        let repository = ReviewRepositoryProbe(fetches: [
+            .value(Self.review(.processing)),
+            .failure(.http(statusCode: 404, message: nil))
+        ])
+        let sleep = ReviewSleepProbe()
+        let model = Self.model(repository, sleep: sleep)
+        let observer = Task { await model.observeAIReview(postID: "post") }
+        await sleep.waitForCalls(1)
+        await sleep.advance()
+        await sleep.waitForCalls(2)
+        #expect(model.viewState.aiReview.isUnavailable)
+        #expect(model.viewState.aiReview.message == nil)
+        await sleep.advance()
+        await sleep.waitForCalls(3)
+        #expect(await repository.fetchIDs.count == 2)
+        observer.cancel()
+        await observer.value
+    }
+
     @Test("실패 리뷰의 재요청은 서버 canRequestAgain 값으로 제한한다", arguments: [false, true])
     func retryPermission(canRetry: Bool) async {
         let repository = ReviewRepositoryProbe(

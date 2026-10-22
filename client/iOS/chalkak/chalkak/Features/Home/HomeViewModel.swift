@@ -96,7 +96,7 @@ final class HomeViewModel {
                     self.viewState.aiReview.pollingTimedOut = true
                     continue
                 }
-                await self.fetchAIReview(repository: repository, postID: postID, session: session)
+                await self.fetchAIReview(repository: repository, postID: postID, session: session, showsErrorMessage: false)
             }
         }
         aiReviewTask = task
@@ -168,7 +168,8 @@ final class HomeViewModel {
         repository: any AIReviewRepository,
         postID: String,
         session: Int,
-        preserveMessage: Bool = false
+        preserveMessage: Bool = false,
+        showsErrorMessage: Bool = true
     ) async {
         let revision = aiReviewRevision
         do {
@@ -179,7 +180,7 @@ final class HomeViewModel {
             if !preserveMessage { viewState.aiReview.message = nil }
         } catch {
             guard isCurrentAIReview(session), revision == aiReviewRevision else { return }
-            handleAIReviewError(error)
+            handleAIReviewError(error, showsMessage: showsErrorMessage)
         }
         guard isCurrentAIReview(session), revision == aiReviewRevision else { return }
         viewState.aiReview.isLoading = false
@@ -190,13 +191,16 @@ final class HomeViewModel {
             && aiReviewDeadline.map { aiReviewNow() >= $0 } == true
     }
 
-    private func handleAIReviewError(_ error: Error) {
+    private func handleAIReviewError(_ error: Error, showsMessage: Bool = true) {
         guard !(error is CancellationError) else { return }
+        if case .http(404, _) = error as? AIReviewError {
+            viewState.aiReview.isUnavailable = true
+        }
+        guard showsMessage else { return }
         if let error = error as? AIReviewError {
             switch error {
             case .http(let statusCode, let message):
                 if statusCode == 404 {
-                    viewState.aiReview.isUnavailable = true
                     viewState.aiReview.message = "AI 리뷰를 확인할 수 없는 게시물입니다."
                 } else {
                     viewState.aiReview.message = message ?? "AI 리뷰를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
