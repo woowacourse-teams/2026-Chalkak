@@ -8,6 +8,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
     case postApproved(postID: String, notificationID: String)
     case postRejected(notificationID: String)
     case notice(notificationID: String)
+    case aiReview(postID: String, notificationID: String)
 
     /// 필드가 빠졌거나 알 수 없는 종류면 nil을 반환해 화면 이동 없이 앱만 연다.
     init?(userInfo: [AnyHashable: Any]) {
@@ -22,6 +23,10 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         case NotificationType.postApproved:
             guard let postID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
             self = .postApproved(postID: postID, notificationID: notificationID)
+        case NotificationType.aiReviewCompleted, NotificationType.aiReviewFailed:
+            guard userInfo[Key.sourceType] as? String == "POST",
+                  let postID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
+            self = .aiReview(postID: postID, notificationID: notificationID)
         case NotificationType.postRejected:
             self = .postRejected(notificationID: notificationID)
         case NotificationType.notice:
@@ -35,7 +40,8 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         switch self {
         case .topic:
             nil
-        case let .postApproved(_, notificationID), let .postRejected(notificationID), let .notice(notificationID):
+        case let .postApproved(_, notificationID), let .postRejected(notificationID),
+             let .notice(notificationID), let .aiReview(_, notificationID):
             notificationID
         }
     }
@@ -52,6 +58,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         static let type = "type"
         static let notificationID = "notificationId"
         static let sourceID = "sourceId"
+        static let sourceType = "sourceType"
     }
 
     private enum NotificationType {
@@ -59,6 +66,8 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         static let postApproved = "POST_APPROVED"
         static let postRejected = "POST_REJECTED"
         static let notice = "NOTICE"
+        static let aiReviewCompleted = "AI_REVIEW_COMPLETED"
+        static let aiReviewFailed = "AI_REVIEW_FAILED"
     }
 }
 

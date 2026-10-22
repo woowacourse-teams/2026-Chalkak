@@ -42,12 +42,14 @@ data class UnreadStatusResponse(val hasUnread: Boolean)
 data class NotificationPushSettingsResponse(
     val topicPushEnabled: Boolean,
     val moderationPushEnabled: Boolean,
+    val aiReviewPushEnabled: Boolean,
 )
 
 @Serializable
 data class NotificationPushSettingsRequest(
     val topicPushEnabled: Boolean? = null,
     val moderationPushEnabled: Boolean? = null,
+    val aiReviewPushEnabled: Boolean? = null,
 )
 
 @Serializable

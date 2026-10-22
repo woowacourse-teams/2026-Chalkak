@@ -28,6 +28,12 @@ data class DisplayUiState(
             selectedDate != null &&
             latestDate != null &&
             selectedDate < latestDate
+
+    /** 날짜 휠을 열 수 있는지. 휠의 범위는 [earliestDate]부터 [latestDate]까지다. */
+    val canPickDate: Boolean
+        get() = content !is DisplayContentState.Loading &&
+            selectedDate != null &&
+            latestDate != null
 }
 
 sealed interface DisplayContentState {

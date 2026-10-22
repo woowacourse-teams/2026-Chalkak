@@ -1,21 +1,37 @@
 package com.stonefive.chalkak.feature.feed
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
@@ -23,7 +39,13 @@ import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionCo
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.component.image.SharedPhotoSnapshot
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.AiReview
+import com.stonefive.chalkak.domain.model.AiReviewContent
+import com.stonefive.chalkak.domain.model.AiReviewFeedback
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.feature.aireview.AiReviewPhase
+import com.stonefive.chalkak.feature.aireview.AiReviewUiState
+import java.io.File
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -176,11 +198,185 @@ class FeedScreenTest {
         assertTrue(likeClicked)
     }
 
+    @Test
+    fun readyAiPillOpensStartSheetAndStartsReview() {
+        var started = false
+        setFeedContent(
+            uiState = feedUiState.copy(aiReview = AiReviewUiState(phase = AiReviewPhase.Ready)),
+            onStartFeedback = { started = true },
+        )
+        composeRule
+            .onNodeWithContentDescription("AI 피드백 받기")
+            .assertWidthIsEqualTo(148.dp)
+            .assertHeightIsEqualTo(44.dp)
+        val textLayout = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithText("AI 피드백 받기").performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
+            it(textLayout)
+        }
+        assertEquals(
+            14.sp,
+            textLayout
+                .single()
+                .layoutInput.style.fontSize,
+        )
+        screenshot("ready")
+        composeRule.onNodeWithText("AI 피드백 받기").performClick()
+        composeRule.onNodeWithText("AI 피드백을 시작할까요?").assertIsDisplayed()
+        screenshot("start-sheet")
+        composeRule.onNodeWithText("분석 시작하기").performClick()
+        assertTrue(started)
+    }
+
+    @Test
+    fun processingAiPillIsDisabled() {
+        setFeedContent(uiState = feedUiState.copy(aiReview = AiReviewUiState(phase = AiReviewPhase.Processing)))
+        composeRule
+            .onNodeWithContentDescription("AI 분석중")
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+            .assertWidthIsEqualTo(120.dp)
+            .assertHeightIsEqualTo(44.dp)
+    }
+
+    @Test
+    fun completedAiPillOpensResultSheet() {
+        setFeedContent(
+            uiState = feedUiState.copy(
+                aiReview = AiReviewUiState(phase = AiReviewPhase.Completed, result = sampleAiResult),
+            ),
+        )
+        screenshot("completed")
+        composeRule.onNodeWithText("AI 피드백 보기").performClick()
+        composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertIsDisplayed()
+        composeRule.onNodeWithText("전체 요약").assertIsDisplayed()
+        screenshot("result-sheet")
+        composeRule.onNodeWithTag("ai-review-drag-handle-touch").performClick()
+        composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertDoesNotExist()
+    }
+
+    @Test
+    fun notificationEntryOpensLatestCompletedResultOnce() {
+        var state by mutableStateOf(feedUiState.copy(aiReview = AiReviewUiState()))
+        composeRule.setContent {
+            ChalkakTheme {
+                FeedScreen(
+                    uiState = state,
+                    onNavigateBack = {},
+                    onDeleteClick = {},
+                    onLikeClick = {},
+                    snackbarHostState = SnackbarHostState(),
+                    openAiReviewResult = true,
+                )
+            }
+        }
+        composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertDoesNotExist()
+        composeRule.runOnIdle {
+            state = state.copy(
+                aiReview = AiReviewUiState(
+                    phase = AiReviewPhase.Completed,
+                    result = sampleAiResult,
+                    status = AiReview.Status.COMPLETED,
+                ),
+            )
+        }
+        composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai-review-drag-handle-touch").performClick()
+        composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertDoesNotExist()
+        composeRule.runOnIdle { state = state.copy(isUpdatingTitle = true) }
+        composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertDoesNotExist()
+    }
+
+    @Test
+    fun notificationEntryShowsFailureWhenLatestGetFails() {
+        var state by mutableStateOf(feedUiState.copy(aiReview = AiReviewUiState()))
+        composeRule.setContent {
+            ChalkakTheme {
+                FeedScreen(
+                    uiState = state,
+                    onNavigateBack = {},
+                    onDeleteClick = {},
+                    onLikeClick = {},
+                    snackbarHostState = SnackbarHostState(),
+                    openAiReviewResult = true,
+                )
+            }
+        }
+        composeRule.runOnIdle {
+            state = state.copy(aiReview = AiReviewUiState(status = AiReview.Status.FAILED))
+        }
+        composeRule.onNodeWithText("AI 피드백을 만들지 못했어요.").assertIsDisplayed()
+        composeRule.onNodeWithText("확인").performClick()
+        composeRule.onNodeWithText("AI 피드백을 만들지 못했어요.").assertDoesNotExist()
+    }
+
+    @Test
+    fun hiddenAiReviewDoesNotShowPillForOwnedPost() {
+        setFeedContent(uiState = feedUiState.copy(aiReview = AiReviewUiState(phase = AiReviewPhase.Hidden)))
+        composeRule.onAllNodesWithText("AI 피드백 받기").assertCountEquals(0)
+    }
+
+    @Test
+    fun anotherUsersPostDoesNotShowAiPill() {
+        setFeedContent(
+            uiState = feedUiState.copy(
+                content = feedUiState.content?.copy(
+                    post = feedUiState.content.post
+                        .copy(isOwnedByCurrentUser = false),
+                ),
+                aiReview = AiReviewUiState(phase = AiReviewPhase.Ready),
+            ),
+        )
+        composeRule.onAllNodesWithText("AI 피드백 받기").assertCountEquals(0)
+    }
+
+    @Test
+    fun aiPillTracksPhotoWhileScrolling() {
+        composeRule.setContent {
+            ChalkakTheme {
+                Box(modifier = Modifier.height(500.dp)) {
+                    FeedScreen(
+                        uiState = feedUiState.copy(aiReview = AiReviewUiState(phase = AiReviewPhase.Ready)),
+                        onNavigateBack = {},
+                        onDeleteClick = {},
+                        onLikeClick = {},
+                        snackbarHostState = SnackbarHostState(),
+                    )
+                }
+            }
+        }
+        composeRule.onNodeWithContentDescription("AI 피드백 받기").assertIsDisplayed()
+        screenshot("over-photo")
+        val photo = composeRule.onNodeWithContentDescription("사진")
+        val photoTopBefore = photo
+            .fetchSemanticsNode()
+            .boundsInRoot.top
+        photo.performTouchInput { swipeUp() }
+        composeRule.waitForIdle()
+        assertTrue(
+            photo
+                .fetchSemanticsNode()
+                .boundsInRoot.top < photoTopBefore,
+        )
+        composeRule.onNodeWithContentDescription("AI 피드백 받기").assertIsDisplayed()
+        screenshot("below-photo")
+    }
+
+    private fun screenshot(name: String) {
+        composeRule.waitForIdle()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "feed-review")
+        directory.mkdirs()
+        File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+    }
+
     private fun setFeedContent(
         uiState: FeedUiState = feedUiState,
         onNavigateBack: () -> Unit = {},
         onDeleteClick: () -> Unit = {},
         onLikeClick: () -> Unit = {},
+        onStartFeedback: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -189,12 +385,20 @@ class FeedScreenTest {
                     onNavigateBack = onNavigateBack,
                     onDeleteClick = onDeleteClick,
                     onLikeClick = onLikeClick,
+                    onStartFeedback = onStartFeedback,
                     snackbarHostState = SnackbarHostState(),
                 )
             }
         }
     }
 }
+
+private val sampleAiResult = AiReviewContent(
+    overallScore = 8.7,
+    criteria = emptyList(),
+    distinctivePerspective = false,
+    feedback = AiReviewFeedback("전체 요약", "장점", "아쉬운 점", "제안"),
+)
 
 private val feedUiState = FeedUiState(
     content = FeedContentState.Success(

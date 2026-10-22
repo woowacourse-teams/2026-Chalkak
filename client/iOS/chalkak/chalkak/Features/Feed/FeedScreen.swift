@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,12 +13,17 @@ struct FeedScreen: View {
     @State private var contentProgress: CGFloat = 0
     @State private var isPhotoMoving = true
     @State private var isPhotoInteracting = false
+    @State private var isBackSwiping = false
+    @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
     @State private var hasStartedOpening = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
+    private let opensAIReviewOnEntry: Bool
+    @State private var hasOpenedInitialAIReview = false
     private let usesPhotoTransition: Bool
     @State private var showsDeleteDialog = false
+    @State private var showsAIReviewSheet = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
     // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
@@ -33,6 +39,7 @@ struct FeedScreen: View {
         zoomSource: FeedZoomSource? = nil,
         transitionSource: FeedZoomRegistry.Source? = nil,
         usesPhotoTransition: Bool = true,
+        opensAIReviewOnEntry: Bool = false,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
@@ -40,6 +47,7 @@ struct FeedScreen: View {
         _transitionSource = State(initialValue: transitionSource)
         self.placeholder = placeholder
         self.zoomSource = zoomSource
+        self.opensAIReviewOnEntry = opensAIReviewOnEntry
         self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
@@ -74,6 +82,36 @@ struct FeedScreen: View {
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
             .opacity(contentProgress)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if canShowAIReview, let aiReview = viewModel.aiReview {
+                FeedAIReviewButton(model: aiReview) { showsAIReviewSheet = true }
+                    .padding(.trailing, theme.spacing.lg)
+                    .padding(.bottom, theme.spacing.md)
+                    .opacity(contentProgress)
+            }
+        }
+        .sheet(isPresented: $showsAIReviewSheet) {
+            if let aiReview = viewModel.aiReview {
+                FeedAIReviewSheet(model: aiReview) {
+                    Task {
+                        await aiReview.request()
+                        if aiReview.review?.status == .processing || aiReview.review?.status == .completed {
+                            showsAIReviewSheet = false
+                        }
+                    }
+                }
+                .presentationDetents(aiReview.canRequest ? [.height(320)] : [.height(510), .large])
+            }
+        }
+        .onChange(of: canObserveAIReview, initial: true) { _, canObserve in
+            guard opensAIReviewOnEntry, canObserve, !hasOpenedInitialAIReview else { return }
+            hasOpenedInitialAIReview = true
+            showsAIReviewSheet = true
+        }
+        .task(id: scenePhase == .active && canObserveAIReview) {
+            guard scenePhase == .active, canObserveAIReview else { return }
+            await viewModel.aiReview?.observe()
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
@@ -135,6 +173,14 @@ struct FeedScreen: View {
         }
     }
 
+    private var canShowAIReview: Bool {
+        canObserveAIReview && viewModel.aiReview?.isButtonVisible == true
+    }
+
+    private var canObserveAIReview: Bool {
+        viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
+    }
+
     @ViewBuilder
     private var content: some View {
         switch viewModel.viewState.contentStatus {
@@ -188,11 +234,11 @@ struct FeedScreen: View {
 
             }
             .padding(.top, ChalkakNavigationButton.diameter + 2 * theme.spacing.md)
-            .padding(.bottom, Metrics.contentBottom)
+            .padding(.bottom, canShowAIReview ? Metrics.aiContentBottom : Metrics.contentBottom)
         }
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
-        .scrollDisabled(isPhotoInteracting)
+        .scrollDisabled(isPhotoMoving || isPhotoInteracting)
     }
 
     // MARK: - 줌 전환
@@ -270,17 +316,28 @@ struct FeedScreen: View {
     private var backSwipeGesture: some Gesture {
         DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
             .onChanged { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
-                if !isPhotoMoving { captureTransitionSource() }
-                isPhotoMoving = true
+                guard !isClosing, !isPhotoInteracting else { return }
+                if !isBackSwiping {
+                    guard !isPhotoMoving,
+                          value.startLocation.x <= Metrics.backSwipeEdgeWidth,
+                          value.translation.width > abs(value.translation.height) else { return }
+                    isBackSwiping = true
+                    backSwipeTracking = FeedBackSwipeTracking()
+                    captureTransitionSource()
+                    isPhotoMoving = true
+                }
                 zoomRegistry?.activeSource = nil
-                let dragged = max(0, value.translation.width) / Metrics.backSwipeFullDistance
+                backSwipeTracking.update(to: value.translation)
+                let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
                 photoProgress = 1 - min(dragged, 1)
                 contentProgress = photoProgress
             }
             .onEnded { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
-                if value.predictedEndTranslation.width >= Metrics.backSwipeCloseDistance {
+                guard isBackSwiping else { return }
+                isBackSwiping = false
+                guard !isClosing else { return }
+                backSwipeTracking.update(to: value.translation)
+                if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
                     close()
                 } else {
                     open()
@@ -336,10 +393,30 @@ struct FeedScreen: View {
     }
 }
 
+struct FeedBackSwipeTracking {
+    private(set) var distance: CGFloat = 0
+    private var previousTranslation: CGSize = .zero
+
+    mutating func update(to translation: CGSize) {
+        let delta = CGSize(width: translation.width - previousTranslation.width, height: translation.height - previousTranslation.height)
+        // 무시한 세로 움직임의 가로 흔들림이 다음 가로 이동에 한꺼번에 반영되지 않게 한다.
+        previousTranslation = translation
+        guard abs(delta.width) > abs(delta.height) else { return }
+        distance = max(0, distance + delta.width)
+    }
+
+    func projectedDistance(to translation: CGSize) -> CGFloat {
+        let delta = CGSize(width: translation.width - previousTranslation.width, height: translation.height - previousTranslation.height)
+        guard abs(delta.width) > abs(delta.height) else { return distance }
+        return max(0, distance + delta.width)
+    }
+}
+
 private enum Metrics {
     static let topicTop: CGFloat = 16
     static let topicBottom: CGFloat = 40
     static let contentBottom: CGFloat = 40
+    static let aiContentBottom: CGFloat = 90
     // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
     // 스프링이 아닌 고정 시간 곡선이라 실제 이동 시간도 0.3초로 같다.
     static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)

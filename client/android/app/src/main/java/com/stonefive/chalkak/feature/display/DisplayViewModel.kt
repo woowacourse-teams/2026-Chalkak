@@ -31,8 +31,9 @@ class DisplayViewModel(
     private val initialDate: LocalDate? = null,
     initialSort: PostSort = PostSort.LATEST,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
+    firstTopicDate: LocalDate = FIRST_TOPIC_DATE,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(DisplayUiState())
+    private val _uiState = MutableStateFlow(DisplayUiState(earliestDate = firstTopicDate))
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
 
     private var latestLoadGeneration = 0
@@ -72,6 +73,18 @@ class DisplayViewModel(
         val selectedDate = state.selectedDate ?: return
         val latestDate = state.latestDate ?: return
         val targetDate = selectedDate.plusDays(1).coerceAtMost(latestDate)
+        if (targetDate == selectedDate) return
+
+        startDateChange(targetDate, state)
+    }
+
+    /** 날짜 휠에서 고른 날짜로 이동한다. 첫 주제 날짜와 오늘 사이로 맞추고, 같은 날짜면 다시 불러오지 않는다. */
+    fun moveToDate(date: LocalDate) {
+        val state = _uiState.value
+        if (state.content is DisplayContentState.Loading) return
+        val selectedDate = state.selectedDate ?: return
+        val latestDate = state.latestDate ?: return
+        val targetDate = date.coerceIn(state.earliestDate ?: date, latestDate)
         if (targetDate == selectedDate) return
 
         startDateChange(targetDate, state)
@@ -359,8 +372,6 @@ class DisplayViewModel(
                 )
 
                 is HomeResult.Failure -> if (previousState != null) {
-                    val isPreviousDateRequest = result.reason == HomeFailure.TopicNotFound &&
-                        requireNotNull(date) < requireNotNull(previousState.selectedDate)
                     selectedSort = (previousState.content as? DisplayContentState.Latest)
                         ?.selectedSort
                         ?: selectedSort
@@ -374,11 +385,6 @@ class DisplayViewModel(
                         hasNext = previousState.hasNext,
                         randomSeed = previousState.randomSeed,
                         isLoadingNext = false,
-                        earliestDate = if (isPreviousDateRequest) {
-                            previousState.selectedDate
-                        } else {
-                            previousState.earliestDate
-                        },
                         pendingMessage = pendingMessage,
                     )
                     _uiState.update { restoredState.withAppliedLikeUpdatesAfter(requestLikeRevision) }
@@ -684,6 +690,12 @@ class DisplayViewModel(
         }
 
         val Factory = factory()
+
+        /**
+         * 서비스의 첫 주제 날짜(KST). 이보다 이전 날짜로는 이동하거나 고를 수 없다.
+         * 주제 날짜 목록을 알려주는 API가 없어 앱에 고정한다.
+         */
+        val FIRST_TOPIC_DATE: LocalDate = LocalDate.of(2026, 9, 17)
 
         private val KST: ZoneId = ZoneId.of("Asia/Seoul")
         private const val FEATURED_PHOTO_COUNT = 5

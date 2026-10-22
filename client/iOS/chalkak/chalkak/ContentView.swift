@@ -100,10 +100,14 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                            case let .approved(postID):
+                            case let .approved(postID), let .aiReview(postID):
                                 FeedScreen(
-                                    viewModel: makeFeedViewModel(FeedTarget(postID: postID)),
+                                    viewModel: makeFeedViewModel(FeedTarget(
+                                        postID: postID,
+                                        isOwnedByCurrentUser: destination == .aiReview(postID)
+                                    )),
                                     usesPhotoTransition: false,
+                                    opensAIReviewOnEntry: destination == .aiReview(postID),
                                     onBack: { closeNotificationDestination(destination) },
                                     onDeleted: { postID in
                                         closeNotificationDestination(destination)
@@ -475,7 +479,9 @@ struct ContentView: View {
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onIssueClick: { selectedIssueURL = $0 },
-                bottomBarCompact: $isBottomBarCompact
+                bottomBarCompact: $isBottomBarCompact,
+                isActive: selectedFeed == nil && notificationPath.isEmpty
+                    && selectedIssueURL == nil && !isNotificationInboxPresented && !isFeedbackPresented
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
 #if DEBUG
@@ -515,6 +521,9 @@ struct ContentView: View {
             apiClient: FeedAPIClient(
                 configuration: FeedAPIConfiguration(baseURL: baseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
+            ),
+            aiReviewRepository: APIAIReviewRepository(
+                client: AIReviewAPIClient(baseURL: baseURL)
             )
         )
     }
@@ -659,6 +668,8 @@ struct ContentView: View {
                 Task { await homeViewModel.refresh() }
             case let .postApproved(postID, _):
                 notificationPath.append(.approved(postID))
+            case let .aiReview(postID, _):
+                notificationPath.append(.aiReview(postID))
             case let .postRejected(notificationID):
                 notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
             case let .notice(notificationID):
@@ -827,8 +838,8 @@ struct ContentView: View {
         )
         return NotificationSettingsViewModel(
             loadSettings: { try await client.fetch() },
-            saveSettings: { topic, moderation in
-                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation)
+            saveSettings: { topic, moderation, aiReview in
+                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
             },
         )
     }
@@ -884,7 +895,12 @@ struct ContentView: View {
             return HomePreviewData.viewModel(state: state, loader: loader)
         }
 #endif
-        return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
+        return HomeViewModel(
+            loader: .live(baseURL: resolvedAPIBaseURL),
+            aiReviewRepository: APIAIReviewRepository(
+                client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
+            )
+        )
     }
 
     private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
@@ -1109,7 +1125,7 @@ struct ContentView: View {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
-            case .approved:
+            case .approved, .aiReview:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
             case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
@@ -1168,6 +1184,7 @@ private struct NotificationUnreadRefreshID: Hashable {
 private enum NotificationRoute: Hashable {
     case inbox
     case approved(String)
+    case aiReview(String)
     case rejected(NotificationDetailTarget)
     case notice(NotificationDetailTarget)
 }

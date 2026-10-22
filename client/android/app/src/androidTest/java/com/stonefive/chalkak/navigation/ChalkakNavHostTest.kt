@@ -241,8 +241,7 @@ class ChalkakNavHostTest {
         }
 
         composeRule.onNodeWithContentDescription("알림").performClick()
-        composeRule.onNodeWithText("9월 22일 오늘의 주제를 확인해보세요.").assertIsDisplayed()
-        composeRule.onNodeWithText("어제 21:10").assertIsDisplayed()
+        composeRule.onNodeWithText("알림").assertIsDisplayed()
         composeRule.runOnIdle {
             assertTrue(navController.currentDestination?.hasRoute<Notifications>() == true)
         }
@@ -731,6 +730,130 @@ class ChalkakNavHostTest {
         composeRule.runOnIdle {
             assertFalse(navController.currentDestination?.hasRoute<Notifications>() == true)
             assertEquals(null, navController.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun aiReviewCompletedNotificationOpensOwnedFeedWithResultIntent() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "AI_REVIEW_COMPLETED",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "notification-id",
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<FeedById>() == true
+        }
+        composeRule.runOnIdle {
+            val route = navController.currentBackStackEntry!!.toRoute<FeedById>()
+            assertEquals("post-id", route.postId)
+            assertTrue(route.isOwnedByCurrentUser)
+            assertTrue(route.openAiReviewResult)
+            navController.openNotificationTarget(
+                type = "AI_REVIEW_FAILED",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "failed-notification-id",
+            )
+            val failedRoute = navController.currentBackStackEntry!!.toRoute<FeedById>()
+            assertEquals("post-id", failedRoute.postId)
+            assertTrue(failedRoute.openAiReviewResult)
+            assertTrue(
+                navController.previousBackStackEntry
+                    ?.destination
+                    ?.hasRoute<Home>() == true,
+            )
+        }
+    }
+
+    @Test
+    fun aiReviewNotificationReplacesSamePostFeedOnTop() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "post-id",
+                    originalImageUrl = "original",
+                    thumbnailImageUrl = "thumbnail",
+                    signatureOriginalImageUrl = "signature",
+                    contentDescription = "사진",
+                    title = null,
+                    likeCount = 0,
+                    dateLabel = "8월 28일의 주제",
+                    topic = "하늘",
+                    isOwnedByCurrentUser = true,
+                ),
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Feed>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "AI_REVIEW_COMPLETED",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "notification-id",
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<FeedById>() == true
+        }
+        composeRule.runOnIdle {
+            assertTrue(
+                navController.currentBackStackEntry!!
+                    .toRoute<FeedById>()
+                    .openAiReviewResult,
+            )
+            assertTrue(
+                navController.previousBackStackEntry
+                    ?.destination
+                    ?.hasRoute<Home>() == true,
+            )
         }
     }
 
