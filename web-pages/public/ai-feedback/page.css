@@ -55,6 +55,40 @@
 .introduction > p + p {
   margin-top: 14px;
 }
+.references {
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  font-size: 16px;
+  line-height: 1.8;
+}
+.references summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.references summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.references ul {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+}
+.references li + li {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+.references a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.references p {
+  margin-top: 8px;
+  color: #817567;
+}
 .composition {
   padding: 52px 0 60px;
   border-top: 1px solid var(--line);
@@ -120,9 +154,6 @@
 }
 .guideline p {
   margin-top: 8px;
-}
-.guideline.wide {
-  grid-column: 1/-1;
 }
 .source-note {
   margin-top: 24px;
@@ -227,13 +258,9 @@
   margin-top: 26px;
   font-size: 16px;
 }
-.form-note,
-.footer-home {
+.form-note {
   font-size: 14px;
   color: #817567;
-}
-.page-footer {
-  justify-content: center;
 }
 dialog > p,
 .confirm-dialog {
@@ -285,6 +312,10 @@ dialog h2 {
   }
   .introduction {
     padding: 42px 0 36px;
+  }
+  .references {
+    font-size: 15px;
+    padding: 16px;
   }
   .introduction h1 {
     font-size: 32px;
@@ -370,8 +401,7 @@ dialog h2 {
     gap: 18px;
     padding: 14px 18px;
   }
-  .form-note,
-  .footer-home {
+  .form-note {
     font-size: 14px;
   }
   dialog > p,

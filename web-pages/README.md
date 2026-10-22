@@ -73,9 +73,9 @@ web-pages/
 공통 셸은 다음 스타일을 불러오고, 그 다음 전용 스타일을 불러옵니다.
 
 ```html
-<link rel="stylesheet" href="/shared/styles/tokens.css">
-<link rel="stylesheet" href="/shared/styles/base.css">
-<link rel="stylesheet" href="/new-story/page.css">
+<link rel="stylesheet" href="/shared/styles/tokens.css" />
+<link rel="stylesheet" href="/shared/styles/base.css" />
+<link rel="stylesheet" href="/new-story/page.css" />
 ```
 
 ## 구글폼 연결
@@ -106,17 +106,17 @@ HTML은 아래 템플릿을 사용합니다. 설정이 있으면 빌드 결과�
 
 ## Vercel 배포
 
-| 설정 | 값 |
-| --- | --- |
-| Vercel 프로젝트 | `chalkak / 2026-chalkak-pages` |
-| Git 저장소 | `woowacourse-teams/2026-Chalkak` |
-| Production 브랜치 | `web/pages` |
-| Root Directory | `web-pages` |
-| Framework | Other (`null`) |
-| Node.js | 24.x |
-| Install Command | `npm ci` |
-| Build Command | `npm run build` |
-| Output Directory | `dist` |
+| 설정              | 값                               |
+| ----------------- | -------------------------------- |
+| Vercel 프로젝트   | `chalkak / 2026-chalkak-pages`   |
+| Git 저장소        | `woowacourse-teams/2026-Chalkak` |
+| Production 브랜치 | `web/pages`                      |
+| Root Directory    | `web-pages`                      |
+| Framework         | Other (`null`)                   |
+| Node.js           | 24.x                             |
+| Install Command   | `npm ci`                         |
+| Build Command     | `npm run build`                  |
+| Output Directory  | `dist`                           |
 
 프로젝트는 웹 공개 페이지 전용으로 연결하며 기존 관리자·랜딩·베타 프로젝트의 설정은 바꾸지 않습니다. Production 도메인은 공개 페이지용이고, Preview의 기존 Vercel 접근 정책은 유지합니다. `web/**` 브랜치만 이 프로젝트의 자동 배포 대상으로 설정했습니다.
 
@@ -131,9 +131,13 @@ HTML은 아래 템플릿을 사용합니다. 설정이 있으면 빌드 결과�
 ## AI 피드백 페이지의 내용과 에셋
 
 - 합의한 흐름: 선택한 썸네일 → 구도 평가 → 주제 해석의 독창성·사진가의 시선 → 피드백 예시 → 사용 후기.
-- 왼쪽 찰캌 로고·오른쪽 설문 링크를 PC·모바일 상단에 고정합니다. 본문 끝까지 내려갈 필요 없이 같은 설문으로 이동합니다.
-- 구도 출처: [Nikon, 5 Easy Composition Guidelines](https://www.nikonusa.com/learn-and-explore/c/tips-and-techniques/5-easy-composition-guidelines). 삼분할·수평선·피사체가 향하는 방향의 여백·유도선·패턴과 질감을 참고합니다. 가이드를 장면과 의도에 맞게 해석한다는 취지도 반영했습니다.
-- 주제 해석·독창성·사진가의 시선은 사용자가 설명한 찰캌의 별도 관점입니다. Nikon이 이 항목이나 찰캌 AI의 정확도를 보증한다고 표시하지 않습니다.
+- 상단 오른쪽에는 설문 링크만 고정합니다. 본문 끝까지 내려갈 필요 없이 같은 설문으로 이동합니다. 작은 장식 문구와 페이지 푸터는 사용하지 않습니다.
+- 사용자가 AI에게 제공한다고 확인한 자료는 아래 네 가지입니다. 본문에 구도와 주제 해석·독창성·시선을 설명하고, 원문은 펼침 영역에 모았습니다.
+  - [Nikon, 5 Easy Composition Guidelines](https://www.nikonusa.com/learn-and-explore/c/tips-and-techniques/5-easy-composition-guidelines): 삼분할·수평선·방향의 여백·유도선·패턴과 질감.
+  - [PPA, 12 Elements of a Merit Image](https://www.ppa.com/ppmag/articles/12-elements-of-a-merit-image): 구도·창의성·스타일·빛과 색·주제·스토리텔링 등 12요소.
+  - [PPA, A Fresh Look at the 12 Elements](https://www.ppa.com/ppmag/articles/a-fresh-look-at-the-twelve-elements): 요소들의 관계와 조화, 창의적인 표현과 의도가 사진의 인상을 만든다는 해석.
+  - [Canon, Tips for Better In-Camera Composition](https://www.usa.canon.com/learning/training-articles/training-articles-list/tips-for-better-in-camera-composition): 삼분할·여백·균형·유도선·색과 대비·프레이밍.
+- 본문의 항목은 네 자료를 사용자가 설명한 찰캌의 피드백 범위에 맞게 정리한 안내입니다. 원문의 전체 평가 항목·대회 점수 체계를 찰캌의 점수·가중치로 옮기거나, 해당 기관이 AI의 정확도를 보증한다고 표시하지 않습니다.
 - 표지는 이 작업에서 생성하고 사용자가 선택한 이미지입니다. WebP로 최적화했습니다.
 - 예시 사진과 로고는 사용자가 제공한 앱 화면에서 추출했습니다. 페이지의 예시 피드백은 실시간 AI 분석 결과가 아닙니다.
 - 실제 AI API, 회원·게시물 정책, 설문 응답 저장, 계정 기능은 이 프로젝트에서 변경하지 않습니다.
