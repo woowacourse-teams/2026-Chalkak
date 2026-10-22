@@ -190,12 +190,6 @@ class DisplayScrollBehaviorState(
         this.hasFilter = hasFilter
     }
 
-    fun updateScrollToTopVisibility() {
-        if (!gridState.canScrollBackward && headerOffset == 0f && filterOffset == 0f) {
-            bottomBarState.hideScrollToTopButton()
-        }
-    }
-
     private fun settleTopAreas() {
         settleJob?.cancel()
         val initialHeaderOffset = headerOffset

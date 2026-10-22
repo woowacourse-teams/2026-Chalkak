@@ -5,6 +5,7 @@ struct DisplayScreen: View {
     @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Bindable var viewModel: DisplayViewModel
+    @State private var scrollPosition = ScrollPosition()
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
@@ -205,6 +206,12 @@ struct DisplayScreen: View {
             .padding(.bottom, theme.spacing.xxl)
         }
         .feedZoomViewport(.display)
+        .scrollPosition($scrollPosition)
+        .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
+            withAnimation(.snappy) {
+                scrollPosition.scrollTo(edge: .top)
+            }
+        }
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .background(theme.colors.background)
     }

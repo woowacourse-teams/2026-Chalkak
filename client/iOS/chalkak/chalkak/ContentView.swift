@@ -534,6 +534,9 @@ struct ContentView: View {
             homeViewModel.scrollToTop()
             Task { await homeViewModel.refresh() }
         } else {
+            if selectedTab == .display, item == .display {
+                displayViewModel.scrollToTop()
+            }
             select(item)
         }
     }
