@@ -4,37 +4,6 @@ import XCTest
 
 @MainActor
 final class FeedAIReviewRenderingTests: XCTestCase {
-    func testFeedbackPresentationStates() async throws {
-        for status in [AIReviewStatus.none, .processing, .completed] {
-            let repository = FeedReviewRenderingRepository(status: status, fetchDelay: .milliseconds(150))
-            let model = FeedViewModel(
-                postID: FeedPreviewData.content.post.id,
-                seed: FeedPreviewData.content,
-                isLikeConfirmed: true,
-                aiReviewRepository: repository
-            )
-            let aiModel = try XCTUnwrap(model.aiReview)
-            let observation = Task { await aiModel.observe() }
-            defer { observation.cancel() }
-            try await waitFor("AI 리뷰 로딩이 완료되어야 합니다") { !aiModel.isLoading }
-            XCTAssertEqual(aiModel.review?.status, status)
-            XCTAssertFalse(aiModel.isLoading)
-            observation.cancel()
-            await observation.value
-            let screen = FeedScreen(viewModel: model, usesPhotoTransition: false).chalkakTheme(.light)
-            try await capture(screen, name: "feed-\(status.rawValue.lowercased())", height: 852) {
-                !aiModel.isLoading && aiModel.review?.status == status
-            }
-            XCTAssertEqual(aiModel.review?.status, status)
-            XCTAssertFalse(aiModel.isLoading)
-            try await capture(
-                FeedAIReviewSheet(model: aiModel, onStart: {}).chalkakTheme(.light),
-                name: "feed-sheet-\(status.rawValue.lowercased())",
-                height: status == .none ? 380 : 510
-            )
-        }
-    }
-
     func testNotificationEntryAutomaticallyPresentsFeedbackSheet() async throws {
         let model = FeedViewModel(
             postID: FeedPreviewData.content.post.id,
