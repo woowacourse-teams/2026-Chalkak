@@ -43,8 +43,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
@@ -178,7 +178,7 @@ fun RecordScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            ChalkakBottomBar(
+            ChalkakScreenBottomBar(
                 selectedItem = ChalkakBottomBarItem.RECORD,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onOpenPhotoUpload,

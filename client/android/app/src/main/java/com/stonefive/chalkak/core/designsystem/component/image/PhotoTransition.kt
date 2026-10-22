@@ -86,8 +86,8 @@ fun Modifier.photoTransitionChrome(animateVisibility: Boolean = true): Modifier 
     return overlayModifier.then(
         with(animatedVisibilityScope) {
             Modifier.animateEnterExit(
-                enter = fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),
-                exit = fadeOut(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)),
+                enter = fadeIn(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+                exit = fadeOut(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
                 label = "photo-transition-chrome",
             )
         },
@@ -153,9 +153,9 @@ fun rememberPhotoTransitionEnterFinished(): Boolean {
 }
 
 private const val PHOTO_SOURCE_HIDE_DURATION_MILLIS = 0
-private const val PHOTO_TRANSITION_DURATION_MILLIS = 300
+internal const val PHOTO_TRANSITION_DURATION_MILLIS = 300
 
 private const val PHOTO_CHROME_OVERLAY_Z_INDEX = 1f
 
-// Match iOS: the photo moves first while the surrounding screen fades more gradually.
+// Opening keeps a gradual screen fade; returning finishes with the photo movement.
 internal const val PHOTO_CONTENT_FADE_DURATION_MILLIS = 700

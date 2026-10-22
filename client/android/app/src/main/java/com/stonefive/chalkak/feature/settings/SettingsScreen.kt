@@ -26,8 +26,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -129,7 +129,7 @@ fun SettingsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakTheme.colors.background,
         bottomBar = {
-            ChalkakBottomBar(
+            ChalkakScreenBottomBar(
                 selectedItem = ChalkakBottomBarItem.SETTINGS,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onAddClick,
