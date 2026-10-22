@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,7 +74,9 @@ fun <T> ChalkakWheelPicker(
     modifier: Modifier = Modifier,
 ) {
     val selectedIndex = items.indexOf(selectedItem).coerceAtLeast(0)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+    // 고를 수 있는 값이 바뀌면(예: 월을 바꿔 일 목록이 달라짐) 새 목록의 선택값 위치에서 바로 그린다.
+    // 예전 위치로 한 번 그린 뒤 옮기면 다른 날짜가 잠깐 보였다 바뀌며 깜빡인다.
+    val listState = remember(items) { LazyListState(firstVisibleItemIndex = selectedIndex) }
     val centeredIndex by remember(listState) {
         derivedStateOf { listState.centeredItemIndex() }
     }

@@ -42,10 +42,11 @@ struct ChalkakWheelPicker: UIViewRepresentable {
         where previousTitles.indices.contains(component) == false || previousTitles[component] != column.titles {
             picker.reloadComponent(component)
         }
-        selectRows(in: picker, animated: true)
+        selectRows(in: picker, animated: false)
     }
 
     // 밖에서 정한 선택값(예: 월을 바꿔 일이 범위 끝으로 당겨짐)으로 휠을 맞춘다.
+    // 시스템 날짜 휠처럼 굴러가지 않고 제자리에서 바뀐다.
     private func selectRows(in picker: UIPickerView, animated: Bool) {
         for (component, column) in columns.enumerated()
         where column.titles.indices.contains(column.selectedIndex)
