@@ -269,12 +269,13 @@ struct FeedScreen: View {
         zoomRegistry?.activeSource = nil
         withAnimation(Metrics.photoAnimation) {
             photoProgress = 0
-        }
-        withAnimation(Metrics.contentAnimation) {
-            contentProgress = 0
         } completion: {
             zoomRegistry?.activeSource = nil
             onBack()
+        }
+        // 사진이 도착하면 화면을 제거한다. 페이드도 같은 시간에 끝나야 뒤 화면의 터치를 지연시키지 않는다.
+        withAnimation(Metrics.photoAnimation) {
+            contentProgress = 0
         }
     }
 
