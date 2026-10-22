@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
@@ -16,11 +17,13 @@ import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,6 +43,8 @@ class NotificationServiceTest extends IntegrationTestSupport {
     private static final UUID EVENT_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6572e1");
     private static final UUID SECOND_EVENT_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6572e2");
+    private static final UUID AI_REVIEW_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6572a3");
     private static final UUID NOTIFICATION_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6572f2");
     private static final UUID SECOND_NOTIFICATION_ID = UUID
@@ -481,6 +486,157 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 Integer.class,
                 notificationId
         )).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "COMPLETED, AI_REVIEW_COMPLETED, AI 피드백이 도착했어요, 사진의 구도 점수와 피드백을 확인해 보세요.",
+            "FAILED_RETRYABLE, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 잠시 후 다시 요청해 주세요.",
+            "FAILED_FINAL, AI_REVIEW_FAILED, AI 피드백을 만들지 못했어요, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+    })
+    @DisplayName("AI 리뷰 결과 알림은 결과로 종류와 문구를 정해 게시물 대상으로 저장한다")
+    void createForAiReview_outcome_storesTypeAndMessage(
+            AiReviewOutcome outcome,
+            String type,
+            String title,
+            String body
+    ) {
+        // When
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                outcome,
+                NOW
+        );
+
+        // Then
+        Map<String, Object> row = findAiReviewNotification();
+        assertThat(row).containsEntry("type", type)
+                .containsEntry("source_type", "POST")
+                .containsEntry("source_id", POST_ID)
+                .containsEntry("title", title)
+                .containsEntry("body", body)
+                .containsEntry("sqs_publish_status", "PENDING");
+        assertThat(((Timestamp) row.get("created_at")).toInstant()).isEqualTo(NOW);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "ON, PENDING",
+            "SETTING_OFF, NOT_REQUIRED",
+            "WITHDRAWN, NOT_REQUIRED"
+    })
+    @DisplayName("AI 리뷰 결과 알림은 수신 설정을 끈 회원과 탈퇴 회원에게는 발행 불필요로 저장한다")
+    void createForAiReview_userState_decidesPublishStatus(String state, String publishStatus) {
+        // Given
+        if (state.equals("SETTING_OFF")) {
+            jdbcTemplate.update("UPDATE users SET ai_review_push_enabled = false WHERE id = ?",
+                    USER_ID);
+        }
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update(
+                    "UPDATE users SET deleted_at = ? WHERE id = ?",
+                    Timestamp.from(NOW),
+                    USER_ID
+            );
+        }
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                NOW
+        );
+
+        // Then
+        assertThat(findAiReviewNotification()).containsEntry("sqs_publish_status", publishStatus);
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 결과 알림은 목록에 종류·게시물 ID·썸네일과 함께 보이고 작성자가 게시물을 지우면 숨긴다")
+    void getNotifications_aiReviewNotification_showsThumbnailAndHidesDeletedPost() {
+        // Given
+        given(imageUrlProvider.getUrl(THUMBNAIL_KEY)).willReturn("https://cdn.test/thumbnail.webp");
+        jdbcTemplate.update("DELETE FROM notifications");
+        jdbcTemplate.update("""
+                UPDATE posts SET moderation_status = CAST('APPROVED' AS moderation_status)
+                WHERE id = ?
+                """, POST_ID);
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                NOW
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        NotificationListResult shown = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
+        postCommandService.deletePost(USER_ID, POST_ID);
+        NotificationListResult hidden = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(shown.notifications()).singleElement().satisfies(summary -> {
+            assertThat(summary.type()).isEqualTo(NotificationType.AI_REVIEW_COMPLETED);
+            assertThat(summary.sourceType()).isEqualTo(NotificationSourceType.POST);
+            assertThat(summary.sourceId()).isEqualTo(POST_ID);
+            assertThat(summary.thumbnailImageUrl()).isEqualTo("https://cdn.test/thumbnail.webp");
+        });
+        assertThat(hidden.notifications()).isEmpty();
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림 상세는 원본 사진과 null 반려 사유를 돌려주고 다른 회원은 조회할 수 없다")
+    void getNotification_aiReviewNotification_returnsOriginalWithoutReasonForOwnerOnly() {
+        // Given
+        given(imageUrlProvider.getUrl(ORIGINAL_KEY)).willReturn("https://cdn.test/original.webp");
+        notificationService.createForAiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                NOW
+        );
+        entityManager.flush();
+        entityManager.clear();
+        UUID id = (UUID) findAiReviewNotification().get("id");
+
+        // When
+        NotificationDetailResult detail = notificationService.getNotification(USER_ID, id);
+
+        // Then
+        assertThat(detail.type()).isEqualTo(NotificationType.AI_REVIEW_COMPLETED);
+        assertThat(detail.originalImageUrl()).isEqualTo("https://cdn.test/original.webp");
+        assertThat(detail.rejectionReason()).isNull();
+        assertThatThrownBy(() -> notificationService.getNotification(OTHER_USER_ID, id))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    private Map<String, Object> findAiReviewNotification() {
+        return jdbcTemplate.queryForMap(
+                "SELECT * FROM notifications WHERE user_id = ? AND type LIKE 'AI_REVIEW_%'",
+                USER_ID
+        );
     }
 
     // 기본 검수 알림을 지우고, 이 회원에게 공지 알림 하나만 남긴다.

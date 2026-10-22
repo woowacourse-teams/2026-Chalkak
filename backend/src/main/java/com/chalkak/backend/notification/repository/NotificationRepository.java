@@ -25,6 +25,13 @@ public interface NotificationRepository {
 
     Notification save(Notification notification);
 
+    /**
+     * 같은 회원의 같은 사건 키가 이미 있으면 저장하지 않는다.
+     *
+     * @return 저장한 행 수. 이미 있으면 0
+     */
+    int insertIfAbsent(Notification notification);
+
     int createNoticeNotifications(Notice notice, Instant createdAt);
 
     NotificationSlice findByUserId(

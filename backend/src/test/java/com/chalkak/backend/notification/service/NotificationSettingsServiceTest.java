@@ -32,12 +32,22 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     @ParameterizedTest
-    @CsvSource({"true, true", "true, false", "false, true", "false, false"})
-    @DisplayName("회원에게 저장된 주제·검수 푸시 설정을 그대로 조회한다")
-    void getSettings_savedPreferences_returnsStoredValues(boolean topic, boolean moderation) {
+    @CsvSource({
+            "true, true, true", "true, false, true", "false, true, true", "false, false, true",
+            "true, true, false", "false, false, false"})
+    @DisplayName("회원에게 저장된 주제·검수·AI 리뷰 푸시 설정을 그대로 조회한다")
+    void getSettings_savedPreferences_returnsStoredValues(
+            boolean topic,
+            boolean moderation,
+            boolean aiReview
+    ) {
         // Given
         User user = userRepository.save(UserFixture.create());
-        user.updatePushPreferences(topic, moderation);
+        user.updatePushPreferences(
+                topic,
+                moderation,
+                aiReview
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -45,7 +55,11 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
         NotificationSettingsResult result = notificationSettingsService.getSettings(user.getId());
 
         // Then
-        assertThat(result).isEqualTo(new NotificationSettingsResult(topic, moderation));
+        assertThat(result).isEqualTo(new NotificationSettingsResult(
+                topic,
+                moderation,
+                aiReview
+        ));
     }
 
     @Test
@@ -76,25 +90,36 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @CsvSource({
-            "true, true, false, , false, true",
-            "true, true, , false, true, false",
-            "false, false, true, , true, false",
-            "false, false, , true, false, true",
-            "true, true, false, false, false, false",
-            "false, false, true, true, true, true"
+            "true, true, true, false, , , false, true, true",
+            "true, true, true, , false, , true, false, true",
+            "false, false, false, true, , , true, false, false",
+            "false, false, false, , true, , false, true, false",
+            "true, true, true, false, false, , false, false, true",
+            "false, false, false, true, true, , true, true, false",
+            "true, true, true, , , false, true, true, false",
+            "false, false, false, , , true, false, false, true",
+            "true, true, true, false, false, false, false, false, false",
+            "false, false, false, true, true, true, true, true, true"
     })
     @DisplayName("전달한 수신 설정만 저장하고 같은 요청을 반복해도 설정을 유지한다")
     void updateSettings_providedPreferences_persistsOnlyRequestedValues(
             boolean initialTopic,
             boolean initialModeration,
+            boolean initialAiReview,
             Boolean topic,
             Boolean moderation,
+            Boolean aiReview,
             boolean expectedTopic,
-            boolean expectedModeration
+            boolean expectedModeration,
+            boolean expectedAiReview
     ) {
         // Given
         User user = userRepository.save(UserFixture.create());
-        user.updatePushPreferences(initialTopic, initialModeration);
+        user.updatePushPreferences(
+                initialTopic,
+                initialModeration,
+                initialAiReview
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -102,27 +127,37 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
         notificationSettingsService.updateSettings(
                 user.getId(),
                 topic,
-                moderation
+                moderation,
+                aiReview
         );
         entityManager.flush();
         entityManager.clear();
 
         // Then
         assertThat(notificationSettingsService.getSettings(user.getId()))
-                .isEqualTo(new NotificationSettingsResult(expectedTopic, expectedModeration));
+                .isEqualTo(new NotificationSettingsResult(
+                        expectedTopic,
+                        expectedModeration,
+                        expectedAiReview
+                ));
 
         // When
         notificationSettingsService.updateSettings(
                 user.getId(),
                 topic,
-                moderation
+                moderation,
+                aiReview
         );
         entityManager.flush();
         entityManager.clear();
 
         // Then
         assertThat(notificationSettingsService.getSettings(user.getId()))
-                .isEqualTo(new NotificationSettingsResult(expectedTopic, expectedModeration));
+                .isEqualTo(new NotificationSettingsResult(
+                        expectedTopic,
+                        expectedModeration,
+                        expectedAiReview
+                ));
     }
 
     @Test
@@ -133,6 +168,7 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 () -> notificationSettingsService.updateSettings(
                         UUID.randomUUID(),
                         false,
+                        null,
                         null
                 ))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
@@ -154,7 +190,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 () -> notificationSettingsService.updateSettings(
                         user.getId(),
                         false,
-                        null
+                        null,
+                        false
                 ))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
                         exception -> assertThat(exception.getErrorCode())
@@ -164,5 +201,6 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
         User saved = userRepository.findById(user.getId()).orElseThrow();
         assertThat(saved.isTopicPushEnabled()).isTrue();
         assertThat(saved.isModerationPushEnabled()).isTrue();
+        assertThat(saved.isAiReviewPushEnabled()).isTrue();
     }
 }

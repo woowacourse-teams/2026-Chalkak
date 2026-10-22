@@ -73,6 +73,10 @@ public class User {
     @Column(name = "moderation_push_enabled", nullable = false)
     private boolean moderationPushEnabled = true;
 
+    @ColumnDefault("true")
+    @Column(name = "ai_review_push_enabled", nullable = false)
+    private boolean aiReviewPushEnabled = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -122,10 +126,15 @@ public class User {
         this.status = UserStatus.ACTIVE;
     }
 
-    public void updatePushPreferences(boolean topicPushEnabled, boolean moderationPushEnabled) {
+    public void updatePushPreferences(
+            boolean topicPushEnabled,
+            boolean moderationPushEnabled,
+            boolean aiReviewPushEnabled
+    ) {
         validateNotWithdrawn();
         this.topicPushEnabled = topicPushEnabled;
         this.moderationPushEnabled = moderationPushEnabled;
+        this.aiReviewPushEnabled = aiReviewPushEnabled;
     }
 
     public void startSignatureProcessing(UUID uploadId, Instant startedAt) {

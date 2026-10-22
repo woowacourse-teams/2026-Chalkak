@@ -1,4 +1,4 @@
-# NOTIFICATION-015 관리자 리마인더의 정시 발행과 발송
+# NOTIFICATION-016 관리자 리마인더의 정시 발행과 발송
 
 - 결정일: 2026-10-22
 - 상태: 확정
@@ -6,7 +6,7 @@
 - 변경 후: 서버가 매 분 보낼 회차를 판단해 대상 회원에게 SQS 메시지를 직접 발행하고, 공통 PushWorker가 발송 직전에 다시 확인해 FCM으로 보낸다. 회차 시각부터 30분 안에서만 보낸다. 대상은 주제 푸시 수신을 켠 정상 회원이다. 알림함에는 남기지 않고, 푸시를 누르면 앱 메인 화면으로 이동한다.
 - 변경 이유: 리마인더는 주제 푸시와 같이 알림함 없이 정해진 시각에 보내는 푸시라서, 주제 푸시(#572)의 직접 발행 경로와 공통 Worker를 재사용한다. 발행 루프는 #725에서 공통 클래스로 추출해 함께 쓴다. 문구는 SQS 메시지에 넣지 않고 Worker가 발송 직전에 읽어, 발행 뒤 수정·삭제가 바로 반영되게 한다.
 - 영향 범위: 리마인더 정시 발행, PushWorker의 `REMINDER` 처리, 주제 푸시 수신 여부의 적용 범위(NOTIFICATION-006), 앱의 `REMINDER` 푸시 해석. 승인·반려·주제·공지 푸시의 동작은 바꾸지 않는다.
-- 관련 규칙: NOTIFICATION-015, NOTIFICATION-006, NOTIFICATION-014
+- 관련 규칙: NOTIFICATION-016, NOTIFICATION-006, NOTIFICATION-014
 - 관련 이슈·PR: [#723](https://github.com/woowacourse-teams/2026-Chalkak/issues/723), [#725](https://github.com/woowacourse-teams/2026-Chalkak/issues/725), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
 
 ## 리마인더에 주제 푸시 수신 여부를 적용하는 이유
@@ -15,7 +15,7 @@
 - 결정: 리마인더 전용 수신 설정을 두지 않고, 기존 주제 푸시 수신 여부(`topicPushEnabled`)를 리마인더에도 적용한다. 이 값의 의미를 "참여 알림(주제 안내와 리마인더)"으로 넓히며 API 필드 이름은 바꾸지 않는다. 설정 화면에 보여 줄 이름은 앱에서 정한다.
 - 이유: 리마인더를 공지와 분리한 이유가 회원이 끌 수 있어야 한다는 점이었다(NOTIFICATION-014 결정 기록). 리마인더와 주제 푸시는 모두 참여를 이끄는 알림이라 같은 스위치로 끄는 것이 회원 입장에서 자연스럽다. 새 설정을 추가하면 수신 설정 API와 앱 설정 화면을 함께 바꿔야 하지만, 기존 값을 쓰면 API 변경 없이 바로 수신 거부 수단을 제공할 수 있다.
 - 다시 검토할 조건: 회원이 주제 안내와 리마인더를 따로 끄고 싶다는 요구가 생기거나, 리마인더가 참여 유도와 성격이 다른 알림에 주로 쓰이면 전용 설정 추가를 검토한다.
-- 관련 규칙·이슈: NOTIFICATION-006, NOTIFICATION-015, [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
+- 관련 규칙·이슈: NOTIFICATION-006, NOTIFICATION-016, [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
 
 ## 회차는 예정 시각부터 30분 기한만으로 판단한다
 
@@ -23,14 +23,14 @@
 - 결정: 일회성·매일 반복 모두 회차 시각부터 30분 안이면 보낸다. 리마인더를 만들거나 마지막으로 수정한 시각과는 비교하지 않는다. 자정이 지나면 전날 회차는 보내지 않는다.
 - 변경 전 검토안: 주제 푸시처럼 "마지막으로 만들거나 고친 시각 이전의 회차는 보내지 않는다"는 조건을 두려 했다(#736 리뷰).
 - 이유: 그 조건이면 현재 시각으로 등록한 일회성 리마인더가 발송되지 않는다. 또 발송 시각 무렵에 문구만 고친 매일 반복 리마인더가 그날 빠진다. 지나간 시각의 소급 발송은 등록·일정 변경 때의 "5분 넘게 과거면 거절" 검증이 이미 막으므로, 수정 시각을 비교하지 않아도 된다. 주제 푸시의 발송 시각은 날짜가 없는 매일 시각이라 수정 시각 비교가 필요했지만, 리마인더는 날짜가 있는 발송 시각을 검증한다.
-- 관련 규칙·이슈: NOTIFICATION-015, [#736](https://github.com/woowacourse-teams/2026-Chalkak/pull/736), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
+- 관련 규칙·이슈: NOTIFICATION-016, [#736](https://github.com/woowacourse-teams/2026-Chalkak/pull/736), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
 
 ## 발행할 때 리마인더 행을 잠그고 잠긴 행은 건너뛴다
 
 - 결정일: 2026-10-22
 - 결정: 정시 발행은 리마인더 행을 `FOR UPDATE SKIP LOCKED`로 잠근 뒤 삭제 여부와 회차를 다시 확인한다. 관리자가 수정·삭제 중이라 행이 잠겨 있으면 이번 분은 기록 없이 건너뛰고, 다음 확인 때(30분 기한 안) 새 내용으로 판단한다. 시도 기록은 잠금을 얻은 뒤에만 남긴다.
 - 이유: 잠금이 없으면 관리자는 새 문구로 수정 성공을 받았는데 옛 문구 기준으로 발행이 진행될 수 있다. 수정을 기다리면(`FOR UPDATE`) 리마인더 전용 스레드가 멈춰 다른 리마인더의 회차까지 늦어진다. 그래서 건너뛰고 1분 뒤 다시 본다. 문구는 Worker가 발송 직전에 읽으므로, 발행 뒤의 수정도 발송에 반영된다.
-- 관련 규칙·이슈: NOTIFICATION-015, NOTIFICATION-014, [#736](https://github.com/woowacourse-teams/2026-Chalkak/pull/736), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
+- 관련 규칙·이슈: NOTIFICATION-016, NOTIFICATION-014, [#736](https://github.com/woowacourse-teams/2026-Chalkak/pull/736), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
 
 ## 회차 시도를 서버 메모리에 기록한다
 
@@ -39,7 +39,7 @@
 - 이유: 리마인더는 주제 푸시(#572)의 직접 발행 경로를 재사용하므로, 재시작 중 중복과 발행 도중 중단에 따른 누락을 허용한 주제 푸시의 최선 노력(Best Effort) 합의를 그대로 따른다([주제 메시지의 공통 Worker 처리와 직접 발행](2026-10-12-topic-push-worker.md)). 현재 서버는 한 대이고, 리마인더는 알림함에 남지 않는 참여 유도 푸시다.
 - 감수하는 것: 재시작·배포로 메모리가 사라지면 같은 회차가 다시 발행될 수 있다. 발행 도중 중단되면 일부 회원이 누락될 수 있다. 이미 그날 회차를 보낸 매일 반복의 발송 시각을 같은 날의 다른 시각으로 바꾸면, 바뀐 회차를 새 회차로 보아 그날 한 번 더 보낸다.
 - 다시 검토할 조건: 서버를 여러 대로 늘리거나, 중복·누락 발송이 실제로 관측되면 DB 실행 기록으로 바꾼다. 주제 푸시와 함께 공통화하는 것도 이때 검토한다.
-- 관련 규칙·이슈: NOTIFICATION-015, NOTIFICATION-011, [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
+- 관련 규칙·이슈: NOTIFICATION-016, NOTIFICATION-011, [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
 
 ## 참여자·미참여자 대상은 주제의 참여 가능 시간과 관계없이 보낸다
 
@@ -47,4 +47,4 @@
 - 결정: 참여자·미참여자 대상은 회차의 KST 날짜에 주제가 있으면 보낸다. 주제가 참여 가능(`OPEN`) 상태인지는 보지 않는다.
 - 변경 전 검토안: 미참여자 대상은 오늘 주제가 참여 가능할 때만 보내려 했다. 참여 시간이 끝난 뒤 "사진을 올려 주세요"를 보내면 올릴 수 없는 회원에게 독려하게 되기 때문이었다.
 - 이유: 리마인더는 독려 전용이 아니라 관리자가 문구를 정하는 알림이다. 마감 후 미참여자에게 "내일 주제도 기대해 주세요" 같은 안내를 보내는 경우도 막게 된다. 문구와 시각은 관리자가 정하므로 마감 후 독려 문구를 피하는 것은 관리자 안내 문서에 적는다.
-- 관련 규칙·이슈: NOTIFICATION-015, [#723](https://github.com/woowacourse-teams/2026-Chalkak/issues/723), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)
+- 관련 규칙·이슈: NOTIFICATION-016, [#723](https://github.com/woowacourse-teams/2026-Chalkak/issues/723), [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)

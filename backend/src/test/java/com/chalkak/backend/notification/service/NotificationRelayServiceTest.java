@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -203,6 +204,46 @@ class NotificationRelayServiceTest extends IntegrationTestSupport {
         verifyNoInteractions(publisher);
         assertThat(getStatus(off)).isEqualTo("NOT_REQUIRED");
         assertThat(getStatus(future)).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 결과 알림도 종류와 상관없이 같은 경로로 발행하고 종류·게시물 대상을 전달한다")
+    void publishPendingNotifications_aiReviewNotification_publishesTypeAndPostTarget() {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID id = new TransactionTemplate(transactionManager).execute(status -> {
+            repository.insertIfAbsent(Notification.aiReview(
+                    USER_ID,
+                    postId,
+                    UUID.randomUUID(),
+                    1,
+                    AiReviewOutcome.FAILED_RETRYABLE,
+                    NOW,
+                    true
+            ));
+            return jdbcTemplate.queryForObject(
+                    "SELECT id FROM notifications WHERE user_id = ?",
+                    UUID.class,
+                    USER_ID
+            );
+        });
+
+        // When
+        relay(NOW.plusSeconds(1)).publishPendingNotifications();
+
+        // Then
+        assertThat(getStatus(id)).isEqualTo("PUBLISHED");
+        ArgumentCaptor<PushMessage> message = ArgumentCaptor.forClass(PushMessage.class);
+        org.mockito.Mockito.verify(publisher).publish(message.capture());
+        assertThat(message.getValue().notificationId()).isEqualTo(id);
+        assertThat(message.getValue().type())
+                .isEqualTo(
+                        com.chalkak.backend.notification.domain.NotificationType.AI_REVIEW_FAILED);
+        assertThat(message.getValue().sourceType())
+                .isEqualTo(com.chalkak.backend.notification.domain.NotificationSourceType.POST);
+        assertThat(message.getValue().sourceId()).isEqualTo(postId);
+        assertThat(message.getValue().occurredAt()).isEqualTo(NOW);
+        assertThat(message.getValue().expiresAt()).isEqualTo(NOW.plusSeconds(1800));
     }
 
     @Test

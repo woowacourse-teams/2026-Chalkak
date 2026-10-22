@@ -7,6 +7,7 @@ import com.chalkak.backend.aireview.service.AiReviewGenerationRequestFactory;
 import com.chalkak.backend.aireview.service.AiReviewGenerator;
 import com.chalkak.backend.aireview.service.AiReviewRetryBackoff;
 import com.chalkak.backend.aireview.service.AiReviewWorkerService;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
 import java.time.Duration;
@@ -45,6 +46,7 @@ public class AiReviewWorkerConfiguration {
             PostRepository postRepository,
             AiReviewGenerator aiReviewGenerator,
             AiReviewGenerationRequestFactory requestFactory,
+            NotificationService notificationService,
             PlatformTransactionManager transactionManager,
             Clock clock,
             OpenAiProperties openAiProperties,
@@ -57,6 +59,7 @@ public class AiReviewWorkerConfiguration {
                 postRepository,
                 aiReviewGenerator,
                 requestFactory,
+                notificationService,
                 transactionManager,
                 clock,
                 properties.leaseDuration(),

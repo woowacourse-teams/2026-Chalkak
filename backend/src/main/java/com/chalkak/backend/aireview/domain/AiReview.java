@@ -138,6 +138,13 @@ public class AiReview {
     }
 
     /**
+     * 이번 회차에서 한 번 더 가져가면 가져간 횟수 상한을 넘는지. 넘으면 {@link #claim}이 처리하지 않고 실패로 끝낸다.
+     */
+    public boolean isClaimLimitReached(int maxClaims) {
+        return roundAttempt + 1 > maxClaims;
+    }
+
+    /**
      * 워커가 이 행을 가져간다. 대기 중(다음 시도 시각이 지난 것)이거나 임대가 끝난 처리 중 행만 가져갈 수 있으며 가져갈 때마다 시도
      * 번호와 회차 시도 횟수가 늘고 줄지 않는다. 회차 시도 횟수가 상한을 넘게 되면 같은 행이 워커를 반복해 멈추게 하는 것을 막으려고
      * 처리하지 않고 실패로 끝낸다(시도 번호와 회차 시도 횟수는 늘리지 않는다). 마지막 시도는 결과를 모르는 중단이므로 이전 시도의 사용량과
@@ -153,7 +160,7 @@ public class AiReview {
         if (!isClaimableAt(now)) {
             throw new IllegalStateException("가져갈 수 없는 AI 리뷰입니다. 상태: " + status);
         }
-        if (roundAttempt + 1 > maxClaims) {
+        if (isClaimLimitReached(maxClaims)) {
             invocation = null;
             finish(
                     Status.FAILED,
@@ -274,6 +281,21 @@ public class AiReview {
         }
     }
 
+    /**
+     * 사용자에게 결과를 알릴 최종 상태인지. 완료와 실패가 대상이고, 게시물을 쓸 수 없어 실패한 경우는 사용자가 할 수 있는 일이 없어
+     * 제외한다. 재시도 대기와 처리 중은 아직 끝나지 않았으므로 대상이 아니다.
+     */
+    public boolean isResultNotifiable() {
+        if (isCompleted()) {
+            return true;
+        }
+        return isFailed() && !FailureReason.POST_UNAVAILABLE.matches(errorCode);
+    }
+
+    public boolean isCompleted() {
+        return status == Status.COMPLETED;
+    }
+
     public boolean isFailed() {
         return status == Status.FAILED;
     }
@@ -330,7 +352,14 @@ public class AiReview {
      * 워커가 직접 정하는 실패 사유. 생성기 실패는 생성기의 실패 유형 이름을 그대로 오류 코드로 저장한다.
      */
     public enum FailureReason {
-        POST_UNAVAILABLE, PROMPT_VERSION_UNAVAILABLE, LEASE_EXHAUSTED, UNEXPECTED_ERROR
+        POST_UNAVAILABLE, PROMPT_VERSION_UNAVAILABLE, LEASE_EXHAUSTED, UNEXPECTED_ERROR;
+
+        /**
+         * 저장된 errorCode가 이 사유인지. errorCode 컬럼은 호출 실패 종류까지 담는 문자열이라 이름으로 비교한다.
+         */
+        public boolean matches(String errorCode) {
+            return name().equals(errorCode);
+        }
     }
 
     /**

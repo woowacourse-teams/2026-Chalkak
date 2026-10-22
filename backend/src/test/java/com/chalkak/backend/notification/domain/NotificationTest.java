@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,6 +21,7 @@ class NotificationTest {
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID POST_ID = UUID.randomUUID();
     private static final UUID EVENT_KEY = UUID.randomUUID();
+    private static final UUID AI_REVIEW_ID = UUID.randomUUID();
     private static final Instant OCCURRED_AT = Instant.parse("2026-10-06T00:00:00Z");
 
     @ParameterizedTest
@@ -295,6 +297,205 @@ class NotificationTest {
             assertThat(notification.getNextAttemptAt()).isEqualTo(pushEnabled ? OCCURRED_AT : null);
             assertThat(notification.getPublishedAt()).isNull();
         }
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 완료 알림은 게시물 대상에 고정 문구와 회차 키를 담아 발행 대기로 만든다")
+    void aiReview_completed_createsPendingNotification() {
+        // When
+        Notification notification = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(notification.getType()).isEqualTo(NotificationType.AI_REVIEW_COMPLETED);
+        assertThat(notification.getUserId()).isEqualTo(USER_ID);
+        assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
+        assertThat(notification.getSourceId()).isEqualTo(POST_ID);
+        assertThat(notification.getTitle()).isEqualTo("AI 피드백이 도착했어요");
+        assertThat(notification.getBody()).isEqualTo("사진의 구도 점수와 피드백을 확인해 보세요.");
+        assertThat(notification.getPayload()).isNull();
+        assertThat(notification.getCreatedAt()).isEqualTo(OCCURRED_AT);
+        assertThat(notification.getPublishStatus()).isEqualTo(PublishStatus.PENDING);
+        assertThat(notification.getNextAttemptAt()).isEqualTo(OCCURRED_AT);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "FAILED_RETRYABLE, 잠시 후 다시 요청해 주세요.",
+            "FAILED_FINAL, 이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+    })
+    @DisplayName("AI 리뷰 실패 알림은 다시 요청할 수 있는지에 따라 본문이 다르다")
+    void aiReview_failedOutcome_choosesBody(
+            AiReviewOutcome outcome,
+            String expectedBody
+    ) {
+        // When
+        Notification notification = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                2,
+                outcome,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(notification.getType()).isEqualTo(NotificationType.AI_REVIEW_FAILED);
+        assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
+        assertThat(notification.getSourceId()).isEqualTo(POST_ID);
+        assertThat(notification.getTitle()).isEqualTo("AI 피드백을 만들지 못했어요");
+        assertThat(notification.getBody()).isEqualTo(expectedBody);
+        assertThat(notification.getPayload()).isNull();
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림 키는 리뷰와 회차가 같으면 같고 하나라도 다르면 다르며 종류와 무관하다")
+    void aiReviewEventKey_reviewAndRound_isDeterministic() {
+        // When
+        Notification first = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+        Notification sameRound = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                OCCURRED_AT.plusSeconds(5),
+                false
+        );
+        Notification nextRound = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                2,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+        Notification otherReview = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                UUID.randomUUID(),
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(first.getEventKey()).isNotNull().isEqualTo(sameRound.getEventKey());
+        assertThat(nextRound.getEventKey()).isNotEqualTo(first.getEventKey());
+        assertThat(otherReview.getEventKey()).isNotEqualTo(first.getEventKey());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("AI 리뷰 알림은 푸시 필요 여부에 따라 즉시 발행 대기 또는 발행 불필요로 생성한다")
+    void aiReview_pushPreference_setsInitialPublicationState(boolean pushEnabled) {
+        // When
+        Notification completed = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                pushEnabled
+        );
+        Notification failed = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                OCCURRED_AT,
+                pushEnabled
+        );
+
+        // Then
+        for (Notification notification : new Notification[]{completed, failed}) {
+            assertThat(notification.getPublishStatus()).isEqualTo(pushEnabled
+                    ? PublishStatus.PENDING
+                    : PublishStatus.NOT_REQUIRED);
+            assertThat(notification.getNextAttemptAt()).isEqualTo(pushEnabled ? OCCURRED_AT : null);
+        }
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림은 결과가 없으면 NPE가 아니라 필수값 위반으로 만들지 않는다")
+    void aiReview_nullOutcome_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                null,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 알림은 회원·게시물·리뷰·발생 시각이 없으면 만들지 않는다")
+    void aiReview_missingRequiredValue_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                null,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                null,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.aiReview(
+                null,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                AI_REVIEW_ID,
+                1,
+                AiReviewOutcome.FAILED_RETRYABLE,
+                null,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
     }
 
     private static Stream<Arguments> missingRequiredValues() {

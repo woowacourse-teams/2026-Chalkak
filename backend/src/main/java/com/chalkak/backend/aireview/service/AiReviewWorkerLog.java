@@ -92,6 +92,19 @@ public final class AiReviewWorkerLog {
         event.log("AI 리뷰 처리 중단, 임대 만료 뒤 다시 가져감");
     }
 
+    /**
+     * 리뷰 결과는 확정했지만 그 알림 저장이 실패했다. 이 회차의 알림 한 건이 빠지며 결과는 AI 리뷰 조회로 확인할 수 있다.
+     */
+    public static void resultNotificationFailed(Claim claim, RuntimeException exception) {
+        event(
+                AI_REVIEW_LOG.atError(),
+                "result_notification_failed",
+                claim
+        )
+                .addKeyValue(LogFields.ERROR_CODE, exception.getClass().getSimpleName())
+                .log("AI 리뷰 결과 알림 저장 실패, 결과는 확정됨");
+    }
+
     public static void pollFailed(RuntimeException exception) {
         AI_REVIEW_LOG.atError()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
