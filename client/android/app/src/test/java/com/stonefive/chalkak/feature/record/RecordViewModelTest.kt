@@ -147,6 +147,19 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun cachedMonthUnauthorizedShowsLoginRequiredInsteadOfCachedPosts() = runTest {
+        val pending = returnToCachedMonth()
+
+        pending.complete(HomeResult.Failure(HomeFailure.Unauthorized))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals("로그인이 필요해요", viewModel.uiState.value.errorMessage)
+        assertEquals(true, viewModel.uiState.value.isLoginRequired)
+    }
+
+    @Test
     fun cachedMonthExceptionDoesNotRestoreDeletedPosts() = runTest {
         val pending = returnToCachedMonth()
         viewModel.removeDeletedPost("post-5")
