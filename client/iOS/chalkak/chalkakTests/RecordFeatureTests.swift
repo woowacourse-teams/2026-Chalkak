@@ -83,6 +83,44 @@ struct RecordViewModelTests {
         #expect(viewModel.viewState.month == currentMonth)
     }
 
+    @Test("고른 달로 이동하고, 기록 없는 달이나 지금 달은 다시 불러오지 않는다")
+    func movesToPickedMonthOnlyWhenAvailable() async {
+        let currentMonth = RecordMonth(year: 2026, month: 10)
+        let recordedMonth = RecordMonth(year: 2026, month: 9)
+        var requests: [RecordMonth] = []
+        let viewModel = RecordViewModel(
+            monthProvider: { currentMonth },
+            monthListHandler: { .success([recordedMonth]) },
+            calendarHandler: { month in
+                requests.append(month)
+                return .success(RecordCalendar(month: month, posts: []))
+            }
+        )
+        await viewModel.load()
+        #expect(viewModel.viewState.canPickMonth)
+
+        await viewModel.moveToMonth(recordedMonth)
+        #expect(viewModel.viewState.month == recordedMonth)
+
+        await viewModel.moveToMonth(RecordMonth(year: 2026, month: 3))
+        await viewModel.moveToMonth(recordedMonth)
+        #expect(viewModel.viewState.month == recordedMonth)
+        #expect(requests == [currentMonth, recordedMonth])
+    }
+
+    @Test("연도를 바꾸면 그 해의 기록 달 중 가장 가까운 달을 고른다")
+    func closestMonthInYear() {
+        let months = [
+            RecordMonth(year: 2026, month: 9),
+            RecordMonth(year: 2026, month: 10),
+            RecordMonth(year: 2027, month: 1),
+            RecordMonth(year: 2027, month: 4),
+        ]
+
+        #expect(RecordMonthPickerSheet.closestMonth(in: months, year: 2026, preferredMonth: 3) == RecordMonth(year: 2026, month: 9))
+        #expect(RecordMonthPickerSheet.closestMonth(in: months, year: 2027, preferredMonth: 10) == RecordMonth(year: 2027, month: 4))
+    }
+
     @Test("현재 달의 마지막 게시물을 지워도 현재 달은 활성 연월에 남는다")
     func deletingLastPostKeepsCurrentMonthActive() {
         let currentMonth = RecordMonth(year: 2026, month: 9)

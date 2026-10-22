@@ -16,6 +16,7 @@ struct RecordScreen: View {
     @State private var calendarWidth: CGFloat = 0
     var bottomBarCompact: Binding<Bool> = .constant(false)
     @State private var isSavingCalendarImage = false
+    @State private var isMonthPickerPresented = false
 
     var body: some View {
         ScrollView {
@@ -40,6 +41,15 @@ struct RecordScreen: View {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
         }
+        .sheet(isPresented: $isMonthPickerPresented) {
+            RecordMonthPickerSheet(
+                month: viewModel.viewState.month,
+                availableMonths: viewModel.viewState.availableMonths
+            ) { month in
+                isMonthPickerPresented = false
+                Task { await viewModel.moveToMonth(month) }
+            }
+        }
     }
 
     // MARK: - 달력(상단바 + 요일 헤더 + 그리드) + 이미지 저장 링크
@@ -52,7 +62,9 @@ struct RecordScreen: View {
                     canGoPrevious: viewModel.viewState.canGoPrevious,
                     canGoNext: viewModel.viewState.canGoNext,
                     onPrevious: { Task { await viewModel.moveToPreviousMonth() } },
-                    onNext: { Task { await viewModel.moveToNextMonth() } }
+                    onNext: { Task { await viewModel.moveToNextMonth() } },
+                    canPickMonth: viewModel.viewState.canPickMonth,
+                    onMonthTap: { isMonthPickerPresented = true }
                 )
 
                 Spacer().frame(height: Metrics.topBarToWeekday)

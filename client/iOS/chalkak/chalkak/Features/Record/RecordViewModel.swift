@@ -93,6 +93,15 @@ final class RecordViewModel {
         await loadCalendar(month: nextMonth)
     }
 
+    /// 년/월 휠에서 고른 달로 이동한다. 기록이 있는 달(+이번 달)만 받고, 같은 달이면 다시 불러오지 않는다.
+    func moveToMonth(_ month: RecordMonth) async {
+        guard viewState.contentStatus != .loading,
+              month != viewState.month,
+              viewState.availableMonths.contains(month)
+        else { return }
+        await loadCalendar(month: month)
+    }
+
     func selectDate(_ date: Date) {
         guard viewState.posts.contains(where: { $0.topicDate == date }) else { return }
         viewState.selectedDate = date
