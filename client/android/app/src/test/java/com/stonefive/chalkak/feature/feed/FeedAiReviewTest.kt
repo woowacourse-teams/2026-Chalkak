@@ -266,17 +266,75 @@ class FeedAiReviewTest {
         assertNull(viewModel.uiState.value.aiReview.message)
     }
 
+    @Test
+    fun `past photo without review hides start and never sends POST`() = runTest {
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.NONE) }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true, topicDate = YESTERDAY))
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(AiReviewPhase.Hidden, viewModel.uiState.value.aiReview.phase)
+        viewModel.startFeedback()
+        runCurrent()
+        assertTrue(ai.requestPostIds.isEmpty())
+    }
+
+    @Test
+    fun `past photo keeps showing an existing result`() = runTest {
+        val result = reviewContent()
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.COMPLETED, result) }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true, topicDate = YESTERDAY))
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(AiReviewPhase.Completed, viewModel.uiState.value.aiReview.phase)
+        assertEquals(result, viewModel.uiState.value.aiReview.result)
+    }
+
+    @Test
+    fun `past photo keeps polling a review that is already processing`() = runTest {
+        val ai = FeedAiReviewFake().apply {
+            getResults += success(AiReview.Status.PROCESSING)
+            getResults += success(AiReview.Status.COMPLETED, reviewContent())
+        }
+        val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = true, topicDate = YESTERDAY))
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(AiReviewPhase.Processing, viewModel.uiState.value.aiReview.phase)
+        advanceTimeBy(3_000)
+        runCurrent()
+        assertEquals(AiReviewPhase.Completed, viewModel.uiState.value.aiReview.phase)
+    }
+
+    @Test
+    fun `start after midnight hides the stale button without POST`() = runTest {
+        var today = TEST_DATE
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.NONE) }
+        val viewModel = createViewModel(
+            ai,
+            initialContent = feedContent(isOwned = true),
+            dateProvider = { today },
+        )
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(AiReviewPhase.Ready, viewModel.uiState.value.aiReview.phase)
+        today = TEST_DATE.plusDays(1)
+        viewModel.startFeedback()
+        runCurrent()
+        assertTrue(ai.requestPostIds.isEmpty())
+        assertEquals(AiReviewPhase.Hidden, viewModel.uiState.value.aiReview.phase)
+    }
+
     private fun createViewModel(
         ai: FeedAiReviewFake,
         repository: FeedAiPostRepository = FeedAiPostRepository(),
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         initialContent: FeedContentState.Success? = null,
+        dateProvider: () -> LocalDate = { TEST_DATE },
     ) = FeedViewModel(
         repository = repository,
         aiReviewRepository = ai,
         sessionState = session,
         initialContent = initialContent,
-        dateProvider = { TEST_DATE },
+        dateProvider = dateProvider,
     )
 
     private class FeedAiReviewFake : AiReviewRepository {
@@ -317,8 +375,12 @@ class FeedAiReviewTest {
     companion object {
         private const val PHOTO_ID = "photo-ai"
         private val TEST_DATE = LocalDate.of(2026, 8, 28)
+        private val YESTERDAY = TEST_DATE.minusDays(1)
 
-        private fun feedContent(isOwned: Boolean) = FeedContentState.Success(
+        private fun feedContent(
+            isOwned: Boolean,
+            topicDate: LocalDate = TEST_DATE,
+        ) = FeedContentState.Success(
             dateLabel = "8월 28일의 주제",
             topic = "하늘",
             post = Post(
@@ -332,7 +394,7 @@ class FeedAiReviewTest {
                 isOwnedByCurrentUser = isOwned,
             ),
             isLiked = false,
-            topicDate = TEST_DATE,
+            topicDate = topicDate,
         )
 
         private fun success(

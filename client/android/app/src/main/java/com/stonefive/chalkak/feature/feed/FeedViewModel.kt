@@ -54,6 +54,8 @@ class FeedViewModel(
         repository = aiReviewRepository,
         currentUserId = ::currentUserId,
         onStateChanged = { review -> _uiState.update { it.copy(aiReview = review) } },
+        // Temporary client-side limit: only today's topic photo can start a new AI review.
+        canRequestReview = { isTodayTopic(_uiState.value.content) },
     )
 
     init {
@@ -91,6 +93,9 @@ class FeedViewModel(
     fun dismissFeedbackMessage() = aiReviewSession.dismissMessage()
 
     private fun currentUserId(): String? = (sessionState.value as? UserSessionState.Authenticated)?.userId
+
+    private fun isTodayTopic(content: FeedContentState.Success?): Boolean =
+        content != null && content.topicDate == dateProvider()
 
     private fun syncFeedbackTarget(refresh: Boolean = true) {
         val state = _uiState.value

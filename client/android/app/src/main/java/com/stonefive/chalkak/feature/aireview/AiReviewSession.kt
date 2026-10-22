@@ -21,6 +21,8 @@ class AiReviewSession(
     private val repository: AiReviewRepository,
     private val currentUserId: () -> String?,
     private val onStateChanged: (AiReviewUiState) -> Unit = {},
+    // Gates new requests only; reviews that already exist keep showing their progress or result.
+    private val canRequestReview: () -> Boolean = { true },
 ) {
     private val _state = MutableStateFlow(AiReviewUiState())
     val state: StateFlow<AiReviewUiState> = _state.asStateFlow()
@@ -66,6 +68,10 @@ class AiReviewSession(
     fun startReview() {
         resetIfUserChanged()
         if (!visible || submitting || job?.isActive == true || _state.value.phase != AiReviewPhase.Ready) return
+        if (!canRequestReview()) {
+            updateState(_state.value.copy(phase = AiReviewPhase.Hidden))
+            return
+        }
         val postId = targetPostId ?: return
         val userId = currentUserId() ?: return
         if (targetUserId != userId) return
@@ -159,7 +165,7 @@ class AiReviewSession(
 
     private fun show(review: AiReview) {
         val phase = when (review.status) {
-            AiReview.Status.NONE -> AiReviewPhase.Ready
+            AiReview.Status.NONE -> if (canRequestReview()) AiReviewPhase.Ready else AiReviewPhase.Hidden
             AiReview.Status.PROCESSING -> AiReviewPhase.Processing
             AiReview.Status.COMPLETED -> AiReviewPhase.Completed
             AiReview.Status.FAILED -> AiReviewPhase.Hidden
