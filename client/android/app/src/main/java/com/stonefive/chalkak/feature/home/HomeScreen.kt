@@ -41,11 +41,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -54,12 +52,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
+import com.stonefive.chalkak.core.designsystem.component.bottombar.rememberScreenBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
-import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -102,7 +100,7 @@ fun HomeScreen(
     val feedbackIdentity = uiState.date to (uiState.hero as? HomeHeroState.Photo)?.postId
     var isFeedbackExpanded by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
     var isFeedbackSheetVisible by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
-    val bottomBarState = rememberBottomBarScrollState()
+    val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.HOME)
     val interactionScope = rememberCoroutineScope()
     val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
         CollapsingScrollToTopThreshold.toPx()
@@ -201,16 +199,14 @@ fun HomeScreen(
                         ),
                 )
             }
-            ChalkakBottomBar(
+            ChalkakScreenBottomBar(
                 selectedItem = ChalkakBottomBarItem.HOME,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onOpenPhotoUpload,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .photoTransitionChrome()
-                    .fillMaxWidth()
-                    .onSizeChanged { bottomBarState.height = it.height }
-                    .graphicsLayer { translationY = bottomBarState.offset },
+                    .fillMaxWidth(),
+                scrollState = bottomBarState,
             )
         }
     }

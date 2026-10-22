@@ -128,6 +128,7 @@ struct FeedPhoto: View {
 
             if let post {
                 FeedLikeRow(
+                    title: post.title,
                     likeCount: post.likeCount,
                     isLiked: post.isLiked,
                     isEnabled: isLikeEnabled,
@@ -316,8 +317,9 @@ private struct FeedPlaceholderImage: View {
     }
 }
 
-private struct FeedLikeRow: View {
+struct FeedLikeRow: View {
     @Environment(\.chalkakTheme) private var theme
+    let title: String?
     let likeCount: Int
     let isLiked: Bool
     let isEnabled: Bool
@@ -327,34 +329,48 @@ private struct FeedLikeRow: View {
         Color.clear
             .frame(maxWidth: .infinity)
             .frame(height: Metrics.rowHeight)
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: Metrics.spacing - Metrics.heartTouchInset) {
+            .overlay {
+                HStack(spacing: theme.spacing.md) {
                     Button(action: onLike) {
-                        Image(isLiked ? "ic_heart_filled" : "ic_heart")
-                            .renderingMode(.template)
-                            .resizable()
-                            .frame(width: Metrics.heartSize, height: Metrics.heartSize)
-                            .foregroundStyle(
-                                isLiked ? theme.colors.actionPrimary : theme.colors.iconSecondary
-                            )
-                            .padding(Metrics.heartTouchInset)
-                            .contentShape(Rectangle())
-                            .accessibilityHidden(true)
+                        HStack(spacing: Metrics.likeSpacing) {
+                            Image(isLiked ? "ic_heart_filled" : "ic_heart")
+                                .renderingMode(.template)
+                                .resizable()
+                                .frame(width: Metrics.heartSize, height: Metrics.heartSize)
+                                .foregroundStyle(
+                                    isLiked ? theme.colors.actionPrimary : theme.colors.textSecondary
+                                )
+                                .accessibilityHidden(true)
+
+                            Text("\(likeCount)")
+                                .font(theme.typography.body)
+                                .fontWeight(.regular)
+                                .foregroundStyle(theme.colors.textSecondary)
+                        }
+                        .frame(minHeight: Metrics.minimumTouchSize)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(!isEnabled)
                     .accessibilityLabel("좋아요 \(likeCount)")
                     .accessibilityValue(isLiked ? "선택됨" : "")
 
-                    Text("\(likeCount)")
+                    Text(displayTitle)
                         .font(theme.typography.body)
                         .fontWeight(.regular)
                         .foregroundStyle(theme.colors.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                // 하트와 숫자 위치는 유지하고 하트 주변만 터치할 수 있게 한다.
-                .padding(.top, Metrics.topInset - Metrics.heartTouchInset)
-                .padding(.leading, Metrics.horizontalInset - Metrics.heartTouchInset)
+                .padding(.horizontal, Metrics.horizontalInset)
             }
+    }
+
+    private var displayTitle: String {
+        guard let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return "무제" }
+        return trimmed
     }
 }
 
@@ -365,13 +381,11 @@ private enum Metrics {
     // Android PHOTO_CROSSFADE_DURATION_MILLIS(180) + tween 기본 FastOutSlowInEasing.
     static let originalRevealAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.18)
     static let signatureSize = CGSize(width: 70, height: 52)
-    static let rowHeight: CGFloat = 60
-    static let spacing: CGFloat = 9
-    static let heartSize: CGFloat = 28
+    static let rowHeight: CGFloat = 57
+    static let likeSpacing: CGFloat = 9
+    static let heartSize: CGFloat = 24
     static let minimumTouchSize: CGFloat = 44
-    static let heartTouchInset = (minimumTouchSize - heartSize) / 2
-    static let topInset: CGFloat = 22
-    static let horizontalInset: CGFloat = 18
+    static let horizontalInset: CGFloat = 14
 }
 
 #Preview("Feed Photo", traits: .sizeThatFitsLayout) {

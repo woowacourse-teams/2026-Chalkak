@@ -19,7 +19,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -35,11 +34,10 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakPhotoActionText
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakWhite
 import com.stonefive.chalkak.domain.model.Post
-
-private val TodayText = Color(0xFF7D7D7D)
 
 @Composable
 fun TodayPhotoCard(
@@ -127,19 +125,19 @@ private fun PhotoActionRow(
                     if (isLiked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
                 ),
                 contentDescription = null,
-                tint = if (isLiked) ChalkakTheme.colors.actionPrimary else TodayText,
+                tint = if (isLiked) ChalkakTheme.colors.actionPrimary else ChalkakPhotoActionText,
                 modifier = Modifier.size(24.dp),
             )
             Text(
                 text = photo.likeCount.toString(),
-                color = TodayText,
+                color = ChalkakPhotoActionText,
                 style = ChalkakTheme.typography.body
                     .copy(fontWeight = FontWeight.Normal),
             )
         }
         Text(
             text = photo.title?.takeIf { it.isNotBlank() } ?: "무제",
-            color = TodayText,
+            color = ChalkakPhotoActionText,
             style = ChalkakTheme.typography.body
                 .copy(fontWeight = FontWeight.Normal),
             maxLines = 1,

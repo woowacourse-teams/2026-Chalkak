@@ -2,15 +2,14 @@ import SwiftUI
 
 struct DisplayScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Bindable var viewModel: DisplayViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
 
     // Feed가 원본을 로드할 때까지 출발 카드에 떠 있던 이미지를 대신 보여준다.
     private func feedTarget(
@@ -51,16 +50,12 @@ struct DisplayScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .overlay(alignment: .bottom) { toast }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
         .task {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
-        }
-        .onDisappear {
-            messageDismissTask?.cancel()
         }
     }
 
@@ -247,21 +242,6 @@ struct DisplayScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
-        }
-    }
-
     private func centeredContainer(@ViewBuilder _ content: () -> some View) -> some View {
         VStack {
             Spacer(minLength: 0)
@@ -283,17 +263,7 @@ struct DisplayScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 }
 
@@ -302,7 +272,6 @@ private enum Metrics {
     static let retryButtonSize: CGFloat = 48
     static let emptyIconSize: CGFloat = 34
     static let emptyTopPadding: CGFloat = 96
-    static let toastBottomPadding: CGFloat = 88
     static let dividerHeight: CGFloat = 0.5
     // Android DisplayDateHeader / DisplayScreen 간격.
     static let dateToTopicSpacing: CGFloat = 15

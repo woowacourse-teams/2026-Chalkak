@@ -56,6 +56,40 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `설정 재진입 시 최신 서명을 다시 조회한다`() = runTest {
+        authRepository.setAuthenticated()
+        val viewModel = createViewModel()
+        userRepository.profile = UserProfile("new-original", "new-thumbnail")
+
+        viewModel.refreshSignature()
+        advanceUntilIdle()
+
+        assertEquals(2, userRepository.getMySignatureCalled)
+        assertEquals("new-thumbnail", viewModel.uiState.value.signatureUrl)
+    }
+
+    @Test
+    fun `서명 갱신 중 중복 요청을 막고 실패해도 기존 서명을 유지한다`() = runTest {
+        authRepository.setAuthenticated()
+        val viewModel = createViewModel()
+        val previousSignature = viewModel.uiState.value.signatureUrl
+        val gate = CompletableDeferred<Unit>()
+        userRepository.profileAwait = gate
+        userRepository.profileError = IllegalStateException("failure")
+
+        viewModel.refreshSignature()
+        viewModel.refreshSignature()
+        assertEquals(2, userRepository.getMySignatureCalled)
+        assertEquals(previousSignature, viewModel.uiState.value.signatureUrl)
+        assertFalse(viewModel.uiState.value.isLoading)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(previousSignature, viewModel.uiState.value.signatureUrl)
+        assertTrue(viewModel.uiState.value.pendingMessage is UiMessage.Toast)
+    }
+
+    @Test
     fun `서명 조회가 401이면 로그아웃 상태를 제공한다`() = runTest {
         authRepository.setAuthenticated()
         userRepository.profileError = UserProfileLoadException(UserProfileLoadFailure.UNAUTHORIZED)
@@ -403,7 +437,7 @@ class SettingsViewModelTest {
         authRepository = authRepository,
         userRepository = userRepository,
         versionName = "1.2.4",
-    )
+    ).also { it.refreshSignature() }
 }
 
 private class FakeSettingsAuthRepository : AuthRepository {

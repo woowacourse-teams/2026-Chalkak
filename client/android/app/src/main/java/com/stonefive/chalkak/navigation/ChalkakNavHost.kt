@@ -7,9 +7,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,8 +39,10 @@ import androidx.navigation.toRoute
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarHostState
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
+import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_TRANSITION_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionProvider
 import com.stonefive.chalkak.core.designsystem.component.image.rememberPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.legal.LegalDocument
@@ -94,6 +97,7 @@ fun ChalkakNavHost(
     signUpViewModel: SignUpViewModel? = null,
 ) {
     val photoTransitionCoordinator = rememberPhotoTransitionCoordinator()
+    val bottomBarHostState = remember { ChalkakBottomBarHostState() }
     val context = LocalContext.current
     val application = context.applicationContext as ChalkakApplication
     val sessionState by application.appContainer.authRepository.sessionState
@@ -271,12 +275,28 @@ fun ChalkakNavHost(
         )
     }
 
-    SharedTransitionLayout {
+    MainBottomBarLayout(
+        hostState = bottomBarHostState,
+        selectedItem = currentBackStackEntry?.destination?.bottomBarItem(),
+        onItemSelected = { item -> currentBackStackEntry?.let { navigateToBottomBar(it, item) } },
+        onAddClick = {
+            if (currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED) {
+                openPhotoUpload()
+            }
+        },
+        modifier = modifier,
+    ) {
         val sharedTransitionScope = this
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = modifier,
+            modifier = Modifier.fillMaxSize(),
+            popEnterTransition = {
+                fadeIn(tween(initialState.destination.popFadeDurationMillis()))
+            },
+            popExitTransition = {
+                fadeOut(tween(initialState.destination.popFadeDurationMillis()))
+            },
         ) {
             composable<Login> {
                 LoginRoute(
@@ -652,6 +672,9 @@ fun ChalkakNavHost(
 
                 SettingsRoute(
                     signatureUpdateUrl = updatedSignatureUrl,
+                    onSignatureUpdateConsumed = {
+                        backStackEntry.savedStateHandle[SETTINGS_SIGNATURE_UPDATED_KEY] = null
+                    },
                     onNavigateToSignature = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(ChangeSignature)
                     },
@@ -977,6 +1000,21 @@ private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
     }
 }
 
+// Both sides must settle together before Navigation resumes the returning screen's input.
+private fun NavDestination.popFadeDurationMillis(): Int = if (hasRoute<Feed>() || hasRoute<FeedById>()) {
+    PHOTO_TRANSITION_DURATION_MILLIS
+} else {
+    PHOTO_CONTENT_FADE_DURATION_MILLIS
+}
+
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {
     LocalDate.parse(this)
 }.getOrNull()
+
+private fun NavDestination.bottomBarItem(): ChalkakBottomBarItem? = when {
+    hasRoute<Home>() -> ChalkakBottomBarItem.HOME
+    hasRoute<Display>() -> ChalkakBottomBarItem.DISPLAY
+    hasRoute<Record>() -> ChalkakBottomBarItem.RECORD
+    hasRoute<Settings>() -> ChalkakBottomBarItem.SETTINGS
+    else -> null
+}

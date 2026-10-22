@@ -122,7 +122,6 @@ private struct DisplayFeaturedCard: View {
                 isEnabled: !isLiking,
                 onLike: onLike
             )
-            .padding(Metrics.badgeInset)
         }
         .task(id: photo.id) {
             // 썸네일이 먼저 보이는 동안에도 실제 fit 영역을 출발 프레임으로 사용한다.
@@ -190,7 +189,6 @@ private enum Metrics {
     static let scaleFalloff: CGFloat = 0.08
     static let opacityFalloff: CGFloat = 0.12
     static let signatureSize = CGSize(width: 48, height: 36)
-    static let badgeInset: CGFloat = 10
     static let titleBottomPadding: CGFloat = 10
     static let dotSpacing: CGFloat = 8
     static let dotSize: CGFloat = 7

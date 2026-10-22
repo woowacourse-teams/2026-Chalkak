@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: FeedViewModel
@@ -19,8 +20,6 @@ struct FeedScreen: View {
     @State private var showsDeleteDialog = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
-    @State private var message: String?
-    @State private var messageDismissTask: Task<Void, Never>?
     // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
     var placeholder: FeedPhotoPlaceholder?
     var zoomSource: FeedZoomSource?
@@ -107,9 +106,6 @@ struct FeedScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .onDisappear {
-            messageDismissTask?.cancel()
-        }
         .overlay {
             if showsDeleteDialog {
                 ChalkakConfirmDialog(
@@ -137,7 +133,6 @@ struct FeedScreen: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .overlay(alignment: .bottom) { toast }
     }
 
     @ViewBuilder
@@ -188,22 +183,9 @@ struct FeedScreen: View {
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
                     onLike: { viewModel.toggleLike() }
                 )
-                // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
+                // 이동 중인 사진이 주제 위로 그려지게 한다.
                 .zIndex(1)
 
-                if let content {
-                    FeedCaption(title: content.post.title)
-                        .padding(.horizontal, Metrics.captionHorizontal)
-                        .padding(.vertical, Metrics.captionVertical)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .overlay(alignment: .top) {
-                            Rectangle()
-                                .fill(theme.colors.border)
-                                .frame(height: Metrics.dividerHeight)
-                                .accessibilityHidden(true)
-                        }
-                        .opacity(contentProgress)
-                }
             }
             .padding(.top, ChalkakNavigationButton.diameter + 2 * theme.spacing.md)
             .padding(.bottom, Metrics.contentBottom)
@@ -269,12 +251,13 @@ struct FeedScreen: View {
         zoomRegistry?.activeSource = nil
         withAnimation(Metrics.photoAnimation) {
             photoProgress = 0
-        }
-        withAnimation(Metrics.contentAnimation) {
-            contentProgress = 0
         } completion: {
             zoomRegistry?.activeSource = nil
             onBack()
+        }
+        // 사진이 도착하면 화면을 제거한다. 페이드도 같은 시간에 끝나야 뒤 화면의 터치를 지연시키지 않는다.
+        withAnimation(Metrics.photoAnimation) {
+            contentProgress = 0
         }
     }
 
@@ -326,21 +309,6 @@ struct FeedScreen: View {
         .accessibilityIdentifier("feed-error")
     }
 
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
-        }
-    }
-
     private func handle(_ event: FeedEvent?) {
         guard let event else { return }
         switch event {
@@ -355,17 +323,7 @@ struct FeedScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 
     private func centered(@ViewBuilder _ inner: () -> some View) -> some View {
@@ -381,11 +339,7 @@ struct FeedScreen: View {
 private enum Metrics {
     static let topicTop: CGFloat = 16
     static let topicBottom: CGFloat = 40
-    static let captionHorizontal: CGFloat = 20
-    static let captionVertical: CGFloat = 5
-    static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
-    static let toastBottomPadding: CGFloat = 32
     // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
     // 스프링이 아닌 고정 시간 곡선이라 실제 이동 시간도 0.3초로 같다.
     static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)

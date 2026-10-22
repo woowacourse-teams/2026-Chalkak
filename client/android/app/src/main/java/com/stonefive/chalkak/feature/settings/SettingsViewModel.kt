@@ -17,6 +17,7 @@ import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,9 +38,9 @@ class SettingsViewModel(
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private var nextMessageId = 0L
+    private var signatureLoadJob: Job? = null
 
     init {
-        loadProfile()
         loadPushSettings()
     }
 
@@ -58,9 +59,11 @@ class SettingsViewModel(
     }
 
     fun applySignatureUpdate(signatureUrl: String) {
+        val pendingMessage = nextToast("사인 반영까지 시간이 좀 걸릴 수 있어요!")
         _uiState.update {
             it.copy(
                 signatureUrl = signatureUrl,
+                pendingMessage = pendingMessage,
             )
         }
     }
@@ -130,8 +133,10 @@ class SettingsViewModel(
         }
     }
 
-    private fun loadProfile() {
-        viewModelScope.launch {
+    fun refreshSignature() {
+        if (signatureLoadJob?.isActive == true) return
+
+        signatureLoadJob = viewModelScope.launch {
             if (authRepository.sessionState.value !is UserSessionState.Authenticated) {
                 _uiState.update {
                     it.copy(
@@ -169,7 +174,6 @@ class SettingsViewModel(
                         it.copy(
                             isLoading = false,
                             isLoggedIn = true,
-                            signatureUrl = null,
                             pendingMessage = pendingMessage,
                         )
                     }
@@ -180,7 +184,6 @@ class SettingsViewModel(
                     it.copy(
                         isLoading = false,
                         isLoggedIn = true,
-                        signatureUrl = null,
                         pendingMessage = pendingMessage,
                     )
                 }
