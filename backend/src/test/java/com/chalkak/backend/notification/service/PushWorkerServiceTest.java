@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
@@ -51,6 +54,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.boot.logging.logback.StructuredLogEncoder;
+import org.springframework.core.env.Environment;
+import org.springframework.mock.env.MockEnvironment;
+import tools.jackson.databind.json.JsonMapper;
+import java.util.concurrent.atomic.AtomicInteger;
 
 class PushWorkerServiceTest extends IntegrationTestSupport {
     private static final Instant NOW = Instant.parse("2026-10-07T00:00:00Z");
@@ -166,10 +176,13 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.retryable()).isFalse();
         verify(sender).send(any(), any());
-        assertThat(logsAtStage("worker_db_transaction"))
+        assertThat(logsAtStage("worker_db_transaction")).isEmpty();
+        assertThat(logsAtStage("worker_summary")).singleElement().satisfies(log -> assertThat(log)
+                .containsEntry("processingCompleted", true).containsEntry("dbTransactionCount", 2));
+        assertThat(dbTransactions())
                 .extracting(log -> log.get("operation"))
                 .containsExactly("DEVICE_LOOKUP", "LATEST_CONDITIONS_LOOKUP");
-        assertThat(logsAtStage("worker_db_transaction")).allSatisfy(log -> {
+        assertThat(dbTransactions()).allSatisfy(log -> {
             assertThat(log).containsEntry("transactionCompleted", true)
                     .containsEntry("eventId", message.eventId());
             assertThat((long) log.get("dbTransactionDurationMs")).isNotNegative();
@@ -177,10 +190,102 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("요약의 DB 상세는 JSON 배열로 기록되고 합계는 각 구간의 합과 같다")
+    void process_dbSummary_encodesTransactionsAndCorrectTotal() {
+        // Given
+        MDC.put("sqsMessageId", "summary-sqs");
+        MDC.put("receiveCount", "2");
+        // When
+        worker(NOW).process(message);
+        // Then
+        ILoggingEvent summary = appender.list.stream()
+                .filter(event -> event.getKeyValuePairs().stream().anyMatch(
+                        pair -> pair.key.equals("stage") && pair.value.equals("worker_summary")))
+                .findFirst().orElseThrow();
+        LoggerContext context = new LoggerContext();
+        try {
+            context.putObject(Environment.class.getName(), new MockEnvironment());
+            StructuredLogEncoder encoder = new StructuredLogEncoder();
+            encoder.setContext(context);
+            encoder.setFormat("logstash");
+            encoder.start();
+            try {
+                var json = JsonMapper.builder().build().readTree(encoder.encode(summary));
+                assertThat(json.get("sqsMessageId").asText()).isEqualTo("summary-sqs");
+                assertThat(json.get("receiveCount").asText()).isEqualTo("2");
+                var transactions = json.get("dbTransactions");
+                assertThat(transactions.isArray()).isTrue();
+                assertThat(transactions.size()).isEqualTo(2);
+                assertThat(transactions.get(0).get("deviceId").isNull()).isTrue();
+                assertThat(transactions.get(1).get("deviceId").asText())
+                        .isEqualTo(deviceId.toString());
+                long sumMs = transactions.get(0).get("dbTransactionDurationMs").asLong()
+                        + transactions.get(1).get("dbTransactionDurationMs").asLong();
+                assertThat(json.get("dbTransactionDurationMs").asLong()).isEqualTo(sumMs);
+                assertThat(json.get("dbTransactionCount").asInt()).isEqualTo(2);
+            } finally {
+                encoder.stop();
+            }
+        } finally {
+            context.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("DB 측정 시간에는 커밋 처리를 기다린 시간도 포함한다")
+    void process_delayedCommit_includesTransactionCompletion() {
+        // Given
+        PlatformTransactionManager delayed = spy(manager);
+        doAnswer(call -> {
+            TimeUnit.MILLISECONDS.sleep(150);
+            return call.callRealMethod();
+        }).when(delayed).commit(any());
+        PushWorkerService worker = worker(delayed);
+        // When
+        worker.process(message);
+        // Then
+        assertThat(dbTransactions()).hasSize(2).allSatisfy(log -> {
+            assertThat(log).containsEntry("transactionCompleted", true);
+            assertThat((long) log.get("dbTransactionDurationMs")).isGreaterThanOrEqualTo(100L);
+        });
+    }
+
+    @Test
+    @DisplayName("최신 조건 조회의 커밋이 실패하면 롤백 시간과 구간을 요약에 남긴다")
+    void process_latestConditionsCommitFails_recordsRollbackAndRetries() {
+        // Given
+        AtomicInteger transactions = new AtomicInteger();
+        PlatformTransactionManager failing = spy(manager);
+        doAnswer(call -> {
+            Object status = call.callRealMethod();
+            if (transactions.incrementAndGet() == 2) {
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void beforeCommit(boolean readOnly) {
+                                throw new IllegalStateException("conditions commit failed");
+                            }
+                        });
+            }
+            return status;
+        }).when(failing).getTransaction(any());
+        // When
+        PushProcessingResult result = worker(failing).process(message);
+        // Then
+        assertThat(result.retryable()).isTrue();
+        assertThat(dbTransactions()).extracting(log -> log.get("transactionCompleted"))
+                .containsExactly(true, false);
+        assertThat(logsAtStage("worker_device_failed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("deviceId", deviceId)
+                        .containsEntry("errorCode", "IllegalStateException"));
+        verifyNoInteractions(sender);
+    }
+
+    @Test
     @DisplayName("DB 계측 로그가 실패해도 기기 조회와 발송을 완료한다")
     void process_timingLogFailure_completesDelivery() {
         // Given
-        failingLogStage = "worker_db_transaction";
+        failingLogStage = "worker_summary";
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -196,11 +301,12 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When
         worker(NOW).process(message);
         // Then
-        assertThat(logsAtStage("worker_db_transaction")).singleElement()
+        assertThat(dbTransactions()).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("operation", "DEVICE_LOOKUP")
                         .containsEntry("transactionCompleted", true));
         assertThat(logsAtStage("worker_summary")).singleElement()
-                .satisfies(log -> assertThat(log).containsEntry("targetCount", 0));
+                .satisfies(log -> assertThat(log).containsEntry("targetCount", 0)
+                        .containsEntry("dbTransactionCount", 1));
         verifyNoInteractions(sender);
     }
 
@@ -224,7 +330,15 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When & Then
         assertThatThrownBy(() -> failingWorker.process(message))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(logsAtStage("worker_db_transaction")).singleElement().satisfies(log -> {
+        assertThat(logsAtStage("worker_summary")).singleElement().satisfies(log -> assertThat(log)
+                .containsEntry("processingCompleted", false)
+                .containsEntry("errorCode", "IllegalStateException")
+                .doesNotContainKeys(
+                        "targetCount",
+                        "acceptedCount",
+                        "retryable"
+                ));
+        assertThat(dbTransactions()).singleElement().satisfies(log -> {
             assertThat(log).containsEntry("operation", "DEVICE_LOOKUP")
                     .containsEntry("transactionCompleted", false);
             assertThat((long) log.get("dbTransactionDurationMs")).isNotNegative();
@@ -317,10 +431,10 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 .filteredOn(log -> "second-sqs".equals(log.get("sqsMessageId")))
                 .singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("fcmRequestDurationMs", 22L));
-        assertThat(logsAtStage("worker_db_transaction")).hasSize(4)
+        assertThat(dbTransactions()).hasSize(4)
                 .allSatisfy(log -> assertThat((long) log.get("dbTransactionDurationMs"))
                         .isNotNegative());
-        assertThat(logsAtStage("worker_db_transaction"))
+        assertThat(dbTransactions())
                 .extracting(log -> log.get("sqsMessageId"))
                 .containsExactlyInAnyOrder(
                         "first-sqs",
@@ -375,6 +489,10 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         verifyNoInteractions(sender);
         assertThat(logsAtStage("worker_skipped")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("reason", reason));
+        assertThat(dbTransactions()).allSatisfy(log -> assertThat(log)
+                .containsEntry("transactionCompleted", true));
+        assertThat(logsAtStage("worker_summary")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("processingCompleted", true));
     }
 
     @Test
@@ -403,7 +521,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.retryable()).isTrue();
         assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
-        assertThat(logsAtStage("worker_db_transaction"))
+        assertThat(dbTransactions())
                 .filteredOn(log -> "LATEST_CONDITIONS_LOOKUP".equals(log.get("operation")))
                 .extracting(log -> log.get("deviceId")).doesNotHaveDuplicates().hasSize(2);
     }
@@ -496,7 +614,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
-        assertThat(logsAtStage("worker_db_transaction"))
+        assertThat(dbTransactions())
                 .filteredOn(log -> "INVALID_TOKEN_CLEANUP".equals(log.get("operation")))
                 .singleElement().satisfies(log -> {
                     assertThat(log).containsEntry("transactionCompleted", false)
@@ -520,7 +638,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         worker(NOW).process(message);
         // Then
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(other);
-        assertThat(logsAtStage("worker_db_transaction"))
+        assertThat(dbTransactions())
                 .filteredOn(log -> "INVALID_TOKEN_CLEANUP".equals(log.get("operation")))
                 .singleElement().satisfies(log -> assertThat(log)
                         .containsEntry("transactionCompleted", true)
@@ -687,6 +805,18 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         timing.recordRequest(elapsed, accepted);
     }
 
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> dbTransactions() {
+        return logsAtStage("worker_summary").stream().flatMap(summary -> {
+            var transactions = (List<Map<String, Object>>) summary.get("dbTransactions");
+            return transactions.stream().map(transaction -> {
+                Map<String, Object> values = new HashMap<>(summary);
+                values.putAll(transaction);
+                return values;
+            });
+        }).toList();
+    }
+
     private List<Map<String, Object>> logsAtStage(String stage) {
         return appender.list.stream().map(event -> {
             Map<String, Object> values = new HashMap<>(event.getMDCPropertyMap());
@@ -706,6 +836,20 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sender,
                 Clock.fixed(now, ZoneOffset.UTC),
                 manager
+        );
+    }
+
+    private PushWorkerService worker(PlatformTransactionManager transactionManager) {
+        return new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                reminders,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                transactionManager
         );
     }
 

@@ -1,7 +1,7 @@
 package com.chalkak.backend.notification.service;
 
-import com.chalkak.backend.common.logging.Elapsed;
-import java.util.UUID;
+import java.util.Map;
+import org.slf4j.spi.LoggingEventBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -10,26 +10,57 @@ public final class PushWorkerTimingLog {
     private PushWorkerTimingLog() {
     }
 
-    public static void logTransaction(
+    public static void logSummary(
             PushMessage message,
-            UUID deviceId,
-            String operation,
-            Elapsed elapsed,
-            boolean completed
+            int targetCount,
+            Map<DevicePushResult.Status, Integer> counts,
+            boolean retryable,
+            PushWorkerDbTiming dbTiming
     ) {
         logSafely(() -> {
-            // 실패 원인은 기존 오류 로그에서 기록한다. 계측은 ERROR 지표를 중복 증가시키지 않는다.
-            log.atInfo().addKeyValue("type", "notification")
-                    .addKeyValue("stage", "worker_db_transaction")
-                    .addKeyValue("operation", operation)
-                    .addKeyValue("eventId", message.eventId())
-                    .addKeyValue("notificationId", message.notificationId())
-                    .addKeyValue("userId", message.userId())
-                    .addKeyValue("deviceId", deviceId)
-                    .addKeyValue("transactionCompleted", completed)
-                    .addKeyValue("dbTransactionDurationMs", elapsed.toMillis())
-                    .log("푸시 DB 트랜잭션 처리 시간");
+            var event = createSummaryEvent(message, dbTiming);
+            event.addKeyValue("processingCompleted", true)
+                    .addKeyValue("targetCount", targetCount)
+                    .addKeyValue("acceptedCount",
+                            counts.getOrDefault(DevicePushResult.Status.ACCEPTED, 0))
+                    .addKeyValue("retryableCount",
+                            counts.getOrDefault(DevicePushResult.Status.RETRYABLE, 0))
+                    .addKeyValue("permanentFailureCount",
+                            counts.getOrDefault(DevicePushResult.Status.PERMANENT_FAILURE, 0))
+                    .addKeyValue("invalidTokenCount",
+                            counts.getOrDefault(DevicePushResult.Status.INVALID_TOKEN, 0))
+                    .addKeyValue("skippedCount",
+                            counts.getOrDefault(DevicePushResult.Status.SKIPPED, 0))
+                    .addKeyValue("retryable", retryable)
+                    .log("푸시 기기 처리 결과 집계");
         });
+    }
+
+    public static void logSummaryFailed(
+            PushMessage message,
+            PushWorkerDbTiming dbTiming,
+            RuntimeException exception
+    ) {
+        logSafely(() -> createSummaryEvent(message, dbTiming)
+                .addKeyValue("processingCompleted", false)
+                .addKeyValue("errorCode", exception.getClass().getSimpleName())
+                .log("푸시 처리 중단 시점의 DB 계측 집계"));
+    }
+
+    private static LoggingEventBuilder createSummaryEvent(
+            PushMessage message,
+            PushWorkerDbTiming dbTiming
+    ) {
+        // 실패 원인은 기존 오류 로그로 추적한다. 요약은 ERROR 지표를 중복 증가시키지 않는다.
+        return log.atInfo().addKeyValue("type", "notification")
+                .addKeyValue("stage", "worker_summary")
+                .addKeyValue("eventId", message.eventId())
+                .addKeyValue("notificationId", message.notificationId())
+                .addKeyValue("userId", message.userId())
+                .addKeyValue("notificationType", message.type())
+                .addKeyValue("dbTransactionCount", dbTiming.getTransactions().size())
+                .addKeyValue("dbTransactionDurationMs", dbTiming.getDurationMs())
+                .addKeyValue("dbTransactions", dbTiming.getTransactions());
     }
 
     private static void logSafely(Runnable logging) {

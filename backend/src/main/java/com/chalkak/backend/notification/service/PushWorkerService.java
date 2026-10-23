@@ -85,7 +85,21 @@ public class PushWorkerService {
             );
             return PushProcessingResult.completed();
         }
-        List<UUID> deviceIds = findDeviceIds(message);
+        PushWorkerDbTiming dbTiming = new PushWorkerDbTiming();
+        try {
+            return processDevices(message, dbTiming);
+        } catch (RuntimeException exception) {
+            PushWorkerTimingLog.logSummaryFailed(
+                    message,
+                    dbTiming,
+                    exception
+            );
+            throw exception;
+        }
+    }
+
+    private PushProcessingResult processDevices(PushMessage message, PushWorkerDbTiming dbTiming) {
+        List<UUID> deviceIds = findDeviceIds(message, dbTiming);
         if (deviceIds.isEmpty()) {
             logSkipped(
                     message,
@@ -98,7 +112,11 @@ public class PushWorkerService {
         boolean retryable = false;
         Duration retryAfter = Duration.ZERO;
         for (UUID deviceId : deviceIds) {
-            DevicePushResult result = sendToDevice(message, deviceId);
+            DevicePushResult result = sendToDevice(
+                    message,
+                    deviceId,
+                    dbTiming
+            );
             counts.merge(
                     result.status(),
                     1,
@@ -108,11 +126,12 @@ public class PushWorkerService {
             retryable = retryable || result.isRetryable();
             retryAfter = findLongestRetryAfter(retryAfter, result);
         }
-        logSummary(
+        PushWorkerTimingLog.logSummary(
                 message,
                 deviceIds.size(),
                 counts,
-                !accepted && retryable
+                !accepted && retryable,
+                dbTiming
         );
         if (accepted) {
             return PushProcessingResult.completed();
@@ -120,9 +139,9 @@ public class PushWorkerService {
         return new PushProcessingResult(retryable, retryAfter);
     }
 
-    private List<UUID> findDeviceIds(PushMessage message) {
+    private List<UUID> findDeviceIds(PushMessage message, PushWorkerDbTiming dbTiming) {
         return executeMeasuredTransaction(
-                message,
+                dbTiming,
                 null,
                 "DEVICE_LOOKUP",
                 status -> deviceRepository.findIdsByUserId(message.userId())
@@ -142,14 +161,16 @@ public class PushWorkerService {
 
     private DevicePushResult sendToDevice(
             PushMessage message,
-            UUID deviceId
+            UUID deviceId,
+            PushWorkerDbTiming dbTiming
     ) {
         DevicePushTiming timing = new DevicePushTiming();
         try {
             return sendToCurrentDevice(
                     message,
                     deviceId,
-                    timing
+                    timing,
+                    dbTiming
             );
         } catch (RuntimeException exception) {
             logDeviceFailure(
@@ -166,9 +187,14 @@ public class PushWorkerService {
     private DevicePushResult sendToCurrentDevice(
             PushMessage message,
             UUID deviceId,
-            DevicePushTiming timing
+            DevicePushTiming timing,
+            PushWorkerDbTiming dbTiming
     ) {
-        DevicePushRequest request = findCurrentRequest(message, deviceId);
+        DevicePushRequest request = findCurrentRequest(
+                message,
+                deviceId,
+                dbTiming
+        );
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
@@ -192,7 +218,8 @@ public class PushWorkerService {
             deleteInvalidToken(
                     message,
                     deviceId,
-                    request
+                    request,
+                    dbTiming
             );
         }
         return result;
@@ -201,12 +228,13 @@ public class PushWorkerService {
     private void deleteInvalidToken(
             PushMessage message,
             UUID deviceId,
-            DevicePushRequest request
+            DevicePushRequest request,
+            PushWorkerDbTiming dbTiming
     ) {
         try {
             FcmToken token = new FcmToken(request.token());
             deleteDeviceToken(
-                    message,
+                    dbTiming,
                     deviceId,
                     token
             );
@@ -221,12 +249,12 @@ public class PushWorkerService {
     }
 
     private void deleteDeviceToken(
-            PushMessage message,
+            PushWorkerDbTiming dbTiming,
             UUID deviceId,
             FcmToken token
     ) {
         executeMeasuredTransaction(
-                message,
+                dbTiming,
                 deviceId,
                 "INVALID_TOKEN_CLEANUP",
                 status -> {
@@ -236,9 +264,13 @@ public class PushWorkerService {
         );
     }
 
-    private DevicePushRequest findCurrentRequest(PushMessage message, UUID deviceId) {
+    private DevicePushRequest findCurrentRequest(
+            PushMessage message,
+            UUID deviceId,
+            PushWorkerDbTiming dbTiming
+    ) {
         return executeMeasuredTransaction(
-                message,
+                dbTiming,
                 deviceId,
                 "LATEST_CONDITIONS_LOOKUP",
                 status -> findRequest(message, deviceId)
@@ -246,7 +278,7 @@ public class PushWorkerService {
     }
 
     private <T> T executeMeasuredTransaction(
-            PushMessage message,
+            PushWorkerDbTiming dbTiming,
             UUID deviceId,
             String operation,
             TransactionCallback<T> action
@@ -258,8 +290,7 @@ public class PushWorkerService {
             completed = true;
             return result;
         } finally {
-            PushWorkerTimingLog.logTransaction(
-                    message,
+            dbTiming.recordTransaction(
                     deviceId,
                     operation,
                     elapsed,
@@ -599,33 +630,6 @@ public class PushWorkerService {
                 .addKeyValue("errorCode", result.errorCode());
         addRequestTiming(event, timing);
         event.log("FCM 발송 요청 결과");
-    }
-
-    private void logSummary(
-            PushMessage message,
-            int targetCount,
-            Map<DevicePushResult.Status, Integer> counts,
-            boolean retryable
-    ) {
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_summary")
-                .addKeyValue("eventId", message.eventId())
-                .addKeyValue("notificationId", message.notificationId())
-                .addKeyValue("userId", message.userId())
-                .addKeyValue("notificationType", message.type())
-                .addKeyValue("targetCount", targetCount)
-                .addKeyValue("acceptedCount",
-                        counts.getOrDefault(DevicePushResult.Status.ACCEPTED, 0))
-                .addKeyValue("retryableCount",
-                        counts.getOrDefault(DevicePushResult.Status.RETRYABLE, 0))
-                .addKeyValue("permanentFailureCount",
-                        counts.getOrDefault(DevicePushResult.Status.PERMANENT_FAILURE, 0))
-                .addKeyValue("invalidTokenCount",
-                        counts.getOrDefault(DevicePushResult.Status.INVALID_TOKEN, 0))
-                .addKeyValue("skippedCount",
-                        counts.getOrDefault(DevicePushResult.Status.SKIPPED, 0))
-                .addKeyValue("retryable", retryable)
-                .log("푸시 기기 처리 결과 집계");
     }
 
     private void logDeviceFailure(
