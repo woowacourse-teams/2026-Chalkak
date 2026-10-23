@@ -439,6 +439,7 @@ aws cloudwatch set-alarm-state --region "$REGION" \
 - `queue-wait`: 실제 `queueWaitMs`의 p95·최댓값 분포를 보고 5분이 적절한지 본다. 배포 직후 오탐이 있으면 기록한다.
 - `lease-recovery`, `errors`: 평소 0인지 확인한다. 반복되는 원인이 있으면 코드 문제로 이슈를 만든다.
 - 조정은 이 문서의 3절 표와 설명, 설계 문서를 같은 PR에서 고치고 콘솔·CLI에 반영한다.
+- `ai_review` 로그의 이벤트 이름이나 필드 이름을 바꾸면 메트릭 필터가 조용히 매칭을 멈추고 경보는 OK로 남는다. 같은 PR에서 6-1 `test-metric-filter`로 영향받는 필터를 다시 검증하고 `put-metric-filter`로 고친다.
 
 ## 10. 알람 대응
 

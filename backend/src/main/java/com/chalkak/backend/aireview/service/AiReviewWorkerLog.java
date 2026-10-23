@@ -13,7 +13,11 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
 
 /**
- * AI 리뷰 처리 워커가 남기는 로그를 한곳에서 조립한다. 이벤트 이름과 필드 키는 모니터링 문서와 맞춰 쓴다.
+ * AI 리뷰 처리 워커가 남기는 로그를 한곳에서 조립한다.
+ *
+ * <p>
+ * CloudWatch 메트릭 필터와 경보({@code backend/deploy/docs/ai-review-monitoring.md})가 이
+ * 이벤트 이름과 필드 키로 매칭한다. 이름을 바꾸면 경보가 조용히 세지 않게 되므로 운영 문서와 필터를 함께 고친다.
  */
 public final class AiReviewWorkerLog {
 
