@@ -55,26 +55,46 @@ struct FeedBackSwipeTrackingTests {
 }
 
 struct FeedBackSwipeReleaseTests {
-    @Test("놓은 순간의 진행도 속도를 남은 변화량 대비 스프링 초기 속도로 바꾼다")
-    func convertsProgressVelocityToSpringVelocity() {
-        // 닫기: 0.5에서 초당 -2로 줄어드는 중이면 남은 -0.5 대비 4배 속도로 출발한다.
-        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.5, to: 0, velocity: -2, duration: 0.3) == 4)
-        // 되돌리기: 0.8에서 초당 0.4로 늘어나는 중이면 남은 0.2 대비 2배 속도로 출발한다.
-        #expect(abs(FeedBackSwipeRelease.initialVelocity(from: 0.8, to: 1, velocity: 0.4, duration: 0.3) - 2) < 0.0001)
-        // 목표 반대로 움직이며 놓으면 음수 속도로 잠깐 더 간 뒤 돌아온다.
-        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.5, to: 0, velocity: 1, duration: 0.3) == -2)
+    @Test("카드에 가까울수록 마무리 시간이 짧고 최대 0.3초 안에 끝난다")
+    func finishesSoonerNearTarget() {
+        let far = FeedBackSwipeRelease.timing(from: 0.8, to: 0, velocity: 0, duration: 0.3)
+        let near = FeedBackSwipeRelease.timing(from: 0.05, to: 0, velocity: 0, duration: 0.3)
+        #expect(near.duration < far.duration)
+        #expect(near.duration >= 0.08)
+        #expect(far.duration <= 0.3)
     }
 
-    @Test("빠르게 놓아도 사진이 목표를 지나치지 않도록 초기 속도를 제한한다")
-    func limitsVelocityToAvoidOvershoot() {
-        let limit = 2 * Double.pi / 0.3
-        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.1, to: 0, velocity: -20, duration: 0.3) == limit)
-        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.9, to: 1, velocity: -20, duration: 0.3) == -limit)
+    @Test("일반적인 놓기 속도를 곡선 시작 속도로 이어받는다")
+    func preservesReleaseVelocity() {
+        let timing = FeedBackSwipeRelease.timing(from: 0.5, to: 0, velocity: -2, duration: 0.3)
+        let actualVelocity = -0.5 * timing.initialSlope / timing.duration
+        #expect(abs(actualVelocity - (-2)) < 0.0001)
     }
 
-    @Test("이미 목표에 있으면 초기 속도는 0이다")
-    func noVelocityAtTarget() {
-        #expect(FeedBackSwipeRelease.initialVelocity(from: 0, to: 0, velocity: -3, duration: 0.3) == 0)
+    @Test("빠른 놓기와 역방향 놓기 모두 목표를 지나치거나 되돌아가지 않는다")
+    func releaseCurveIsMonotonic() {
+        for target: CGFloat in [0, 1] {
+            for velocity: CGFloat in [-20, -2, 0, 2, 20] {
+                let timing = FeedBackSwipeRelease.timing(from: 0.5, to: target, velocity: velocity, duration: 0.3)
+                let controlY = timing.initialSlope / 3
+                var previous = 0.0
+                for step in 0...100 {
+                    let t = Double(step) / 100
+                    let y = 3 * (1 - t) * (1 - t) * t * controlY + 3 * (1 - t) * t * t + t * t * t
+                    #expect(y >= previous - 0.000001)
+                    #expect(y >= 0 && y <= 1)
+                    previous = y
+                }
+                #expect(previous == 1)
+            }
+        }
+    }
+
+    @Test("이미 카드에 도착했으면 추가 애니메이션을 기다리지 않는다")
+    func noDelayAtTarget() {
+        let timing = FeedBackSwipeRelease.timing(from: 0, to: 0, velocity: -3, duration: 0.3)
+        #expect(timing.duration == 0)
+        #expect(timing.initialSlope == 0)
     }
 }
 

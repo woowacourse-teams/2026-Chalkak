@@ -298,7 +298,9 @@ struct FeedScreen: View {
             onBack()
             return
         }
-        captureTransitionSource()
+        // 버튼은 현재 카드 위치를 읽고, 스와이프는 시작할 때 고정한 위치를 유지한다.
+        // 손을 뗄 때 다시 측정하면 드래그와 마무리 애니메이션 사이에서 경로가 바뀔 수 있다.
+        if releaseVelocity == nil { captureTransitionSource() }
         isClosing = true
         isPhotoMoving = true
         // 돌아갈 카드는 유지한다. 가려진 사진을 숨기면 반투명 하단바 아래 검은 바탕이 드러난다.
@@ -442,26 +444,26 @@ struct FeedBackSwipeTracking {
     }
 }
 
-/// 백 스와이프를 놓은 뒤 남은 전환을 손가락 속도에서 이어 가는 애니메이션.
+/// 백 스와이프를 놓은 뒤 남은 전환을 유한한 시간 안에 마무리한다.
 enum FeedBackSwipeRelease {
-    /// progress에서 target까지 velocity(진행도/초)로 출발해 감속하며 도착하는 스프링을 만든다.
-    /// 예: 진행도 0.5에서 초당 -2로 놓고 닫히면(target 0) 스프링 초기 속도는 남은 변화량 대비 4가 된다.
     static func animation(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval) -> Animation {
-        .interpolatingSpring(
-            duration: duration,
-            bounce: 0,
-            initialVelocity: initialVelocity(from: progress, to: target, velocity: velocity, duration: duration)
-        )
+        let timing = timing(from: progress, to: target, velocity: velocity, duration: duration)
+        // x를 균등하게 두어 시간에 대한 초기 기울기가 손을 놓은 속도와 연결된다.
+        // 제어점 y를 0...1 안에 두면 카드 위치를 지나쳤다가 돌아오지 않는다.
+        return .timingCurve(1.0 / 3, timing.initialSlope / 3, 2.0 / 3, 1, duration: timing.duration)
     }
 
-    /// SwiftUI 스프링의 초기 속도는 남은 변화량 대비 비율이다.
-    /// 감쇠가 임계값인 스프링은 이 비율이 고유 진동수(2π / duration)보다 크면 목표를 지나쳐
-    /// 사진이 출발 뷰보다 작아졌다 돌아오므로 그 안으로 제한한다.
-    static func initialVelocity(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval) -> Double {
-        let remaining = target - progress
-        guard abs(remaining) > 0.001, duration > 0 else { return 0 }
-        let limit = 2 * Double.pi / duration
-        return min(max(Double(velocity / remaining), -limit), limit)
+    static func timing(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval)
+        -> (duration: TimeInterval, initialSlope: Double) {
+        let remaining = Double(target - progress)
+        guard abs(remaining) > 0.001, duration > 0 else { return (0, 0) }
+        // 카드에 가까운 상태에서 놓으면 긴 감속 꼬리 없이 더 빨리 도착한다.
+        let distanceDuration = duration * min(1, sqrt(abs(remaining)))
+        let towardVelocity = max(0, Double(velocity) * (remaining > 0 ? 1 : -1))
+        let velocityDuration = towardVelocity > 0 ? 2 * abs(remaining) / towardVelocity : duration
+        let finishDuration = min(duration, max(0.08, min(distanceDuration, velocityDuration)))
+        let slope = min(3, towardVelocity * finishDuration / abs(remaining))
+        return (finishDuration, slope)
     }
 }
 
