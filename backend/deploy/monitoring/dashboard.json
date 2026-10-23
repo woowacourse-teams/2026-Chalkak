@@ -991,6 +991,188 @@
       "x": 0,
       "y": 118,
       "width": 24,
+      "height": 3,
+      "properties": {
+        "markdown": "# prod AI 리뷰\n일별 집계는 내부 계정을 제외하고, 실시간 로그 위젯은 제외하지 않습니다. 정의는 모니터링 설계 문서 4.8절입니다.\n\n처리 건수·대기 시간 그래프는 Chalkak/prod AiReview* 메트릭 필터가 있어야 표시됩니다. 대기 시간은 처리를 끝낸 건만 잴 수 있어 아직 처리되지 않은 대기는 보이지 않습니다."
+      }
+    },
+    {
+      "type": "alarm",
+      "x": 0,
+      "y": 121,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "title": "prod AI 리뷰 알람",
+        "sortBy": "stateUpdatedTimestamp",
+        "alarms": [
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-ai-review-failures",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-ai-review-queue-wait",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-ai-review-lease-recovery",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-ai-review-errors",
+          "arn:aws:cloudwatch:ap-northeast-2:843255971531:alarm:chalkak-prod-ai-review-worker-stalled"
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 124,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "AI 리뷰 일별 사용 (일별 집계, 최초 요청일 기준)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 86400,
+        "stat": "Maximum",
+        "metrics": [
+          [
+            "Chalkak/prod",
+            "AiReviewUsers",
+            {
+              "label": "요청 회원"
+            }
+          ],
+          [
+            "Chalkak/prod",
+            "AiReviewRequests",
+            {
+              "label": "최초 요청"
+            }
+          ],
+          [
+            "Chalkak/prod",
+            "AiReviewCompleted",
+            {
+              "label": "완료"
+            }
+          ],
+          [
+            "Chalkak/prod",
+            "AiReviewFailed",
+            {
+              "label": "실패"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 124,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "AI 리뷰 요청 / 처리 로그 건수 (5분)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          [
+            "Chalkak/prod",
+            "AiReviewRequested",
+            {
+              "label": "요청"
+            }
+          ],
+          [
+            "Chalkak/prod",
+            "AiReviewProcessed",
+            {
+              "label": "처리(완료·실패·재시도·중단)"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 130,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "AI 리뷰 대기 시간 최댓값 (ms, 처리를 끝낸 건 기준)",
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "period": 300,
+        "stat": "Maximum",
+        "metrics": [
+          [
+            "Chalkak/prod",
+            "AiReviewQueueWaitMs",
+            {
+              "label": "처음 가져가기까지 대기"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        },
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "경보 기준 5분",
+              "value": 300000
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 130,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "AI 리뷰 처리 시간 p50 / p95 (ms, 1시간)",
+        "region": "ap-northeast-2",
+        "view": "timeSeries",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"ai_review\" and event in [\"review_completed\", \"review_failed\"]\n| stats pct(queueWaitMs, 95) as wait_p95, pct(totalMs, 50) as total_p50, pct(totalMs, 95) as total_p95, pct(latencyMs, 50) as openai_p50, pct(latencyMs, 95) as openai_p95 by bin(1h)"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 136,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "AI 리뷰 처리 결과 추이 (1시간)",
+        "region": "ap-northeast-2",
+        "view": "timeSeries",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"ai_review\" and event in [\"review_completed\", \"review_failed\", \"review_retry_scheduled\"]\n| stats count(*) as n by event, bin(1h)"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 136,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "AI 리뷰 사유별 실패 (최종 실패 / 재시도 예약)",
+        "region": "ap-northeast-2",
+        "view": "table",
+        "query": "SOURCE '/chalkak/prod/application' | filter type=\"ai_review\" and event in [\"review_failed\", \"review_retry_scheduled\"]\n| stats count(*) as n by event, errorCode\n| sort n desc"
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 142,
+      "width": 24,
       "height": 1,
       "properties": {
         "markdown": "# dev 서버"
@@ -999,7 +1181,7 @@
     {
       "type": "alarm",
       "x": 0,
-      "y": 119,
+      "y": 143,
       "width": 12,
       "height": 6,
       "properties": {
@@ -1015,7 +1197,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 119,
+      "y": 143,
       "width": 12,
       "height": 6,
       "properties": {
@@ -1047,7 +1229,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 125,
+      "y": 149,
       "width": 12,
       "height": 6,
       "properties": {
@@ -1069,7 +1251,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 125,
+      "y": 149,
       "width": 12,
       "height": 6,
       "properties": {
@@ -1095,7 +1277,7 @@
     {
       "type": "text",
       "x": 0,
-      "y": 131,
+      "y": 155,
       "width": 24,
       "height": 2,
       "properties": {
@@ -1105,7 +1287,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 133,
+      "y": 157,
       "width": 8,
       "height": 6,
       "properties": {
@@ -1144,7 +1326,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 133,
+      "y": 157,
       "width": 8,
       "height": 6,
       "properties": {
@@ -1171,7 +1353,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 133,
+      "y": 157,
       "width": 8,
       "height": 6,
       "properties": {
@@ -1198,7 +1380,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 139,
+      "y": 163,
       "width": 8,
       "height": 6,
       "properties": {
@@ -1223,7 +1405,7 @@
     {
       "type": "metric",
       "x": 8,
-      "y": 139,
+      "y": 163,
       "width": 8,
       "height": 6,
       "properties": {
@@ -1248,7 +1430,7 @@
     {
       "type": "metric",
       "x": 16,
-      "y": 139,
+      "y": 163,
       "width": 8,
       "height": 6,
       "properties": {
@@ -1276,7 +1458,7 @@
     {
       "type": "metric",
       "x": 0,
-      "y": 145,
+      "y": 169,
       "width": 12,
       "height": 6,
       "properties": {
@@ -1320,7 +1502,7 @@
     {
       "type": "metric",
       "x": 12,
-      "y": 145,
+      "y": 169,
       "width": 12,
       "height": 6,
       "properties": {

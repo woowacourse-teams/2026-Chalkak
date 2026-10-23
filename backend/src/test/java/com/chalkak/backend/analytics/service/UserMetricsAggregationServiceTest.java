@@ -8,8 +8,10 @@ import static org.mockito.Mockito.when;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.aireview.service.AiReviewFixture;
 import com.chalkak.backend.analytics.infrastructure.infra.AnalyticsProperties;
 import com.chalkak.backend.analytics.infrastructure.persistence.UserMetricsRepositoryImpl;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -50,6 +52,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
             3,
             17
     );
+    private static final int AI_PROMPT_VERSION = 900_001;
     private static final String LOG_GROUP = "/chalkak/test/application";
     private static final LocalDate LOG_METRICS_START_DATE = LocalDate.of(
             2099,
@@ -326,6 +329,12 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
                 false
         );
         insertLike(postId, userId);
+        insertAiReview(
+                insertUser("log-line-ai"),
+                insertPromptVersion(),
+                kst(METRIC_DATE, "11:00:00"),
+                "COMPLETED"
+        );
         appender.list.clear();
 
         // When
@@ -342,6 +351,10 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         assertThat(keyValue(event, "wau")).isEqualTo(metrics.wau()).isEqualTo(1L);
         assertThat(keyValue(event, "eligibleUsers")).isEqualTo(metrics.eligibleUsers());
         assertThat(keyValue(event, "likesTotal")).isEqualTo(metrics.likesTotal());
+        assertThat(keyValue(event, "aiReviewUsers")).isEqualTo(1L);
+        assertThat(keyValue(event, "aiReviewRequests")).isEqualTo(1L);
+        assertThat(keyValue(event, "aiReviewCompleted")).isEqualTo(1L);
+        assertThat(keyValue(event, "aiReviewFailed")).isEqualTo(0L);
     }
 
     @Test
@@ -646,6 +659,191 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
                 .noneMatch(pair -> pair.key.startsWith("retention"));
     }
 
+    @Test
+    @DisplayName("AI 리뷰는 최초 요청 시각이 KST 하루 안인 것만 센다")
+    void aggregate_aiReviewDayBoundary_countsOnlyRequestsInsideKstDay() {
+        // Given
+        UUID versionId = insertPromptVersion();
+        insertAiReview(
+                insertUser("ai-boundary-start"),
+                versionId,
+                kst(METRIC_DATE, "00:00:00"),
+                "QUEUED"
+        );
+        insertAiReview(
+                insertUser("ai-boundary-end"),
+                versionId,
+                kst(METRIC_DATE, "23:59:59"),
+                "QUEUED"
+        );
+        insertAiReview(
+                insertUser("ai-boundary-before"),
+                versionId,
+                kst(METRIC_DATE.minusDays(1), "23:59:59"),
+                "QUEUED"
+        );
+        insertAiReview(
+                insertUser("ai-boundary-after"),
+                versionId,
+                kst(METRIC_DATE.plusDays(1), "00:00:00"),
+                "QUEUED"
+        );
+
+        // When
+        DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
+
+        // Then
+        assertThat(metrics.aiReviews().users()).isEqualTo(2);
+        assertThat(metrics.aiReviews().requests()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("전날 최초 요청한 리뷰를 당일 재요청해도 당일 요청에 세지 않는다")
+    void aggregate_aiReviewReRequested_isCountedOnFirstRequestDayOnly() {
+        // Given
+        UUID versionId = insertPromptVersion();
+        UUID reviewId = insertAiReview(
+                insertUser("ai-re-request"),
+                versionId,
+                kst(METRIC_DATE.minusDays(1), "10:00:00"),
+                "COMPLETED"
+        );
+        jdbcTemplate.update(
+                "UPDATE ai_reviews SET request_count = 2, last_requested_at = ? WHERE id = ?",
+                kst(METRIC_DATE, "09:00:00"),
+                reviewId
+        );
+
+        // When
+        DailyUserMetrics requestDay = aggregationService.aggregate(METRIC_DATE.minusDays(1));
+        DailyUserMetrics reRequestDay = aggregationService.aggregate(METRIC_DATE);
+
+        // Then
+        assertThat(requestDay.aiReviews().requests()).isEqualTo(1);
+        assertThat(reRequestDay.aiReviews().users()).isZero();
+        assertThat(reRequestDay.aiReviews().requests()).isZero();
+        assertThat(reRequestDay.aiReviews().completed()).isZero();
+    }
+
+    @Test
+    @DisplayName("AI 리뷰 완료와 실패는 집계 시점 상태로 세고 대기와 처리 중은 요청에만 센다")
+    void aggregate_aiReviewStatuses_countsCompletedAndFailedByCurrentStatus() {
+        // Given
+        UUID versionId = insertPromptVersion();
+        OffsetDateTime requestedAt = kst(METRIC_DATE, "12:00:00");
+        insertAiReview(
+                insertUser("ai-status-queued"),
+                versionId,
+                requestedAt,
+                "QUEUED"
+        );
+        insertAiReview(
+                insertUser("ai-status-processing"),
+                versionId,
+                requestedAt,
+                "PROCESSING"
+        );
+        insertAiReview(
+                insertUser("ai-status-completed-1"),
+                versionId,
+                requestedAt,
+                "COMPLETED"
+        );
+        insertAiReview(
+                insertUser("ai-status-completed-2"),
+                versionId,
+                requestedAt,
+                "COMPLETED"
+        );
+        insertAiReview(
+                insertUser("ai-status-failed"),
+                versionId,
+                requestedAt,
+                "FAILED"
+        );
+
+        // When
+        DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
+
+        // Then
+        assertThat(metrics.aiReviews()).isEqualTo(new AiReviewCounts(
+                5,
+                5,
+                2,
+                1
+        ));
+    }
+
+    @Test
+    @DisplayName("한 회원이 여러 게시물에 요청해도 aiReviewUsers는 1이고 요청은 모두 센다")
+    void aggregate_aiReviewSameUserTwoPosts_countsUserOnce() {
+        // Given
+        UUID versionId = insertPromptVersion();
+        UUID userId = insertUser("ai-same-user");
+        insertAiReview(
+                userId,
+                versionId,
+                kst(METRIC_DATE, "09:00:00"),
+                "COMPLETED"
+        );
+        insertAiReview(
+                userId,
+                versionId,
+                kst(METRIC_DATE, "21:00:00"),
+                "FAILED"
+        );
+
+        // When
+        DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
+
+        // Then
+        assertThat(metrics.aiReviews()).isEqualTo(new AiReviewCounts(
+                1,
+                2,
+                1,
+                1
+        ));
+    }
+
+    @Test
+    @DisplayName("제외 회원의 AI 리뷰는 네 값에서 모두 빠진다")
+    void aggregate_aiReviewExcludedUser_isRemovedFromEveryValue() {
+        // Given
+        UUID versionId = insertPromptVersion();
+        UUID member = insertUser("ai-excluded-member");
+        UUID excluded = insertUser("ai-excluded-team");
+        insertAiReview(
+                member,
+                versionId,
+                kst(METRIC_DATE, "10:00:00"),
+                "COMPLETED"
+        );
+        insertAiReview(
+                excluded,
+                versionId,
+                kst(METRIC_DATE, "11:00:00"),
+                "FAILED"
+        );
+        DailyUserMetrics all = serviceExcluding(List.of()).aggregate(METRIC_DATE);
+
+        // When
+        DailyUserMetrics filtered = serviceExcluding(List.of(excluded)).aggregate(METRIC_DATE);
+
+        // Then
+        assertThat(all.aiReviews()).isEqualTo(new AiReviewCounts(
+                2,
+                2,
+                1,
+                1
+        ));
+        assertThat(filtered.aiReviews()).isEqualTo(new AiReviewCounts(
+                1,
+                1,
+                1,
+                0
+        ));
+    }
+
     private UserMetricsAggregationService serviceExcluding(List<UUID> excludedUserIds) {
         AnalyticsProperties properties = new AnalyticsProperties(
                 excludedUserIds,
@@ -658,6 +856,68 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         return new UserMetricsAggregationService(
                 new UserMetricsRepositoryImpl(namedParameterJdbcTemplate, properties),
                 reader);
+    }
+
+    private UUID insertPromptVersion() {
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertAdmin();
+        return fixture.insertPromptVersion(AI_PROMPT_VERSION);
+    }
+
+    /**
+     * 상태별 CHECK 제약을 맞춰 AI 리뷰 한 건을 넣는다. 게시물은 건마다 새로 만들고, dau·wau 같은 게시물 지표와 섞이지 않게
+     * 요청 30일 전에 올린 것으로 한다.
+     */
+    private UUID insertAiReview(
+            UUID userId,
+            UUID promptVersionId,
+            OffsetDateTime requestedAt,
+            String status
+    ) {
+        UUID postId = insertPost(
+                userId,
+                requestedAt.minusDays(30),
+                "APPROVED",
+                false
+        );
+        boolean queued = status.equals("QUEUED");
+        boolean processing = status.equals("PROCESSING");
+        boolean completed = status.equals("COMPLETED");
+        boolean failed = status.equals("FAILED");
+        UUID reviewId = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                        INSERT INTO ai_reviews (
+                            id, post_id, user_id, prompt_version_id, status, attempt, round_attempt,
+                            lease_expires_at, result, output, error_code, request_id,
+                            requested_at, last_requested_at, completed_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?,
+                            CASE WHEN ? THEN CURRENT_TIMESTAMP END,
+                            CASE WHEN ? THEN CAST('{}' AS jsonb) END,
+                            CASE WHEN ? THEN CAST('{}' AS jsonb) END,
+                            CASE WHEN ? THEN 'TIMEOUT' END,
+                            ?, ?, ?,
+                            CASE WHEN ? THEN CURRENT_TIMESTAMP END
+                        )
+                        """,
+                reviewId,
+                postId,
+                userId,
+                promptVersionId,
+                status,
+                queued ? 0 : 1,
+                queued ? 0 : 1,
+                processing,
+                completed,
+                completed,
+                failed,
+                UUID.randomUUID(),
+                requestedAt,
+                requestedAt,
+                completed || failed
+        );
+        return reviewId;
     }
 
     private OffsetDateTime kst(LocalDate date, String time) {

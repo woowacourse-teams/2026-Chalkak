@@ -124,7 +124,7 @@ class AdminReminderServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("현재 시각 기준 5분 넘게 과거인 발송 시각은 거절하고 저장하지 않는다")
+    @DisplayName("현재 시각보다 과거인 발송 시각은 거절하고 저장하지 않는다")
     void createReminder_pastScheduledAt_throwsWithoutPersisting() {
         // When & Then
         assertThatThrownBy(() -> reminderService.createReminder(
@@ -136,7 +136,7 @@ class AdminReminderServiceTest extends IntegrationTestSupport {
                 Instant.now().minus(Duration.ofHours(1))
         ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
         assertThat(countRows("reminders")).isZero();
         assertThat(countRows("admin_audit_logs")).isZero();
     }

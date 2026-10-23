@@ -14,6 +14,7 @@ import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -51,6 +52,9 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     private TopicRepository topics;
     @Autowired
     private PostRepository posts;
+
+    @Autowired
+    private ReminderRepository reminders;
     @Autowired
     private PushDeviceRepository devices;
     @Autowired
@@ -442,6 +446,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
                 notifications,
                 topics,
                 posts,
+                reminders,
                 devices,
                 sessions,
                 sender,
