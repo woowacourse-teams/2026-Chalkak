@@ -27,9 +27,11 @@ notification.log → 로그 그룹 /chalkak/{env}/notification (모두 30일)
 | `backend/deploy/monitoring/dashboard.json` | 대시보드 `DASHBOARD-chalkak`의 소스 (9단계) |
 | `backend/lambda/alarm-notifier/` | SNS 알람을 Slack으로 전달하는 Lambda 코드와 배포 절차 (3단계) |
 
-공유 계정에는 CloudFormation과 AWS Chatbot이 허용되지 않고, IAM role도 새로 만들지 않는다. 그래서 스택이나 템플릿은 없고, 모든 리소스를 CloudWatch·SNS·Lambda 콘솔(리전 `ap-northeast-2`)에서 직접 만든다. 리소스 정의는 이 문서의 표와 `dashboard.json`이다. 공유 계정에는 CLI나 access key도 사용하지 않는다.
+공유 계정에는 CloudFormation과 AWS Chatbot이 허용되지 않고, IAM role도 새로 만들지 않는다. 그래서 스택이나 템플릿은 없고, 리소스는 CloudWatch·SNS·Lambda 콘솔(리전 `ap-northeast-2`)에서 직접 만든다. 리소스 정의는 이 문서의 표와 `dashboard.json`이다. 개인 access key는 발급할 수 없어 로컬 PC의 AWS CLI는 쓰지 않는다. 대신 반복 작업(메트릭 필터, 경보)은 SSM으로 dev EC2에 접속해 인스턴스 역할 권한으로 AWS CLI를 실행해도 된다([CLI로 만들기](#cli로-만들기-선택), prod EC2에는 AWS CLI가 없다). CLI 권한이 없으면 콘솔로 같은 값을 만든다.
 
 알림 발행·발송 전용 지표와 경보는 [알림 모니터링 구성](notification-monitoring.md)을 따른다. 아래 일반 모니터링 경보 목록과 별도로 적용한다.
+
+AI 리뷰 운영 지표(요청·처리·대기 시간)와 경보 5개(`chalkak-prod-ai-review-*`)는 [AI 리뷰 지표·경보 구성](ai-review-monitoring.md)을 따른다. 일별 AI 리뷰 집계 메트릭 필터 4개만 사용자 지표 필터와 같은 방식이라 아래 4단계 표에 함께 둔다.
 
 GC·safepoint와 운영 memwatch 수집·2초 정지 알람의 적용, 검증, 조회, 복구 절차는 [GC 관측 런북](gc-monitoring.md)을 따른다. 기본 GC 로그는 조사 후에도 유지한다. memwatch는 조사·개선 검증 기간에 기존 임시 1분 타이머로 수집하고, 검증 후 자료 보관과 함께 정리한다.
 
@@ -91,6 +93,8 @@ ProjectTeam=chalkak
 | prod 로그 그룹 | 언제든 | 보존 기간만 정해 두면 되므로 릴리스 전에 만들어도 된다 |
 | prod 메트릭 필터, prod Agent, prod 알람 | 릴리스 당일, 릴리스 뒤 Agent가 실행 중일 때 | prod 로그는 백엔드 릴리스 뒤에야 들어온다. 그 전에는 지표가 없어 알람을 만들 수 없다 |
 | 사용자 지표 메트릭 필터 9개 | #504가 prod에 릴리스된 뒤 아무 때나 | 필터는 만든 뒤에 들어오는 로그만 센다. 첫 01:00(KST) 집계 전에 만들거나, 관리자 API로 전날을 한 번 다시 집계한다 |
+| AI 리뷰 일별 집계 필터 4개(`AiReviewUsers` 등) | AI 리뷰 집계 키(#692)가 prod에 릴리스된 뒤 아무 때나 | 사용자 지표 필터와 같다. 첫 01:00(KST) 집계 전에 만들거나 관리자 API로 전날을 다시 집계한다 |
+| AI 리뷰 운영 필터 6개, 경보 5개 | #692 릴리스 뒤 | 적용 순서는 [AI 리뷰 지표·경보 구성](ai-review-monitoring.md#6-적용-절차-cli)을 따른다 |
 | `chalkak-prod-user-metrics-missing` 알람 | `Dau` 지표가 생긴 뒤 | 첫 예약 집계 뒤, 또는 prod에서 관리자 API로 전날을 집계한 뒤에 지표가 생긴다 |
 
 prod 백엔드는 [배포 운영 런북](operations.md)의 일반 릴리스로 반영된다.
@@ -166,6 +170,10 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 | `/chalkak/prod/application` | `RetentionW2Rate` | `{ $.type = "aggregation" && $.retentionW2Rate >= 0 }` | `Chalkak/prod` | `RetentionW2Rate` | `$.retentionW2Rate` | 없음 | Percent |
 | `/chalkak/prod/application` | `RetentionW3Rate` | `{ $.type = "aggregation" && $.retentionW3Rate >= 0 }` | `Chalkak/prod` | `RetentionW3Rate` | `$.retentionW3Rate` | 없음 | Percent |
 | `/chalkak/prod/application` | `RetentionW4Rate` | `{ $.type = "aggregation" && $.retentionW4Rate >= 0 }` | `Chalkak/prod` | `RetentionW4Rate` | `$.retentionW4Rate` | 없음 | Percent |
+| `/chalkak/prod/application` | `AiReviewUsers` | `{ $.type = "aggregation" && $.aiReviewUsers >= 0 }` | `Chalkak/prod` | `AiReviewUsers` | `$.aiReviewUsers` | 없음 | Count |
+| `/chalkak/prod/application` | `AiReviewRequests` | `{ $.type = "aggregation" && $.aiReviewRequests >= 0 }` | `Chalkak/prod` | `AiReviewRequests` | `$.aiReviewRequests` | 없음 | Count |
+| `/chalkak/prod/application` | `AiReviewCompleted` | `{ $.type = "aggregation" && $.aiReviewCompleted >= 0 }` | `Chalkak/prod` | `AiReviewCompleted` | `$.aiReviewCompleted` | 없음 | Count |
+| `/chalkak/prod/application` | `AiReviewFailed` | `{ $.type = "aggregation" && $.aiReviewFailed >= 0 }` | `Chalkak/prod` | `AiReviewFailed` | `$.aiReviewFailed` | 없음 | Count |
 | `/chalkak/prod/gc` | `GcPauseOver2s` | [2초 이상 종료 행 정규식](gc-monitoring.md#2초-이상-정지-알람) | `Chalkak/prod` | `GcPauseOver2s` | `1` | `0` | Count |
 | `/aws/lambda/chalkak-image-processor` | `ImageProcessingAbandoned` | `"image_processing_abandoned"` | `Chalkak/shared` | `ImageProcessingAbandoned` | `1` | `0` | Count |
 
@@ -175,22 +183,26 @@ Lambda 트리거와 알람 알림이 이 토픽을 참조하므로 3단계와 8�
 - `RuntimeHeartbeat`는 앱이 1분마다 남기는 `type=runtime` 로그를 센다. prod는 로드밸런서가 없어 ALB 상태 신호가 없으므로 이 지표로 앱 중단, Agent 중지, 로그 전송 문제를 잡는다. 기본값 0이 있어 다른 로그는 들어오는데 runtime 로그만 끊기면 0이 발행되어 알람이 울린다. 로그가 전혀 들어오지 않으면 지표 자체가 없어지고, 알람의 누락 데이터 처리(`breaching`)가 이를 잡는다. 비용 때문에 dev에는 두지 않는다.
 - `ImageProcessingAbandoned`의 패턴은 따옴표를 포함한 텍스트 검색어다. Lambda가 Python logging으로 `[ERROR]<TAB><시각><TAB><요청 ID><TAB>{json}` 형태의 줄을 남기므로 순수 JSON이 아니어서 JSON 패턴으로 매칭할 수 없다. 따옴표로 묶은 검색어는 정확히 그 문구만 매칭하므로 `image_processing_abandon_failed`는 매칭되지 않는다.
 - 필터는 만든 뒤에 들어오는 로그만 지표로 만든다.
-- 사용자 지표 필터 9개(`Dau`부터 `RetentionW4Rate`까지)는 기본값을 넣지 않는다. 기본값을 두면 로그 그룹의 다른 모든 로그 줄마다 0이 발행되어 하루 값이 오염되고 SampleCount도 깨진다.
+- 사용자 지표 필터 9개(`Dau`부터 `RetentionW4Rate`까지)와 AI 리뷰 집계 필터 4개(`AiReviewUsers`부터 `AiReviewFailed`까지)는 기본값을 넣지 않는다. 기본값을 두면 로그 그룹의 다른 모든 로그 줄마다 0이 발행되어 하루 값이 오염되고 SampleCount도 깨진다.
 - 패턴의 `>= 0`은 해당 값을 가진 줄만 매칭하려는 조건이다. 같은 `type=aggregation`인 `posts_mismatch` WARN 줄에는 이 값들이 없어 매칭되지 않는다. 리텐션 값은 월요일 집계 줄에만 있으므로 `RetentionW{k}Rate`는 월요일에만 발행되고, 코호트가 비어 있는 W+k는 키가 빠져 그 주에는 발행되지 않는다.
-- 집계 로그 한 줄 예시는 `{"type":"aggregation","metricDate":"2026-10-12","dau":12,"posts":15,"wau":30,"eligibleUsers":120,"likesTotal":340,"visitors":45,"topicViewers":40,"requests":5200,"server5xx":0,"latencyAvgMs":38,"latencyP95Ms":120,"message":"사용자 지표 집계"}`다. 월요일 집계 줄에는 `retentionW1Cohort`, `retentionW1Retained`, `retentionW1Rate` 같은 키가 W2~W4까지 더해진다.
+- 집계 로그 한 줄 예시는 `{"type":"aggregation","metricDate":"2026-10-12","dau":12,"posts":15,"wau":30,"eligibleUsers":120,"likesTotal":340,"visitors":45,"topicViewers":40,"requests":5200,"server5xx":0,"latencyAvgMs":38,"latencyP95Ms":120,"message":"사용자 지표 집계"}`다. 월요일 집계 줄에는 `retentionW1Cohort`, `retentionW1Retained`, `retentionW1Rate` 같은 키가 W2~W4까지 더해진다. 같은 줄에는 `aiReviewUsers`, `aiReviewRequests`, `aiReviewCompleted`, `aiReviewFailed`(값이 0이어도 항상)가 `likesTotal` 다음에 있어 AI 리뷰 집계 필터 4개가 이 줄을 센다. 정의는 [로깅·모니터링 설계](../../docs/monitoring/design.md)의 "AI 리뷰 지표 정의 메모"를 따른다. `AiReviewRequests`는 그날 최초 요청된 건수라 재요청은 세지 않고, 이름이 비슷한 운영 지표 `AiReviewRequested`(요청 로그 건수)와 다르다.
 - 메트릭의 데이터 포인트 시각은 로그가 수집된 시각이다. 집계는 `metricDate`의 다음 날 01:0x(KST)에 실행되므로 점이 찍힌 날짜와 `metricDate`는 하루 차이가 난다. 정확한 날짜가 필요하면 로그의 `metricDate`를 읽는다.
 - `topicViewers`, `likesTotal`, `requests`, `latencyAvgMs` 같은 나머지 값은 비용 때문에 메트릭으로 만들지 않는다. 필요하면 prod 로그 보존 기간(60일) 안에서 Logs Insights로 조회한다.
-- 내부 계정 제외 목록은 집계에만 적용된다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, 리텐션)과 로그 기반 `visitors`, `topicViewers`는 제외 후 값이고, `requests`, `server5xx`, 지연 시간은 제외하지 않는다.
+- 내부 계정 제외 목록은 집계에만 적용된다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, AI 리뷰 4종, 리텐션)과 로그 기반 `visitors`, `topicViewers`는 제외 후 값이고, `requests`, `server5xx`, 지연 시간은 제외하지 않는다.
 
 #### CLI로 만들기 (선택)
 
-dev EC2에는 AWS CLI가 있고 같은 role을 쓰므로 거기서 아래 반복문으로 사용자 지표 필터 9개를 한 번에 만들 수 있다. prod EC2에는 디스크 때문에 AWS CLI가 없다. 권한이 없으면 콘솔로 만든다.
+아래 반복문은 bash 문법이다. SSM Session Manager의 기본 셸이 sh일 수 있으므로 먼저 `bash`를 실행해 전환한다.
+
+SSM으로 dev EC2에 접속하면 AWS CLI가 있고 인스턴스 역할(`ec2-project`) 권한을 쓰므로 거기서 아래 반복문으로 사용자 지표 필터 9개와 AI 리뷰 집계 필터 4개를 한 번에 만들 수 있다. CloudWatch API는 리전 단위라 dev EC2에서 prod 로그 그룹에도 만들 수 있다. prod EC2에는 디스크 때문에 AWS CLI가 없고, 로컬 PC에서는 access key가 없어 쓰지 않는다. 권한이 없으면 콘솔로 만든다. AI 리뷰 운영 필터와 경보의 CLI는 [AI 리뷰 지표·경보 구성](ai-review-monitoring.md#6-적용-절차-cli)에 있다.
 
 ```bash
 for f in Dau:dau:Count Visitors:visitors:Count Wau:wau:Count Posts:posts:Count \
          EligibleUsers:eligibleUsers:Count \
          RetentionW1Rate:retentionW1Rate:Percent RetentionW2Rate:retentionW2Rate:Percent \
-         RetentionW3Rate:retentionW3Rate:Percent RetentionW4Rate:retentionW4Rate:Percent; do
+         RetentionW3Rate:retentionW3Rate:Percent RetentionW4Rate:retentionW4Rate:Percent \
+         AiReviewUsers:aiReviewUsers:Count AiReviewRequests:aiReviewRequests:Count \
+         AiReviewCompleted:aiReviewCompleted:Count AiReviewFailed:aiReviewFailed:Count; do
   IFS=: read -r name field unit <<< "$f"
   aws logs put-metric-filter --region ap-northeast-2 \
     --log-group-name /chalkak/prod/application \
@@ -265,6 +277,8 @@ done
 | `Chalkak/prod` `LatencyMs` | 기본값이 없어 첫 접근 로그가 들어와야 생긴다 | 접근 로그가 들어온 뒤 기다린다 |
 | `Chalkak/prod` `Dau`, `Visitors`, `Wau`, `Posts`, `EligibleUsers` | 기본값이 없어 #504 릴리스 뒤 첫 집계 로그가 들어와야 생긴다 | 01:00(KST) 예약 집계를 기다리거나, prod에서 관리자 API로 전날을 집계한다 |
 | `Chalkak/prod` `RetentionW1Rate`~`RetentionW4Rate` | 첫 월요일 01:00(KST) 집계 뒤에 생긴다. W+k 값은 그 코호트가 비어 있지 않을 때만 발행된다 | 월요일 집계를 기다린다 |
+| `Chalkak/prod` `AiReviewUsers`, `AiReviewRequests`, `AiReviewCompleted`, `AiReviewFailed` | 기본값이 없어 #692 릴리스 뒤 첫 집계 로그가 들어와야 생긴다. 값이 0이어도 발행된다 | 01:00(KST) 예약 집계를 기다리거나, prod에서 관리자 API로 전날을 집계한다 |
+| `Chalkak/prod` AI 리뷰 운영 지표 6개(`AiReviewRequested`, `AiReviewProcessed` 등) | 대부분 기본값 0이 있어 로그가 들어오면 발행된다. `AiReviewQueueWaitMs`는 기본값이 없어 첫 AI 리뷰 처리 뒤에 생긴다 | [AI 리뷰 지표·경보 구성](ai-review-monitoring.md) |
 | `CWAgent` `disk_used_percent`, `mem_used_percent` | Agent가 실행되면 약 5분 뒤 | 5단계와 6단계 이후 확인한다 |
 | `Chalkak/shared` `ImageProcessingAbandoned` | 기본값 0이 있지만 이미지 Lambda가 로그를 한 줄이라도 남겨야 발행된다 | dev 앱에서 사인이나 포스트 이미지를 한 장 업로드해 처리시킨 뒤 확인한다 |
 | `AWS/SQS` `ApproximateAgeOfOldestMessage` | 유휴 큐에는 없을 수 있다 | 이미지를 한 장 처리한 뒤 확인한다 |
@@ -274,7 +288,7 @@ prod 알람은 prod 릴리스가 끝나고 prod Agent가 실행 중이어서 위
 
 ### 8. 알람
 
-알람은 dev 3개, prod 9개, 공유 3개다. 콘솔에서는 CloudWatch > 경보 > 모든 경보 > **경보 생성** 흐름을 모든 알람에 똑같이 쓴다. 콘솔 표시 이름은 조금 다를 수 있다.
+알람은 dev 3개, prod 9개, 공유 3개다. AI 리뷰 경보 5개(`chalkak-prod-ai-review-*`)는 [AI 리뷰 지표·경보 구성](ai-review-monitoring.md#3-경보)에서 따로 정의한다. 콘솔에서는 CloudWatch > 경보 > 모든 경보 > **경보 생성** 흐름을 모든 알람에 똑같이 쓴다. 콘솔 표시 이름은 조금 다를 수 있다.
 
 1. **지표 선택**에서 표의 네임스페이스, 지표 이름, 디멘션을 고르고 통계와 기간을 입력한다.
 2. 조건에서 정적 임계값과 비교 연산자, 임계값을 입력한다. **추가 구성**을 펼쳐 "경보를 발생시킬 데이터 포인트"(표의 N of M)를 입력하고 **누락된 데이터 처리**를 표의 값으로 바꾼다. 콘솔의 기본값은 `missing`에 해당하는 "누락으로 처리"다.
@@ -379,11 +393,12 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 
 - [ ] 일반 로그 그룹 `/chalkak/dev/application`, `/chalkak/prod/application`에 로그 이벤트가 들어오고, Logs Insights에서 JSON 필드(`type`, `route`, `status`, `userId`)가 자동 인식된다.
 - [ ] `type=runtime` 로그가 1분마다 들어온다.
-- [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 14, `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
+- [ ] 콘솔 `CloudWatch > 지표`의 네임스페이스별 메트릭 수가 맞다: `Chalkak/dev` 2, `Chalkak/prod` 25(GC 정지 1, 사용자 지표 9, AI 리뷰 10 포함), `Chalkak/shared` 1, `CWAgent` prod 2·dev 1.
 - [ ] prod에서 집계 로그가 매일 들어온다(아래 `type = "aggregation"` 쿼리). `metricDate`가 전날이고 필드(`dau`, `posts`, `wau`, `eligibleUsers`, `visitors` 등)가 채워져 있다.
 - [ ] dev에서 관리자 API `POST /api/v1/admin/analytics/aggregations`를 호출하면 `/chalkak/dev/application`에 집계 로그가 남고 필드가 맞다. dev에는 스케줄러와 사용자 지표 메트릭 필터가 없으므로 메트릭은 생기지 않는다.
 - [ ] `event=posts_mismatch` WARN 로그가 없거나, 있으면 `dbPosts`와 `logPosts`가 다른 이유를 설명할 수 있다.
 - [ ] `chalkak-prod-user-metrics-missing`이 첫 집계 뒤 `OK`다.
+- [ ] 첫 집계 뒤 `AiReviewUsers`, `AiReviewRequests`, `AiReviewCompleted`, `AiReviewFailed`가 생기고 집계 로그의 같은 키 값과 같다. AI 리뷰 운영 필터·경보 확인은 [AI 리뷰 지표·경보 구성](ai-review-monitoring.md#6-6-적용-후-체크리스트)을 따른다.
 - [ ] 알람이 `OK` 또는 예상한 `INSUFFICIENT_DATA` 상태다. `chalkak-*-ec2-status-check`, `chalkak-*-5xx`가 `ALARM`이면 즉시 확인한다.
 - [ ] 대시보드 `DASHBOARD-chalkak`의 위젯에 데이터가 표시된다.
 - [ ] 알림 패키지의 INFO·WARN·ERROR 로그가 `/chalkak/{env}/notification`으로 들어오고 보존 기간이 30일이다. 동일한 새 알림 로그가 `application` 그룹에 중복되지 않으며, 일반 access·runtime 로그는 계속 기존 그룹에 들어온다.
@@ -454,6 +469,7 @@ filter type = "access"
 | `chalkak-shared-image-queue-age` | Lambda `Errors`·`Throttles` 지표와 Lambda 로그 그룹 |
 | `chalkak-shared-image-lambda-errors` | Lambda 로그의 `[ERROR]`와 실패한 S3 key |
 | `chalkak-shared-image-processing-abandoned` | Lambda 로그에서 `image_processing_abandoned` 검색, 대상 S3 key |
+| `chalkak-prod-ai-review-*` (5개) | [AI 리뷰 지표·경보 구성의 알람 대응](ai-review-monitoring.md#10-알람-대응) |
 
 알람이 왔는데 Slack에 메시지가 없으면 Lambda `chalkak-alarm-notifier`의 로그 그룹에서 `alarm_notification_failed`를 검색한다.
 
@@ -463,14 +479,14 @@ CloudWatch 요금은 [공식 가격표](https://aws.amazon.com/cloudwatch/pricin
 
 | 항목 | 수량 | 비고 |
 | --- | --- | --- |
-| 커스텀 메트릭 | 21개 | dev 2 + prod 15(5 + 사용자 지표 9 + GC 정지 1) + shared 1 + CWAgent 3(prod 2, dev 1). 메트릭 필터가 만든 메트릭도 커스텀 메트릭으로 과금된다 |
-| 알람 | 15개 | dev 3 + prod 9 + shared 3. 테스트 알람을 켜 둔 동안 1개씩 추가 |
+| 커스텀 메트릭 | 31개 | dev 2 + prod 25(5 + 사용자 지표 9 + GC 정지 1 + AI 리뷰 10) + shared 1 + CWAgent 3(prod 2, dev 1). 메트릭 필터가 만든 메트릭도 커스텀 메트릭으로 과금된다 |
+| 알람 | 20개 | dev 3 + prod 14(일반 9 + AI 리뷰 5) + shared 3. AI 리뷰 `worker-stalled`는 metric math라 과금 단위로는 지표 2개 몫이다. 테스트 알람을 켜 둔 동안 1개씩 추가 |
 | 대시보드 | 1개 | 무료 한도는 가격표에서 확인한다 |
 | 로그 수집·저장 | 트래픽 비례 | 수집량(GB)에 과금, 보존은 prod 60일·dev 7일. 접근 로그 트래픽이 늘면 가장 크게 변한다 |
 | Logs Insights 조회 | 조회한 로그 양(GB) 비례 | 대시보드의 Logs Insights 위젯이 열릴 때마다 조회한다 |
 | Lambda·SNS | 알람 횟수 비례 | 알람 메시지 수가 적어 이 규모에서는 무시할 수 있다. [Lambda 요금](https://aws.amazon.com/lambda/pricing/), [SNS 요금](https://aws.amazon.com/sns/pricing/) |
 
-월 약 $10은 팀의 목표 예산이며 추정치일 뿐 가격 견적이 아니다. #504에서 추가한 메트릭 9개와 알람 1개는 위 수량에 포함돼 있다. 정확한 단가와 무료 한도는 서울 리전 가격표로 계산한다.
+월 약 $10은 팀의 목표 예산이며 추정치일 뿐 가격 견적이 아니다. #504에서 추가한 메트릭 9개와 알람 1개, #692에서 추가한 메트릭 10개와 알람 5개는 위 수량에 포함돼 있다. 알림 도메인 지표·경보는 별도다. 정확한 단가와 무료 한도는 서울 리전 가격표로 계산한다.
 
 점검 방법은 다음과 같다.
 
@@ -486,6 +502,7 @@ Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24
 
 주의할 점이다.
 
+- AI 리뷰 필터·경보·저장 쿼리의 되돌리기는 [AI 리뷰 지표·경보 구성](ai-review-monitoring.md#8-되돌리기와-삭제-제약)을 따른다.
 - prod 알람, prod 토픽, Lambda를 삭제하면 운영 알림이 끊긴다.
 - prod Agent를 멈추거나 제거하면 로그와 지표가 끊기고 알람이 `INSUFFICIENT_DATA`가 된다.
 - 공유 알람(`chalkak-shared-*`)은 prod 토픽에 의존하므로 prod 토픽보다 먼저 지운다.
@@ -513,6 +530,7 @@ Logs Insights 비용에 주의한다. 대시보드는 기본 조회 기간을 24
 - 빠진 날은 관리자 API(`POST /api/v1/admin/analytics/aggregations`, 관리자 토큰 필요)로 다시 집계한다. 메트릭 필터는 수집 시각을 쓰므로 다시 집계하면 원래 날짜가 아니라 다시 집계한 시각에 데이터 포인트가 생긴다. 빠진 구간을 채우고 누락 알람을 해소할 뿐 과거 그래프를 고치지는 않는다.
 - 하루 전체가 로그 보존 기간(prod 60일, dev 7일) 안에 들지 않는 날짜는 원본 로그가 모자라 DB 지표만 남기고 `visitors` 같은 로그 지표 키는 남기지 않는다.
 - 이미 집계된 날을 다시 집계하면 같은 날에 데이터 포인트가 두 개 생긴다. 대시보드 위젯은 하루 단위 Maximum으로 보므로 영향이 없지만, Sum으로 보면 두 배가 된다.
+- AI 리뷰 네 키(#692)도 같은 줄에 남는다. `aiReviewCompleted`·`aiReviewFailed`는 집계 시점 스냅샷이라 같은 날짜를 나중에 다시 집계하면 값이 달라질 수 있다(예: 실패 건을 재요청해 성공). 이때 Maximum은 두 값 중 큰 쪽을 보여 주므로 정확한 값은 로그의 `metricDate`별 마지막 줄로 확인한다.
 
 ## 공식 문서
 

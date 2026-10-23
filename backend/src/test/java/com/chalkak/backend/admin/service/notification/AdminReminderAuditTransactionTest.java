@@ -51,7 +51,7 @@ class AdminReminderAuditTransactionTest extends IntegrationTestSupport {
                 "사진을 자랑해 주세요!",
                 ReminderRepeat.ONCE,
                 ReminderTarget.ALL,
-                Instant.now()
+                Instant.now().plusSeconds(3600)
         ))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(countRows("reminders")).isZero();
@@ -70,7 +70,7 @@ class AdminReminderAuditTransactionTest extends IntegrationTestSupport {
                 "비밀번호 정책이 변경됩니다.",
                 ReminderRepeat.ONCE,
                 ReminderTarget.ALL,
-                Instant.now()
+                Instant.now().plusSeconds(3600)
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("민감한 정보는 관리자 감사 로그에 저장할 수 없습니다.");

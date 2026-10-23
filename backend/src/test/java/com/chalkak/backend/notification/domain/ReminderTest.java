@@ -147,19 +147,15 @@ class ReminderTest {
 
     @ParameterizedTest
     @EnumSource(ReminderRepeat.class)
-    @DisplayName("반복 방식과 관계없이 현재보다 정확히 5분 전까지는 허용하고 그보다 과거는 거절한다")
-    void create_pastScheduledAtBoundary_acceptsUpToFiveMinutes(ReminderRepeat repeat) {
-        // Given
-        Instant fiveMinutesAgo = NOW.minus(Duration.ofMinutes(5));
-
+    @DisplayName("반복 방식과 관계없이 현재 시각부터는 허용하고 현재보다 과거는 거절한다")
+    void create_pastScheduledAtBoundary_acceptsFromNow(ReminderRepeat repeat) {
         // When & Then
-        assertThat(createScheduledAt(repeat, fiveMinutesAgo.plusSeconds(1)).getScheduledAt())
-                .isEqualTo(fiveMinutesAgo.plusSeconds(1));
-        assertThat(createScheduledAt(repeat, fiveMinutesAgo).getScheduledAt())
-                .isEqualTo(fiveMinutesAgo);
-        assertThatThrownBy(() -> createScheduledAt(repeat, fiveMinutesAgo.minusNanos(1)))
+        assertThat(createScheduledAt(repeat, NOW.plusSeconds(1)).getScheduledAt())
+                .isEqualTo(NOW.plusSeconds(1));
+        assertThat(createScheduledAt(repeat, NOW).getScheduledAt()).isEqualTo(NOW);
+        assertThatThrownBy(() -> createScheduledAt(repeat, NOW.minusNanos(1)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
     }
 
     @Test
@@ -258,7 +254,7 @@ class ReminderTest {
     }
 
     @Test
-    @DisplayName("시작일이 지난 매일 반복의 발송 시각을 5분 넘게 과거로 바꾸면 거절하고 기존 내용을 유지한다")
+    @DisplayName("시작일이 지난 매일 반복의 발송 시각을 과거로 바꾸면 거절하고 기존 내용을 유지한다")
     void update_dailyScheduleChangedToPast_throwsBusinessException() {
         // Given
         Reminder reminder = createScheduledAt(ReminderRepeat.DAILY, NOW);
@@ -274,7 +270,7 @@ class ReminderTest {
                 tenDaysLater
         ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
         assertThat(reminder.getTitle()).isEqualTo(TITLE);
         assertThat(reminder.getScheduledAt()).isEqualTo(NOW);
     }
@@ -296,7 +292,7 @@ class ReminderTest {
                 tenDaysLater
         ))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다.");
+                .hasMessage("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다.");
         assertThat(reminder.getRepeat()).isEqualTo(ReminderRepeat.DAILY);
     }
 
@@ -393,6 +389,125 @@ class ReminderTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("삭제된 리마인더는 수정할 수 없습니다.");
         assertThat(reminder.getTitle()).isEqualTo(TITLE);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-1, false", "0, true", "1799, true", "1800, false"})
+    @DisplayName("일회성은 발송 시각부터 30분 직전까지만 그 시각을 회차로 돌려준다")
+    void findDueOccurrence_once_returnsScheduledAtWithinDeadline(long offsetSeconds, boolean due) {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-21T12:00:00Z");
+        Reminder reminder = createScheduledAt(ReminderRepeat.ONCE, scheduledAt);
+
+        // When
+        Instant occurrence = reminder.findDueOccurrence(scheduledAt.plusSeconds(offsetSeconds));
+
+        // Then
+        if (due) {
+            assertThat(occurrence).isEqualTo(scheduledAt);
+            return;
+        }
+        assertThat(occurrence).isNull();
+    }
+
+    @Test
+    @DisplayName("현재 시각으로 등록한 일회성은 바로 회차가 된다")
+    void findDueOccurrence_onceScheduledNow_returnsImmediately() {
+        // Given
+        Reminder reminder = createScheduledAt(ReminderRepeat.ONCE, NOW);
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(NOW.plusSeconds(1))).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("매일 반복은 오늘 KST 날짜의 같은 시각을 회차로 돌려준다")
+    void findDueOccurrence_dailyAfterStart_returnsTodayOccurrence() {
+        // Given
+        Reminder reminder = createScheduledAt(
+                ReminderRepeat.DAILY,
+                Instant.parse("2026-10-21T12:00:00Z")
+        );
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-25T12:10:00Z")))
+                .isEqualTo(Instant.parse("2026-10-25T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("매일 반복은 시작일 전에는 회차가 없고 시작일 당일부터 회차가 있다")
+    void findDueOccurrence_dailyAroundStartDate_startsOnStartDate() {
+        // Given
+        Reminder reminder = createScheduledAt(
+                ReminderRepeat.DAILY,
+                Instant.parse("2026-10-22T12:00:00Z")
+        );
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-21T12:10:00Z"))).isNull();
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-22T12:10:00Z")))
+                .isEqualTo(Instant.parse("2026-10-22T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("매일 반복은 회차 시각 뒤에 문구를 고쳐도 그날 회차를 그대로 돌려준다")
+    void findDueOccurrence_dailyEditedAfterOccurrence_keepsTodayOccurrence() {
+        // Given
+        Reminder reminder = createScheduledAt(
+                ReminderRepeat.DAILY,
+                Instant.parse("2026-10-21T12:00:00Z")
+        );
+        Instant editedAt = Instant.parse("2026-10-25T12:00:30Z");
+        reminder.update(
+                "고친 제목",
+                "고친 본문",
+                ReminderRepeat.DAILY,
+                ReminderTarget.ALL,
+                Instant.parse("2026-10-21T12:00:00Z"),
+                editedAt
+        );
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(editedAt.plusSeconds(30)))
+                .isEqualTo(Instant.parse("2026-10-25T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("매일 반복은 KST 자정이 지나면 30분 기한이 남아 있어도 전날 회차를 돌려주지 않는다")
+    void findDueOccurrence_dailyAfterKstMidnight_skipsPreviousDay() {
+        // Given
+        Reminder reminder = createScheduledAt(
+                ReminderRepeat.DAILY,
+                Instant.parse("2026-10-21T14:50:00Z")
+        );
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-22T14:55:00Z")))
+                .isEqualTo(Instant.parse("2026-10-22T14:50:00Z"));
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-22T15:05:00Z"))).isNull();
+    }
+
+    @Test
+    @DisplayName("일회성은 KST 자정을 넘겨도 30분 기한 안이면 예약 시각을 회차로 돌려준다")
+    void findDueOccurrence_onceAfterKstMidnight_returnsScheduledAt() {
+        // Given
+        Instant scheduledAt = Instant.parse("2026-10-22T14:59:30Z");
+        Reminder reminder = createScheduledAt(ReminderRepeat.ONCE, scheduledAt);
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(Instant.parse("2026-10-22T15:00:00Z")))
+                .isEqualTo(scheduledAt);
+    }
+
+    @Test
+    @DisplayName("삭제된 리마인더는 회차가 없다")
+    void findDueOccurrence_deletedReminder_returnsNull() {
+        // Given
+        Reminder reminder = createScheduledAt(ReminderRepeat.ONCE, NOW);
+        reminder.delete(NOW);
+
+        // When & Then
+        assertThat(reminder.findDueOccurrence(NOW.plusSeconds(1))).isNull();
     }
 
     private boolean isCreatable(String title) {

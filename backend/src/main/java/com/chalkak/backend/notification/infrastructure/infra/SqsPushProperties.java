@@ -6,12 +6,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SqsPushProperties(
         boolean relayEnabled,
         boolean topicPushEnabled,
+        boolean reminderEnabled,
         String queueUrl,
         String region
 ) {
 
     public SqsPushProperties {
-        if (relayEnabled || topicPushEnabled) {
+        if (relayEnabled || topicPushEnabled || reminderEnabled) {
             validateQueueUrl(queueUrl);
         }
     }

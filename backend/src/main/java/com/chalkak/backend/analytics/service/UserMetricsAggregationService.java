@@ -1,6 +1,7 @@
 package com.chalkak.backend.analytics.service;
 
 import com.chalkak.backend.analytics.repository.UserMetricsRepository;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import com.chalkak.backend.common.logging.LogFields;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -31,7 +32,8 @@ public class UserMetricsAggregationService {
      * <p>
      * 게시물 생성 시각으로 정해지는 {@code dau}, {@code posts}, {@code wau}는 같은 날짜를 다시 집계해도 같다.
      * {@code eligibleUsers}, {@code likesTotal}은 집계 시점의 스냅샷이라 다시 돌린 시각에 따라 달라질 수
-     * 있다. 게시물 생성은 업로드 요청이 성공한 시점이므로 삭제됐거나 거절된 게시물도 센다.
+     * 있다. AI 리뷰 지표는 최초 요청 시각으로 날짜를 정하고 완료·실패 수는 집계 시점의 상태라 마찬가지로 달라질 수 있다. 게시물 생성은
+     * 업로드 요청이 성공한 시점이므로 삭제됐거나 거절된 게시물도 센다.
      *
      * <p>
      * 로그 지표 관측 시작일 이후 날짜는 접근 로그 지표도 같은 줄에 남기고, 로그의 게시물 생성 수가 DB의 {@code posts}와 다르면
@@ -49,6 +51,7 @@ public class UserMetricsAggregationService {
         long wau = userMetricsRepository.countPostAuthors(weekStart, dayEnd);
         long eligibleUsers = userMetricsRepository.countEligibleUsers();
         long likesTotal = userMetricsRepository.countLikesOnLivePosts();
+        AiReviewCounts aiReviews = userMetricsRepository.countAiReviews(dayStart, dayEnd);
         List<WeeklyRetention> weeklyRetentions = weeklyRetentions(metricDate);
         AccessLogMetrics accessLogMetrics = accessLogMetricsReader.read(metricDate).orElse(null);
 
@@ -59,6 +62,7 @@ public class UserMetricsAggregationService {
                 wau,
                 eligibleUsers,
                 likesTotal,
+                aiReviews,
                 accessLogMetrics,
                 weeklyRetentions
         );
@@ -121,7 +125,11 @@ public class UserMetricsAggregationService {
                 .addKeyValue("posts", metrics.posts())
                 .addKeyValue("wau", metrics.wau())
                 .addKeyValue("eligibleUsers", metrics.eligibleUsers())
-                .addKeyValue("likesTotal", metrics.likesTotal());
+                .addKeyValue("likesTotal", metrics.likesTotal())
+                .addKeyValue("aiReviewUsers", metrics.aiReviews().users())
+                .addKeyValue("aiReviewRequests", metrics.aiReviews().requests())
+                .addKeyValue("aiReviewCompleted", metrics.aiReviews().completed())
+                .addKeyValue("aiReviewFailed", metrics.aiReviews().failed());
         AccessLogMetrics accessLogMetrics = metrics.accessLogMetrics();
         if (accessLogMetrics != null) {
             event = event

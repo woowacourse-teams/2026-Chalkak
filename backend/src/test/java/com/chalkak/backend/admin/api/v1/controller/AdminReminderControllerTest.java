@@ -353,7 +353,7 @@ class AdminReminderControllerTest {
                 any()
         ))
                 .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR,
-                        "리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다."));
+                        "리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다."));
 
         // When & Then
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -364,6 +364,6 @@ class AdminReminderControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
-                        .value("리마인더 발송 시각은 현재 시각보다 5분 넘게 과거일 수 없습니다."));
+                        .value("리마인더 발송 시각은 현재 시각보다 과거일 수 없습니다."));
     }
 }
