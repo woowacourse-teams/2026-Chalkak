@@ -33,7 +33,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 미발송을 확정하지 않는다. 알림 로그 보관은 30일이며, 로그 분리 전 기록은 기존 그룹의 기간을 따른다.
 [Logs Insights 공식 안내](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html)
 
-### 처리 지연 조사 — SQS 계측
+### 처리 지연 조사 — SQS·DB·FCM 계측
 
 아래 필드는 계측 배포 이후 기록에만 존재한다. 과거 발송의 지연을 소급해서 분해하지 않는다.
 경과 시간은 `System.nanoTime()`으로 측정하고 밀리초 정수로 기록한다. CloudWatch 수집 시각의
@@ -48,6 +48,8 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 | `queueAgeMs` / `worker_attempt_completed` | SQS `SentTimestamp`부터 Worker 처리 진입 시각까지. **`receiveCount=1`**에서 최초 큐 대기를 조사한다. 재수신에서는 이전 처리·숨김·재시도 대기도 포함한다. 서버 시계 차이의 영향을 받으며, 입력 시각 누락·잘못된 값·미래 값은 `null`로 남긴다 |
 | `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
 | `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
+| `dbTransactionDurationMs` / `worker_db_transaction` | `TransactionTemplate.execute` 호출부터 반환 또는 예외까지. 연결 획득·쿼리·트랜잭션 완료(실패 시 롤백 포함) 시간이며 순수 SQL 실행 시간이 아니다 |
+| `fcmRequestDurationMs` / `fcm_request_completed` | 메시지 구성 후 실제 `FirebaseMessaging.send` 호출부터 반환 또는 예외까지. 인증·SDK 내부 HTTP 재시도와 대기가 포함될 수 있다. 오류 분류·무효 토큰 DB 정리·기기 수신 시간은 제외한다 |
 
 `worker_attempt_completed`는 **처리 시도 종료**이며 발송 성공을 뜻하지 않는다. `outcome`은
 `DELETED`, `INVALID_MESSAGE_DELETED`, `RETRY_PENDING`, `FAILED`다. `DELETED`에는 정상 생략과
@@ -85,10 +87,71 @@ filter type = "notification" and stage = "worker_sqs_receive"
     pct(sqsReceiveDurationMs, 95) as p95Ms by received
 ```
 
-이번 SQS 계측만으로는 처리 시간 안의 DB와 FCM을 분리할 수 없다. 후속 DB·FCM 계측 후
-내부 소요 시간을 비교한다. 수신 요청 시간·큐 대기·처리 시간은 서로 겹칠 수 있으므로 세 값을
-단순히 더하지 않는다. 숨김 자동 연장은 별도 스레드에서 동작하며 처리 종료가 연장 완료를
-기다린 시간은 전체 처리 시간에 포함된다. 수신·삭제·요약 로그가 늘어나는 만큼 수집·보관 비용도 증가한다.
+DB 계측의 `operation`은 다음과 같다. 정상 생략도 트랜잭션이 정상 완료됐다면
+`transactionCompleted=true`다. `false`이면 기존 `worker_processing_failed`·`worker_device_failed`·
+`worker_invalid_token_cleanup_failed`에서 오류 원인을 확인한다. 계측 자체는 INFO만 남긴다.
+
+| operation | 측정 대상 |
+| --- | --- |
+| `DEVICE_LOOKUP` | 회원의 발송 대상 기기 ID 목록 조회 |
+| `LATEST_CONDITIONS` | 기기·로그인·수신 설정·참여·알림 존재 등 기기별 최신 조건 확인 |
+| `INVALID_TOKEN_CLEANUP` | 무효 응답을 받은 토큰이 그대로일 때 해당 기기 삭제 |
+
+`PushWorkerTimingLogger`가 DB·FCM 시간 로그를 출력한다. Worker는 SDK 호출 중에만 현재
+`deviceId`를 MDC에 연결하고 정상·예외 모두 이전 값으로 복원한다. 따라서 SDK 시간 로그도
+SQS 식별자·수신 횟수·기기 ID로 연결된다. 기기가 없거나 발송 조건·기한 미충족으로 SDK를
+호출하지 않았다면 FCM 시간 로그는 없다. SDK 내부에서 HTTP 요청을 반복해도 한 번의
+`send` 호출에 대한 시간 로그는 하나이며 HTTP 재시도 횟수를 뜻하지 않는다.
+
+`sdkAccepted=true`는 SDK가 FCM 수락 응답을 확인했다는 뜻이다. `false`는 수락 응답 확인에
+실패했다는 뜻이며 서버가 이미 수락했을 가능성을 배제하지 않는다. 원인·최종 발송 결과는
+기존 `fcm_result`·`worker_device_failed`와 함께 확인한다.
+
+기기별 DB·FCM 시간을 확인한다. DB 조회·삭제와 FCM 요청은 동일 기기에서도 각각 별도 행이다.
+
+```sql
+fields @timestamp, stage, operation, sqsMessageId, receiveCount, deviceId, transactionCompleted, sdkAccepted, dbTransactionDurationMs, fcmRequestDurationMs, result, errorCode
+| filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
+| filter stage in ["worker_db_transaction", "fcm_request_completed", "fcm_result", "worker_device_failed", "worker_invalid_token_cleanup_failed"]
+| sort @timestamp asc
+```
+
+한 처리 시도 안의 DB·SDK 호출 횟수와 시간을 합산한다. 모든 기기가 정상 생략됐다면
+`sdkCalls=0`이다. `DELETED`가 모든 기기의 FCM 수락을 뜻하지는 않으므로 `worker_summary`의
+기기별 결과 개수도 확인한다.
+
+```sql
+filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
+| filter stage in ["worker_db_transaction", "fcm_request_completed", "worker_message_deleted", "worker_sqs_delete_failed", "worker_attempt_completed"]
+| stats count(dbTransactionDurationMs) as dbTransactions, sum(dbTransactionDurationMs) as dbMs,
+    count(fcmRequestDurationMs) as sdkCalls, sum(fcmRequestDurationMs) as fcmMs,
+    max(sqsDeleteDurationMs) as deleteMs, max(queueAgeMs) as queueAgeMs,
+    max(processingDurationMs) as processingMs by sqsMessageId, receiveCount
+```
+
+`processingMs` 안에 `dbMs`·`fcmMs`·`deleteMs`가 포함된다. 이들을 전체 시간에 다시 더하지
+않는다. 차이에는 메시지 해석·검증·로그 출력·스케줄링·숨김 연장 종료 대기·재전달 대기 설정
+등이 포함될 수 있어, 차이를 모두 DB나 FCM 탓으로 분류하지 않는다. DB 계측 구간은 서로
+중첩하지 않으며 FCM은 DB 트랜잭션 밖에서 호출한다. 수신 요청 시간과 큐 나이도 겹칠 수 있으므로
+단순히 합산하지 않는다. 숨김 연장은 별도 스레드에서 동작하고 그 통신 시간을 별도로 분해하지 않는다.
+운영에서 원인을 좁힌 뒤 필요할 때만 해당 구간을 추가 계측한다.
+
+특정 DB 구간 또는 FCM 요청이 전반적으로 느린지 확인하려면 다음처럼 집계한다.
+
+```sql
+filter type = "notification" and stage = "worker_db_transaction"
+| stats count(*) as transactions, avg(dbTransactionDurationMs) as avgMs,
+    pct(dbTransactionDurationMs, 95) as p95Ms, max(dbTransactionDurationMs) as maxMs by operation
+```
+
+```sql
+filter type = "notification" and stage = "fcm_request_completed"
+| stats count(*) as sdkCalls, avg(fcmRequestDurationMs) as avgMs,
+    pct(fcmRequestDurationMs, 95) as p95Ms, max(fcmRequestDurationMs) as maxMs by sdkAccepted
+```
+
+계측 로그가 늘어나는 만큼 수집·보관 비용도 증가한다. 배포 뒤 실제 작업의 필드·상관관계·쿼리
+결과를 확인하며, 테스트 통과만으로 운영 지연 원인을 확정하지 않는다.
 
 ## 2. 마지막으로 확인된 단계에서 다음 단계를 조사
 

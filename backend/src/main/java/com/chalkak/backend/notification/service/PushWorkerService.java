@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -42,6 +43,7 @@ public class PushWorkerService {
     private final DevicePushSender sender;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
+    private final PushWorkerTimingLogger timingLogger = new PushWorkerTimingLogger();
 
     public PushWorkerService(
             NotificationRepository notificationRepository,
@@ -82,8 +84,7 @@ public class PushWorkerService {
             );
             return PushProcessingResult.completed();
         }
-        List<UUID> deviceIds = transactionTemplate
-                .execute(status -> deviceRepository.findIdsByUserId(message.userId()));
+        List<UUID> deviceIds = findDeviceIds(message);
         if (deviceIds.isEmpty()) {
             logSkipped(
                     message,
@@ -116,6 +117,25 @@ public class PushWorkerService {
             return PushProcessingResult.completed();
         }
         return new PushProcessingResult(retryable, retryAfter);
+    }
+
+    private List<UUID> findDeviceIds(PushMessage message) {
+        long startedAt = System.nanoTime();
+        boolean completed = false;
+        try {
+            List<UUID> deviceIds = transactionTemplate
+                    .execute(status -> deviceRepository.findIdsByUserId(message.userId()));
+            completed = true;
+            return deviceIds;
+        } finally {
+            timingLogger.logTransaction(
+                    message,
+                    null,
+                    "DEVICE_LOOKUP",
+                    startedAt,
+                    completed
+            );
+        }
     }
 
     private Duration findLongestRetryAfter(Duration current, DevicePushResult result) {
@@ -154,7 +174,7 @@ public class PushWorkerService {
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
-        DevicePushResult result = sender.send(request);
+        DevicePushResult result = sendRequest(request, deviceId);
         if (result.status() == DevicePushResult.Status.SKIPPED) {
             logSkipped(
                     message,
@@ -178,6 +198,19 @@ public class PushWorkerService {
         return result;
     }
 
+    private DevicePushResult sendRequest(DevicePushRequest request, UUID deviceId) {
+        String previousDeviceId = MDC.get("deviceId");
+        MDC.put("deviceId", deviceId.toString());
+        try {
+            return sender.send(request);
+        } finally {
+            MDC.remove("deviceId");
+            if (previousDeviceId != null) {
+                MDC.put("deviceId", previousDeviceId);
+            }
+        }
+    }
+
     private void deleteInvalidToken(
             PushMessage message,
             UUID deviceId,
@@ -185,8 +218,11 @@ public class PushWorkerService {
     ) {
         try {
             FcmToken token = new FcmToken(request.token());
-            transactionTemplate.executeWithoutResult(status -> deviceRepository
-                    .deleteByIdAndTokenHash(deviceId, token.getHash()));
+            deleteDeviceToken(
+                    message,
+                    deviceId,
+                    token
+            );
         } catch (RuntimeException exception) {
             logDeviceFailure(
                     message,
@@ -197,8 +233,45 @@ public class PushWorkerService {
         }
     }
 
+    private void deleteDeviceToken(
+            PushMessage message,
+            UUID deviceId,
+            FcmToken token
+    ) {
+        long startedAt = System.nanoTime();
+        boolean completed = false;
+        try {
+            transactionTemplate.executeWithoutResult(status -> deviceRepository
+                    .deleteByIdAndTokenHash(deviceId, token.getHash()));
+            completed = true;
+        } finally {
+            timingLogger.logTransaction(
+                    message,
+                    deviceId,
+                    "INVALID_TOKEN_CLEANUP",
+                    startedAt,
+                    completed
+            );
+        }
+    }
+
     private DevicePushRequest findCurrentRequest(PushMessage message, UUID deviceId) {
-        return transactionTemplate.execute(status -> findRequest(message, deviceId));
+        long startedAt = System.nanoTime();
+        boolean completed = false;
+        try {
+            DevicePushRequest request = transactionTemplate
+                    .execute(status -> findRequest(message, deviceId));
+            completed = true;
+            return request;
+        } finally {
+            timingLogger.logTransaction(
+                    message,
+                    deviceId,
+                    "LATEST_CONDITIONS",
+                    startedAt,
+                    completed
+            );
+        }
     }
 
     private DevicePushRequest findRequest(PushMessage message, UUID deviceId) {

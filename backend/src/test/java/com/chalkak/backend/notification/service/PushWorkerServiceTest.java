@@ -1,6 +1,7 @@
 package com.chalkak.backend.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -12,6 +13,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +36,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,14 +74,22 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private PlatformTransactionManager manager;
     @Autowired
     private JdbcTemplate jdbc;
-    private final Logger logger = (Logger) LoggerFactory.getLogger(PushWorkerService.class);
-    private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    private final Logger logger = (Logger) LoggerFactory
+            .getLogger("com.chalkak.backend.notification");
+    private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+        @Override
+        protected void append(ILoggingEvent event) {
+            event.prepareForDeferredProcessing();
+            super.append(event);
+        }
+    };
     private PushMessage message;
     private DevicePushSender sender;
     private UUID deviceId;
 
     @BeforeEach
     void setUp() {
+        appender.list = new CopyOnWriteArrayList<>();
         appender.start();
         logger.addAppender(appender);
         new DatabaseCleaner(jdbc).clean();
@@ -126,6 +140,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void tearDown() {
         logger.detachAppender(appender);
         appender.stop();
+        MDC.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_device_delete ON push_devices");
         jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_device_delete()");
         new DatabaseCleaner(jdbc).clean();
@@ -139,6 +154,121 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.retryable()).isFalse();
         verify(sender).send(any());
+        assertThat(logsAtStage("worker_db_transaction"))
+                .extracting(log -> log.get("operation"))
+                .containsExactly("DEVICE_LOOKUP", "LATEST_CONDITIONS");
+        assertThat(logsAtStage("worker_db_transaction")).allSatisfy(log -> {
+            assertThat(log).containsEntry("transactionCompleted", true)
+                    .containsEntry("eventId", message.eventId());
+            assertThat((long) log.get("dbTransactionDurationMs")).isNotNegative();
+        });
+    }
+
+    @Test
+    @DisplayName("기기가 없으면 목록 조회 시간과 0개 집계를 남기고 발송하지 않는다")
+    void process_noDevices_recordsLookupWithoutSending() {
+        // Given
+        jdbc.update("DELETE FROM push_devices");
+        // When
+        worker(NOW).process(message);
+        // Then
+        assertThat(logsAtStage("worker_db_transaction")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("operation", "DEVICE_LOOKUP")
+                        .containsEntry("transactionCompleted", true));
+        assertThat(logsAtStage("worker_summary")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("targetCount", 0));
+        verifyNoInteractions(sender);
+    }
+
+    @Test
+    @DisplayName("트랜잭션 시작에 실패해도 실패 시간과 구간을 남기고 예외를 전달한다")
+    void process_transactionCannotStart_recordsFailureAndPropagates() {
+        // Given
+        PlatformTransactionManager unavailable = mock(PlatformTransactionManager.class);
+        given(unavailable.getTransaction(any())).willThrow(new IllegalStateException("DB failed"));
+        PushWorkerService failingWorker = new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                reminders,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                unavailable
+        );
+        // When & Then
+        assertThatThrownBy(() -> failingWorker.process(message))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(logsAtStage("worker_db_transaction")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("operation", "DEVICE_LOOKUP")
+                    .containsEntry("transactionCompleted", false);
+            assertThat((long) log.get("dbTransactionDurationMs")).isNotNegative();
+        });
+        verifyNoInteractions(sender);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("SDK 호출 중 기기 ID를 연결하고 성공·예외 모두 기존 MDC를 복원한다")
+    void process_senderCompletesOrThrows_restoresDeviceContext(boolean fails) {
+        // Given
+        MDC.put("deviceId", "previous-device");
+        MDC.put("sqsMessageId", "current-sqs");
+        given(sender.send(any())).willAnswer(call -> {
+            assertThat(MDC.get("deviceId")).isEqualTo(deviceId.toString());
+            assertThat(MDC.get("sqsMessageId")).isEqualTo("current-sqs");
+            if (fails) {
+                throw new IllegalStateException("SDK failed");
+            }
+            return DevicePushResult.accepted();
+        });
+        // When
+        PushProcessingResult result = worker(NOW).process(message);
+        // Then
+        assertThat(result.retryable()).isEqualTo(fails);
+        assertThat(MDC.getCopyOfContextMap()).containsExactlyInAnyOrderEntriesOf(
+                Map.of(
+                        "deviceId",
+                        "previous-device",
+                        "sqsMessageId",
+                        "current-sqs"
+                ));
+    }
+
+    @Test
+    @DisplayName("같은 Worker의 두 동시 발송은 DB 계측과 기기 MDC를 각 메시지에 연결한다")
+    void process_concurrentMessages_keepsSeparateTimingContexts() throws Exception {
+        // Given
+        PushWorkerService worker = worker(NOW);
+        CountDownLatch bothSending = new CountDownLatch(2);
+        given(sender.send(any())).willAnswer(call -> {
+            bothSending.countDown();
+            assertThat(bothSending.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(MDC.get("deviceId")).isEqualTo(deviceId.toString());
+            return DevicePushResult.accepted();
+        });
+        // When
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> processWithContext(worker, "first-sqs"));
+            var second = executor.submit(() -> processWithContext(worker, "second-sqs"));
+            // Then
+            assertThat(first.get(10, TimeUnit.SECONDS)).containsExactly(
+                    Map.entry("sqsMessageId", "first-sqs"));
+            assertThat(second.get(10, TimeUnit.SECONDS)).containsExactly(
+                    Map.entry("sqsMessageId", "second-sqs"));
+        }
+        assertThat(logsAtStage("worker_db_transaction")).hasSize(4)
+                .allSatisfy(log -> assertThat((long) log.get("dbTransactionDurationMs"))
+                        .isNotNegative());
+        assertThat(logsAtStage("worker_db_transaction"))
+                .extracting(log -> log.get("sqsMessageId"))
+                .containsExactlyInAnyOrder(
+                        "first-sqs",
+                        "first-sqs",
+                        "second-sqs",
+                        "second-sqs"
+                );
     }
 
     @ParameterizedTest
@@ -214,6 +344,9 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.retryable()).isTrue();
         assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
+        assertThat(logsAtStage("worker_db_transaction"))
+                .filteredOn(log -> "LATEST_CONDITIONS".equals(log.get("operation")))
+                .extracting(log -> log.get("deviceId")).doesNotHaveDuplicates().hasSize(2);
     }
 
     @Test
@@ -303,6 +436,13 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(deviceId);
+        assertThat(logsAtStage("worker_db_transaction"))
+                .filteredOn(log -> "INVALID_TOKEN_CLEANUP".equals(log.get("operation")))
+                .singleElement().satisfies(log -> {
+                    assertThat(log).containsEntry("transactionCompleted", false)
+                            .containsEntry("deviceId", deviceId);
+                    assertThat((long) log.get("dbTransactionDurationMs")).isNotNegative();
+                });
     }
 
     @Test
@@ -320,6 +460,11 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         worker(NOW).process(message);
         // Then
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactly(other);
+        assertThat(logsAtStage("worker_db_transaction"))
+                .filteredOn(log -> "INVALID_TOKEN_CLEANUP".equals(log.get("operation")))
+                .singleElement().satisfies(log -> assertThat(log)
+                        .containsEntry("transactionCompleted", true)
+                        .containsEntry("deviceId", deviceId));
     }
 
     @Test
@@ -454,7 +599,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
     private List<Map<String, Object>> logsAtStage(String stage) {
         return appender.list.stream().map(event -> {
-            Map<String, Object> values = new HashMap<>();
+            Map<String, Object> values = new HashMap<>(event.getMDCPropertyMap());
             event.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
             return values;
         }).filter(values -> stage.equals(values.get("stage"))).toList();
@@ -472,6 +617,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 Clock.fixed(now, ZoneOffset.UTC),
                 manager
         );
+    }
+
+    private Map<String, String> processWithContext(PushWorkerService worker, String sqsMessageId) {
+        MDC.put("sqsMessageId", sqsMessageId);
+        try {
+            worker.process(message);
+            return MDC.getCopyOfContextMap();
+        } finally {
+            MDC.clear();
+        }
     }
 
     private void rejectDeviceDeletion() {
