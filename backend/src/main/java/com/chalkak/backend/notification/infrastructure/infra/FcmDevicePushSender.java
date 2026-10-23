@@ -5,7 +5,7 @@ import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushSender;
-import com.chalkak.backend.notification.service.PushWorkerTimingLog;
+import com.chalkak.backend.notification.service.DevicePushTiming;
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.ApnsConfig;
@@ -35,19 +35,19 @@ public class FcmDevicePushSender implements DevicePushSender {
     }
 
     @Override
-    public DevicePushResult send(DevicePushRequest request) {
+    public DevicePushResult send(DevicePushRequest request, DevicePushTiming timing) {
         if (PushDeadlinePolicy.isExpiredAt(request.expiresAt(), clock.instant())) {
             return DevicePushResult.skipped("EXPIRED");
         }
         try {
-            sendToFcm(request, createMessage(request));
+            sendToFcm(timing, createMessage(request));
             return DevicePushResult.accepted();
         } catch (FirebaseMessagingException exception) {
             return toResult(exception);
         }
     }
 
-    private void sendToFcm(DevicePushRequest request, Message message)
+    private void sendToFcm(DevicePushTiming timing, Message message)
             throws FirebaseMessagingException {
         Elapsed elapsed = Elapsed.start();
         boolean accepted = false;
@@ -55,11 +55,7 @@ public class FcmDevicePushSender implements DevicePushSender {
             messaging.send(message);
             accepted = true;
         } finally {
-            PushWorkerTimingLog.logFcmRequest(
-                    request,
-                    elapsed,
-                    accepted
-            );
+            timing.recordRequest(elapsed, accepted);
         }
     }
 

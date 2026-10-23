@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.params.provider.CsvSource;
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
@@ -143,7 +144,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         });
         deviceId = addDevice("worker-token");
         sender = mock(DevicePushSender.class);
-        given(sender.send(any())).willReturn(
+        given(sender.send(any(), any())).willReturn(
                 DevicePushResult.accepted());
     }
 
@@ -164,7 +165,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isFalse();
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
         assertThat(logsAtStage("worker_db_transaction"))
                 .extracting(log -> log.get("operation"))
                 .containsExactly("DEVICE_LOOKUP", "LATEST_CONDITIONS_LOOKUP");
@@ -184,7 +185,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isFalse();
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @Test
@@ -233,14 +234,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    @DisplayName("SDK 호출 중 기기 ID를 연결하고 성공·예외 모두 기존 MDC를 복원한다")
-    void process_senderCompletesOrThrows_restoresDeviceContext(boolean fails) {
+    @DisplayName("발송 결과·예외에 SDK 시간을 합치고 기존 MDC는 변경하지 않는다")
+    void process_senderCompletesOrThrows_combinesTimingWithoutChangingMdc(boolean fails) {
         // Given
         MDC.put("deviceId", "previous-device");
         MDC.put("sqsMessageId", "current-sqs");
-        given(sender.send(any())).willAnswer(call -> {
-            assertThat(MDC.get("deviceId")).isEqualTo(deviceId.toString());
+        given(sender.send(any(), any())).willAnswer(call -> {
+            assertThat(MDC.get("deviceId")).isEqualTo("previous-device");
             assertThat(MDC.get("sqsMessageId")).isEqualTo("current-sqs");
+            recordSdkTiming(
+                    call.getArgument(1),
+                    17L,
+                    !fails
+            );
             if (fails) {
                 throw new IllegalStateException("SDK failed");
             }
@@ -250,6 +256,14 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isEqualTo(fails);
+        String stage = "fcm_result";
+        if (fails) {
+            stage = "worker_device_failed";
+        }
+        assertThat(logsAtStage(stage)).singleElement().satisfies(log -> assertThat(log)
+                .containsEntry("fcmRequestDurationMs", 17L).containsEntry("sdkAccepted", !fails)
+                .containsEntry("deviceId", deviceId).containsEntry("sqsMessageId", "current-sqs"));
+        assertThat(logsAtStage("fcm_request_completed")).isEmpty();
         assertThat(MDC.getCopyOfContextMap()).containsExactlyInAnyOrderEntriesOf(
                 Map.of(
                         "deviceId",
@@ -260,15 +274,27 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("같은 Worker의 두 동시 발송은 DB 계측과 기기 MDC를 각 메시지에 연결한다")
+    @DisplayName("같은 Worker의 동시 발송은 서로 다른 측정 객체와 결과 로그를 사용한다")
     void process_concurrentMessages_keepsSeparateTimingContexts() throws Exception {
         // Given
         PushWorkerService worker = worker(NOW);
         CountDownLatch bothSending = new CountDownLatch(2);
-        given(sender.send(any())).willAnswer(call -> {
+        List<DevicePushTiming> timings = new CopyOnWriteArrayList<>();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushTiming timing = call.getArgument(1);
+            timings.add(timing);
+            long duration = 11L;
+            if ("second-sqs".equals(MDC.get("sqsMessageId"))) {
+                duration = 22L;
+            }
+            recordSdkTiming(
+                    timing,
+                    duration,
+                    true
+            );
             bothSending.countDown();
             assertThat(bothSending.await(5, TimeUnit.SECONDS)).isTrue();
-            assertThat(MDC.get("deviceId")).isEqualTo(deviceId.toString());
+            assertThat(MDC.get("deviceId")).isNull();
             return DevicePushResult.accepted();
         });
         // When
@@ -281,6 +307,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             assertThat(second.get(10, TimeUnit.SECONDS)).containsExactly(
                     Map.entry("sqsMessageId", "second-sqs"));
         }
+        assertThat(timings).hasSize(2).doesNotHaveDuplicates();
+        assertThat(logsAtStage("fcm_result")).hasSize(2);
+        assertThat(logsAtStage("fcm_result"))
+                .filteredOn(log -> "first-sqs".equals(log.get("sqsMessageId")))
+                .singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("fcmRequestDurationMs", 11L));
+        assertThat(logsAtStage("fcm_result"))
+                .filteredOn(log -> "second-sqs".equals(log.get("sqsMessageId")))
+                .singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("fcmRequestDurationMs", 22L));
         assertThat(logsAtStage("worker_db_transaction")).hasSize(4)
                 .allSatisfy(log -> assertThat((long) log.get("dbTransactionDurationMs"))
                         .isNotNegative());
@@ -302,7 +338,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         assertThat(worker(NOW.plusSeconds(seconds)).process(message).retryable()).isFalse();
         // Then
         if (seconds < 1800) {
-            verify(sender).send(any());
+            verify(sender).send(any(), any());
             return;
         }
         verifyNoInteractions(sender);
@@ -349,7 +385,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When
         worker(NOW).process(message);
         // Then
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @Test
@@ -357,7 +393,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_allTransientFailures_retriesWithLongestDelay() {
         // Given
         addDevice("second-token");
-        given(sender.send(any())).willReturn(
+        given(sender.send(any(), any())).willReturn(
                 DevicePushResult.retryable("UNAVAILABLE",
                         Duration.ofSeconds(60)),
                 DevicePushResult.retryable("QUOTA",
@@ -377,13 +413,13 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_partialAcceptance_completesUserMessage() {
         // Given
         addDevice("second-token");
-        given(sender.send(any())).willReturn(
+        given(sender.send(any(), any())).willReturn(
                 DevicePushResult.retryable("UNAVAILABLE",
                         Duration.ofSeconds(60)),
                 DevicePushResult.accepted());
         // When & Then
         assertThat(worker(NOW).process(message).retryable()).isFalse();
-        verify(sender, times(2)).send(any());
+        verify(sender, times(2)).send(any(), any());
         assertThat(logsAtStage("worker_summary")).singleElement().satisfies(log -> assertThat(log)
                 .containsEntry("targetCount", 2).containsEntry("acceptedCount", 1)
                 .containsEntry("retryableCount", 1).containsEntry("retryable", false));
@@ -394,14 +430,14 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_acceptedThenDeviceException_completesUserMessage() {
         // Given
         addDevice("second-token");
-        given(sender.send(any()))
+        given(sender.send(any(), any()))
                 .willReturn(DevicePushResult.accepted())
                 .willThrow(new IllegalStateException("device processing failure"));
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
-        verify(sender, times(2)).send(any());
+        verify(sender, times(2)).send(any(), any());
     }
 
     @Test
@@ -409,21 +445,22 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_deviceExceptionThenAccepted_completesUserMessage() {
         // Given
         addDevice("second-token");
-        given(sender.send(any()))
+        given(sender.send(any(), any()))
                 .willThrow(new IllegalStateException("device processing failure"))
                 .willReturn(DevicePushResult.accepted());
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
-        verify(sender, times(2)).send(any());
+        verify(sender, times(2)).send(any(), any());
     }
 
     @Test
     @DisplayName("수락한 기기 없이 예상하지 못한 예외가 발생하면 재전달을 요청한다")
     void process_deviceExceptionWithoutAcceptance_retriesUserMessage() {
         // Given
-        given(sender.send(any())).willThrow(new IllegalStateException("device processing failure"));
+        given(sender.send(any(), any()))
+                .willThrow(new IllegalStateException("device processing failure"));
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -437,7 +474,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Given
         UUID other = addDevice("second-token");
         rejectDeviceDeletion();
-        given(sender.send(any())).willReturn(
+        given(sender.send(any(), any())).willReturn(
                 DevicePushResult.accepted(),
                 DevicePushResult.invalidToken("UNREGISTERED"));
         // When
@@ -445,7 +482,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         assertThat(devices.findIdsByUserId(USER_ID)).containsExactlyInAnyOrder(deviceId, other);
-        verify(sender, times(2)).send(any());
+        verify(sender, times(2)).send(any(), any());
     }
 
     @Test
@@ -453,7 +490,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_invalidTokenCleanupFailure_preservesDeviceAndCompletes() {
         // Given
         rejectDeviceDeletion();
-        given(sender.send(any())).willReturn(DevicePushResult.invalidToken("UNREGISTERED"));
+        given(sender.send(any(), any())).willReturn(DevicePushResult.invalidToken("UNREGISTERED"));
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -473,7 +510,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_unregisteredToken_deletesAffectedDevice() {
         // Given
         UUID other = addDevice("other-token");
-        given(sender.send(any())).willAnswer(call -> {
+        given(sender.send(any(), any())).willAnswer(call -> {
             DevicePushRequest request = call.getArgument(0);
             if (request.token().equals("worker-token"))
                 return DevicePushResult.invalidToken("UNREGISTERED");
@@ -494,7 +531,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("실패 응답 전에 갱신된 토큰은 이전 무효 토큰 제거로 삭제하지 않는다")
     void process_tokenUpdatedDuringSend_keepsNewToken() {
         // Given
-        given(sender.send(any())).willAnswer(call -> {
+        given(sender.send(any(), any())).willAnswer(call -> {
             jdbc.update(
                     "UPDATE push_devices SET fcm_token='updated-token',fcm_token_hash=? WHERE id=?",
                     new FcmToken("updated-token").getHash(),
@@ -517,7 +554,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @DisplayName("메시지·프로젝트·인증 영구 오류는 기기와 토큰을 보존하고 작업을 완료한다")
     void process_permanentFailure_preservesDeviceAndCompletes(String errorCode) {
         // Given
-        given(sender.send(any())).willReturn(DevicePushResult.permanentFailure(errorCode));
+        given(sender.send(any(), any())).willReturn(DevicePushResult.permanentFailure(errorCode));
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
@@ -589,7 +626,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             case "SKIPPED" -> DevicePushResult.skipped("PUSH_EXPIRED");
             default -> DevicePushResult.accepted();
         };
-        given(sender.send(any())).willReturn(deviceResult);
+        given(sender.send(any(), any())).willAnswer(call -> {
+            if (!status.equals("SKIPPED")) {
+                recordSdkTiming(
+                        call.getArgument(1),
+                        23L,
+                        status.equals("ACCEPTED")
+                );
+            }
+            return deviceResult;
+        });
         // When
         worker(NOW).process(message);
         // Then
@@ -605,8 +651,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 .isEqualTo(status.equals("INVALID_TOKEN") ? 1 : 0);
         assertThat(summary.get("skippedCount")).isEqualTo(status.equals("SKIPPED") ? 1 : 0);
         assertThat(logsAtStage("fcm_result")).hasSize(status.equals("SKIPPED") ? 0 : 1);
+        if (status.equals("SKIPPED")) {
+            assertThat(logsAtStage("worker_skipped")).singleElement()
+                    .satisfies(log -> assertThat(log)
+                            .doesNotContainKeys("fcmRequestDurationMs", "sdkAccepted"));
+        }
+        if (!status.equals("SKIPPED")) {
+            assertThat(logsAtStage("fcm_result")).singleElement().satisfies(log -> assertThat(log)
+                    .containsEntry("fcmRequestDurationMs", 23L)
+                    .containsEntry("sdkAccepted", status.equals("ACCEPTED")));
+        }
+
         var request = org.mockito.ArgumentCaptor.forClass(DevicePushRequest.class);
-        verify(sender).send(request.capture());
+        verify(sender).send(request.capture(), any());
         assertThat(appender.list).allSatisfy(event -> {
             String logged = event.getFormattedMessage() + event.getKeyValuePairs();
             assertThat(logged).doesNotContain(
@@ -618,6 +675,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             );
             assertThat(event.getThrowableProxy()).isNull();
         });
+    }
+
+    private void recordSdkTiming(
+            DevicePushTiming timing,
+            long durationMs,
+            boolean accepted
+    ) {
+        Elapsed elapsed = mock(Elapsed.class);
+        given(elapsed.toMillis()).willReturn(durationMs);
+        timing.recordRequest(elapsed, accepted);
     }
 
     private List<Map<String, Object>> logsAtStage(String stage) {

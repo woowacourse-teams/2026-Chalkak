@@ -50,7 +50,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 | `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
 | `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
 | `dbTransactionDurationMs` / `worker_db_transaction` | `TransactionTemplate.execute` 호출부터 반환 또는 예외까지. 연결 획득·쿼리·트랜잭션 완료(실패 시 롤백 포함) 시간이며 순수 SQL 실행 시간이 아니다 |
-| `fcmRequestDurationMs` / `fcm_request_completed` | 메시지 구성 후 실제 `FirebaseMessaging.send` 호출부터 반환 또는 예외까지. 인증·SDK 내부 HTTP 재시도와 대기가 포함될 수 있다. 오류 분류·무효 토큰 DB 정리·기기 수신 시간은 제외한다 |
+| `fcmRequestDurationMs` / `fcm_result`, `worker_skipped`, `worker_device_failed` | 메시지 구성 후 실제 `FirebaseMessaging.send` 호출부터 반환 또는 예외까지. 인증·SDK 내부 HTTP 재시도와 대기가 포함될 수 있다. 오류 분류·무효 토큰 DB 정리·기기 수신 시간은 제외한다 |
 
 `worker_attempt_completed`는 **처리 시도 종료**이며 발송 성공을 뜻하지 않는다. `outcome`은
 `DELETED`, `INVALID_MESSAGE_DELETED`, `RETRY_PENDING`, `FAILED`다. `DELETED`에는 정상 생략과
@@ -109,22 +109,23 @@ DB 계측의 `operation`은 다음과 같다. 정상 생략도 트랜잭션이 �
 | `INVALID_TOKEN_CLEANUP` | 무효 응답을 받은 토큰이 그대로일 때 해당 기기 삭제 |
 
 DB의 세 처리 구간은 `executeMeasuredTransaction`으로 연결 획득부터 트랜잭션 완료까지 같은 범위를 측정한다.
-FCM SDK 호출은 별도 측정 경계를 유지하며 `PushWorkerTimingLog`가 DB·FCM 시간 로그를 출력한다. Worker는 SDK 호출 중에만 현재
-`deviceId`를 MDC에 연결하고 정상·예외 모두 이전 값으로 복원한다. 따라서 SDK 시간 로그도
-SQS 식별자·수신 횟수·기기 ID로 연결된다. 기기가 없거나 발송 조건·기한 미충족으로 SDK를
-호출하지 않았다면 FCM 시간 로그는 없다. SDK 내부에서 HTTP 요청을 반복해도 한 번의
-`send` 호출에 대한 시간 로그는 하나이며 HTTP 재시도 횟수를 뜻하지 않는다.
+FCM은 실제 SDK 호출 경계를 유지한 채 기기 호출마다 별도의 `DevicePushTiming`에 시간과 수락 여부를 보관한다.
+발송자는 직접 로그를 출력하지 않고 Worker가 기존 `fcm_result` 또는 오류·생략 로그에 측정값을 붙인다.
+예상 밖 SDK 예외도 측정값이 남아 `worker_device_failed`에서 확인할 수 있다.
+`deviceId`는 기존 결과 로그의 명시적 필드로 연결하며 SDK 호출 중 MDC를 바꾸지 않는다.
+SDK 호출 전 기한·조건 미충족이면 시간과 수락 여부 필드는 없고 이를 0ms 호출로 세지 않는다.
+SDK 내부에서 HTTP 요청을 반복해도 한 번의 `send` 호출에 대한 측정값은 하나이며 HTTP 재시도 횟수를 뜻하지 않는다.
 
 `sdkAccepted=true`는 SDK가 FCM 수락 응답을 확인했다는 뜻이다. `false`는 수락 응답 확인에
 실패했다는 뜻이며 서버가 이미 수락했을 가능성을 배제하지 않는다. 원인·최종 발송 결과는
 기존 `fcm_result`·`worker_device_failed`와 함께 확인한다.
 
-기기별 DB·FCM 시간을 확인한다. DB 조회·삭제와 FCM 요청은 동일 기기에서도 각각 별도 행이다.
+기기별 DB·FCM 시간을 확인한다. DB는 구간별 별도 행, FCM 시간은 기존 발송 결과·오류 행에 함께 기록한다.
 
 ```sql
 fields @timestamp, stage, operation, sqsMessageId, receiveCount, deviceId, transactionCompleted, sdkAccepted, dbTransactionDurationMs, fcmRequestDurationMs, result, errorCode
 | filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
-| filter stage in ["worker_db_transaction", "fcm_request_completed", "fcm_result", "worker_device_failed", "worker_invalid_token_cleanup_failed"]
+| filter stage in ["worker_db_transaction", "fcm_result", "worker_skipped", "worker_device_failed", "worker_invalid_token_cleanup_failed"]
 | sort @timestamp asc
 ```
 
@@ -134,7 +135,7 @@ fields @timestamp, stage, operation, sqsMessageId, receiveCount, deviceId, trans
 
 ```sql
 filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
-| filter stage in ["worker_db_transaction", "fcm_request_completed", "worker_message_deleted", "worker_sqs_delete_failed", "worker_attempt_completed"]
+| filter stage in ["worker_db_transaction", "fcm_result", "worker_skipped", "worker_device_failed", "worker_message_deleted", "worker_sqs_delete_failed", "worker_attempt_completed"]
 | stats count(dbTransactionDurationMs) as dbTransactions, sum(dbTransactionDurationMs) as dbMs,
     count(fcmRequestDurationMs) as sdkCalls, sum(fcmRequestDurationMs) as fcmMs,
     max(sqsDeleteDurationMs) as deleteMs, max(queueAgeMs) as queueAgeMs,
@@ -157,8 +158,9 @@ filter type = "notification" and stage = "worker_db_transaction"
 ```
 
 ```sql
-filter type = "notification" and stage = "fcm_request_completed"
-| stats count(*) as sdkCalls, avg(fcmRequestDurationMs) as avgMs,
+filter type = "notification" and stage in ["fcm_result", "worker_skipped", "worker_device_failed"]
+| filter ispresent(fcmRequestDurationMs)
+| stats count(fcmRequestDurationMs) as sdkCalls, avg(fcmRequestDurationMs) as avgMs,
     pct(fcmRequestDurationMs, 95) as p95Ms, max(fcmRequestDurationMs) as maxMs by sdkAccepted
 ```
 

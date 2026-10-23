@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -144,14 +144,20 @@ public class PushWorkerService {
             PushMessage message,
             UUID deviceId
     ) {
+        DevicePushTiming timing = new DevicePushTiming();
         try {
-            return sendToCurrentDevice(message, deviceId);
+            return sendToCurrentDevice(
+                    message,
+                    deviceId,
+                    timing
+            );
         } catch (RuntimeException exception) {
             logDeviceFailure(
                     message,
                     deviceId,
                     "worker_device_failed",
-                    exception
+                    exception,
+                    timing
             );
             return DevicePushResult.retryable(exception.getClass().getSimpleName());
         }
@@ -159,25 +165,28 @@ public class PushWorkerService {
 
     private DevicePushResult sendToCurrentDevice(
             PushMessage message,
-            UUID deviceId
+            UUID deviceId,
+            DevicePushTiming timing
     ) {
         DevicePushRequest request = findCurrentRequest(message, deviceId);
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
-        DevicePushResult result = sendRequest(request, deviceId);
+        DevicePushResult result = sender.send(request, timing);
         if (result.status() == DevicePushResult.Status.SKIPPED) {
             logSkipped(
                     message,
                     deviceId,
-                    result.errorCode()
+                    result.errorCode(),
+                    timing
             );
             return result;
         }
         logResult(
                 message,
                 deviceId,
-                result
+                result,
+                timing
         );
         if (result.isInvalidToken()) {
             deleteInvalidToken(
@@ -187,19 +196,6 @@ public class PushWorkerService {
             );
         }
         return result;
-    }
-
-    private DevicePushResult sendRequest(DevicePushRequest request, UUID deviceId) {
-        String previousDeviceId = MDC.get("deviceId");
-        MDC.put("deviceId", deviceId.toString());
-        try {
-            return sender.send(request);
-        } finally {
-            MDC.remove("deviceId");
-            if (previousDeviceId != null) {
-                MDC.put("deviceId", previousDeviceId);
-            }
-        }
     }
 
     private void deleteInvalidToken(
@@ -552,6 +548,20 @@ public class PushWorkerService {
             UUID deviceId,
             String reason
     ) {
+        logSkipped(
+                message,
+                deviceId,
+                reason,
+                null
+        );
+    }
+
+    private void logSkipped(
+            PushMessage message,
+            UUID deviceId,
+            String reason,
+            DevicePushTiming timing
+    ) {
         var event = log.atInfo().addKeyValue("type", "notification")
                 .addKeyValue("stage", "worker_skipped").addKeyValue("deviceId", deviceId)
                 .addKeyValue("reason", reason);
@@ -562,13 +572,15 @@ public class PushWorkerService {
                     .addKeyValue("eventId", message.eventId())
                     .addKeyValue("notificationId", message.notificationId());
         }
+        addRequestTiming(event, timing);
         event.log("푸시 발송 조건 미충족");
     }
 
     private void logResult(
             PushMessage message,
             UUID deviceId,
-            DevicePushResult result
+            DevicePushResult result,
+            DevicePushTiming timing
     ) {
         var event = log.atInfo();
         if (result.isRetryable() || result.isInvalidToken()) {
@@ -584,7 +596,9 @@ public class PushWorkerService {
                 .addKeyValue("eventId", message.eventId())
                 .addKeyValue("notificationId", message.notificationId())
                 .addKeyValue("deviceId", deviceId).addKeyValue("result", result.status())
-                .addKeyValue("errorCode", result.errorCode()).log("FCM 발송 요청 결과");
+                .addKeyValue("errorCode", result.errorCode());
+        addRequestTiming(event, timing);
+        event.log("FCM 발송 요청 결과");
     }
 
     private void logSummary(
@@ -620,14 +634,39 @@ public class PushWorkerService {
             String stage,
             RuntimeException exception
     ) {
-        log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
+        logDeviceFailure(
+                message,
+                deviceId,
+                stage,
+                exception,
+                null
+        );
+    }
+
+    private void logDeviceFailure(
+            PushMessage message,
+            UUID deviceId,
+            String stage,
+            RuntimeException exception,
+            DevicePushTiming timing
+    ) {
+        var event = log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
                 .addKeyValue("userId", message.userId())
                 .addKeyValue("notificationType", message.type())
                 .addKeyValue("sourceId", message.sourceId())
                 .addKeyValue("eventId", message.eventId())
                 .addKeyValue("notificationId", message.notificationId())
                 .addKeyValue("deviceId", deviceId)
-                .addKeyValue("errorCode", exception.getClass().getSimpleName())
-                .log("푸시 기기 처리 오류");
+                .addKeyValue("errorCode", exception.getClass().getSimpleName());
+        addRequestTiming(event, timing);
+        event.log("푸시 기기 처리 오류");
+    }
+
+    private void addRequestTiming(LoggingEventBuilder event, DevicePushTiming timing) {
+        if (timing == null || !timing.hasRequest()) {
+            return;
+        }
+        event.addKeyValue("fcmRequestDurationMs", timing.getRequestDurationMs())
+                .addKeyValue("sdkAccepted", timing.getSdkAccepted());
     }
 }

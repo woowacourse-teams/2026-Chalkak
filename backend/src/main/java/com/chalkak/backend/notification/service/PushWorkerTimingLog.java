@@ -32,24 +32,6 @@ public final class PushWorkerTimingLog {
         });
     }
 
-    public static void logFcmRequest(
-            DevicePushRequest request,
-            Elapsed elapsed,
-            boolean accepted
-    ) {
-        logSafely(() -> {
-            PushMessage message = request.message();
-            log.atInfo().addKeyValue("type", "notification")
-                    .addKeyValue("stage", "fcm_request_completed")
-                    .addKeyValue("eventId", message.eventId())
-                    .addKeyValue("notificationId", message.notificationId())
-                    .addKeyValue("userId", message.userId())
-                    .addKeyValue("sdkAccepted", accepted)
-                    .addKeyValue("fcmRequestDurationMs", elapsed.toMillis())
-                    .log("FCM SDK 요청 처리 시간");
-        });
-    }
-
     private static void logSafely(Runnable logging) {
         try {
             logging.run();

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -12,6 +13,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.service.DevicePushRequest;
+import com.chalkak.backend.notification.service.DevicePushTiming;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushResult.Status;
 import com.chalkak.backend.notification.service.PushMessage;
@@ -32,10 +34,9 @@ import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -65,20 +66,10 @@ class FcmDevicePushSenderTest {
     private boolean acceptSecond;
     private Instant nowAfterFirst;
     private DevicePushRequest request;
+    private final DevicePushTiming timing = new DevicePushTiming();
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
-    private String failingLogStage;
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
-        @Override
-        public synchronized void doAppend(ILoggingEvent event) {
-            if (event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
-                    .anyMatch(pair -> pair.key.equals("stage")
-                            && pair.value.equals(failingLogStage))) {
-                throw new IllegalStateException("timing log failed");
-            }
-            super.doAppend(event);
-        }
-
         @Override
         protected void append(ILoggingEvent event) {
             event.prepareForDeferredProcessing();
@@ -167,18 +158,6 @@ class FcmDevicePushSenderTest {
         );
     }
 
-    @Test
-    @DisplayName("FCM 계측 로그가 실패해도 수락 결과를 유지한다")
-    void send_timingLogFailure_preservesAcceptance() {
-        // Given
-        failingLogStage = "fcm_request_completed";
-        // When
-        DevicePushResult result = sender.send(request);
-        // Then
-        assertThat(result.status()).isEqualTo(Status.ACCEPTED);
-        assertThat(calls.get()).isEqualTo(1);
-    }
-
     @AfterEach
     void tearDown() {
         logger.detachAppender(appender);
@@ -192,7 +171,7 @@ class FcmDevicePushSenderTest {
     @DisplayName("실제 SDK 요청은 화면 이동 정보·Android TTL·APNs 절대 만료를 포함한다")
     void send_accepted_sendsPlatformExpirationAndNavigation() {
         // When & Then
-        assertThat(sender.send(request).status()).isEqualTo(Status.ACCEPTED);
+        assertThat(sender.send(request, timing).status()).isEqualTo(Status.ACCEPTED);
         JsonNode body = bodies.getFirst().get("message");
         assertThat(body.get("android").get("ttl").asText()).isEqualTo("1800s");
         assertThat(body.get("apns").get("headers").get("apns-expiration").asText())
@@ -205,31 +184,37 @@ class FcmDevicePushSenderTest {
     }
 
     @Test
-    @DisplayName("실제 SDK 요청 시간은 큐·기기 식별자와 연결하고 토큰·문구는 기록하지 않는다")
-    void send_correlatedRequest_recordsSafeSdkTiming() {
-        // Given
-        MDC.put("sqsMessageId", "sqs-test-id");
-        MDC.put("receiveCount", "2");
-        MDC.put("deviceId", "device-test-id");
+    @DisplayName("실제 SDK 요청 시간은 전달하되 발송자가 별도 로그를 출력하지 않는다")
+    void send_sdkTiming_isReturnedWithoutDirectLog() {
         // When
-        sender.send(request);
+        sender.send(request, timing);
         // Then
         assertRequestTiming(true);
-        assertThat(requestTimings()).singleElement().satisfies(log -> assertThat(log)
-                .containsEntry("sqsMessageId", "sqs-test-id")
-                .containsEntry("receiveCount", "2")
-                .containsEntry("deviceId", "device-test-id")
-                .containsEntry("eventId", request.message().eventId())
-                .containsEntry("notificationId", request.message().notificationId()));
-        assertThat(appender.list).allSatisfy(event -> {
-            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
-                    .doesNotContain(
-                            request.token(),
-                            request.title(),
-                            request.body()
-                    );
-            assertThat(event.getThrowableProxy()).isNull();
+        assertThat(appender.list).isEmpty();
+    }
+
+    @Test
+    @DisplayName("메시지 구성 지연은 SDK 요청 시간에 포함하지 않는다")
+    void send_slowMessageCreation_excludesPreparationTime() throws Exception {
+        // Given
+        DevicePushRequest slowRequest = spy(request);
+        given(slowRequest.title()).willAnswer(call -> {
+            TimeUnit.MILLISECONDS.sleep(200);
+            return request.title();
         });
+        FirebaseMessaging messaging = mock(FirebaseMessaging.class);
+        given(messaging.send(any(com.google.firebase.messaging.Message.class)))
+                .willReturn("accepted");
+        FcmDevicePushSender quickSdk = new FcmDevicePushSender(messaging,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        long started = System.nanoTime();
+        // When
+        DevicePushResult result = quickSdk.send(slowRequest, timing);
+        long totalMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+        // Then
+        assertThat(result.status()).isEqualTo(Status.ACCEPTED);
+        assertRequestTiming(true);
+        assertThat(totalMs - timing.getRequestDurationMs()).isGreaterThanOrEqualTo(150L);
     }
 
     @Test
@@ -242,7 +227,7 @@ class FcmDevicePushSenderTest {
         FcmDevicePushSender failingSender = new FcmDevicePushSender(failingMessaging,
                 Clock.fixed(NOW, ZoneOffset.UTC));
         // When & Then
-        assertThatThrownBy(() -> failingSender.send(request))
+        assertThatThrownBy(() -> failingSender.send(request, timing))
                 .isInstanceOf(IllegalStateException.class);
         assertRequestTiming(false);
         assertThat(appender.list).allSatisfy(event -> assertThat(event.getLevel())
@@ -272,7 +257,7 @@ class FcmDevicePushSenderTest {
                 topic.expiresAt()
         );
         // When & Then
-        assertThat(sender.send(topicRequest).status()).isEqualTo(Status.ACCEPTED);
+        assertThat(sender.send(topicRequest, timing).status()).isEqualTo(Status.ACCEPTED);
         JsonNode body = bodies.getFirst().get("message");
         assertThat(body.get("notification").get("title").asText()).isEqualTo("오늘의 주제");
         assertThat(body.get("notification").get("body").asText()).isEqualTo("빛과 그림자");
@@ -319,7 +304,7 @@ class FcmDevicePushSenderTest {
         );
 
         // When & Then
-        assertThat(sender.send(aiReviewRequest).status()).isEqualTo(Status.ACCEPTED);
+        assertThat(sender.send(aiReviewRequest, timing).status()).isEqualTo(Status.ACCEPTED);
         JsonNode body = bodies.getFirst().get("message");
         assertThat(body.get("notification").get("title").asText()).isEqualTo(title);
         assertThat(body.get("notification").get("body").asText()).isEqualTo(text);
@@ -352,7 +337,7 @@ class FcmDevicePushSenderTest {
         errorStatus = status;
         detailCode = detail;
         // When & Then
-        assertThat(sender.send(request).status()).isEqualTo(expected);
+        assertThat(sender.send(request, timing).status()).isEqualTo(expected);
         assertThat(calls.get()).isGreaterThanOrEqualTo(1);
         assertRequestTiming(false);
     }
@@ -367,7 +352,7 @@ class FcmDevicePushSenderTest {
         acceptSecond = true;
         nowAfterFirst = NOW.plusSeconds(10);
         // When & Then
-        assertThat(sender.send(request).status()).isEqualTo(Status.ACCEPTED);
+        assertThat(sender.send(request, timing).status()).isEqualTo(Status.ACCEPTED);
         assertThat(calls.get()).isEqualTo(2);
         assertRequestTiming(true);
         assertThat(bodies.getLast().get("message").get("android").get("ttl").asText())
@@ -386,7 +371,8 @@ class FcmDevicePushSenderTest {
         detailCode = "QUOTA_EXCEEDED";
         retryAfter = "120";
         // When & Then
-        assertThat(sender.send(request).retryAfter()).isEqualTo(java.time.Duration.ofSeconds(120));
+        assertThat(sender.send(request, timing).retryAfter())
+                .isEqualTo(java.time.Duration.ofSeconds(120));
     }
 
     @ParameterizedTest
@@ -400,7 +386,7 @@ class FcmDevicePushSenderTest {
         detailCode = "QUOTA_EXCEEDED";
         retryAfter = header;
         // When & Then
-        assertThat(sender.send(request).retryAfter())
+        assertThat(sender.send(request, timing).retryAfter())
                 .isEqualTo(java.time.Duration.ofSeconds(seconds));
     }
 
@@ -411,7 +397,7 @@ class FcmDevicePushSenderTest {
         // Given
         now = NOW.plusSeconds(seconds);
         // When
-        DevicePushResult result = sender.send(request);
+        DevicePushResult result = sender.send(request, timing);
         // Then
         if (seconds < 1800) {
             assertThat(result.status()).isEqualTo(Status.ACCEPTED);
@@ -420,7 +406,7 @@ class FcmDevicePushSenderTest {
         }
         assertThat(result.status()).isEqualTo(Status.SKIPPED);
         assertThat(calls.get()).isZero();
-        assertThat(requestTimings()).isEmpty();
+        assertThat(timing.hasRequest()).isFalse();
     }
 
     @Test
@@ -434,24 +420,15 @@ class FcmDevicePushSenderTest {
         nowAfterFirst = NOW.plusSeconds(1800);
         acceptSecond = true;
         // When & Then
-        assertThat(sender.send(request).status()).isEqualTo(Status.ACCEPTED);
+        assertThat(sender.send(request, timing).status()).isEqualTo(Status.ACCEPTED);
         assertThat(calls.get()).isEqualTo(2);
         assertThat(bodies.getLast().get("message").get("android").get("ttl").asText())
                 .isEqualTo("1s");
     }
 
     private void assertRequestTiming(boolean accepted) {
-        assertThat(requestTimings()).singleElement().satisfies(log -> {
-            assertThat(log).containsEntry("sdkAccepted", accepted);
-            assertThat((long) log.get("fcmRequestDurationMs")).isNotNegative();
-        });
-    }
-
-    private List<Map<String, Object>> requestTimings() {
-        return appender.list.stream().map(event -> {
-            Map<String, Object> values = new HashMap<>(event.getMDCPropertyMap());
-            event.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
-            return values;
-        }).filter(values -> "fcm_request_completed".equals(values.get("stage"))).toList();
+        assertThat(timing.hasRequest()).isTrue();
+        assertThat(timing.getSdkAccepted()).isEqualTo(accepted);
+        assertThat(timing.getRequestDurationMs()).isNotNegative();
     }
 }
