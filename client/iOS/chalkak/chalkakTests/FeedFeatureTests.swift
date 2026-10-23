@@ -44,6 +44,38 @@ struct FeedBackSwipeTrackingTests {
         #expect(swipe.projectedDistance(to: CGSize(width: 160, height: 300)) == 80)
         #expect(swipe.projectedDistance(to: CGSize(width: 160, height: 102)) == 140)
     }
+
+    @Test("세로 방향으로 손을 떼는 속도는 이어받을 가로 속도로 쓰지 않는다")
+    func verticalReleaseHasNoHorizontalVelocity() {
+        let swipe = FeedBackSwipeTracking()
+        #expect(swipe.horizontalVelocity(CGSize(width: 600, height: 100)) == 600)
+        #expect(swipe.horizontalVelocity(CGSize(width: -300, height: 50)) == -300)
+        #expect(swipe.horizontalVelocity(CGSize(width: 200, height: -500)) == 0)
+    }
+}
+
+struct FeedBackSwipeReleaseTests {
+    @Test("놓은 순간의 진행도 속도를 남은 변화량 대비 스프링 초기 속도로 바꾼다")
+    func convertsProgressVelocityToSpringVelocity() {
+        // 닫기: 0.5에서 초당 -2로 줄어드는 중이면 남은 -0.5 대비 4배 속도로 출발한다.
+        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.5, to: 0, velocity: -2, duration: 0.3) == 4)
+        // 되돌리기: 0.8에서 초당 0.4로 늘어나는 중이면 남은 0.2 대비 2배 속도로 출발한다.
+        #expect(abs(FeedBackSwipeRelease.initialVelocity(from: 0.8, to: 1, velocity: 0.4, duration: 0.3) - 2) < 0.0001)
+        // 목표 반대로 움직이며 놓으면 음수 속도로 잠깐 더 간 뒤 돌아온다.
+        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.5, to: 0, velocity: 1, duration: 0.3) == -2)
+    }
+
+    @Test("빠르게 놓아도 사진이 목표를 지나치지 않도록 초기 속도를 제한한다")
+    func limitsVelocityToAvoidOvershoot() {
+        let limit = 2 * Double.pi / 0.3
+        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.1, to: 0, velocity: -20, duration: 0.3) == limit)
+        #expect(FeedBackSwipeRelease.initialVelocity(from: 0.9, to: 1, velocity: -20, duration: 0.3) == -limit)
+    }
+
+    @Test("이미 목표에 있으면 초기 속도는 0이다")
+    func noVelocityAtTarget() {
+        #expect(FeedBackSwipeRelease.initialVelocity(from: 0, to: 0, velocity: -3, duration: 0.3) == 0)
+    }
 }
 
 @MainActor

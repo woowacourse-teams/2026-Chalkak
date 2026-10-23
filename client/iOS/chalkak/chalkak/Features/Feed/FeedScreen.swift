@@ -64,7 +64,7 @@ struct FeedScreen: View {
         }
         .overlay(alignment: .top) {
             FeedTopBar(
-                onBack: close,
+                onBack: { close() },
                 onEdit: {
                     titleDraft = viewModel.viewState.content?.post.title ?? ""
                     showsTitleEditDialog = true
@@ -269,7 +269,8 @@ struct FeedScreen: View {
         open()
     }
 
-    private func open() {
+    // releaseVelocity: 백 스와이프를 놓은 순간의 사진 진행도 속도(초당). 없으면 멈춘 상태에서 출발한다.
+    private func open(releaseVelocity: CGFloat? = nil) {
         guard usesPhotoTransition else {
             photoProgress = 1
             contentProgress = 1
@@ -280,7 +281,7 @@ struct FeedScreen: View {
         isPhotoMoving = true
         // 열릴 때도 원래 사진을 유지해 이동한 사진 아래 검은 카드 바탕이 드러나지 않게 한다.
         zoomRegistry?.activeSource = nil
-        withAnimation(Metrics.photoAnimation) {
+        withAnimation(photoAnimation(to: 1, releaseVelocity: releaseVelocity)) {
             photoProgress = 1
         } completion: {
             guard !isClosing else { return }
@@ -291,7 +292,7 @@ struct FeedScreen: View {
         }
     }
 
-    private func close() {
+    private func close(releaseVelocity: CGFloat? = nil) {
         guard !isClosing else { return }
         guard usesPhotoTransition else {
             onBack()
@@ -302,16 +303,29 @@ struct FeedScreen: View {
         isPhotoMoving = true
         // 돌아갈 카드는 유지한다. 가려진 사진을 숨기면 반투명 하단바 아래 검은 바탕이 드러난다.
         zoomRegistry?.activeSource = nil
-        withAnimation(Metrics.photoAnimation) {
+        let animation = photoAnimation(to: 0, releaseVelocity: releaseVelocity)
+        withAnimation(animation) {
             photoProgress = 0
         } completion: {
             zoomRegistry?.activeSource = nil
             onBack()
         }
         // 사진이 도착하면 화면을 제거한다. 페이드도 같은 시간에 끝나야 뒤 화면의 터치를 지연시키지 않는다.
-        withAnimation(Metrics.photoAnimation) {
+        withAnimation(animation) {
             contentProgress = 0
         }
+    }
+
+    // 버튼으로 열고 닫을 때는 Android와 같은 곡선을 쓴다.
+    // 스와이프를 놓았을 때는 그 속도를 이어받아야 사진이 멈칫했다가 다시 출발하지 않는다.
+    private func photoAnimation(to target: CGFloat, releaseVelocity: CGFloat?) -> Animation {
+        guard let releaseVelocity else { return Metrics.photoAnimation }
+        return FeedBackSwipeRelease.animation(
+            from: photoProgress,
+            to: target,
+            velocity: releaseVelocity,
+            duration: Metrics.photoReleaseDuration
+        )
     }
 
     private func captureTransitionSource() {
@@ -344,10 +358,14 @@ struct FeedScreen: View {
                 isBackSwiping = false
                 guard !isClosing else { return }
                 backSwipeTracking.update(to: value.translation)
+                // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
+                let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
+                    ? -backSwipeTracking.horizontalVelocity(value.velocity) / Metrics.backSwipeFullDistance
+                    : 0
                 if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
-                    close()
+                    close(releaseVelocity: releaseVelocity)
                 } else {
-                    open()
+                    open(releaseVelocity: releaseVelocity)
                 }
             }
     }
@@ -417,6 +435,34 @@ struct FeedBackSwipeTracking {
         guard abs(delta.width) > abs(delta.height) else { return distance }
         return max(0, distance + delta.width)
     }
+
+    /// 손을 뗀 순간의 가로 속도. 거리 계산과 같이 세로로 움직이며 놓은 속도는 반영하지 않는다.
+    func horizontalVelocity(_ velocity: CGSize) -> CGFloat {
+        abs(velocity.width) > abs(velocity.height) ? velocity.width : 0
+    }
+}
+
+/// 백 스와이프를 놓은 뒤 남은 전환을 손가락 속도에서 이어 가는 애니메이션.
+enum FeedBackSwipeRelease {
+    /// progress에서 target까지 velocity(진행도/초)로 출발해 감속하며 도착하는 스프링을 만든다.
+    /// 예: 진행도 0.5에서 초당 -2로 놓고 닫히면(target 0) 스프링 초기 속도는 남은 변화량 대비 4가 된다.
+    static func animation(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval) -> Animation {
+        .interpolatingSpring(
+            duration: duration,
+            bounce: 0,
+            initialVelocity: initialVelocity(from: progress, to: target, velocity: velocity, duration: duration)
+        )
+    }
+
+    /// SwiftUI 스프링의 초기 속도는 남은 변화량 대비 비율이다.
+    /// 감쇠가 임계값인 스프링은 이 비율이 고유 진동수(2π / duration)보다 크면 목표를 지나쳐
+    /// 사진이 출발 뷰보다 작아졌다 돌아오므로 그 안으로 제한한다.
+    static func initialVelocity(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval) -> Double {
+        let remaining = target - progress
+        guard abs(remaining) > 0.001, duration > 0 else { return 0 }
+        let limit = 2 * Double.pi / duration
+        return min(max(Double(velocity / remaining), -limit), limit)
+    }
 }
 
 private enum Metrics {
@@ -432,6 +478,8 @@ private enum Metrics {
     static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
     // Android NavHost 기본 화면 전환: fadeIn/fadeOut(tween(700)), 기본 easing FastOutSlowInEasing.
     static let contentAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.7)
+    // 스와이프를 놓은 뒤 남은 이동도 photoAnimation과 같은 0.3초 안팎에 끝낸다.
+    static let photoReleaseDuration: TimeInterval = 0.3
     static let backSwipeEdgeWidth: CGFloat = 24
     static let backSwipeMinimumDistance: CGFloat = 12
     static let backSwipeFullDistance: CGFloat = 300
