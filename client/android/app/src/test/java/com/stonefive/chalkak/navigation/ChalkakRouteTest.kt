@@ -93,5 +93,32 @@ class ChalkakRouteTest {
             .assertFalse(encoded.contains("exhibitionCount"))
     }
 
+    @Test
+    fun `photo upload success route preserves photo edit`() {
+        val route = PhotoUploadSuccess(
+            imageModel = "content://media/photo/1",
+            caption = "한낮의 다리",
+            date = "2025-07-18",
+            topic = "다리",
+            moderationStatus = "VALIDATING",
+            quarterTurns = 1,
+            straightenDegrees = -12.5f,
+            cropCenterX = 0.4f,
+            cropCenterY = 0.6f,
+            cropWidth = 0.5f,
+            cropHeight = 0.7f,
+            filter = "Mono",
+            exposure = 0.2f,
+            contrast = -0.3f,
+            highlights = -0.4f,
+            shadows = 0.35f,
+            blackPoint = 0.1f,
+            saturation = -1f,
+            warmth = 0.5f,
+        )
+
+        assertEquals(route, roundTrip(route))
+    }
+
     private inline fun <reified T> roundTrip(route: T): T = Json.decodeFromString(Json.encodeToString(route))
 }

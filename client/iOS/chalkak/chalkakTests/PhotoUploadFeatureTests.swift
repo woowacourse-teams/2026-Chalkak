@@ -142,7 +142,8 @@ struct PhotoUploadViewModelTests {
         )
         let image = Self.image()
 
-        await viewModel.selectCapturedImage(data: Data([0x01]), preview: image)
+        viewModel.selectImage(data: Data([0x01]), preview: image)
+        await viewModel.saveCapturedImage(image)
         #expect(savedImages.count == 1)
         #expect(savedImages.first === image)
         #expect(viewModel.viewState.completedSubmission == nil)
@@ -183,7 +184,8 @@ struct PhotoUploadViewModelTests {
                 saveCameraImage: { _ in result }
             )
 
-            await viewModel.selectCapturedImage(data: data, preview: Self.image())
+            viewModel.selectImage(data: data, preview: Self.image())
+            await viewModel.saveCapturedImage(Self.image())
             try await waitUntil { !viewModel.viewState.isTopicLoading }
 
             #expect(viewModel.viewState.selectedImageData == data)
@@ -208,7 +210,7 @@ struct PhotoUploadViewModelTests {
             }
         )
         let task = Task {
-            await viewModel.selectCapturedImage(data: Data([0x01]), preview: Self.image())
+            await viewModel.saveCapturedImage(Self.image())
         }
         try await waitUntil { continuation != nil }
 
@@ -222,21 +224,24 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.selectedImage == nil)
     }
 
-    @Test("빈 촬영 데이터는 사진 앱에 저장하지 않는다")
-    func doesNotSaveInvalidCapture() async {
-        var saveCount = 0
+    @Test("빈 사진 데이터는 편집 화면을 띄우지 않고 실패를 안내한다")
+    func rejectsEmptyDataForEditing() async {
+        var preparedCount = 0
         let viewModel = PhotoUploadViewModel(
             topicDate: Self.topic().date,
-            saveCameraImage: { _ in
-                saveCount += 1
-                return .saved
+            prepareEditImage: { _ in
+                preparedCount += 1
+                return nil
             }
         )
 
-        await viewModel.selectCapturedImage(data: Data(), preview: Self.image())
+        viewModel.beginEditing(sourceData: Data())
+        await Task.yield()
 
-        #expect(saveCount == 0)
+        #expect(preparedCount == 0)
+        #expect(viewModel.viewState.editRequest == nil)
         #expect(viewModel.viewState.selectedImage == nil)
+        #expect(viewModel.viewState.pendingMessage?.text == PhotoUploadFailure.imagePreparationFailed.message)
     }
 
     @Test("주제 API 인증 만료는 재인증 이벤트로 변환한다")

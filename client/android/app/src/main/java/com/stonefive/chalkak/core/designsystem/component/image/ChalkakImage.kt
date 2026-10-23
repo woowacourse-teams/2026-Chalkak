@@ -10,6 +10,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
@@ -30,6 +31,7 @@ fun ChalkakImage(
     thumbnailModel: Any? = null,
     alignment: Alignment = Alignment.Center,
     contentScale: ContentScale = ContentScale.Crop,
+    colorFilter: ColorFilter? = null,
     loadedPainter: Painter? = null,
     onSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
     onThumbnailSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
@@ -41,6 +43,7 @@ fun ChalkakImage(
             modifier = modifier,
             alignment = alignment,
             contentScale = contentScale,
+            colorFilter = colorFilter,
         )
         return
     }
@@ -69,6 +72,7 @@ fun ChalkakImage(
         },
         alignment = alignment,
         contentScale = contentScale,
+        colorFilter = colorFilter,
     )
 }
 

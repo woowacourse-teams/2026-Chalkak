@@ -13,6 +13,7 @@ import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
 import java.time.LocalDate
@@ -36,6 +37,7 @@ class PhotoUploadViewModel(
     private var creationTopic: Topic? = null
     private var preparedImage: PostImagePreparation? = null
     private var imageGeneration = 0L
+    private var nextEditRequestId = 0L
     private var preparationJob: Job? = null
     private var submissionJob: Job? = null
     private var nextMessageId = 0L
@@ -71,9 +73,33 @@ class PhotoUploadViewModel(
         }
     }
 
+    /** 사진을 고르거나 찍으면 편집 화면을 먼저 띄운다. 업로드 준비는 편집을 완료한 뒤 시작한다. */
     fun onImageSelected(image: String) {
         if (_uiState.value.isSubmitting) return
-        replaceSelectedImage(image)
+        openEditor(image, PhotoEdit())
+    }
+
+    fun onPhotoClick() {
+        val state = _uiState.value
+        if (state.isSubmitting) return
+        val image = state.selectedImage ?: return
+        openEditor(image, state.selectedEdit)
+    }
+
+    /** 처음 고른 사진이면 선택을 취소하고, 다시 편집 중이었으면 이전 편집을 유지한다. */
+    fun onEditCanceled() {
+        _uiState.update { it.copy(editingPhoto = null) }
+    }
+
+    fun onEditConfirmed(
+        image: String,
+        edit: PhotoEdit,
+    ) {
+        val state = _uiState.value
+        _uiState.update { it.copy(editingPhoto = null) }
+        if (state.isSubmitting) return
+        if (state.selectedImage == image && state.selectedEdit == edit) return
+        replaceSelectedImage(image, edit)
     }
 
     fun onCapturedImageSaveFailed() {
@@ -153,25 +179,45 @@ class PhotoUploadViewModel(
             return
         }
         if (preparationJob?.isActive != true) {
-            startImagePreparation(imageUri, imageGeneration)
+            startImagePreparation(imageUri, state.selectedEdit, imageGeneration)
         }
     }
 
-    private fun replaceSelectedImage(image: String) {
+    private fun openEditor(
+        image: String,
+        edit: PhotoEdit,
+    ) {
+        _uiState.update {
+            it.copy(
+                editingPhoto = PhotoEditRequest(
+                    id = nextEditRequestId++,
+                    imageUri = image,
+                    initialEdit = edit,
+                ),
+            )
+        }
+    }
+
+    private fun replaceSelectedImage(
+        image: String,
+        edit: PhotoEdit,
+    ) {
         imageGeneration++
         preparationJob?.cancel()
         discardPreparedImage()
         _uiState.update {
             it.copy(
                 selectedImage = image,
+                selectedEdit = edit,
                 imagePreparationStatus = ImagePreparationStatus.Preparing,
             )
         }
-        startImagePreparation(image, imageGeneration)
+        startImagePreparation(image, edit, imageGeneration)
     }
 
     private fun startImagePreparation(
         imageUri: String,
+        edit: PhotoEdit,
         generation: Long,
     ) {
         _uiState.update {
@@ -181,7 +227,7 @@ class PhotoUploadViewModel(
         }
         preparationJob = viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.prepareImage(imageUri)) {
+                when (val result = postCreationRepository.prepareImage(imageUri, edit)) {
                     is PostImagePreparationResult.Success -> {
                         if (generation != imageGeneration || _uiState.value.selectedImage != imageUri) {
                             postCreationRepository.discardPreparedImage(result.value)
@@ -234,6 +280,7 @@ class PhotoUploadViewModel(
     ) {
         if (preparedImage != preparation || submissionJob?.isActive == true) return
         val imageUri = _uiState.value.selectedImage ?: return
+        val edit = _uiState.value.selectedEdit
         preparedImage = null
         submissionJob = viewModelScope.launch {
             try {
@@ -245,6 +292,7 @@ class PhotoUploadViewModel(
                                 isSubmitting = false,
                                 completedSubmission = PhotoUploadSubmission(
                                     imageModel = imageUri,
+                                    edit = edit,
                                     caption = caption,
                                     content = result.value.toSuccessContent(),
                                 ),

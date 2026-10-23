@@ -2,15 +2,14 @@ import SwiftUI
 
 struct TodayScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Bindable var viewModel: TodayViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
 
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -39,24 +38,8 @@ struct TodayScreen: View {
             }
         }
         .background(theme.colors.background)
-        .overlay(alignment: .bottom) {
-            if let message {
-                Text(message)
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .background(theme.colors.actionPrimary, in: Capsule())
-                    .padding(.bottom, TodayMetrics.messageBottomPadding)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel(message)
-            }
-        }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
-        }
-        .onDisappear {
-            messageDismissTask?.cancel()
         }
     }
 
@@ -77,17 +60,7 @@ struct TodayScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 }
 
@@ -261,7 +234,6 @@ private enum TodayMetrics {
     static let topBarOpacity = 0.96
     static let emptyTopPadding: CGFloat = 144
     static let emptyIconSize: CGFloat = 34
-    static let messageBottomPadding: CGFloat = 88
 }
 
 #Preview("Today") {

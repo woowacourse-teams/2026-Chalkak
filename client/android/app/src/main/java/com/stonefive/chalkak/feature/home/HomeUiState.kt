@@ -1,7 +1,10 @@
 package com.stonefive.chalkak.feature.home
 
+import com.stonefive.chalkak.domain.model.AiReviewContent
+import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.feature.aireview.AiReviewPhase
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -15,8 +18,18 @@ data class HomeUiState(
     val recordsStatus: HomeSectionStatus = HomeSectionStatus.Loading,
     val yesterday: HomeRankingState = HomeRankingState(),
     val trending: HomeRankingState = HomeRankingState(),
+    val banners: List<Banner> = emptyList(),
+    val bannerStatus: HomeSectionStatus = HomeSectionStatus.Loading,
+    val bannerCurrentPage: Int = 0,
+    val bannerHasNext: Boolean = false,
+    val isLoadingMoreBanners: Boolean = false,
+    val bannerLoadMoreError: Boolean = false,
     val isRefreshing: Boolean = false,
     val isAuthenticated: Boolean = false,
+    val feedbackPhase: HomeFeedbackPhase = HomeFeedbackPhase.Hidden,
+    val feedbackResult: AiReviewContent? = null,
+    val feedbackMessage: String? = null,
+    val feedbackCanRequestAgain: Boolean = false,
 )
 
 val HomeUiState.isInitialLoadComplete: Boolean
@@ -25,6 +38,13 @@ val HomeUiState.isInitialLoadComplete: Boolean
         recordsStatus != HomeSectionStatus.Loading &&
         yesterday.status != HomeSectionStatus.Loading &&
         trending.status != HomeSectionStatus.Loading
+
+// 피드백 카드는 오늘 올린 사진이 검수를 통과(승인)했을 때만 보인다. 검수 대기 사진과 사진이 없는 상태에서는 숨긴다.
+val HomeUiState.showsFeedback: Boolean
+    get() = (hero as? HomeHeroState.Photo)?.isPending == false && feedbackPhase != HomeFeedbackPhase.Hidden
+
+// 조회 전 상태는 카드를 숨긴다. FAILED는 실패 안내를 보여 주고, 다시 요청할 수 있으면(feedbackCanRequestAgain) 카드를 눌러 바로 다시 요청한다.
+typealias HomeFeedbackPhase = AiReviewPhase
 
 enum class HomeSectionStatus {
     Loading,
@@ -49,6 +69,7 @@ sealed interface HomeHeroState {
         val signatureUrl: String? = null,
         val signatureThumbnailUrl: String? = null,
         val isPending: Boolean = false,
+        val postId: String? = null,
     ) : HomeHeroState
 }
 

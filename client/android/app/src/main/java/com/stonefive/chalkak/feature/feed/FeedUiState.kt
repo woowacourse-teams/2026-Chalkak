@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.feed
 
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.feature.aireview.AiReviewUiState
 
 data class FeedUiState(
     val content: FeedContentState.Success? = null,
@@ -14,6 +15,7 @@ data class FeedUiState(
     val titleUpdateSuccessPostId: String? = null,
     val errorMessage: String? = null,
     val pendingMessage: UiMessage? = null,
+    val aiReview: AiReviewUiState = AiReviewUiState(),
 )
 
 sealed interface FeedContentState {

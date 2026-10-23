@@ -7,6 +7,8 @@ struct PhotoUploadImageArea: View {
     let selectedImage: UIImage?
     let topicTitle: String?
     let isCameraAvailable: Bool
+    var isImageEditable = false
+    var onImageClick: () -> Void = {}
     let onGalleryClick: () -> Void
     let onCameraClick: () -> Void
 
@@ -17,12 +19,7 @@ struct PhotoUploadImageArea: View {
                 .aspectRatio(containerAspectRatio, contentMode: .fit)
                 .overlay {
                     if let selectedImage {
-                        Image(uiImage: selectedImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                            .accessibilityLabel("선택한 사진")
+                        selectedContent(selectedImage)
                     } else {
                         emptyContent
                     }
@@ -54,6 +51,28 @@ struct PhotoUploadImageArea: View {
             return Metrics.emptyAspectRatio
         }
         return selectedImage.size.width / selectedImage.size.height
+    }
+
+    @ViewBuilder
+    private func selectedContent(_ image: UIImage) -> some View {
+        let photo = Image(uiImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+
+        if isImageEditable {
+            Button(action: onImageClick) {
+                photo
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("선택한 사진")
+            .accessibilityHint("사진을 다시 편집해요")
+            .accessibilityIdentifier("photoUpload.selectedImage")
+        } else {
+            photo
+                .accessibilityLabel("선택한 사진")
+        }
     }
 
     private var emptyContent: some View {

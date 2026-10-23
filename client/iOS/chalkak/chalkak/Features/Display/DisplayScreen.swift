@@ -2,15 +2,16 @@ import SwiftUI
 
 struct DisplayScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Bindable var viewModel: DisplayViewModel
+    @State private var scrollPosition = ScrollPosition()
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
+    @State private var isDatePickerPresented = false
 
     // Feed가 원본을 로드할 때까지 출발 카드에 떠 있던 이미지를 대신 보여준다.
     private func feedTarget(
@@ -51,7 +52,6 @@ struct DisplayScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .overlay(alignment: .bottom) { toast }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -59,8 +59,23 @@ struct DisplayScreen: View {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
         }
-        .onDisappear {
-            messageDismissTask?.cancel()
+        .sheet(isPresented: $isDatePickerPresented) {
+            datePickerSheet
+        }
+    }
+
+    @ViewBuilder
+    private var datePickerSheet: some View {
+        if let selectedDate = viewModel.viewState.selectedDate,
+           let latestDate = viewModel.viewState.latestDate {
+            DisplayDatePickerSheet(
+                selectedDate: selectedDate,
+                startDate: viewModel.viewState.earliestDate ?? selectedDate,
+                endDate: latestDate
+            ) { date in
+                isDatePickerPresented = false
+                Task { await viewModel.moveToDate(date) }
+            }
         }
     }
 
@@ -70,7 +85,9 @@ struct DisplayScreen: View {
             canGoPrevious: viewModel.viewState.canGoPrevious,
             canGoNext: viewModel.viewState.canGoNext,
             onPrevious: { Task { await viewModel.moveToPreviousDate() } },
-            onNext: { Task { await viewModel.moveToNextDate() } }
+            onNext: { Task { await viewModel.moveToNextDate() } },
+            canPickDate: viewModel.viewState.canPickDate,
+            onDateTap: { isDatePickerPresented = true }
         )
         .padding(.horizontal, theme.spacing.screenHorizontal)
         .background(theme.colors.background)
@@ -210,6 +227,12 @@ struct DisplayScreen: View {
             .padding(.bottom, theme.spacing.xxl)
         }
         .feedZoomViewport(.display)
+        .scrollPosition($scrollPosition)
+        .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
+            withAnimation(.snappy) {
+                scrollPosition.scrollTo(edge: .top)
+            }
+        }
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .background(theme.colors.background)
     }
@@ -247,21 +270,6 @@ struct DisplayScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
-        }
-    }
-
     private func centeredContainer(@ViewBuilder _ content: () -> some View) -> some View {
         VStack {
             Spacer(minLength: 0)
@@ -283,17 +291,7 @@ struct DisplayScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 }
 
@@ -302,7 +300,6 @@ private enum Metrics {
     static let retryButtonSize: CGFloat = 48
     static let emptyIconSize: CGFloat = 34
     static let emptyTopPadding: CGFloat = 96
-    static let toastBottomPadding: CGFloat = 88
     static let dividerHeight: CGFloat = 0.5
     // Android DisplayDateHeader / DisplayScreen 간격.
     static let dateToTopicSpacing: CGFloat = 15

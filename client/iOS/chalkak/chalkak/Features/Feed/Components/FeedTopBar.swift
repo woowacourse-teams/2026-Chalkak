@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedTopBar: View {
     @Environment(\.chalkakTheme) private var theme
+    @ScaledMetric(relativeTo: .body) private var liquidGlassActionIconSize = Metrics.liquidGlassActionIconSize
     let onBack: () -> Void
     var onEdit: () -> Void = {}
     var onDelete: () -> Void = {}
@@ -53,7 +54,7 @@ struct FeedTopBar: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: Metrics.actionIconSize, height: Metrics.actionIconSize)
+                .frame(width: actionIconSize, height: actionIconSize)
         }
             .foregroundStyle(color)
             .tint(color)
@@ -64,13 +65,20 @@ struct FeedTopBar: View {
                 width: ChalkakNavigationButton.diameter,
                 height: ChalkakNavigationButton.diameter
             )
+            .contentShape(Circle())
             .disabled(!isEnabled)
             .accessibilityLabel(title)
+    }
+
+    private var actionIconSize: CGFloat {
+        ChalkakPlatformAppearance.usesLiquidGlass ? liquidGlassActionIconSize : Metrics.actionIconSize
     }
 }
 
 private enum Metrics {
     static let actionIconSize: CGFloat = 24
+    // 네이티브 뒤로가기 아이콘과 같은 크기로 글라스 버튼의 내부 높이를 맞춘다.
+    static let liquidGlassActionIconSize: CGFloat = 17
 }
 
 #Preview("Feed Top Bar", traits: .sizeThatFitsLayout) {

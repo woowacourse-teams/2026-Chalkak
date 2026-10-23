@@ -2,11 +2,14 @@ package com.stonefive.chalkak.feature.upload
 
 import androidx.compose.runtime.Immutable
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import java.time.LocalDate
 
 @Immutable
 data class PhotoUploadUiState(
     val selectedImage: String? = null,
+    val selectedEdit: PhotoEdit = PhotoEdit(),
+    val editingPhoto: PhotoEditRequest? = null,
     val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
     val topicTitle: String? = null,
@@ -24,6 +27,14 @@ data class PhotoUploadUiState(
             topicErrorMessage == null &&
             completedSubmission == null
 }
+
+/** 편집 화면에 띄울 사진. [id]가 바뀌면 새 편집 초안을 만든다. */
+@Immutable
+data class PhotoEditRequest(
+    val id: Long,
+    val imageUri: String,
+    val initialEdit: PhotoEdit,
+)
 
 enum class ImagePreparationStatus {
     Idle,

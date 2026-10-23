@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 반려 알림의 본인 사진 원본과 반려 사유를 보여준다. 새로 올리기 버튼은 두지 않는다.
+/// 공지 제목·본문 또는 반려 알림의 본인 사진 원본·반려 사유를 보여준다.
 struct NotificationDetailScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @State private var viewModel: NotificationDetailViewModel

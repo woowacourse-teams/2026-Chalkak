@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .home
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
-    @State private var isIssuePresented = false
+    @State private var selectedIssueURL: URL?
     @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
     @State private var notificationPath: [NotificationRoute] = []
@@ -86,8 +86,8 @@ struct ContentView: View {
             case .main:
                 NavigationStack(path: $notificationPath) {
                     mainTab
-                        .navigationDestination(isPresented: $isIssuePresented) {
-                            IssueWebScreen(onBack: { isIssuePresented = false })
+                        .navigationDestination(item: $selectedIssueURL) { url in
+                            IssueWebScreen(url: url, onBack: { selectedIssueURL = nil })
                                 .background(InteractivePopGestureEnabler())
                         }
                         .navigationDestination(for: NotificationRoute.self) { destination in
@@ -100,10 +100,14 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                            case let .approved(postID):
+                            case let .approved(postID), let .aiReview(postID):
                                 FeedScreen(
-                                    viewModel: makeFeedViewModel(FeedTarget(postID: postID)),
+                                    viewModel: makeFeedViewModel(FeedTarget(
+                                        postID: postID,
+                                        isOwnedByCurrentUser: destination == .aiReview(postID)
+                                    )),
                                     usesPhotoTransition: false,
+                                    opensAIReviewOnEntry: destination == .aiReview(postID),
                                     onBack: { closeNotificationDestination(destination) },
                                     onDeleted: { postID in
                                         closeNotificationDestination(destination)
@@ -112,7 +116,7 @@ struct ContentView: View {
                                 )
                                 .id(postID)
                                 .background(InteractivePopGestureEnabler())
-                            case let .rejected(target):
+                            case let .rejected(target), let .notice(target):
                                 NotificationDetailScreen(
                                     viewModel: Self.makeNotificationDetailViewModel(target),
                                     onBackClick: { closeNotificationDestination(destination) },
@@ -166,6 +170,7 @@ struct ContentView: View {
                         onReauthenticationRequired: showLogin
                     )
                 }
+                .chalkakToastHost()
                 .interactiveDismissDisabled()
             }
         }
@@ -190,6 +195,7 @@ struct ContentView: View {
                         .chalkakNavigationBackground()
                     }
                 }
+                .chalkakToastHost()
                 .interactiveDismissDisabled(feedbackViewModel.viewState.isSubmitting)
             }
         }
@@ -214,19 +220,8 @@ struct ContentView: View {
                 await homeViewModel.resume()
             }
         }
-        .overlay(alignment: .bottom) {
-            if let message {
-                Text(message)
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .background(theme.colors.actionPrimary, in: Capsule())
-                    .padding(.bottom, ContentMetrics.messageBottomPadding)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel(message)
-            }
-        }
+        .chalkakToast(message)
+        .environment(\.chalkakShowToast, showMessage)
         .overlay {
             if let storeURL = appVersionGate.requiredUpdateStoreURL {
                 ChalkakConfirmDialog(
@@ -291,7 +286,7 @@ struct ContentView: View {
             }
             if route == .main, selectedTab == .home {
 #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
                 Task { await homeViewModel.resume() }
             }
@@ -473,6 +468,7 @@ struct ContentView: View {
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .home) },
                 onOpenRecord: { select(.record) },
+                onOpenRecordDate: openRecord(at:),
                 onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
                 onOpenFeed: openHomeFeed,
                 onOpenNotifications: {
@@ -483,16 +479,27 @@ struct ContentView: View {
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
-                onIssueClick: { isIssuePresented = true },
-                bottomBarCompact: $isBottomBarCompact
+                onIssueClick: { selectedIssueURL = $0 },
+                bottomBarCompact: $isBottomBarCompact,
+                isActive: selectedFeed == nil && notificationPath.isEmpty
+                    && selectedIssueURL == nil && !isNotificationInboxPresented && !isFeedbackPresented
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
 #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") { return }
+                if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
                 await homeViewModel.resume()
             }
         }
+    }
+
+    private func openRecord(at date: Date) {
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            showMessage("기록을 보려면 로그인이 필요해요")
+            return
+        }
+        recordViewModel = Self.makeRecordViewModel(initialDate: date)
+        select(.record)
     }
 
     private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
@@ -524,6 +531,9 @@ struct ContentView: View {
             apiClient: FeedAPIClient(
                 configuration: FeedAPIConfiguration(baseURL: baseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
+            ),
+            aiReviewRepository: APIAIReviewRepository(
+                client: AIReviewAPIClient(baseURL: baseURL)
             )
         )
     }
@@ -533,6 +543,9 @@ struct ContentView: View {
             homeViewModel.scrollToTop()
             Task { await homeViewModel.refresh() }
         } else {
+            if selectedTab == .display, item == .display {
+                displayViewModel.scrollToTop()
+            }
             select(item)
         }
     }
@@ -668,8 +681,12 @@ struct ContentView: View {
                 Task { await homeViewModel.refresh() }
             case let .postApproved(postID, _):
                 notificationPath.append(.approved(postID))
+            case let .aiReview(postID, _):
+                notificationPath.append(.aiReview(postID))
             case let .postRejected(notificationID):
                 notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
+            case let .notice(notificationID):
+                notificationPath.append(.notice(NotificationDetailTarget(id: notificationID)))
             }
         }
     }
@@ -812,7 +829,7 @@ struct ContentView: View {
         homeViewModel.cancel()
         selectedTab = .home
         selectedFeed = nil
-        isIssuePresented = false
+        selectedIssueURL = nil
         signatureAnalyticsScreen = nil
         isNotificationInboxPresented = false
         isPhotoUploadPresented = false
@@ -834,8 +851,8 @@ struct ContentView: View {
         )
         return NotificationSettingsViewModel(
             loadSettings: { try await client.fetch() },
-            saveSettings: { topic, moderation in
-                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation)
+            saveSettings: { topic, moderation, aiReview in
+                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
             },
         )
     }
@@ -844,7 +861,25 @@ struct ContentView: View {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
             var state = HomePreviewData.contentState
+            var loader = HomePreviewData.loader
             let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-test-home-banner-state"), arguments.indices.contains(index + 1) {
+                state.banners = []
+                switch arguments[index + 1] {
+                case "loading": state.bannerStatus = .loading
+                case "error": state.bannerStatus = .error
+                case "pagination":
+                    let firstPage = HomePreviewData.paginatedBannerPage(page: 1, pageSize: 10)
+                    state.banners = firstPage.banners
+                    state.bannerStatus = .ready
+                    state.bannerCurrentPage = firstPage.currentPage
+                    state.bannerHasNext = firstPage.hasNext
+                    loader.banners = { page, pageSize in
+                        await HomePreviewData.paginatedBannerPage(page: page, pageSize: pageSize)
+                    }
+                default: state.bannerStatus = .ready
+                }
+            }
             if let index = arguments.firstIndex(of: "-test-home-hero-state"), arguments.indices.contains(index + 1) {
                 switch arguments[index + 1] {
                 case "empty": state.hero = .empty
@@ -870,10 +905,15 @@ struct ContentView: View {
                     }
                 }
             }
-            return HomePreviewData.viewModel(state: state)
+            return HomePreviewData.viewModel(state: state, loader: loader)
         }
 #endif
-        return HomeViewModel(loader: .live(baseURL: resolvedAPIBaseURL))
+        return HomeViewModel(
+            loader: .live(baseURL: resolvedAPIBaseURL),
+            aiReviewRepository: APIAIReviewRepository(
+                client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
+            )
+        )
     }
 
     private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
@@ -887,8 +927,9 @@ struct ContentView: View {
         )
     }
 
-    private static func makeRecordViewModel() -> RecordViewModel {
+    private static func makeRecordViewModel(initialDate: Date? = nil) -> RecordViewModel {
         RecordViewModel(
+            initialDate: initialDate,
             apiClient: RecordAPIClient(
                 configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
@@ -1098,13 +1139,13 @@ struct ContentView: View {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
-            case .approved:
+            case .approved, .aiReview:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
-            case .rejected:
+            case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
             }
         }
-        if isIssuePresented {
+        if selectedIssueURL != nil {
             return AnalyticsScreen(name: "issue", screenClass: "IssueWeb")
         }
         return selectedTab.analyticsScreen
@@ -1142,7 +1183,6 @@ private extension ChalkakBottomBarItem {
 }
 
 private enum ContentMetrics {
-    static let messageBottomPadding: CGFloat = 32
 }
 
 #Preview {
@@ -1158,7 +1198,9 @@ private struct NotificationUnreadRefreshID: Hashable {
 private enum NotificationRoute: Hashable {
     case inbox
     case approved(String)
+    case aiReview(String)
     case rejected(NotificationDetailTarget)
+    case notice(NotificationDetailTarget)
 }
 
 

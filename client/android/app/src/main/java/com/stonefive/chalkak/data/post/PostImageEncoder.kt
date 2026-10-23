@@ -1,11 +1,13 @@
 package com.stonefive.chalkak.data.post
 
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import java.io.File
 
 interface PostImageEncoder {
     suspend fun encode(
         contentUri: String,
         maxBytes: Long,
+        edit: PhotoEdit,
     ): PostImageEncodeResult
 }
 

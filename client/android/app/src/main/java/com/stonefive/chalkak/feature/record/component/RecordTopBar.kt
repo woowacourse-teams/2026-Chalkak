@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -34,6 +36,8 @@ fun RecordTopBar(
     canGoNext: Boolean = true,
     onSaveClick: () -> Unit = {},
     showSaveLink: Boolean = true,
+    onMonthClick: () -> Unit = {},
+    canPickMonth: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -53,6 +57,14 @@ fun RecordTopBar(
             text = month.format(MonthFormatter),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.headline,
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .clickable(
+                    enabled = canPickMonth,
+                    onClickLabel = "날짜 선택",
+                    role = Role.Button,
+                    onClick = onMonthClick,
+                ),
         )
         CalendarArrowButton(
             iconRes = R.drawable.ic_display_arrow_right,

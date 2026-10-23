@@ -1,8 +1,11 @@
 package com.stonefive.chalkak.feature.feed
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,13 +14,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,8 +34,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
@@ -37,7 +57,14 @@ import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionCh
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.Post
+import com.stonefive.chalkak.feature.aireview.AiReviewPhase
+import com.stonefive.chalkak.feature.aireview.component.AiReviewAudioWaveIcon
+import com.stonefive.chalkak.feature.aireview.component.AiReviewFailureSheet
+import com.stonefive.chalkak.feature.aireview.component.AiReviewResultSheet
+import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
+import com.stonefive.chalkak.feature.aireview.component.AiReviewStartSheet
 import com.stonefive.chalkak.feature.feed.component.FeedContent
 import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
@@ -50,6 +77,7 @@ fun FeedRoute(
     modifier: Modifier = Modifier,
     postId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    openAiReviewResult: Boolean = false,
     initialContent: FeedContentState.Success? = null,
     isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
     viewModel: FeedViewModel = viewModel(
@@ -62,6 +90,36 @@ fun FeedRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        var isStarted = false
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> if (!isStarted) {
+                    isStarted = true
+                    viewModel.onResume()
+                }
+
+                Lifecycle.Event.ON_STOP -> {
+                    isStarted = false
+                    viewModel.onPause()
+                }
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState
+                .isAtLeast(Lifecycle.State.STARTED) && !isStarted
+        ) {
+            isStarted = true
+            viewModel.onResume()
+        }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.onPause()
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown, snackbarHostState)
 
@@ -73,16 +131,20 @@ fun FeedRoute(
         uiState = uiState,
         entryPostId = postId,
         entryThumbnailImageUrl = entryThumbnailImageUrl,
+        openAiReviewResult = openAiReviewResult,
         onNavigateBack = onNavigateBack,
         onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
         snackbarHostState = snackbarHostState,
         onRetryClick = viewModel::retry,
+        onStartFeedback = viewModel::startFeedback,
+        onDismissFeedbackMessage = viewModel::dismissFeedbackMessage,
         modifier = modifier,
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     uiState: FeedUiState,
@@ -95,11 +157,41 @@ fun FeedScreen(
     onRetryClick: () -> Unit = {},
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    openAiReviewResult: Boolean = false,
+    onStartFeedback: () -> Unit = {},
+    onDismissFeedbackMessage: () -> Unit = {},
 ) {
+    var photoBounds by remember(
+        uiState.content
+            ?.post
+            ?.id,
+        entryPostId,
+    ) { mutableStateOf<Rect?>(null) }
+    var pillBounds by remember { mutableStateOf<Rect?>(null) }
+    val isPillOverPhoto = photoBounds?.let { photo -> pillBounds?.overlaps(photo) } == true
     val hasEntryPhoto = entryPostId != null && entryThumbnailImageUrl != null
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showTitleEditDialog by rememberSaveable { mutableStateOf(false) }
     var titleDraft by rememberSaveable { mutableStateOf("") }
+    val aiReviewKey = uiState.content
+        ?.post
+        ?.id to uiState.aiReview.phase
+    var showAiResultSheet by rememberSaveable(aiReviewKey) { mutableStateOf(false) }
+    var showAiStartSheet by rememberSaveable(aiReviewKey) { mutableStateOf(false) }
+    var showAiFailureSheet by rememberSaveable(aiReviewKey) { mutableStateOf(false) }
+    var didAutoOpenAiReviewResult by rememberSaveable { mutableStateOf(false) }
+    val canRequestAiReviewAgain = uiState.aiReview.phase == AiReviewPhase.Failed && uiState.aiReview.canRequestAgain
+
+    LaunchedEffect(openAiReviewResult, uiState.aiReview.phase, uiState.aiReview.status) {
+        if (!openAiReviewResult || didAutoOpenAiReviewResult) return@LaunchedEffect
+        if (uiState.aiReview.status == AiReview.Status.FAILED) {
+            didAutoOpenAiReviewResult = true
+            if (canRequestAiReviewAgain) showAiStartSheet = true else showAiFailureSheet = true
+        } else if (uiState.aiReview.phase == AiReviewPhase.Completed && uiState.aiReview.result != null) {
+            didAutoOpenAiReviewResult = true
+            showAiResultSheet = true
+        }
+    }
 
     LaunchedEffect(uiState.titleUpdateSuccessPostId) {
         if (uiState.titleUpdateSuccessPostId != null) {
@@ -131,6 +223,54 @@ fun FeedScreen(
             isSubmitting = uiState.isUpdatingTitle,
             modifier = Modifier.fillMaxWidth(0.88f),
         )
+    }
+    uiState.aiReview.message?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissFeedbackMessage,
+            confirmButton = {
+                androidx.compose.material3
+                    .TextButton(onClick = onDismissFeedbackMessage) { Text("확인") }
+            },
+            text = { Text(message) },
+        )
+    }
+    if (showAiFailureSheet) {
+        AiReviewFailureSheet(
+            // 다시 요청 횟수가 남았는데도 이 시트가 뜨는 경우는 오늘 사진이 아닐 때뿐이다.
+            message = if (uiState.aiReview.canRequestAgain) {
+                "AI 피드백은 오늘 올린 사진만 재요청할 수 있어요."
+            } else {
+                "이 사진은 더 이상 AI 피드백을 요청할 수 없어요."
+            },
+            onDismiss = { showAiFailureSheet = false },
+        )
+    }
+    if (showAiResultSheet) {
+        uiState.aiReview.result?.let { result ->
+            AiReviewResultSheet(result = result, onDismiss = { showAiResultSheet = false })
+        }
+    }
+    if (showAiStartSheet) {
+        val sheetState = rememberModalBottomSheetState()
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showAiStartSheet = false },
+            sheetState = sheetState,
+            dragHandle = null,
+        ) {
+            AiReviewSheetDragHandle(
+                sheetState = sheetState,
+                onDismiss = { showAiStartSheet = false },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            AiReviewStartSheet(
+                onStart = {
+                    showAiStartSheet = false
+                    onStartFeedback()
+                },
+                modifier = Modifier.padding(ChalkakTheme.spacing.xl),
+                title = if (canRequestAiReviewAgain) "AI 피드백을 재요청할까요?" else "AI 피드백을 시작할까요?",
+            )
+        }
     }
 
     Scaffold(
@@ -197,6 +337,7 @@ fun FeedScreen(
                     modifier = Modifier.fillMaxSize(),
                     entryPostId = entryPostId,
                     entryThumbnailImageUrl = entryThumbnailImageUrl,
+                    onPhotoBoundsChanged = { photoBounds = it },
                 )
 
                 uiState.isLoading -> CircularProgressIndicator(
@@ -221,9 +362,102 @@ fun FeedScreen(
                     }
                 }
             }
+            if (uiState.aiReview.phase != AiReviewPhase.Hidden && uiState.content
+                    ?.post
+                    ?.isOwnedByCurrentUser == true
+            ) {
+                AiReviewPill(
+                    phase = uiState.aiReview.phase,
+                    canRequestAgain = uiState.aiReview.canRequestAgain,
+                    isOverPhoto = isPillOverPhoto,
+                    onClick = {
+                        when (uiState.aiReview.phase) {
+                            AiReviewPhase.Ready -> showAiStartSheet = true
+
+                            AiReviewPhase.Completed -> showAiResultSheet = true
+
+                            AiReviewPhase.Failed -> {
+                                if (canRequestAiReviewAgain) showAiStartSheet = true else showAiFailureSheet = true
+                            }
+
+                            AiReviewPhase.Hidden, AiReviewPhase.Processing -> Unit
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(ChalkakTheme.spacing.lg)
+                        .onGloballyPositioned { pillBounds = it.boundsInWindow() },
+                )
+            }
         }
     }
 }
+
+@Composable
+private fun AiReviewPill(
+    phase: AiReviewPhase,
+    canRequestAgain: Boolean,
+    isOverPhoto: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val enabled = phase != AiReviewPhase.Processing
+    val label = when (phase) {
+        AiReviewPhase.Ready -> "AI 피드백 받기"
+        AiReviewPhase.Processing -> "AI 분석중"
+        AiReviewPhase.Completed -> "AI 피드백 보기"
+        AiReviewPhase.Failed -> if (canRequestAgain) "AI 피드백 재요청" else "AI 피드백 실패"
+        AiReviewPhase.Hidden -> return
+    }
+    val width = when {
+        phase == AiReviewPhase.Processing -> AiReviewProcessingWidth
+        phase == AiReviewPhase.Failed && canRequestAgain -> AiReviewRequestAgainWidth
+        else -> AiReviewButtonWidth
+    }
+    val shape = RoundedCornerShape(ChalkakTheme.spacing.xl)
+    Row(
+        modifier = modifier
+            .width(width)
+            .height(AiReviewButtonHeight)
+            .background(
+                ChalkakTheme.colors.surfaceElevated.copy(
+                    alpha = if (isOverPhoto) AI_REVIEW_PHOTO_BACKGROUND_ALPHA else 1f,
+                ),
+                shape,
+            ).border(
+                AI_REVIEW_PILL_BORDER_WIDTH,
+                if (isOverPhoto) Color.Transparent else ChalkakTheme.colors.border,
+                shape,
+            ).clip(shape)
+            .semantics { contentDescription = label }
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ).padding(horizontal = ChalkakTheme.spacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(
+            ChalkakTheme.spacing.sm,
+            Alignment.CenterHorizontally,
+        ),
+    ) {
+        AiReviewAudioWaveIcon(isAnimating = phase == AiReviewPhase.Processing)
+        Text(
+            text = label,
+            color = ChalkakTheme.colors.textPrimary,
+            style = ChalkakTheme.typography.subheadline,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+private val AiReviewButtonWidth = 148.dp
+private val AiReviewProcessingWidth = 120.dp
+private val AiReviewRequestAgainWidth = 160.dp
+private val AiReviewButtonHeight = 44.dp
+private const val AI_REVIEW_PHOTO_BACKGROUND_ALPHA = 0.7f
+private val AI_REVIEW_PILL_BORDER_WIDTH = 1.dp
 
 @Preview(showBackground = true, widthDp = 402, heightDp = 874)
 @Composable
