@@ -11,6 +11,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import com.chalkak.backend.analytics.repository.UserMetricsRepository;
 import java.time.LocalDate;
 import java.util.List;
@@ -50,6 +51,13 @@ class UserMetricsAggregationLogMetricsTest {
     void setUp() {
         when(reader.read(any())).thenReturn(Optional.empty());
         when(repository.countPosts(any(), any())).thenReturn(DB_POSTS);
+        when(repository.countAiReviews(any(), any()))
+                .thenReturn(new AiReviewCounts(
+                        0,
+                        0,
+                        0,
+                        0
+                ));
         appender.start();
         aggregationLogger.addAppender(appender);
     }
@@ -76,7 +84,11 @@ class UserMetricsAggregationLogMetricsTest {
                 "posts",
                 "wau",
                 "eligibleUsers",
-                "likesTotal"
+                "likesTotal",
+                "aiReviewUsers",
+                "aiReviewRequests",
+                "aiReviewCompleted",
+                "aiReviewFailed"
         );
     }
 
@@ -102,6 +114,10 @@ class UserMetricsAggregationLogMetricsTest {
                 "wau",
                 "eligibleUsers",
                 "likesTotal",
+                "aiReviewUsers",
+                "aiReviewRequests",
+                "aiReviewCompleted",
+                "aiReviewFailed",
                 "visitors",
                 "topicViewers",
                 "requests",
@@ -192,6 +208,10 @@ class UserMetricsAggregationLogMetricsTest {
                 "wau",
                 "eligibleUsers",
                 "likesTotal",
+                "aiReviewUsers",
+                "aiReviewRequests",
+                "aiReviewCompleted",
+                "aiReviewFailed",
                 "retentionW1Cohort",
                 "retentionW1Retained",
                 "retentionW1Rate",

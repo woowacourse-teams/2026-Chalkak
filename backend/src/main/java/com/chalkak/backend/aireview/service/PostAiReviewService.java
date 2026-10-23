@@ -124,6 +124,8 @@ public class PostAiReviewService {
             AiPromptVersion version,
             boolean created
     ) {
+        // 이벤트 이름과 필드 키는 CloudWatch 메트릭 필터가 매칭한다. 바꾸면 ai-review-monitoring.md와 필터를 함께
+        // 고친다.
         AI_REVIEW_LOG.atInfo()
                 .addKeyValue(LogFields.TYPE, LogFields.TYPE_AI_REVIEW)
                 .addKeyValue(LogFields.EVENT, "review_requested")

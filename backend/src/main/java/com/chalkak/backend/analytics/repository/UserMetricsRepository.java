@@ -32,4 +32,13 @@ public interface UserMetricsRepository {
 
     /** 삭제되지 않은 게시물에 달린 좋아요 수. */
     long countLikesOnLivePosts();
+
+    /**
+     * 최초 요청 시각이 구간 {@code [from, to)}인 AI 리뷰의 요청 회원 수, 요청 수, 현재 상태가 완료·실패인 수. 재요청은
+     * 최초 요청 시각을 바꾸지 않으므로 세지 않는다.
+     */
+    AiReviewCounts countAiReviews(
+            Instant from,
+            Instant to
+    );
 }

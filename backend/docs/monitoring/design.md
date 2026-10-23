@@ -15,7 +15,7 @@
 
 - **앱은 로그만 남긴다.** JSON 파일 로그 → CloudWatch Agent → 로그 그룹 순으로 흐른다. 메트릭은 메트릭 필터가 로그에서 만들고, 즉석 분석과 사용자 분석은 Logs Insights로 한다. 앱에는 메트릭 SDK가 없다.
 - **모니터링 전용 코드는 최소로 둔다.** 기존 데이터(DB, 접근 로그)를 먼저 쓰고, 부족하면 로그 호출 몇 줄을 더하고, 그래도 안 되면 새 클래스를 만든다.
-- **공유 회사 계정의 제약을 따른다.** CloudFormation, AWS Chatbot, IAM role 생성이 막혀 있다. 그래서 런북대로 콘솔에서 직접 만들고, Slack 알림은 SNS → Lambda(`chalkak-alarm-notifier`) → Incoming Webhook으로 보낸다.
+- **공유 회사 계정의 제약을 따른다.** CloudFormation, AWS Chatbot, IAM role 생성이 막혀 있다. 그래서 런북대로 콘솔에서 직접 만들고(반복 작업은 SSM으로 dev EC2에 접속해 인스턴스 역할 권한으로 AWS CLI를 실행할 수도 있다), Slack 알림은 SNS → Lambda(`chalkak-alarm-notifier`) → Incoming Webhook으로 보낸다.
 - **비용 목표는 월 약 $10이다.** 팀의 목표 예산이며 견적이 아니다.
 - **환경별 범위가 다르다.**
 
@@ -42,14 +42,18 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | `error` | 예외 처리 시 (`GlobalExceptionHandler`, 401·403 핸들러) | `errorCode`, `status`, `exception`, `requestId` | 4xx는 WARN이고 스택 트레이스가 없다. 5xx는 ERROR이고 `stack_trace`가 붙으며 `exception` 필드는 없다(스택 트레이스의 첫 줄이 예외 종류다). 예외 메시지는 사용자 입력이 섞일 수 있어 남기지 않는다. |
 | `runtime` | dev·prod에서 1분마다 (`RuntimeSnapshotLogger`) | `heapUsedBytes`, `heapMaxBytes`, `gcTimeMsTotal`, `threads`, `hikariActive`, `hikariPending` | 측정하지 못한 값은 0이 아니라 키를 뺀다. JVM 관리 빈과 Hikari 풀 관리 빈에서 직접 읽는다. |
 | `moderation` | 검수 흐름 (`PostCommandService`, `AdminPostCommandService`) | `event`(`pending`, `approved`, `rejected`), `postId`, `waitSeconds` | `waitSeconds`는 `approved`·`rejected`에만 있고 게시물 제출(`created_at`)부터 처리(`moderated_at`)까지의 초다. 트랜잭션 안에서 남기므로 드물게 롤백돼도 로그가 남을 수 있다. |
-| `aggregation` | 매일 01:00(KST) 사용자 지표 집계 (prod 스케줄러, 관리자 API 재집계) | `metricDate`, `dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, `visitors`, `topicViewers`, `requests`, `server5xx`, `latencyAvgMs`, `latencyP95Ms`(마지막 여섯 개는 2026-10-02 이후 날짜부터), `message`("사용자 지표 집계"). `metricDate`가 일요일인 월요일 집계에는 `retentionW{k}Cohort`, `retentionW{k}Retained`, `retentionW{k}Rate`(k=1~4)가 더해진다. 코호트가 비면 `Rate` 키는 뺀다 | 하루에 INFO 한 줄이다. DB 게시물 수와 접근 로그의 `POST /api/v1/posts` 201 수가 다르면 같은 `type`에 `event=posts_mismatch`, `dbPosts`, `logPosts`를 담은 WARN 줄을 남긴다. 집계가 실패하면(예약 실행이 수동 실행과 겹칠 때도) `type=error` ERROR 줄에 `metricDate`와 "사용자 지표 집계 실패"를 남긴다. 구현 #504. |
+| `aggregation` | 매일 01:00(KST) 사용자 지표 집계 (prod 스케줄러, 관리자 API 재집계) | `metricDate`, `dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, `aiReviewUsers`, `aiReviewRequests`, `aiReviewCompleted`, `aiReviewFailed`, `visitors`, `topicViewers`, `requests`, `server5xx`, `latencyAvgMs`, `latencyP95Ms`(마지막 여섯 개는 2026-10-02 이후 날짜부터), `message`("사용자 지표 집계"). `metricDate`가 일요일인 월요일 집계에는 `retentionW{k}Cohort`, `retentionW{k}Retained`, `retentionW{k}Rate`(k=1~4)가 더해진다. 코호트가 비면 `Rate` 키는 뺀다. AI 리뷰 네 키는 값이 0이어도 항상 남긴다 | 하루에 INFO 한 줄이다. DB 게시물 수와 접근 로그의 `POST /api/v1/posts` 201 수가 다르면 같은 `type`에 `event=posts_mismatch`, `dbPosts`, `logPosts`를 담은 WARN 줄을 남긴다. 집계가 실패하면(예약 실행이 수동 실행과 겹칠 때도) `type=error` ERROR 줄에 `metricDate`와 "사용자 지표 집계 실패"를 남긴다. 구현 #504, AI 리뷰 지표 #692. |
 | `ai_review` | AI 리뷰 요청과 처리 워커 (`PostAiReviewService`, `AiReviewWorkerService`, `AiReviewWorker`, 로거 `chalkak.aireview`) | `event`(`review_requested`, `review_retry_scheduled`, `review_completed`, `review_failed`, `review_stale_update`, `review_abandoned`, `result_notification_failed`, `worker_poll_failed`), `aiReviewId`, `postId`, `userId`, `promptVersion`, `model`, `attempt` | `review_requested`는 새 행을 만든 요청과 실패한 리뷰의 재요청 때 남기며 `aiReviewId`·`postId`·`userId`·`promptVersion`(재요청이면 다시 고정한 버전)·`model`에 더해 `requestCount`(사용자 요청 횟수, 처음 포함), `created`(새 행이면 true, 재요청이면 false)를 담는다. 이 요청의 `requestId`는 명시 필드가 아니라 요청 문맥(MDC)으로 모든 로그 줄에 붙는 공통 필드다. `review_retry_scheduled`(WARN)는 일시적 실패로 자동 재시도를 예약했을 때 남기며 `attempt`, `roundAttempt`(이번 요청 안의 시도 번호), `requestCount`, `promptVersion`, `model`, `errorCode`(이번 시도의 실패 사유), `retryInMs`(적용한 대기 시간), `retryAfterUsed`(OpenAI가 알려 준 대기 시간이 백오프보다 길어 따랐는지)를 담고 `latencyMs`·토큰 4종·`openaiResponseId`는 받은 경우만 담는다. DB에는 마지막 시도의 값만 남으므로 재시도 비용은 이 로그로 합산한다. `review_completed`(INFO)·`review_failed`(WARN)는 처리를 끝낸 건마다 `attempt`, `queueWaitMs`(이번 요청 시각부터 처음 가져간 때까지), `totalMs`(이번 요청 시각부터 완료까지, 재요청이면 재요청 시각 기준), `latencyMs`(OpenAI 호출, 응답을 받은 경우만), `inputTokens`·`cachedInputTokens`·`outputTokens`·`reasoningTokens`(받은 경우만)를 담고 실패에는 `errorCode`가 더해진다. 재시도를 예약한 시도에는 종료 로그를 남기지 않으며 종료 로그는 처리를 끝낸 때 한 번만 남는다. `review_stale_update`(WARN)는 늦은 워커의 반영을 버렸을 때, `review_abandoned`(WARN)는 종료·DB 오류·준비 실패·처리 중 예상 못 한 예외로 처리 중 상태를 두고 임대 만료 뒤 다시 가져가게 할 때(`reason`은 `SHUTDOWN`·`DB_ERROR`·`PREPARE_FAILED`·`UNEXPECTED_WHILE_PROCESSING`, 예외가 있으면 `errorCode`), `result_notification_failed`(ERROR)는 리뷰 결과를 확정한 뒤 알림 저장이 실패한 건마다 남기며(`errorCode`는 예외 클래스 이름), 그 회차의 알림 한 건이 빠졌다는 뜻이다. 소진으로 끝난 건도 같다, `worker_poll_failed`(ERROR)는 폴링 예외를 삼키고 다음 주기로 넘어갈 때(`errorCode`) 남긴다. 피드백·프롬프트·이미지 주소·주제 제목은 기록하지 않는다. 구현 #689, 재시도·재요청 #690, 결과 알림 #739. |
 
 #### AI 리뷰 지표 정의 메모 (#692)
 
 - 일별 요청 수는 최초 요청 시각(`requested_at`) 기준으로 센다. 재요청은 세지 않는다.
+- 집계 로그의 AI 리뷰 키는 모두 `ai_reviews`에서 `requested_at`이 그날(KST 하루, 시작 포함·다음 날 0시 제외)인 행을 센다. 내부 계정은 다른 DB 지표와 같은 방식으로 제외한다.
+  - `aiReviewUsers`: 그날 요청한 서로 다른 회원 수.
+  - `aiReviewRequests`: 그날 최초 요청된 리뷰 수(게시물당 한 행). 재요청은 `requested_at`을 바꾸지 않으므로 요청일에만 세고 재요청한 날에는 세지 않는다.
+  - `aiReviewCompleted`, `aiReviewFailed`: 위 요청 중 집계 시점에 `COMPLETED`, `FAILED`인 수. `eligibleUsers`처럼 집계 시점 스냅샷이라 같은 날짜를 나중에 다시 집계하면 달라질 수 있다(예: 실패 건을 재요청해 성공). `aiReviewRequests − aiReviewCompleted − aiReviewFailed`는 집계 시점에 대기·처리 중인 건이다.
 - 재요청 수는 `review_requested`에서 `created=false`인 로그로 센다. DB의 `last_requested_at`은 재요청 때마다 덮어써져 합산할 수 없다.
-- "대기열 최고 대기 시간" 경보에서는 자동 재시도를 기다리는 행(`next_attempt_at`이 미래인 대기 행)을 뺀다. 의도된 대기라 지연이 아니다.
+- 대기 시간 경보(`chalkak-prod-ai-review-queue-wait`)는 처리를 끝낸 건의 `queueWaitMs` 최댓값으로 판단한다. `queueWaitMs`는 요청(재요청이면 재요청 시각)부터 처음 가져갈 때까지라 자동 재시도 대기와 임대 회수 대기는 들어가지 않는다. 의도된 대기라 지연이 아니다.
 - `error_code`는 "마지막 시도 사유"다. 재시도를 기다리는 동안에도 직전 시도의 사유가 남고, 시도별 사유와 사용량은 `review_retry_scheduled` 로그에서 본다.
 
 ### 요청 추적
@@ -129,6 +133,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 코호트별 리텐션 표 | DB SQL (코호트 주마다 W+1~W+4) | [리포트 쿼리](report-queries.md) | 구현 #504 |
 | 일별 게시물 수 | 집계 메트릭 `Posts` | 대시보드 prod 사용자 성장 섹션 | 구현 #504 |
 | 총 좋아요 수 | 집계 로그 `likesTotal`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
+| AI 리뷰 일별 사용 지표 | 집계 메트릭 `AiReviewUsers`, `AiReviewRequests`, `AiReviewCompleted`, `AiReviewFailed` (집계 로그의 같은 이름 키, 메트릭 필터 4개, prod만). 정의는 3절 "AI 리뷰 지표 정의 메모" | 대시보드 prod AI 리뷰 섹션 | 구현 #692 |
 | 주제 조회 사용자 수 | 집계 로그 `topicViewers`만 (메트릭 없음) | Logs Insights 조회 | 구현 #504 |
 | 주제별 피드 조회 수 | 피드 조회 접근 로그의 `topicDate` 필드, Logs Insights 위젯 | 대시보드 prod 사용자 활동 섹션 | 구현 #504 |
 | 참여 가능 사용자 수 | 집계 메트릭 `EligibleUsers` (집계 시점 스냅샷) | 대시보드 prod 사용자 성장 섹션 | 구현 #504 |
@@ -140,6 +145,31 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 
 승인, 반려, 숨김, 삭제, 사용자 제재 같은 관리자 작업은 애플리케이션 로그가 아니라 DB의 관리자 감사 로그에 남는다. "누가 어떤 운영 작업을 했는가"를 확인하는 기록이며, `requestId`로 그 요청의 접근·에러 로그와 이어진다. 필드 정의는 비즈니스 규칙의 관리자 감사 로그 규칙을 따른다.
 
+### 4.8 AI 리뷰 운영
+
+로그 `type=ai_review`(3절)로 요청·처리를 본다. 운영 메트릭 필터와 경보는 prod에만 두고, dev는 `test-metric-filter`와 저장 쿼리로 확인한다. 별도 대기열 스냅샷 로그를 만들지 않고 기존 건별 로그로 잡는다. 정확한 패턴·값·임계값은 [AI 리뷰 지표·경보 구성](../../deploy/docs/ai-review-monitoring.md)이 기준이다.
+
+| 항목 | 수집 방식 | 확인하는 곳 | 상태 |
+| --- | --- | --- | --- |
+| 최종 실패 급증 | 메트릭 필터 `AiReviewFinalFailures` (`review_failed`, `POST_UNAVAILABLE` 제외) | 알람 `chalkak-prod-ai-review-failures` (15분 합계 3건 이상) | 구현 #692 |
+| 처음 가져가기까지 대기 시간 | 메트릭 필터 `AiReviewQueueWaitMs` (처리를 끝낸 건의 `queueWaitMs`, 기본값 없음) | 알람 `chalkak-prod-ai-review-queue-wait` (5분 최댓값 5분 이상), 대시보드 | 구현 #692 |
+| 임대 회수·소진 | 메트릭 필터 `AiReviewLeaseRecovery` (`review_abandoned` 중 `SHUTDOWN` 제외, `review_failed`+`LEASE_EXHAUSTED`) | 알람 `chalkak-prod-ai-review-lease-recovery` (5분 합계 1건 이상) | 구현 #692 |
+| AI 리뷰 ERROR 로그 | 메트릭 필터 `AiReviewErrors` (`type=ai_review` 중 `level=ERROR`: `worker_poll_failed`, `result_notification_failed`) | 알람 `chalkak-prod-ai-review-errors` (5분 합계 1건 이상) | 구현 #692 |
+| 워커 정지 | 메트릭 필터 `AiReviewRequested`(요청 로그), `AiReviewProcessed`(완료·실패·재시도 예약·중단 로그)와 metric math: 연속한 두 15분 구간(2 of 2)에서 모두 요청이 1건 이상인데 처리 로그가 0건 | 알람 `chalkak-prod-ai-review-worker-stalled` | 구현 #692 |
+| 처리 결과 추이, 사유별 실패, 처리 시간 p50·p95 (`queueWaitMs`, `totalMs`, `latencyMs`) | Logs Insights 위젯 | 대시보드 prod AI 리뷰 섹션 | 구현 #692 |
+| OpenAI 응답 시간(모든 호출), 재시도 토큰 비용, 이상 이벤트, 요청·재요청 수 | Logs Insights 저장 쿼리 5개 `chalkak/ai-review/*` | 런북 4절 | 구현 #692 |
+
+경보 5개는 모두 prod 토픽으로 ALARM·OK를 보내고 누락 데이터를 `notBreaching`으로 둔다. 임계값은 초안이며 2주 운영한 뒤 오탐·놓침을 보고 조정한다.
+
+한계는 다음과 같다. 경보별 자세한 오탐·놓침은 런북 3절에 있다.
+
+- 대기 시간 경보는 **처리를 끝낸 건만** 잰다. 아직 가져가지 못한 대기는 못 재고, 워커가 완전히 멈추면 이 경보는 울리지 않는다. 알리는 시점도 밀린 건이 끝난 뒤라 지연은 대기 + 처리 시간이다(최악 약 4~5분).
+- 워커 정지 경보는 앱이 살아 있다는 전제다(로그가 있어야 지표 0이 발행된다). 앱 중단은 `chalkak-prod-app-heartbeat`가 맡는다. CloudWatch가 매분 직전 기간을 다시 평가해 한 구간 조건만으로는 정상 요청 직후에도 울리므로, 연속한 두 15분 구간이 모두 "요청은 있는데 처리 로그 0"일 때만 울리게 했다. 감지는 정지 뒤 약 15~30분 걸리고, 요청이 드물어 한 구간에만 요청이 있으면 놓친다(`queue-wait`와 하트비트가 일부 보완).
+- 임대 만료 뒤 다시 가져가는 순간에는 로그가 없다. 원인이 `review_abandoned`로 남지 않는 비정상 종료는 하트비트가 잡는다.
+- `LEASE_EXHAUSTED` 최종 실패는 `failures`와 `lease-recovery`에 모두 잡혀 두 경보가 함께 울릴 수 있다.
+- 운영 지표는 팀 계정을 제외하지 않는다(장애·비용 관측). 일별 집계 4종만 제외한다.
+- 처리 시간 위젯의 `latencyMs`는 응답을 받은 건의 마지막 시도 값만이라 실패 건에서 비어 있을 수 있다. 모든 호출의 응답 시간은 저장 쿼리 `OpenAI 응답 시간`으로 본다.
+
 ## 5. 사용자 지표 정의
 
 - **DAU**: 그날(KST) 게시물을 올린 고유 회원 수다. 2026-10-07에 게시물 업로드 기준으로 바꿨다(이전에는 게시·좋아요). 집계 메트릭 `Dau`는 DB `posts.created_at` 기준이라 삭제·반려된 게시물도 그날 DAU에 들어간다. 대시보드의 실시간 DAU 위젯은 접근 로그(`POST /api/v1/posts` 201)에서 센다.
@@ -150,22 +180,23 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 - **주제별 피드 조회 수**: 피드 조회(`GET /api/v1/posts`) 접근 로그에 `topicDate`를 더해 날짜(= 주제)별로 센다. 상세 조회는 세지 않는다.
 - **참여 가능 사용자 수**: 정지·탈퇴가 아닌 회원 수다. 가입 때 사인 등록을 마쳐야 하므로 모두 사인을 등록한 회원이다. 집계를 실행한 시점의 스냅샷이다.
 - **총 좋아요 수**: 삭제되지 않은 게시물에 달린 좋아요 수를 DB(`post_likes`)에서 센다. 집계 시점의 스냅샷이다.
-- **내부·테스트 계정 제외**: 제외할 회원 ID 목록을 `application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 두고 집계에 적용한다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, 리텐션)과 로그 기반 `visitors`, `topicViewers`가 제외 대상이고 `requests`, `server5xx`, 지연 시간은 제외하지 않는다. 대시보드의 실시간 Logs Insights 위젯 중 DAU와 당일 접속 사용자에도 같은 ID를 쿼리 필터로 넣는다. 실시간 값은 접근 로그 기준이라 DB 집계 메트릭과 조금 다를 수 있다.
+- **내부·테스트 계정 제외**: 제외할 회원 ID 목록을 `application-prod.yml`의 `chalkak.analytics.excluded-user-ids`에 두고 집계에 적용한다. DB 기반 값(`dau`, `posts`, `wau`, `eligibleUsers`, `likesTotal`, AI 리뷰 4종, 리텐션)과 로그 기반 `visitors`, `topicViewers`가 제외 대상이고 `requests`, `server5xx`, 지연 시간은 제외하지 않는다. 대시보드의 실시간 Logs Insights 위젯 중 DAU와 당일 접속 사용자에도 같은 ID를 쿼리 필터로 넣는다. 실시간 값은 접근 로그 기준이라 DB 집계 메트릭과 조금 다를 수 있다.
 - **`userId` 취급**: MVP에서는 가명화하지 않고 접근 로그에 원본 회원 ID를 남긴다. 로그 접근은 회사 AWS 계정 권한으로 통제한다. 로그 접근 범위가 넓어지거나 로그를 외부로 내보내게 되면 다시 검토한다.
 - 사용자 단위 데이터는 저장하지 않는다. 로그와 메트릭에는 결과 숫자만 남긴다.
 
 ## 6. 알람 원칙
 
-전체 알람 목록, 임계값, 평가 조건, 결측 데이터 처리는 런북의 8단계 표와 알람 설명이 기준이다. 여기서는 원칙만 적는다.
+전체 알람 목록, 임계값, 평가 조건, 결측 데이터 처리는 런북의 8단계 표와 알람 설명이 기준이다. AI 리뷰 경보는 [AI 리뷰 지표·경보 구성](../../deploy/docs/ai-review-monitoring.md)이 기준이다. 여기서는 원칙만 적는다.
 
 - **5xx는 1건부터 알린다.** 처음 요구사항 초안은 "오류율 + 최소 요청량" 조건이었다. 이 앱은 처리되지 않은 예외(`INTERNAL_ERROR`)일 때만 5xx를 반환하고 나머지 실패는 4xx로 응답하므로, 5xx는 1건이어도 버그다. 그래서 오류율 계산 없이 5분 안에 1건 이상이면 알린다.
-- **알람은 대응이 필요한 것만 둔다.** dev 3개(5xx, EC2 상태 검사, 디스크), prod 8개(5xx, EC2 상태 검사, 디스크, 메모리, RDS 여유 스토리지, 요청한 날짜 주제 행 없음, 런타임 하트비트, 사용자 지표 집계 누락), 공유 3개(SQS 대기 시간, Lambda 오류, 이미지 처리 포기)다.
+- **알람은 대응이 필요한 것만 둔다.** dev 3개(5xx, EC2 상태 검사, 디스크), prod 8개(5xx, EC2 상태 검사, 디스크, 메모리, RDS 여유 스토리지, 요청한 날짜 주제 행 없음, 런타임 하트비트, 사용자 지표 집계 누락), 공유 3개(SQS 대기 시간, Lambda 오류, 이미지 처리 포기)다. AI 리뷰 prod 5개(`chalkak-prod-ai-review-failures`, `queue-wait`, `lease-recovery`, `errors`, `worker-stalled`)는 별도 런북에서 정의하며 이 수에 포함하지 않는다.
 - **하트비트 알람은 prod에만 둔다.** prod EC2는 공개 주소로 직접 받고 로드밸런서가 없어 ALB 상태 검사 같은 앱 생존 신호가 없다. 그래서 앱이 1분마다 남기는 `type=runtime` 로그를 세어 10분 동안 끊기면 알린다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제를 한 알람으로 잡는다. 기본값 0으로 다른 로그만 들어오는 경우를, 누락 데이터 `breaching`으로 로그가 전혀 없는 경우를 잡는다. 지표와 알람이 하나씩 늘어 비용이 들기 때문에 dev에는 두지 않는다. prod 로그가 없는 릴리스 전에는 ALARM이 되므로 prod 릴리스 뒤에 만든다.
 - **검수 대기 적체 알람은 없다.** 새 검수 대기 게시물은 기존 관리자 Slack 알림이 이미 알려 준다. 대기 시간은 대시보드 위젯으로 본다.
 - **공유 자원 알람은 prod 토픽으로 보낸다.** SQS 큐와 이미지 처리 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없다.
 - **알림 경로는 앱과 독립이다.** 알람 Slack 채널과 webhook은 관리자 알림용과 별도로 두어 앱이나 EC2가 죽어도 알람이 나간다.
 - 알람 설명 문구가 Slack 메시지의 "먼저 확인할 것"이 된다. 대응 절차는 런북의 알람 대응 표를 본다.
 - **집계 누락 알람은 `Dau` 데이터 포인트로 본다.** `chalkak-prod-user-metrics-missing`은 `Dau`의 SampleCount가 1시간 기간 26개 동안 모두 0이면(데이터 포인트 없음) 알린다. 하루 한 번 도는 집계가 한 번 빠져도 2시간 여유를 두고 잡는다. 누락 데이터를 `breaching`으로 처리하므로 첫 집계 전에는 ALARM이 되어 지표가 생긴 뒤에 만든다. 빠진 날은 관리자 API로 다시 집계하며, 이때 데이터 포인트가 발행되어 OK로 돌아온다. 메트릭 필터는 수집 시각을 쓰므로 다시 집계해도 과거 그래프는 바뀌지 않는다.
+- **AI 리뷰 경보는 prod에만 둔다.** 대기열 스냅샷 같은 전용 로그 없이 기존 건별 로그로 잡는다. 최종 실패는 건수(15분 3건), 대기는 처리를 끝낸 건의 최댓값(5분), 워커 정지는 요청 대비 처리 로그 부재(연속한 두 15분 구간)다. `QUOTA_EXCEEDED`(예산 소진)나 OpenAI 장애 같은 계통 문제는 실패 급증 경보가 잡는다. 임계값은 2주 운영 뒤 조정한다.
 - **보존 기간이 지난 날짜는 DB 지표만 다시 집계한다.** 하루 전체가 로그 보존 기간(prod 60일, dev 7일) 안에 들지 않는 날짜는 원본 로그가 모자라 DB 지표만 남기고 `visitors` 같은 로그 지표 키는 남기지 않는다.
 
 ## 7. 보류·제외 항목
@@ -198,6 +229,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 ## 9. 관련 문서
 
 - [CloudWatch 모니터링 구축 런북](../../deploy/docs/monitoring.md): 구축 순서, 메트릭 필터·알람 표, 알람 대응, 비용 점검
+- [AI 리뷰 지표·경보 구성](../../deploy/docs/ai-review-monitoring.md): AI 리뷰 운영 메트릭 필터 6개, 경보 5개, 저장 쿼리, 적용 CLI, 한계
 - [알람 전달 Lambda](../../lambda/alarm-notifier/README.md): SNS 알람을 Slack으로 전달하는 코드와 배포 절차
 - [리포트 쿼리](report-queries.md): 코호트별 리텐션 표와 주별 검수 소요 시간 SQL
 - [대시보드 정의](../../deploy/monitoring/dashboard.json): 대시보드 `DASHBOARD-chalkak`의 소스
