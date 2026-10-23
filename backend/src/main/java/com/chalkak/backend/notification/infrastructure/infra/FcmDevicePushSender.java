@@ -1,9 +1,11 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushSender;
+import com.chalkak.backend.notification.service.DevicePushTiming;
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.ApnsConfig;
@@ -33,15 +35,27 @@ public class FcmDevicePushSender implements DevicePushSender {
     }
 
     @Override
-    public DevicePushResult send(DevicePushRequest request) {
+    public DevicePushResult send(DevicePushRequest request, DevicePushTiming timing) {
         if (PushDeadlinePolicy.isExpiredAt(request.expiresAt(), clock.instant())) {
             return DevicePushResult.skipped("EXPIRED");
         }
         try {
-            messaging.send(createMessage(request));
+            sendToFcm(timing, createMessage(request));
             return DevicePushResult.accepted();
         } catch (FirebaseMessagingException exception) {
             return toResult(exception);
+        }
+    }
+
+    private void sendToFcm(DevicePushTiming timing, Message message)
+            throws FirebaseMessagingException {
+        Elapsed elapsed = Elapsed.start();
+        boolean accepted = false;
+        try {
+            messaging.send(message);
+            accepted = true;
+        } finally {
+            timing.recordRequest(elapsed, accepted);
         }
     }
 
