@@ -43,7 +43,40 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
                 )
             ORDER BY user.id
             """)
-    List<UUID> findTopicPushRecipientIds(
+    List<UUID> findTopicPushEnabledNonParticipantIds(
+            @Param("status") UserStatus status,
+            @Param("topicId") UUID topicId,
+            @Param("excludedStatus") ModerationStatus excludedStatus
+    );
+
+    // 주제 알림 수신 설정은 리마인더에도 적용된다(참여 알림). 전체 대상 리마인더는 이 설정을 켠
+    // 정상 회원에게 보낸다. 정지·탈퇴 회원은 뺀다.
+    @Query("""
+            SELECT user.id FROM User user
+            WHERE user.deletedAt IS NULL
+                AND user.status = :status
+                AND user.topicPushEnabled = true
+            ORDER BY user.id
+            """)
+    List<UUID> findTopicPushEnabledUserIds(@Param("status") UserStatus status);
+
+    // 오늘 주제 참여자 대상 리마인더의 발행 대상이다. 참여 판정은 미참여자 조회와 같다(삭제되지 않고
+    // 반려되지 않은 게시물이 있으면 참여).
+    @Query("""
+            SELECT user.id FROM User user
+            WHERE user.deletedAt IS NULL
+                AND user.status = :status
+                AND user.topicPushEnabled = true
+                AND EXISTS (
+                    SELECT post.id FROM Post post
+                    WHERE post.author.id = user.id
+                        AND post.topic.id = :topicId
+                        AND post.deletedAt IS NULL
+                        AND post.moderationStatus <> :excludedStatus
+                )
+            ORDER BY user.id
+            """)
+    List<UUID> findTopicPushEnabledParticipantIds(
             @Param("status") UserStatus status,
             @Param("topicId") UUID topicId,
             @Param("excludedStatus") ModerationStatus excludedStatus

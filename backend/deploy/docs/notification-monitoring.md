@@ -17,7 +17,7 @@ Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회�
 - `pendingCount`: 재시도 대기와 기한을 넘겼지만 아직 정리되지 않은 PENDING까지 포함한다.
 - `oldestPendingAgeSeconds`: 다음 시도 시각이 아닌 생성 시각 기준 나이. 대기 없음은 0이다.
 - 조회 실패: `publication_snapshot_failed`만 남기며 정상 0건을 만들지 않는다.
-- 주제는 DB 발행 대기가 없으므로 이 수치에 포함하지 않는다. 기존 주제 회차 집계로 확인한다.
+- 주제·리마인더는 DB 발행 대기가 없으므로 이 수치에 포함하지 않는다. 각 회차 집계로 확인한다.
 
 모니터가 꺼지거나 DB·수집 경로가 실패하면 정상 관측 자체가 사라진다. 이를 감지하는
 관측 누락 경보도 함께 설정한다. 앱 중단 여부는 기존 런타임 하트비트와 대조한다.
@@ -34,7 +34,7 @@ Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회�
 | `OldestPendingPublicationAge` | `{ $.type = "notification" && $.stage = "publication_snapshot" }` | `$.oldestPendingAgeSeconds` | Seconds | 없음 |
 | `PublicationMonitorHeartbeat` | `{ $.type = "notification" && $.stage = "publication_snapshot" }` | `1` | Count | 없음 |
 | `SqsAccepted` | `{ $.type = "notification" && $.stage = "relay" && $.result = "SQS_ACCEPTED" }` | `1` | Count | `0` |
-| `PublicationErrors` | `{ $.type = "notification" && (($.stage = "relay" && ($.result = "SQS_FAILED" \|\| $.result = "SQS_UNKNOWN" \|\| $.result = "FAILED")) \|\| $.stage = "relay_transaction_failed" \|\| $.stage = "topic_publication_result" \|\| $.stage = "topic_publication_unknown" \|\| $.stage = "topic_scheduler_failed" \|\| $.stage = "topic_execution_failed") }` | `1` | Count | `0` |
+| `PublicationErrors` | `{ $.type = "notification" && (($.stage = "relay" && ($.result = "SQS_FAILED" \|\| $.result = "SQS_UNKNOWN" \|\| $.result = "FAILED")) \|\| $.stage = "relay_transaction_failed" \|\| $.stage = "topic_publication_result" \|\| $.stage = "topic_publication_unknown" \|\| $.stage = "topic_scheduler_failed" \|\| $.stage = "topic_execution_failed" \|\| $.stage = "reminder_publication_result" \|\| $.stage = "reminder_publication_unknown" \|\| $.stage = "reminder_scheduler_failed" \|\| $.stage = "reminder_execution_failed") }` | `1` | Count | `0` |
 | `PublicationFailed` | `{ $.type = "notification" && $.stage = "relay" && $.publishStatus = "FAILED" }` | `1` | Count | `0` |
 | `PublicationExpired` | `{ $.type = "notification" && $.stage = "relay" && $.publishStatus = "EXPIRED" }` | `1` | Count | `0` |
 | `FcmConfigurationErrors` | `{ $.type = "notification" && $.stage = "fcm_result" && ($.errorCode = "THIRD_PARTY_AUTH_ERROR" \|\| $.errorCode = "SENDER_ID_MISMATCH" \|\| $.errorCode = "UNAUTHENTICATED" \|\| $.errorCode = "PERMISSION_DENIED") }` | `1` | Count | `0` |
@@ -52,13 +52,15 @@ Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회�
 포함하지 않는다. 일시 오류는 기존 `WorkerErrors`로 확인한다. `UNREGISTERED`의
 `INVALID_TOKEN` 결과를 발송 형식 오류인 `PERMANENT_FAILURE`와 같은 오류로 취급하지 않는다.
 
-`SqsAccepted`는 승인·반려 Relay의 SQS 수락 횟수다. 주제 수락 건수는
-`topic_publication_summary.acceptedCount`로 조회한다. FCM 결과·SQS 수신 횟수·기기 처리 집계는
+`SqsAccepted`는 승인·반려 Relay의 SQS 수락 횟수다. 주제·리마인더 수락 건수는
+`topic_publication_summary.acceptedCount`·`reminder_publication_summary.acceptedCount`로 조회한다. FCM 결과·SQS 수신 횟수·기기 처리 집계는
 [로그 조회](notification-sqs-setup.md#로그-조회)로 조사하며 HTTP 요청 횟수로 해석하지 않는다.
 
 오류 지표는 로그 발생 건수이므로 동일 사건의 재시도도 센다. DB 상태 로그는 커밋 전일 수 있어
 `PublicationFailed`·`PublicationExpired`는 상태 전환 시도 관측값이다. 실제 반영은
 `relay_transaction_committed` 또는 DB로 확인한다. `PublicationErrors`에 커밋 실패도 포함한다.
+리마인더 단계(`reminder_*`)는 #726에서 추가했다. 이미 `PublicationErrors` 필터를 만든 환경은
+저장소 반영만으로 바뀌지 않으므로, 콘솔에서 위 패턴으로 교체하고 패턴 테스트를 다시 한다.
 스냅샷 지표에 기본값 0을 넣으면 관측 실패를 정상으로 오인할 수 있으므로 비워 둔다.
 필터 기본값 0도 로그 유입이 전혀 없으면 생성되지 않는다.
 [메트릭 필터 공식 설명](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/MonitoringLogData.html)
@@ -74,7 +76,7 @@ Relay가 꺼졌거나 SQS 응답을 기다리는 중에도 관측한다. 조회�
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `db-backlog` | 위 전용 / OldestPendingPublicationAge | Maximum | 300초 | ≥ 300초 | 1/1 | notBreaching | Relay 활성화·DB PENDING·발행 오류. 큐가 비어 있어도 발생 가능 |
 | `monitor-missing` | 위 전용 / PublicationMonitorHeartbeat | Sum | 300초 | < 1 | 2/2 | breaching | publication_snapshot_failed, 앱 하트비트, Agent 수집. 앱 중단으로 단정하지 않음 |
-| `publication-errors` | 위 전용 / PublicationErrors | Sum | 60초 | ≥ 1 | 3/5 | notBreaching | Relay·주제의 errorCode와 SQS 수락 불명 확인 |
+| `publication-errors` | 위 전용 / PublicationErrors | Sum | 60초 | ≥ 1 | 3/5 | notBreaching | Relay·주제·리마인더의 errorCode와 SQS 수락 불명 확인 |
 | `publication-failed` | 위 전용 / PublicationFailed | Sum | 300초 | ≥ 1 | 1/1 | notBreaching | 권한·큐 URL·환경 설정, DB 커밋 여부 확인 |
 | `publication-expired` | 위 전용 / PublicationExpired | Sum | 300초 | ≥ 1 | 1/1 | notBreaching | 발행 전 기한 초과, DB 정체와 커밋 여부 확인 |
 | `fcm-configuration` | 위 전용 / FcmConfigurationErrors | Sum | 300초 | ≥ 1 | 1/1 | notBreaching | Firebase 프로젝트·서버 권한·APNs 설정. 키 원문을 공유하지 않음 |

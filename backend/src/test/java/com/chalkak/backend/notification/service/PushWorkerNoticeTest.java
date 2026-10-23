@@ -20,6 +20,7 @@ import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
+import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -70,6 +71,9 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
 
     @Autowired
     private PostRepository posts;
+
+    @Autowired
+    private ReminderRepository reminders;
 
     @Autowired
     private LoginSessionService sessions;
@@ -318,6 +322,7 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
                 notifications,
                 topics,
                 posts,
+                reminders,
                 devices,
                 sessions,
                 sender,

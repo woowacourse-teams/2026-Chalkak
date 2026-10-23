@@ -112,7 +112,7 @@ public class TopicPushService {
             return null;
         }
         return new PublicationTargets(topic.getId(),
-                notificationRepository.findTopicPushRecipientIds(topic.getId()));
+                notificationRepository.findTopicPushEnabledNonParticipantIds(topic.getId()));
     }
 
     private void publishTargets(
