@@ -55,28 +55,52 @@ public class SqsPushService {
             waitAfterPollingFailure();
             return;
         }
+        long sqsReceiveDurationMs = elapsed.toMillis();
         try {
-            SqsPushLog.logPolled(message, elapsed);
-            message.ifPresent(this::process);
+            if (message.isEmpty()) {
+                SqsPushLog.logEmptyPoll(sqsReceiveDurationMs);
+                return;
+            }
+            process(message.get(), sqsReceiveDurationMs);
         } catch (RuntimeException exception) {
-            SqsPushLog.logProcessingPollFailed(message, exception);
+            SqsPushLog.logProcessingPollFailed(
+                    message,
+                    exception,
+                    sqsReceiveDurationMs
+            );
             waitAfterPollingFailure();
         }
     }
 
     public void process(Message message) {
+        process(message, null);
+    }
+
+    public void process(Message message, Long sqsReceiveDurationMs) {
         Elapsed elapsed = Elapsed.start();
         Instant receivedAt = SqsPushLog.findReceivedAt(clock);
         String outcome = "FAILED";
+        boolean receivedLogged = false;
         Map<String, String> previousContext = MDC.getCopyOfContextMap();
         MDC.put("sqsMessageId", message.messageId());
         MDC.put("receiveCount", message.attributes().get(
                 MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT));
         try (VisibilityExtension visibility = new VisibilityExtension(message)) {
-            outcome = processMessage(message, visibility);
+            PushMessage pushMessage = readPushMessage(message);
+            SqsPushLog.logReceived(pushMessage, sqsReceiveDurationMs);
+            receivedLogged = true;
+            outcome = processMessage(
+                    message,
+                    pushMessage,
+                    visibility
+            );
         } catch (RuntimeException exception) {
             outcome = "FAILED";
-            SqsPushLog.logProcessingFailed(exception);
+            SqsPushLog.logProcessingFailed(
+                    exception,
+                    sqsReceiveDurationMs,
+                    receivedLogged
+            );
             // 삭제하지 않는다. SQS가 다시 전달하거나 설정된 최대 수신 횟수 이후 DLQ로 이동한다.
         } finally {
             SqsPushLog.logAttemptCompleted(
@@ -117,13 +141,15 @@ public class SqsPushService {
         return Optional.of(messages.getFirst());
     }
 
-    private String processMessage(Message message, VisibilityExtension visibility) {
-        PushMessage pushMessage = readPushMessage(message);
+    private String processMessage(
+            Message message,
+            PushMessage pushMessage,
+            VisibilityExtension visibility
+    ) {
         if (pushMessage == null) {
             visibility.finishAttempt(() -> delete(message));
             return "INVALID_MESSAGE_DELETED";
         }
-        SqsPushLog.logReceived(pushMessage);
         PushProcessingResult result = pushWorkerService.process(pushMessage);
         visibility.finishAttempt(() -> handleProcessingResult(
                 message,

@@ -45,7 +45,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 
 | 필드 / 로그 단계 | 측정 범위와 해석 |
 | --- | --- |
-| `sqsReceiveDurationMs` / `worker_sqs_receive`, `worker_poll_failed` | 수신 API 호출 시작부터 응답 또는 예외까지. 실패 로그는 `phase=RECEIVE`일 때만 이 필드를 포함한다. `received=false`는 DEBUG에만 기록하는 빈 응답이며 정상 롱 폴링 대기 최대 20초를 포함한다. 실패 시 1초 쉬는 시간은 제외한다 |
+| `sqsReceiveDurationMs` / `worker_received`, `worker_sqs_receive`, 수신·처리 진입 오류 로그 | 수신 API 호출 시작부터 응답 또는 예외까지. 정상 응답 직후 값을 확정하며 이후 메시지 해석·발송 시간은 제외한다. 정상 수신은 `worker_received`, 빈 응답은 DEBUG `worker_sqs_receive`에 기록한다. 수신 실패는 `worker_poll_failed`, 수신 로그 전 처리 진입 실패는 기존 오류 로그에 시간을 보존한다. 오류 후 1초 대기는 제외한다 |
 | `queueAgeMs` / `worker_attempt_completed` | SQS `SentTimestamp`부터 Worker 처리 진입 시각까지. **`receiveCount=1`**에서 최초 큐 대기를 조사한다. 재수신에서는 이전 처리·숨김·재시도 대기도 포함한다. 서버 시계 차이의 영향을 받으며, 입력 시각 누락·잘못된 값·미래 값은 `null`로 남긴다 |
 | `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
 | `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
@@ -79,13 +79,20 @@ filter type = "notification" and stage = "worker_attempt_completed" and receiveC
     by bin(1m)
 ```
 
-실제 메시지 수신(`received=true`)은 INFO, 빈 응답(`received=false`)은 DEBUG로 기록한다.
+실제 메시지 수신(`received=true`)은 기존 `worker_received`에 식별 정보와 시간을 합쳐 INFO 한 줄로 기록한다.
+본문 해석 실패·JSON `null`도 큐 메시지를 수신한 사실은 같으므로 `messageParsed=false`로 기록한다.
+`messageParsed=true`는 본문을 `PushMessage`로 해석했다는 뜻이며 업무 조건·발송 기한 충족을 뜻하지 않는다.
+직접 `process(message)`를 호출한 경우에는 수신 API를 측정하지 않았으므로 시간 필드를 넣지 않는다.
+빈 응답(`received=false`)은 DEBUG `worker_sqs_receive`로만 기록한다.
 개발·운영의 기본 INFO 설정에는 빈 응답 표본이 없으므로 아래 통계는 전체 수신 요청 수나
 유휴 롱 폴링 시간 통계가 아니다. 조사 목적으로 DEBUG를 활성화한 기간에만 빈 응답과 실제
 수신을 나눠 볼 수 있다. 정상 20초 롱 폴링 대기를 메시지가 생긴 뒤 20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`의 `phase=RECEIVE`로 별도 조사한다.
-수신 이후 처리 진입·종료에서 빠져나온 예외는 같은 단계의 `phase=PROCESSING`으로 기록하며,
-수신 시간에 처리 시간이 섞이지 않도록 `sqsReceiveDurationMs`를 남기지 않는다.
-두 경우 모두 다음 폴링 전에 1초 대기한다.
+수신 이후 처리 진입·종료에서 빠져나온 예외는 같은 단계의 `phase=PROCESSING`으로 기록한다.
+이때 남기는 `sqsReceiveDurationMs`도 정상 수신 응답 직후 확정된 값이며 처리 시간은 섞지 않는다.
+숨김 연장 예약 등 `worker_received` 기록 전 실패는 `worker_processing_failed`에 수신 시간을 보존한다.
+이미 `worker_received`를 남긴 뒤 처리에 실패하면 오류 로그에 수신 시간을 중복 기록하지 않는다.
+`phase`는 오류가 난 위치를 나타내며 수신 시간 필드가 있다고 수신 API 자체가 실패한 것은 아니다.
+기존 폴링 예외 흐름의 두 경우 모두 다음 폴링 전에 1초 대기한다.
 이는 계측 도입 전부터 있던 폴링 오류 대기이며 정상 처리 후 폴링 간격은 1ms를 유지한다.
 추가한 계측 로그의 계산·출력 예외는 로그 객체 내부에서 처리하므로 발송·삭제 결과를 바꾸거나
 이 1초 대기를 유발하지 않는다. 기록 실패 시 예외 클래스만 표준 오류에 남기며 서버의
@@ -93,7 +100,8 @@ filter type = "notification" and stage = "worker_attempt_completed" and receiveC
 로그는 동기 출력이므로 출력 자체의 실행 비용까지 0이 되는 것은 아니다.
 
 ```sql
-filter type = "notification" and stage = "worker_sqs_receive"
+filter type = "notification" and stage in ["worker_received", "worker_sqs_receive"]
+| filter ispresent(sqsReceiveDurationMs)
 | stats count(*) as loggedResponses, avg(sqsReceiveDurationMs) as avgMs,
     pct(sqsReceiveDurationMs, 95) as p95Ms by received
 ```

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -238,7 +239,8 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("fcm_result").getLast())
                 .containsEntry("sqsMessageId", "sqs-id").containsEntry("receiveCount", "2");
         assertThat(logsAtStage("worker_received").getFirst())
-                .containsEntry("eventId", push.eventId()).containsEntry("userId", push.userId());
+                .containsEntry("eventId", push.eventId()).containsEntry("userId", push.userId())
+                .doesNotContainKey("sqsReceiveDurationMs");
         assertThat(MDC.getCopyOfContextMap()).containsExactlyInAnyOrderEntriesOf(
                 Map.of(
                         "requestId",
@@ -690,20 +692,23 @@ class SqsPushServiceTest {
     void poll_emptyQueueWithDebug_recordsReceiveTiming() {
         // Given
         logger.setLevel(Level.DEBUG);
+        MDC.put("sqsMessageId", "previous-message");
+        MDC.put("receiveCount", "previous-count");
         // When
         worker.poll();
         // Then
         assertThat(appender.list).singleElement()
                 .satisfies(event -> assertThat(event.getLevel()).isEqualTo(Level.DEBUG));
         assertThat(logsAtStage("worker_sqs_receive")).singleElement().satisfies(log -> {
-            assertThat(log).containsEntry("received", false).containsEntry("sqsMessageId", null);
+            assertThat(log).containsEntry("received", false).containsEntry("sqsMessageId", null)
+                    .containsEntry("receiveCount", null);
             assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
         });
         verifyNoInteractions(service);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"worker_sqs_receive", "worker_message_deleted",
+    @ValueSource(strings = {"worker_received", "worker_message_deleted",
             "worker_attempt_completed"})
     @DisplayName("계측 로그가 실패해도 메시지 처리·삭제와 MDC 정리를 완료하며 폴링 오류로 바꾸지 않는다")
     void poll_timingLogFailure_completesWithoutPollingFailure(String stage) throws Exception {
@@ -747,12 +752,12 @@ class SqsPushServiceTest {
     }
 
     @Test
-    @DisplayName("수신 후 처리 진입에서 예외가 나도 1초 대기하며 수신 시간 오류로 기록하지 않는다")
-    void poll_processingEntryFailure_waitsAndContinuesWithoutFalseReceiveTiming() throws Exception {
+    @DisplayName("처리 진입 실패 시 확정된 수신 시간을 오류 로그에 보존하고 다음 폴링을 계속한다")
+    void poll_processingEntryFailure_preservesReceiveTimingAndContinues() throws Exception {
         // Given
         worker = spy(worker);
         doThrow(new IllegalStateException("processing entry failed")).doCallRealMethod()
-                .when(worker).process(any());
+                .when(worker).process(any(), any());
         receiveOneMessage();
         long startedAt = System.nanoTime();
         // When & Then
@@ -762,7 +767,7 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("worker_poll_failed")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("phase", "PROCESSING")
                         .containsEntry("sqsMessageId", "sqs-id")
-                        .doesNotContainKey("sqsReceiveDurationMs"));
+                        .containsKey("sqsReceiveDurationMs"));
         worker.poll();
         assertThat(operations).containsExactly(
                 "AmazonSQS.ReceiveMessage",
@@ -841,12 +846,116 @@ class SqsPushServiceTest {
                 "AmazonSQS.DeleteMessage");
         assertThat(appender.list.getFirst().getLevel()).isEqualTo(Level.INFO);
         assertThat(bodies.getLast().get("ReceiptHandle").asText()).isEqualTo("receipt-handle");
-        assertThat(logsAtStage("worker_sqs_receive")).singleElement()
-                .satisfies(log -> assertThat(log).containsEntry("received", true)
-                        .containsEntry("sqsMessageId", "sqs-id"));
+        assertThat(logsAtStage("worker_sqs_receive")).isEmpty();
+        assertThat(logsAtStage("worker_received")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("received", true).containsEntry("messageParsed", true)
+                    .containsEntry("sqsMessageId", "sqs-id")
+                    .containsEntry("receiveCount", "1").containsEntry("eventId", push.eventId())
+                    .containsEntry("notificationId", push.notificationId())
+                    .containsEntry("userId", push.userId());
+            assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
+        });
         assertThat(logsAtStage("worker_attempt_completed")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
                         .containsEntry("outcome", "DELETED"));
+    }
+
+    @Test
+    @DisplayName("메시지 해석에 걸린 시간은 확정된 수신 API 시간에 포함하지 않는다")
+    void poll_slowMessageParsing_keepsReceiveTimeSeparate() throws Exception {
+        // Given
+        ObjectMapper slowMapper = spy(mapper);
+        doAnswer(call -> {
+            TimeUnit.MILLISECONDS.sleep(250);
+            return mapper.readValue(call.getArgument(0, String.class), PushMessage.class);
+        }).when(slowMapper).readValue(any(String.class), eq(PushMessage.class));
+        worker = new SqsPushService(
+                client,
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/000000000000/test",
+                slowMapper,
+                service,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                visibilityExecutor
+        );
+        receiveOneMessage();
+        long startedAt = System.nanoTime();
+        // When
+        worker.poll();
+        long totalMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+        // Then
+        long receiveMs = (long) logsAtStage("worker_received").getFirst()
+                .get("sqsReceiveDurationMs");
+        assertThat(totalMs - receiveMs).isGreaterThanOrEqualTo(200L);
+        assertThat((long) logsAtStage("worker_attempt_completed").getFirst()
+                .get("processingDurationMs")).isGreaterThanOrEqualTo(200L);
+        verify(service).process(push);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid", "null"})
+    @DisplayName("메시지 해석 실패·JSON null도 수신 식별자와 시간을 한 번 남기고 삭제한다")
+    void poll_invalidMessage_preservesReceiveTiming(String body) throws Exception {
+        // Given
+        message = message.toBuilder().body(body).build();
+        receiveOneMessage();
+        // When
+        worker.poll();
+        // Then
+        assertThat(logsAtStage("worker_received")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("received", true).containsEntry("messageParsed", false)
+                    .containsEntry("sqsMessageId", "sqs-id").containsEntry("receiveCount", "1")
+                    .doesNotContainKey("eventId");
+            assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
+        });
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log)
+                        .containsEntry("outcome", "INVALID_MESSAGE_DELETED"));
+        assertThat(logsAtStage("worker_sqs_receive")).isEmpty();
+        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
+                "AmazonSQS.DeleteMessage");
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("숨김 연장 예약부터 실패해도 수신 시간은 오류 로그에 한 번 남긴다")
+    void poll_visibilitySchedulingFails_preservesReceiveTiming() throws Exception {
+        // Given
+        given(visibilityExecutor.scheduleAtFixedRate(
+                any(Runnable.class),
+                anyLong(),
+                anyLong(),
+                any(TimeUnit.class)
+        )).willThrow(new java.util.concurrent.RejectedExecutionException("executor stopped"));
+        receiveOneMessage();
+        // When
+        worker.poll();
+        // Then
+        assertThat(logsAtStage("worker_received")).isEmpty();
+        assertThat(logsAtStage("worker_processing_failed")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                    .containsEntry("errorCode", "RejectedExecutionException");
+            assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
+        });
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("outcome", "FAILED"));
+        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage");
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("처리 도중 실패하면 이미 남긴 수신 시간을 오류 로그에 중복 기록하지 않는다")
+    void poll_processingFails_recordsReceiveTimingOnlyOnce() throws Exception {
+        // Given
+        given(service.process(any())).willThrow(new IllegalStateException("processing failed"));
+        receiveOneMessage();
+        // When
+        worker.poll();
+        // Then
+        assertThat(logsAtStage("worker_received")).singleElement()
+                .satisfies(log -> assertThat(log).containsKey("sqsReceiveDurationMs"));
+        assertThat(logsAtStage("worker_processing_failed")).singleElement()
+                .satisfies(log -> assertThat(log).doesNotContainKey("sqsReceiveDurationMs"));
+        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage");
     }
 
     private void receiveOneMessage() throws Exception {
@@ -855,6 +964,8 @@ class SqsPushServiceTest {
                 message.messageId(),
                 "ReceiptHandle",
                 message.receiptHandle(),
+                "Attributes",
+                message.attributesAsStrings(),
                 "MD5OfBody",
                 HexFormat.of().formatHex(MessageDigest.getInstance("MD5")
                         .digest(message.body().getBytes(StandardCharsets.UTF_8))),

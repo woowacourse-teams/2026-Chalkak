@@ -26,17 +26,14 @@ public final class SqsPushLog {
         }
     }
 
-    public static void logPolled(Optional<Message> message, Elapsed elapsed) {
-        logSafely(() -> {
-            createReceiveEvent(message.isPresent()).addKeyValue("type", "notification")
-                    .addKeyValue("stage", "worker_sqs_receive")
-                    .addKeyValue("received", message.isPresent())
-                    .addKeyValue("sqsMessageId", message.map(Message::messageId).orElse(null))
-                    .addKeyValue("receiveCount", message.map(value -> value.attributes().get(
-                            MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT)).orElse(null))
-                    .addKeyValue("sqsReceiveDurationMs", elapsed.toMillis())
-                    .log("SQS 수신 요청 완료");
-        });
+    public static void logEmptyPoll(long sqsReceiveDurationMs) {
+        logSafely(() -> log.atDebug().addKeyValue("type", "notification")
+                .addKeyValue("stage", "worker_sqs_receive")
+                .addKeyValue("received", false)
+                .addKeyValue("sqsMessageId", (Object) null)
+                .addKeyValue("receiveCount", (Object) null)
+                .addKeyValue("sqsReceiveDurationMs", sqsReceiveDurationMs)
+                .log("SQS 빈 수신 응답"));
     }
 
     public static void logPollFailed(RuntimeException exception, Elapsed elapsed) {
@@ -50,12 +47,16 @@ public final class SqsPushLog {
         });
     }
 
-    public static void logProcessingPollFailed(Optional<Message> message,
-            RuntimeException exception) {
+    public static void logProcessingPollFailed(
+            Optional<Message> message,
+            RuntimeException exception,
+            long sqsReceiveDurationMs
+    ) {
         logSafely(() -> {
             log.atError().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_poll_failed")
                     .addKeyValue("phase", "PROCESSING")
+                    .addKeyValue("sqsReceiveDurationMs", sqsReceiveDurationMs)
                     .addKeyValue("sqsMessageId", message.map(Message::messageId).orElse(null))
                     .addKeyValue("receiveCount", message.map(value -> value.attributes().get(
                             MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT)).orElse(null))
@@ -99,14 +100,22 @@ public final class SqsPushLog {
         });
     }
 
-    public static void logReceived(PushMessage pushMessage) {
-        log.atInfo().addKeyValue("type", "notification").addKeyValue("stage", "worker_received")
-                .addKeyValue("eventId", pushMessage.eventId())
-                .addKeyValue("notificationId", pushMessage.notificationId())
-                .addKeyValue("userId", pushMessage.userId())
-                .addKeyValue("notificationType", pushMessage.type())
-                .addKeyValue("sourceId", pushMessage.sourceId())
-                .log("푸시 작업 수신");
+    public static void logReceived(PushMessage pushMessage, Long sqsReceiveDurationMs) {
+        logSafely(() -> {
+            var event = log.atInfo().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_received")
+                    .addKeyValue("received", true)
+                    .addKeyValue("messageParsed", pushMessage != null);
+            addReceiveTiming(event, sqsReceiveDurationMs);
+            if (pushMessage != null) {
+                event.addKeyValue("eventId", pushMessage.eventId())
+                        .addKeyValue("notificationId", pushMessage.notificationId())
+                        .addKeyValue("userId", pushMessage.userId())
+                        .addKeyValue("notificationType", pushMessage.type())
+                        .addKeyValue("sourceId", pushMessage.sourceId());
+            }
+            event.log("푸시 작업 수신");
+        });
     }
 
     public static void logRetryPending(PushMessage pushMessage, Duration retryAfter) {
@@ -119,8 +128,20 @@ public final class SqsPushLog {
                 .log("푸시 작업 재전달 대기");
     }
 
-    public static void logProcessingFailed(RuntimeException exception) {
-        logFailure("worker_processing_failed", exception);
+    public static void logProcessingFailed(
+            RuntimeException exception,
+            Long sqsReceiveDurationMs,
+            boolean receivedLogged
+    ) {
+        logSafely(() -> {
+            var event = log.atError().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_processing_failed")
+                    .addKeyValue("errorCode", exception.getClass().getSimpleName());
+            if (!receivedLogged) {
+                addReceiveTiming(event, sqsReceiveDurationMs);
+            }
+            event.log("푸시 작업 처리 오류");
+        });
     }
 
     public static void logInvalidMessage(RuntimeException exception) {
@@ -138,11 +159,10 @@ public final class SqsPushLog {
                 .log("푸시 숨김 시간 연장 실패");
     }
 
-    private static LoggingEventBuilder createReceiveEvent(boolean received) {
-        if (received) {
-            return log.atInfo();
+    private static void addReceiveTiming(LoggingEventBuilder event, Long sqsReceiveDurationMs) {
+        if (sqsReceiveDurationMs != null) {
+            event.addKeyValue("sqsReceiveDurationMs", sqsReceiveDurationMs);
         }
-        return log.atDebug();
     }
 
     private static Long findQueueAgeMillis(Message message, Instant receivedAt) {
