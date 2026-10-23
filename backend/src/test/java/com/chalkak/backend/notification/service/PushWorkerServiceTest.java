@@ -76,7 +76,18 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private JdbcTemplate jdbc;
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
+    private String failingLogStage;
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+        @Override
+        public synchronized void doAppend(ILoggingEvent event) {
+            if (event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
+                    .anyMatch(pair -> pair.key.equals("stage")
+                            && pair.value.equals(failingLogStage))) {
+                throw new IllegalStateException("timing log failed");
+            }
+            super.doAppend(event);
+        }
+
         @Override
         protected void append(ILoggingEvent event) {
             event.prepareForDeferredProcessing();
@@ -162,6 +173,18 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                     .containsEntry("eventId", message.eventId());
             assertThat((long) log.get("dbTransactionDurationMs")).isNotNegative();
         });
+    }
+
+    @Test
+    @DisplayName("DB 계측 로그가 실패해도 기기 조회와 발송을 완료한다")
+    void process_timingLogFailure_completesDelivery() {
+        // Given
+        failingLogStage = "worker_db_transaction";
+        // When
+        PushProcessingResult result = worker(NOW).process(message);
+        // Then
+        assertThat(result.retryable()).isFalse();
+        verify(sender).send(any());
     }
 
     @Test

@@ -67,7 +67,18 @@ class FcmDevicePushSenderTest {
     private DevicePushRequest request;
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
+    private String failingLogStage;
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+        @Override
+        public synchronized void doAppend(ILoggingEvent event) {
+            if (event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
+                    .anyMatch(pair -> pair.key.equals("stage")
+                            && pair.value.equals(failingLogStage))) {
+                throw new IllegalStateException("timing log failed");
+            }
+            super.doAppend(event);
+        }
+
         @Override
         protected void append(ILoggingEvent event) {
             event.prepareForDeferredProcessing();
@@ -154,6 +165,18 @@ class FcmDevicePushSenderTest {
                 "사진을 확인해주세요",
                 message.expiresAt()
         );
+    }
+
+    @Test
+    @DisplayName("FCM 계측 로그가 실패해도 수락 결과를 유지한다")
+    void send_timingLogFailure_preservesAcceptance() {
+        // Given
+        failingLogStage = "fcm_request_completed";
+        // When
+        DevicePushResult result = sender.send(request);
+        // Then
+        assertThat(result.status()).isEqualTo(Status.ACCEPTED);
+        assertThat(calls.get()).isEqualTo(1);
     }
 
     @AfterEach

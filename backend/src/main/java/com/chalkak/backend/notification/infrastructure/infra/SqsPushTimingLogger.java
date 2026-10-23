@@ -1,9 +1,11 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.service.PushMessage;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
@@ -11,52 +13,85 @@ import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 @Slf4j
 public class SqsPushTimingLogger {
 
-    public void logPolled(Optional<Message> message, long startedAt) {
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_sqs_receive")
-                .addKeyValue("received", message.isPresent())
-                .addKeyValue("sqsMessageId", message.map(Message::messageId).orElse(null))
-                .addKeyValue("receiveCount", message.map(value -> value.attributes().get(
-                        MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT)).orElse(null))
-                .addKeyValue("sqsReceiveDurationMs", elapsedMillis(startedAt))
-                .log("SQS 수신 요청 완료");
+    public Instant findReceivedAt(Clock clock) {
+        try {
+            return clock.instant();
+        } catch (RuntimeException exception) {
+            logRecordingFailure(exception);
+            return null;
+        }
     }
 
-    public void logPollFailed(RuntimeException exception, long startedAt) {
-        log.atError().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_poll_failed")
-                .addKeyValue("sqsReceiveDurationMs", elapsedMillis(startedAt))
-                .addKeyValue("errorCode", exception.getClass().getSimpleName())
-                .log("푸시 작업 수신 오류");
+    public void logPolled(Optional<Message> message, Elapsed elapsed) {
+        logSafely(() -> {
+            log.atInfo().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_sqs_receive")
+                    .addKeyValue("received", message.isPresent())
+                    .addKeyValue("sqsMessageId", message.map(Message::messageId).orElse(null))
+                    .addKeyValue("receiveCount", message.map(value -> value.attributes().get(
+                            MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT)).orElse(null))
+                    .addKeyValue("sqsReceiveDurationMs", elapsed.toMillis())
+                    .log("SQS 수신 요청 완료");
+        });
+    }
+
+    public void logPollFailed(RuntimeException exception, Elapsed elapsed) {
+        logSafely(() -> {
+            log.atError().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_poll_failed")
+                    .addKeyValue("phase", "RECEIVE")
+                    .addKeyValue("sqsReceiveDurationMs", elapsed.toMillis())
+                    .addKeyValue("errorCode", exception.getClass().getSimpleName())
+                    .log("푸시 작업 수신 오류");
+        });
+    }
+
+    public void logProcessingPollFailed(Optional<Message> message, RuntimeException exception) {
+        logSafely(() -> {
+            log.atError().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_poll_failed")
+                    .addKeyValue("phase", "PROCESSING")
+                    .addKeyValue("sqsMessageId", message.map(Message::messageId).orElse(null))
+                    .addKeyValue("receiveCount", message.map(value -> value.attributes().get(
+                            MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT)).orElse(null))
+                    .addKeyValue("errorCode", exception.getClass().getSimpleName())
+                    .log("수신 후 푸시 처리 진입·종료 오류");
+        });
     }
 
     public void logAttemptCompleted(
             Message message,
-            long receivedAt,
-            long startedAt,
+            Instant receivedAt,
+            Elapsed elapsed,
             String outcome
     ) {
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_attempt_completed")
-                .addKeyValue("outcome", outcome)
-                .addKeyValue("queueAgeMs", findQueueAgeMillis(message, receivedAt))
-                .addKeyValue("processingDurationMs", elapsedMillis(startedAt))
-                .log("푸시 처리 시도 종료");
+        logSafely(() -> {
+            log.atInfo().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_attempt_completed")
+                    .addKeyValue("outcome", outcome)
+                    .addKeyValue("queueAgeMs", findQueueAgeMillis(message, receivedAt))
+                    .addKeyValue("processingDurationMs", elapsed.toMillis())
+                    .log("푸시 처리 시도 종료");
+        });
     }
 
-    public void logDeleted(long startedAt) {
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_message_deleted")
-                .addKeyValue("sqsDeleteDurationMs", elapsedMillis(startedAt))
-                .log("SQS 푸시 작업 완료");
+    public void logDeleted(Elapsed elapsed) {
+        logSafely(() -> {
+            log.atInfo().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_message_deleted")
+                    .addKeyValue("sqsDeleteDurationMs", elapsed.toMillis())
+                    .log("SQS 푸시 작업 완료");
+        });
     }
 
-    public void logDeleteFailed(long startedAt) {
-        // 기존 worker_processing_failed만 ERROR로 남겨 오류 지표를 중복 집계하지 않는다.
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_sqs_delete_failed")
-                .addKeyValue("sqsDeleteDurationMs", elapsedMillis(startedAt))
-                .log("SQS 삭제 요청 실패 시간");
+    public void logDeleteFailed(Elapsed elapsed) {
+        logSafely(() -> {
+            // 기존 worker_processing_failed만 ERROR로 남겨 오류 지표를 중복 집계하지 않는다.
+            log.atInfo().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "worker_sqs_delete_failed")
+                    .addKeyValue("sqsDeleteDurationMs", elapsed.toMillis())
+                    .log("SQS 삭제 요청 실패 시간");
+        });
     }
 
     public void logReceived(PushMessage pushMessage) {
@@ -98,30 +133,43 @@ public class SqsPushTimingLogger {
                 .log("푸시 숨김 시간 연장 실패");
     }
 
-    private Long findQueueAgeMillis(Message message, long receivedAt) {
+    private Long findQueueAgeMillis(Message message, Instant receivedAt) {
+        if (receivedAt == null) {
+            return null;
+        }
         String sentTimestamp = message.attributes().get(MessageSystemAttributeName.SENT_TIMESTAMP);
         if (sentTimestamp == null) {
             return null;
         }
         try {
             long sentAt = Long.parseLong(sentTimestamp);
-            if (sentAt < 0 || sentAt > receivedAt) {
+            long receivedAtMillis = receivedAt.toEpochMilli();
+            if (sentAt < 0 || sentAt > receivedAtMillis) {
                 return null;
             }
-            return receivedAt - sentAt;
+            return receivedAtMillis - sentAt;
         } catch (NumberFormatException exception) {
             // 조사용 메타데이터가 잘못돼도 기존 발송·삭제 동작은 유지한다.
             return null;
         }
     }
 
-    private long elapsedMillis(long startedAt) {
-        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
-    }
-
     private void logFailure(String stage, RuntimeException exception) {
         log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
                 .addKeyValue("errorCode", exception.getClass().getSimpleName())
                 .log("푸시 작업 처리 오류");
+    }
+
+    private void logSafely(Runnable logging) {
+        try {
+            logging.run();
+        } catch (RuntimeException exception) {
+            logRecordingFailure(exception);
+        }
+    }
+
+    private void logRecordingFailure(RuntimeException exception) {
+        // 같은 로깅 경로로 재출력하지 않는다. 원문·스택·토큰 없이 journald 조사용으로 남긴다.
+        System.err.println("알림 계측 로그 기록 실패: " + exception.getClass().getSimpleName());
     }
 }

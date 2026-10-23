@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
@@ -49,7 +50,7 @@ public class FcmDevicePushSender implements DevicePushSender {
 
     private void sendToFcm(DevicePushRequest request, Message message)
             throws FirebaseMessagingException {
-        long startedAt = System.nanoTime();
+        Elapsed elapsed = Elapsed.start();
         boolean accepted = false;
         try {
             messaging.send(message);
@@ -57,7 +58,7 @@ public class FcmDevicePushSender implements DevicePushSender {
         } finally {
             timingLogger.logFcmRequest(
                     request,
-                    startedAt,
+                    elapsed,
                     accepted
             );
         }

@@ -1,13 +1,16 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -85,7 +88,18 @@ class SqsPushServiceTest {
     private Message message;
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
+    private String failingLogStage;
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+        @Override
+        public synchronized void doAppend(ILoggingEvent event) {
+            if (event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
+                    .anyMatch(pair -> pair.key.equals("stage")
+                            && pair.value.equals(failingLogStage))) {
+                throw new IllegalStateException("timing log failed");
+            }
+            super.doAppend(event);
+        }
+
         @Override
         protected void append(ILoggingEvent event) {
             event.prepareForDeferredProcessing();
@@ -264,7 +278,7 @@ class SqsPushServiceTest {
         // Given
         AtomicLong wallClock = new AtomicLong(NOW.toEpochMilli());
         Clock advancingClock = mock(Clock.class);
-        given(advancingClock.millis()).willAnswer(call -> wallClock.get());
+        given(advancingClock.instant()).willAnswer(call -> Instant.ofEpochMilli(wallClock.get()));
         worker = new SqsPushService(
                 client,
                 "http://127.0.0.1:" + server.getAddress().getPort() + "/000000000000/test",
@@ -673,6 +687,27 @@ class SqsPushServiceTest {
         verifyNoInteractions(service);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"worker_sqs_receive", "worker_message_deleted",
+            "worker_attempt_completed"})
+    @DisplayName("계측 로그가 실패해도 메시지 처리·삭제와 MDC 정리를 완료하며 폴링 오류로 바꾸지 않는다")
+    void poll_timingLogFailure_completesWithoutPollingFailure(String stage) throws Exception {
+        // Given
+        failingLogStage = stage;
+        receiveOneMessage();
+        MDC.put("requestId", "previous-request");
+        // When
+        worker.poll();
+        // Then
+        verify(service).process(push);
+        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
+                "AmazonSQS.DeleteMessage");
+        assertThat(logsAtStage("worker_poll_failed")).isEmpty();
+        assertThat(logsAtStage("worker_processing_failed")).isEmpty();
+        assertThat(MDC.getCopyOfContextMap()).containsExactlyEntriesOf(
+                Map.of("requestId", "previous-request"));
+    }
+
     @Test
     @DisplayName("수신 오류가 나면 최소 1초 대기하고 다음 폴링을 계속할 수 있다")
     void poll_receiveFailure_waitsBeforeNextPoll() {
@@ -688,11 +723,66 @@ class SqsPushServiceTest {
         assertThat(elapsed).isGreaterThanOrEqualTo(TimeUnit.SECONDS.toNanos(1));
         assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
                 "AmazonSQS.ReceiveMessage");
-        assertThat(logsAtStage("worker_poll_failed")).hasSize(1);
+        assertThat(logsAtStage("worker_poll_failed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("phase", "RECEIVE"));
         assertThat((long) logsAtStage("worker_poll_failed").getFirst()
                 .get("sqsReceiveDurationMs")).isNotNegative();
         assertThat(logsAtStage("worker_attempt_completed")).isEmpty();
         verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("수신 후 처리 진입에서 예외가 나도 1초 대기하며 수신 시간 오류로 기록하지 않는다")
+    void poll_processingEntryFailure_waitsAndContinuesWithoutFalseReceiveTiming() throws Exception {
+        // Given
+        worker = spy(worker);
+        doThrow(new IllegalStateException("processing entry failed")).doCallRealMethod()
+                .when(worker).process(any());
+        receiveOneMessage();
+        long startedAt = System.nanoTime();
+        // When & Then
+        assertThatCode(worker::poll).doesNotThrowAnyException();
+        assertThat(System.nanoTime() - startedAt)
+                .isGreaterThanOrEqualTo(TimeUnit.SECONDS.toNanos(1));
+        assertThat(logsAtStage("worker_poll_failed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("phase", "PROCESSING")
+                        .containsEntry("sqsMessageId", "sqs-id")
+                        .doesNotContainKey("sqsReceiveDurationMs"));
+        worker.poll();
+        assertThat(operations).containsExactly(
+                "AmazonSQS.ReceiveMessage",
+                "AmazonSQS.ReceiveMessage",
+                "AmazonSQS.DeleteMessage"
+        );
+        verify(service).process(push);
+    }
+
+    @Test
+    @DisplayName("수신 시각 계측이 실패해도 메시지는 처리·삭제하고 큐 나이만 생략한다")
+    void poll_receiptClockFailure_completesWithoutQueueAge() throws Exception {
+        // Given
+        Clock failingClock = mock(Clock.class);
+        given(failingClock.instant()).willThrow(new IllegalStateException("clock failed"));
+        worker = new SqsPushService(
+                client,
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/000000000000/test",
+                mapper,
+                service,
+                failingClock,
+                visibilityExecutor,
+                new SqsPushTimingLogger()
+        );
+        receiveOneMessage();
+        // When
+        worker.poll();
+        // Then
+        verify(service).process(push);
+        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
+                "AmazonSQS.DeleteMessage");
+        assertThat(logsAtStage("worker_poll_failed")).isEmpty();
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("outcome", "DELETED")
+                        .containsEntry("queueAgeMs", null));
     }
 
     @Test
@@ -730,17 +820,7 @@ class SqsPushServiceTest {
     @DisplayName("메시지를 한 건 받으면 처리 후 해당 메시지를 삭제한다")
     void poll_oneMessage_processesAndDeletesMessage() throws Exception {
         // Given
-        receiveResponse = mapper.writeValueAsString(Map.of("Messages", List.of(Map.of(
-                "MessageId",
-                message.messageId(),
-                "ReceiptHandle",
-                message.receiptHandle(),
-                "MD5OfBody",
-                HexFormat.of().formatHex(MessageDigest.getInstance("MD5")
-                        .digest(message.body().getBytes(StandardCharsets.UTF_8))),
-                "Body",
-                message.body()
-        ))));
+        receiveOneMessage();
         // When
         worker.poll();
         // Then
@@ -753,6 +833,20 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("worker_attempt_completed")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
                         .containsEntry("outcome", "DELETED"));
+    }
+
+    private void receiveOneMessage() throws Exception {
+        receiveResponse = mapper.writeValueAsString(Map.of("Messages", List.of(Map.of(
+                "MessageId",
+                message.messageId(),
+                "ReceiptHandle",
+                message.receiptHandle(),
+                "MD5OfBody",
+                HexFormat.of().formatHex(MessageDigest.getInstance("MD5")
+                        .digest(message.body().getBytes(StandardCharsets.UTF_8))),
+                "Body",
+                message.body()
+        ))));
     }
 
     @Test

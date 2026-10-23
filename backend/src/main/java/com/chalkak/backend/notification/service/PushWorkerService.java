@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.service;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
@@ -120,7 +121,7 @@ public class PushWorkerService {
     }
 
     private List<UUID> findDeviceIds(PushMessage message) {
-        long startedAt = System.nanoTime();
+        Elapsed elapsed = Elapsed.start();
         boolean completed = false;
         try {
             List<UUID> deviceIds = transactionTemplate
@@ -132,7 +133,7 @@ public class PushWorkerService {
                     message,
                     null,
                     "DEVICE_LOOKUP",
-                    startedAt,
+                    elapsed,
                     completed
             );
         }
@@ -238,7 +239,7 @@ public class PushWorkerService {
             UUID deviceId,
             FcmToken token
     ) {
-        long startedAt = System.nanoTime();
+        Elapsed elapsed = Elapsed.start();
         boolean completed = false;
         try {
             transactionTemplate.executeWithoutResult(status -> deviceRepository
@@ -249,14 +250,14 @@ public class PushWorkerService {
                     message,
                     deviceId,
                     "INVALID_TOKEN_CLEANUP",
-                    startedAt,
+                    elapsed,
                     completed
             );
         }
     }
 
     private DevicePushRequest findCurrentRequest(PushMessage message, UUID deviceId) {
-        long startedAt = System.nanoTime();
+        Elapsed elapsed = Elapsed.start();
         boolean completed = false;
         try {
             DevicePushRequest request = transactionTemplate
@@ -268,7 +269,7 @@ public class PushWorkerService {
                     message,
                     deviceId,
                     "LATEST_CONDITIONS",
-                    startedAt,
+                    elapsed,
                     completed
             );
         }

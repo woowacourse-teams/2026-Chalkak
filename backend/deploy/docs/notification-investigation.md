@@ -36,7 +36,8 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 ### 처리 지연 조사 — SQS·DB·FCM 계측
 
 아래 필드는 계측 배포 이후 기록에만 존재한다. 과거 발송의 지연을 소급해서 분해하지 않는다.
-경과 시간은 `System.nanoTime()`으로 측정하고 밀리초 정수로 기록한다. CloudWatch 수집 시각의
+수신 시각은 `Instant`로 전달하고, 경과 시간은 `Elapsed`가 `System.nanoTime()`으로 측정해
+밀리초 정수로 기록한다. 두 값을 같은 `long`으로 전달하지 않아 단위 혼동을 막는다. CloudWatch 수집 시각의
 차이를 계산하지 않으므로 Agent의 로그 일괄 수집 간격에 영향을 받지 않는다.
 
 `SqsPushService`는 측정 시작·수신 시각과 처리 결과를 전달하고, `SqsPushTimingLogger`가
@@ -44,7 +45,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 
 | 필드 / 로그 단계 | 측정 범위와 해석 |
 | --- | --- |
-| `sqsReceiveDurationMs` / `worker_sqs_receive`, `worker_poll_failed` | 수신 API 호출 시작부터 응답 또는 예외까지. `received=false`는 빈 응답이며 정상 롱 폴링 대기 최대 20초를 포함한다. 실패 시 1초 쉬는 시간은 제외한다 |
+| `sqsReceiveDurationMs` / `worker_sqs_receive`, `worker_poll_failed` | 수신 API 호출 시작부터 응답 또는 예외까지. 실패 로그는 `phase=RECEIVE`일 때만 이 필드를 포함한다. `received=false`는 빈 응답이며 정상 롱 폴링 대기 최대 20초를 포함한다. 실패 시 1초 쉬는 시간은 제외한다 |
 | `queueAgeMs` / `worker_attempt_completed` | SQS `SentTimestamp`부터 Worker 처리 진입 시각까지. **`receiveCount=1`**에서 최초 큐 대기를 조사한다. 재수신에서는 이전 처리·숨김·재시도 대기도 포함한다. 서버 시계 차이의 영향을 받으며, 입력 시각 누락·잘못된 값·미래 값은 `null`로 남긴다 |
 | `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
 | `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
@@ -79,7 +80,15 @@ filter type = "notification" and stage = "worker_attempt_completed" and receiveC
 ```
 
 수신 API 시간은 빈 응답과 실제 수신을 나눠 본다. 정상 20초 롱 폴링 대기를 메시지가 생긴 뒤
-20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`로 별도 조사한다.
+20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`의 `phase=RECEIVE`로 별도 조사한다.
+수신 이후 처리 진입·종료에서 빠져나온 예외는 같은 단계의 `phase=PROCESSING`으로 기록하며,
+수신 시간에 처리 시간이 섞이지 않도록 `sqsReceiveDurationMs`를 남기지 않는다.
+두 경우 모두 다음 폴링 전에 1초 대기한다.
+이는 계측 도입 전부터 있던 폴링 오류 대기이며 정상 처리 후 폴링 간격은 1ms를 유지한다.
+추가한 계측 로그의 계산·출력 예외는 로그 객체 내부에서 처리하므로 발송·삭제 결과를 바꾸거나
+이 1초 대기를 유발하지 않는다. 기록 실패 시 예외 클래스만 표준 오류에 남기며 서버의
+`journalctl -u chalkak-backend.service`에서 확인한다. 실패한 계측 표본은 누락될 수 있다. 수신 시각 계측만 실패하면 `queueAgeMs`를 `null`로 남긴다.
+로그는 동기 출력이므로 출력 자체의 실행 비용까지 0이 되는 것은 아니다.
 
 ```sql
 filter type = "notification" and stage = "worker_sqs_receive"

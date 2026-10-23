@@ -1,10 +1,12 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.chalkak.backend.notification.service.PushProcessingResult;
 import com.chalkak.backend.notification.service.PushWorkerService;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,22 +49,27 @@ public class SqsPushService {
     }
 
     public void poll() {
-        long startedAt = System.nanoTime();
+        Elapsed elapsed = Elapsed.start();
         Optional<Message> message;
         try {
             message = findMessage();
         } catch (RuntimeException exception) {
-            timingLogger.logPollFailed(exception, startedAt);
+            timingLogger.logPollFailed(exception, elapsed);
             waitAfterPollingFailure();
             return;
         }
-        timingLogger.logPolled(message, startedAt);
-        message.ifPresent(this::process);
+        try {
+            timingLogger.logPolled(message, elapsed);
+            message.ifPresent(this::process);
+        } catch (RuntimeException exception) {
+            timingLogger.logProcessingPollFailed(message, exception);
+            waitAfterPollingFailure();
+        }
     }
 
     public void process(Message message) {
-        long startedAt = System.nanoTime();
-        long receivedAt = clock.millis();
+        Elapsed elapsed = Elapsed.start();
+        Instant receivedAt = timingLogger.findReceivedAt(clock);
         String outcome = "FAILED";
         Map<String, String> previousContext = MDC.getCopyOfContextMap();
         MDC.put("sqsMessageId", message.messageId());
@@ -78,7 +85,7 @@ public class SqsPushService {
             timingLogger.logAttemptCompleted(
                     message,
                     receivedAt,
-                    startedAt,
+                    elapsed,
                     outcome
             );
             MDC.clear();
@@ -187,17 +194,17 @@ public class SqsPushService {
     }
 
     private void delete(Message message) {
-        long startedAt = System.nanoTime();
+        Elapsed elapsed = Elapsed.start();
         try {
             sqsClient.deleteMessage(request -> request.queueUrl(queueUrl)
                     .receiptHandle(message.receiptHandle())
                     .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                             .apiCallAttemptTimeout(Duration.ofSeconds(5))));
         } catch (RuntimeException exception) {
-            timingLogger.logDeleteFailed(startedAt);
+            timingLogger.logDeleteFailed(elapsed);
             throw exception;
         }
-        timingLogger.logDeleted(startedAt);
+        timingLogger.logDeleted(elapsed);
     }
 
     private final class VisibilityExtension implements AutoCloseable {
