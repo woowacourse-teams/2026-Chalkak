@@ -83,9 +83,11 @@ final class HomeViewModel {
         cancelAIReview()
         aiReviewPostID = postID
         if !samePost { viewState.aiReview = HomeAIReviewState() }
+        // Completed reviews remain valid for this post for the lifetime of the home model.
+        if samePost, viewState.aiReview.review?.status == .completed { return }
         viewState.aiReview.isUnavailable = false
         viewState.aiReview.pollingTimedOut = false
-        viewState.aiReview.isLoading = true
+        viewState.aiReview.isLoading = viewState.aiReview.review == nil
         aiReviewDeadline = aiReviewNow().addingTimeInterval(300)
         let session = aiReviewGeneration
         let task = Task { [weak self] in

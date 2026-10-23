@@ -45,6 +45,7 @@ class AiReviewSession(
     fun onResume() {
         visible = true
         resetIfUserChanged()
+        if (_state.value.phase == AiReviewPhase.Completed) return
         refresh()
     }
 
@@ -57,9 +58,6 @@ class AiReviewSession(
     fun refresh() {
         resetIfUserChanged()
         if (!visible || submitting || job?.isActive == true || targetPostId == null) return
-        if (_state.value.phase == AiReviewPhase.Ready) {
-            updateState(_state.value.copy(phase = AiReviewPhase.Hidden))
-        }
         launchReview(requestReview = false)
     }
 
