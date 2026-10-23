@@ -11,7 +11,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
 import com.chalkak.backend.analytics.infrastructure.infra.AnalyticsProperties;
 import com.chalkak.backend.analytics.infrastructure.persistence.UserMetricsRepositoryImpl;
-import com.chalkak.backend.analytics.repository.UserMetricsRepository;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -766,7 +766,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
 
         // Then
-        assertThat(metrics.aiReviews()).isEqualTo(new UserMetricsRepository.AiReviewCounts(
+        assertThat(metrics.aiReviews()).isEqualTo(new AiReviewCounts(
                 5,
                 5,
                 2,
@@ -797,7 +797,7 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         DailyUserMetrics metrics = aggregationService.aggregate(METRIC_DATE);
 
         // Then
-        assertThat(metrics.aiReviews()).isEqualTo(new UserMetricsRepository.AiReviewCounts(
+        assertThat(metrics.aiReviews()).isEqualTo(new AiReviewCounts(
                 1,
                 2,
                 1,
@@ -830,13 +830,13 @@ class UserMetricsAggregationServiceTest extends IntegrationTestSupport {
         DailyUserMetrics filtered = serviceExcluding(List.of(excluded)).aggregate(METRIC_DATE);
 
         // Then
-        assertThat(all.aiReviews()).isEqualTo(new UserMetricsRepository.AiReviewCounts(
+        assertThat(all.aiReviews()).isEqualTo(new AiReviewCounts(
                 2,
                 2,
                 1,
                 1
         ));
-        assertThat(filtered.aiReviews()).isEqualTo(new UserMetricsRepository.AiReviewCounts(
+        assertThat(filtered.aiReviews()).isEqualTo(new AiReviewCounts(
                 1,
                 1,
                 1,

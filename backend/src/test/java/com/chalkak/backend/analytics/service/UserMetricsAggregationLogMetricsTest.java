@@ -11,6 +11,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import com.chalkak.backend.analytics.repository.UserMetricsRepository;
 import java.time.LocalDate;
 import java.util.List;
@@ -51,7 +52,7 @@ class UserMetricsAggregationLogMetricsTest {
         when(reader.read(any())).thenReturn(Optional.empty());
         when(repository.countPosts(any(), any())).thenReturn(DB_POSTS);
         when(repository.countAiReviews(any(), any()))
-                .thenReturn(new UserMetricsRepository.AiReviewCounts(
+                .thenReturn(new AiReviewCounts(
                         0,
                         0,
                         0,

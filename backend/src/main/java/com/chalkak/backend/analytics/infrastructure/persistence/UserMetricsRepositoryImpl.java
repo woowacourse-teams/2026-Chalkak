@@ -2,7 +2,7 @@ package com.chalkak.backend.analytics.infrastructure.persistence;
 
 import com.chalkak.backend.analytics.infrastructure.infra.AnalyticsProperties;
 import com.chalkak.backend.analytics.repository.UserMetricsRepository;
-import com.chalkak.backend.analytics.repository.UserMetricsRepository.AiReviewCounts;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -118,7 +118,7 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
             Instant returnFrom,
             Instant returnTo
     ) {
-        return count(COUNT_RETURNING_POST_AUTHORS, new MapSqlParameterSource()
+        return count(COUNT_RETURNING_POST_AUTHORS, parameters()
                 .addValue("cohortFrom", OffsetDateTime.ofInstant(cohortFrom, ZoneOffset.UTC))
                 .addValue("cohortTo", OffsetDateTime.ofInstant(cohortTo, ZoneOffset.UTC))
                 .addValue("returnFrom", OffsetDateTime.ofInstant(returnFrom, ZoneOffset.UTC))
@@ -127,12 +127,12 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
 
     @Override
     public long countEligibleUsers() {
-        return count(COUNT_ELIGIBLE_USERS, new MapSqlParameterSource());
+        return count(COUNT_ELIGIBLE_USERS, parameters());
     }
 
     @Override
     public long countLikesOnLivePosts() {
-        return count(COUNT_LIKES_ON_LIVE_POSTS, new MapSqlParameterSource());
+        return count(COUNT_LIKES_ON_LIVE_POSTS, parameters());
     }
 
     @Override
@@ -140,11 +140,9 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
             Instant from,
             Instant to
     ) {
-        MapSqlParameterSource parameters = periodParameters(from, to);
-        parameters.addValue("excludedUserIds", excludedUserIds);
         return jdbcTemplate.queryForObject(
                 COUNT_AI_REVIEWS,
-                parameters,
+                periodParameters(from, to),
                 (rs, rowNum) -> new AiReviewCounts(
                         rs.getLong("users"),
                         rs.getLong("requests"),
@@ -154,11 +152,16 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
         );
     }
 
+    /** 모든 쿼리가 공통으로 쓰는 제외 회원 ID 파라미터에서 시작한다. */
+    private MapSqlParameterSource parameters() {
+        return new MapSqlParameterSource().addValue("excludedUserIds", excludedUserIds);
+    }
+
     private MapSqlParameterSource periodParameters(
             Instant from,
             Instant to
     ) {
-        return new MapSqlParameterSource()
+        return parameters()
                 .addValue("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
                 .addValue("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC));
     }
@@ -167,7 +170,6 @@ public class UserMetricsRepositoryImpl implements UserMetricsRepository {
             String sql,
             MapSqlParameterSource parameters
     ) {
-        parameters.addValue("excludedUserIds", excludedUserIds);
         Long count = jdbcTemplate.queryForObject(
                 sql,
                 parameters,

@@ -1,6 +1,6 @@
 package com.chalkak.backend.analytics.service;
 
-import com.chalkak.backend.analytics.repository.UserMetricsRepository.AiReviewCounts;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import java.time.LocalDate;
 import java.util.List;
 

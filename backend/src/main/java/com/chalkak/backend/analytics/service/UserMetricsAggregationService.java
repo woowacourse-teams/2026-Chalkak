@@ -1,7 +1,7 @@
 package com.chalkak.backend.analytics.service;
 
 import com.chalkak.backend.analytics.repository.UserMetricsRepository;
-import com.chalkak.backend.analytics.repository.UserMetricsRepository.AiReviewCounts;
+import com.chalkak.backend.analytics.repository.AiReviewCounts;
 import com.chalkak.backend.common.logging.LogFields;
 import java.time.DayOfWeek;
 import java.time.Instant;
