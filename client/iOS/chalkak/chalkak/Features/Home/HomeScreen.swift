@@ -2,17 +2,25 @@ import SwiftUI
 
 struct HomeScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
     var onOpenRecord: () -> Void = {}
+    var onOpenRecordDate: (Date) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
-    var onIssueClick: () -> Void = {}
+    var onIssueClick: (URL) -> Void = { _ in }
     var bottomBarCompact: Binding<Bool> = .constant(false)
+    var isActive = true
 
     @State private var scrollPosition = ScrollPosition()
+    @State private var currentScrollOffset: CGFloat = 0
+    @State private var feedbackRetryID = 0
+    @State private var isFeedbackSheetPresented = false
+    @State private var isFeedbackExpanded = false
+    @State private var visibleBannerIDs: Set<Banner.ID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,14 +56,29 @@ struct HomeScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xl)
 
+                    if showsFeedback {
+                        HomeFeedbackCard(
+                            phase: feedbackPhase,
+                            isExpanded: isFeedbackExpanded,
+                            onStart: handleFeedbackAction,
+                            onToggleExpanded: { withAnimation(.easeInOut) { isFeedbackExpanded.toggle() } },
+                            result: viewModel.viewState.aiReview.review?.result,
+                            isSubmitting: viewModel.viewState.aiReview.isSubmitting,
+                            pollingTimedOut: viewModel.viewState.aiReview.pollingTimedOut
+                        )
+                        .padding(.horizontal, theme.spacing.screenHorizontal)
+                        .padding(.top, theme.spacing.lg)
+                    }
+
                     HomeWeeklyRecord(
                         days: viewModel.viewState.week,
                         status: viewModel.viewState.recordsStatus,
                         onOpenRecord: onOpenRecord,
-                        onRetry: { Task { await viewModel.refresh() } }
+                        onRetry: { Task { await viewModel.refresh() } },
+                        onOpenRecordDate: onOpenRecordDate
                     )
                     .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .padding(.top, theme.spacing.xxl)
+                    .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
 
                     HomeRankingRow(
                         title: "어제 랭킹",
@@ -79,15 +102,74 @@ struct HomeScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xxl)
 
-                    HomeIssueSection(onIssueClick: onIssueClick)
+                    if !viewModel.viewState.banners.isEmpty || viewModel.viewState.bannerStatus == .loading {
+                        Text("ISSUE")
+                            .font(theme.typography.headline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(theme.colors.textPrimary)
+                            .padding(.horizontal, theme.spacing.screenHorizontal)
+                            .padding(.top, theme.spacing.xxl)
+                            .padding(.bottom, theme.spacing.lg)
+
+                        ForEach(viewModel.viewState.banners) { banner in
+                            HomeIssueSection(banner: banner, onIssueClick: onIssueClick, showHeader: false)
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, theme.spacing.screenHorizontal)
+                                .padding(.bottom, theme.spacing.xxl)
+                                .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+                                    if isVisible {
+                                        visibleBannerIDs.insert(banner.id)
+                                    } else {
+                                        visibleBannerIDs.remove(banner.id)
+                                    }
+                                }
+                        }
+                    }
+
+                    if viewModel.viewState.bannerStatus == .loading && viewModel.viewState.banners.isEmpty {
+                        HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, theme.spacing.screenHorizontal)
+                    }
+
+                    if viewModel.viewState.isLoadingMoreBanners {
+                        ProgressView()
+                            .tint(theme.colors.actionPrimary)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityLabel("ISSUE 더 불러오는 중")
+                            .accessibilityIdentifier("home.issue.loadingMore")
+                    } else if viewModel.viewState.bannerLoadMoreError {
+                        Button {
+                            Task { await viewModel.loadMoreBanners() }
+                        } label: {
+                            Text("ISSUE를 불러오지 못했어요. 다시 시도")
+                                .font(theme.typography.subheadline)
+                                .foregroundStyle(theme.colors.textPrimary)
+                                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                         .padding(.horizontal, theme.spacing.screenHorizontal)
-                        .padding(.top, theme.spacing.xxl)
-                        .padding(.bottom, theme.spacing.xxl)
+                        .accessibilityIdentifier("home.issue.retry")
+                    }
                 }
+                .padding(.bottom, theme.spacing.xxl)
                 .scrollTargetLayout()
             }
             .feedZoomViewport(.home)
             .scrollPosition($scrollPosition, anchor: .top)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                currentScrollOffset = offset
+            }
+            .onAppear {
+                currentScrollOffset = viewModel.scrollOffset
+                scrollPosition.scrollTo(y: viewModel.scrollOffset)
+            }
+            .onDisappear {
+                viewModel.saveScrollOffset(currentScrollOffset)
+            }
             .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
             .refreshable {
                 let refreshTask = Task { await viewModel.refresh() }
@@ -96,14 +178,114 @@ struct HomeScreen: View {
             .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
                 scrollToTop()
             }
+            .onChange(of: feedbackPostID) { _, _ in
+                resetFeedback()
+            }
+            .onChange(of: bannerPaginationTrigger) { _, trigger in
+                guard trigger.canLoad else { return }
+                Task { await viewModel.loadMoreBanners() }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
+        .sheet(isPresented: $isFeedbackSheetPresented) {
+            feedbackStartSheet
+                .presentationDetents([.height(Metrics.feedbackSheetHeight)])
+                .presentationDragIndicator(.visible)
+        }
+        .task(id: feedbackObservationID) {
+            guard let postID = feedbackPostID, scenePhase == .active, isActive else { return }
+            await viewModel.observeAIReview(postID: postID)
+        }
+        .alert("AI 피드백", isPresented: Binding(
+            get: { viewModel.viewState.aiReview.message != nil },
+            set: { if !$0 { viewModel.dismissAIReviewMessage() } }
+        )) {
+            Button("확인", role: .cancel) { viewModel.dismissAIReviewMessage() }
+        } message: {
+            Text(viewModel.viewState.aiReview.message ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private var feedbackStartSheet: some View {
+        let content = AIReviewStartSheet(
+            onStart: {
+                isFeedbackSheetPresented = false
+                Task { await viewModel.requestAIReview() }
+            }
+        )
+
+        if ChalkakPlatformAppearance.usesLiquidGlass {
+            content
+        } else {
+            content
+                .presentationCornerRadius(theme.shapes.sheet)
+                .presentationBackground(theme.colors.surfaceElevated)
+        }
     }
 
     private var yesterday: Date {
         RecordMonth.calendar.date(byAdding: .day, value: -1, to: viewModel.viewState.date)
             ?? viewModel.viewState.date
+    }
+
+    private var feedbackPostID: String? {
+        guard viewModel.hasAIReviewRepository,
+              viewModel.viewState.isAuthenticated,
+              case let .photo(photo) = viewModel.viewState.hero,
+              !photo.isPending else { return nil }
+        return photo.postID
+    }
+
+    private var showsFeedback: Bool { feedbackPostID != nil }
+
+    private var feedbackObservationID: String? {
+        guard scenePhase == .active, isActive, let postID = feedbackPostID else { return nil }
+        return "\(postID):\(feedbackRetryID)"
+    }
+
+    private var feedbackPhase: HomeFeedbackPhase {
+        let state = viewModel.viewState.aiReview
+        if state.isUnavailable { return .unavailable }
+        if state.isLoading { return .loading }
+        guard let review = state.review else { return .loadError }
+        switch review.status {
+        case .none: return .ready
+        case .processing: return .processing
+        case .completed: return .completed
+        case .failed: return .failed(canRequestAgain: review.canRequestAgain)
+        }
+    }
+
+    private func handleFeedbackAction() {
+        switch feedbackPhase {
+        case .loadError:
+            feedbackRetryID += 1
+        case .ready:
+            isFeedbackSheetPresented = true
+        case .failed(canRequestAgain: true):
+            Task { await viewModel.requestAIReview() }
+        default:
+            break
+        }
+    }
+
+    private func resetFeedback() {
+        isFeedbackExpanded = false
+        isFeedbackSheetPresented = false
+    }
+
+    private var bannerPaginationTrigger: HomeBannerPaginationTrigger {
+        let state = viewModel.viewState
+        let isNearEnd = state.banners.suffix(Metrics.bannerEndThreshold)
+            .contains { visibleBannerIDs.contains($0.id) }
+        return HomeBannerPaginationTrigger(
+            page: state.bannerCurrentPage,
+            count: state.banners.count,
+            canLoad: isNearEnd && state.bannerHasNext && state.bannerStatus == .ready
+                && !state.isLoadingMoreBanners && !state.bannerLoadMoreError && !state.isRefreshing
+        )
     }
 
     private func scrollToTop() {
@@ -153,8 +335,17 @@ private enum HomeScrollTarget {
     static let top = "home-scroll-top"
 }
 
+private struct HomeBannerPaginationTrigger: Equatable {
+    let page: Int
+    let count: Int
+    let canLoad: Bool
+}
+
 private enum Metrics {
     static let topBarOpacity = 0.96
+    static let feedbackSheetHeight: CGFloat = 320
+    static let bannerEndThreshold = 3
+    static let minimumTouchHeight: CGFloat = 44
 }
 
 extension Date {

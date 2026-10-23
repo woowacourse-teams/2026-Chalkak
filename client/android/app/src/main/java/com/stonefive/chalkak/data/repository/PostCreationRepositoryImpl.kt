@@ -18,6 +18,7 @@ import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import java.io.File
 import java.time.LocalDate
@@ -54,7 +55,10 @@ class PostCreationRepositoryImpl(
         return Topic(id = id, title = title, date = responseDate)
     }
 
-    override suspend fun prepareImage(imageUri: String): PostImagePreparationResult {
+    override suspend fun prepareImage(
+        imageUri: String,
+        edit: PhotoEdit,
+    ): PostImagePreparationResult {
         val policyRequestStartedAtNanos = nanoTime()
         val upload = when (val result = issueUploadPolicy()) {
             is UploadPolicyResult.Success -> result.value
@@ -64,7 +68,7 @@ class PostCreationRepositoryImpl(
         var file: File? = null
         var retained = false
         return try {
-            file = when (val result = imageEncoder.encode(imageUri, upload.maxBytes)) {
+            file = when (val result = imageEncoder.encode(imageUri, upload.maxBytes, edit)) {
                 is PostImageEncodeResult.Success -> result.file
                 else -> return PostImagePreparationResult.Failure(PostCreationFailure.ImagePreparationFailed)
             }
@@ -75,6 +79,7 @@ class PostCreationRepositoryImpl(
             val preparation = PostImagePreparation(UUID.randomUUID().toString())
             val preparedImage = PreparedImage(
                 sourceUri = imageUri,
+                edit = edit,
                 file = file,
                 upload = upload,
                 uploadUrlExpiresAtNanos = uploadUrlExpiryNanos(
@@ -126,6 +131,7 @@ class PostCreationRepositoryImpl(
                         val result = imageEncoder.encode(
                             preparedImage.sourceUri,
                             upload.maxBytes,
+                            preparedImage.edit,
                         )
                     ) {
                         is PostImageEncodeResult.Success -> result.file
@@ -288,6 +294,7 @@ class PostCreationRepositoryImpl(
 
     private data class PreparedImage(
         val sourceUri: String,
+        val edit: PhotoEdit,
         val file: File,
         val upload: PostImageUploadResponse,
         val uploadUrlExpiresAtNanos: Long,

@@ -25,6 +25,10 @@ data class RecordUiState(
 
     val canGoNext: Boolean
         get() = !isLoading && availableMonths.any { it > month }
+
+    /** 년/월 휠을 열 수 있는지. 휠에는 [availableMonths]만 보인다. */
+    val canPickMonth: Boolean
+        get() = !isLoading && availableMonths.isNotEmpty()
 }
 
 val INITIAL_RECORD_MONTH: YearMonth = YearMonth.now(ZoneId.of("Asia/Seoul"))

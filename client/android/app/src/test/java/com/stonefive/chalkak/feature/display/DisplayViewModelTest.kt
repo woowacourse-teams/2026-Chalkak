@@ -733,15 +733,98 @@ class DisplayViewModelTest {
     }
 
     @Test
-    fun `이전 날짜에 주제가 없으면 현재 날짜를 최초 전시일로 확정한다`() = runTest {
+    fun `첫 주제 날짜를 최초 전시일로 두고 그 이전으로는 이동하지 않는다`() = runTest {
+        val earliestRepository = FakePostRepository()
+        val earliestViewModel = displayViewModel(
+            repository = earliestRepository,
+            initialDate = EARLIEST_DATE,
+        )
+
+        earliestViewModel.moveToPreviousDate()
+
+        val state = earliestViewModel.uiState.value
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertEquals(EARLIEST_DATE, state.selectedDate)
+        assertFalse(state.canGoPrevious)
+        assertEquals(listOf(firstPageQuery(EARLIEST_DATE, PostSort.POPULAR)), earliestRepository.requests)
+    }
+
+    @Test
+    fun `이전 날짜에 주제가 없으면 기존 전시를 유지하고 최초 전시일은 바꾸지 않는다`() = runTest {
         repository.topicNotFoundDates = setOf(ARCHIVE_DATE)
 
         viewModel.moveToPreviousDate()
 
         val state = viewModel.uiState.value
         assertEquals(LATEST_DATE, state.selectedDate)
-        assertEquals(LATEST_DATE, state.earliestDate)
-        assertFalse(state.canGoPrevious)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+    }
+
+    @Test
+    fun `고른 날짜로 이동하면 그 날짜의 과거 전시를 불러온다`() = runTest {
+        val pickedDate = EARLIEST_DATE.plusDays(1)
+
+        viewModel.moveToDate(pickedDate)
+
+        val state = viewModel.uiState.value
+        assertEquals(pickedDate, state.selectedDate)
+        assertTrue(state.content is DisplayContentState.Archive)
+        assertEquals(firstPageQuery(pickedDate, PostSort.POPULAR), repository.requests.last())
+    }
+
+    @Test
+    fun `고른 날짜는 최초 전시일과 오늘 사이로 맞춘다`() = runTest {
+        viewModel.moveToDate(EARLIEST_DATE.minusDays(10))
+
+        assertEquals(EARLIEST_DATE, viewModel.uiState.value.selectedDate)
+
+        viewModel.moveToDate(LATEST_DATE.plusDays(3))
+
+        assertEquals(LATEST_DATE, viewModel.uiState.value.selectedDate)
+        assertEquals(firstPageQuery(LATEST_DATE, PostSort.LATEST), repository.requests.last())
+    }
+
+    @Test
+    fun `지금 날짜를 고르면 다시 불러오지 않는다`() = runTest {
+        val requestCount = repository.requests.size
+
+        viewModel.moveToDate(LATEST_DATE)
+
+        assertEquals(requestCount, repository.requests.size)
+    }
+
+    @Test
+    fun `건너뛴 날짜에 주제가 없으면 기존 전시를 유지하고 최초 전시일은 바꾸지 않는다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        val pickedDate = EARLIEST_DATE.plusDays(1)
+        repository.topicNotFoundDates = setOf(pickedDate)
+
+        viewModel.moveToDate(pickedDate)
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(previousContent, state.content)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `날짜를 불러오는 중에는 고른 날짜로 이동하지 않는다`() = runTest {
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        viewModel.moveToPreviousDate()
+        val requestCount = repository.requests.size
+
+        viewModel.moveToDate(EARLIEST_DATE)
+
+        assertEquals(ARCHIVE_DATE, viewModel.uiState.value.selectedDate)
+        assertEquals(requestCount, repository.requests.size)
+        assertFalse(viewModel.uiState.value.canPickDate)
     }
 
     @Test
@@ -754,7 +837,7 @@ class DisplayViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(LATEST_DATE, state.selectedDate)
         assertEquals(previousContent, state.content)
-        assertEquals(null, state.earliestDate)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
         assertTrue(state.canGoPrevious)
         assertEquals(
             "전시를 불러오지 못했어요",
@@ -1005,6 +1088,7 @@ private fun displayViewModel(
     initialDate = initialDate,
     initialSort = initialSort,
     dateProvider = { LATEST_DATE },
+    firstTopicDate = EARLIEST_DATE,
 )
 
 private fun firstPageQuery(

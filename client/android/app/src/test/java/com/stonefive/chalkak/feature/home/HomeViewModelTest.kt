@@ -1,6 +1,9 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.AiReview
+import com.stonefive.chalkak.domain.model.Banner
+import com.stonefive.chalkak.domain.model.BannerPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -19,6 +22,10 @@ import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewFailure
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
+import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -102,7 +109,13 @@ class HomeViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("own-$TODAY"), repository.details)
         assertEquals(
-            HomeHeroState.Photo("original-own-$TODAY", "thumb-$TODAY", "signature", "signature-thumb"),
+            HomeHeroState.Photo(
+                "original-own-$TODAY",
+                "thumb-$TODAY",
+                "signature",
+                "signature-thumb",
+                postId = "own-$TODAY",
+            ),
             viewModel.uiState.value.hero,
         )
     }
@@ -115,7 +128,7 @@ class HomeViewModelTest {
         }
         val viewModel = createViewModel(repository)
         advanceUntilIdle()
-        assertEquals(HomeHeroState.Photo("thumb-$TODAY"), viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.Photo("thumb-$TODAY", postId = "own-$TODAY"), viewModel.uiState.value.hero)
     }
 
     @Test
@@ -423,22 +436,236 @@ class HomeViewModelTest {
         )
     }
 
+    @Test
+    fun `guest loads latest banner independently of failed rankings`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            todayFailure = HomeFailure.Network
+            bannerResult = HomeResult.Success(BannerPage(1, 1, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository, MutableStateFlow(UserSessionState.Guest))
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10), repository.bannerQueries)
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+        assertEquals(0, repository.statusCalls)
+    }
+
+    @Test
+    fun `initial banner failure does not fail other home sections`() = runTest {
+        val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Failure(HomeFailure.Network) }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.bannerStatus)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.trending.status)
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
+    }
+
+    @Test
+    fun `refresh preserves banner on failure and removes it on empty success`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 1, false, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+    }
+
+    @Test
+    fun `slow banner does not delay initial home readiness`() = runTest {
+        val repository = FakeHomeRepository().apply { bannerGate = CompletableDeferred() }
+        val viewModel = createViewModel(repository)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertEquals(HomeSectionStatus.Loading, viewModel.uiState.value.bannerStatus)
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+    }
+
+    @Test
+    fun `cancelled banner response cannot repopulate signed out home`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerGate = CompletableDeferred()
+            bannerResult = HomeResult.Success(BannerPage(1, 1, false, listOf(banner())))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        session.value = UserSessionState.SignedOut
+        runCurrent()
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `banner pagination appends ten items and stops after last page`() = runTest {
+        val first = List(10) { banner().copy(id = "first-$it") }
+        val second = List(10) { banner().copy(id = "second-$it") }
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, first))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(first, viewModel.uiState.value.banners)
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, second))
+        viewModel.loadMoreBanners()
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10, 2 to 10), repository.bannerQueries)
+        assertEquals(first + second, viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.bannerHasNext)
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+    }
+
+    @Test
+    fun `banner pagination failure retries same page and deduplicates overlapping items`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertTrue(viewModel.uiState.value.bannerLoadMoreError)
+        assertTrue(viewModel.uiState.value.bannerHasNext)
+        val next = banner().copy(id = "next")
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, listOf(banner(), next)))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10, 2 to 10, 2 to 10), repository.bannerQueries)
+        assertEquals(listOf(banner(), next), viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.bannerLoadMoreError)
+    }
+
+    @Test
+    fun `banner pagination does not request after false or empty page`() = runTest {
+        for (page in listOf(
+            BannerPage(1, 10, false, listOf(banner())),
+            BannerPage(1, 10, true, emptyList()),
+        )) {
+            val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Success(page) }
+            val viewModel = createViewModel(repository)
+            advanceUntilIdle()
+            viewModel.loadMoreBanners()
+            advanceUntilIdle()
+            assertEquals(listOf(1 to 10), repository.bannerQueries)
+        }
+    }
+
+    @Test
+    fun `banner refresh replaces accumulated pages and restarts pagination`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, listOf(banner().copy(id = "old"))))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        val fresh = banner().copy(id = "fresh")
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(fresh)))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf(fresh), viewModel.uiState.value.banners)
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, emptyList()))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        viewModel.loadMoreBanners()
+        assertEquals(listOf(1 to 10, 2 to 10, 1 to 10, 2 to 10), repository.bannerQueries)
+        assertFalse(viewModel.uiState.value.bannerHasNext)
+    }
+
+    @Test
+    fun `refresh cancels pagination and ignores late response`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        val staleGate = CompletableDeferred<Unit>()
+        repository.bannerGate = staleGate
+        viewModel.loadMoreBanners()
+        runCurrent()
+        repository.bannerGate = null
+        val fresh = banner().copy(id = "fresh")
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(fresh)))
+        viewModel.refresh()
+        runCurrent()
+        staleGate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(fresh), viewModel.uiState.value.banners)
+        assertEquals(1, viewModel.uiState.value.bannerCurrentPage)
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+        assertEquals(listOf(1 to 10, 2 to 10, 1 to 10), repository.bannerQueries)
+    }
+
+    @Test
+    fun `cancelled pagination cannot repopulate signed out home`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+        repository.bannerGate = CompletableDeferred()
+        viewModel.loadMoreBanners()
+        runCurrent()
+        session.value = UserSessionState.SignedOut
+        runCurrent()
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+    }
+
     private fun createViewModel(
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
-    ) = HomeViewModel(repository, repository, session, dateProvider).also {
+    ) = HomeViewModel(repository, repository, session, repository, repository, dateProvider).also {
         it.startPreloading()
     }
 }
 
 private class FakeHomeRepository :
     PostRepository,
-    PhotoUploadEntryRepository {
+    PhotoUploadEntryRepository,
+    BannerRepository,
+    AiReviewRepository {
     val contentQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val months = mutableListOf<YearMonth>()
     val details = mutableListOf<String>()
+    val bannerQueries = mutableListOf<Pair<Int, Int>>()
+    var bannerResult: HomeResult<BannerPage> = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
+    var bannerGate: CompletableDeferred<Unit>? = null
     var statusCalls = 0
     var records = emptyList<PostCalendarItem>()
     var calendarFailure = false
@@ -447,6 +674,22 @@ private class FakeHomeRepository :
     var yesterdayFailure: HomeFailure? = null
     var calendarGate: CompletableDeferred<Unit>? = null
     var uploadStatus: TodayPostStatusResult = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+
+    override suspend fun getReview(postId: String): AiReviewResponseResult = AiReviewResponseResult.Success(
+        AiReview(AiReview.Status.NONE, null, null, null, false),
+    )
+
+    override suspend fun requestReview(postId: String): AiReviewResponseResult =
+        AiReviewResponseResult.Failure(AiReviewFailure.Network)
+
+    override suspend fun getBanners(
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<BannerPage> {
+        bannerQueries += page to pageSize
+        bannerGate?.let { gate -> withContext(NonCancellable) { gate.await() } }
+        return bannerResult
+    }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         contentQueries += query
@@ -513,4 +756,13 @@ private fun photo(id: String) = Post(
     contentDescription = "사진 $id",
     title = null,
     likeCount = 10,
+)
+
+private fun banner() = Banner(
+    id = "banner-id",
+    title = "서버 배너 제목",
+    subtitle = "서버 배너 설명",
+    webViewUrl = "https://example.com/issue",
+    thumbnailUrl = "https://example.com/banner.jpg",
+    createdAt = "2026-10-20T08:08:11.001Z",
 )

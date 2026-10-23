@@ -57,6 +57,7 @@ import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.feature.photoedit.PhotoEditRoute
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
 import java.io.File
@@ -107,12 +108,26 @@ fun PhotoUploadRoute(
         }
     }
 
+    val editingPhoto = uiState.editingPhoto
+    if (editingPhoto != null) {
+        PhotoEditRoute(
+            imageUri = editingPhoto.imageUri,
+            initialEdit = editingPhoto.initialEdit,
+            sessionId = editingPhoto.id,
+            onEditCompleted = { edit -> viewModel.onEditConfirmed(editingPhoto.imageUri, edit) },
+            onEditCanceled = viewModel::onEditCanceled,
+            modifier = modifier,
+        )
+        return
+    }
+
     PhotoUploadScreen(
         uiState = uiState.copy(
             isCameraAvailable = photoPickerState.isCameraAvailable,
         ),
         onAction = viewModel::onAction,
         onRetryTopicLoad = viewModel::retryTopicLoad,
+        onPhotoClick = viewModel::onPhotoClick,
         modifier = modifier,
     )
 }
@@ -139,6 +154,7 @@ fun PhotoUploadScreen(
     onAction: (PhotoUploadUiAction) -> Unit,
     modifier: Modifier = Modifier,
     onRetryTopicLoad: () -> Unit = {},
+    onPhotoClick: () -> Unit = {},
 ) {
     val captionScrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
@@ -222,6 +238,9 @@ fun PhotoUploadScreen(
                     onGalleryClick = { onAction(PhotoUploadUiAction.GalleryClicked) },
                     onCameraClick = { onAction(PhotoUploadUiAction.CameraClicked) },
                     modifier = Modifier.fillMaxWidth(),
+                    selectedEdit = uiState.selectedEdit,
+                    isPhotoEditable = !uiState.isSubmitting,
+                    onPhotoClick = onPhotoClick,
                 )
 
                 Spacer(modifier = Modifier.height(34.dp))

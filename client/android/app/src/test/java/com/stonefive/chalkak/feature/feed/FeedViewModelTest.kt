@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.feed
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -13,10 +14,14 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -39,7 +44,17 @@ class FeedViewModelTest {
     @Before
     fun setUp() {
         repository = FakePostRepository()
-        viewModel = FeedViewModel(repository, dateProvider = { TEST_DATE })
+        viewModel =
+            FeedViewModel(
+                repository,
+                aiReviewRepository = FakeAiReviewRepository(),
+                sessionState = MutableStateFlow(
+                    UserSessionState.SignedOut,
+                ),
+                dateProvider = {
+                    TEST_DATE
+                },
+            )
     }
 
     @Test
@@ -77,6 +92,8 @@ class FeedViewModelTest {
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 5일의 주제",
                 topic = "바다",
@@ -113,6 +130,8 @@ class FeedViewModelTest {
 
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             postId = selectedPost.id,
             isOwnedByCurrentUser = true,
         )
@@ -146,6 +165,8 @@ class FeedViewModelTest {
 
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 5일의 주제",
                 topic = "바다",
@@ -209,6 +230,8 @@ class FeedViewModelTest {
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 5일의 주제",
                 topic = "바다",
@@ -248,6 +271,8 @@ class FeedViewModelTest {
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = initial,
             postId = initial.post.id,
         )
@@ -284,6 +309,8 @@ class FeedViewModelTest {
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 5일의 주제",
                 topic = "바다",
@@ -321,6 +348,8 @@ class FeedViewModelTest {
                 .copy(id = "display-mock-photo")
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 5일의 주제",
                 topic = "바다",
@@ -359,7 +388,12 @@ class FeedViewModelTest {
     @Test
     fun `이전 좋아요 응답이 늦게 도착해도 최신 상태를 유지한다`() = runTest {
         val controlledRepository = ControlledPostRepository()
-        val controlledViewModel = FeedViewModel(controlledRepository)
+        val controlledViewModel =
+            FeedViewModel(
+                controlledRepository,
+                aiReviewRepository = FakeAiReviewRepository(),
+                sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            )
 
         controlledViewModel.onLikeClicked()
         controlledViewModel.onLikeClicked()
@@ -379,6 +413,8 @@ class FeedViewModelTest {
             .copy(isOwnedByCurrentUser = true)
         val selectedViewModel = FeedViewModel(
             repository = repository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 3일의 주제",
                 topic = "하늘하늘하늘",
@@ -412,6 +448,8 @@ class FeedViewModelTest {
             .copy(isOwnedByCurrentUser = true)
         val selectedViewModel = FeedViewModel(
             repository = repository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 3일의 주제",
                 topic = "하늘하늘하늘",
@@ -441,6 +479,8 @@ class FeedViewModelTest {
             .copy(isOwnedByCurrentUser = true)
         val selectedViewModel = FeedViewModel(
             repository = repository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 3일의 주제",
                 topic = "하늘하늘하늘",
@@ -477,6 +517,8 @@ class FeedViewModelTest {
             .copy(isOwnedByCurrentUser = true)
         val selectedViewModel = FeedViewModel(
             repository = repository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 27일의 주제",
                 topic = "하늘하늘하늘",
@@ -514,6 +556,8 @@ class FeedViewModelTest {
             .copy(isOwnedByCurrentUser = true)
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 3일의 주제",
                 topic = "하늘하늘하늘",
@@ -586,6 +630,14 @@ private class FakePostRepository : PostRepository {
             HomeResult.Success(HomeLike(if (isLiked) 25 else 24, isLiked))
         }
     }
+}
+
+private class FakeAiReviewRepository : AiReviewRepository {
+    override suspend fun getReview(postId: String): AiReviewResponseResult =
+        AiReviewResponseResult.Success(AiReview(AiReview.Status.NONE, null, null, null, false))
+
+    override suspend fun requestReview(postId: String): AiReviewResponseResult =
+        AiReviewResponseResult.Success(AiReview(AiReview.Status.PROCESSING, null, null, null, false))
 }
 
 private class ControlledPostRepository : PostRepository {

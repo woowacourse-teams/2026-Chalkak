@@ -64,6 +64,7 @@ data class FeedById(
     val postId: String,
     val isOwnedByCurrentUser: Boolean,
     val thumbnailImageUrl: String? = null,
+    val openAiReviewResult: Boolean = false,
 )
 
 @Serializable
@@ -85,4 +86,18 @@ data class PhotoUploadSuccess(
     val date: String,
     val topic: String,
     val moderationStatus: String,
+    val quarterTurns: Int = 0,
+    val straightenDegrees: Float = 0f,
+    val cropCenterX: Float = 0.5f,
+    val cropCenterY: Float = 0.5f,
+    val cropWidth: Float = 1f,
+    val cropHeight: Float = 1f,
+    val filter: String = "Original",
+    val exposure: Float = 0f,
+    val contrast: Float = 0f,
+    val highlights: Float = 0f,
+    val shadows: Float = 0f,
+    val blackPoint: Float = 0f,
+    val saturation: Float = 0f,
+    val warmth: Float = 0f,
 )

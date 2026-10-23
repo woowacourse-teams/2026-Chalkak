@@ -5,6 +5,7 @@ import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import java.time.LocalDate
 
 interface PostCreationRepository {
@@ -12,7 +13,10 @@ interface PostCreationRepository {
 
     suspend fun getCreationTopic(topicDate: LocalDate): PostCreationTopicResult
 
-    suspend fun prepareImage(imageUri: String): PostImagePreparationResult
+    suspend fun prepareImage(
+        imageUri: String,
+        edit: PhotoEdit,
+    ): PostImagePreparationResult
 
     fun discardPreparedImage(preparation: PostImagePreparation)
 

@@ -10,9 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -21,7 +19,6 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import java.time.LocalDate
 
-private val FeedCaptionHorizontalPadding = 20.dp
 private const val FEED_TOPIC_RESIZE_DURATION_MILLIS = 180
 
 @Composable
@@ -31,6 +28,7 @@ fun FeedContent(
     modifier: Modifier = Modifier,
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    onPhotoBoundsChanged: (Rect) -> Unit = {},
 ) {
     if (content == null && (entryPostId == null || entryThumbnailImageUrl == null)) return
 
@@ -40,6 +38,7 @@ fun FeedContent(
         modifier = modifier,
         entryPostId = entryPostId,
         entryThumbnailImageUrl = entryThumbnailImageUrl,
+        onPhotoBoundsChanged = onPhotoBoundsChanged,
     )
 }
 
@@ -80,6 +79,7 @@ private fun FeedPostContent(
     modifier: Modifier = Modifier,
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    onPhotoBoundsChanged: (Rect) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -100,25 +100,7 @@ private fun FeedPostContent(
             modifier = Modifier.fillMaxWidth(),
             entryPostId = entryPostId,
             entryThumbnailImageUrl = entryThumbnailImageUrl,
+            onPhotoBoundsChanged = onPhotoBoundsChanged,
         )
-        if (content != null) {
-            FeedCaption(
-                title = content.post.title,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .feedCaptionDivider(ChalkakTheme.colors.divider)
-                    .padding(horizontal = FeedCaptionHorizontalPadding, vertical = 5.dp),
-            )
-        }
     }
-}
-
-private fun Modifier.feedCaptionDivider(color: Color): Modifier = drawBehind {
-    val strokeWidth = 0.5.dp.toPx()
-    drawLine(
-        color = color,
-        start = Offset(0f, strokeWidth / 2),
-        end = Offset(size.width, strokeWidth / 2),
-        strokeWidth = strokeWidth,
-    )
 }

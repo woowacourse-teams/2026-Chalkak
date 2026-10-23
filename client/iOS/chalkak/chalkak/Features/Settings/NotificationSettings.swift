@@ -5,6 +5,7 @@ import UserNotifications
 struct NotificationSettings: Codable, Equatable, Sendable {
     let topicPushEnabled: Bool
     let moderationPushEnabled: Bool
+    let aiReviewPushEnabled: Bool
 }
 
 struct NotificationSettingsViewState: Equatable, Sendable {
@@ -12,9 +13,11 @@ struct NotificationSettingsViewState: Equatable, Sendable {
     var isLoading = false
     var isSavingTopic = false
     var isSavingModeration = false
-    var isSaving: Bool { isSavingTopic || isSavingModeration }
+    var isSavingAIReview = false
+    var isSaving: Bool { isSavingTopic || isSavingModeration || isSavingAIReview }
     var isTopicDisabled: Bool { isLoading || isSavingTopic || settings == nil }
     var isModerationDisabled: Bool { isLoading || isSavingModeration || settings == nil }
+    var isAIReviewDisabled: Bool { isLoading || isSavingAIReview || settings == nil }
     var errorMessage: String?
 }
 
@@ -22,7 +25,7 @@ struct NotificationSettingsViewState: Equatable, Sendable {
 @Observable
 final class NotificationSettingsViewModel {
     typealias Loader = @MainActor @Sendable () async throws -> NotificationSettings
-    typealias Saver = @MainActor @Sendable (Bool?, Bool?) async throws -> Void
+    typealias Saver = @MainActor @Sendable (Bool?, Bool?, Bool?) async throws -> Void
 
     private(set) var saveErrorMessage: String?
     private(set) var viewState: NotificationSettingsViewState
@@ -33,7 +36,7 @@ final class NotificationSettingsViewModel {
     init(
         initialState: NotificationSettingsViewState = NotificationSettingsViewState(),
         loadSettings: @escaping Loader = { throw SettingsAPIError.configuration },
-        saveSettings: @escaping Saver = { _, _ in throw SettingsAPIError.configuration }
+        saveSettings: @escaping Saver = { _, _, _ in throw SettingsAPIError.configuration }
     ) {
         viewState = initialState
         self.loadSettings = loadSettings
@@ -70,41 +73,49 @@ final class NotificationSettingsViewModel {
     func consumeSaveError() { saveErrorMessage = nil }
 
     func setTopicPushEnabled(_ enabled: Bool) async {
-        _ = await update(topicPushEnabled: enabled, moderationPushEnabled: nil)
+        _ = await update(topicPushEnabled: enabled, moderationPushEnabled: nil, aiReviewPushEnabled: nil)
     }
 
     func setModerationPushEnabled(_ enabled: Bool) async {
-        _ = await update(topicPushEnabled: nil, moderationPushEnabled: enabled)
+        _ = await update(topicPushEnabled: nil, moderationPushEnabled: enabled, aiReviewPushEnabled: nil)
+    }
+
+    func setAIReviewPushEnabled(_ enabled: Bool) async {
+        _ = await update(topicPushEnabled: nil, moderationPushEnabled: nil, aiReviewPushEnabled: enabled)
     }
 
     func setAllPushEnabled(_ enabled: Bool) async -> Bool {
-        await update(topicPushEnabled: enabled, moderationPushEnabled: enabled)
+        await update(topicPushEnabled: enabled, moderationPushEnabled: enabled, aiReviewPushEnabled: enabled)
     }
 
-    private func update(topicPushEnabled: Bool?, moderationPushEnabled: Bool?) async -> Bool {
+    private func update(topicPushEnabled: Bool?, moderationPushEnabled: Bool?, aiReviewPushEnabled: Bool?) async -> Bool {
         guard !viewState.isLoading,
               topicPushEnabled == nil || !viewState.isSavingTopic,
               moderationPushEnabled == nil || !viewState.isSavingModeration,
-              topicPushEnabled != nil || moderationPushEnabled != nil,
+              aiReviewPushEnabled == nil || !viewState.isSavingAIReview,
+              topicPushEnabled != nil || moderationPushEnabled != nil || aiReviewPushEnabled != nil,
               let topic = topicPushEnabled ?? viewState.settings?.topicPushEnabled,
-              let moderation = moderationPushEnabled ?? viewState.settings?.moderationPushEnabled
+              let moderation = moderationPushEnabled ?? viewState.settings?.moderationPushEnabled,
+              let aiReview = aiReviewPushEnabled ?? viewState.settings?.aiReviewPushEnabled
         else { return false }
 
         let requestGeneration = generation
         let previousSettings = viewState.settings
-        viewState.settings = NotificationSettings(topicPushEnabled: topic, moderationPushEnabled: moderation)
+        viewState.settings = NotificationSettings(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
         saveErrorMessage = nil
         if topicPushEnabled != nil { viewState.isSavingTopic = true }
         if moderationPushEnabled != nil { viewState.isSavingModeration = true }
+        if aiReviewPushEnabled != nil { viewState.isSavingAIReview = true }
         viewState.errorMessage = nil
         defer {
             if requestGeneration == generation {
                 if topicPushEnabled != nil { viewState.isSavingTopic = false }
                 if moderationPushEnabled != nil { viewState.isSavingModeration = false }
+                if aiReviewPushEnabled != nil { viewState.isSavingAIReview = false }
             }
         }
         do {
-            try await saveSettings(topicPushEnabled, moderationPushEnabled)
+            try await saveSettings(topicPushEnabled, moderationPushEnabled, aiReviewPushEnabled)
             try Task.checkCancellation()
             guard requestGeneration == generation else { return false }
             return true
@@ -118,7 +129,10 @@ final class NotificationSettingsViewModel {
                         : viewState.settings?.topicPushEnabled ?? previousSettings.topicPushEnabled,
                     moderationPushEnabled: moderationPushEnabled != nil
                         ? previousSettings.moderationPushEnabled
-                        : viewState.settings?.moderationPushEnabled ?? previousSettings.moderationPushEnabled
+                        : viewState.settings?.moderationPushEnabled ?? previousSettings.moderationPushEnabled,
+                    aiReviewPushEnabled: aiReviewPushEnabled != nil
+                        ? previousSettings.aiReviewPushEnabled
+                        : viewState.settings?.aiReviewPushEnabled ?? previousSettings.aiReviewPushEnabled
                 )
             } else {
                 viewState.settings = nil

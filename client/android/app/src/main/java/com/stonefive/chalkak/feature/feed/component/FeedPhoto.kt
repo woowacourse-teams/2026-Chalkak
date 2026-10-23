@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -24,11 +25,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -46,6 +50,7 @@ import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransit
 import com.stonefive.chalkak.core.designsystem.component.image.LocalSharedTransitionScope
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.component.image.SharedPhotoImage
+import com.stonefive.chalkak.core.designsystem.theme.ChalkakPhotoActionText
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 
@@ -57,12 +62,15 @@ fun FeedPhoto(
     modifier: Modifier = Modifier,
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
+    onPhotoBoundsChanged: (Rect) -> Unit = {},
 ) {
     val postId = post?.id ?: entryPostId ?: return
     val entrySnapshot = LocalPhotoTransitionCoordinator.current.selectedSnapshot(postId)
     Column(modifier = modifier) {
         ZoomableFeedPhotoSurface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().onGloballyPositioned {
+                onPhotoBoundsChanged(it.boundsInWindow())
+            },
             resetKey = postId,
         ) {
             if (entrySnapshot != null || entryThumbnailImageUrl != null) {
@@ -92,7 +100,8 @@ fun FeedPhoto(
             }
         }
         if (post != null) {
-            FeedLikeRow(
+            FeedActionRow(
+                title = post.title,
                 likeCount = post.likeCount,
                 isLiked = isLiked,
                 onLikeClick = onLikeClick,
@@ -248,8 +257,15 @@ private const val MIN_FEED_PHOTO_SCALE = 1f
 private const val MAX_FEED_PHOTO_SCALE = 4f
 internal const val FEED_PHOTO_ZOOM_SURFACE_TAG = "feed_photo_zoom_surface"
 
+private val FeedActionRowHeight = 57.dp
+private val FeedActionRowHorizontalPadding = 14.dp
+private val FeedLikeSpacing = 9.dp
+private val FeedHeartSize = 24.dp
+private val FeedLikeTouchHeight = 44.dp
+
 @Composable
-private fun FeedLikeRow(
+private fun FeedActionRow(
+    title: String?,
     likeCount: Int,
     isLiked: Boolean,
     onLikeClick: () -> Unit,
@@ -257,37 +273,44 @@ private fun FeedLikeRow(
 ) {
     Row(
         modifier = modifier
-            .height(60.dp)
-            .padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 14.dp)
-            .semantics(mergeDescendants = true) {
-                contentDescription = "좋아요 $likeCount"
-                stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
-            }.clickable(
-                interactionSource = null,
-                indication = null,
-                role = Role.Button,
-                onClick = onLikeClick,
-            ),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+            .height(FeedActionRowHeight)
+            .padding(horizontal = FeedActionRowHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            painter = painterResource(
-                if (isLiked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
-            ),
-            contentDescription = null,
-            tint = if (isLiked) {
-                ChalkakTheme.colors.actionPrimary
-            } else {
-                ChalkakTheme.colors.iconSecondary
-            },
-            modifier = Modifier.size(28.dp),
-        )
-        Text(
-            text = likeCount.toString(),
-            color = ChalkakTheme.colors.textSecondary,
-            style = ChalkakTheme.typography.body
-                .copy(fontWeight = FontWeight.Normal),
-        )
+        Row(
+            modifier = Modifier
+                .heightIn(min = FeedLikeTouchHeight)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "좋아요 $likeCount"
+                    stateDescription = if (isLiked) "좋아요 선택됨" else "좋아요 선택 안 됨"
+                }.clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = onLikeClick,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(FeedLikeSpacing),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (isLiked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
+                ),
+                contentDescription = null,
+                tint = if (isLiked) {
+                    ChalkakTheme.colors.actionPrimary
+                } else {
+                    ChalkakPhotoActionText
+                },
+                modifier = Modifier.size(FeedHeartSize),
+            )
+            Text(
+                text = likeCount.toString(),
+                color = ChalkakPhotoActionText,
+                style = ChalkakTheme.typography.body
+                    .copy(fontWeight = FontWeight.Normal),
+            )
+        }
+        FeedCaption(title = title, modifier = Modifier.weight(1f))
     }
 }

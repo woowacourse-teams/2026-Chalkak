@@ -19,6 +19,8 @@ import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import java.io.File
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
@@ -123,7 +125,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostImagePreparationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.prepareImage("content://photo/1"),
+            repository.prepareImage("content://photo/1", PhotoEdit()),
         )
         assertEquals(listOf("upload-policy"), remote.calls)
         assertTrue(encoder.calls.isEmpty())
@@ -136,7 +138,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostImagePreparationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.prepareImage("content://photo/1"),
+            repository.prepareImage("content://photo/1", PhotoEdit()),
         )
         assertEquals(listOf("encode:content://photo/1:5242880"), encoder.calls)
         assertTrue(uploader.calls.isEmpty())
@@ -246,7 +248,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostImagePreparationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.prepareImage("content://photo/1"),
+            repository.prepareImage("content://photo/1", PhotoEdit()),
         )
         assertTrue(uploader.calls.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -258,7 +260,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostImagePreparationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.prepareImage("content://photo/1"),
+            repository.prepareImage("content://photo/1", PhotoEdit()),
         )
         assertTrue(encoder.calls.isEmpty())
     }
@@ -298,6 +300,32 @@ class PostCreationRepositoryImplTest {
     }
 
     @Test
+    fun `준비할 때 편집 내용을 인코더에 넘긴다`() = runTest {
+        val edit = PhotoEdit(quarterTurns = 1, filter = PhotoFilter.Mono)
+
+        prepare(edit = edit)
+
+        assertEquals(listOf(edit), encoder.edits)
+    }
+
+    @Test
+    fun `URL 만료 후 다시 인코딩할 때도 편집 내용을 적용한다`() = runTest {
+        val edit = PhotoEdit(quarterTurns = 1, filter = PhotoFilter.Mono)
+        encoder.fileByteResults += byteArrayOf(1, 2, 3)
+        encoder.fileByteResults += byteArrayOf(1, 2)
+        val preparation = prepare(edit = edit)
+        remote.uploadPolicyResults += ApiResult.Success(
+            uploadPolicy(uploadId = "upload-id-2", maxBytes = 2),
+        )
+        nowNanos = TimeUnit.SECONDS.toNanos(295)
+
+        val result = repository.createPost(preparation, "제목", topic)
+
+        assertTrue(result is PostCreationResult.Success)
+        assertEquals(listOf(edit, edit), encoder.edits)
+    }
+
+    @Test
     fun `PUT 중 취소되어도 임시 파일을 삭제한다`() = runTest {
         uploader.await = CompletableDeferred()
         val preparation = prepare()
@@ -311,8 +339,11 @@ class PostCreationRepositoryImplTest {
         assertFalse(encoder.lastFile?.exists() == true)
     }
 
-    private suspend fun prepare(imageUri: String = "content://photo/1"): PostImagePreparation {
-        val result = repository.prepareImage(imageUri)
+    private suspend fun prepare(
+        imageUri: String = "content://photo/1",
+        edit: PhotoEdit = PhotoEdit(),
+    ): PostImagePreparation {
+        val result = repository.prepareImage(imageUri, edit)
         assertTrue(result is PostImagePreparationResult.Success)
         return (result as PostImagePreparationResult.Success).value
     }
@@ -381,6 +412,7 @@ private class FakeCreationTopicRemoteDataSource(private val events: MutableList<
 
 private class FakePostImageEncoder(private val events: MutableList<String>) : PostImageEncoder {
     val calls = mutableListOf<String>()
+    val edits = mutableListOf<PhotoEdit>()
     var result: PostImageEncodeResult? = null
     var fileBytes = byteArrayOf(1, 2, 3)
     val fileByteResults = ArrayDeque<ByteArray>()
@@ -389,8 +421,10 @@ private class FakePostImageEncoder(private val events: MutableList<String>) : Po
     override suspend fun encode(
         contentUri: String,
         maxBytes: Long,
+        edit: PhotoEdit,
     ): PostImageEncodeResult {
         calls += "encode:$contentUri:$maxBytes"
+        edits += edit
         events += "encode:$contentUri:$maxBytes"
         result?.let { return it }
         val file = File.createTempFile("post-repository-test", ".webp")

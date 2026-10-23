@@ -9,6 +9,8 @@ struct RecordTopBar: View {
     let canGoNext: Bool
     let onPrevious: () -> Void
     let onNext: () -> Void
+    var canPickMonth = false
+    var onMonthTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: theme.spacing.none) {
@@ -19,11 +21,7 @@ struct RecordTopBar: View {
                 action: onPrevious
             )
 
-            Text(month.formatted)
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.textPrimary)
-                .lineLimit(1)
-                .accessibilityAddTraits(.isHeader)
+            monthTitle
 
             arrowButton(
                 systemName: "chevron.right",
@@ -36,6 +34,28 @@ struct RecordTopBar: View {
         }
         .padding(.leading, Metrics.leadingPadding)
         .padding(.top, Metrics.topPadding)
+    }
+
+    // 휠로 고를 수 있을 때만 버튼으로 둔다. 이미지 저장 스냅샷에서는 글자만 그린다.
+    @ViewBuilder
+    private var monthTitle: some View {
+        let title = Text(month.formatted)
+            .font(theme.typography.headline)
+            .foregroundStyle(theme.colors.textPrimary)
+            .lineLimit(1)
+            .accessibilityAddTraits(.isHeader)
+
+        if canPickMonth {
+            Button(action: onMonthTap) {
+                title
+                    .frame(minHeight: Metrics.touchSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("눌러서 날짜를 선택해요")
+        } else {
+            title
+        }
     }
 
     private func arrowButton(

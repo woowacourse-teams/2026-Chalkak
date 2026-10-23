@@ -199,6 +199,38 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun displayReselectRestoresTopHeaderFilterAndFirstPhotoWithoutFloatingButton() {
+        val requested = mutableStateOf(false)
+        var handledRequests = 0
+        setDisplayContent(
+            uiState = scrollableLatestUiState(),
+            scrollToTopRequested = { requested.value },
+            onScrollToTopHandled = {
+                handledRequests++
+                requested.value = false
+            },
+        )
+        val grid = composeRule.onNode(hasScrollAction())
+        repeat(2) { grid.performTouchInput { swipeUp() } }
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+        composeRule.runOnIdle { requested.value = true }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        assertEquals(1, handledRequests)
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+
+        grid.performTouchInput { swipeUp() }
+        composeRule.runOnIdle { requested.value = true }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        assertEquals(2, handledRequests)
+    }
+
+    @Test
     fun changingSortRestoresFilterAndMovesPhotoGridToFirstItem() {
         var selectedSort: PostSort? = null
         setDisplayContent(
@@ -324,6 +356,8 @@ class DisplayScreenTest {
         onLikeClick: (String) -> Unit = {},
         onPreviousDateClick: () -> Unit = {},
         onNextDateClick: () -> Unit = {},
+        scrollToTopRequested: () -> Boolean = { false },
+        onScrollToTopHandled: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -347,6 +381,8 @@ class DisplayScreenTest {
                     onNavigateToBottomBar = {},
                     onOpenFeed = onOpenFeed,
                     onLikeClick = onLikeClick,
+                    scrollToTopRequested = scrollToTopRequested(),
+                    onScrollToTopHandled = onScrollToTopHandled,
                 )
             }
         }

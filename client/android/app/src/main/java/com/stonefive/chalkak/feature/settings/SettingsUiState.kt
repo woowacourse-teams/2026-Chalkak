@@ -12,6 +12,7 @@ data class SettingsUiState(
     val isPushSettingsLoading: Boolean = false,
     val isTopicPushSaving: Boolean = false,
     val isModerationPushSaving: Boolean = false,
+    val isAiReviewPushSaving: Boolean = false,
     val versionName: String,
     val accountDialog: SettingsAccountDialog? = null,
     val pendingMessage: UiMessage? = null,

@@ -22,6 +22,7 @@ import org.junit.runners.Parameterized
 class SettingsPushNotificationCardTest(
     private val topicEnabled: Boolean,
     private val moderationEnabled: Boolean,
+    private val aiReviewEnabled: Boolean,
 ) {
     @get:Rule
     val composeRule = createComposeRule()
@@ -31,6 +32,7 @@ class SettingsPushNotificationCardTest(
         setCardContent()
         assertSwitch("주제 알림", topicEnabled)
         assertSwitch("승인·반려 알림", moderationEnabled)
+        assertSwitch("AI 피드백 알림", aiReviewEnabled)
         composeRule.onAllNodesWithText("기기 알림 설정").assertCountEquals(0)
     }
 
@@ -52,6 +54,14 @@ class SettingsPushNotificationCardTest(
         composeRule.onNodeWithText("승인·반려 알림").performClick()
         assertEquals(emptyList<Boolean>(), topicChanges)
         assertEquals(listOf(!moderationEnabled), moderationChanges)
+    }
+
+    @Test
+    fun aiReviewRowOnlyChangesAiReviewSetting() {
+        val aiReviewChanges = mutableListOf<Boolean>()
+        setCardContent(onAiReviewPushChanged = aiReviewChanges::add)
+        composeRule.onNodeWithText("AI 피드백 알림").performClick()
+        assertEquals(listOf(!aiReviewEnabled), aiReviewChanges)
     }
 
     @Test
@@ -103,7 +113,11 @@ class SettingsPushNotificationCardTest(
     }
 
     private fun switchFor(label: String) = composeRule.onAllNodes(isToggleable())[
-        if (label == "주제 알림") 0 else 1,
+        when (label) {
+            "주제 알림" -> 0
+            "승인·반려 알림" -> 1
+            else -> 2
+        },
     ]
 
     private fun assertSwitch(
@@ -116,17 +130,19 @@ class SettingsPushNotificationCardTest(
     private fun setCardContent(
         onTopicPushChanged: (Boolean) -> Unit = {},
         onModerationPushChanged: (Boolean) -> Unit = {},
+        onAiReviewPushChanged: (Boolean) -> Unit = {},
         isTopicSaving: Boolean = false,
         isModerationSaving: Boolean = false,
     ) {
         composeRule.setContent {
             ChalkakTheme {
                 SettingsPushNotificationCard(
-                    settings = NotificationPushSettings(topicEnabled, moderationEnabled),
+                    settings = NotificationPushSettings(topicEnabled, moderationEnabled, aiReviewEnabled),
                     isTopicSaving = isTopicSaving,
                     isModerationSaving = isModerationSaving,
                     onTopicPushChanged = onTopicPushChanged,
                     onModerationPushChanged = onModerationPushChanged,
+                    onAiReviewPushChanged = onAiReviewPushChanged,
                 )
             }
         }
@@ -134,12 +150,12 @@ class SettingsPushNotificationCardTest(
 
     companion object {
         @JvmStatic
-        @Parameterized.Parameters(name = "topic={0}, moderation={1}")
+        @Parameterized.Parameters(name = "topic={0}, moderation={1}, aiReview={2}")
         fun settings(): List<Array<Boolean>> = listOf(
-            arrayOf(false, false),
-            arrayOf(true, false),
-            arrayOf(false, true),
-            arrayOf(true, true),
+            arrayOf(false, false, false),
+            arrayOf(true, false, true),
+            arrayOf(false, true, true),
+            arrayOf(true, true, false),
         )
     }
 }

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct FeedScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: FeedViewModel
@@ -11,16 +13,19 @@ struct FeedScreen: View {
     @State private var contentProgress: CGFloat = 0
     @State private var isPhotoMoving = true
     @State private var isPhotoInteracting = false
+    @State private var isBackSwiping = false
+    @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
     @State private var hasStartedOpening = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
+    private let opensAIReviewOnEntry: Bool
+    @State private var hasOpenedInitialAIReview = false
     private let usesPhotoTransition: Bool
     @State private var showsDeleteDialog = false
+    @State private var showsAIReviewSheet = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
-    @State private var message: String?
-    @State private var messageDismissTask: Task<Void, Never>?
     // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
     var placeholder: FeedPhotoPlaceholder?
     var zoomSource: FeedZoomSource?
@@ -34,6 +39,7 @@ struct FeedScreen: View {
         zoomSource: FeedZoomSource? = nil,
         transitionSource: FeedZoomRegistry.Source? = nil,
         usesPhotoTransition: Bool = true,
+        opensAIReviewOnEntry: Bool = false,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
     ) {
@@ -41,6 +47,7 @@ struct FeedScreen: View {
         _transitionSource = State(initialValue: transitionSource)
         self.placeholder = placeholder
         self.zoomSource = zoomSource
+        self.opensAIReviewOnEntry = opensAIReviewOnEntry
         self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
@@ -52,30 +59,59 @@ struct FeedScreen: View {
                 .ignoresSafeArea()
                 .opacity(contentProgress)
 
-            VStack(spacing: 0) {
-                FeedTopBar(
-                    onBack: close,
-                    onEdit: {
-                        titleDraft = viewModel.viewState.content?.post.title ?? ""
-                        showsTitleEditDialog = true
-                    },
-                    onDelete: { showsDeleteDialog = true },
-                    isEditVisible: viewModel.viewState.content.map {
-                        $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
-                    } == true,
-                    isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
-                    isEditEnabled: !viewModel.viewState.isDeleting &&
-                        !viewModel.viewState.isUpdatingTitle &&
-                        viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
-                    isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
-                )
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .overlay(alignment: .top) {
+            FeedTopBar(
+                onBack: close,
+                onEdit: {
+                    titleDraft = viewModel.viewState.content?.post.title ?? ""
+                    showsTitleEditDialog = true
+                },
+                onDelete: { showsDeleteDialog = true },
+                isEditVisible: viewModel.viewState.content.map {
+                    $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
+                } == true,
+                isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
+                isEditEnabled: !viewModel.viewState.isDeleting &&
+                    !viewModel.viewState.isUpdatingTitle &&
+                    viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
+                isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
+            )
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.vertical, theme.spacing.md)
+            .opacity(contentProgress)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if canShowAIReview, let aiReview = viewModel.aiReview {
+                FeedAIReviewButton(model: aiReview) { showsAIReviewSheet = true }
+                    .padding(.trailing, theme.spacing.lg)
+                    .padding(.bottom, theme.spacing.md)
                     .opacity(contentProgress)
-
-                content
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .sheet(isPresented: $showsAIReviewSheet) {
+            if let aiReview = viewModel.aiReview {
+                FeedAIReviewSheet(model: aiReview, onDismiss: { showsAIReviewSheet = false }) {
+                    Task {
+                        await aiReview.request()
+                        if aiReview.review?.status == .processing || aiReview.review?.status == .completed {
+                            showsAIReviewSheet = false
+                        }
+                    }
+                }
+                .presentationDetents(aiReviewSheetDetents(aiReview))
+            }
+        }
+        .onChange(of: canObserveAIReview, initial: true) { _, canObserve in
+            guard opensAIReviewOnEntry, canObserve, !hasOpenedInitialAIReview else { return }
+            hasOpenedInitialAIReview = true
+            showsAIReviewSheet = true
+        }
+        .task(id: scenePhase == .active && canObserveAIReview) {
+            guard scenePhase == .active, canObserveAIReview else { return }
+            await viewModel.aiReview?.observe()
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
         .toolbar(.hidden, for: .navigationBar)
@@ -108,9 +144,6 @@ struct FeedScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .onDisappear {
-            messageDismissTask?.cancel()
-        }
         .overlay {
             if showsDeleteDialog {
                 ChalkakConfirmDialog(
@@ -138,7 +171,21 @@ struct FeedScreen: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .overlay(alignment: .bottom) { toast }
+    }
+
+    // 시작 안내와 실패 이유는 내용이 짧아 낮은 높이로, 결과·진행 상태는 펼칠 수 있는 높이로 연다.
+    private func aiReviewSheetDetents(_ aiReview: FeedAIReviewViewModel) -> Set<PresentationDetent> {
+        if aiReview.canRequest { return [.height(Metrics.aiStartSheetHeight)] }
+        if aiReview.failureReason != nil { return [.height(Metrics.aiFailureSheetHeight)] }
+        return [.height(Metrics.aiStatusSheetHeight), .large]
+    }
+
+    private var canShowAIReview: Bool {
+        canObserveAIReview && viewModel.aiReview?.isButtonVisible == true
+    }
+
+    private var canObserveAIReview: Bool {
+        viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
     }
 
     @ViewBuilder
@@ -189,28 +236,16 @@ struct FeedScreen: View {
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
                     onLike: { viewModel.toggleLike() }
                 )
-                // 이동 중인 사진이 주제·캡션 위로 그려지게 한다.
+                // 이동 중인 사진이 주제 위로 그려지게 한다.
                 .zIndex(1)
 
-                if let content {
-                    FeedCaption(title: content.post.title)
-                        .padding(.horizontal, Metrics.captionHorizontal)
-                        .padding(.vertical, Metrics.captionVertical)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .overlay(alignment: .top) {
-                            Rectangle()
-                                .fill(theme.colors.border)
-                                .frame(height: Metrics.dividerHeight)
-                                .accessibilityHidden(true)
-                        }
-                        .opacity(contentProgress)
-                }
             }
-            .padding(.bottom, Metrics.contentBottom)
+            .padding(.top, ChalkakNavigationButton.diameter + 2 * theme.spacing.md)
+            .padding(.bottom, canShowAIReview ? Metrics.aiContentBottom : Metrics.contentBottom)
         }
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
-        .scrollDisabled(isPhotoInteracting)
+        .scrollDisabled(isPhotoMoving || isPhotoInteracting)
     }
 
     // MARK: - 줌 전환
@@ -269,12 +304,13 @@ struct FeedScreen: View {
         zoomRegistry?.activeSource = nil
         withAnimation(Metrics.photoAnimation) {
             photoProgress = 0
-        }
-        withAnimation(Metrics.contentAnimation) {
-            contentProgress = 0
         } completion: {
             zoomRegistry?.activeSource = nil
             onBack()
+        }
+        // 사진이 도착하면 화면을 제거한다. 페이드도 같은 시간에 끝나야 뒤 화면의 터치를 지연시키지 않는다.
+        withAnimation(Metrics.photoAnimation) {
+            contentProgress = 0
         }
     }
 
@@ -287,17 +323,28 @@ struct FeedScreen: View {
     private var backSwipeGesture: some Gesture {
         DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
             .onChanged { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
-                if !isPhotoMoving { captureTransitionSource() }
-                isPhotoMoving = true
+                guard !isClosing, !isPhotoInteracting else { return }
+                if !isBackSwiping {
+                    guard !isPhotoMoving,
+                          value.startLocation.x <= Metrics.backSwipeEdgeWidth,
+                          value.translation.width > abs(value.translation.height) else { return }
+                    isBackSwiping = true
+                    backSwipeTracking = FeedBackSwipeTracking()
+                    captureTransitionSource()
+                    isPhotoMoving = true
+                }
                 zoomRegistry?.activeSource = nil
-                let dragged = max(0, value.translation.width) / Metrics.backSwipeFullDistance
+                backSwipeTracking.update(to: value.translation)
+                let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
                 photoProgress = 1 - min(dragged, 1)
                 contentProgress = photoProgress
             }
             .onEnded { value in
-                guard value.startLocation.x <= Metrics.backSwipeEdgeWidth, !isClosing, !isPhotoInteracting else { return }
-                if value.predictedEndTranslation.width >= Metrics.backSwipeCloseDistance {
+                guard isBackSwiping else { return }
+                isBackSwiping = false
+                guard !isClosing else { return }
+                backSwipeTracking.update(to: value.translation)
+                if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
                     close()
                 } else {
                     open()
@@ -326,21 +373,6 @@ struct FeedScreen: View {
         .accessibilityIdentifier("feed-error")
     }
 
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
-        }
-    }
-
     private func handle(_ event: FeedEvent?) {
         guard let event else { return }
         switch event {
@@ -355,17 +387,7 @@ struct FeedScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 
     private func centered(@ViewBuilder _ inner: () -> some View) -> some View {
@@ -378,14 +400,33 @@ struct FeedScreen: View {
     }
 }
 
+struct FeedBackSwipeTracking {
+    private(set) var distance: CGFloat = 0
+    private var previousTranslation: CGSize = .zero
+
+    mutating func update(to translation: CGSize) {
+        let delta = CGSize(width: translation.width - previousTranslation.width, height: translation.height - previousTranslation.height)
+        // 무시한 세로 움직임의 가로 흔들림이 다음 가로 이동에 한꺼번에 반영되지 않게 한다.
+        previousTranslation = translation
+        guard abs(delta.width) > abs(delta.height) else { return }
+        distance = max(0, distance + delta.width)
+    }
+
+    func projectedDistance(to translation: CGSize) -> CGFloat {
+        let delta = CGSize(width: translation.width - previousTranslation.width, height: translation.height - previousTranslation.height)
+        guard abs(delta.width) > abs(delta.height) else { return distance }
+        return max(0, distance + delta.width)
+    }
+}
+
 private enum Metrics {
     static let topicTop: CGFloat = 16
     static let topicBottom: CGFloat = 40
-    static let captionHorizontal: CGFloat = 20
-    static let captionVertical: CGFloat = 5
-    static let dividerHeight: CGFloat = 0.5
     static let contentBottom: CGFloat = 40
-    static let toastBottomPadding: CGFloat = 32
+    static let aiContentBottom: CGFloat = 90
+    static let aiStartSheetHeight: CGFloat = 320
+    static let aiFailureSheetHeight: CGFloat = 240
+    static let aiStatusSheetHeight: CGFloat = 510
     // Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
     // 스프링이 아닌 고정 시간 곡선이라 실제 이동 시간도 0.3초로 같다.
     static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)

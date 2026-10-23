@@ -9,6 +9,7 @@ struct HomeHeroPhoto: Equatable, Sendable {
     let thumbnailSource: ChalkakImageSource
     let signatureSource: ChalkakImageSource?
     let isPending: Bool
+    var postID: String? = nil
 }
 
 enum HomeHeroState: Equatable, Sendable {
@@ -28,15 +29,31 @@ struct HomeRankingState: Equatable, Sendable {
     var photos: [DisplayPhoto] = []
 }
 
+struct HomeAIReviewState: Equatable, Sendable {
+    var review: AIReview?
+    var isLoading = false
+    var isSubmitting = false
+    var pollingTimedOut = false
+    var message: String?
+    var isUnavailable = false
+}
+
 struct HomeViewState: Equatable, Sendable {
     var date: Date
     var topic = ""
     var topicStatus: HomeSectionStatus = .loading
+    var aiReview = HomeAIReviewState()
     var hero: HomeHeroState = .loading
     var week: [HomeWeekDay]
     var recordsStatus: HomeSectionStatus = .loading
     var yesterday = HomeRankingState()
     var trending = HomeRankingState()
+    var banners: [Banner] = []
+    var bannerStatus: HomeSectionStatus = .loading
+    var bannerCurrentPage = 0
+    var bannerHasNext = false
+    var isLoadingMoreBanners = false
+    var bannerLoadMoreError = false
     var isRefreshing = false
     var isAuthenticated = false
 

@@ -1,8 +1,11 @@
 package com.stonefive.chalkak.data.remote
 
 import com.stonefive.chalkak.data.local.auth.SessionStore
+import com.stonefive.chalkak.data.remote.aireview.AiReviewQueryApi
+import com.stonefive.chalkak.data.remote.aireview.AiReviewRequestApi
 import com.stonefive.chalkak.data.remote.auth.AuthApi
 import com.stonefive.chalkak.data.remote.auth.RefreshApi
+import com.stonefive.chalkak.data.remote.banner.BannerApi
 import com.stonefive.chalkak.data.remote.feedback.FeedbackApi
 import com.stonefive.chalkak.data.remote.notification.NotificationApi
 import com.stonefive.chalkak.data.remote.post.PostApi
@@ -52,12 +55,39 @@ class NetworkModule(
         .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
         .build()
 
+    // AI review POSTs are not transparently retried: a retry could consume a
+    // server-side request attempt after the first request was already accepted.
+    private val aiReviewClient = backendClient
+        .newBuilder()
+        .retryOnConnectionFailure(false)
+        .build()
+
+    private val aiReviewRetrofit = Retrofit
+        .Builder()
+        .baseUrl(httpsBaseUrl)
+        .client(aiReviewClient)
+        .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
+        .build()
+
+    // Public banners must not attach session credentials or trigger token refresh.
+    internal val publicClient = OkHttpClient.Builder().build()
+
+    private val publicRetrofit = Retrofit
+        .Builder()
+        .baseUrl(httpsBaseUrl)
+        .client(publicClient)
+        .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
+        .build()
+
+    val bannerApi: BannerApi = publicRetrofit.create(BannerApi::class.java)
     val authApi: AuthApi = retrofit.create(AuthApi::class.java)
     val topicApi: TopicApi = retrofit.create(TopicApi::class.java)
     val postApi: PostApi = retrofit.create(PostApi::class.java)
     val userApi: UserApi = retrofit.create(UserApi::class.java)
     val feedbackApi: FeedbackApi = retrofit.create(FeedbackApi::class.java)
     val notificationApi: NotificationApi = retrofit.create(NotificationApi::class.java)
+    val aiReviewQueryApi: AiReviewQueryApi = retrofit.create(AiReviewQueryApi::class.java)
+    val aiReviewRequestApi: AiReviewRequestApi = aiReviewRetrofit.create(AiReviewRequestApi::class.java)
     val apiRequestExecutor = ApiRequestExecutor(json = json)
 
     val presignedUploadClient = OkHttpClient

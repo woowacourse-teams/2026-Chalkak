@@ -131,9 +131,17 @@ struct PhotoUploadMessage: Equatable, Sendable {
     let text: String
 }
 
+/// 편집 화면에 넘길 사진. 편집을 마쳐야 업로드할 사진으로 선택된다.
+struct PhotoUploadEditRequest: Identifiable {
+    let id = UUID()
+    let session: PhotoEditSession
+}
+
 struct PhotoUploadViewState {
     var selectedImage: UIImage? = nil
     var selectedImageData: Data? = nil
+    var editRequest: PhotoUploadEditRequest? = nil
+    var canEditSelectedImage = false
     var imagePreparationStatus: PhotoUploadImagePreparationStatus = .idle
     var caption = ""
     var topicTitle: String?
