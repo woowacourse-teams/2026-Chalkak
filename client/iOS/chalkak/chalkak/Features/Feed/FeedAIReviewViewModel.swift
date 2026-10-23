@@ -4,6 +4,10 @@ import Observation
 @MainActor
 @Observable
 final class FeedAIReviewViewModel {
+    // Avoid the isolated-deinit back-deployment crash on iOS 26.2 and older.
+    // No actor-bound cleanup is needed. See swiftlang/swift#88036.
+    nonisolated deinit {}
+
     private(set) var review: AIReview?
     private(set) var isLoading = true
     private(set) var isSubmitting = false
