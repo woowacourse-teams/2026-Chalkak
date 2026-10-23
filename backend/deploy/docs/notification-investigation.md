@@ -94,10 +94,14 @@ filter type = "notification" and stage = "worker_attempt_completed" and receiveC
 `phase`는 오류가 난 위치를 나타내며 수신 시간 필드가 있다고 수신 API 자체가 실패한 것은 아니다.
 기존 폴링 예외 흐름의 두 경우 모두 다음 폴링 전에 1초 대기한다.
 이는 계측 도입 전부터 있던 폴링 오류 대기이며 정상 처리 후 폴링 간격은 1ms를 유지한다.
-추가한 계측 로그의 계산·출력 예외는 로그 객체 내부에서 처리하므로 발송·삭제 결과를 바꾸거나
-이 1초 대기를 유발하지 않는다. 기록 실패 시 예외 클래스만 표준 오류에 남기며 서버의
-`journalctl -u chalkak-backend.service`에서 확인한다. 실패한 계측 표본은 누락될 수 있다. 수신 시각 계측만 실패하면 `queueAgeMs`를 `null`로 남긴다.
-로그는 동기 출력이므로 출력 자체의 실행 비용까지 0이 되는 것은 아니다.
+계측 로그는 기존 Logback 출력 경로를 사용한다. 표준 Appender 내부의 출력·인코딩 예외는
+Logback이 처리하므로 이를 감싸는 별도 `logSafely`와 중복 표준 오류 출력을 두지 않는다.
+로그 인자를 구성하는 애플리케이션 코드의 예외까지 Logback이 처리하는 것은 아니다.
+종료 로그와 별개로 MDC 복원은 `finally`로 보장하고, SQS·DB·FCM 처리 오류에 대한 기존 처리는 유지한다.
+기록에 실패한 계측 표본은 누락될 수 있으며 전체 로깅 장애를 이 계측만으로 감지할 수는 없다.
+수신 시각은 서버에 등록된 `Clock.systemUTC()`를 직접 조회한다. 테스트용 시계가 임의로 예외를
+던지는 경우를 위한 별도 복구는 두지 않는다. SQS 시각의 누락·숫자 형식 오류·음수·미래 값은
+계속 검증하여 `queueAgeMs=null`로 남긴다. 로그는 동기 출력이므로 실행 비용은 남는다.
 
 ```sql
 filter type = "notification" and stage in ["worker_received", "worker_sqs_receive"]

@@ -87,20 +87,18 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private JdbcTemplate jdbc;
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
+    private final LoggerContext appenderContext = new LoggerContext();
     private String failingLogStage;
+    private final AtomicInteger appenderFailureCount = new AtomicInteger();
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
         @Override
-        public synchronized void doAppend(ILoggingEvent event) {
+        protected void append(ILoggingEvent event) {
             if (event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
                     .anyMatch(pair -> pair.key.equals("stage")
                             && pair.value.equals(failingLogStage))) {
-                throw new IllegalStateException("timing log failed");
+                appenderFailureCount.incrementAndGet();
+                throw new IllegalStateException("appender write failed");
             }
-            super.doAppend(event);
-        }
-
-        @Override
-        protected void append(ILoggingEvent event) {
             event.prepareForDeferredProcessing();
             super.append(event);
         }
@@ -112,6 +110,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() {
         appender.list = new CopyOnWriteArrayList<>();
+        appender.setContext(appenderContext);
         appender.start();
         logger.addAppender(appender);
         new DatabaseCleaner(jdbc).clean();
@@ -162,6 +161,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void tearDown() {
         logger.detachAppender(appender);
         appender.stop();
+        appenderContext.stop();
         MDC.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_device_delete ON push_devices");
         jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_device_delete()");
@@ -282,14 +282,15 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("DB 계측 로그가 실패해도 기기 조회와 발송을 완료한다")
-    void process_timingLogFailure_completesDelivery() {
+    @DisplayName("DB 요약의 Logback 출력이 실패해도 기기 조회와 발송을 완료한다")
+    void process_appenderFailure_completesDelivery() {
         // Given
         failingLogStage = "worker_summary";
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
         assertThat(result.retryable()).isFalse();
+        assertThat(appenderFailureCount.get()).isEqualTo(1);
         verify(sender).send(any(), any());
     }
 

@@ -78,7 +78,7 @@ public class SqsPushService {
 
     public void process(Message message, Long sqsReceiveDurationMs) {
         Elapsed elapsed = Elapsed.start();
-        Instant receivedAt = SqsPushLog.findReceivedAt(clock);
+        Instant receivedAt = clock.instant();
         String outcome = "FAILED";
         boolean receivedLogged = false;
         Map<String, String> previousContext = MDC.getCopyOfContextMap();
@@ -103,15 +103,18 @@ public class SqsPushService {
             );
             // 삭제하지 않는다. SQS가 다시 전달하거나 설정된 최대 수신 횟수 이후 DLQ로 이동한다.
         } finally {
-            SqsPushLog.logAttemptCompleted(
-                    message,
-                    receivedAt,
-                    elapsed,
-                    outcome
-            );
-            MDC.clear();
-            if (previousContext != null) {
-                MDC.setContextMap(previousContext);
+            try {
+                SqsPushLog.logAttemptCompleted(
+                        message,
+                        receivedAt,
+                        elapsed,
+                        outcome
+                );
+            } finally {
+                MDC.clear();
+                if (previousContext != null) {
+                    MDC.setContextMap(previousContext);
+                }
             }
         }
     }

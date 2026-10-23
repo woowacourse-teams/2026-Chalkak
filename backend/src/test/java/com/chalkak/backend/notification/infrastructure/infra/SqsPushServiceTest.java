@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
@@ -48,6 +49,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -91,20 +93,18 @@ class SqsPushServiceTest {
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
     private Level previousLogLevel;
+    private final LoggerContext appenderContext = new LoggerContext();
     private String failingLogStage;
+    private final AtomicInteger appenderFailureCount = new AtomicInteger();
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
         @Override
-        public synchronized void doAppend(ILoggingEvent event) {
+        protected void append(ILoggingEvent event) {
             if (event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
                     .anyMatch(pair -> pair.key.equals("stage")
                             && pair.value.equals(failingLogStage))) {
-                throw new IllegalStateException("timing log failed");
+                appenderFailureCount.incrementAndGet();
+                throw new IllegalStateException("appender write failed");
             }
-            super.doAppend(event);
-        }
-
-        @Override
-        protected void append(ILoggingEvent event) {
             event.prepareForDeferredProcessing();
             super.append(event);
         }
@@ -121,6 +121,7 @@ class SqsPushServiceTest {
         previousLogLevel = logger.getLevel();
         logger.setLevel(Level.INFO);
         appender.list = new CopyOnWriteArrayList<>();
+        appender.setContext(appenderContext);
         appender.start();
         logger.addAppender(appender);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -210,6 +211,7 @@ class SqsPushServiceTest {
         logger.setLevel(previousLogLevel);
         logger.detachAppender(appender);
         appender.stop();
+        appenderContext.stop();
         MDC.clear();
         allowVisibilityResponse.countDown();
         client.close();
@@ -710,8 +712,8 @@ class SqsPushServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {"worker_received", "worker_message_deleted",
             "worker_attempt_completed"})
-    @DisplayName("계측 로그가 실패해도 메시지 처리·삭제와 MDC 정리를 완료하며 폴링 오류로 바꾸지 않는다")
-    void poll_timingLogFailure_completesWithoutPollingFailure(String stage) throws Exception {
+    @DisplayName("Logback 출력이 실패해도 메시지 처리·삭제와 MDC 정리를 완료하며 폴링 오류로 바꾸지 않는다")
+    void poll_appenderFailure_completesWithoutPollingFailure(String stage) throws Exception {
         // Given
         failingLogStage = stage;
         receiveOneMessage();
@@ -722,6 +724,7 @@ class SqsPushServiceTest {
         verify(service).process(push);
         assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
                 "AmazonSQS.DeleteMessage");
+        assertThat(appenderFailureCount.get()).isGreaterThanOrEqualTo(1);
         assertThat(logsAtStage("worker_poll_failed")).isEmpty();
         assertThat(logsAtStage("worker_processing_failed")).isEmpty();
         assertThat(MDC.getCopyOfContextMap()).containsExactlyEntriesOf(
@@ -775,33 +778,6 @@ class SqsPushServiceTest {
                 "AmazonSQS.DeleteMessage"
         );
         verify(service).process(push);
-    }
-
-    @Test
-    @DisplayName("수신 시각 계측이 실패해도 메시지는 처리·삭제하고 큐 나이만 생략한다")
-    void poll_receiptClockFailure_completesWithoutQueueAge() throws Exception {
-        // Given
-        Clock failingClock = mock(Clock.class);
-        given(failingClock.instant()).willThrow(new IllegalStateException("clock failed"));
-        worker = new SqsPushService(
-                client,
-                "http://127.0.0.1:" + server.getAddress().getPort() + "/000000000000/test",
-                mapper,
-                service,
-                failingClock,
-                visibilityExecutor
-        );
-        receiveOneMessage();
-        // When
-        worker.poll();
-        // Then
-        verify(service).process(push);
-        assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
-                "AmazonSQS.DeleteMessage");
-        assertThat(logsAtStage("worker_poll_failed")).isEmpty();
-        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
-                .satisfies(log -> assertThat(log).containsEntry("outcome", "DELETED")
-                        .containsEntry("queueAgeMs", null));
     }
 
     @Test
