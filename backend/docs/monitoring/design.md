@@ -155,7 +155,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 | 처음 가져가기까지 대기 시간 | 메트릭 필터 `AiReviewQueueWaitMs` (처리를 끝낸 건의 `queueWaitMs`, 기본값 없음) | 알람 `chalkak-prod-ai-review-queue-wait` (5분 최댓값 5분 이상), 대시보드 | 구현 #692 |
 | 임대 회수·소진 | 메트릭 필터 `AiReviewLeaseRecovery` (`review_abandoned` 중 `SHUTDOWN` 제외, `review_failed`+`LEASE_EXHAUSTED`) | 알람 `chalkak-prod-ai-review-lease-recovery` (5분 합계 1건 이상) | 구현 #692 |
 | AI 리뷰 ERROR 로그 | 메트릭 필터 `AiReviewErrors` (`type=ai_review` 중 `level=ERROR`: `worker_poll_failed`, `result_notification_failed`) | 알람 `chalkak-prod-ai-review-errors` (5분 합계 1건 이상) | 구현 #692 |
-| 워커 정지 | 메트릭 필터 `AiReviewRequested`(요청 로그), `AiReviewProcessed`(완료·실패·재시도 예약·중단 로그)와 metric math: 15분에 요청이 1건 이상인데 처리 로그가 0건 | 알람 `chalkak-prod-ai-review-worker-stalled` | 구현 #692 |
+| 워커 정지 | 메트릭 필터 `AiReviewRequested`(요청 로그), `AiReviewProcessed`(완료·실패·재시도 예약·중단 로그)와 metric math: 연속한 두 15분 구간(2 of 2)에서 모두 요청이 1건 이상인데 처리 로그가 0건 | 알람 `chalkak-prod-ai-review-worker-stalled` | 구현 #692 |
 | 처리 결과 추이, 사유별 실패, 처리 시간 p50·p95 (`queueWaitMs`, `totalMs`, `latencyMs`) | Logs Insights 위젯 | 대시보드 prod AI 리뷰 섹션 | 구현 #692 |
 | OpenAI 응답 시간(모든 호출), 재시도 토큰 비용, 이상 이벤트, 요청·재요청 수 | Logs Insights 저장 쿼리 5개 `chalkak/ai-review/*` | 런북 4절 | 구현 #692 |
 
@@ -164,7 +164,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 한계는 다음과 같다. 경보별 자세한 오탐·놓침은 런북 3절에 있다.
 
 - 대기 시간 경보는 **처리를 끝낸 건만** 잰다. 아직 가져가지 못한 대기는 못 재고, 워커가 완전히 멈추면 이 경보는 울리지 않는다. 알리는 시점도 밀린 건이 끝난 뒤라 지연은 대기 + 처리 시간이다(최악 약 4~5분).
-- 워커 정지 경보는 앱이 살아 있다는 전제다(로그가 있어야 지표 0이 발행된다). 앱 중단은 `chalkak-prod-app-heartbeat`가 맡는다. 구간 경계와 요청이 드문 시간대에서 오탐할 수 있고, 정지 직전 처리 로그와 같은 구간에 있는 요청은 놓친다.
+- 워커 정지 경보는 앱이 살아 있다는 전제다(로그가 있어야 지표 0이 발행된다). 앱 중단은 `chalkak-prod-app-heartbeat`가 맡는다. CloudWatch가 매분 직전 기간을 다시 평가해 한 구간 조건만으로는 정상 요청 직후에도 울리므로, 연속한 두 15분 구간이 모두 "요청은 있는데 처리 로그 0"일 때만 울리게 했다. 감지는 정지 뒤 약 15~30분 걸리고, 요청이 드물어 한 구간에만 요청이 있으면 놓친다(`queue-wait`와 하트비트가 일부 보완).
 - 임대 만료 뒤 다시 가져가는 순간에는 로그가 없다. 원인이 `review_abandoned`로 남지 않는 비정상 종료는 하트비트가 잡는다.
 - `LEASE_EXHAUSTED` 최종 실패는 `failures`와 `lease-recovery`에 모두 잡혀 두 경보가 함께 울릴 수 있다.
 - 운영 지표는 팀 계정을 제외하지 않는다(장애·비용 관측). 일별 집계 4종만 제외한다.
@@ -196,7 +196,7 @@ dev·prod 프로필에서만 `/opt/chalkak/logs/application.log`에 logstash 형
 - **알림 경로는 앱과 독립이다.** 알람 Slack 채널과 webhook은 관리자 알림용과 별도로 두어 앱이나 EC2가 죽어도 알람이 나간다.
 - 알람 설명 문구가 Slack 메시지의 "먼저 확인할 것"이 된다. 대응 절차는 런북의 알람 대응 표를 본다.
 - **집계 누락 알람은 `Dau` 데이터 포인트로 본다.** `chalkak-prod-user-metrics-missing`은 `Dau`의 SampleCount가 1시간 기간 26개 동안 모두 0이면(데이터 포인트 없음) 알린다. 하루 한 번 도는 집계가 한 번 빠져도 2시간 여유를 두고 잡는다. 누락 데이터를 `breaching`으로 처리하므로 첫 집계 전에는 ALARM이 되어 지표가 생긴 뒤에 만든다. 빠진 날은 관리자 API로 다시 집계하며, 이때 데이터 포인트가 발행되어 OK로 돌아온다. 메트릭 필터는 수집 시각을 쓰므로 다시 집계해도 과거 그래프는 바뀌지 않는다.
-- **AI 리뷰 경보는 prod에만 둔다.** 대기열 스냅샷 같은 전용 로그 없이 기존 건별 로그로 잡는다. 최종 실패는 건수(15분 3건), 대기는 처리를 끝낸 건의 최댓값(5분), 워커 정지는 요청 대비 처리 로그 부재(15분)다. `QUOTA_EXCEEDED`(예산 소진)나 OpenAI 장애 같은 계통 문제는 실패 급증 경보가 잡는다. 임계값은 2주 운영 뒤 조정한다.
+- **AI 리뷰 경보는 prod에만 둔다.** 대기열 스냅샷 같은 전용 로그 없이 기존 건별 로그로 잡는다. 최종 실패는 건수(15분 3건), 대기는 처리를 끝낸 건의 최댓값(5분), 워커 정지는 요청 대비 처리 로그 부재(연속한 두 15분 구간)다. `QUOTA_EXCEEDED`(예산 소진)나 OpenAI 장애 같은 계통 문제는 실패 급증 경보가 잡는다. 임계값은 2주 운영 뒤 조정한다.
 - **보존 기간이 지난 날짜는 DB 지표만 다시 집계한다.** 하루 전체가 로그 보존 기간(prod 60일, dev 7일) 안에 들지 않는 날짜는 원본 로그가 모자라 DB 지표만 남기고 `visitors` 같은 로그 지표 키는 남기지 않는다.
 
 ## 7. 보류·제외 항목

@@ -68,7 +68,7 @@ AI 리뷰 로그는 로거 `chalkak.aireview`가 남기며 별도 appender가 �
 | `chalkak-prod-ai-review-queue-wait` | `AiReviewQueueWaitMs` | Maximum | 300초 | `>= 300000` (5분, ms) | 1 of 1 | `notBreaching` |
 | `chalkak-prod-ai-review-lease-recovery` | `AiReviewLeaseRecovery` | Sum | 300초 | `>= 1` | 1 of 1 | `notBreaching` |
 | `chalkak-prod-ai-review-errors` | `AiReviewErrors` | Sum | 300초 | `>= 1` | 1 of 1 | `notBreaching` |
-| `chalkak-prod-ai-review-worker-stalled` | metric math `e1` (아래) | Sum (각 지표) | 900초 | `e1 >= 1` | 1 of 1 | `notBreaching` |
+| `chalkak-prod-ai-review-worker-stalled` | metric math `e1` (아래) | Sum (각 지표) | 900초 | `e1 >= 1` | 2 of 2 | `notBreaching` |
 
 ### 워커 정지 경보의 수식
 
@@ -76,10 +76,10 @@ AI 리뷰 로그는 로거 `chalkak.aireview`가 남기며 별도 appender가 �
 req  = Chalkak/prod AiReviewRequested, Sum, 900초 (ReturnData=false)
 proc = Chalkak/prod AiReviewProcessed, Sum, 900초 (ReturnData=false)
 e1   = IF(FILL(req, 0) >= 1 AND FILL(proc, 0) == 0, 1, 0)   (ReturnData=true)
-조건: e1 >= 1, 1 of 1, 누락 데이터 notBreaching
+조건: e1 >= 1, 2 of 2(연속한 두 15분 구간), 누락 데이터 notBreaching
 ```
 
-15분 구간에 요청은 1건 이상 있는데 처리 로그(완료·실패·재시도 예약·중단)가 하나도 없으면 울린다. 구간을 15분으로 잡은 이유는 요청 뒤 첫 처리 로그까지 최대 약 65초(연결 5초 + 응답 60초)라 구간이 길수록 경계 오탐 비율이 줄기 때문이다. 대신 감지가 늦어진다(10분이면 감지가 5분 빠르고 오탐 확률은 1.5배).
+평가할 때마다 가장 최근 15분 구간 두 개가 **둘 다** `요청 >= 1 AND 처리 로그 == 0`일 때만 울린다. CloudWatch는 매분 가장 최근 구간을 다시 평가하므로 한 구간 조건만으로는 요청 직후 처리 로그가 남기 전의 평가에서 바로 울린다. 그래서 두 구간 연속 조건을 쓴다(근거는 아래 한계 절).
 
 metric math 경보는 식에 들어간 지표 수(2개)만큼 과금된다.
 
@@ -91,7 +91,7 @@ metric math 경보는 식에 들어간 지표 수(2개)만큼 과금된다.
 - `queue-wait`: `처리를 끝낸 AI 리뷰 중 처음 가져가기까지 5분 넘게 기다린 건이 있습니다(재시도 대기 제외). 대시보드 AI 리뷰 구역의 요청·처리 건수와 OpenAI 응답 시간을, 로그에서 worker_poll_failed·review_abandoned를 확인하세요. 아직 처리되지 않은 대기는 이 경보가 재지 못합니다.`
 - `lease-recovery`: `AI 리뷰 처리가 중단돼 임대 만료 뒤 다시 처리되거나 시도 상한(LEASE_EXHAUSTED)으로 실패했습니다. 저장 쿼리 "chalkak/ai-review/이상 이벤트"에서 reason과 errorCode, 같은 시각의 type=error 로그를 확인하세요.`
 - `errors`: `AI 리뷰 ERROR 로그가 발생했습니다. event가 worker_poll_failed면 DB 연결을, result_notification_failed면 알림 로그 그룹의 같은 시각 오류를 확인하세요.`
-- `worker-stalled`: `15분 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, journalctl -u chalkak-backend 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대에는 구간 경계에 걸린 한 건으로 잘못 울릴 수 있으니 다음 15분에 처리 로그가 나오는지 보세요.`
+- `worker-stalled`: `연속한 두 15분 구간(30분) 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, journalctl -u chalkak-backend 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대라면 최근 30분의 요청이 실제로 처리됐는지(처리 로그가 뒤늦게 나왔는지) 먼저 보세요.`
 
 ### 임계값 근거와 한계
 
@@ -103,14 +103,22 @@ metric math 경보는 식에 들어간 지표 수(2개)만큼 과금된다.
 | `queue-wait` | 평소 폴링은 1초, 동시 10건·OpenAI 60초 제한이면 몰려도 수십 초다. 5분이면 사용자가 앱에서 "처리 중"을 오래 본다 | **처리를 끝낸 건만 잰다.** 아직 가져가지 못한 대기는 못 재고, 워커가 완전히 멈추면 끝내 울리지 않는다(`worker-stalled`가 보완). 밀린 건이 끝난 뒤에야 울려 경보 지연은 대기 + 처리 시간(최악 약 4~5분)이다 | 재시도·회수 대기는 `queueWaitMs`에 들어가지 않아 재시도가 많아도 오탐이 없다. 배포 재시작 직후 몰린 건이 늦게 가져가지면 1회 울릴 수 있다 |
 | `lease-recovery` | 종료가 아닌 중단과 소진 실패는 평소 0이어야 한다. 배포 재시작의 `SHUTDOWN`은 빼서 배포마다 울리지 않게 한다 | 로그 없이 프로세스가 죽은 경우(비정상 종료). 임대 만료 뒤 재가져가기 순간에는 로그가 없다. 이 경우는 `chalkak-prod-app-heartbeat`가 담당한다 | `LEASE_EXHAUSTED`는 `failures`와 겹쳐 중복 통보된다 |
 | `errors` | ERROR는 1건부터 조사한다(`notification-errors`와 같은 원칙). DB 장애로 폴링 실패가 1초마다 나도 상태 전환 1번만 통보된다 | 로그 수집 실패(Agent 중지)로 ERROR가 안 들어오는 경우. WARN 수준 이상 징후(`review_stale_update`)는 세지 않는다 | `result_notification_failed` 한 건(그 회차 알림 하나가 빠짐, 결과는 확정됨)도 울린다. DB 일시 장애는 `worker_poll_failed`로 울린다 |
-| `worker-stalled` | 요청이 있는데 처리 로그가 15분간 없으면 폴러 스레드 정지·세마포어 자리 누수·워커 비활성 배포 같은 "앱은 살아 있는데 워커만 멈춤"이다 | ① 정지 직전에 끝난 건의 처리 로그와 정지 뒤 요청이 같은 15분 구간에 있으면 그 구간은 정상으로 보인다(요청이 더 없으면 다음 깨끗한 구간까지 안 울림). ② 처리 로그가 조금이라도 나오는 부분 정지는 `queue-wait`가 늦게 잡는다. ③ 앱 중단은 하트비트가 담당. ④ 요청이 없으면 울리지 않는다(기다리는 사용자가 없음) | ① 구간 끝 무렵(첫 시도 시간 안, 보통 10~40초)에 들어온 따로 떨어진 요청의 첫 처리 로그가 다음 구간에 찍힘(확률 ≈ 첫 시도 시간 ÷ 900초, 1~7%). ② 새벽처럼 요청이 드문 시간에는 다른 건이 가려 주지 못해 잦을 수 있다(하루 따로 떨어진 요청 30건이면 이틀에 한 번 꼴, 추정). ③ 요청 트랜잭션이 롤백되면 행 없이 요청 로그만 남음(드묾, 받아들임) |
+| `worker-stalled` | 요청이 있는데 처리 로그가 연속한 두 15분 구간(30분)에 없으면 폴러 스레드 정지·세마포어 자리 누수·워커 비활성 배포 같은 "앱은 살아 있는데 워커만 멈춤"이다 | ① 요청이 드물어 한 구간에만 요청이 있으면 잡지 못한다(`queue-wait` 경보와 하트비트가 일부 보완). ② 정지 직전에 끝난 건의 처리 로그가 두 구간 중 하나에 있으면 그 구간은 정상으로 보인다. ③ 처리 로그가 조금이라도 나오는 부분 정지는 `queue-wait`가 늦게 잡는다. ④ 앱 중단은 하트비트가 담당. ⑤ 요청이 없으면 울리지 않는다(기다리는 사용자가 없음) | 연속한 두 15분 구간이 모두 "요청은 있는데 처리 로그 0"이어야 하므로 정상 요청 1건이나 처리 직전 평가만으로는 울리지 않는다. 남는 경우는 요청 트랜잭션이 롤백돼 행 없이 요청 로그만 남는 때(드묾, 받아들임)와 두 구간 내내 처리가 멈춘 정상 점검 정도다 |
+
+`worker-stalled`의 평가 조건과 한계다.
+
+- CloudWatch는 매분 직전 기간을 다시 평가한다. 그래서 한 구간 조건만으로는 처리 이력이 없던 상태에서 정상 요청 1건이 들어오면, 처리 로그가 남기 전의 평가에서 바로 울린다. `Period=900`은 요청 뒤 15분을 기다려 주는 유예가 아니다.
+- 그래서 두 구간 연속 조건(`--evaluation-periods 2 --datapoints-to-alarm 2`)으로 바꿨다. 정상 요청 1건이나 처리 직전 평가만으로는 울리지 않고, 오탐이 나려면 연속한 두 15분 구간이 모두 "요청은 있는데 처리 로그 0"이어야 한다.
+- 감지 지연: 정지 뒤 요청이 두 구간(최대 30분)에 걸쳐 계속 들어와야 잡히므로 약 15~30분 걸린다.
+- 놓치는 경우: 요청이 드물어 한 구간에만 요청이 있으면 잡지 못한다. 이때는 `queue-wait` 경보와 하트비트가 일부를 보완한다.
+- 근거: [CloudWatch 경보 평가](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/alarm-evaluation.html)
 
 두 대기 관련 경보의 역할 분담이다.
 
 | 상황 | `queue-wait` | `worker-stalled` | 담당 |
 | --- | --- | --- | --- |
 | 몰림으로 대기가 길어짐(워커는 돎) | 밀린 건이 끝날 때 울림 | 처리 로그가 있어 안 울림 | `queue-wait` |
-| 워커 완전 정지, 앱은 살아 있음 | 안 울림 | 요청이 처리 로그 없는 구간에 들어오면 15분 안에 울림 | `worker-stalled` |
+| 워커 완전 정지, 앱은 살아 있음 | 안 울림 | 정지 뒤 요청이 두 15분 구간에 걸쳐 계속 들어오면 약 15~30분 안에 울림 | `worker-stalled` |
 | 워커가 아주 느려짐 | 늦게 끝난 건에서 울림 | 안 울림 | `queue-wait` (늦게) |
 | 앱 중단 | 안 울림 | 안 울림 (로그 없음 → 누락 → `notBreaching`) | `chalkak-prod-app-heartbeat` |
 
@@ -220,31 +228,33 @@ TAGS="Key=Service,Value=techcourse Key=Role,Value=techcourse-etc Key=ProjectTeam
 
 ### 6-1. 패턴 검증
 
-`test-metric-filter`는 리소스를 만들지 않고 샘플 로그 줄이 패턴에 일치하는지만 본다. 샘플은 앱이 실제로 내는 필드 이름으로 만든 줄이다(`level` 포함). 공유 계정은 삭제가 제한되므로 잘못 만들지 않게 반드시 먼저 한다.
+`test-metric-filter`는 리소스를 만들지 않고 샘플 로그 줄이 패턴에 일치하는지만 본다. 응답의 `eventNumber`는 0부터 세서 표(1부터)와 어긋나므로, 각 샘플 JSON 맨 앞에 `"sample":N` 필드를 넣고 출력은 일치한 줄의 `sample` 번호로 읽는다(필드는 어떤 패턴의 일치 여부도 바꾸지 않는다). 샘플은 앱이 실제로 내는 필드 이름으로 만든 줄이다(`level` 포함). 공유 계정은 삭제가 제한되므로 잘못 만들지 않게 반드시 먼저 한다.
 
 ```bash
-# 샘플 로그 14줄. 번호는 아래 기대 결과의 줄 번호(eventNumber, 1부터)와 같다.
+# 샘플 로그 14줄. 각 줄의 "sample" 값이 아래 기대 결과의 줄 번호(1부터)다. 줄 순서와 번호를 같게 유지한다.
 SAMPLES=(
-  '{"level":"INFO","type":"ai_review","event":"review_requested","requestCount":1,"created":true}'
-  '{"level":"INFO","type":"ai_review","event":"review_requested","requestCount":2,"created":false}'
-  '{"level":"INFO","type":"ai_review","event":"review_completed","queueWaitMs":1200,"totalMs":9000,"latencyMs":7000}'
-  '{"level":"WARN","type":"ai_review","event":"review_failed","queueWaitMs":1500,"totalMs":70000,"errorCode":"TIMEOUT"}'
-  '{"level":"WARN","type":"ai_review","event":"review_failed","queueWaitMs":800,"totalMs":900,"errorCode":"POST_UNAVAILABLE"}'
-  '{"level":"WARN","type":"ai_review","event":"review_failed","queueWaitMs":2000,"totalMs":125000,"errorCode":"LEASE_EXHAUSTED"}'
-  '{"level":"WARN","type":"ai_review","event":"review_retry_scheduled","errorCode":"RATE_LIMITED","retryInMs":10000,"retryAfterUsed":false}'
-  '{"level":"WARN","type":"ai_review","event":"review_abandoned","reason":"SHUTDOWN"}'
-  '{"level":"WARN","type":"ai_review","event":"review_abandoned","reason":"DB_ERROR","errorCode":"DataAccessResourceFailureException"}'
-  '{"level":"ERROR","type":"ai_review","event":"worker_poll_failed","errorCode":"DataAccessResourceFailureException"}'
-  '{"level":"ERROR","type":"ai_review","event":"result_notification_failed","errorCode":"DataAccessResourceFailureException"}'
-  '{"level":"WARN","type":"ai_review","event":"review_stale_update"}'
-  '{"level":"INFO","type":"runtime","threads":80}'
-  '{"level":"INFO","type":"aggregation","metricDate":"2026-10-21","dau":12,"aiReviewUsers":5,"aiReviewRequests":7,"aiReviewCompleted":6,"aiReviewFailed":1}'
+  '{"sample":1,"level":"INFO","type":"ai_review","event":"review_requested","requestCount":1,"created":true}'
+  '{"sample":2,"level":"INFO","type":"ai_review","event":"review_requested","requestCount":2,"created":false}'
+  '{"sample":3,"level":"INFO","type":"ai_review","event":"review_completed","queueWaitMs":1200,"totalMs":9000,"latencyMs":7000}'
+  '{"sample":4,"level":"WARN","type":"ai_review","event":"review_failed","queueWaitMs":1500,"totalMs":70000,"errorCode":"TIMEOUT"}'
+  '{"sample":5,"level":"WARN","type":"ai_review","event":"review_failed","queueWaitMs":800,"totalMs":900,"errorCode":"POST_UNAVAILABLE"}'
+  '{"sample":6,"level":"WARN","type":"ai_review","event":"review_failed","queueWaitMs":2000,"totalMs":125000,"errorCode":"LEASE_EXHAUSTED"}'
+  '{"sample":7,"level":"WARN","type":"ai_review","event":"review_retry_scheduled","errorCode":"RATE_LIMITED","retryInMs":10000,"retryAfterUsed":false}'
+  '{"sample":8,"level":"WARN","type":"ai_review","event":"review_abandoned","reason":"SHUTDOWN"}'
+  '{"sample":9,"level":"WARN","type":"ai_review","event":"review_abandoned","reason":"DB_ERROR","errorCode":"DataAccessResourceFailureException"}'
+  '{"sample":10,"level":"ERROR","type":"ai_review","event":"worker_poll_failed","errorCode":"DataAccessResourceFailureException"}'
+  '{"sample":11,"level":"ERROR","type":"ai_review","event":"result_notification_failed","errorCode":"DataAccessResourceFailureException"}'
+  '{"sample":12,"level":"WARN","type":"ai_review","event":"review_stale_update"}'
+  '{"sample":13,"level":"INFO","type":"runtime","threads":80}'
+  '{"sample":14,"level":"INFO","type":"aggregation","metricDate":"2026-10-21","dau":12,"aiReviewUsers":5,"aiReviewRequests":7,"aiReviewCompleted":6,"aiReviewFailed":1}'
 )
 
-# 패턴을 넣으면 일치한 줄 번호를 출력한다.
+# 패턴을 넣으면 일치한 줄의 "sample" 번호를 공백으로 구분해 한 줄로 출력한다.
+# 응답의 eventNumber는 0부터 세므로 쓰지 않는다.
 tf() {
   aws logs test-metric-filter --region "$REGION" --filter-pattern "$1" \
-    --log-event-messages "${SAMPLES[@]}" --query 'matches[].eventNumber' --output text
+    --log-event-messages "${SAMPLES[@]}" --query 'matches[].eventMessage' --output text \
+    | grep -o '"sample":[0-9]*' | cut -d: -f2 | tr '\n' ' '; echo
 }
 
 tf '{ $.type = "ai_review" && $.event = "review_failed" && $.errorCode != "POST_UNAVAILABLE" }'
@@ -256,7 +266,7 @@ tf '{ $.type = "ai_review" && ($.event = "review_completed" || $.event = "review
 tf '{ $.type = "aggregation" && $.aiReviewUsers >= 0 }'
 ```
 
-| 필터 | 기대 줄 번호 | 확인 포인트 |
+| 필터 | 기대 `sample` 번호 | 확인 포인트 |
 | --- | --- | --- |
 | `AiReviewFinalFailures` | `4 6` | 5(`POST_UNAVAILABLE`)는 빠진다 |
 | `AiReviewQueueWaitMs` | `3 4 5 6` | 7(재시도 예약)은 빠진다 |
@@ -266,7 +276,7 @@ tf '{ $.type = "aggregation" && $.aiReviewUsers >= 0 }'
 | `AiReviewProcessed` | `3 4 5 6 7 8 9` | 12(`review_stale_update`)는 빠진다 |
 | 집계 4개 (`aiReviewUsers`, `aiReviewRequests`, `aiReviewCompleted`, `aiReviewFailed`를 각각) | `14` | 다른 줄은 빠진다 |
 
-기대와 다르면 만들지 않고 패턴을 고친다. 이어서 dev 로그 그룹의 실제 줄로도 한 번 확인한다. Logs Insights에서 `/chalkak/dev/application`에 `filter type = "ai_review" | limit 20`을 실행해 줄을 복사해 `SAMPLES`에 넣어 보면 JSON 최상위 키와 불리언 표기가 샘플과 같은지 볼 수 있다.
+기대와 다르면 만들지 않고 패턴을 고친다. 이어서 dev 로그 그룹의 실제 줄로도 한 번 확인한다. Logs Insights에서 `/chalkak/dev/application`에 `filter type = "ai_review" | limit 20`을 실행해 줄을 복사해 `SAMPLES`에 넣어 보면(`sample` 번호는 새 줄에도 붙인다) JSON 최상위 키와 불리언 표기가 샘플과 같은지 볼 수 있다.
 
 ### 6-2. 메트릭 필터 생성
 
@@ -318,8 +328,8 @@ al errors         AiReviewErrors         Sum     300 1      'AI 리뷰 ERROR 로
 # 워커 정지 (metric math)
 aws cloudwatch put-metric-alarm --region "$REGION" \
   --alarm-name chalkak-prod-ai-review-worker-stalled \
-  --alarm-description '15분 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, journalctl -u chalkak-backend 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대에는 구간 경계에 걸린 한 건으로 잘못 울릴 수 있으니 다음 15분에 처리 로그가 나오는지 보세요.' \
-  --evaluation-periods 1 --datapoints-to-alarm 1 \
+  --alarm-description '연속한 두 15분 구간(30분) 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, journalctl -u chalkak-backend 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대라면 최근 30분의 요청이 실제로 처리됐는지(처리 로그가 뒤늦게 나왔는지) 먼저 보세요.' \
+  --evaluation-periods 2 --datapoints-to-alarm 2 \
   --threshold 1 --comparison-operator GreaterThanOrEqualToThreshold \
   --treat-missing-data notBreaching \
   --metrics '[
@@ -380,10 +390,10 @@ aws cloudwatch set-alarm-state --region "$REGION" \
 
 ### 6-6. 적용 후 체크리스트
 
-- [ ] 6-1의 기대 줄 번호가 모두 맞았다.
+- [ ] 6-1의 기대 `sample` 번호가 모두 맞았다.
 - [ ] 운영 필터 6개와 집계 필터 4개(`AiReview` 접두사)가 prod 로그 그룹에 있다.
 - [ ] 콘솔 `CloudWatch > 지표 > Chalkak/prod`에서 `AiReviewRequested`, `AiReviewProcessed`가 보인다(앱이 살아 있으면 기본값 0으로 발행). `AiReviewQueueWaitMs`는 첫 AI 리뷰 처리 뒤에 생긴다.
-- [ ] 경보 5개가 있고 누락 데이터 처리가 `notBreaching`이며 알림 대상이 `chalkak-prod-alarms`다.
+- [ ] 경보 5개가 있고(`worker-stalled`는 평가가 2 of 2) 누락 데이터 처리가 `notBreaching`이며 알림 대상이 `chalkak-prod-alarms`다.
 - [ ] `worker-stalled` 그래프가 콘솔에서 보인다. 두 지표가 비어 있을 때 `FILL`이 0을 채우는지 빈 결과를 내는지 확인한다(어느 쪽이든 식이 1이 되지는 않는다).
 - [ ] 저장 쿼리 5개를 dev 로그 그룹에서 실행해 결과가 나온다. S5의 `created` 표시와 `bin(1d)` 경계를 확인한다.
 - [ ] 대시보드 AI 리뷰 구역에 데이터가 표시된다.
@@ -396,10 +406,10 @@ aws cloudwatch set-alarm-state --region "$REGION" \
 
 | 막힌 단계 | 콘솔 대체 |
 | --- | --- |
-| `test-metric-filter` | CloudWatch > 로그 그룹 `/chalkak/prod/application` > 지표 필터 생성 화면의 **패턴 테스트**에 샘플 줄을 하나씩 붙여 넣어 기대 결과(6-1 표)와 비교. 저장은 하지 않는다 |
+| `test-metric-filter` | CloudWatch > 로그 그룹 `/chalkak/prod/application` > 지표 필터 생성 화면의 **패턴 테스트**에 샘플 줄을 하나씩 붙여 넣어(`sample` 필드 포함) 일치 여부를 6-1 표의 `sample` 번호와 비교. 저장은 하지 않는다 |
 | `put-metric-filter` | 같은 화면에서 패턴·필터 이름·네임스페이스 `Chalkak/prod`·지표 이름·값·기본값·단위를 2절 표대로 입력. 태그는 지표 필터에 붙일 수 없다 |
 | `put-metric-alarm` (태그 권한 때문이면 `--tags` 줄만 빼고 다시 실행해 본다) | CloudWatch > 경보 > 경보 생성. 단일 지표 경보는 [모니터링 구축 8단계](monitoring.md#8-알람) 흐름 그대로, 통계·기간·조건·누락 데이터는 3절 표대로. 알림은 ALARM과 OK 모두 `chalkak-prod-alarms`. 태그 3개는 입력란이 있으면 붙인다 |
-| 워커 정지 경보(metric math) | 지표 선택에서 `AiReviewRequested`(ID `req`), `AiReviewProcessed`(ID `proc`)를 모두 Sum·15분으로 추가하고 **수식 추가**에 `IF(FILL(req, 0) >= 1 AND FILL(proc, 0) == 0, 1, 0)`을 입력한 뒤 `req`·`proc`의 그래프 표시를 끄고 수식만 남긴다. 조건은 `>= 1`, 1 of 1, 누락 데이터 `notBreaching`. 지표가 한 번도 발행되지 않았으면 콘솔에서는 선택할 수 없어 필터가 지표를 발행한 뒤 만든다 |
+| 워커 정지 경보(metric math) | 지표 선택에서 `AiReviewRequested`(ID `req`), `AiReviewProcessed`(ID `proc`)를 모두 Sum·15분으로 추가하고 **수식 추가**에 `IF(FILL(req, 0) >= 1 AND FILL(proc, 0) == 0, 1, 0)`을 입력한 뒤 `req`·`proc`의 그래프 표시를 끄고 수식만 남긴다. 조건은 `>= 1`, **2 of 2**(경보 조건의 "M 중 N" 입력란에 2와 2), 누락 데이터 `notBreaching`. 지표가 한 번도 발행되지 않았으면 콘솔에서는 선택할 수 없어 필터가 지표를 발행한 뒤 만든다 |
 | `put-query-definition` | Logs Insights에서 로그 그룹을 고르고 4절 쿼리를 붙여 넣은 뒤 **저장**, 이름은 `chalkak/ai-review/<이름>` |
 | `set-alarm-state` | 모니터링 구축 10단계의 임시 알람 |
 
@@ -424,7 +434,7 @@ aws cloudwatch set-alarm-state --region "$REGION" \
 
 임계값은 초안이다. 운영 2주 뒤 다음을 보고 조정한다.
 
-- `worker-stalled` 오탐 빈도: 새벽 등 요청이 드문 시간의 오탐이 잦으면 조건을 `req >= 2`로 올린다(대신 요청 한 건짜리 정지를 놓친다). 평가 구간 15분 유지 여부도 판단한다.
+- `worker-stalled` 오탐 빈도: 오탐이 있으면 원인을 로그로 확인한다. 반대로 요청이 드문 시간대의 정지를 놓친 사례가 있으면 구간 길이(15분)와 연속 조건(2 of 2)을 다시 판단한다.
 - `failures`: 실제 최종 실패율과 사유 분포를 보고 3건/15분이 너무 민감한지, 비율 기준이 필요한지 판단한다.
 - `queue-wait`: 실제 `queueWaitMs`의 p95·최댓값 분포를 보고 5분이 적절한지 본다. 배포 직후 오탐이 있으면 기록한다.
 - `lease-recovery`, `errors`: 평소 0인지 확인한다. 반복되는 원인이 있으면 코드 문제로 이슈를 만든다.
@@ -438,7 +448,7 @@ aws cloudwatch set-alarm-state --region "$REGION" \
 | `chalkak-prod-ai-review-queue-wait` | 대시보드 AI 리뷰 구역의 요청/처리 건수·처리 시간, 로그의 `worker_poll_failed`·`review_abandoned`. 동시 처리 자리가 모자란지(OpenAI 응답 시간 증가)와 배포 재시작 직후인지 확인 |
 | `chalkak-prod-ai-review-lease-recovery` | 저장 쿼리 "이상 이벤트"의 `reason`·`errorCode`, 같은 시각 `type=error` 로그. `LEASE_EXHAUSTED`면 같은 게시물이 계속 중단된 것 |
 | `chalkak-prod-ai-review-errors` | `event`가 `worker_poll_failed`면 DB 연결·Hikari, `result_notification_failed`면 알림 로그 그룹의 같은 시각 오류 |
-| `chalkak-prod-ai-review-worker-stalled` | `chalkak-prod-app-heartbeat` 상태, 서버 `journalctl -u chalkak-backend`의 `ai-review-poll` 스레드 오류, `chalkak.ai-review.worker.enabled` 설정. 다음 15분에 처리 로그가 나오는지 |
+| `chalkak-prod-ai-review-worker-stalled` | `chalkak-prod-app-heartbeat` 상태, 서버 `journalctl -u chalkak-backend`의 `ai-review-poll` 스레드 오류, `chalkak.ai-review.worker.enabled` 설정. 이어지는 15분에도 처리 로그가 나오는지 |
 
 알람이 왔는데 Slack에 메시지가 없으면 Lambda `chalkak-alarm-notifier`의 로그 그룹에서 `alarm_notification_failed`를 검색한다.
 
