@@ -498,7 +498,8 @@ struct ContentView: View {
             showMessage("기록을 보려면 로그인이 필요해요")
             return
         }
-        recordViewModel = Self.makeRecordViewModel(initialDate: date)
+        // 뷰모델을 새로 만들지 않고 날짜만 넘긴다. 새로 만들면 탭 전환 중 재사용된 기록 화면이 불러오지 않아 빈 달력에 멈춘다.
+        Task { await recordViewModel.open(date: date) }
         select(.record)
     }
 
@@ -927,9 +928,8 @@ struct ContentView: View {
         )
     }
 
-    private static func makeRecordViewModel(initialDate: Date? = nil) -> RecordViewModel {
+    private static func makeRecordViewModel() -> RecordViewModel {
         RecordViewModel(
-            initialDate: initialDate,
             apiClient: RecordAPIClient(
                 configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }

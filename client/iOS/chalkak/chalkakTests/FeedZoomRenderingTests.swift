@@ -33,10 +33,21 @@ final class FeedZoomRenderingTests: XCTestCase {
     }
 
     func testPhotoAndSignatureStayStillWhenReturnSwipeProgressIsHeld() async throws {
+        try await assertHeldSwipeGeometry(containerOffset: .zero)
+    }
+
+    func testHeldSwipeGeometryIsIndependentOfContainerOrigin() async throws {
+        // Reproduce the CI origin shift without depending on a simulator's safe area.
+        try await assertHeldSwipeGeometry(containerOffset: CGSize(width: 13, height: -2.5))
+    }
+
+    private func assertHeldSwipeGeometry(containerOffset: CGSize) async throws {
         // Exercise the production transform with synchronous fixtures. Image decoding,
         // original-image crossfades and text rasterization cannot change these frames.
         let state = HeldSwipeGeometry()
-        let host = UIHostingController(rootView: AnyView(HeldSwipePhoto(state: state)))
+        let host = UIHostingController(rootView: AnyView(
+            HeldSwipePhoto(state: state).offset(containerOffset)
+        ))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
         let window = UIWindow(windowScene: scene)
@@ -311,6 +322,7 @@ private final class HeldSwipeGeometry {
 
 private struct HeldSwipePhoto: View {
     let state: HeldSwipeGeometry
+    private let coordinateSpaceName = "heldSwipeContainer"
     static let photoDestination = CGRect(x: 0, y: 0, width: 400, height: 400)
     static let signatureDestination = CGRect(x: 322, y: 340, width: 70, height: 52)
     static let photoSource = FeedZoomRegistry.Source(
@@ -324,15 +336,17 @@ private struct HeldSwipePhoto: View {
         ZStack(alignment: .topLeading) {
             Color.red
                 .frame(width: 400, height: 400)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { state.photoFrame = $0 }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(coordinateSpaceName)) } action: { state.photoFrame = $0 }
                 .feedZoomEffect(progress: state.progress, source: Self.photoSource, destinationFrame: Self.photoDestination)
             Color.blue
                 .frame(width: 70, height: 52)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { state.signatureFrame = $0 }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(coordinateSpaceName)) } action: { state.signatureFrame = $0 }
                 .feedZoomEffect(progress: state.progress, source: Self.signatureSource, destinationFrame: Self.signatureDestination)
                 .offset(x: Self.signatureDestination.minX, y: Self.signatureDestination.minY)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Fixtures and measurements use the same container-relative coordinates.
+        .coordinateSpace(name: coordinateSpaceName)
         .ignoresSafeArea()
     }
 }
