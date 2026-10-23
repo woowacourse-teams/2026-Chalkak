@@ -55,7 +55,9 @@ struct DisplayScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .task {
+        // 홈이나 사진 업로드 완료에서 날짜를 지정해 열면 뷰모델을 새로 만든다. 탭 전환 애니메이션 중에는 화면이 재사용될 수 있어
+        // 나타날 때만이 아니라 뷰모델이 바뀔 때도 다시 불러온다.
+        .task(id: ObjectIdentifier(viewModel)) {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
         }

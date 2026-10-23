@@ -38,8 +38,7 @@ struct RecordScreen: View {
             handle(event)
         }
         .task {
-            guard viewModel.viewState.contentStatus == .loading else { return }
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
         .sheet(isPresented: $isMonthPickerPresented) {
             RecordMonthPickerSheet(
