@@ -23,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+private const val SCROLL_TO_TOP_ANIMATED_ITEM_COUNT = 12
+
 @Stable
 class DisplayScrollBehaviorState(
     gridState: LazyStaggeredGridState,
@@ -182,12 +184,26 @@ class DisplayScrollBehaviorState(
         isFilterTargetHidden = false
     }
 
+    suspend fun scrollToTop() {
+        reset()
+        if (gridState.firstVisibleItemIndex > SCROLL_TO_TOP_ANIMATED_ITEM_COUNT) {
+            gridState.scrollToItem(SCROLL_TO_TOP_ANIMATED_ITEM_COUNT)
+        }
+        gridState.animateScrollToItem(0)
+    }
+
     fun updateLayout(
         gridState: LazyStaggeredGridState,
         hasFilter: Boolean,
     ) {
         this.gridState = gridState
         this.hasFilter = hasFilter
+    }
+
+    fun updateScrollToTopVisibility() {
+        if (!gridState.canScrollBackward && headerOffset == 0f && filterOffset == 0f) {
+            bottomBarState.hideScrollToTopButton()
+        }
     }
 
     private fun settleTopAreas() {
