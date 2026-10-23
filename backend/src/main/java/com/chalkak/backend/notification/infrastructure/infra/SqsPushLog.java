@@ -11,9 +11,12 @@ import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 
 @Slf4j
-public class SqsPushTimingLogger {
+public final class SqsPushLog {
 
-    public Instant findReceivedAt(Clock clock) {
+    private SqsPushLog() {
+    }
+
+    public static Instant findReceivedAt(Clock clock) {
         try {
             return clock.instant();
         } catch (RuntimeException exception) {
@@ -22,7 +25,7 @@ public class SqsPushTimingLogger {
         }
     }
 
-    public void logPolled(Optional<Message> message, Elapsed elapsed) {
+    public static void logPolled(Optional<Message> message, Elapsed elapsed) {
         logSafely(() -> {
             log.atInfo().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_sqs_receive")
@@ -35,7 +38,7 @@ public class SqsPushTimingLogger {
         });
     }
 
-    public void logPollFailed(RuntimeException exception, Elapsed elapsed) {
+    public static void logPollFailed(RuntimeException exception, Elapsed elapsed) {
         logSafely(() -> {
             log.atError().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_poll_failed")
@@ -46,7 +49,8 @@ public class SqsPushTimingLogger {
         });
     }
 
-    public void logProcessingPollFailed(Optional<Message> message, RuntimeException exception) {
+    public static void logProcessingPollFailed(Optional<Message> message,
+            RuntimeException exception) {
         logSafely(() -> {
             log.atError().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_poll_failed")
@@ -59,7 +63,7 @@ public class SqsPushTimingLogger {
         });
     }
 
-    public void logAttemptCompleted(
+    public static void logAttemptCompleted(
             Message message,
             Instant receivedAt,
             Elapsed elapsed,
@@ -75,7 +79,7 @@ public class SqsPushTimingLogger {
         });
     }
 
-    public void logDeleted(Elapsed elapsed) {
+    public static void logDeleted(Elapsed elapsed) {
         logSafely(() -> {
             log.atInfo().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_message_deleted")
@@ -84,7 +88,7 @@ public class SqsPushTimingLogger {
         });
     }
 
-    public void logDeleteFailed(Elapsed elapsed) {
+    public static void logDeleteFailed(Elapsed elapsed) {
         logSafely(() -> {
             // 기존 worker_processing_failed만 ERROR로 남겨 오류 지표를 중복 집계하지 않는다.
             log.atInfo().addKeyValue("type", "notification")
@@ -94,7 +98,7 @@ public class SqsPushTimingLogger {
         });
     }
 
-    public void logReceived(PushMessage pushMessage) {
+    public static void logReceived(PushMessage pushMessage) {
         log.atInfo().addKeyValue("type", "notification").addKeyValue("stage", "worker_received")
                 .addKeyValue("eventId", pushMessage.eventId())
                 .addKeyValue("notificationId", pushMessage.notificationId())
@@ -104,7 +108,7 @@ public class SqsPushTimingLogger {
                 .log("푸시 작업 수신");
     }
 
-    public void logRetryPending(PushMessage pushMessage, Duration retryAfter) {
+    public static void logRetryPending(PushMessage pushMessage, Duration retryAfter) {
         log.atInfo().addKeyValue("type", "notification")
                 .addKeyValue("stage", "worker_retry_pending")
                 .addKeyValue("eventId", pushMessage.eventId())
@@ -114,15 +118,15 @@ public class SqsPushTimingLogger {
                 .log("푸시 작업 재전달 대기");
     }
 
-    public void logProcessingFailed(RuntimeException exception) {
+    public static void logProcessingFailed(RuntimeException exception) {
         logFailure("worker_processing_failed", exception);
     }
 
-    public void logInvalidMessage(RuntimeException exception) {
+    public static void logInvalidMessage(RuntimeException exception) {
         logFailure("worker_invalid_message", exception);
     }
 
-    public void logVisibilityFailed(Message message, RuntimeException exception) {
+    public static void logVisibilityFailed(Message message, RuntimeException exception) {
         // 연장 전용 스레드는 처리 스레드의 MDC를 상속하지 않는다.
         log.atError().addKeyValue("type", "notification")
                 .addKeyValue("stage", "worker_visibility_failed")
@@ -133,7 +137,7 @@ public class SqsPushTimingLogger {
                 .log("푸시 숨김 시간 연장 실패");
     }
 
-    private Long findQueueAgeMillis(Message message, Instant receivedAt) {
+    private static Long findQueueAgeMillis(Message message, Instant receivedAt) {
         if (receivedAt == null) {
             return null;
         }
@@ -154,13 +158,13 @@ public class SqsPushTimingLogger {
         }
     }
 
-    private void logFailure(String stage, RuntimeException exception) {
+    private static void logFailure(String stage, RuntimeException exception) {
         log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
                 .addKeyValue("errorCode", exception.getClass().getSimpleName())
                 .log("푸시 작업 처리 오류");
     }
 
-    private void logSafely(Runnable logging) {
+    private static void logSafely(Runnable logging) {
         try {
             logging.run();
         } catch (RuntimeException exception) {
@@ -168,7 +172,7 @@ public class SqsPushTimingLogger {
         }
     }
 
-    private void logRecordingFailure(RuntimeException exception) {
+    private static void logRecordingFailure(RuntimeException exception) {
         // 같은 로깅 경로로 재출력하지 않는다. 원문·스택·토큰 없이 journald 조사용으로 남긴다.
         System.err.println("알림 계측 로그 기록 실패: " + exception.getClass().getSimpleName());
     }

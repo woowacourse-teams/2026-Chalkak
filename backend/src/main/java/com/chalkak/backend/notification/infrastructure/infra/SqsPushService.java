@@ -28,7 +28,6 @@ public class SqsPushService {
     private final PushWorkerService pushWorkerService;
     private final Clock clock;
     private final ScheduledExecutorService visibilityExtensionExecutor;
-    private final SqsPushTimingLogger timingLogger;
 
     public SqsPushService(
             SqsClient sqsClient,
@@ -36,8 +35,7 @@ public class SqsPushService {
             ObjectMapper objectMapper,
             PushWorkerService pushWorkerService,
             Clock clock,
-            ScheduledExecutorService visibilityExtensionExecutor,
-            SqsPushTimingLogger timingLogger
+            ScheduledExecutorService visibilityExtensionExecutor
     ) {
         this.sqsClient = sqsClient;
         this.queueUrl = queueUrl;
@@ -45,7 +43,6 @@ public class SqsPushService {
         this.pushWorkerService = pushWorkerService;
         this.clock = clock;
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
-        this.timingLogger = timingLogger;
     }
 
     public void poll() {
@@ -54,22 +51,22 @@ public class SqsPushService {
         try {
             message = findMessage();
         } catch (RuntimeException exception) {
-            timingLogger.logPollFailed(exception, elapsed);
+            SqsPushLog.logPollFailed(exception, elapsed);
             waitAfterPollingFailure();
             return;
         }
         try {
-            timingLogger.logPolled(message, elapsed);
+            SqsPushLog.logPolled(message, elapsed);
             message.ifPresent(this::process);
         } catch (RuntimeException exception) {
-            timingLogger.logProcessingPollFailed(message, exception);
+            SqsPushLog.logProcessingPollFailed(message, exception);
             waitAfterPollingFailure();
         }
     }
 
     public void process(Message message) {
         Elapsed elapsed = Elapsed.start();
-        Instant receivedAt = timingLogger.findReceivedAt(clock);
+        Instant receivedAt = SqsPushLog.findReceivedAt(clock);
         String outcome = "FAILED";
         Map<String, String> previousContext = MDC.getCopyOfContextMap();
         MDC.put("sqsMessageId", message.messageId());
@@ -79,10 +76,10 @@ public class SqsPushService {
             outcome = processMessage(message, visibility);
         } catch (RuntimeException exception) {
             outcome = "FAILED";
-            timingLogger.logProcessingFailed(exception);
+            SqsPushLog.logProcessingFailed(exception);
             // 삭제하지 않는다. SQS가 다시 전달하거나 설정된 최대 수신 횟수 이후 DLQ로 이동한다.
         } finally {
-            timingLogger.logAttemptCompleted(
+            SqsPushLog.logAttemptCompleted(
                     message,
                     receivedAt,
                     elapsed,
@@ -126,7 +123,7 @@ public class SqsPushService {
             visibility.finishAttempt(() -> delete(message));
             return "INVALID_MESSAGE_DELETED";
         }
-        timingLogger.logReceived(pushMessage);
+        SqsPushLog.logReceived(pushMessage);
         PushProcessingResult result = pushWorkerService.process(pushMessage);
         visibility.finishAttempt(() -> handleProcessingResult(
                 message,
@@ -143,7 +140,7 @@ public class SqsPushService {
         try {
             return objectMapper.readValue(message.body(), PushMessage.class);
         } catch (tools.jackson.core.JacksonException exception) {
-            timingLogger.logInvalidMessage(exception);
+            SqsPushLog.logInvalidMessage(exception);
             return null;
         }
     }
@@ -162,7 +159,7 @@ public class SqsPushService {
                 pushMessage,
                 result
         );
-        timingLogger.logRetryPending(pushMessage, result.retryAfter());
+        SqsPushLog.logRetryPending(pushMessage, result.retryAfter());
     }
 
     private void extendVisibility(Message message) {
@@ -172,7 +169,7 @@ public class SqsPushService {
                     .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                             .apiCallAttemptTimeout(Duration.ofSeconds(5))));
         } catch (RuntimeException exception) {
-            timingLogger.logVisibilityFailed(message, exception);
+            SqsPushLog.logVisibilityFailed(message, exception);
         }
     }
 
@@ -201,10 +198,10 @@ public class SqsPushService {
                     .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                             .apiCallAttemptTimeout(Duration.ofSeconds(5))));
         } catch (RuntimeException exception) {
-            timingLogger.logDeleteFailed(elapsed);
+            SqsPushLog.logDeleteFailed(elapsed);
             throw exception;
         }
-        timingLogger.logDeleted(elapsed);
+        SqsPushLog.logDeleted(elapsed);
     }
 
     private final class VisibilityExtension implements AutoCloseable {

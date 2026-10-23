@@ -183,8 +183,7 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                visibilityExecutor,
-                new SqsPushTimingLogger()
+                visibilityExecutor
         );
         push = new PushMessage(
                 UUID.randomUUID(),
@@ -285,8 +284,7 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 advancingClock,
-                visibilityExecutor,
-                new SqsPushTimingLogger()
+                visibilityExecutor
         );
         Message received = message.toBuilder().attributes(Map.of(
                 MessageSystemAttributeName.SENT_TIMESTAMP,
@@ -769,8 +767,7 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 failingClock,
-                visibilityExecutor,
-                new SqsPushTimingLogger()
+                visibilityExecutor
         );
         receiveOneMessage();
         // When
@@ -802,8 +799,7 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                mock(ScheduledExecutorService.class),
-                new SqsPushTimingLogger()
+                mock(ScheduledExecutorService.class)
         );
         FutureTask<Boolean> polling = new FutureTask<>(() -> {
             interruptedWorker.poll();

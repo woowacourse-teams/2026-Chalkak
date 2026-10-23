@@ -5,7 +5,7 @@ import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushSender;
-import com.chalkak.backend.notification.service.PushWorkerTimingLogger;
+import com.chalkak.backend.notification.service.PushWorkerTimingLog;
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.ApnsConfig;
@@ -28,7 +28,6 @@ public class FcmDevicePushSender implements DevicePushSender {
 
     private final FirebaseMessaging messaging;
     private final Clock clock;
-    private final PushWorkerTimingLogger timingLogger = new PushWorkerTimingLogger();
 
     public FcmDevicePushSender(FirebaseMessaging messaging, Clock clock) {
         this.messaging = messaging;
@@ -56,7 +55,7 @@ public class FcmDevicePushSender implements DevicePushSender {
             messaging.send(message);
             accepted = true;
         } finally {
-            timingLogger.logFcmRequest(
+            PushWorkerTimingLog.logFcmRequest(
                     request,
                     elapsed,
                     accepted

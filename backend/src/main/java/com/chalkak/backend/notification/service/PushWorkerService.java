@@ -29,6 +29,7 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
@@ -44,7 +45,6 @@ public class PushWorkerService {
     private final DevicePushSender sender;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
-    private final PushWorkerTimingLogger timingLogger = new PushWorkerTimingLogger();
 
     public PushWorkerService(
             NotificationRepository notificationRepository,
@@ -121,22 +121,12 @@ public class PushWorkerService {
     }
 
     private List<UUID> findDeviceIds(PushMessage message) {
-        Elapsed elapsed = Elapsed.start();
-        boolean completed = false;
-        try {
-            List<UUID> deviceIds = transactionTemplate
-                    .execute(status -> deviceRepository.findIdsByUserId(message.userId()));
-            completed = true;
-            return deviceIds;
-        } finally {
-            timingLogger.logTransaction(
-                    message,
-                    null,
-                    "DEVICE_LOOKUP",
-                    elapsed,
-                    completed
-            );
-        }
+        return executeMeasuredTransaction(
+                message,
+                null,
+                "DEVICE_LOOKUP",
+                status -> deviceRepository.findIdsByUserId(message.userId())
+        );
     }
 
     private Duration findLongestRetryAfter(Duration current, DevicePushResult result) {
@@ -239,36 +229,43 @@ public class PushWorkerService {
             UUID deviceId,
             FcmToken token
     ) {
-        Elapsed elapsed = Elapsed.start();
-        boolean completed = false;
-        try {
-            transactionTemplate.executeWithoutResult(status -> deviceRepository
-                    .deleteByIdAndTokenHash(deviceId, token.getHash()));
-            completed = true;
-        } finally {
-            timingLogger.logTransaction(
-                    message,
-                    deviceId,
-                    "INVALID_TOKEN_CLEANUP",
-                    elapsed,
-                    completed
-            );
-        }
+        executeMeasuredTransaction(
+                message,
+                deviceId,
+                "INVALID_TOKEN_CLEANUP",
+                status -> {
+                    deviceRepository.deleteByIdAndTokenHash(deviceId, token.getHash());
+                    return null;
+                }
+        );
     }
 
     private DevicePushRequest findCurrentRequest(PushMessage message, UUID deviceId) {
+        return executeMeasuredTransaction(
+                message,
+                deviceId,
+                "LATEST_CONDITIONS_LOOKUP",
+                status -> findRequest(message, deviceId)
+        );
+    }
+
+    private <T> T executeMeasuredTransaction(
+            PushMessage message,
+            UUID deviceId,
+            String operation,
+            TransactionCallback<T> action
+    ) {
         Elapsed elapsed = Elapsed.start();
         boolean completed = false;
         try {
-            DevicePushRequest request = transactionTemplate
-                    .execute(status -> findRequest(message, deviceId));
+            T result = transactionTemplate.execute(action);
             completed = true;
-            return request;
+            return result;
         } finally {
-            timingLogger.logTransaction(
+            PushWorkerTimingLog.logTransaction(
                     message,
                     deviceId,
-                    "LATEST_CONDITIONS",
+                    operation,
                     elapsed,
                     completed
             );

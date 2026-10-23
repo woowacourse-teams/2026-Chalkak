@@ -5,9 +5,12 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class PushWorkerTimingLogger {
+public final class PushWorkerTimingLog {
 
-    public void logTransaction(
+    private PushWorkerTimingLog() {
+    }
+
+    public static void logTransaction(
             PushMessage message,
             UUID deviceId,
             String operation,
@@ -29,7 +32,7 @@ public class PushWorkerTimingLogger {
         });
     }
 
-    public void logFcmRequest(
+    public static void logFcmRequest(
             DevicePushRequest request,
             Elapsed elapsed,
             boolean accepted
@@ -47,7 +50,7 @@ public class PushWorkerTimingLogger {
         });
     }
 
-    private void logSafely(Runnable logging) {
+    private static void logSafely(Runnable logging) {
         try {
             logging.run();
         } catch (RuntimeException exception) {

@@ -167,7 +167,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         verify(sender).send(any());
         assertThat(logsAtStage("worker_db_transaction"))
                 .extracting(log -> log.get("operation"))
-                .containsExactly("DEVICE_LOOKUP", "LATEST_CONDITIONS");
+                .containsExactly("DEVICE_LOOKUP", "LATEST_CONDITIONS_LOOKUP");
         assertThat(logsAtStage("worker_db_transaction")).allSatisfy(log -> {
             assertThat(log).containsEntry("transactionCompleted", true)
                     .containsEntry("eventId", message.eventId());
@@ -368,7 +368,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         assertThat(result.retryable()).isTrue();
         assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
         assertThat(logsAtStage("worker_db_transaction"))
-                .filteredOn(log -> "LATEST_CONDITIONS".equals(log.get("operation")))
+                .filteredOn(log -> "LATEST_CONDITIONS_LOOKUP".equals(log.get("operation")))
                 .extracting(log -> log.get("deviceId")).doesNotHaveDuplicates().hasSize(2);
     }
 

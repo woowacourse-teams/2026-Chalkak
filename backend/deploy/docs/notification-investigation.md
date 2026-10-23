@@ -40,8 +40,8 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 밀리초 정수로 기록한다. 두 값을 같은 `long`으로 전달하지 않아 단위 혼동을 막는다. CloudWatch 수집 시각의
 차이를 계산하지 않으므로 Agent의 로그 일괄 수집 간격에 영향을 받지 않는다.
 
-`SqsPushService`는 측정 시작·수신 시각과 처리 결과를 전달하고, `SqsPushTimingLogger`가
-시간 계산과 로그 출력을 담당한다. 로그 객체는 메시지별 상태를 저장하지 않는다.
+`SqsPushService`는 측정 시작·수신 시각과 처리 결과를 전달하고, `SqsPushLog`가
+시간 계산과 로그 출력을 담당한다. 로그 클래스는 메시지별 상태가 없는 정적 메서드로 사용한다.
 
 | 필드 / 로그 단계 | 측정 범위와 해석 |
 | --- | --- |
@@ -103,10 +103,11 @@ DB 계측의 `operation`은 다음과 같다. 정상 생략도 트랜잭션이 �
 | operation | 측정 대상 |
 | --- | --- |
 | `DEVICE_LOOKUP` | 회원의 발송 대상 기기 ID 목록 조회 |
-| `LATEST_CONDITIONS` | 기기·로그인·수신 설정·참여·알림 존재 등 기기별 최신 조건 확인 |
+| `LATEST_CONDITIONS_LOOKUP` | 기기·로그인·수신 설정·참여·알림 존재 등 기기별 최신 조건 확인 |
 | `INVALID_TOKEN_CLEANUP` | 무효 응답을 받은 토큰이 그대로일 때 해당 기기 삭제 |
 
-`PushWorkerTimingLogger`가 DB·FCM 시간 로그를 출력한다. Worker는 SDK 호출 중에만 현재
+DB의 세 처리 구간은 `executeMeasuredTransaction`으로 연결 획득부터 트랜잭션 완료까지 같은 범위를 측정한다.
+FCM SDK 호출은 별도 측정 경계를 유지하며 `PushWorkerTimingLog`가 DB·FCM 시간 로그를 출력한다. Worker는 SDK 호출 중에만 현재
 `deviceId`를 MDC에 연결하고 정상·예외 모두 이전 값으로 복원한다. 따라서 SDK 시간 로그도
 SQS 식별자·수신 횟수·기기 ID로 연결된다. 기기가 없거나 발송 조건·기한 미충족으로 SDK를
 호출하지 않았다면 FCM 시간 로그는 없다. SDK 내부에서 HTTP 요청을 반복해도 한 번의
