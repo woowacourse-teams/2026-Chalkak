@@ -100,7 +100,7 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         message = distributeNotice();
         addDevice();
         sender = mock(DevicePushSender.class);
-        given(sender.send(any())).willReturn(DevicePushResult.accepted());
+        given(sender.send(any(), any())).willReturn(DevicePushResult.accepted());
     }
 
     @AfterEach
@@ -120,7 +120,7 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         assertThat(result.retryable()).isFalse();
         ArgumentCaptor<DevicePushRequest> request = ArgumentCaptor
                 .forClass(DevicePushRequest.class);
-        verify(sender).send(request.capture());
+        verify(sender).send(request.capture(), any());
         assertThat(request.getValue().title()).isEqualTo(TITLE);
         assertThat(request.getValue().body()).isEqualTo(BODY);
         assertThat(request.getValue().message().type()).isEqualTo(NotificationType.NOTICE);
@@ -138,7 +138,7 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         worker(NOW).process(message);
 
         // Then
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @Test
@@ -151,7 +151,7 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         worker(NOW).process(message);
 
         // Then
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @Test
@@ -183,7 +183,7 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
 
         // Then
         if (seconds < 1800) {
-            verify(sender).send(any());
+            verify(sender).send(any(), any());
             return;
         }
         assertSkipped(result, "EXPIRED");
