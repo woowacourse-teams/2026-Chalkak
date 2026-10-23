@@ -36,6 +36,7 @@ chalkak:
     sqs:
       relay-enabled: ${NOTIFICATION_RELAY_ENABLED:false}
       topic-push-enabled: ${NOTIFICATION_TOPIC_PUSH_ENABLED:false}
+      reminder-enabled: ${NOTIFICATION_REMINDER_ENABLED:false}
       queue-url: ${NOTIFICATION_SQS_QUEUE_URL:}
       region: ${AWS_REGION:ap-northeast-2}
     notice:

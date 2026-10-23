@@ -46,6 +46,7 @@ required_keys=(
   NOTIFICATION_RELAY_ENABLED
   NOTIFICATION_TOPIC_PUSH_ENABLED
   NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED
+  NOTIFICATION_REMINDER_ENABLED
   NOTIFICATION_WORKER_ENABLED
   NOTIFICATION_FCM_PROJECT_ID
   NOTIFICATION_FCM_CREDENTIALS_PATH
@@ -190,6 +191,7 @@ fi
 notification_relay_enabled="$(read_value NOTIFICATION_RELAY_ENABLED)"
 notification_topic_push_enabled="$(read_value NOTIFICATION_TOPIC_PUSH_ENABLED)"
 notification_notice_distribution_enabled="$(read_value NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED)"
+notification_reminder_enabled="$(read_value NOTIFICATION_REMINDER_ENABLED)"
 notification_sqs_queue_url="$(read_value NOTIFICATION_SQS_QUEUE_URL)"
 if [[ "${notification_relay_enabled}" != true && "${notification_relay_enabled}" != false ]]; then
   echo "NOTIFICATION_RELAY_ENABLED must be true or false." >&2
@@ -203,7 +205,12 @@ if [[ "${notification_notice_distribution_enabled}" != true && "${notification_n
   echo "NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED must be true or false." >&2
   exit 1
 fi
-if [[ ( "${notification_relay_enabled}" == true || "${notification_topic_push_enabled}" == true )
+if [[ "${notification_reminder_enabled}" != true && "${notification_reminder_enabled}" != false ]]; then
+  echo "NOTIFICATION_REMINDER_ENABLED must be true or false." >&2
+  exit 1
+fi
+if [[ ( "${notification_relay_enabled}" == true || "${notification_topic_push_enabled}" == true
+        || "${notification_reminder_enabled}" == true )
       && ! "${notification_sqs_queue_url}" =~ ^https://sqs\.ap-northeast-2\.amazonaws\.com/[0-9]{12}/[A-Za-z0-9_-]+$ ]]; then
   echo "NOTIFICATION_SQS_QUEUE_URL must be a Standard queue URL in ap-northeast-2." >&2
   exit 1

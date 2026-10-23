@@ -1,12 +1,12 @@
 # Android·iOS 푸시 메시지 연동 계약
 
-현재 [알림 규칙](../rules/notification.md)의 NOTIFICATION-002·003·005·008·010·013·014와 서버의 `FcmDevicePushSender` 구현을 기준으로 작성한다. 앱에서 푸시를 해석하고 화면 이동·읽음 처리를 구현할 때 사용하는 문서다.
+현재 [알림 규칙](../rules/notification.md)의 NOTIFICATION-002·003·005·008·010·013·015·016과 서버의 `FcmDevicePushSender` 구현을 기준으로 작성한다. 앱에서 푸시를 해석하고 화면 이동·읽음 처리를 구현할 때 사용하는 문서다.
 
 ## 적용 범위와 상태
 
-- 승인·반려의 공통 발송에 [#572](https://github.com/woowacourse-teams/2026-Chalkak/issues/572)의 변경으로 주제 Worker·FCM 처리와 아래 계약, 관리자 설정 시각의 정시 SQS 직접 발행을 추가한다. [#595](https://github.com/woowacourse-teams/2026-Chalkak/issues/595)에서 관리자 공지 푸시를 추가한다. 좋아요는 제공하지 않는다. [#739](https://github.com/woowacourse-teams/2026-Chalkak/issues/739)에서 AI 리뷰 결과 푸시(`AI_REVIEW_COMPLETED`, `AI_REVIEW_FAILED`)를 추가한다.
-- 승인·반려 구현은 [PR #562](https://github.com/woowacourse-teams/2026-Chalkak/pull/562)에 있다. 주제 변경의 PR은 아직 등록하지 않았다. 공지 푸시는 [PR #611](https://github.com/woowacourse-teams/2026-Chalkak/pull/611)에 있고, 삭제된 공지의 발송 생략은 [#612](https://github.com/woowacourse-teams/2026-Chalkak/issues/612)에서 추가한다. 공지의 개발 서버 실제 기기 수신은 아직 확인하지 않았다. AI 리뷰 결과 푸시의 PR은 아직 등록하지 않았고 서버 배포와 실제 기기 수신도 확인하지 않았다. 실제 AWS·Firebase·기기 수신과 해당 서버 배포는 아직 확인하지 않았다.
-- 이 안내는 현재 구현을 설명한다. 푸시 메시지의 필드 구조는 그대로이며 `type`에 새 값 두 개가 더해진다. AI 리뷰 결과 알림이 쓰는 설정 API의 `aiReviewPushEnabled` 추가는 알림 설정 규칙(NOTIFICATION-006)을 따른다.
+- 승인·반려의 공통 발송에 [#572](https://github.com/woowacourse-teams/2026-Chalkak/issues/572)의 변경으로 주제 Worker·FCM 처리와 아래 계약, 관리자 설정 시각의 정시 SQS 직접 발행을 추가한다. [#595](https://github.com/woowacourse-teams/2026-Chalkak/issues/595)에서 관리자 공지 푸시를 추가한다. 좋아요는 제공하지 않는다. [#739](https://github.com/woowacourse-teams/2026-Chalkak/issues/739)에서 AI 리뷰 결과 푸시(`AI_REVIEW_COMPLETED`, `AI_REVIEW_FAILED`)를, [#726](https://github.com/woowacourse-teams/2026-Chalkak/issues/726)에서 관리자 리마인더 푸시(`REMINDER`)를 추가한다.
+- 승인·반려 구현은 [PR #562](https://github.com/woowacourse-teams/2026-Chalkak/pull/562)에 있다. 주제 변경의 PR은 아직 등록하지 않았다. 공지 푸시는 [PR #611](https://github.com/woowacourse-teams/2026-Chalkak/pull/611)에 있고, 삭제된 공지의 발송 생략은 [#612](https://github.com/woowacourse-teams/2026-Chalkak/issues/612)에서 추가한다. 공지의 개발 서버 실제 기기 수신은 아직 확인하지 않았다. AI 리뷰 결과 푸시의 PR은 아직 등록하지 않았고 서버 배포와 실제 기기 수신도 확인하지 않았다. 리마인더 푸시는 [PR #757](https://github.com/woowacourse-teams/2026-Chalkak/pull/757)에 있고 실제 기기 수신은 확인하지 않았다. 실제 AWS·Firebase·기기 수신과 해당 서버 배포는 아직 확인하지 않았다.
+- 이 안내는 현재 구현을 설명한다. 푸시 메시지의 필드 구조는 그대로이며 `type`에 AI 리뷰 결과 두 값과 리마인더 한 값이 더해진다. AI 리뷰 결과 알림이 쓰는 설정 API의 `aiReviewPushEnabled` 추가는 알림 설정 규칙(NOTIFICATION-006)을 따른다.
 - 연동 준비와 토큰 등록은 [푸시 기기 등록 안내](push-device-registration.md), 알림함 조회는 [알림함 안내](notification-inbox.md)를 함께 읽는다.
 
 ## 1. 서버가 구성하는 메시지
@@ -126,19 +126,38 @@
 
 실패의 `body`는 요청 횟수를 모두 쓴 경우에만 "이 사진은 더 이상 AI 피드백을 요청할 수 없어요."로 바뀐다. 제목·본문은 서버가 알림을 만들 때 정하므로 앱이 문구로 종류나 `canRequestAgain`을 판단하지 않는다. `sourceId`는 게시물 ID이며 AI 리뷰 ID가 아니다. `eventId`는 AI 리뷰 한 회차의 사건을 나타내는 식별자로 로그 추적에만 쓰고, 이 값으로 AI 리뷰나 게시물을 찾지 않는다. 같은 게시물에서 다시 요청해 또 끝나면 `notificationId`와 `eventId`가 다른 푸시가 온다(게시물당 최대 3건). 점수·피드백 같은 결과는 푸시에 담지 않고 AI 리뷰 조회 API로 가져온다. 결과 푸시는 AI 리뷰 결과 수신 설정(`aiReviewPushEnabled`)이 켜져 있을 때만 보내며 승인·반려 설정과 관계없다. 정지 회원도 받는다.
 
+### 관리자 리마인더
+
+```json
+{
+  "notification": {
+    "title": "오늘이 얼마 남지 않았어요",
+    "body": "사진을 자랑해 주세요!"
+  },
+  "data": {
+    "eventId": "019a0010-0000-7000-8000-000000000016",
+    "type": "REMINDER",
+    "sourceType": "REMINDER",
+    "sourceId": "019a0000-0000-7000-8000-000000000724"
+  }
+}
+```
+
+제목·본문은 관리자가 작성한 리마인더의 제목(최대 50자)·본문(최대 500자)이며, 서버가 발송 직전에 읽은 값이다. 리마인더는 알림함 기록이 없으므로 `notificationId` 필드 자체를 보내지 않는다. `sourceId`는 리마인더 ID이고, `eventId`는 발송 회차마다 새로 만든 값이다. 매일 반복 리마인더는 날마다 `sourceId`가 같고 `eventId`가 다르다. 회원의 주제 푸시 수신 설정을 끄면 주제 푸시와 함께 리마인더도 받지 않는다(NOTIFICATION-006).
+
 ### 필드 의미
 
 | 필드 | 형식·현재 값 | 앱에서의 용도 |
 | --- | --- | --- |
 | `notification.title` | 문자열 | OS 알림 또는 앱의 알림 표시 제목 |
 | `notification.body` | 문자열 | 표시 문구. 반려 사유 자체가 아님 |
-| `data.type` | `POST_APPROVED` / `POST_REJECTED` / `TOPIC` / `NOTICE` / `AI_REVIEW_COMPLETED` / `AI_REVIEW_FAILED` | 이동할 화면 구분 |
-| `data.notificationId` | 승인·반려·공지·AI 리뷰 결과의 알림 UUID 문자열. 주제에는 필드 없음 | 알림 상세 조회·단건 읽음 처리. 알림 목록의 `id`와 같은 값 |
-| `data.sourceType` | 승인·반려·AI 리뷰 결과는 `POST`, 주제는 `TOPIC`, 공지는 `NOTICE` | 관련 대상 종류 구분 |
-| `data.sourceId` | 게시물·주제·공지 UUID 문자열 | 승인은 해당 게시물 조회. AI 리뷰 결과는 이 게시물의 AI 리뷰 화면을 열고 같은 ID로 AI 리뷰를 조회. 주제에서는 원래 대상 식별용이며 클릭 화면은 클릭 당일의 오늘 주제. 공지는 공지 식별용이며 화면 조회에는 `notificationId`를 사용 |
+| `data.type` | `POST_APPROVED` / `POST_REJECTED` / `TOPIC` / `NOTICE` / `AI_REVIEW_COMPLETED` / `AI_REVIEW_FAILED` / `REMINDER` | 이동할 화면 구분 |
+| `data.notificationId` | 승인·반려·공지·AI 리뷰 결과의 알림 UUID 문자열. 주제·리마인더에는 필드 없음 | 알림 상세 조회·단건 읽음 처리. 알림 목록의 `id`와 같은 값 |
+| `data.sourceType` | 승인·반려·AI 리뷰 결과는 `POST`, 주제는 `TOPIC`, 공지는 `NOTICE`, 리마인더는 `REMINDER` | 관련 대상 종류 구분 |
+| `data.sourceId` | 게시물·주제·공지·리마인더 UUID 문자열 | 승인은 해당 게시물 조회. AI 리뷰 결과는 이 게시물의 AI 리뷰 화면을 열고 같은 ID로 AI 리뷰를 조회. 주제에서는 원래 대상 식별용이며 클릭 화면은 클릭 당일의 오늘 주제. 공지는 공지 식별용이며 화면 조회에는 `notificationId`를 사용. 리마인더는 식별용이며 화면 조회에 쓰지 않음 |
 | `data.eventId` | 사건·발송 회차 UUID 문자열. 공지는 공지 ID, AI 리뷰 결과는 리뷰 한 회차의 사건 | 로그 추적. 알림 ID나 관련 대상 ID를 대신하지 않음 |
 
-승인·반려·공지·AI 리뷰 결과에서는 위 `data` 다섯 필드를 모두 제공하며 값은 모두 문자열이다. 주제는 `notificationId`를 제외한 네 필드를 제공한다. `eventId`와 `notificationId`는 서로 다른 식별자다. 제목·본문 문자열을 비교해서 알림 종류나 대상을 판단하지 않는다.
+승인·반려·공지·AI 리뷰 결과에서는 위 `data` 다섯 필드를 모두 제공하며 값은 모두 문자열이다. 주제·리마인더는 `notificationId`를 제외한 네 필드를 제공한다. `eventId`와 `notificationId`는 서로 다른 식별자다. 제목·본문 문자열을 비교해서 알림 종류나 대상을 판단하지 않는다.
 
 ## 2. 푸시에 알림함 데이터를 모두 담지 않는다
 
@@ -156,7 +175,7 @@
 
 사진과 사유를 푸시에 복제하기보다 **클릭 시 인증된 API로 최신 정보를 조회**한다. 푸시를 받았다는 사실만으로 현재 계정이 해당 알림에 접근할 권한을 얻는 것은 아니다.
 
-승인·반려·공지·AI 리뷰 결과의 화면 이동·읽음 처리에는 `type`, `notificationId`, `sourceId`를 사용한다. 주제는 `type=TOPIC`으로 분기해 기존 오늘 주제 화면을 연다. `sourceType`은 대상 종류를 구분하고 `eventId`는 사건을 추적하기 위한 정보다. 주제에서 없는 `notificationId`를 필수로 검사하거나 알림 상세·읽음 API를 호출하지 않는다.
+승인·반려·공지·AI 리뷰 결과의 화면 이동·읽음 처리에는 `type`, `notificationId`, `sourceId`를 사용한다. 주제는 `type=TOPIC`으로 분기해 기존 오늘 주제 화면을 연다. `sourceType`은 대상 종류를 구분하고 `eventId`는 사건을 추적하기 위한 정보다. 리마인더는 `type=REMINDER`로 분기해 앱 메인 화면을 연다. 주제·리마인더에서 없는 `notificationId`를 필수로 검사하거나 알림 상세·읽음 API를 호출하지 않는다.
 
 ## 3. 클릭 시 처리 순서
 
@@ -168,6 +187,7 @@
   → AI 리뷰 결과: sourceId 게시물의 AI 리뷰 화면
   → 반려·공지: notificationId로 알림 상세 화면
   → 주제: 클릭한 날의 오늘 주제 화면
+  → 리마인더: 앱 메인 화면
   → 승인·반려·공지·AI 리뷰 결과만 notificationId로 단건 읽음 API 호출
 ```
 
@@ -178,6 +198,7 @@
 | `AI_REVIEW_COMPLETED` / `AI_REVIEW_FAILED` | `sourceId`로 해당 게시물의 AI 리뷰 화면을 열고 `GET /api/v1/posts/{postId}/ai-review`부터 시작한다(폴링 규칙은 AI 리뷰 안내). 알림 상세를 먼저 조회할 필요는 없다. | `PATCH /api/v1/notifications/{notificationId}/read` |
 | `NOTICE` | `GET /api/v1/notifications/{notificationId}`로 공지 제목·본문을 조회해 알림 상세 화면에 보여 준다. 썸네일·원본 사진·반려 사유는 null이다. | 같은 단건 읽음 API |
 | `TOPIC` | 클릭한 날의 오늘 주제 화면을 연다. 원래 `sourceId`의 날짜로 화면을 고정하지 않는다. | 알림함 기록이 없어 호출하지 않음 |
+| `REMINDER` | 앱 메인 화면을 연다. 리마인더 조회 API는 없다. | 알림함 기록이 없어 호출하지 않음 |
 
 - API에 현재 회원 액세스 토큰을 전달한다. 알림 ID 대신 게시물 ID를 읽음 API에 넣지 않는다.
 - 상세 조회 자체는 읽음 처리하지 않는다. 단건 읽음 성공은 본문 없는 `204`이며 반복 요청도 최초 읽은 시각을 유지한다.
@@ -207,9 +228,10 @@
 
 ## 5. 시간·중복·오류에 대한 주의점
 
-- 서버는 승인·반려의 검수 사건 발생 시각, AI 리뷰의 완료 시각(리뷰가 끝난 시각), 주제의 원래 예정 시각 또는 공지의 알림함 배포 시각부터 **30분 안에만 새 FCM 발송을 시작**한다. SQS 재전달 때도 같은 기한을 확인한다. Android TTL은 메시지 생성 시 남은 기간으로 한 번 계산하고, iOS `apns-expiration`은 원래 기한의 절대 시각으로 설정한다.
+- 서버는 승인·반려의 검수 사건 발생 시각, AI 리뷰의 완료 시각(리뷰가 끝난 시각), 주제·리마인더의 원래 예정 시각 또는 공지의 알림함 배포 시각부터 **30분 안에만 새 FCM 발송을 시작**한다. SQS 재전달 때도 같은 기한을 확인한다. Android TTL은 메시지 생성 시 남은 기간으로 한 번 계산하고, iOS `apns-expiration`은 원래 기한의 절대 시각으로 설정한다.
 - 기한 전에 시작한 Firebase SDK 내부 재시도는 기한 이후에도 계속될 수 있다. Android TTL을 재시도마다 갱신하지 않으므로 실제 만료 시각이 원래 기한보다 늦어질 수 있다. 앱이 `data`에서 만료 시각을 받아 계산하거나 오래된 푸시를 자동으로 제거하는 계약은 현재 없다.
 - 주제 푸시는 오늘 주제에 삭제되지 않은 `VALIDATING`·`PENDING`·`APPROVED` 게시물이 있는 회원에게 발행·발송하지 않는다. 반려·삭제된 게시물만 있으면 대상에 포함하며 반려 후 재제출해 승인 대기 중이면 제외한다. 큐 등록 후 제출해도 Worker가 기기별 FCM 요청 직전에 다시 확인하여 발송을 생략하고 재시도 없이 완료한다. 서버에서 처리하므로 앱이 추가 API를 호출하거나 FCM 메시지 필드를 변경할 필요는 없다. 이미 시작한 발송·FCM이 수락한 메시지를 제출 때문에 회수하지는 않는다. 이 변경은 #591의 서버 배포 후 적용된다.
+- 리마인더도 발송 직전에 회원 상태·수신 설정·리마인더 삭제 여부와 대상 조건(참여자·미참여자)을 다시 확인해, 맞지 않으면 보내지 않는다. 앱이 추가로 처리할 것은 없다. 서버 재시작과 겹치면 같은 회차가 두 번 올 수 있다.
 - FCM의 요청 수락은 실제 기기 수신·표시·클릭 성공을 뜻하지 않는다.
 - 푸시 발송 기한 30분과 알림함 보관 30일은 다르다. 이미 표시된 푸시를 나중에 누른 경우에는 현재 API의 대상 존재·권한·보관 조건에 따라 처리한다.
 - SQS 재전달이나 외부 요청의 결과 불명확으로 중복 푸시가 발생할 수 있다. `eventId` 제공만으로 앱이나 FCM이 자동 중복 제거하는 것은 아니다. 별도 앱 중복 제거 방식은 이번 안내에서 정하지 않는다.
@@ -217,7 +239,7 @@
 
 ## 6. 앱 연동 확인 항목
 
-1. 승인·반려·공지·AI 리뷰 완료·실패 각각의 실제 기기 수신과 올바른 화면 이동.
+1. 승인·반려·공지·AI 리뷰 완료·실패·리마인더 각각의 실제 기기 수신과 올바른 화면 이동.
 2. 포그라운드·백그라운드와 앱 프로세스가 새로 시작되는 클릭 처리. 수신이 항상 보장된다고 가정하지 않는다.
 3. 반려 상세의 사진 원본·사유, 공지 상세의 제목·본문 표시와 단건 읽음 `204` 처리.
 4. 로그아웃·계정 전환·게시물 삭제·알림 보관 기한 경과 시 접근·오류 처리.

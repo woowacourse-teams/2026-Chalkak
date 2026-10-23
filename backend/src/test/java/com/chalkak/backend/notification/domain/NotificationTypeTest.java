@@ -19,7 +19,8 @@ class NotificationTypeTest {
             "NOTICE,NOTICE,true", "NOTICE,POST,false", "NOTICE,TOPIC,false",
             "AI_REVIEW_COMPLETED,POST,true", "AI_REVIEW_COMPLETED,TOPIC,false",
             "AI_REVIEW_COMPLETED,NOTICE,false", "AI_REVIEW_FAILED,POST,true",
-            "AI_REVIEW_FAILED,TOPIC,false", "AI_REVIEW_FAILED,NOTICE,false"})
+            "AI_REVIEW_FAILED,TOPIC,false", "AI_REVIEW_FAILED,NOTICE,false",
+            "REMINDER,REMINDER,true", "REMINDER,TOPIC,false", "TOPIC,REMINDER,false"})
     @DisplayName("알림 종류마다 정해진 대상 종류만 자기 대상으로 판단한다")
     void isSourceOf_eachType_matchesOnlyItsSourceType(
             NotificationType type,
@@ -34,8 +35,9 @@ class NotificationTypeTest {
     @CsvSource({
             "POST_APPROVED,true,false,true", "POST_APPROVED,false,true,false",
             "POST_REJECTED,true,false,true", "POST_REJECTED,false,true,false",
-            "TOPIC,false,true,true", "TOPIC,true,false,false"})
-    @DisplayName("승인·반려는 검수 결과 설정을, 주제는 주제 설정을 따른다")
+            "TOPIC,false,true,true", "TOPIC,true,false,false",
+            "REMINDER,false,true,true", "REMINDER,true,false,false"})
+    @DisplayName("승인·반려는 검수 결과 설정을, 주제·리마인더는 주제 설정을 따른다")
     void isPushEnabledFor_settingType_followsItsSetting(
             NotificationType type,
             boolean moderationPushEnabled,
