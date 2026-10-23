@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.spi.LoggingEventBuilder;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 
@@ -27,7 +28,7 @@ public final class SqsPushLog {
 
     public static void logPolled(Optional<Message> message, Elapsed elapsed) {
         logSafely(() -> {
-            log.atInfo().addKeyValue("type", "notification")
+            createReceiveEvent(message.isPresent()).addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_sqs_receive")
                     .addKeyValue("received", message.isPresent())
                     .addKeyValue("sqsMessageId", message.map(Message::messageId).orElse(null))
@@ -135,6 +136,13 @@ public final class SqsPushLog {
                         MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT))
                 .addKeyValue("errorCode", exception.getClass().getSimpleName())
                 .log("푸시 숨김 시간 연장 실패");
+    }
+
+    private static LoggingEventBuilder createReceiveEvent(boolean received) {
+        if (received) {
+            return log.atInfo();
+        }
+        return log.atDebug();
     }
 
     private static Long findQueueAgeMillis(Message message, Instant receivedAt) {

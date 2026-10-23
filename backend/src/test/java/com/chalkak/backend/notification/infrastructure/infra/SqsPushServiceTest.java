@@ -14,6 +14,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -88,6 +89,7 @@ class SqsPushServiceTest {
     private Message message;
     private final Logger logger = (Logger) LoggerFactory
             .getLogger("com.chalkak.backend.notification");
+    private Level previousLogLevel;
     private String failingLogStage;
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
         @Override
@@ -115,6 +117,8 @@ class SqsPushServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        previousLogLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
         appender.list = new CopyOnWriteArrayList<>();
         appender.start();
         logger.addAppender(appender);
@@ -202,6 +206,7 @@ class SqsPushServiceTest {
 
     @AfterEach
     void tearDown() {
+        logger.setLevel(previousLogLevel);
         logger.detachAppender(appender);
         appender.stop();
         MDC.clear();
@@ -675,13 +680,25 @@ class SqsPushServiceTest {
         assertThat(bodies.getFirst().path("MessageSystemAttributeNames"))
                 .containsExactly(mapper.valueToTree("ApproximateReceiveCount"),
                         mapper.valueToTree("SentTimestamp"));
-        assertThat(logsAtStage("worker_sqs_receive")).singleElement()
-                .satisfies(log -> {
-                    assertThat(log).containsEntry("received", false)
-                            .containsEntry("sqsMessageId", null);
-                    assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
-                });
+        assertThat(logsAtStage("worker_sqs_receive")).isEmpty();
         assertThat(logsAtStage("worker_attempt_completed")).isEmpty();
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("DEBUG에서만 빈 수신 응답의 시간과 메타데이터를 기록한다")
+    void poll_emptyQueueWithDebug_recordsReceiveTiming() {
+        // Given
+        logger.setLevel(Level.DEBUG);
+        // When
+        worker.poll();
+        // Then
+        assertThat(appender.list).singleElement()
+                .satisfies(event -> assertThat(event.getLevel()).isEqualTo(Level.DEBUG));
+        assertThat(logsAtStage("worker_sqs_receive")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("received", false).containsEntry("sqsMessageId", null);
+            assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
+        });
         verifyNoInteractions(service);
     }
 
@@ -822,6 +839,7 @@ class SqsPushServiceTest {
         // Then
         assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
                 "AmazonSQS.DeleteMessage");
+        assertThat(appender.list.getFirst().getLevel()).isEqualTo(Level.INFO);
         assertThat(bodies.getLast().get("ReceiptHandle").asText()).isEqualTo("receipt-handle");
         assertThat(logsAtStage("worker_sqs_receive")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("received", true)

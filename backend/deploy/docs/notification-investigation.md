@@ -45,7 +45,7 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 
 | 필드 / 로그 단계 | 측정 범위와 해석 |
 | --- | --- |
-| `sqsReceiveDurationMs` / `worker_sqs_receive`, `worker_poll_failed` | 수신 API 호출 시작부터 응답 또는 예외까지. 실패 로그는 `phase=RECEIVE`일 때만 이 필드를 포함한다. `received=false`는 빈 응답이며 정상 롱 폴링 대기 최대 20초를 포함한다. 실패 시 1초 쉬는 시간은 제외한다 |
+| `sqsReceiveDurationMs` / `worker_sqs_receive`, `worker_poll_failed` | 수신 API 호출 시작부터 응답 또는 예외까지. 실패 로그는 `phase=RECEIVE`일 때만 이 필드를 포함한다. `received=false`는 DEBUG에만 기록하는 빈 응답이며 정상 롱 폴링 대기 최대 20초를 포함한다. 실패 시 1초 쉬는 시간은 제외한다 |
 | `queueAgeMs` / `worker_attempt_completed` | SQS `SentTimestamp`부터 Worker 처리 진입 시각까지. **`receiveCount=1`**에서 최초 큐 대기를 조사한다. 재수신에서는 이전 처리·숨김·재시도 대기도 포함한다. 서버 시계 차이의 영향을 받으며, 입력 시각 누락·잘못된 값·미래 값은 `null`로 남긴다 |
 | `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
 | `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
@@ -79,8 +79,10 @@ filter type = "notification" and stage = "worker_attempt_completed" and receiveC
     by bin(1m)
 ```
 
-수신 API 시간은 빈 응답과 실제 수신을 나눠 본다. 정상 20초 롱 폴링 대기를 메시지가 생긴 뒤
-20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`의 `phase=RECEIVE`로 별도 조사한다.
+실제 메시지 수신(`received=true`)은 INFO, 빈 응답(`received=false`)은 DEBUG로 기록한다.
+개발·운영의 기본 INFO 설정에는 빈 응답 표본이 없으므로 아래 통계는 전체 수신 요청 수나
+유휴 롱 폴링 시간 통계가 아니다. 조사 목적으로 DEBUG를 활성화한 기간에만 빈 응답과 실제
+수신을 나눠 볼 수 있다. 정상 20초 롱 폴링 대기를 메시지가 생긴 뒤 20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`의 `phase=RECEIVE`로 별도 조사한다.
 수신 이후 처리 진입·종료에서 빠져나온 예외는 같은 단계의 `phase=PROCESSING`으로 기록하며,
 수신 시간에 처리 시간이 섞이지 않도록 `sqsReceiveDurationMs`를 남기지 않는다.
 두 경우 모두 다음 폴링 전에 1초 대기한다.
@@ -92,7 +94,7 @@ filter type = "notification" and stage = "worker_attempt_completed" and receiveC
 
 ```sql
 filter type = "notification" and stage = "worker_sqs_receive"
-| stats count(*) as requests, avg(sqsReceiveDurationMs) as avgMs,
+| stats count(*) as loggedResponses, avg(sqsReceiveDurationMs) as avgMs,
     pct(sqsReceiveDurationMs, 95) as p95Ms by received
 ```
 
