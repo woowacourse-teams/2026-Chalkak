@@ -4,6 +4,27 @@ import XCTest
 
 @MainActor
 final class FeedAIReviewRenderingTests: XCTestCase {
+    func testFeedModelsDeallocateSynchronouslyWithTaskLocalStorage() {
+        // Keep this synchronous: older runtimes crash in isolated deinit when
+        // task-local storage is present outside an asynchronous Swift task.
+        FeedDeinitTestContext.$marker.withValue(1) {
+            weak var releasedFeed: FeedViewModel?
+            weak var releasedReview: FeedAIReviewViewModel?
+            autoreleasepool {
+                let model = FeedViewModel(
+                    postID: "deinit-regression",
+                    aiReviewRepository: FeedReviewRenderingRepository(status: .completed)
+                )
+                releasedFeed = model
+                releasedReview = model.aiReview
+                XCTAssertNotNil(releasedFeed)
+                XCTAssertNotNil(releasedReview)
+            }
+            XCTAssertNil(releasedFeed)
+            XCTAssertNil(releasedReview)
+        }
+    }
+
     func testNotificationEntryAutomaticallyPresentsFeedbackSheet() async throws {
         let model = FeedViewModel(
             postID: FeedPreviewData.content.post.id,
@@ -83,6 +104,10 @@ final class FeedAIReviewRenderingTests: XCTestCase {
         // XCTest에 실패를 기록하고, 준비되지 않은 화면의 캡처는 중단한다.
         _ = try XCTUnwrap(condition() ? true : nil, message, file: file, line: line)
     }
+}
+
+private enum FeedDeinitTestContext {
+    @TaskLocal static var marker = 0
 }
 
 @MainActor
