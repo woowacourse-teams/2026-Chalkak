@@ -33,6 +33,176 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 미발송을 확정하지 않는다. 알림 로그 보관은 30일이며, 로그 분리 전 기록은 기존 그룹의 기간을 따른다.
 [Logs Insights 공식 안내](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html)
 
+### 처리 지연 조사 — SQS·DB·FCM 계측
+
+아래 필드는 계측 배포 이후 기록에만 존재한다. 과거 발송의 지연을 소급해서 분해하지 않는다.
+수신 시각은 `Instant`로 전달하고, 경과 시간은 `Elapsed`가 `System.nanoTime()`으로 측정해
+밀리초 정수로 기록한다. 두 값을 같은 `long`으로 전달하지 않아 단위 혼동을 막는다. CloudWatch 수집 시각의
+차이를 계산하지 않으므로 Agent의 로그 일괄 수집 간격에 영향을 받지 않는다.
+
+`SqsPushService`는 측정 시작·수신 시각과 처리 결과를 전달하고, `SqsPushLog`가
+시간 계산과 로그 출력을 담당한다. 로그 클래스는 메시지별 상태가 없는 정적 메서드로 사용한다.
+
+| 필드 / 로그 단계 | 측정 범위와 해석 |
+| --- | --- |
+| `sqsReceiveDurationMs` / `worker_received`, `worker_sqs_receive`, 수신·처리 진입 오류 로그 | 수신 API 호출 시작부터 응답 또는 예외까지. 정상 응답 직후 값을 확정하며 이후 메시지 해석·발송 시간은 제외한다. 정상 수신은 `worker_received`, 빈 응답은 DEBUG `worker_sqs_receive`에 기록한다. 수신 실패는 `worker_poll_failed`, 수신 로그 전 처리 진입 실패는 기존 오류 로그에 시간을 보존한다. 오류 후 1초 대기는 제외한다 |
+| `queueAgeMs` / `worker_attempt_completed` | SQS `SentTimestamp`부터 Worker 처리 진입 시각까지. **`receiveCount=1`**에서 최초 큐 대기를 조사한다. 재수신에서는 이전 처리·숨김·재시도 대기도 포함한다. 서버 시계 차이의 영향을 받으며, 입력 시각 누락·잘못된 값·미래 값은 `null`로 남긴다 |
+| `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
+| `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
+| `dbTransactionDurationMs`, `dbTransactionCount`, `dbTransactions` / `worker_summary` | 최상위 시간·횟수는 이번 처리의 DB 구간 합계다. 배열에는 각 구간의 기기 ID·종류·완료 여부·시간을 보존한다. 각 시간은 `TransactionTemplate.execute` 호출부터 반환 또는 예외까지로, 연결 획득·쿼리·트랜잭션 완료(실패 시 롤백 포함)를 포함하며 순수 SQL 시간이 아니다 |
+| `fcmRequestDurationMs` / `fcm_result`, `worker_skipped`, `worker_device_failed` | 메시지 구성 후 실제 `FirebaseMessaging.send` 호출부터 반환 또는 예외까지. 인증·SDK 내부 HTTP 재시도와 대기가 포함될 수 있다. 오류 분류·무효 토큰 DB 정리·기기 수신 시간은 제외한다 |
+
+`worker_attempt_completed`는 **처리 시도 종료**이며 발송 성공을 뜻하지 않는다. `outcome`은
+`DELETED`, `INVALID_MESSAGE_DELETED`, `RETRY_PENDING`, `FAILED`다. `DELETED`에는 정상 생략과
+영구 실패도 포함되므로 `worker_summary`·`worker_skipped`·`fcm_result`로 실제 결과를 확인한다.
+삭제 실패는 응답 확인 실패일 수도 있어 실제 삭제 여부를 확정하지 않는다.
+
+한 건의 로그는 `sqsMessageId + receiveCount`로 연결한다. 사건 ID·알림 ID는 기존
+`worker_received`에서 해당 큐 식별자를 찾아 연결한다. 입력 메타데이터가 없는 메시지는 일부
+필드가 비어 있을 수 있으므로 이를 0초 지연이나 최초 수신으로 간주하지 않는다.
+
+```sql
+fields @timestamp, stage, sqsMessageId, receiveCount, received, outcome, queueAgeMs, sqsReceiveDurationMs, sqsDeleteDurationMs, processingDurationMs, errorCode
+| filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
+| sort @timestamp asc
+```
+
+최초 수신의 큐 대기와 처리 시간을 따로 집계한다. `count(queueAgeMs)`로 입력 시각이 유효한
+표본 수도 확인한다. 관리자 공지 한 회차만 조사하려면 먼저 `eventId = "공지 UUID"`의
+`worker_received`에서 확보한 큐 ID들로 `sqsMessageId in [...]` 필터를 추가한다.
+
+```sql
+filter type = "notification" and stage = "worker_attempt_completed" and receiveCount = "1"
+| stats count(*) as attempts, count(queueAgeMs) as ageSamples,
+    avg(queueAgeMs) as queueAvgMs, pct(queueAgeMs, 95) as queueP95Ms,
+    avg(processingDurationMs) as processingAvgMs, pct(processingDurationMs, 95) as processingP95Ms
+    by bin(1m)
+```
+
+실제 메시지 수신(`received=true`)은 기존 `worker_received`에 식별 정보와 시간을 합쳐 INFO 한 줄로 기록한다.
+본문 해석 실패·JSON `null`도 큐 메시지를 수신한 사실은 같으므로 `messageParsed=false`로 기록한다.
+`messageParsed=true`는 본문을 `PushMessage`로 해석했다는 뜻이며 업무 조건·발송 기한 충족을 뜻하지 않는다.
+직접 `process(message)`를 호출한 경우에는 수신 API를 측정하지 않았으므로 시간 필드를 넣지 않는다.
+빈 응답(`received=false`)은 DEBUG `worker_sqs_receive`로만 기록한다.
+개발·운영의 기본 INFO 설정에는 빈 응답 표본이 없으므로 아래 통계는 전체 수신 요청 수나
+유휴 롱 폴링 시간 통계가 아니다. 조사 목적으로 DEBUG를 활성화한 기간에만 빈 응답과 실제
+수신을 나눠 볼 수 있다. 정상 20초 롱 폴링 대기를 메시지가 생긴 뒤 20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`의 `phase=RECEIVE`로 별도 조사한다.
+수신 이후 처리 진입·종료에서 빠져나온 예외는 같은 단계의 `phase=PROCESSING`으로 기록한다.
+이때 남기는 `sqsReceiveDurationMs`도 정상 수신 응답 직후 확정된 값이며 처리 시간은 섞지 않는다.
+숨김 연장 예약 등 `worker_received` 기록 전 실패는 `worker_processing_failed`에 수신 시간을 보존한다.
+이미 `worker_received`를 남긴 뒤 처리에 실패하면 오류 로그에 수신 시간을 중복 기록하지 않는다.
+`phase`는 오류가 난 위치를 나타내며 수신 시간 필드가 있다고 수신 API 자체가 실패한 것은 아니다.
+기존 폴링 예외 흐름의 두 경우 모두 다음 폴링 전에 1초 대기한다.
+이는 계측 도입 전부터 있던 폴링 오류 대기이며 정상 처리 후 폴링 간격은 1ms를 유지한다.
+계측 로그는 기존 Logback 출력 경로를 사용한다. 표준 Appender 내부의 출력·인코딩 예외는
+Logback이 처리하므로 이를 감싸는 별도 `logSafely`와 중복 표준 오류 출력을 두지 않는다.
+로그 인자를 구성하는 애플리케이션 코드의 예외까지 Logback이 처리하는 것은 아니다.
+종료 로그와 별개로 MDC 복원은 `finally`로 보장하고, SQS·DB·FCM 처리 오류에 대한 기존 처리는 유지한다.
+기록에 실패한 계측 표본은 누락될 수 있으며 전체 로깅 장애를 이 계측만으로 감지할 수는 없다.
+수신 시각은 서버에 등록된 `Clock.systemUTC()`를 직접 조회한다. 테스트용 시계가 임의로 예외를
+던지는 경우를 위한 별도 복구는 두지 않는다. SQS 시각의 누락·숫자 형식 오류·음수·미래 값은
+계속 검증하여 `queueAgeMs=null`로 남긴다. 로그는 동기 출력이므로 실행 비용은 남는다.
+
+```sql
+filter type = "notification" and stage in ["worker_received", "worker_sqs_receive"]
+| filter ispresent(sqsReceiveDurationMs)
+| stats count(*) as loggedResponses, avg(sqsReceiveDurationMs) as avgMs,
+    pct(sqsReceiveDurationMs, 95) as p95Ms by received
+```
+
+`worker_summary.dbTransactions` 배열의 `operation`은 다음과 같다. 정상 생략도 트랜잭션이 정상 완료됐다면
+`transactionCompleted=true`다. `false`이면 기존 `worker_processing_failed`·`worker_device_failed`·
+`worker_invalid_token_cleanup_failed`에서 오류 원인을 확인한다. 계측 자체는 INFO만 남긴다.
+
+| operation | 측정 대상 |
+| --- | --- |
+| `DEVICE_LOOKUP` | 회원의 발송 대상 기기 ID 목록 조회 |
+| `LATEST_CONDITIONS_LOOKUP` | 기기·로그인·수신 설정·참여·알림 존재 등 기기별 최신 조건 확인 |
+| `INVALID_TOKEN_CLEANUP` | 무효 응답을 받은 토큰이 그대로일 때 해당 기기 삭제 |
+
+DB의 세 처리 구간은 `executeMeasuredTransaction`으로 연결 획득부터 트랜잭션 완료까지 같은 범위를 측정한다.
+측정 중에는 로그를 출력하지 않고 메시지별 `PushWorkerDbTiming`에 보관한 뒤 기존 `worker_summary`에 함께 기록한다.
+무효 토큰 삭제가 실패하거나 발송이 생략되어도 해당 DB 구간의 시간과 완료 상태를 보존한다.
+기기 목록 조회부터 실패하면 `processingCompleted=false`인 요약을 남기고 원래 예외를 그대로 전달한다.
+이 경우 대상 수·발송 결과 개수·`retryable`은 확정되지 않았으므로 기록하지 않는다.
+`processingCompleted=true`는 Worker가 결과 집계를 마쳤다는 뜻이며 FCM 성공·SQS 삭제 완료를 뜻하지 않는다.
+요약 전 프로세스가 강제 종료되면 메모리에 보관하던 DB 측정값은 남지 않을 수 있다. 메모리는 현재 처리 메시지의 DB 구간만 보관하며 전역 누적하지 않는다.
+
+FCM은 실제 SDK 호출 경계를 유지한 채 기기 호출마다 별도의 `DevicePushTiming`에 시간과 수락 여부를 보관한다.
+발송자는 직접 로그를 출력하지 않고 Worker가 기존 `fcm_result` 또는 오류·생략 로그에 측정값을 붙인다.
+예상 밖 SDK 예외도 측정값이 남아 `worker_device_failed`에서 확인할 수 있다.
+`deviceId`는 기존 결과 로그의 명시적 필드로 연결하며 SDK 호출 중 MDC를 바꾸지 않는다.
+SDK 호출 전 기한·조건 미충족이면 시간과 수락 여부 필드는 없고 이를 0ms 호출로 세지 않는다.
+SDK 내부에서 HTTP 요청을 반복해도 한 번의 `send` 호출에 대한 측정값은 하나이며 HTTP 재시도 횟수를 뜻하지 않는다.
+
+`sdkAccepted=true`는 SDK가 FCM 수락 응답을 확인했다는 뜻이다. `false`는 수락 응답 확인에
+실패했다는 뜻이며 서버가 이미 수락했을 가능성을 배제하지 않는다. 원인·최종 발송 결과는
+기존 `fcm_result`·`worker_device_failed`와 함께 확인한다.
+
+기기별 FCM 시간은 기존 발송 결과·오류 행에서, DB 합계는 요약 행에서 확인한다.
+DB 상세 배열은 아래 `unnest` 쿼리로 펼친다.
+
+```sql
+fields @timestamp, stage, sqsMessageId, receiveCount, deviceId, processingCompleted, sdkAccepted, dbTransactionCount, dbTransactionDurationMs, fcmRequestDurationMs, result, errorCode
+| filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
+| filter stage in ["worker_summary", "fcm_result", "worker_skipped", "worker_device_failed", "worker_invalid_token_cleanup_failed"]
+| sort @timestamp asc
+```
+
+한 처리 시도 안의 DB·SDK 호출 횟수와 시간을 합산한다. 모든 기기가 정상 생략됐다면
+`sdkCalls=0`이다. `DELETED`가 모든 기기의 FCM 수락을 뜻하지는 않으므로 `worker_summary`의
+기기별 결과 개수도 확인한다.
+
+```sql
+filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
+| filter stage in ["worker_summary", "fcm_result", "worker_skipped", "worker_device_failed", "worker_message_deleted", "worker_sqs_delete_failed", "worker_attempt_completed"]
+| stats sum(dbTransactionCount) as dbTransactions, sum(dbTransactionDurationMs) as dbMs,
+    count(fcmRequestDurationMs) as sdkCalls, sum(fcmRequestDurationMs) as fcmMs,
+    max(sqsDeleteDurationMs) as deleteMs, max(queueAgeMs) as queueAgeMs,
+    max(processingDurationMs) as processingMs by sqsMessageId, receiveCount
+```
+
+`processingMs` 안에 `dbMs`·`fcmMs`·`deleteMs`가 포함된다. 이들을 전체 시간에 다시 더하지
+않는다. 차이에는 메시지 해석·검증·로그 출력·스케줄링·숨김 연장 종료 대기·재전달 대기 설정
+등이 포함될 수 있어, 차이를 모두 DB나 FCM 탓으로 분류하지 않는다. DB 계측 구간은 서로
+중첩하지 않으며 FCM은 DB 트랜잭션 밖에서 호출한다. 수신 요청 시간과 큐 나이도 겹칠 수 있으므로
+단순히 합산하지 않는다. 숨김 연장은 별도 스레드에서 동작하고 그 통신 시간을 별도로 분해하지 않는다.
+운영에서 원인을 좁힌 뒤 필요할 때만 해당 구간을 추가 계측한다.
+
+개별 DB 구간의 기기·완료 여부를 확인한다. 합계 행과 상세 배열을 함께 합산하면 중복이므로,
+전체 시간 비교에는 요약 최상위 합계만 사용한다.
+
+```sql
+filter type = "notification" and stage = "worker_summary" and sqsMessageId = "SQS 메시지 ID"
+| fields jsonParse(@message) as summary
+| unnest summary.dbTransactions into transaction
+| display @timestamp, sqsMessageId, receiveCount, transaction.deviceId,
+    transaction.operation, transaction.transactionCompleted, transaction.dbTransactionDurationMs
+```
+
+배열 전개 구문은 [CloudWatch Logs Insights `unnest` 공식 문서](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Unnest.html)를 따른다.
+
+특정 DB 구간 또는 FCM 요청이 전반적으로 느린지 확인하려면 다음처럼 집계한다.
+
+```sql
+filter type = "notification" and stage = "worker_summary"
+| fields jsonParse(@message) as summary
+| unnest summary.dbTransactions into transaction
+| stats count(*) as transactions, avg(transaction.dbTransactionDurationMs) as avgMs,
+    pct(transaction.dbTransactionDurationMs, 95) as p95Ms,
+    max(transaction.dbTransactionDurationMs) as maxMs by transaction.operation
+```
+
+```sql
+filter type = "notification" and stage in ["fcm_result", "worker_skipped", "worker_device_failed"]
+| filter ispresent(fcmRequestDurationMs)
+| stats count(fcmRequestDurationMs) as sdkCalls, avg(fcmRequestDurationMs) as avgMs,
+    pct(fcmRequestDurationMs, 95) as p95Ms, max(fcmRequestDurationMs) as maxMs by sdkAccepted
+```
+
+계측 로그가 늘어나는 만큼 수집·보관 비용도 증가한다. 배포 뒤 실제 작업의 필드·상관관계·쿼리
+결과를 확인하며, 테스트 통과만으로 운영 지연 원인을 확정하지 않는다.
+
 ## 2. 마지막으로 확인된 단계에서 다음 단계를 조사
 
 | 확인된 기록 | 해석과 다음 확인 |

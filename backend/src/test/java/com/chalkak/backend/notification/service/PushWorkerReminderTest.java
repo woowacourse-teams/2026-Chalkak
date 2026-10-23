@@ -82,7 +82,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
                 USER_ID);
         addDevice("reminder-token");
         sender = mock(DevicePushSender.class);
-        given(sender.send(any())).willReturn(DevicePushResult.accepted());
+        given(sender.send(any(), any())).willReturn(DevicePushResult.accepted());
         appender.start();
         ((Logger) LoggerFactory.getLogger(PushWorkerService.class)).addAppender(appender);
     }
@@ -107,7 +107,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         ArgumentCaptor<DevicePushRequest> request = ArgumentCaptor
                 .forClass(DevicePushRequest.class);
-        verify(sender).send(request.capture());
+        verify(sender).send(request.capture(), any());
         assertThat(request.getValue().message()).isEqualTo(message);
         assertThat(request.getValue().title()).isEqualTo(TITLE);
         assertThat(request.getValue().body()).isEqualTo(BODY);
@@ -131,7 +131,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
         // Then
         ArgumentCaptor<DevicePushRequest> request = ArgumentCaptor
                 .forClass(DevicePushRequest.class);
-        verify(sender).send(request.capture());
+        verify(sender).send(request.capture(), any());
         assertThat(request.getValue().title()).isEqualTo("고친 제목");
         assertThat(request.getValue().body()).isEqualTo("고친 본문");
     }
@@ -188,7 +188,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
         worker().process(message);
 
         // Then
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @ParameterizedTest
@@ -214,7 +214,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
         // When & Then
         if (sendable) {
             worker().process(message);
-            verify(sender).send(any());
+            verify(sender).send(any(), any());
             return;
         }
         assertSkipped(message, "ALREADY_PARTICIPATED");
@@ -244,7 +244,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
         worker().process(message);
 
         // Then
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @ParameterizedTest

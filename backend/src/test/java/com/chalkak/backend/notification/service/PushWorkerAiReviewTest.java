@@ -112,7 +112,7 @@ class PushWorkerAiReviewTest extends IntegrationTestSupport {
         message = createNotificationMessage();
         addDevice();
         sender = mock(DevicePushSender.class);
-        given(sender.send(any())).willReturn(DevicePushResult.accepted());
+        given(sender.send(any(), any())).willReturn(DevicePushResult.accepted());
     }
 
     @AfterEach
@@ -132,7 +132,7 @@ class PushWorkerAiReviewTest extends IntegrationTestSupport {
         assertThat(result.retryable()).isFalse();
         ArgumentCaptor<DevicePushRequest> request = ArgumentCaptor
                 .forClass(DevicePushRequest.class);
-        verify(sender).send(request.capture());
+        verify(sender).send(request.capture(), any());
         assertThat(request.getValue().title()).isEqualTo("AI 피드백이 도착했어요");
         assertThat(request.getValue().body()).isEqualTo("사진의 구도 점수와 피드백을 확인해 보세요.");
         assertThat(request.getValue().message().type())
@@ -154,7 +154,7 @@ class PushWorkerAiReviewTest extends IntegrationTestSupport {
         worker(NOW).process(message);
 
         // Then
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @ParameterizedTest
@@ -186,7 +186,7 @@ class PushWorkerAiReviewTest extends IntegrationTestSupport {
 
         // Then
         if (seconds < 1800) {
-            verify(sender).send(any());
+            verify(sender).send(any(), any());
             return;
         }
         assertSkipped(result, "EXPIRED");
