@@ -11,14 +11,12 @@ import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import tools.jackson.databind.ObjectMapper;
 
-@Slf4j
 public class SqsPushService {
     private static final Duration VISIBILITY_EXTENSION_INTERVAL = Duration.ofSeconds(40);
 
@@ -28,6 +26,7 @@ public class SqsPushService {
     private final PushWorkerService pushWorkerService;
     private final Clock clock;
     private final ScheduledExecutorService visibilityExtensionExecutor;
+    private final SqsPushTimingLogger timingLogger;
 
     public SqsPushService(
             SqsClient sqsClient,
@@ -35,7 +34,8 @@ public class SqsPushService {
             ObjectMapper objectMapper,
             PushWorkerService pushWorkerService,
             Clock clock,
-            ScheduledExecutorService visibilityExtensionExecutor
+            ScheduledExecutorService visibilityExtensionExecutor,
+            SqsPushTimingLogger timingLogger
     ) {
         this.sqsClient = sqsClient;
         this.queueUrl = queueUrl;
@@ -43,29 +43,44 @@ public class SqsPushService {
         this.pushWorkerService = pushWorkerService;
         this.clock = clock;
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
+        this.timingLogger = timingLogger;
     }
 
     public void poll() {
+        long startedAt = System.nanoTime();
+        Optional<Message> message;
         try {
-            Optional<Message> message = findMessage();
-            message.ifPresent(this::process);
+            message = findMessage();
         } catch (RuntimeException exception) {
-            logFailure("worker_poll_failed", exception);
+            timingLogger.logPollFailed(exception, startedAt);
             waitAfterPollingFailure();
+            return;
         }
+        timingLogger.logPolled(message, startedAt);
+        message.ifPresent(this::process);
     }
 
     public void process(Message message) {
+        long startedAt = System.nanoTime();
+        long receivedAt = clock.millis();
+        String outcome = "FAILED";
         Map<String, String> previousContext = MDC.getCopyOfContextMap();
         MDC.put("sqsMessageId", message.messageId());
         MDC.put("receiveCount", message.attributes().get(
                 MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT));
         try (VisibilityExtension visibility = new VisibilityExtension(message)) {
-            processMessage(message, visibility);
+            outcome = processMessage(message, visibility);
         } catch (RuntimeException exception) {
-            logFailure("worker_processing_failed", exception);
+            outcome = "FAILED";
+            timingLogger.logProcessingFailed(exception);
             // 삭제하지 않는다. SQS가 다시 전달하거나 설정된 최대 수신 횟수 이후 DLQ로 이동한다.
         } finally {
+            timingLogger.logAttemptCompleted(
+                    message,
+                    receivedAt,
+                    startedAt,
+                    outcome
+            );
             MDC.clear();
             if (previousContext != null) {
                 MDC.setContextMap(previousContext);
@@ -88,7 +103,8 @@ public class SqsPushService {
                 .waitTimeSeconds(20)
                 .visibilityTimeout(60)
                 .messageSystemAttributeNames(
-                        MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT))
+                        MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT,
+                        MessageSystemAttributeName.SENT_TIMESTAMP))
                 .messages();
 
         if (messages.isEmpty()) {
@@ -97,26 +113,30 @@ public class SqsPushService {
         return Optional.of(messages.getFirst());
     }
 
-    private void processMessage(Message message, VisibilityExtension visibility) {
+    private String processMessage(Message message, VisibilityExtension visibility) {
         PushMessage pushMessage = readPushMessage(message);
         if (pushMessage == null) {
             visibility.finishAttempt(() -> delete(message));
-            return;
+            return "INVALID_MESSAGE_DELETED";
         }
-        logReceived(pushMessage);
+        timingLogger.logReceived(pushMessage);
         PushProcessingResult result = pushWorkerService.process(pushMessage);
         visibility.finishAttempt(() -> handleProcessingResult(
                 message,
                 pushMessage,
                 result
         ));
+        if (result.retryable()) {
+            return "RETRY_PENDING";
+        }
+        return "DELETED";
     }
 
     private PushMessage readPushMessage(Message message) {
         try {
             return objectMapper.readValue(message.body(), PushMessage.class);
         } catch (tools.jackson.core.JacksonException exception) {
-            logFailure("worker_invalid_message", exception);
+            timingLogger.logInvalidMessage(exception);
             return null;
         }
     }
@@ -135,13 +155,7 @@ public class SqsPushService {
                 pushMessage,
                 result
         );
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_retry_pending")
-                .addKeyValue("eventId", pushMessage.eventId())
-                .addKeyValue("userId", pushMessage.userId())
-                .addKeyValue("notificationId", pushMessage.notificationId())
-                .addKeyValue("retryAfterSeconds", result.retryAfter().toSeconds())
-                .log("푸시 작업 재전달 대기");
+        timingLogger.logRetryPending(pushMessage, result.retryAfter());
     }
 
     private void extendVisibility(Message message) {
@@ -151,14 +165,7 @@ public class SqsPushService {
                     .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
                             .apiCallAttemptTimeout(Duration.ofSeconds(5))));
         } catch (RuntimeException exception) {
-            // 연장 전용 스레드는 처리 스레드의 MDC를 상속하지 않는다.
-            log.atError().addKeyValue("type", "notification")
-                    .addKeyValue("stage", "worker_visibility_failed")
-                    .addKeyValue("sqsMessageId", message.messageId())
-                    .addKeyValue("receiveCount", message.attributes().get(
-                            MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT))
-                    .addKeyValue("errorCode", exception.getClass().getSimpleName())
-                    .log("푸시 숨김 시간 연장 실패");
+            timingLogger.logVisibilityFailed(message, exception);
         }
     }
 
@@ -180,28 +187,17 @@ public class SqsPushService {
     }
 
     private void delete(Message message) {
-        sqsClient.deleteMessage(request -> request.queueUrl(queueUrl)
-                .receiptHandle(message.receiptHandle())
-                .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(5))));
-        log.atInfo().addKeyValue("type", "notification")
-                .addKeyValue("stage", "worker_message_deleted").log("SQS 푸시 작업 완료");
-    }
-
-    private void logFailure(String stage, RuntimeException exception) {
-        log.atError().addKeyValue("type", "notification").addKeyValue("stage", stage)
-                .addKeyValue("errorCode", exception.getClass().getSimpleName())
-                .log("푸시 작업 처리 오류");
-    }
-
-    private void logReceived(PushMessage pushMessage) {
-        log.atInfo().addKeyValue("type", "notification").addKeyValue("stage", "worker_received")
-                .addKeyValue("eventId", pushMessage.eventId())
-                .addKeyValue("notificationId", pushMessage.notificationId())
-                .addKeyValue("userId", pushMessage.userId())
-                .addKeyValue("notificationType", pushMessage.type())
-                .addKeyValue("sourceId", pushMessage.sourceId())
-                .log("푸시 작업 수신");
+        long startedAt = System.nanoTime();
+        try {
+            sqsClient.deleteMessage(request -> request.queueUrl(queueUrl)
+                    .receiptHandle(message.receiptHandle())
+                    .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
+                            .apiCallAttemptTimeout(Duration.ofSeconds(5))));
+        } catch (RuntimeException exception) {
+            timingLogger.logDeleteFailed(startedAt);
+            throw exception;
+        }
+        timingLogger.logDeleted(startedAt);
     }
 
     private final class VisibilityExtension implements AutoCloseable {

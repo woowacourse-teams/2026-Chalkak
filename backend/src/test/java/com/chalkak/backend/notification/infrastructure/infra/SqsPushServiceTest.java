@@ -43,6 +43,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
@@ -50,6 +51,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -99,6 +101,7 @@ class SqsPushServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        appender.list = new CopyOnWriteArrayList<>();
         appender.start();
         logger.addAppender(appender);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -166,7 +169,8 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                visibilityExecutor
+                visibilityExecutor,
+                new SqsPushTimingLogger()
         );
         push = new PushMessage(
                 UUID.randomUUID(),
@@ -226,6 +230,107 @@ class SqsPushServiceTest {
                 ));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"1", "2"})
+    @DisplayName("최초 수신과 재수신에서 원본 큐 입력부터 수신까지의 나이를 기록한다")
+    void process_sentTimestamp_recordsAgeAndReceiveCount(String receiveCount) {
+        // Given
+        Message received = message.toBuilder().attributes(Map.of(
+                MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT,
+                receiveCount,
+                MessageSystemAttributeName.SENT_TIMESTAMP,
+                Long.toString(NOW.minusSeconds(5).toEpochMilli())
+        )).build();
+        // When
+        worker.process(received);
+        // Then
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> {
+                    assertThat(log).containsEntry("queueAgeMs", 5000L)
+                            .containsEntry("receiveCount", receiveCount)
+                            .containsEntry("sqsMessageId", "sqs-id")
+                            .containsEntry("outcome", "DELETED");
+                    long total = (long) log.get("processingDurationMs");
+                    long delete = (long) logsAtStage("worker_message_deleted").getFirst()
+                            .get("sqsDeleteDurationMs");
+                    assertThat(total).isGreaterThanOrEqualTo(delete);
+                    assertThat(delete).isNotNegative();
+                });
+    }
+
+    @Test
+    @DisplayName("로그를 나중에 출력해도 큐 나이는 처리 종료가 아닌 수신 시각으로 계산한다")
+    void process_clockAdvancesWhileProcessing_recordsAgeAtReceipt() {
+        // Given
+        AtomicLong wallClock = new AtomicLong(NOW.toEpochMilli());
+        Clock advancingClock = mock(Clock.class);
+        given(advancingClock.millis()).willAnswer(call -> wallClock.get());
+        worker = new SqsPushService(
+                client,
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/000000000000/test",
+                mapper,
+                service,
+                advancingClock,
+                visibilityExecutor,
+                new SqsPushTimingLogger()
+        );
+        Message received = message.toBuilder().attributes(Map.of(
+                MessageSystemAttributeName.SENT_TIMESTAMP,
+                Long.toString(NOW.minusSeconds(5).toEpochMilli())
+        )).build();
+        given(service.process(any())).willAnswer(call -> {
+            wallClock.addAndGet(60_000);
+            return PushProcessingResult.completed();
+        });
+        // When
+        worker.process(received);
+        // Then
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("queueAgeMs", 5000L)
+                        .containsEntry("outcome", "DELETED"));
+        assertThat(operations).containsExactly("AmazonSQS.DeleteMessage");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "not-a-time", "-1", "9223372036854775807", "9223372036854775808"})
+    @DisplayName("입력 시각이 누락·음수·미래·잘못된 숫자여도 나이를 0으로 꾸미지 않고 처리한다")
+    void process_invalidSentTimestamp_completesWithUnknownAge(String sentTimestamp) {
+        // Given
+        Map<MessageSystemAttributeName, String> attributes = new HashMap<>(message.attributes());
+        if (sentTimestamp != null) {
+            attributes.put(MessageSystemAttributeName.SENT_TIMESTAMP, sentTimestamp);
+        }
+        // When
+        worker.process(message.toBuilder().attributes(attributes).build());
+        // Then
+        assertThat(operations).containsExactly("AmazonSQS.DeleteMessage");
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("queueAgeMs", null)
+                        .containsEntry("outcome", "DELETED"));
+        assertThat(logsAtStage("worker_processing_failed")).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0, 1})
+    @DisplayName("수신 시각 직전·동일·직후의 입력 시각을 구분한다")
+    void process_sentTimestampAroundReceipt_validatesAgeBoundary(long offsetMillis) {
+        // Given
+        Message received = message.toBuilder().attributes(Map.of(
+                MessageSystemAttributeName.SENT_TIMESTAMP,
+                Long.toString(NOW.toEpochMilli() + offsetMillis)
+        )).build();
+        // When
+        worker.process(received);
+        // Then
+        Object age = logsAtStage("worker_attempt_completed").getFirst().get("queueAgeMs");
+        if (offsetMillis > 0) {
+            assertThat(age).isNull();
+            return;
+        }
+        assertThat(age).isEqualTo(-offsetMillis);
+    }
+
     @Test
     @DisplayName("메시지 파싱·처리 오류도 큐 식별자로 조사하고 원문·수신 핸들·예외 내용을 기록하지 않는다")
     void process_invalidAndFailedMessages_recordsSafeCorrelatedFailures() {
@@ -242,6 +347,11 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("worker_processing_failed")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
                         .containsEntry("receiveCount", "1"));
+        assertThat(logsAtStage("worker_attempt_completed"))
+                .extracting(log -> log.get("outcome"))
+                .containsExactly("INVALID_MESSAGE_DELETED", "FAILED");
+        assertThat(logsAtStage("worker_attempt_completed")).allSatisfy(
+                log -> assertThat((long) log.get("processingDurationMs")).isNotNegative());
         assertThat(MDC.get("sqsMessageId")).isNull();
         assertThat(MDC.get("receiveCount")).isNull();
         assertThat(appender.list).allSatisfy(event -> {
@@ -321,7 +431,14 @@ class SqsPushServiceTest {
     @DisplayName("동시 발송 로그는 각 메시지 식별자를 유지하고 처리 후 문맥을 비운다")
     void process_concurrentMessages_keepsSeparateLogContexts() throws Exception {
         // Given
-        Message second = secondMessage();
+        message = message.toBuilder().attributes(Map.of(
+                MessageSystemAttributeName.SENT_TIMESTAMP,
+                Long.toString(NOW.minusSeconds(1).toEpochMilli())
+        )).build();
+        Message second = secondMessage().toBuilder().attributes(Map.of(
+                MessageSystemAttributeName.SENT_TIMESTAMP,
+                Long.toString(NOW.minusSeconds(3).toEpochMilli())
+        )).build();
         PushMessage secondPush = mapper.readValue(second.body(), PushMessage.class);
         CountDownLatch bothProcessing = new CountDownLatch(2);
         given(service.process(any())).willAnswer(call -> {
@@ -341,6 +458,15 @@ class SqsPushServiceTest {
                         .containsEntry("eventId", push.eventId()))
                 .anySatisfy(log -> assertThat(log).containsEntry("sqsMessageId", "second-sqs-id")
                         .containsEntry("eventId", secondPush.eventId()));
+        assertThat(logsAtStage("worker_attempt_completed")).hasSize(2)
+                .allSatisfy(log -> {
+                    assertThat(log).containsEntry("outcome", "DELETED");
+                    assertThat((long) log.get("processingDurationMs")).isNotNegative();
+                })
+                .anySatisfy(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                        .containsEntry("queueAgeMs", 1000L))
+                .anySatisfy(log -> assertThat(log).containsEntry("sqsMessageId", "second-sqs-id")
+                        .containsEntry("queueAgeMs", 3000L));
     }
 
     @Test
@@ -534,6 +660,17 @@ class SqsPushServiceTest {
         assertThat(bodies.getFirst().get("WaitTimeSeconds").asInt()).isEqualTo(20);
         assertThat(bodies.getFirst().get("VisibilityTimeout").asInt()).isEqualTo(60);
         assertThat(bodies.getFirst().get("MaxNumberOfMessages").asInt()).isEqualTo(1);
+        assertThat(bodies.getFirst().path("MessageSystemAttributeNames"))
+                .containsExactly(mapper.valueToTree("ApproximateReceiveCount"),
+                        mapper.valueToTree("SentTimestamp"));
+        assertThat(logsAtStage("worker_sqs_receive")).singleElement()
+                .satisfies(log -> {
+                    assertThat(log).containsEntry("received", false)
+                            .containsEntry("sqsMessageId", null);
+                    assertThat((long) log.get("sqsReceiveDurationMs")).isNotNegative();
+                });
+        assertThat(logsAtStage("worker_attempt_completed")).isEmpty();
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -552,6 +689,9 @@ class SqsPushServiceTest {
         assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
                 "AmazonSQS.ReceiveMessage");
         assertThat(logsAtStage("worker_poll_failed")).hasSize(1);
+        assertThat((long) logsAtStage("worker_poll_failed").getFirst()
+                .get("sqsReceiveDurationMs")).isNotNegative();
+        assertThat(logsAtStage("worker_attempt_completed")).isEmpty();
         verifyNoInteractions(service);
     }
 
@@ -572,7 +712,8 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                mock(ScheduledExecutorService.class)
+                mock(ScheduledExecutorService.class),
+                new SqsPushTimingLogger()
         );
         FutureTask<Boolean> polling = new FutureTask<>(() -> {
             interruptedWorker.poll();
@@ -606,6 +747,12 @@ class SqsPushServiceTest {
         assertThat(operations).containsExactly("AmazonSQS.ReceiveMessage",
                 "AmazonSQS.DeleteMessage");
         assertThat(bodies.getLast().get("ReceiptHandle").asText()).isEqualTo("receipt-handle");
+        assertThat(logsAtStage("worker_sqs_receive")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("received", true)
+                        .containsEntry("sqsMessageId", "sqs-id"));
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
+                        .containsEntry("outcome", "DELETED"));
     }
 
     @Test
@@ -701,6 +848,9 @@ class SqsPushServiceTest {
         assertThat(logsAtStage("worker_retry_pending")).singleElement()
                 .satisfies(log -> assertThat(log).containsEntry("sqsMessageId", "sqs-id")
                         .containsEntry("retryAfterSeconds", 120L));
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("outcome", "RETRY_PENDING"));
+        assertThat(logsAtStage("worker_message_deleted")).isEmpty();
     }
 
     @Test
@@ -739,6 +889,15 @@ class SqsPushServiceTest {
         assertThat(operations).containsExactly("AmazonSQS.DeleteMessage");
         heartbeatAction.get().run();
         assertThat(operations).hasSize(1);
+        assertThat(logsAtStage("worker_message_deleted")).isEmpty();
+        assertThat(logsAtStage("worker_sqs_delete_failed")).singleElement()
+                .satisfies(log -> assertThat((long) log.get("sqsDeleteDurationMs"))
+                        .isNotNegative());
+        assertThat(logsAtStage("worker_attempt_completed")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("outcome", "FAILED"));
+        assertThat(appender.list.stream()
+                .filter(event -> event.getLevel() == ch.qos.logback.classic.Level.ERROR).toList())
+                .hasSize(1);
     }
 
     @Test

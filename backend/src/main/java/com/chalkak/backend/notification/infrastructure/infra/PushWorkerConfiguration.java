@@ -151,7 +151,8 @@ public class PushWorkerConfiguration {
                 mapper,
                 service,
                 clock,
-                visibilityExtensionExecutor
+                visibilityExtensionExecutor,
+                new SqsPushTimingLogger()
         );
     }
 }

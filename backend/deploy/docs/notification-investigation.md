@@ -33,6 +33,63 @@ fields @timestamp, stage, receiveCount, deviceId, result, reason, errorCode, ret
 미발송을 확정하지 않는다. 알림 로그 보관은 30일이며, 로그 분리 전 기록은 기존 그룹의 기간을 따른다.
 [Logs Insights 공식 안내](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html)
 
+### 처리 지연 조사 — SQS 계측
+
+아래 필드는 계측 배포 이후 기록에만 존재한다. 과거 발송의 지연을 소급해서 분해하지 않는다.
+경과 시간은 `System.nanoTime()`으로 측정하고 밀리초 정수로 기록한다. CloudWatch 수집 시각의
+차이를 계산하지 않으므로 Agent의 로그 일괄 수집 간격에 영향을 받지 않는다.
+
+`SqsPushService`는 측정 시작·수신 시각과 처리 결과를 전달하고, `SqsPushTimingLogger`가
+시간 계산과 로그 출력을 담당한다. 로그 객체는 메시지별 상태를 저장하지 않는다.
+
+| 필드 / 로그 단계 | 측정 범위와 해석 |
+| --- | --- |
+| `sqsReceiveDurationMs` / `worker_sqs_receive`, `worker_poll_failed` | 수신 API 호출 시작부터 응답 또는 예외까지. `received=false`는 빈 응답이며 정상 롱 폴링 대기 최대 20초를 포함한다. 실패 시 1초 쉬는 시간은 제외한다 |
+| `queueAgeMs` / `worker_attempt_completed` | SQS `SentTimestamp`부터 Worker 처리 진입 시각까지. **`receiveCount=1`**에서 최초 큐 대기를 조사한다. 재수신에서는 이전 처리·숨김·재시도 대기도 포함한다. 서버 시계 차이의 영향을 받으며, 입력 시각 누락·잘못된 값·미래 값은 `null`로 남긴다 |
+| `sqsDeleteDurationMs` / `worker_message_deleted`, `worker_sqs_delete_failed` | 삭제 API 호출 시작부터 응답 또는 예외까지. 실패 시간은 INFO로 추가하고 기존 `worker_processing_failed` ERROR는 한 번만 남긴다 |
+| `processingDurationMs` / `worker_attempt_completed` | 이번 한 건의 처리 진입부터 숨김 연장 정리와 삭제 또는 재전달 대기 설정을 마친 시점까지. 예외도 기록한다. 수신 API 호출·큐 대기·다음 재수신까지의 대기는 제외한다 |
+
+`worker_attempt_completed`는 **처리 시도 종료**이며 발송 성공을 뜻하지 않는다. `outcome`은
+`DELETED`, `INVALID_MESSAGE_DELETED`, `RETRY_PENDING`, `FAILED`다. `DELETED`에는 정상 생략과
+영구 실패도 포함되므로 `worker_summary`·`worker_skipped`·`fcm_result`로 실제 결과를 확인한다.
+삭제 실패는 응답 확인 실패일 수도 있어 실제 삭제 여부를 확정하지 않는다.
+
+한 건의 로그는 `sqsMessageId + receiveCount`로 연결한다. 사건 ID·알림 ID는 기존
+`worker_received`에서 해당 큐 식별자를 찾아 연결한다. 입력 메타데이터가 없는 메시지는 일부
+필드가 비어 있을 수 있으므로 이를 0초 지연이나 최초 수신으로 간주하지 않는다.
+
+```sql
+fields @timestamp, stage, sqsMessageId, receiveCount, received, outcome, queueAgeMs, sqsReceiveDurationMs, sqsDeleteDurationMs, processingDurationMs, errorCode
+| filter type = "notification" and sqsMessageId = "SQS 메시지 ID"
+| sort @timestamp asc
+```
+
+최초 수신의 큐 대기와 처리 시간을 따로 집계한다. `count(queueAgeMs)`로 입력 시각이 유효한
+표본 수도 확인한다. 관리자 공지 한 회차만 조사하려면 먼저 `eventId = "공지 UUID"`의
+`worker_received`에서 확보한 큐 ID들로 `sqsMessageId in [...]` 필터를 추가한다.
+
+```sql
+filter type = "notification" and stage = "worker_attempt_completed" and receiveCount = "1"
+| stats count(*) as attempts, count(queueAgeMs) as ageSamples,
+    avg(queueAgeMs) as queueAvgMs, pct(queueAgeMs, 95) as queueP95Ms,
+    avg(processingDurationMs) as processingAvgMs, pct(processingDurationMs, 95) as processingP95Ms
+    by bin(1m)
+```
+
+수신 API 시간은 빈 응답과 실제 수신을 나눠 본다. 정상 20초 롱 폴링 대기를 메시지가 생긴 뒤
+20초 더 기다린 것으로 해석하지 않는다. 수신 실패는 `worker_poll_failed`로 별도 조사한다.
+
+```sql
+filter type = "notification" and stage = "worker_sqs_receive"
+| stats count(*) as requests, avg(sqsReceiveDurationMs) as avgMs,
+    pct(sqsReceiveDurationMs, 95) as p95Ms by received
+```
+
+이번 SQS 계측만으로는 처리 시간 안의 DB와 FCM을 분리할 수 없다. 후속 DB·FCM 계측 후
+내부 소요 시간을 비교한다. 수신 요청 시간·큐 대기·처리 시간은 서로 겹칠 수 있으므로 세 값을
+단순히 더하지 않는다. 숨김 자동 연장은 별도 스레드에서 동작하며 처리 종료가 연장 완료를
+기다린 시간은 전체 처리 시간에 포함된다. 수신·삭제·요약 로그가 늘어나는 만큼 수집·보관 비용도 증가한다.
+
 ## 2. 마지막으로 확인된 단계에서 다음 단계를 조사
 
 | 확인된 기록 | 해석과 다음 확인 |
