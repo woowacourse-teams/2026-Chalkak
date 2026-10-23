@@ -231,6 +231,24 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun scrollingUpShowsScrollToTopButtonAndClickMovesToFirstPhoto() {
+        setDisplayContent(uiState = scrollableLatestUiState())
+        val grid = composeRule.onNode(hasScrollAction())
+        repeat(2) { grid.performTouchInput { swipeUp() } }
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+
+        grid.performTouchInput { swipe(start = center, end = center.copy(y = center.y + 200f)) }
+        composeRule
+            .onNodeWithContentDescription("맨 위로")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+    }
+
+    @Test
     fun changingSortRestoresFilterAndMovesPhotoGridToFirstItem() {
         var selectedSort: PostSort? = null
         setDisplayContent(
