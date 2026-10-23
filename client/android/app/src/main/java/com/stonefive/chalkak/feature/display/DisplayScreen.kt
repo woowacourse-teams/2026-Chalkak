@@ -178,8 +178,7 @@ fun DisplayScreen(
 
     LaunchedEffect(scrollToTopRequested) {
         if (scrollToTopRequested) {
-            scrollState.reset()
-            gridState.animateScrollToItem(0)
+            scrollState.scrollToTop()
             scrollState.reset()
             onScrollToTopHandled()
         }
@@ -279,10 +278,7 @@ fun DisplayScreen(
         if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
             ChalkakScrollToTopButton(
                 onClick = {
-                    settleScope.launch {
-                        scrollState.reset()
-                        gridState.animateScrollToItem(0)
-                    }
+                    settleScope.launch { scrollState.scrollToTop() }
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

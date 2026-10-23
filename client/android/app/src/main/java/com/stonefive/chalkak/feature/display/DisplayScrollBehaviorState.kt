@@ -23,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+private const val SCROLL_TO_TOP_ANIMATED_ITEM_COUNT = 8
+
 @Stable
 class DisplayScrollBehaviorState(
     gridState: LazyStaggeredGridState,
@@ -180,6 +182,21 @@ class DisplayScrollBehaviorState(
         isHeaderTargetHidden = false
         filterOffset = 0f
         isFilterTargetHidden = false
+    }
+
+    /**
+     * 맨 위로 버튼·바텀바 재선택 시 접힌 날짜 헤더·정렬 탭·바텀바를 펼치고 첫 사진까지 올린다.
+     *
+     * 멀리 내려가 있을 때 처음부터 애니메이션하면 지나가는 사진을 전부 그리느라 순식간에 지나가고
+     * 썸네일이 비어 보인다. 그래서 첫 사진에서 [SCROLL_TO_TOP_ANIMATED_ITEM_COUNT]번째 사진으로
+     * 먼저 바로 옮긴 뒤 남은 구간만 애니메이션한다.
+     */
+    suspend fun scrollToTop() {
+        reset()
+        if (gridState.firstVisibleItemIndex > SCROLL_TO_TOP_ANIMATED_ITEM_COUNT) {
+            gridState.scrollToItem(SCROLL_TO_TOP_ANIMATED_ITEM_COUNT)
+        }
+        gridState.animateScrollToItem(0)
     }
 
     fun updateLayout(
