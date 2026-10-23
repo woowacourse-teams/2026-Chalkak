@@ -4,6 +4,10 @@ import Observation
 @MainActor
 @Observable
 final class FeedViewModel {
+    // Avoid the isolated-deinit back-deployment crash on iOS 26.2 and older.
+    // No actor-bound cleanup is needed. See swiftlang/swift#88036.
+    nonisolated deinit {}
+
     typealias DetailHandler = @MainActor @Sendable (String) async -> Result<FeedContent, FeedError>
     typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
     typealias DeleteHandler = @MainActor @Sendable (String) async -> Result<Void, FeedError>

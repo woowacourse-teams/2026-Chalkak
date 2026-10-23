@@ -4,6 +4,74 @@ import Testing
 
 @MainActor
 struct HomeAIReviewTests {
+    @Test("홈 복귀 시 같은 게시물의 완료 결과를 재조회 없이 유지한다")
+    func completedReviewSurvivesReentry() async {
+        let repository = ReviewRepositoryProbe(fetches: [.value(Self.review(.completed))])
+        let sleep = ReviewSleepProbe()
+        let model = Self.model(repository, sleep: sleep)
+        let observer = Task { await model.observeAIReview(postID: "post") }
+        await sleep.waitForCalls(1)
+        observer.cancel()
+        await observer.value
+
+        await model.observeAIReview(postID: "post")
+
+        #expect(model.viewState.aiReview.review == Self.review(.completed))
+        #expect(!model.viewState.aiReview.isLoading)
+        #expect(await repository.fetchIDs == ["post"])
+        #expect(await sleep.callCount == 1)
+    }
+
+    @Test("홈 복귀 시 처리 중 결과를 표시한 채 상태 조회를 재개한다")
+    func processingReviewSurvivesReentry() async {
+        let gate = ReviewResponseGate()
+        let repository = ReviewRepositoryProbe(fetches: [
+            .value(Self.review(.processing)), .suspended(gate)
+        ])
+        let sleep = ReviewSleepProbe()
+        let model = Self.model(repository, sleep: sleep)
+        let observer = Task { await model.observeAIReview(postID: "post") }
+        await sleep.waitForCalls(1)
+        observer.cancel()
+        await observer.value
+
+        let resumed = Task { await model.observeAIReview(postID: "post") }
+        await gate.waitUntilStarted()
+        #expect(model.viewState.aiReview.review?.status == .processing)
+        #expect(!model.viewState.aiReview.isLoading)
+        await gate.complete(Self.review(.completed))
+        await sleep.waitForCalls(2)
+        #expect(model.viewState.aiReview.review?.status == .completed)
+        #expect(await repository.fetchIDs == ["post", "post"])
+        resumed.cancel()
+        await resumed.value
+    }
+
+    @Test("게시물이 달라지면 이전 완료 결과를 지우고 새 결과를 조회한다")
+    func completedReviewDoesNotLeakToAnotherPost() async {
+        let gate = ReviewResponseGate()
+        let repository = ReviewRepositoryProbe(fetches: [
+            .value(Self.review(.completed)), .suspended(gate)
+        ])
+        let sleep = ReviewSleepProbe()
+        let model = Self.model(repository, sleep: sleep)
+        let observer = Task { await model.observeAIReview(postID: "old") }
+        await sleep.waitForCalls(1)
+        observer.cancel()
+        await observer.value
+
+        let current = Task { await model.observeAIReview(postID: "new") }
+        await gate.waitUntilStarted()
+        #expect(model.viewState.aiReview.review == nil)
+        #expect(model.viewState.aiReview.isLoading)
+        await gate.complete(Self.review(.none))
+        await sleep.waitForCalls(2)
+        #expect(model.viewState.aiReview.review?.status == AIReviewStatus.none)
+        #expect(await repository.fetchIDs == ["old", "new"])
+        current.cancel()
+        await current.value
+    }
+
     @Test("첫 GET의 NONE 상태로 요청 가능 여부를 결정한다")
     func initialStatus() async {
         let repository = ReviewRepositoryProbe(fetches: [.value(Self.review(.none))])
