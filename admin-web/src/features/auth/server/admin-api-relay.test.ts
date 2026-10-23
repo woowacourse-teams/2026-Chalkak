@@ -684,6 +684,30 @@ describe("notice relay", () => {
 });
 
 
+describe("reminder relay", () => {
+  const body = { title: "리마인더", body: "본문", repeat: "DAILY", target: "TOPIC_NON_PARTICIPANTS", scheduledAt: "2099-10-25T12:00:00Z" };
+  it.each([
+    ["reminders?page=2&pageSize=20", "GET", undefined, 200],
+    ["reminders", "POST", body, 201],
+    [`reminders/${resourceId}`, "PUT", body, 200],
+    [`reminders/${resourceId}`, "DELETE", undefined, 204],
+  ])("forwards %s %s to the admin backend path using the server session", async (path, method, requestBody, status) => {
+    fetchMock.mockResolvedValue(status === 204 ? new Response(null, { status }) : Response.json({ reminderId: resourceId }, { status: status as number }));
+    const response = await relay(path as string, { method: method as string, body: requestBody, cookie: token });
+    expect(response.status).toBe(status);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/${path}`, expect.objectContaining({ method, body: requestBody ? JSON.stringify(requestBody) : undefined }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+  });
+  it("requires authentication and same-origin mutations, and rejects unsupported reminder routes", async () => {
+    expect((await relay("reminders")).status).toBe(401);
+    expect((await relay("reminders", { method: "POST", cookie: token, omitOrigin: true })).status).toBe(403);
+    expect((await relay(`reminders/${resourceId}`, { cookie: token })).status).toBe(405);
+    expect((await relay(`reminders/${resourceId}`, { method: "PATCH", cookie: token })).status).toBe(405);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+
 describe("banner relay", () => {
   it("routes only banner list GET to the public backend path and forwards session auth", async () => {
     fetchMock.mockResolvedValue(Response.json({ currentPage: 2, pageSize: 20, hasNext: false, banners: [] }));

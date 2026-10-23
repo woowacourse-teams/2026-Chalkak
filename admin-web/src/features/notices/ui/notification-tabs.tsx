@@ -10,5 +10,6 @@ export function NotificationTabs() {
   return <nav aria-label="알림 관리" className={`${common.statusTabs} ${styles.tabs}`}>
     <Link aria-current={pathname.startsWith("/pushes") ? "page" : undefined} href="/pushes">주제 알림 설정</Link>
     <Link aria-current={pathname.startsWith("/notices") ? "page" : undefined} href="/notices">공지 관리</Link>
+    <Link aria-current={pathname.startsWith("/reminders") ? "page" : undefined} href="/reminders">리마인더</Link>
   </nav>;
 }
