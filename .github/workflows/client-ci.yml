@@ -188,6 +188,14 @@ jobs:
       - name: Set up Xcode
         run: xcodebuild -version
 
+      # Restores the Swift packages the build would otherwise download every run.
+      # The key changes with Package.resolved, so a package update always starts from a clean download.
+      - name: Cache Swift packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.DERIVED_DATA_PATH }}/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('client/iOS/chalkak/chalkak.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
       # Build the app and test bundles once; the test step reuses them without rebuilding.
       # Later xcodebuild calls share DERIVED_DATA_PATH to reuse these packages.
       # Simulator runners are arm64, so the generic destination is limited to arm64.
