@@ -191,6 +191,7 @@ jobs:
       # Build the app and test bundles once; the test step reuses them without rebuilding.
       # Later xcodebuild calls share DERIVED_DATA_PATH to reuse these packages.
       # Simulator runners are arm64, so the generic destination is limited to arm64.
+      # CI never uses the Xcode code index, so the compiler skips writing it.
       - name: Build for testing
         run: |
           xcodebuild \
@@ -200,6 +201,7 @@ jobs:
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             ARCHS=arm64 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             build-for-testing
 
       # Runs after the build because CoreSimulator can register devices late (#351).
