@@ -189,7 +189,7 @@ jobs:
         run: xcodebuild -version
 
       # Build the app and test bundles once; the test step reuses them without rebuilding.
-      # Later xcodebuild calls share DERIVED_DATA_PATH and skip package updates to reuse these packages.
+      # Later xcodebuild calls share DERIVED_DATA_PATH to reuse these packages.
       # Simulator runners are arm64, so the generic destination is limited to arm64.
       - name: Build for testing
         run: |
@@ -270,7 +270,6 @@ jobs:
             -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
-            -skipPackageUpdates \
             -resultBundlePath "$RUNNER_TEMP/chalkak-unit-tests.xcresult" \
             -parallel-testing-enabled NO \
             test-without-building \
