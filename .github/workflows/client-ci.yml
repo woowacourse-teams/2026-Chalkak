@@ -188,32 +188,6 @@ jobs:
       - name: Set up Xcode
         run: xcodebuild -version
 
-      # Boots an iPhone simulator in the background so its boot time overlaps the build.
-      # The select step still confirms the device through xcodebuild (#351) and falls back without it.
-      - name: Start iPhone Simulator boot in background
-        run: |
-          preboot_dir="$RUNNER_TEMP/simulator-preboot"
-          mkdir -p "$preboot_dir"
-          (
-            udid=""
-            for _ in $(seq 1 24); do
-              udid="$(xcrun simctl list devices available | sed -nE 's/^ +iPhone[^()]* \(([0-9A-Fa-f-]{36})\) \(.*/\1/p' | sed -n '1p')"
-              [[ -n "$udid" ]] && break
-              sleep 5
-            done
-
-            if [[ -n "$udid" ]]; then
-              echo "$(date -u +%T) Booting $udid"
-              xcrun simctl boot "$udid" || true
-              if xcrun simctl bootstatus "$udid" -b; then
-                echo "$udid" > "$preboot_dir/udid"
-              fi
-            fi
-
-            echo "$(date -u +%T) Finished" > "$preboot_dir/status"
-          ) > "$preboot_dir/log" 2>&1 < /dev/null &
-          echo "$!" > "$preboot_dir/pid"
-
       # Build the app and test bundles once; the test step reuses them without rebuilding.
       # Later xcodebuild calls share DERIVED_DATA_PATH to reuse these packages.
       # Simulator runners are arm64, so the generic destination is limited to arm64.
@@ -241,21 +215,6 @@ jobs:
               sed -n '1p'
           }
 
-          # Waits for the background boot so its device can be preferred.
-          # Continues without it after 5 minutes or when the background process has exited.
-          preboot_dir="$RUNNER_TEMP/simulator-preboot"
-          preboot_pid="$(cat "$preboot_dir/pid" 2>/dev/null || true)"
-          for _ in $(seq 1 60); do
-            [[ -f "$preboot_dir/status" ]] && break
-            if [[ -z "$preboot_pid" ]] || ! kill -0 "$preboot_pid" 2>/dev/null; then
-              break
-            fi
-            sleep 5
-          done
-          echo "Background boot log:"
-          cat "$preboot_dir/log" "$preboot_dir/status" 2>/dev/null || true
-          preboot_udid="$(cat "$preboot_dir/udid" 2>/dev/null || true)"
-
           max_attempts=12
           destinations=""
           for attempt in $(seq 1 "$max_attempts"); do
@@ -268,13 +227,7 @@ jobs:
                 -showdestinations 2>&1
             )" || true
 
-            simulator_udid=""
-            if [[ -n "$preboot_udid" ]]; then
-              simulator_udid="$(pick_simulator "id:$preboot_udid")"
-            fi
-            if [[ -z "$simulator_udid" ]]; then
-              simulator_udid="$(pick_simulator 'name:iPhone')"
-            fi
+            simulator_udid="$(pick_simulator 'name:iPhone')"
 
             if [[ -z "$simulator_udid" && "$attempt" -eq "$max_attempts" ]]; then
               simulator_udid="$(pick_simulator '.')"
@@ -301,7 +254,7 @@ jobs:
             sleep 5
           done
 
-      # Returns at once when the background boot already booted this device; otherwise boots it here.
+      # Booting separately keeps simulator startup time visible apart from test time.
       - name: Boot iOS Simulator
         timeout-minutes: 8
         run: |
