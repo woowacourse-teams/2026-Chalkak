@@ -109,9 +109,10 @@ struct FeedPhotoPlaceholder: Equatable, Sendable {
         self.signatureImageSource = signatureImageSource
         self.preloadedImage = preloadedImage
         self.preloadedSignatureImage = signatureImageSource?.cachedImage()
-        self.heightToWidthRatio = heightToWidthRatio ?? preloadedImage.flatMap { image in
+        // 카드의 크롭 비율보다 캐시된 이미지 자체의 비율을 우선한다.
+        self.heightToWidthRatio = preloadedImage.flatMap { image in
             image.size.width > 0 ? image.size.height / image.size.width : nil
-        }
+        } ?? heightToWidthRatio
     }
 
     /// 원본을 띄우는 화면에서 출발할 때 쓴다. Android 랭킹 카드처럼 원본이 이미 받아져 있으면 원본,

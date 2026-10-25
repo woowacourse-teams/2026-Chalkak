@@ -48,7 +48,7 @@ struct HomeWeeklyRecord: View {
                             Button { onOpenRecordDate(day.date) } label: {
                                 WeeklyRecordCell(day: day)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(ChalkakUnhighlightedButtonStyle())
                         } else {
                             WeeklyRecordCell(day: day)
                         }

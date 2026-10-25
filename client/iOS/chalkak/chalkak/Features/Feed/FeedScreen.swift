@@ -21,6 +21,9 @@ struct FeedScreen: View {
     @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
     @State private var hasStartedOpening = false
+    @State private var hasLaunchedOpening = false
+    @State private var isPhotoReady = false
+    @State private var hasContentError = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
     private let opensAIReviewOnEntry: Bool
@@ -129,13 +132,23 @@ struct FeedScreen: View {
         .modifier(FeedScreenReturnEffect(
             progress: usesScreenTransition ? photoProgress : 1,
             dragOffset: screenDragOffset,
-            source: usesScreenTransition && isPhotoMoving ? movingSource : nil,
+            source: usesScreenTransition && hasStartedOpening ? movingSource : nil,
             photo: photoFrame,
             canvas: transitionViewport,
             safeAreaInsets: transitionSafeAreaInsets
         ))
         // 측정 전 전체 화면이 순간 노출되지 않도록 레이아웃은 유지하고 표시만 기다린다.
-        .opacity(usesScreenTransition && (photoFrame == nil || transitionViewport == nil) ? 0 : 1)
+        .opacity(usesScreenTransition && !hasStartedOpening ? 0 : 1)
+        .animation(nil, value: hasStartedOpening)
+        .background {
+            FeedOpeningFrameGate(isEnabled: hasStartedOpening && !hasLaunchedOpening) {
+                guard !hasLaunchedOpening, !isClosing else { return }
+                hasLaunchedOpening = true
+                open()
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .toolbar(.hidden, for: .navigationBar)
         .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
         .onAppear {
@@ -153,7 +166,10 @@ struct FeedScreen: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.viewState.contentStatus) { _, status in
-            if case .error = status { startOpening() }
+            if case .error = status {
+                hasContentError = true
+                startOpening()
+            }
         }
         .onChange(of: viewModel.viewState.deletedPostID) { _, postID in
             if let postID {
@@ -255,9 +271,12 @@ struct FeedScreen: View {
                         viewport: usesScreenTransition ? nil : transitionViewport,
                         keepsOriginalVisible: usesScreenTransition && hasCompletedOpening
                     ),
-                    onTransitionReady: startOpening,
+                    onTransitionReady: {
+                        isPhotoReady = true
+                        startOpening()
+                    },
                     onPhotoFrameChanged: { frame in
-                        if !isPhotoMoving || photoFrame == nil { photoFrame = frame }
+                        if !isPhotoMoving || !hasStartedOpening { photoFrame = frame }
                         startOpening()
                     },
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
@@ -301,11 +320,10 @@ struct FeedScreen: View {
 
     private func startOpening() {
         guard !hasStartedOpening, !isClosing else { return }
-        if usesScreenTransition {
-            guard photoFrame != nil, transitionViewport != nil else { return }
+        if usesScreenTransition && !hasContentError {
+            guard isPhotoReady, photoFrame != nil, transitionViewport != nil else { return }
         }
         hasStartedOpening = true
-        open()
     }
 
     // releaseVelocity: 백 스와이프를 놓은 순간의 사진 진행도 속도(초당). 없으면 멈춘 상태에서 출발한다.

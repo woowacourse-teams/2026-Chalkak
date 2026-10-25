@@ -511,3 +511,56 @@ private struct FeedScreenReturnMask: Shape {
         RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
     }
 }
+
+/// 시작 상태가 최소 한 화면 갱신 간격 동안 유지된 다음 확대를 시작한다.
+/// Task.yield는 렌더링 경계가 아니므로 화면 갱신 신호를 사용한다.
+struct FeedOpeningFrameGate: UIViewRepresentable {
+    let isEnabled: Bool
+    let onReady: () -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onReady = onReady
+        if isEnabled { context.coordinator.start() }
+        else { context.coordinator.stop() }
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    final class Coordinator: NSObject {
+        var onReady: (() -> Void)?
+        private var displayLink: CADisplayLink?
+        private var hasSeenFrame = false
+
+        func start() {
+            guard displayLink == nil else { return }
+            hasSeenFrame = false
+            let link = CADisplayLink(target: self, selector: #selector(tick))
+            displayLink = link
+            link.add(to: .main, forMode: .common)
+        }
+
+        func stop() {
+            displayLink?.invalidate()
+            displayLink = nil
+        }
+
+        @objc private func tick() {
+            guard hasSeenFrame else {
+                hasSeenFrame = true
+                return
+            }
+            stop()
+            onReady?()
+        }
+    }
+}
