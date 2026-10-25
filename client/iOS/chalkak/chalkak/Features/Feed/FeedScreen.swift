@@ -261,7 +261,7 @@ struct FeedScreen: View {
                 FeedPhoto(
                     post: content?.post,
                     placeholder: placeholder,
-                    isLikeEnabled: viewModel.viewState.isLikeEnabled,
+                    isLikeEnabled: canLike,
                     zoom: FeedPhotoZoom(
                         photoProgress: usesScreenTransition ? 1 : photoProgress,
                         contentProgress: visibleContentProgress,
@@ -280,7 +280,11 @@ struct FeedScreen: View {
                         startOpening()
                     },
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
-                    onLike: { viewModel.toggleLike() }
+                    onLike: {
+                        // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 좋아요를 실행하지 않는다.
+                        guard canLike else { return }
+                        viewModel.toggleLike()
+                    }
                 )
                 // 이동 중인 사진이 주제 위로 그려지게 한다.
                 .zIndex(1)
@@ -292,6 +296,10 @@ struct FeedScreen: View {
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
         .scrollDisabled(isPhotoMoving || isPhotoInteracting)
+    }
+
+    private var canLike: Bool {
+        viewModel.viewState.isLikeEnabled && !isBackSwiping && !isPhotoMoving && !isClosing
     }
 
     private var usesScreenTransition: Bool {
