@@ -264,6 +264,17 @@ jobs:
             sleep 5
           done
 
+      # TEMPORARY diagnostic (#806): samples the busiest processes while the simulator boots and tests start.
+      - name: Start CPU sampling
+        run: |
+          (
+            for _ in $(seq 1 40); do
+              echo "== $(date -u +%T) $(sysctl -n vm.loadavg)"
+              top -l 2 -n 8 -o cpu -stats pid,command,cpu | awk '/^PID/{n++} n==2'
+              sleep 3
+            done
+          ) > "$RUNNER_TEMP/cpu-samples.log" 2>&1 < /dev/null &
+
       # Booting separately keeps simulator startup time visible apart from test time.
       - name: Boot iOS Simulator
         timeout-minutes: 8
@@ -290,6 +301,11 @@ jobs:
             -parallel-testing-enabled NO \
             test-without-building \
             -only-testing:chalkakTests 2>&1 | tee "$RUNNER_TEMP/chalkak-unit-tests.log"
+
+      # TEMPORARY diagnostic (#806): prints the samples taken since the simulator boot started.
+      - name: Print CPU samples
+        if: always()
+        run: cat "$RUNNER_TEMP/cpu-samples.log" || true
 
       - name: Upload iOS failure reports
         if: failure()
