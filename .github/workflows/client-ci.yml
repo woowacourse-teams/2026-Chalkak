@@ -261,15 +261,21 @@ jobs:
           xcrun simctl boot "$SIMULATOR_UDID" || true
           xcrun simctl bootstatus "$SIMULATOR_UDID" -b
 
+      # Runs from the .xctestrun file so xcodebuild skips reopening the project and resolving packages again.
       - name: Run unit tests
         run: |
-          set -o pipefail
+          set -euo pipefail
+
+          xctestrun_files=("$DERIVED_DATA_PATH"/Build/Products/*.xctestrun)
+          if [[ "${#xctestrun_files[@]}" -ne 1 || ! -f "${xctestrun_files[0]}" ]]; then
+            echo "::error::Expected exactly one .xctestrun file, found: ${xctestrun_files[*]}"
+            exit 1
+          fi
+          echo "Using test run file: ${xctestrun_files[0]}"
+
           xcodebuild \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -configuration Debug \
+            -xctestrun "${xctestrun_files[0]}" \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "$RUNNER_TEMP/chalkak-unit-tests.xcresult" \
             -parallel-testing-enabled NO \
             test-without-building \
