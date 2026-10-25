@@ -503,3 +503,59 @@ struct FeedZoomCropTests {
         }
     }
 }
+
+struct FeedScreenReturnGeometryTests {
+    private let canvas = CGRect(x: 0, y: 60, width: 390, height: 740)
+    private let photo = CGRect(x: 0, y: 220, width: 390, height: 260)
+    private let insets = EdgeInsets(top: 60, leading: 0, bottom: 34, trailing: 0)
+
+    @Test("평상시와 취소 완료 시 안전 영역까지 덮는다")
+    func coversSafeAreaAtRest() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
+        let geometry = FeedScreenReturnGeometry(progress: 1, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+        #expect(geometry.scale == 1)
+        #expect(geometry.offset == .zero)
+        #expect(geometry.cornerRadius == 0)
+        #expect(geometry.clip == CGRect(x: 0, y: -60, width: 390, height: 834))
+    }
+
+    @Test("길게 끌어도 창의 크기와 전체 화면 영역이 유지된다")
+    func holdsWindowDuringDrag() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
+        for distance: CGFloat in [100, 200, 400] {
+            let geometry = FeedScreenReturnGeometry(progress: 1, dragOffset: distance, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+            #expect(abs(geometry.scale - 0.96) < 0.0001)
+            #expect(geometry.offset.width == distance)
+            #expect(geometry.clip == CGRect(x: 0, y: -60, width: 390, height: 834))
+        }
+    }
+
+    @Test("움직이기 시작하면 라운드를 빠르게 드러내고 펼쳐지면 사라진다")
+    func roundsEarlyDuringMotion() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
+        let dragged = FeedScreenReturnGeometry(progress: 1, dragOffset: 12, source: source, photo: photo, canvas: canvas)
+        #expect(abs(dragged.cornerRadius * dragged.scale - ChalkakShapes.large) < 0.0001)
+        let moving = FeedScreenReturnGeometry(progress: 0.94, source: source, photo: photo, canvas: canvas)
+        #expect(moving.cornerRadius * moving.scale > 15)
+        let expanded = FeedScreenReturnGeometry(progress: 1, source: source, photo: photo, canvas: canvas)
+        #expect(expanded.cornerRadius == 0)
+    }
+
+    @Test("카드 비율과 위치가 달라도 정확한 카드 영역으로 접힌다")
+    func arrivesAtCard() {
+        for frame in [CGRect(x: 210, y: 650, width: 160, height: 200), CGRect(x: 20, y: 180, width: 160, height: 90)] {
+            let source = FeedZoomRegistry.Source(frame: frame, cornerRadius: 12)
+            let geometry = FeedScreenReturnGeometry(progress: 0, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+            let actual = CGRect(
+                x: canvas.midX + (geometry.clip.minX - canvas.width / 2) * geometry.scale + geometry.offset.width,
+                y: canvas.midY + (geometry.clip.minY - canvas.height / 2) * geometry.scale + geometry.offset.height,
+                width: geometry.clip.width * geometry.scale, height: geometry.clip.height * geometry.scale
+            )
+            #expect(abs(actual.minX - frame.minX) < 0.0001)
+            #expect(abs(actual.minY - frame.minY) < 0.0001)
+            #expect(abs(actual.width - frame.width) < 0.0001)
+            #expect(abs(actual.height - frame.height) < 0.0001)
+            #expect(abs(geometry.cornerRadius * geometry.scale - 12) < 0.0001)
+        }
+    }
+}

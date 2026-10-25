@@ -82,6 +82,7 @@ struct FeedPhotoZoom {
     var isSettled = true
     var morphsAspectRatio = false
     var viewport: CGRect?
+    var keepsOriginalVisible = false
 }
 
 extension EnvironmentValues {
@@ -406,5 +407,107 @@ struct FeedZoomPhotoClip: Shape {
             )
         }
         return RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
+    }
+}
+
+/// 불투명한 상세 화면을 하나의 창으로 이동시킨 뒤 원래 사진 카드로 접는다.
+struct FeedScreenReturnEffect: ViewModifier, Animatable {
+    @Environment(\.chalkakTheme) private var theme
+    var progress: CGFloat
+    var dragOffset: CGFloat
+    let source: FeedZoomRegistry.Source?
+    let photo: CGRect?
+    let canvas: CGRect?
+    let safeAreaInsets: EdgeInsets
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(progress, dragOffset) }
+        set {
+            progress = newValue.first
+            dragOffset = newValue.second
+        }
+    }
+
+    func body(content: Content) -> some View {
+        let geometry: FeedScreenReturnGeometry?
+        if let source, let photo, let canvas,
+           photo.width > 0, photo.height > 0, source.frame.width > 0, source.frame.height > 0 {
+            geometry = FeedScreenReturnGeometry(
+                progress: progress, dragOffset: dragOffset, source: source, photo: photo,
+                canvas: canvas, safeAreaInsets: safeAreaInsets, floatingRadius: theme.shapes.large
+            )
+        } else {
+            geometry = nil
+        }
+        // 마스크 내부만 바꿔 사진 뷰와 로드된 이미지를 유지한다.
+        return content
+            .mask {
+                if let geometry {
+                    FeedScreenReturnMask(bounds: geometry.clip, cornerRadius: geometry.cornerRadius)
+                } else {
+                    Rectangle().ignoresSafeArea()
+                }
+            }
+            .scaleEffect(geometry?.scale ?? 1)
+            .offset(geometry?.offset ?? .zero)
+    }
+}
+
+struct FeedScreenReturnGeometry {
+    let scale: CGFloat
+    let offset: CGSize
+    let clip: CGRect
+    let cornerRadius: CGFloat
+
+    init(progress: CGFloat, dragOffset: CGFloat = 0, source: FeedZoomRegistry.Source,
+         photo: CGRect, canvas: CGRect, safeAreaInsets: EdgeInsets = EdgeInsets(),
+         floatingRadius: CGFloat = ChalkakShapes.large) {
+        let remaining = 1 - min(max(progress, 0), 1)
+        let endScale = max(source.frame.width / photo.width, source.frame.height / photo.height)
+        // 드래그 중에는 최대 4%만 작아지고 전체 화면 영역을 보존한다.
+        let dragScale = 1 - min(max(dragOffset, 0) / 100, 1) * 0.04
+        scale = dragScale + (endScale - dragScale) * remaining
+        let endOffset = CGSize(
+            width: source.frame.midX - canvas.midX - (photo.midX - canvas.midX) * endScale,
+            height: source.frame.midY - canvas.midY - (photo.midY - canvas.midY) * endScale
+        )
+        offset = CGSize(
+            width: endOffset.width * remaining + dragOffset * (1 - remaining),
+            height: endOffset.height * remaining
+        )
+        var target = source.clipFrame ?? source.frame
+        if let visible = source.visibleBounds {
+            let intersection = target.intersection(visible)
+            if !intersection.isNull { target = intersection }
+        }
+        // 최종 변환을 역산해 카드 클립을 상세 화면의 로컬 좌표로 옮긴다.
+        let endClip = CGRect(
+            x: canvas.width / 2 + (target.minX - canvas.midX - endOffset.width) / endScale,
+            y: canvas.height / 2 + (target.minY - canvas.midY - endOffset.height) / endScale,
+            width: target.width / endScale,
+            height: target.height / endScale
+        )
+        let fullBounds = CGRect(
+            x: -safeAreaInsets.leading, y: -safeAreaInsets.top,
+            width: canvas.width + safeAreaInsets.leading + safeAreaInsets.trailing,
+            height: canvas.height + safeAreaInsets.top + safeAreaInsets.bottom
+        )
+        clip = CGRect(
+            x: fullBounds.minX + (endClip.minX - fullBounds.minX) * remaining,
+            y: fullBounds.minY + (endClip.minY - fullBounds.minY) * remaining,
+            width: fullBounds.width + (endClip.width - fullBounds.width) * remaining,
+            height: fullBounds.height + (endClip.height - fullBounds.height) * remaining
+        )
+        let lift = min(1, max(max(dragOffset, 0) / 12, remaining / 0.06))
+        cornerRadius = (floatingRadius * lift * (1 - remaining) + source.cornerRadius * remaining) / scale
+    }
+}
+
+private struct FeedScreenReturnMask: Shape {
+    let bounds: CGRect
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
     }
 }

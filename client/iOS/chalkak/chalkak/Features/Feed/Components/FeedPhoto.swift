@@ -8,6 +8,7 @@ struct FeedPhoto: View {
     let isLikeEnabled: Bool
     let zoom: FeedPhotoZoom
     let onTransitionReady: () -> Void
+    let onPhotoFrameChanged: (CGRect) -> Void
     let onPhotoInteractionChanged: (Bool) -> Void
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
@@ -27,6 +28,7 @@ struct FeedPhoto: View {
         isLikeEnabled: Bool = true,
         zoom: FeedPhotoZoom = FeedPhotoZoom(),
         onTransitionReady: @escaping () -> Void = {},
+        onPhotoFrameChanged: @escaping (CGRect) -> Void = { _ in },
         onPhotoInteractionChanged: @escaping (Bool) -> Void = { _ in },
         onLike: @escaping () -> Void
     ) {
@@ -35,6 +37,7 @@ struct FeedPhoto: View {
         self.isLikeEnabled = isLikeEnabled
         self.zoom = zoom
         self.onTransitionReady = onTransitionReady
+        self.onPhotoFrameChanged = onPhotoFrameChanged
         self.onPhotoInteractionChanged = onPhotoInteractionChanged
         self.onLike = onLike
         _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
@@ -89,7 +92,10 @@ struct FeedPhoto: View {
                         proxy.frame(in: .global)
                     } action: { frame in
                         // 핀치 중 전환용 프레임을 다시 적용하면 확대 크기가 다음 프레임에 되먹임된다.
-                        if !isGestureActive, zoom.isSettled || imageFrame == nil { imageFrame = frame }
+                        if !isGestureActive, zoom.isSettled || imageFrame == nil {
+                            imageFrame = frame
+                            onPhotoFrameChanged(frame)
+                        }
                     }
             }
             // clip 분기가 바뀌어도 ZStack 바깥의 터치 뷰는 유지한다.
@@ -258,7 +264,7 @@ struct FeedPhoto: View {
 
     // Android SharedFeedImage와 같이, 출발 이미지가 있으면 원본은 로드됐고 열림 전환이 끝난 뒤에만 드러낸다.
     private var isOriginalRevealed: Bool {
-        placeholder == nil || (isOriginalLoaded && zoom.isSettled)
+        placeholder == nil || (isOriginalLoaded && (zoom.isSettled || zoom.keepsOriginalVisible))
     }
 
     private var photoOpacity: CGFloat {
