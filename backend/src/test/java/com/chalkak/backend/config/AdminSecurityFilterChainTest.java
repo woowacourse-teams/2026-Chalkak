@@ -358,6 +358,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("POST", "/api/v1/admin/ai-prompt-versions"),
                 Arguments.of("GET", "/api/v1/admin/ai-prompt-versions"),
                 Arguments.of("GET", "/api/v1/admin/ai-prompt-versions/" + id),
+                Arguments.of("GET", "/api/v1/admin/ai-reviews"),
                 Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("PUT", "/api/v1/admin/topic-push-schedules/" + id),
@@ -390,6 +391,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
             if (path.startsWith("/api/v1/admin/topic-push-schedules")
                     || path.startsWith("/api/v1/admin/ai-prompt-previews")
                     || path.startsWith("/api/v1/admin/ai-prompt-versions")
+                    || path.startsWith("/api/v1/admin/ai-reviews")
                     || path.startsWith("/api/v1/admin/notices")
                     || path.startsWith("/api/v1/admin/banners")
                     || path.startsWith("/api/v1/admin/reminders")) {
