@@ -7,6 +7,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
@@ -508,6 +509,85 @@ class AuthorPostsViewModelTest {
         assertEquals(1, viewModel.uiState.value.currentPage)
     }
 
+    @Test
+    fun `상세에서 돌아오면 연 사진의 최신 좋아요를 목록에 반영한다`() = runTest {
+        val repository = FakeRepository().apply {
+            response = HomeResult.Success(page(1, listOf(post("one").copy(likeCount = 1)), false))
+            detailResponse = detail("one", likeCount = 2, isLiked = true)
+        }
+        val viewModel = AuthorPostsViewModel(repository, "author")
+        advanceUntilIdle()
+
+        viewModel.onPostOpened("one")
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(listOf("one"), repository.detailRequests)
+        val post = viewModel.uiState.value.posts
+            .single()
+        assertEquals(2, post.likeCount)
+        assertTrue(post.isLiked)
+    }
+
+    @Test
+    fun `상세를 열지 않은 복귀와 두 번째 복귀는 다시 조회하지 않는다`() = runTest {
+        val repository = FakeRepository().apply { detailResponse = detail("one", likeCount = 2, isLiked = true) }
+        val viewModel = AuthorPostsViewModel(repository, "author")
+        advanceUntilIdle()
+
+        viewModel.onResume()
+        viewModel.onPostOpened("one")
+        viewModel.onResume()
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(listOf("one"), repository.detailRequests)
+    }
+
+    @Test
+    fun `다시 받는 사이 누른 좋아요는 늦게 온 상세 결과로 덮지 않는다`() = runTest {
+        val repository = FakeRepository().apply {
+            response = HomeResult.Success(page(1, listOf(post("one").copy(likeCount = 1)), false))
+            pendingDetail = CompletableDeferred()
+            likeResponse = HomeResult.Success(HomeLike(5, true))
+        }
+        val viewModel = AuthorPostsViewModel(repository, "author")
+        advanceUntilIdle()
+        viewModel.onPostOpened("one")
+        viewModel.onResume()
+
+        viewModel.updateLike("one")
+        advanceUntilIdle()
+        repository.pendingDetail!!.complete(detail("one", likeCount = 2, isLiked = false))
+        advanceUntilIdle()
+
+        val post = viewModel.uiState.value.posts
+            .single()
+        assertEquals(5, post.likeCount)
+        assertTrue(post.isLiked)
+    }
+
+    @Test
+    fun `상세 조회가 실패하면 목록을 그대로 둔다`() = runTest {
+        val repository = FakeRepository().apply {
+            response = HomeResult.Success(page(1, listOf(post("one").copy(likeCount = 1)), false))
+            detailResponse = HomeResult.Failure(HomeFailure.Http(404))
+        }
+        val viewModel = AuthorPostsViewModel(repository, "author")
+        advanceUntilIdle()
+
+        viewModel.onPostOpened("one")
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(
+            1,
+            viewModel.uiState.value.posts
+                .single()
+                .likeCount,
+        )
+    }
+
     private class FakeRepository : PostRepository {
         override val likeUpdates = MutableSharedFlow<PostLikeUpdate>(extraBufferCapacity = 16)
         val likeRequests = mutableListOf<Pair<String, Boolean>>()
@@ -530,7 +610,14 @@ class AuthorPostsViewModelTest {
 
         override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("Unused")
 
-        override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("Unused")
+        val detailRequests = mutableListOf<String>()
+        var detailResponse: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
+        var pendingDetail: CompletableDeferred<HomeResult<PostDetail>>? = null
+
+        override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> {
+            detailRequests += postId
+            return pendingDetail?.await() ?: detailResponse
+        }
 
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("Unused")
 
@@ -565,4 +652,25 @@ private fun post(id: String) = AuthorPost(
     originalImageUrl = "https://example.com/$id.webp",
     thumbnailImageUrl = null,
     topic = Topic("topic", "주제", LocalDate.of(2026, 10, 26)),
+)
+
+private fun detail(
+    id: String,
+    likeCount: Int,
+    isLiked: Boolean,
+): HomeResult<PostDetail> = HomeResult.Success(
+    PostDetail(
+        post = Post(
+            id = id,
+            originalImageUrl = "https://example.com/$id.webp",
+            thumbnailImageUrl = "https://example.com/$id-thumbnail.webp",
+            signatureOriginalImageUrl = "https://example.com/signature.png",
+            contentDescription = id,
+            title = null,
+            likeCount = likeCount,
+            isLiked = isLiked,
+        ),
+        topic = "주제",
+        topicDate = LocalDate.of(2026, 10, 26),
+    ),
 )

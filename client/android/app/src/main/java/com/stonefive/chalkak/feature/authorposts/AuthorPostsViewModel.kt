@@ -14,6 +14,7 @@ import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.repository.PostRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
@@ -32,6 +33,8 @@ class AuthorPostsViewModel(
     private val latestLikeUpdates = mutableMapOf<String, PostLikeUpdate>()
     private val likeRevisions = mutableMapOf<String, Int>()
     private var nextMessageId = 0L
+    private var openedPostId: String? = null
+    private var openedPostRefreshJob: Job? = null
 
     init {
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -55,6 +58,36 @@ class AuthorPostsViewModel(
             return
         }
         loadPage(state.currentPage + 1)
+    }
+
+    /** 목록에서 사진 상세를 열 때 호출한다. 상세에서 돌아오면 [onResume]이 이 사진의 최신 좋아요를 다시 받는다. */
+    fun onPostOpened(postId: String) {
+        openedPostId = postId
+    }
+
+    /**
+     * 화면이 다시 보일 때 호출한다. 상세에서 돌아온 경우 연 사진 하나만 상세 API로 다시 받아 좋아요 수·여부를 갱신한다.
+     * 예: 목록 1개 → 다른 사람이 좋아요 → 상세 2개 → 돌아오면 목록도 2개.
+     * 다시 받는 사이 좋아요를 누르거나 다른 화면에서 동기화된 값이 있으면 그 값이 더 최신이라 덮어쓰지 않는다.
+     */
+    fun onResume() {
+        val postId = openedPostId ?: return
+        openedPostId = null
+        if (postId in deletedPostIds) return
+        openedPostRefreshJob?.cancel()
+        val revisionAtRequest = likeRevisions[postId]
+        openedPostRefreshJob = viewModelScope.launch {
+            val result = try {
+                repository.getPostDetail(postId)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                return@launch
+            }
+            val post = (result as? HomeResult.Success)?.value?.post ?: return@launch
+            if (likeRevisions[postId] != revisionAtRequest || postId in pendingLikePostIds) return@launch
+            applyLikeUpdate(PostLikeUpdate(postId, post.likeCount, post.isLiked))
+        }
     }
 
     fun onPostDeleted(postId: String) {

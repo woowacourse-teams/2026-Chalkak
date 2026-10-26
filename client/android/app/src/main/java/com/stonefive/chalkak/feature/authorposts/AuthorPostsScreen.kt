@@ -18,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -40,6 +41,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
@@ -68,7 +72,15 @@ fun AuthorPostsRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResume()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     LaunchedEffect(removedPostId) {
         removedPostId?.let(viewModel::onPostDeleted)
     }
@@ -81,7 +93,10 @@ fun AuthorPostsRoute(
         signatureThumbnailImageUrl = signatureThumbnailImageUrl,
         isMine = isMine,
         onNavigateBack = onNavigateBack,
-        onPhotoClick = onPhotoClick,
+        onPhotoClick = { post ->
+            viewModel.onPostOpened(post.id)
+            onPhotoClick(post)
+        },
         onRetry = viewModel::retry,
         onLikeClick = { viewModel.updateLike(it.id) },
         onEndThresholdChanged = viewModel::onEndThresholdChanged,
