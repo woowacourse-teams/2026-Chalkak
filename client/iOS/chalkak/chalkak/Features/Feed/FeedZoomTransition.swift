@@ -101,6 +101,19 @@ struct FeedPhotoZoom {
     var morphsAspectRatio = false
     var viewport: CGRect?
     var keepsOriginalVisible = false
+    // 화면 전체가 출발 카드로 접히는 전환. 이때 서명은 화면과 함께 줄지 않고 출발 서명에 맞춘다.
+    var screen: FeedScreenZoom?
+}
+
+/// `FeedScreenReturnEffect`에 넘기는 화면 전환 상태.
+struct FeedScreenZoom {
+    var progress: CGFloat
+    var dragOffset: CGFloat
+    let source: FeedZoomRegistry.Source
+    let photo: CGRect
+    let canvas: CGRect
+    let safeAreaInsets: EdgeInsets
+    let revealsCoveredSource: Bool
 }
 
 extension EnvironmentValues {
@@ -529,6 +542,8 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
 
 struct FeedScreenReturnGeometry {
     let scale: CGFloat
+    // 출발 카드에 접힌 상태의 배율. 사진이 카드를 채우도록 정해 서명도 이 배율로 커지거나 줄어든다.
+    let endScale: CGFloat
     let offset: CGSize
     let clip: CGRect
     let viewportClip: CGRect
@@ -544,6 +559,7 @@ struct FeedScreenReturnGeometry {
          floatingRadius: CGFloat = ChalkakShapes.sheet, revealsCoveredSource: Bool = false) {
         let remaining = 1 - min(max(progress, 0), 1)
         let endScale = max(source.frame.width / photo.width, source.frame.height / photo.height)
+        self.endScale = endScale
         // 드래그 중에는 최대 4%만 작아지고 전체 화면 영역을 보존한다.
         let dragScale = 1 - min(max(dragOffset, 0) / 100, 1) * 0.04
         scale = dragScale + (endScale - dragScale) * remaining
@@ -602,6 +618,74 @@ struct FeedScreenReturnGeometry {
         } ?? clip
         let lift = min(1, max(max(dragOffset, 0) / 12, remaining / 0.06))
         cornerRadius = (floatingRadius * lift * (1 - remaining) + source.cornerRadius * remaining) / scale
+    }
+}
+
+/// 화면 전체가 출발 카드로 접히는 동안 서명만 출발 서명의 크기·위치에서 제자리로 옮긴다.
+/// 화면 배율을 그대로 받으면 사진 비율이 카드와 달라 서명이 커지거나, 잘린 사진 모서리를 따라 밀려난다.
+struct FeedScreenSignatureEffect: ViewModifier, Animatable {
+    var progress: CGFloat
+    var dragOffset: CGFloat
+    let screen: FeedScreenZoom?
+    // 화면 전환이 없을 때 서명의 제자리(global, 화면 변환 전 좌표).
+    let destinationFrame: CGRect?
+
+    init(screen: FeedScreenZoom?, destinationFrame: CGRect?) {
+        progress = screen?.progress ?? 1
+        dragOffset = screen?.dragOffset ?? 0
+        self.screen = screen
+        self.destinationFrame = destinationFrame
+    }
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(progress, dragOffset) }
+        set {
+            progress = newValue.first
+            dragOffset = newValue.second
+        }
+    }
+
+    func body(content: Content) -> some View {
+        let placement = self.placement
+        return content
+            .scaleEffect(placement?.scale ?? 1, anchor: .bottomTrailing)
+            .offset(placement?.offset ?? .zero)
+    }
+
+    private var placement: (scale: CGFloat, offset: CGSize)? {
+        guard let screen, let destination = destinationFrame,
+              let sourceSignature = screen.source.signatureFrame,
+              destination.width > 0, screen.photo.width > 0, screen.photo.height > 0,
+              screen.source.frame.width > 0, screen.source.frame.height > 0
+        else { return nil }
+        let geometry = FeedScreenReturnGeometry(
+            progress: progress, dragOffset: dragOffset, source: screen.source, photo: screen.photo,
+            canvas: screen.canvas, safeAreaInsets: screen.safeAreaInsets,
+            revealsCoveredSource: screen.revealsCoveredSource
+        )
+        let remaining = 1 - min(max(progress, 0), 1)
+        // 전환이 끝나면 사진과 함께 스크롤되도록 제자리에 둔다.
+        guard remaining > 0 || dragOffset > 0 else { return nil }
+        let endScale = geometry.endScale
+        // 화면 변환 전 좌표에서 보간해, 화면 배율을 곱한 결과가 출발 서명에서 시작하게 한다.
+        func interpolate(_ end: CGFloat, _ start: CGFloat) -> CGFloat {
+            end + (start / endScale - end) * remaining
+        }
+        let sourceBounds = screen.source.clipFrame ?? screen.source.frame
+        let width = interpolate(destination.width, sourceSignature.width)
+        let insetX = interpolate(screen.photo.maxX - destination.maxX, sourceBounds.maxX - sourceSignature.maxX)
+        let insetY = interpolate(screen.photo.maxY - destination.maxY, sourceBounds.maxY - sourceSignature.maxY)
+        // 출발 카드에 가까울수록 보이는 사진 영역의 우하단을, 제자리에 가까울수록 사진 우하단을 따라간다.
+        // 화면 밖으로 이어지는 긴 사진에서 서명이 화면 끝에 붙어 떠 보이지 않게 한다.
+        let visible = geometry.clip.offsetBy(dx: screen.canvas.minX, dy: screen.canvas.minY)
+        let corner = CGPoint(
+            x: screen.photo.maxX + (min(screen.photo.maxX, visible.maxX) - screen.photo.maxX) * remaining,
+            y: screen.photo.maxY + (min(screen.photo.maxY, visible.maxY) - screen.photo.maxY) * remaining
+        )
+        return (
+            width / destination.width,
+            CGSize(width: corner.x - insetX - destination.maxX, height: corner.y - insetY - destination.maxY)
+        )
     }
 }
 

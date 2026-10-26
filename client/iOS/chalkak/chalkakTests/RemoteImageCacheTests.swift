@@ -120,6 +120,20 @@ struct FeedPhotoImageSwapTests {
         #expect(state.displayedImage === original)
     }
 
+    @Test("원본 서명은 원본 사진과 같은 시점에 교체한다")
+    func swapsSignatureWithOriginal() {
+        let original = UIImage()
+        let signature = UIImage()
+        var state = FeedPhotoImageSwap(displayedImage: UIImage())
+
+        state.receiveOriginal(original, signature: signature, isSettled: false)
+        #expect(state.originalSignature == nil)
+
+        state.finishTransition()
+        #expect(state.displayedImage === original)
+        #expect(state.originalSignature === signature)
+    }
+
     @Test("전환이 끝난 뒤 받은 원본은 즉시 교체한다")
     func replacesAfterTransition() {
         let original = UIImage()

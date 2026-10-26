@@ -274,7 +274,8 @@ struct FeedScreen: View {
                         isSettled: !isPhotoMoving,
                         morphsAspectRatio: morphsPhotoAspectRatio,
                         viewport: usesScreenTransition ? nil : transitionViewport,
-                        keepsOriginalVisible: usesScreenTransition && hasCompletedOpening
+                        keepsOriginalVisible: usesScreenTransition && hasCompletedOpening,
+                        screen: screenZoom
                     ),
                     onTransitionReady: {
                         isPhotoReady = true
@@ -309,6 +310,21 @@ struct FeedScreen: View {
 
     private var usesScreenTransition: Bool {
         usesPhotoTransition && movingSource != nil
+    }
+
+    // FeedScreenReturnEffect와 같은 값으로 서명만 따로 출발 서명에 맞춘다.
+    private var screenZoom: FeedScreenZoom? {
+        guard usesScreenTransition, hasStartedOpening,
+              let movingSource, let photoFrame, let transitionViewport else { return nil }
+        return FeedScreenZoom(
+            progress: photoProgress,
+            dragOffset: screenDragOffset,
+            source: movingSource,
+            photo: photoFrame,
+            canvas: transitionViewport,
+            safeAreaInsets: transitionSafeAreaInsets,
+            revealsCoveredSource: true
+        )
     }
 
     // 열고 닫을 때 모두 불투명한 화면 하나를 확대·축소한다.
