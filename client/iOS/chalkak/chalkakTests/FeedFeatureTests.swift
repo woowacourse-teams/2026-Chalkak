@@ -44,6 +44,58 @@ struct FeedBackSwipeTrackingTests {
         #expect(swipe.projectedDistance(to: CGSize(width: 160, height: 300)) == 80)
         #expect(swipe.projectedDistance(to: CGSize(width: 160, height: 102)) == 140)
     }
+
+    @Test("세로 방향으로 손을 떼는 속도는 이어받을 가로 속도로 쓰지 않는다")
+    func verticalReleaseHasNoHorizontalVelocity() {
+        let swipe = FeedBackSwipeTracking()
+        #expect(swipe.horizontalVelocity(CGSize(width: 600, height: 100)) == 600)
+        #expect(swipe.horizontalVelocity(CGSize(width: -300, height: 50)) == -300)
+        #expect(swipe.horizontalVelocity(CGSize(width: 200, height: -500)) == 0)
+    }
+}
+
+struct FeedBackSwipeReleaseTests {
+    @Test("카드에 가까울수록 마무리 시간이 짧고 최대 0.3초 안에 끝난다")
+    func finishesSoonerNearTarget() {
+        let far = FeedBackSwipeRelease.timing(from: 0.8, to: 0, velocity: 0, duration: 0.3)
+        let near = FeedBackSwipeRelease.timing(from: 0.05, to: 0, velocity: 0, duration: 0.3)
+        #expect(near.duration < far.duration)
+        #expect(near.duration >= 0.08)
+        #expect(far.duration <= 0.3)
+    }
+
+    @Test("일반적인 놓기 속도를 곡선 시작 속도로 이어받는다")
+    func preservesReleaseVelocity() {
+        let timing = FeedBackSwipeRelease.timing(from: 0.5, to: 0, velocity: -2, duration: 0.3)
+        let actualVelocity = -0.5 * timing.initialSlope / timing.duration
+        #expect(abs(actualVelocity - (-2)) < 0.0001)
+    }
+
+    @Test("빠른 놓기와 역방향 놓기 모두 목표를 지나치거나 되돌아가지 않는다")
+    func releaseCurveIsMonotonic() {
+        for target: CGFloat in [0, 1] {
+            for velocity: CGFloat in [-20, -2, 0, 2, 20] {
+                let timing = FeedBackSwipeRelease.timing(from: 0.5, to: target, velocity: velocity, duration: 0.3)
+                let controlY = timing.initialSlope / 3
+                var previous = 0.0
+                for step in 0...100 {
+                    let t = Double(step) / 100
+                    let y = 3 * (1 - t) * (1 - t) * t * controlY + 3 * (1 - t) * t * t + t * t * t
+                    #expect(y >= previous - 0.000001)
+                    #expect(y >= 0 && y <= 1)
+                    previous = y
+                }
+                #expect(previous == 1)
+            }
+        }
+    }
+
+    @Test("이미 카드에 도착했으면 추가 애니메이션을 기다리지 않는다")
+    func noDelayAtTarget() {
+        let timing = FeedBackSwipeRelease.timing(from: 0, to: 0, velocity: -3, duration: 0.3)
+        #expect(timing.duration == 0)
+        #expect(timing.initialSlope == 0)
+    }
 }
 
 @MainActor
@@ -448,6 +500,62 @@ struct FeedZoomCropTests {
             #expect(abs(geometry.cornerRadius * geometry.scale - 8 * (1 - progress)) < 0.001)
             #expect(abs(destination.midX + geometry.offset.width - (source.frame.midX + (destination.midX - source.frame.midX) * progress)) < 0.001)
             #expect(abs(destination.midY + geometry.offset.height - (source.frame.midY + (destination.midY - source.frame.midY) * progress)) < 0.001)
+        }
+    }
+}
+
+struct FeedScreenReturnGeometryTests {
+    private let canvas = CGRect(x: 0, y: 60, width: 390, height: 740)
+    private let photo = CGRect(x: 0, y: 220, width: 390, height: 260)
+    private let insets = EdgeInsets(top: 60, leading: 0, bottom: 34, trailing: 0)
+
+    @Test("평상시와 취소 완료 시 안전 영역까지 덮는다")
+    func coversSafeAreaAtRest() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
+        let geometry = FeedScreenReturnGeometry(progress: 1, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+        #expect(geometry.scale == 1)
+        #expect(geometry.offset == .zero)
+        #expect(geometry.cornerRadius == 0)
+        #expect(geometry.clip == CGRect(x: 0, y: -60, width: 390, height: 834))
+    }
+
+    @Test("길게 끌어도 창의 크기와 전체 화면 영역이 유지된다")
+    func holdsWindowDuringDrag() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
+        for distance: CGFloat in [100, 200, 400] {
+            let geometry = FeedScreenReturnGeometry(progress: 1, dragOffset: distance, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+            #expect(abs(geometry.scale - 0.96) < 0.0001)
+            #expect(geometry.offset.width == distance)
+            #expect(geometry.clip == CGRect(x: 0, y: -60, width: 390, height: 834))
+        }
+    }
+
+    @Test("움직이기 시작하면 라운드를 빠르게 드러내고 펼쳐지면 사라진다")
+    func roundsEarlyDuringMotion() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
+        let dragged = FeedScreenReturnGeometry(progress: 1, dragOffset: 12, source: source, photo: photo, canvas: canvas)
+        #expect(abs(dragged.cornerRadius * dragged.scale - ChalkakShapes.sheet) < 0.0001)
+        let moving = FeedScreenReturnGeometry(progress: 0.94, source: source, photo: photo, canvas: canvas)
+        #expect(moving.cornerRadius * moving.scale > 15)
+        let expanded = FeedScreenReturnGeometry(progress: 1, source: source, photo: photo, canvas: canvas)
+        #expect(expanded.cornerRadius == 0)
+    }
+
+    @Test("카드 비율과 위치가 달라도 정확한 카드 영역으로 접힌다")
+    func arrivesAtCard() {
+        for frame in [CGRect(x: 210, y: 650, width: 160, height: 200), CGRect(x: 20, y: 180, width: 160, height: 90)] {
+            let source = FeedZoomRegistry.Source(frame: frame, cornerRadius: 12)
+            let geometry = FeedScreenReturnGeometry(progress: 0, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+            let actual = CGRect(
+                x: canvas.midX + (geometry.clip.minX - canvas.width / 2) * geometry.scale + geometry.offset.width,
+                y: canvas.midY + (geometry.clip.minY - canvas.height / 2) * geometry.scale + geometry.offset.height,
+                width: geometry.clip.width * geometry.scale, height: geometry.clip.height * geometry.scale
+            )
+            #expect(abs(actual.minX - frame.minX) < 0.0001)
+            #expect(abs(actual.minY - frame.minY) < 0.0001)
+            #expect(abs(actual.width - frame.width) < 0.0001)
+            #expect(abs(actual.height - frame.height) < 0.0001)
+            #expect(abs(geometry.cornerRadius * geometry.scale - 12) < 0.0001)
         }
     }
 }

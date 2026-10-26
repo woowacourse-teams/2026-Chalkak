@@ -4,6 +4,82 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testOpeningWaitsForUncachedPhotoAfterLayoutIsMeasured() async throws {
+        try await assertOpeningWaitsForPhoto(fails: false)
+    }
+
+    func testFailedOpeningPhotoDoesNotLeaveTransitionWaitingForever() async throws {
+        try await assertOpeningWaitsForPhoto(fails: true)
+    }
+
+    func testOriginalPhotoReleasesOpeningWhileThumbnailIsStillLoading() async throws {
+        try await assertOpeningWaitsForPhoto(fails: false, originalArrives: true)
+    }
+
+    private func assertOpeningWaitsForPhoto(fails: Bool, originalArrives: Bool = false) async throws {
+        XCTAssertTrue(URLProtocol.registerClass(FeedOpeningImageProtocol.self))
+        defer { URLProtocol.unregisterClass(FeedOpeningImageProtocol.self) }
+        let url = try XCTUnwrap(URL(string: "https://feed-opening-test.invalid/\(UUID().uuidString).png"))
+        let placeholder = FeedPhotoPlaceholder(imageSource: .remote(url), heightToWidthRatio: 1)
+        XCTAssertNil(placeholder.preloadedImage)
+        var measured = false
+        var readyCount = 0
+        func photo(post: FeedPost?) -> some View {
+            FeedPhoto(
+                post: post,
+                placeholder: placeholder,
+                zoom: FeedPhotoZoom(isSettled: false),
+                onTransitionReady: { readyCount += 1 },
+                onPhotoFrameChanged: { measured = $0.width > 0 && $0.height > 0 },
+                onLike: {}
+            )
+            .frame(width: 300)
+        }
+        let host = UIHostingController(rootView: photo(post: nil))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 300, height: 500)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+            FeedOpeningImageProtocol.pending.remove(url)?.fail()
+        }
+        host.view.layoutIfNeeded()
+        let clock = ContinuousClock()
+        let layoutDeadline = clock.now.advanced(by: .seconds(3))
+        while (!measured || !FeedOpeningImageProtocol.pending.contains(url)), clock.now < layoutDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(measured, "The layout must be ready before testing image readiness")
+        let request = try XCTUnwrap(FeedOpeningImageProtocol.pending.remove(url))
+        XCTAssertEqual(readyCount, 0, "A measured but empty photo must not expose the opaque feed screen")
+        defer { if originalArrives { request.fail() } }
+        if originalArrives {
+            // Detail data arrives after the uncached thumbnail request has started.
+            // Keep that request blocked; the available original must release opening.
+            host.rootView = photo(post: FeedPreviewData.content.post)
+            host.view.layoutIfNeeded()
+        } else if fails {
+            request.fail()
+        } else {
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 30, height: 30))
+            let data = try XCTUnwrap(renderer.image { context in
+                UIColor.red.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 30, height: 30))
+            }.pngData())
+            request.succeed(data)
+        }
+        let readyDeadline = clock.now.advanced(by: .seconds(3))
+        while readyCount == 0, clock.now < readyDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(readyCount, 1, "A resolved photo must release opening exactly once, including failures")
+    }
+
     func testAspectRatioTransitionKeepsPhotoLayoutSizeFixed() async throws {
         let destination = CGRect(x: 0, y: 0, width: 400, height: 400)
         let source = FeedZoomRegistry.Source(frame: CGRect(x: 20, y: 100, width: 150, height: 250), cornerRadius: 12)
@@ -348,5 +424,59 @@ private struct HeldSwipePhoto: View {
         // Fixtures and measurements use the same container-relative coordinates.
         .coordinateSpace(name: coordinateSpaceName)
         .ignoresSafeArea()
+    }
+}
+
+/// Holds only this test host's requests, so unrelated app traffic remains untouched.
+private final class FeedOpeningImageProtocol: URLProtocol, @unchecked Sendable {
+    static let pending = PendingRequests()
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "feed-opening-test.invalid"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        if let url = request.url { Self.pending.insert(self, for: url) }
+    }
+
+    override func stopLoading() {
+        if let url = request.url { _ = Self.pending.remove(url) }
+    }
+
+    func succeed(_ data: Data) {
+        guard let url = request.url else { return }
+        let response = URLResponse(url: url, mimeType: "image/png", expectedContentLength: data.count, textEncodingName: nil)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    func fail() {
+        client?.urlProtocol(self, didFailWithError: URLError(.cannotLoadFromNetwork))
+    }
+
+    final class PendingRequests: @unchecked Sendable {
+        private let lock = NSLock()
+        private var requests: [URL: FeedOpeningImageProtocol] = [:]
+
+        func insert(_ request: FeedOpeningImageProtocol, for url: URL) {
+            lock.lock()
+            defer { lock.unlock() }
+            requests[url] = request
+        }
+
+        func contains(_ url: URL) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests[url] != nil
+        }
+
+        func remove(_ url: URL) -> FeedOpeningImageProtocol? {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests.removeValue(forKey: url)
+        }
     }
 }

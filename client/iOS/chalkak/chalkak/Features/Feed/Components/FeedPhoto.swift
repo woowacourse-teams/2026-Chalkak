@@ -8,13 +8,15 @@ struct FeedPhoto: View {
     let isLikeEnabled: Bool
     let zoom: FeedPhotoZoom
     let onTransitionReady: () -> Void
+    let onPhotoFrameChanged: (CGRect) -> Void
     let onPhotoInteractionChanged: (Bool) -> Void
     let onLike: () -> Void
     @State private var imageRatio: CGFloat?
-    @State private var resolvedImageRatio: CGFloat?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var imageSwap: FeedPhotoImageSwap
+    @State private var didReportReady = false
+    @State private var hasResolvedTransitionImage = false
+    @State private var transitionImageFailed = false
     @State private var imageFrame: CGRect?
-    @State private var isOriginalLoaded = false
     @State private var gestureScale: CGFloat = 1
     @State private var gestureOffset: CGSize = .zero
     @State private var isGestureActive = false
@@ -27,6 +29,7 @@ struct FeedPhoto: View {
         isLikeEnabled: Bool = true,
         zoom: FeedPhotoZoom = FeedPhotoZoom(),
         onTransitionReady: @escaping () -> Void = {},
+        onPhotoFrameChanged: @escaping (CGRect) -> Void = { _ in },
         onPhotoInteractionChanged: @escaping (Bool) -> Void = { _ in },
         onLike: @escaping () -> Void
     ) {
@@ -35,9 +38,13 @@ struct FeedPhoto: View {
         self.isLikeEnabled = isLikeEnabled
         self.zoom = zoom
         self.onTransitionReady = onTransitionReady
+        self.onPhotoFrameChanged = onPhotoFrameChanged
         self.onPhotoInteractionChanged = onPhotoInteractionChanged
         self.onLike = onLike
-        _imageRatio = State(initialValue: placeholder?.heightToWidthRatio)
+        let cached = placeholder?.preloadedImage ?? placeholder?.imageSource.cachedImage()
+            ?? post?.originalImageSource.cachedImage()
+        _imageSwap = State(initialValue: FeedPhotoImageSwap(displayedImage: cached))
+        _imageRatio = State(initialValue: cached.map { $0.size.height / $0.size.width } ?? placeholder?.heightToWidthRatio ?? Metrics.defaultImageRatio)
     }
 
     var body: some View {
@@ -57,9 +64,9 @@ struct FeedPhoto: View {
                     }
                     // Android처럼 출발 화면의 서명은 사진과 따로, 출발 서명 위치·크기에서 제자리로 이동한다.
                     .overlay(alignment: .bottomTrailing) {
-                        if let placeholder, let signatureSource = placeholder.signatureImageSource {
+                        if let signatureSource = (imageSwap.hasOriginal ? post?.signatureImageSource : nil) ?? placeholder?.signatureImageSource {
                             FeedPlaceholderImage(
-                                preloaded: placeholder.preloadedSignatureImage,
+                                preloaded: imageSwap.hasOriginal ? nil : placeholder?.preloadedSignatureImage,
                                 source: signatureSource,
                                 contentMode: .fit
                             )
@@ -89,7 +96,11 @@ struct FeedPhoto: View {
                         proxy.frame(in: .global)
                     } action: { frame in
                         // 핀치 중 전환용 프레임을 다시 적용하면 확대 크기가 다음 프레임에 되먹임된다.
-                        if !isGestureActive, zoom.isSettled || imageFrame == nil { imageFrame = frame }
+                        if !isGestureActive, zoom.isSettled || !didReportReady {
+                            imageFrame = frame
+                            onPhotoFrameChanged(frame)
+                            reportReadyIfMeasured()
+                        }
                     }
             }
             // clip 분기가 바뀌어도 ZStack 바깥의 터치 뷰는 유지한다.
@@ -98,23 +109,62 @@ struct FeedPhoto: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .zIndex(1)
-            .task(id: imageFrame != nil) {
-                guard imageFrame != nil else { return }
-                onTransitionReady()
-            }
-            .task(id: post?.originalImageSource) {
-                if imageRatio == nil, let placeholder {
-                    if let ratio = await ImageRatioLoader.ratio(for: placeholder.imageSource) {
-                        resolveImageRatio(ratio)
+            .task(id: placeholder?.imageSource ?? post?.originalImageSource) {
+                // 위치 측정만 끝난 상태에서 불투명한 상세 화면을 열면 목록 사진을
+                // 빈 배경으로 가린다. 전환에 쓸 비트맵도 확보한 뒤 준비 완료를 알린다.
+                guard let source = placeholder?.imageSource ?? post?.originalImageSource else { return }
+                if imageSwap.displayedImage == nil {
+                    var image = source.cachedImage()
+                    if image == nil, case let .remote(url?) = source {
+                        image = try? await RemoteImageCache.shared.load(url)
+                    }
+                    guard !Task.isCancelled else { return }
+                    if imageSwap.displayedImage == nil {
+                        imageSwap.displayedImage = image
+                        if case .system = source {
+                            transitionImageFailed = false
+                        } else {
+                            transitionImageFailed = image == nil
+                        }
                     }
                 }
-                guard let post,
-                      let ratio = await ImageRatioLoader.ratio(for: post.originalImageSource)
-                else { return }
-                resolveImageRatio(ratio)
+                hasResolvedTransitionImage = true
+                reportReadyIfMeasured()
+            }
+            .task(id: post?.originalImageSource) {
+                guard let post else { return }
+                let image: UIImage?
+                if let cached = post.originalImageSource.cachedImage() {
+                    image = cached
+                } else if case let .remote(url?) = post.originalImageSource {
+                    image = try? await RemoteImageCache.shared.load(url)
+                } else {
+                    image = nil
+                }
+                guard !Task.isCancelled else { return }
+                if let image {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        imageSwap.receiveOriginal(image, isSettled: zoom.isSettled)
+                    }
+                }
+                // 목록에서 받은 썸네일도 원본 비율이다. 원본은 화질만 교체하고
+                // 이미 펼친 사진의 크기는 다시 바꾸지 않는다.
+                if placeholder == nil, let image {
+                    imageRatio = image.size.height / image.size.width
+                }
+                if image != nil {
+                    // 원본이 먼저 준비되면 느린 썸네일 요청을 기다릴 필요가 없다.
+                    hasResolvedTransitionImage = true
+                    reportReadyIfMeasured()
+                }
             }
             .onChange(of: zoom.isSettled) { _, isSettled in
-                if isSettled, let resolvedImageRatio { applyImageRatio(resolvedImageRatio) }
+                guard isSettled else { return }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { imageSwap.finishTransition() }
             }
             .onChange(of: isPhotoInteracting) { _, isInteracting in
                 onPhotoInteractionChanged(isInteracting)
@@ -215,50 +265,25 @@ struct FeedPhoto: View {
     }
 
     private var photoImage: some View {
-        ZStack {
-            if let placeholder {
-                FeedPlaceholderImage(
-                    preloaded: placeholder.preloadedImage,
-                    source: placeholder.imageSource,
-                    contentMode: .fill
-                )
-            }
-            if let post {
-                ChalkakSignedImage(
-                    imageSource: post.originalImageSource,
-                    signatureSource: post.signatureImageSource,
-                    contentDescription: post.contentDescription,
-                    contentMode: .fill,
-                    signatureSize: Metrics.signatureSize,
-                    showsLoadingSkeleton: placeholder == nil,
-                    onImageLoad: { isOriginalLoaded = true }
-                )
-                .opacity(isOriginalRevealed ? 1 : 0)
-                .animation(zoom.isSettled ? Metrics.originalRevealAnimation : nil, value: isOriginalRevealed)
-            }
-        }
+        // 전환 전체에서 하나의 이미지 뷰를 유지하고 비트맵만 교체한다.
+        // 원본 로더를 별도 레이어로 겹치면 로드 콜백과 표시 시점이 달라질 수 있다.
+        FeedPlaceholderImage(
+            preloaded: imageSwap.displayedImage ?? placeholder?.preloadedImage,
+            source: transitionImageFailed ? .system("photo.badge.exclamationmark")
+                : placeholder?.imageSource ?? post?.originalImageSource ?? .remote(nil),
+            contentMode: .fill
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .accessibilityLabel(post?.contentDescription ?? "")
     }
 
-    private func resolveImageRatio(_ ratio: CGFloat) {
-        resolvedImageRatio = ratio
-        // 이동 중 도착 프레임이 바뀌면 사진 위치도 튀므로 비율 변경을 미룬다.
-        if !zoom.morphsAspectRatio || zoom.isSettled { applyImageRatio(ratio) }
-    }
-
-    private func applyImageRatio(_ ratio: CGFloat) {
-        guard imageRatio != ratio else { return }
-        if zoom.morphsAspectRatio, !reduceMotion {
-            withAnimation(Metrics.ratioAnimation) { imageRatio = ratio }
-        } else {
-            imageRatio = ratio
-        }
-    }
-
-    // Android SharedFeedImage와 같이, 출발 이미지가 있으면 원본은 로드됐고 열림 전환이 끝난 뒤에만 드러낸다.
-    private var isOriginalRevealed: Bool {
-        placeholder == nil || (isOriginalLoaded && zoom.isSettled)
+    private func reportReadyIfMeasured() {
+        guard !didReportReady, hasResolvedTransitionImage, let imageFrame, let imageRatio,
+              imageFrame.width > 0,
+              abs(imageFrame.height - imageFrame.width * imageRatio) < 1 else { return }
+        didReportReady = true
+        onTransitionReady()
     }
 
     private var photoOpacity: CGFloat {
@@ -305,6 +330,29 @@ func feedPhotoPinchOffset(
 }
 
 /// 출발 화면에 떠 있던 이미지. 미리 받아 둔 이미지가 있으면 로딩 없이 바로 그린다.
+/// 이동 중에는 출발 화면의 비트맵을 유지하고, 도착 후 원본으로 한 번 교체한다.
+struct FeedPhotoImageSwap {
+    var displayedImage: UIImage?
+    private(set) var hasOriginal = false
+    private var pendingOriginal: UIImage?
+
+    init(displayedImage: UIImage?) {
+        self.displayedImage = displayedImage
+    }
+
+    mutating func receiveOriginal(_ image: UIImage, isSettled: Bool) {
+        pendingOriginal = image
+        if isSettled || displayedImage == nil { finishTransition() }
+    }
+
+    mutating func finishTransition() {
+        guard let pendingOriginal else { return }
+        displayedImage = pendingOriginal
+        hasOriginal = true
+        self.pendingOriginal = nil
+    }
+}
+
 private struct FeedPlaceholderImage: View {
     let preloaded: UIImage?
     let source: ChalkakImageSource
@@ -387,9 +435,6 @@ struct FeedLikeRow: View {
 private enum Metrics {
     static let defaultImageRatio: CGFloat = 1
     static let maximumPinchScale: CGFloat = 4
-    static let ratioAnimation: Animation = .smooth(duration: 0.3)
-    // Android PHOTO_CROSSFADE_DURATION_MILLIS(180) + tween 기본 FastOutSlowInEasing.
-    static let originalRevealAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.18)
     static let signatureSize = CGSize(width: 70, height: 52)
     static let rowHeight: CGFloat = 57
     static let likeSpacing: CGFloat = 9
