@@ -14,6 +14,8 @@ struct FeedPhoto: View {
     @State private var imageRatio: CGFloat?
     @State private var imageSwap: FeedPhotoImageSwap
     @State private var didReportReady = false
+    @State private var hasResolvedTransitionImage = false
+    @State private var transitionImageFailed = false
     @State private var imageFrame: CGRect?
     @State private var gestureScale: CGFloat = 1
     @State private var gestureOffset: CGSize = .zero
@@ -107,6 +109,28 @@ struct FeedPhoto: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .zIndex(1)
+            .task(id: placeholder?.imageSource ?? post?.originalImageSource) {
+                // 위치 측정만 끝난 상태에서 불투명한 상세 화면을 열면 목록 사진을
+                // 빈 배경으로 가린다. 전환에 쓸 비트맵도 확보한 뒤 준비 완료를 알린다.
+                guard let source = placeholder?.imageSource ?? post?.originalImageSource else { return }
+                if imageSwap.displayedImage == nil {
+                    var image = source.cachedImage()
+                    if image == nil, case let .remote(url?) = source {
+                        image = try? await RemoteImageCache.shared.load(url)
+                    }
+                    guard !Task.isCancelled else { return }
+                    if imageSwap.displayedImage == nil {
+                        imageSwap.displayedImage = image
+                        if case .system = source {
+                            transitionImageFailed = false
+                        } else {
+                            transitionImageFailed = image == nil
+                        }
+                    }
+                }
+                hasResolvedTransitionImage = true
+                reportReadyIfMeasured()
+            }
             .task(id: post?.originalImageSource) {
                 guard let post else { return }
                 let image: UIImage?
@@ -129,6 +153,11 @@ struct FeedPhoto: View {
                 // 이미 펼친 사진의 크기는 다시 바꾸지 않는다.
                 if placeholder == nil, let image {
                     imageRatio = image.size.height / image.size.width
+                }
+                if image != nil {
+                    // 원본이 먼저 준비되면 느린 썸네일 요청을 기다릴 필요가 없다.
+                    hasResolvedTransitionImage = true
+                    reportReadyIfMeasured()
                 }
             }
             .onChange(of: zoom.isSettled) { _, isSettled in
@@ -240,7 +269,8 @@ struct FeedPhoto: View {
         // 원본 로더를 별도 레이어로 겹치면 로드 콜백과 표시 시점이 달라질 수 있다.
         FeedPlaceholderImage(
             preloaded: imageSwap.displayedImage ?? placeholder?.preloadedImage,
-            source: placeholder?.imageSource ?? post?.originalImageSource ?? .remote(nil),
+            source: transitionImageFailed ? .system("photo.badge.exclamationmark")
+                : placeholder?.imageSource ?? post?.originalImageSource ?? .remote(nil),
             contentMode: .fill
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -249,7 +279,7 @@ struct FeedPhoto: View {
     }
 
     private func reportReadyIfMeasured() {
-        guard !didReportReady, let imageFrame, let imageRatio,
+        guard !didReportReady, hasResolvedTransitionImage, let imageFrame, let imageRatio,
               imageFrame.width > 0,
               abs(imageFrame.height - imageFrame.width * imageRatio) < 1 else { return }
         didReportReady = true

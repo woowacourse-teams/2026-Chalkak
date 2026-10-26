@@ -21,6 +21,7 @@ struct FeedScreen: View {
     @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
     @State private var hasStartedOpening = false
+    @State private var hasPreparedOpening = false
     @State private var hasLaunchedOpening = false
     @State private var isPhotoReady = false
     @State private var hasContentError = false
@@ -140,6 +141,16 @@ struct FeedScreen: View {
         // 측정 전 전체 화면이 순간 노출되지 않도록 레이아웃은 유지하고 표시만 기다린다.
         .opacity(usesScreenTransition && !hasStartedOpening ? 0 : 1)
         .animation(nil, value: hasStartedOpening)
+        .background {
+            // 비트맵과 좌표가 반영될 화면 갱신 간격을 확보한 뒤 상세 화면을 노출한다.
+            // 아래 게이트는 노출된 출발 상태를 유지한 다음 확대를 시작한다.
+            FeedOpeningFrameGate(isEnabled: hasPreparedOpening && !hasStartedOpening) {
+                guard !hasStartedOpening, !isClosing else { return }
+                hasStartedOpening = true
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .background {
             FeedOpeningFrameGate(isEnabled: hasStartedOpening && !hasLaunchedOpening) {
                 guard !hasLaunchedOpening, !isClosing else { return }
@@ -327,11 +338,12 @@ struct FeedScreen: View {
     }
 
     private func startOpening() {
-        guard !hasStartedOpening, !isClosing else { return }
+        guard !hasPreparedOpening, !isClosing else { return }
         if usesScreenTransition && !hasContentError {
             guard isPhotoReady, photoFrame != nil, transitionViewport != nil else { return }
         }
-        hasStartedOpening = true
+        hasPreparedOpening = true
+        if !usesScreenTransition || hasContentError { hasStartedOpening = true }
     }
 
     // releaseVelocity: 백 스와이프를 놓은 순간의 사진 진행도 속도(초당). 없으면 멈춘 상태에서 출발한다.
