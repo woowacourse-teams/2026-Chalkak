@@ -40,6 +40,8 @@ final class FeedZoomRegistry {
         var signatureFrame: CGRect?
         var visibleBounds: CGRect?
         var registrationID: UUID?
+        // 홈 랭킹처럼 패딩 안쪽 가로 스크롤에 걸친 카드는 그 경계에서 잘려 보인다.
+        var containerBounds: CGRect?
     }
 
     // 사진이 이동하는 동안 숨길 출발 뷰. 이동 중인 사진과 겹쳐 두 장으로 보이지 않게 한다.
@@ -50,10 +52,14 @@ final class FeedZoomRegistry {
 
     func source(for id: FeedZoomSource) -> Source? {
         guard var source = sources[id] else { return nil }
+        var visible = source.containerBounds
         if let viewport = id.viewport, let bounds = viewports[viewport] {
             let bottom = bottomBarFrame.map { min(bounds.maxY, $0.minY) } ?? bounds.maxY
-            source.visibleBounds = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: max(0, bottom - bounds.minY))
+            let viewportBounds = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: max(0, bottom - bounds.minY))
+            let clipped = visible?.intersection(viewportBounds) ?? .null
+            visible = clipped.isNull ? viewportBounds : clipped
         }
+        source.visibleBounds = visible
         return source
     }
 
@@ -92,6 +98,7 @@ struct FeedPhotoZoom {
 extension EnvironmentValues {
     /// 없으면 줌 전환 없이 Feed가 페이드로만 열린다.
     @Entry var feedZoomRegistry: FeedZoomRegistry?
+    @Entry var feedZoomContainerBounds: CGRect?
 }
 
 extension View {
@@ -115,6 +122,12 @@ extension View {
 
     func feedZoomViewport(_ viewport: FeedZoomViewport) -> some View {
         modifier(FeedZoomViewportModifier(viewport: viewport))
+    }
+
+    /// 안쪽 출발 뷰를 잘라 보이는 컨테이너(가로 스크롤 등)로 등록한다.
+    /// 이동하는 사진도 출발·복귀 때 이 경계 밖으로 그리지 않는다.
+    func feedZoomContainer() -> some View {
+        modifier(FeedZoomContainerModifier())
     }
 
     func feedZoomViewportClip(
@@ -151,6 +164,7 @@ extension View {
 
 private struct FeedZoomSourceModifier: ViewModifier {
     @Environment(\.feedZoomRegistry) private var registry
+    @Environment(\.feedZoomContainerBounds) private var containerBounds
     @Environment(\.chalkakTheme) private var theme
     let source: FeedZoomSource
     let cornerRadius: CGFloat
@@ -203,6 +217,9 @@ private struct FeedZoomSourceModifier: ViewModifier {
             .onChange(of: fittedImageAspectRatio) { _, _ in
                 if let frame { register(frame) }
             }
+            .onChange(of: containerBounds) { _, _ in
+                if let frame { register(frame) }
+            }
             .opacity(registry?.activeSource == source ? 0 : 1)
             .onAppear { if let frame { register(frame) } }
             .onDisappear { registry?.remove(source, registrationID: registrationID) }
@@ -222,9 +239,20 @@ private struct FeedZoomSourceModifier: ViewModifier {
                     height: size.height
                 )
             },
-            registrationID: registrationID
+            registrationID: registrationID,
+            containerBounds: containerBounds
         )
         return registry?.update(measured, for: source) ?? measured
+    }
+}
+
+private struct FeedZoomContainerModifier: ViewModifier {
+    @State private var bounds: CGRect?
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.feedZoomContainerBounds, bounds)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { bounds = $0 }
     }
 }
 

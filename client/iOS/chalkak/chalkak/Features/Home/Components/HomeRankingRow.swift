@@ -41,6 +41,8 @@ struct HomeRankingRow: View {
                             }
                         }
                     }
+                    // 좌우 패딩에 걸린 카드는 전환 중에도 패딩 위로 나오지 않는다.
+                    .feedZoomContainer()
                 }
             }
         }

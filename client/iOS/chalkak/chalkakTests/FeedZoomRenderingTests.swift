@@ -409,6 +409,19 @@ final class FeedZoomRenderingTests: XCTestCase {
         XCTAssertEqual(source?.visibleBounds, CGRect(x: 0, y: 220, width: 402, height: 560))
     }
 
+    func testHomeRankingCardIsClippedToPaddedScrollContainer() {
+        let registry = FeedZoomRegistry()
+        // The last visible card hangs past the 20pt screen padding.
+        let photo = CGRect(x: 340, y: 500, width: 82, height: 82)
+        let row = CGRect(x: 20, y: 500, width: 362, height: 82)
+        registry.update(.init(frame: photo, cornerRadius: 8, containerBounds: row), for: .homeTrending("photo"))
+        registry.updateViewport(CGRect(x: 0, y: 100, width: 402, height: 774), for: .home)
+        registry.bottomBarFrame = CGRect(x: 20, y: 780, width: 362, height: 74)
+        let source = registry.source(for: .homeTrending("photo"))
+        XCTAssertEqual(source?.frame, photo)
+        XCTAssertEqual(source?.visibleBounds, row)
+    }
+
     func testFeaturedPhotoUsesFittedImageBounds() {
         let card = CGRect(x: 20, y: 100, width: 300, height: 400)
         XCTAssertEqual(FeedZoomCropGeometry.fittedFrame(in: card, heightToWidthRatio: 0.5), CGRect(x: 20, y: 225, width: 300, height: 150))
