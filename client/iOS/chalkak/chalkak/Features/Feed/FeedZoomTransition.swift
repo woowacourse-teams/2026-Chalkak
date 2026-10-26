@@ -406,7 +406,7 @@ struct FeedZoomPhotoClip: Shape {
                 height: crop.height + (clipFrame.height - source.frame.height) * factor
             )
         }
-        return RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
+        return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).path(in: bounds)
     }
 }
 
@@ -434,7 +434,7 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
            photo.width > 0, photo.height > 0, source.frame.width > 0, source.frame.height > 0 {
             geometry = FeedScreenReturnGeometry(
                 progress: progress, dragOffset: dragOffset, source: source, photo: photo,
-                canvas: canvas, safeAreaInsets: safeAreaInsets, floatingRadius: theme.shapes.large
+                canvas: canvas, safeAreaInsets: safeAreaInsets, floatingRadius: theme.shapes.sheet
             )
         } else {
             geometry = nil
@@ -461,7 +461,7 @@ struct FeedScreenReturnGeometry {
 
     init(progress: CGFloat, dragOffset: CGFloat = 0, source: FeedZoomRegistry.Source,
          photo: CGRect, canvas: CGRect, safeAreaInsets: EdgeInsets = EdgeInsets(),
-         floatingRadius: CGFloat = ChalkakShapes.large) {
+         floatingRadius: CGFloat = ChalkakShapes.sheet) {
         let remaining = 1 - min(max(progress, 0), 1)
         let endScale = max(source.frame.width / photo.width, source.frame.height / photo.height)
         // 드래그 중에는 최대 4%만 작아지고 전체 화면 영역을 보존한다.
@@ -508,7 +508,11 @@ private struct FeedScreenReturnMask: Shape {
     let cornerRadius: CGFloat
 
     func path(in rect: CGRect) -> Path {
-        RoundedRectangle(cornerRadius: cornerRadius).path(in: bounds)
+        // 안전 영역 밖에 둥근 모서리를 그리면 실제 피드 하단은 직각으로 잘린다.
+        // 이동 중에는 마스크가 실제로 그려지는 피드 경계에 라운드를 맞춘다.
+        let visibleBounds = cornerRadius > 0 ? bounds.intersection(rect) : bounds
+        guard !visibleBounds.isNull else { return Path() }
+        return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).path(in: visibleBounds)
     }
 }
 

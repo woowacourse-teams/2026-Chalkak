@@ -534,7 +534,7 @@ struct FeedScreenReturnGeometryTests {
     func roundsEarlyDuringMotion() {
         let source = FeedZoomRegistry.Source(frame: CGRect(x: 210, y: 650, width: 160, height: 200), cornerRadius: 12)
         let dragged = FeedScreenReturnGeometry(progress: 1, dragOffset: 12, source: source, photo: photo, canvas: canvas)
-        #expect(abs(dragged.cornerRadius * dragged.scale - ChalkakShapes.large) < 0.0001)
+        #expect(abs(dragged.cornerRadius * dragged.scale - ChalkakShapes.sheet) < 0.0001)
         let moving = FeedScreenReturnGeometry(progress: 0.94, source: source, photo: photo, canvas: canvas)
         #expect(moving.cornerRadius * moving.scale > 15)
         let expanded = FeedScreenReturnGeometry(progress: 1, source: source, photo: photo, canvas: canvas)
