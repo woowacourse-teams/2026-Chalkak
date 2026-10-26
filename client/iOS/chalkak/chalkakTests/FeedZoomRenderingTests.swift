@@ -4,6 +4,49 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFeedKeepsSourcePhotoHiddenUntilItDisappears() async throws {
+        let registry = FeedZoomRegistry()
+        let source = FeedZoomSource.displayGrid(FeedPreviewData.content.post.id)
+        registry.update(.init(frame: CGRect(x: 20, y: 200, width: 160, height: 210), cornerRadius: 12), for: source)
+        let model = FeedViewModel(
+            postID: FeedPreviewData.content.post.id,
+            initialState: FeedPreviewData.loadedState,
+            detailHandler: { _ in .success(FeedPreviewData.content) }
+        )
+        let host = UIHostingController(rootView: AnyView(
+            FeedScreen(viewModel: model, zoomSource: source)
+                .environment(\.feedZoomRegistry, registry)
+                .chalkakTheme(.light)
+        ))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        host.view.layoutIfNeeded()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(3))
+        while registry.activeSource != source, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(registry.activeSource, source, "The moving feed photo must replace its source card")
+        try await Task.sleep(for: .seconds(1))
+        XCTAssertEqual(registry.activeSource, source, "Keep the source hidden after opening so a return swipe cannot expose a duplicate")
+        host.rootView = AnyView(Color.clear)
+        host.view.layoutIfNeeded()
+        let disappearanceDeadline = clock.now.advanced(by: .seconds(3))
+        while registry.activeSource != nil, clock.now < disappearanceDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNil(registry.activeSource, "Restore the source when the feed disappears")
+    }
+
     func testOpeningWaitsForUncachedPhotoAfterLayoutIsMeasured() async throws {
         try await assertOpeningWaitsForPhoto(fails: false)
     }
@@ -58,23 +101,29 @@ final class FeedZoomRenderingTests: XCTestCase {
         let request = try XCTUnwrap(FeedOpeningImageProtocol.pending.remove(url))
         XCTAssertEqual(readyCount, 0, "A measured but empty photo must not expose the opaque feed screen")
         defer { if originalArrives { request.fail() } }
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 30, height: 30))
+        let data = try XCTUnwrap(renderer.image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 30, height: 30))
+        }.pngData())
+        func resolve(_ request: FeedOpeningImageProtocol) {
+            if fails { request.fail() } else { request.succeed(data) }
+        }
         if originalArrives {
             // Detail data arrives after the uncached thumbnail request has started.
             // Keep that request blocked; the available original must release opening.
             host.rootView = photo(post: FeedPreviewData.content.post)
             host.view.layoutIfNeeded()
-        } else if fails {
-            request.fail()
         } else {
-            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 30, height: 30))
-            let data = try XCTUnwrap(renderer.image { context in
-                UIColor.red.setFill()
-                context.fill(CGRect(x: 0, y: 0, width: 30, height: 30))
-            }.pngData())
-            request.succeed(data)
+            resolve(request)
         }
         let readyDeadline = clock.now.advanced(by: .seconds(3))
         while readyCount == 0, clock.now < readyDeadline {
+            // The displayed image and the transition task load the same URL separately.
+            // On a slow runner the second load can start after the first request resolved.
+            if !originalArrives, let late = FeedOpeningImageProtocol.pending.remove(url) {
+                resolve(late)
+            }
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertEqual(readyCount, 1, "A resolved photo must release opening exactly once, including failures")
