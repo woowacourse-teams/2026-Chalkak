@@ -88,6 +88,7 @@ private struct MasonryItem: Identifiable {
 
 private struct DisplayMasonryCell: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     let photo: DisplayPhoto
     let ratio: CGFloat?
     let isLiking: Bool
@@ -130,6 +131,8 @@ private struct DisplayMasonryCell: View {
                     isEnabled: !isLiking,
                     onLike: onLike
                 )
+                .opacity(zoomRegistry?.activeSource == .displayGrid(photo.id) ? 0 : 1)
+                .allowsHitTesting(zoomRegistry?.activeSource != .displayGrid(photo.id))
             }
             .task(id: photo.id) {
                 guard ratio == nil,

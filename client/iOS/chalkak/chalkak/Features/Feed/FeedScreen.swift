@@ -146,6 +146,7 @@ struct FeedScreen: View {
             // 아래 게이트는 노출된 출발 상태를 유지한 다음 확대를 시작한다.
             FeedOpeningFrameGate(isEnabled: hasPreparedOpening && !hasStartedOpening) {
                 guard !hasStartedOpening, !isClosing else { return }
+                zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
                 hasStartedOpening = true
             }
             .allowsHitTesting(false)
@@ -356,8 +357,8 @@ struct FeedScreen: View {
         }
         if transitionSource == nil { captureTransitionSource() }
         isPhotoMoving = true
-        // 열릴 때도 원래 사진을 유지해 이동한 사진 아래 검은 카드 바탕이 드러나지 않게 한다.
-        zoomRegistry?.activeSource = nil
+        // 상세 사진이 원래 카드를 대신한다. 복귀가 끝날 때까지 뒤에 같은 사진을 그리지 않는다.
+        zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
         withAnimation(photoAnimation(to: 1, releaseVelocity: releaseVelocity)) {
             photoProgress = 1
             screenDragOffset = 0
@@ -382,8 +383,7 @@ struct FeedScreen: View {
         if releaseVelocity == nil { captureTransitionSource() }
         isClosing = true
         isPhotoMoving = true
-        // 돌아갈 카드는 유지한다. 가려진 사진을 숨기면 반투명 하단바 아래 검은 바탕이 드러난다.
-        zoomRegistry?.activeSource = nil
+        zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
         let animation = photoAnimation(to: 0, releaseVelocity: releaseVelocity)
         withAnimation(animation) {
             photoProgress = 0
@@ -430,7 +430,7 @@ struct FeedScreen: View {
                     captureTransitionSource()
                     isPhotoMoving = true
                 }
-                zoomRegistry?.activeSource = nil
+                zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
                 backSwipeTracking.update(to: value.translation)
                 let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
                 if usesScreenTransition {

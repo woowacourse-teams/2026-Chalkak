@@ -4,6 +4,49 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFeedKeepsSourcePhotoHiddenUntilItDisappears() async throws {
+        let registry = FeedZoomRegistry()
+        let source = FeedZoomSource.displayGrid(FeedPreviewData.content.post.id)
+        registry.update(.init(frame: CGRect(x: 20, y: 200, width: 160, height: 210), cornerRadius: 12), for: source)
+        let model = FeedViewModel(
+            postID: FeedPreviewData.content.post.id,
+            initialState: FeedPreviewData.loadedState,
+            detailHandler: { _ in .success(FeedPreviewData.content) }
+        )
+        let host = UIHostingController(rootView: AnyView(
+            FeedScreen(viewModel: model, zoomSource: source)
+                .environment(\.feedZoomRegistry, registry)
+                .chalkakTheme(.light)
+        ))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        host.view.layoutIfNeeded()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(3))
+        while registry.activeSource != source, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(registry.activeSource, source, "The moving feed photo must replace its source card")
+        try await Task.sleep(for: .seconds(1))
+        XCTAssertEqual(registry.activeSource, source, "Keep the source hidden after opening so a return swipe cannot expose a duplicate")
+        host.rootView = AnyView(Color.clear)
+        host.view.layoutIfNeeded()
+        let disappearanceDeadline = clock.now.advanced(by: .seconds(3))
+        while registry.activeSource != nil, clock.now < disappearanceDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNil(registry.activeSource, "Restore the source when the feed disappears")
+    }
+
     func testOpeningWaitsForUncachedPhotoAfterLayoutIsMeasured() async throws {
         try await assertOpeningWaitsForPhoto(fails: false)
     }
