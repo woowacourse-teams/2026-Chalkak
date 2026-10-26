@@ -25,6 +25,8 @@ final class FeedViewModel {
     private let deleteHandler: DeleteHandler
     private let updateTitleHandler: UpdateTitleHandler
     private var likeGeneration = 0
+    // 상세를 받기 전에 다른 화면에서 도착한 좋아요. 상세가 도착하면 그 위에 덮어쓴다.
+    private var pendingLikeUpdate: FeedLikeUpdate?
     // 직전 좋아요 요청. 다음 요청은 이 태스크가 끝난 뒤에 보내 직렬화한다.
     private var likeTask: Task<Void, Never>?
 
@@ -122,6 +124,12 @@ final class FeedViewModel {
             if isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
             }
+            // 상세 요청이 좋아요 반영 전에 처리됐을 수 있어, 그 사이 받은 좋아요 결과를 우선한다.
+            if let pending = pendingLikeUpdate {
+                merged.post.isLiked = pending.isLiked
+                merged.post.likeCount = pending.likeCount
+                pendingLikeUpdate = nil
+            }
             aiReview?.updateTopicDate(merged.topicDate)
             viewState.content = merged
             viewState.contentStatus = .loaded
@@ -157,8 +165,13 @@ final class FeedViewModel {
 
     /// 다른 화면에서 바뀐 좋아요를 반영한다. 다른 게시물의 값이면 무시한다.
     /// 진행 중인 상세 조회가 이 값을 덮어쓰지 않도록 좋아요 세대를 올린다.
+    /// 예) 작가 목록 카드에서 좋아요를 누르고 응답 전에 같은 사진 상세를 열면, 상세 도착 전후 어느 쪽이든 카드 결과로 맞춘다.
     func applyLikeUpdate(_ update: FeedLikeUpdate) {
-        guard var content = viewState.content, content.post.id == update.postID else { return }
+        guard update.postID == postID else { return }
+        guard var content = viewState.content else {
+            pendingLikeUpdate = update
+            return
+        }
         guard content.post.isLiked != update.isLiked || content.post.likeCount != update.likeCount else { return }
         likeGeneration += 1
         content.post.isLiked = update.isLiked

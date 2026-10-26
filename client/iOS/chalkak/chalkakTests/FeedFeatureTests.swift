@@ -241,6 +241,29 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.post.likeCount == 4)
     }
 
+    @Test("상세를 받기 전에 도착한 다른 화면의 좋아요를 상세 도착 뒤에도 유지한다")
+    func keepsExternalLikeArrivedBeforeDetail() async {
+        let gate = AsyncGate()
+        defer { gate.release() }
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            detailHandler: { _ in
+                await gate.waitForRelease()
+                // 카드 좋아요가 반영되기 전 상태로 처리된 상세 응답.
+                return .success(Self.content(isLiked: false, likeCount: 3))
+            }
+        )
+
+        let loadTask = Task { await viewModel.load() }
+        await gate.waitUntilEntered()
+        viewModel.applyLikeUpdate(FeedLikeUpdate(postID: "post-1", isLiked: true, likeCount: 4))
+        gate.release()
+        await loadTask.value
+
+        #expect(viewModel.viewState.content?.post.isLiked == true)
+        #expect(viewModel.viewState.content?.post.likeCount == 4)
+    }
+
     @Test("전시 시드는 상세 확정 전까지 좋아요를 막고, 확정 후 허용한다")
     func displaySeedGatesLikeUntilLoaded() async {
         let viewModel = FeedViewModel(

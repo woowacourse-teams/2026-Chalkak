@@ -185,7 +185,9 @@ struct ContentView: View {
                             onLikeChange: { update in
                                 selectedAuthorPosts?.applyLike(update)
                                 authorPostsLikeUpdate = update
-                            }
+                            },
+                            // 카드 좋아요 응답이 상세를 연 뒤에 도착해도 이 상세에 맞춘다.
+                            externalLikeUpdate: authorPostsLikeUpdate
                         )
                         .id(target.id)
                         .transition(.identity)
