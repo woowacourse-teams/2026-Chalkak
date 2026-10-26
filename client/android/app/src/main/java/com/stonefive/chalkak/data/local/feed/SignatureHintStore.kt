@@ -5,21 +5,17 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import com.stonefive.chalkak.domain.repository.SignatureHintRepository
+import kotlinx.coroutines.flow.first
 
 private val Context.signatureHintDataStore by preferencesDataStore(name = "signature_hint")
-private val exposedKey = booleanPreferencesKey("author_posts_hint_exposed")
+private val completedKey = booleanPreferencesKey("author_posts_hint_completed")
 
 class SignatureHintStore(context: Context) : SignatureHintRepository {
     private val dataStore = context.applicationContext.signatureHintDataStore
 
-    override suspend fun claimFirstExposure(): Boolean {
-        var claimed = false
-        dataStore.edit { preferences ->
-            if (preferences[exposedKey] != true) {
-                preferences[exposedKey] = true
-                claimed = true
-            }
-        }
-        return claimed
+    override suspend fun isCompleted(): Boolean = dataStore.data.first()[completedKey] == true
+
+    override suspend fun complete() {
+        dataStore.edit { preferences -> preferences[completedKey] = true }
     }
 }

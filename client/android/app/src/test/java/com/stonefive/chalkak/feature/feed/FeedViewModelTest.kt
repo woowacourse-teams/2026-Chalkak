@@ -710,31 +710,30 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun `다른 작가 사인이 보이면 노출을 기록하고 4초 후 닫는다`() = runTest {
-        val hint = FakeSignatureHintRepository()
-        val selected = signatureViewModel(hint = hint)
+    fun `사인이 보이면 안내 시트를 띄우고 시간이 지나도 닫지 않는다`() = runTest {
+        val selected = signatureViewModel()
         selected.onSignatureVisible()
         runCurrent()
         assertTrue(selected.uiState.value.showSignatureHint)
-        assertEquals(1, hint.claims)
-        selected.onSignatureVisible()
-        assertEquals(1, hint.claims)
-        advanceTimeBy(4_000)
+
+        advanceTimeBy(60_000)
         runCurrent()
-        assertFalse(selected.uiState.value.showSignatureHint)
+
+        assertTrue(selected.uiState.value.showSignatureHint)
     }
 
     @Test
-    fun `내 사인과 이미 노출된 안내는 다시 표시하지 않는다`() = runTest {
+    fun `사인을 눌러 작가 사진으로 이동하면 안내를 닫고 다음 진입부터 띄우지 않는다`() = runTest {
         val hint = FakeSignatureHintRepository()
-        val mine = signatureViewModel(hint = hint, isMine = true)
-        mine.onSignatureVisible()
-        runCurrent()
-        assertEquals(0, hint.claims)
         val selected = signatureViewModel(hint = hint)
         selected.onSignatureVisible()
         runCurrent()
-        selected.dismissSignatureHint()
+
+        assertEquals("author", selected.onSignatureClicked()?.authorId)
+        runCurrent()
+
+        assertFalse(selected.uiState.value.showSignatureHint)
+        assertEquals(1, hint.completeCalls)
         val reopened = signatureViewModel(hint = hint)
         reopened.onSignatureVisible()
         runCurrent()
@@ -742,17 +741,58 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun `사인이 보이기 전 스크롤은 첫 안내를 소진하지 않는다`() = runTest {
-        val selected = signatureViewModel()
+    fun `안내 시트를 닫으면 완료로 기록하고 다음 진입부터 띄우지 않는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val selected = signatureViewModel(hint = hint)
+        selected.onSignatureVisible()
+        runCurrent()
+
         selected.dismissSignatureHint()
+        runCurrent()
+
+        assertFalse(selected.uiState.value.showSignatureHint)
+        assertEquals(1, hint.completeCalls)
+        val reopened = signatureViewModel(hint = hint)
+        reopened.onSignatureVisible()
+        runCurrent()
+        assertFalse(reopened.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `안내 시트를 닫지 않은 채 다시 들어오면 안내를 다시 띄운다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        signatureViewModel(hint = hint).onSignatureVisible()
+        runCurrent()
+
+        val reopened = signatureViewModel(hint = hint)
+        reopened.onSignatureVisible()
+        runCurrent()
+
+        assertTrue(reopened.uiState.value.showSignatureHint)
+        assertEquals(0, hint.completeCalls)
+    }
+
+    @Test
+    fun `내 사진이어도 처음에는 안내를 띄운다`() = runTest {
+        val mine = signatureViewModel(isMine = true)
+        mine.onSignatureVisible()
+        runCurrent()
+        assertTrue(mine.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `비로그인 사인 탭은 안내를 닫지만 완료로 기록하지 않는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val selected = signatureViewModel(session = UserSessionState.SignedOut, hint = hint)
         selected.onSignatureVisible()
         runCurrent()
         assertTrue(selected.uiState.value.showSignatureHint)
-        selected.dismissSignatureHint()
-        assertFalse(selected.uiState.value.showSignatureHint)
-        selected.onSignatureVisible()
+
+        assertEquals(null, selected.onSignatureClicked())
         runCurrent()
+
         assertFalse(selected.uiState.value.showSignatureHint)
+        assertEquals(0, hint.completeCalls)
     }
 
     private fun signatureViewModel(
@@ -778,14 +818,14 @@ class FeedViewModelTest {
 }
 
 private class FakeSignatureHintRepository : SignatureHintRepository {
-    var claims = 0
-    private var seen = false
+    var completeCalls = 0
+    private var completed = false
 
-    override suspend fun claimFirstExposure(): Boolean {
-        claims++
-        if (seen) return false
-        seen = true
-        return true
+    override suspend fun isCompleted(): Boolean = completed
+
+    override suspend fun complete() {
+        completeCalls++
+        completed = true
     }
 }
 

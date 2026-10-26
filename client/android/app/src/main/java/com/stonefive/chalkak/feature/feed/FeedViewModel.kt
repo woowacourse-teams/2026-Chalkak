@@ -23,7 +23,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,45 +50,61 @@ class FeedViewModel(
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
 
     private var hintAttempted = false
-    private var hintDismissed = false
+    private var signatureClicked = false
 
+    /**
+     * 사진 상세에서 사인이 화면에 처음 보일 때 첫 안내 바텀시트를 띄운다. 내 사진이어도 띄운다.
+     * 시트는 시간이 지나도 닫히지 않고 사용자가 닫아야 하며([dismissSignatureHint]), 한 번 닫으면 다시 띄우지 않는다.
+     */
     fun onSignatureVisible() {
         val post = _uiState.value.content
             ?.post ?: return
-        if (hintAttempted || post.isOwnedByCurrentUser || post.authorId.isBlank()) return
+        if (hintAttempted || post.authorId.isBlank()) return
         val repository = signatureHintRepository ?: return
         hintAttempted = true
         viewModelScope.launch {
-            val claimed = try {
-                repository.claimFirstExposure()
+            val completed = try {
+                repository.isCompleted()
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
-                false
+                true
             }
-            if (claimed && !hintDismissed) {
+            if (!completed && !signatureClicked) {
                 _uiState.update { it.copy(showSignatureHint = true) }
-                delay(SIGNATURE_HINT_DURATION_MILLIS)
-                dismissSignatureHint()
             }
         }
     }
 
+    /** 첫 안내 바텀시트를 쓸어내리거나 바깥을 눌러 닫았을 때 호출한다. 이후로는 다시 띄우지 않는다. */
     fun dismissSignatureHint() {
-        if (hintAttempted) hintDismissed = true
         _uiState.update { it.copy(showSignatureHint = false) }
+        completeSignatureHint()
     }
 
     fun onSignatureClicked(): Post? {
-        hintDismissed = true
-        dismissSignatureHint()
+        signatureClicked = true
+        _uiState.update { it.copy(showSignatureHint = false) }
         val post = _uiState.value.content
             ?.post ?: return null
         if (currentUserId() == null) {
             _uiState.update { it.copy(pendingMessage = nextToast("다른 사진도 보려면 로그인이 필요해요")) }
             return null
         }
-        return post.takeIf { it.authorId.isNotBlank() }
+        return post.takeIf { it.authorId.isNotBlank() }?.also { completeSignatureHint() }
+    }
+
+    private fun completeSignatureHint() {
+        val repository = signatureHintRepository ?: return
+        viewModelScope.launch {
+            try {
+                repository.complete()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                // 저장에 실패하면 다음 상세 진입에서 안내가 한 번 더 보일 뿐이다.
+            }
+        }
     }
 
     private var syncedLikeRevision = 0
@@ -603,5 +618,3 @@ class FeedViewModel(
         text = text,
     )
 }
-
-private const val SIGNATURE_HINT_DURATION_MILLIS = 4_000L

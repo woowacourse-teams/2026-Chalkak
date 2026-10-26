@@ -8,20 +8,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,8 +67,6 @@ fun FeedPhoto(
     onPhotoBoundsChanged: (Rect) -> Unit = {},
     onSignatureClick: () -> Unit = {},
     onSignatureVisible: () -> Unit = {},
-    showSignatureHint: Boolean = false,
-    onDismissSignatureHint: () -> Unit = {},
 ) {
     val postId = post?.id ?: entryPostId ?: return
     var isSignatureLoaded by remember(postId, post?.signatureOriginalImageUrl) { mutableStateOf(false) }
@@ -133,14 +124,6 @@ fun FeedPhoto(
                     )
                 }
             }
-            if (showSignatureHint) {
-                FeedSignatureHint(
-                    onDismiss = onDismissSignatureHint,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(FeedSignatureInset),
-                )
-            }
         }
         if (post != null) {
             FeedActionRow(
@@ -151,41 +134,6 @@ fun FeedPhoto(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FeedSignatureHint(
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    // Visibility and the four-second lifetime belong to FeedUiState, not tooltip gestures/timers.
-    val tooltipState = rememberTooltipState(initialIsVisible = true, isPersistent = true)
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = {
-            PlainTooltip(
-                caretShape = TooltipDefaults.caretShape(),
-                shape = ChalkakTheme.shapes.photoCard,
-                contentColor = ChalkakTheme.colors.textPrimary,
-                containerColor = ChalkakTheme.colors.surfaceElevated,
-                modifier = Modifier.clickable(onClick = onDismiss),
-            ) {
-                Text(
-                    text = "사인을 누르면 이 작가님의 사진을 모아볼 수 있어요",
-                    style = ChalkakTheme.typography.subheadline,
-                )
-            }
-        },
-        state = tooltipState,
-        modifier = modifier,
-        onDismissRequest = onDismiss,
-        focusable = false,
-        enableUserInput = false,
-    ) {
-        // Match the signed-image's exact signature bounds; the Material caret points at this anchor.
-        Spacer(Modifier.size(width = FeedSignatureWidth, height = FeedSignatureHeight))
     }
 }
 
@@ -395,5 +343,3 @@ private fun FeedActionRow(
 
 private val FeedSignatureWidth = 70.dp
 private val FeedSignatureHeight = 52.dp
-
-private val FeedSignatureInset = 8.dp

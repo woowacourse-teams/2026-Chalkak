@@ -66,6 +66,7 @@ import com.stonefive.chalkak.feature.aireview.component.AiReviewResultSheet
 import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.aireview.component.AiReviewStartSheet
 import com.stonefive.chalkak.feature.feed.component.FeedContent
+import com.stonefive.chalkak.feature.feed.component.FeedSignatureHintSheet
 import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 import java.time.LocalDate
@@ -265,6 +266,9 @@ fun FeedScreen(
             AiReviewResultSheet(result = result, onDismiss = { showAiResultSheet = false })
         }
     }
+    if (uiState.showSignatureHint) {
+        FeedSignatureHintSheet(onDismiss = onDismissSignatureHint)
+    }
     if (showAiStartSheet) {
         val sheetState = rememberModalBottomSheetState()
         androidx.compose.material3.ModalBottomSheet(
@@ -355,8 +359,6 @@ fun FeedScreen(
                     onPhotoBoundsChanged = { photoBounds = it },
                     onSignatureClick = onSignatureClick,
                     onSignatureVisible = onSignatureVisible,
-                    showSignatureHint = uiState.showSignatureHint,
-                    onDismissSignatureHint = onDismissSignatureHint,
                 )
 
                 uiState.isLoading -> CircularProgressIndicator(

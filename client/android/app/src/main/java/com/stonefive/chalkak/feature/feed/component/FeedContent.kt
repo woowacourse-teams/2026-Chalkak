@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.tooling.preview.Preview
@@ -20,7 +18,6 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import java.time.LocalDate
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 private const val FEED_TOPIC_RESIZE_DURATION_MILLIS = 180
 
@@ -34,8 +31,6 @@ fun FeedContent(
     onPhotoBoundsChanged: (Rect) -> Unit = {},
     onSignatureClick: () -> Unit = {},
     onSignatureVisible: () -> Unit = {},
-    showSignatureHint: Boolean = false,
-    onDismissSignatureHint: () -> Unit = {},
 ) {
     if (content == null && (entryPostId == null || entryThumbnailImageUrl == null)) return
 
@@ -48,8 +43,6 @@ fun FeedContent(
         onPhotoBoundsChanged = onPhotoBoundsChanged,
         onSignatureClick = onSignatureClick,
         onSignatureVisible = onSignatureVisible,
-        showSignatureHint = showSignatureHint,
-        onDismissSignatureHint = onDismissSignatureHint,
     )
 }
 
@@ -93,15 +86,8 @@ private fun FeedPostContent(
     onPhotoBoundsChanged: (Rect) -> Unit = {},
     onSignatureClick: () -> Unit = {},
     onSignatureVisible: () -> Unit = {},
-    showSignatureHint: Boolean = false,
-    onDismissSignatureHint: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
-    LaunchedEffect(scrollState, onDismissSignatureHint) {
-        snapshotFlow { scrollState.isScrollInProgress }
-            .distinctUntilChanged()
-            .collect { if (it) onDismissSignatureHint() }
-    }
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
@@ -124,8 +110,6 @@ private fun FeedPostContent(
             onPhotoBoundsChanged = onPhotoBoundsChanged,
             onSignatureClick = onSignatureClick,
             onSignatureVisible = onSignatureVisible,
-            showSignatureHint = showSignatureHint,
-            onDismissSignatureHint = onDismissSignatureHint,
         )
     }
 }
