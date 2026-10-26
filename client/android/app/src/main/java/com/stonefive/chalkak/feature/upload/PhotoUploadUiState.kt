@@ -12,6 +12,7 @@ data class PhotoUploadUiState(
     val editingPhoto: PhotoEditRequest? = null,
     val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
+    val showsDiscardConfirmation: Boolean = false,
     val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,
     val isTopicLoading: Boolean = false,
@@ -20,6 +21,9 @@ data class PhotoUploadUiState(
     val completedSubmission: PhotoUploadSubmission? = null,
     val pendingMessage: UiMessage? = null,
 ) {
+    val hasUnsavedDraft: Boolean
+        get() = selectedImage != null || caption.isNotBlank()
+
     val canSubmit: Boolean
         get() = selectedImage != null &&
             !isTopicLoading &&

@@ -142,6 +142,7 @@ struct ContentView: View {
                             onDeleted: handleDeletedPost
                         )
                         .id(target.id)
+                        .transition(.identity)
                         .accessibilityAddTraits(.isModal)
                     }
                 }

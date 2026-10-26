@@ -39,6 +39,18 @@ struct PhotoUploadSuccessContentTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadViewStateTests {
+    @Test("사진이나 설명이 있을 때만 작성 중인 내용으로 판단한다")
+    func detectsUnsavedDraft() {
+        #expect(!PhotoUploadViewState().hasUnsavedDraft)
+        #expect(!PhotoUploadViewState(caption: " \n ").hasUnsavedDraft)
+        #expect(PhotoUploadViewState(caption: "작품 제목").hasUnsavedDraft)
+        #expect(PhotoUploadViewState(selectedImage: Self.image()).hasUnsavedDraft)
+        #expect(PhotoUploadViewState(
+            selectedImage: Self.image(),
+            imagePreparationStatus: .failed
+        ).hasUnsavedDraft)
+    }
+
     @Test("사진이 없으면 전시하기를 비활성화한다")
     func disablesSubmitWithoutPhoto() {
         #expect(!PhotoUploadViewState().canSubmit)

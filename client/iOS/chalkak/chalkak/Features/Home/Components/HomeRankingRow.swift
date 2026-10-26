@@ -65,7 +65,7 @@ private struct RankingPhotoCard: View {
             .feedZoomSource(zoomSource, cornerRadius: theme.shapes.small)
             .contentShape(RoundedRectangle(cornerRadius: theme.shapes.small))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ChalkakUnhighlightedButtonStyle())
         .accessibilityLabel(photo.contentDescription)
     }
 }

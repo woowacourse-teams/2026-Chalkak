@@ -11,12 +11,20 @@ struct FeedScreen: View {
     // Android처럼 둘의 시간이 달라 따로 애니메이션한다.
     @State private var photoProgress: CGFloat = 0
     @State private var contentProgress: CGFloat = 0
+    @State private var hasCompletedOpening = false
+    @State private var screenDragOffset: CGFloat = 0
+    @State private var photoFrame: CGRect?
+    @State private var transitionSafeAreaInsets = EdgeInsets()
     @State private var isPhotoMoving = true
     @State private var isPhotoInteracting = false
     @State private var isBackSwiping = false
     @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
     @State private var hasStartedOpening = false
+    @State private var hasPreparedOpening = false
+    @State private var hasLaunchedOpening = false
+    @State private var isPhotoReady = false
+    @State private var hasContentError = false
     @State private var transitionSource: FeedZoomRegistry.Source?
     @State private var transitionViewport: CGRect?
     private let opensAIReviewOnEntry: Bool
@@ -57,14 +65,14 @@ struct FeedScreen: View {
         ZStack(alignment: .top) {
             theme.colors.background
                 .ignoresSafeArea()
-                .opacity(contentProgress)
+                .opacity(visibleContentProgress)
 
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .overlay(alignment: .top) {
             FeedTopBar(
-                onBack: close,
+                onBack: { close() },
                 onEdit: {
                     titleDraft = viewModel.viewState.content?.post.title ?? ""
                     showsTitleEditDialog = true
@@ -81,14 +89,14 @@ struct FeedScreen: View {
             )
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
-            .opacity(contentProgress)
+            .opacity(visibleContentProgress)
         }
         .overlay(alignment: .bottomTrailing) {
             if canShowAIReview, let aiReview = viewModel.aiReview {
                 FeedAIReviewButton(model: aiReview) { showsAIReviewSheet = true }
                     .padding(.trailing, theme.spacing.lg)
                     .padding(.bottom, theme.spacing.md)
-                    .opacity(contentProgress)
+                    .opacity(visibleContentProgress)
             }
         }
         .sheet(isPresented: $showsAIReviewSheet) {
@@ -113,7 +121,45 @@ struct FeedScreen: View {
             guard scenePhase == .active, canObserveAIReview else { return }
             await viewModel.aiReview?.observe()
         }
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { transitionViewport = $0 }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+            if !isPhotoMoving || transitionViewport == nil {
+                transitionViewport = $0
+                startOpening()
+            }
+        }
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: {
+            if !hasStartedOpening || !isPhotoMoving { transitionSafeAreaInsets = $0 }
+        }
+        .modifier(FeedScreenReturnEffect(
+            progress: usesScreenTransition ? photoProgress : 1,
+            dragOffset: screenDragOffset,
+            source: usesScreenTransition && hasStartedOpening ? movingSource : nil,
+            photo: photoFrame,
+            canvas: transitionViewport,
+            safeAreaInsets: transitionSafeAreaInsets
+        ))
+        // 측정 전 전체 화면이 순간 노출되지 않도록 레이아웃은 유지하고 표시만 기다린다.
+        .opacity(usesScreenTransition && !hasStartedOpening ? 0 : 1)
+        .animation(nil, value: hasStartedOpening)
+        .background {
+            // 비트맵과 좌표가 반영될 화면 갱신 간격을 확보한 뒤 상세 화면을 노출한다.
+            // 아래 게이트는 노출된 출발 상태를 유지한 다음 확대를 시작한다.
+            FeedOpeningFrameGate(isEnabled: hasPreparedOpening && !hasStartedOpening) {
+                guard !hasStartedOpening, !isClosing else { return }
+                hasStartedOpening = true
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .background {
+            FeedOpeningFrameGate(isEnabled: hasStartedOpening && !hasLaunchedOpening) {
+                guard !hasLaunchedOpening, !isClosing else { return }
+                hasLaunchedOpening = true
+                open()
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .toolbar(.hidden, for: .navigationBar)
         .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
         .onAppear {
@@ -131,7 +177,10 @@ struct FeedScreen: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.viewState.contentStatus) { _, status in
-            if case .error = status { startOpening() }
+            if case .error = status {
+                hasContentError = true
+                startOpening()
+            }
         }
         .onChange(of: viewModel.viewState.deletedPostID) { _, postID in
             if let postID {
@@ -197,10 +246,10 @@ struct FeedScreen: View {
                     .tint(theme.colors.actionPrimary)
                     .accessibilityIdentifier("feed-loading")
             }
-            .opacity(contentProgress)
+            .opacity(visibleContentProgress)
         case let .error(reason):
             centered { errorView(reason) }
-                .opacity(contentProgress)
+                .opacity(visibleContentProgress)
         case .loading, .loaded:
             // placeholder가 있으면 상세를 받기 전에도 사진을 먼저 보여준다.
             // 로딩과 로드 완료가 같은 분기를 써야 상세 도착 시 사진 뷰가 다시 만들어지지 않는다.
@@ -218,23 +267,35 @@ struct FeedScreen: View {
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, Metrics.topicTop)
                     .padding(.bottom, Metrics.topicBottom)
-                    .opacity(contentProgress)
+                    .opacity(visibleContentProgress)
 
                 FeedPhoto(
                     post: content?.post,
                     placeholder: placeholder,
-                    isLikeEnabled: viewModel.viewState.isLikeEnabled,
+                    isLikeEnabled: canLike,
                     zoom: FeedPhotoZoom(
-                        photoProgress: photoProgress,
-                        contentProgress: contentProgress,
+                        photoProgress: usesScreenTransition ? 1 : photoProgress,
+                        contentProgress: visibleContentProgress,
                         source: movingSource,
                         isSettled: !isPhotoMoving,
                         morphsAspectRatio: morphsPhotoAspectRatio,
-                        viewport: transitionViewport
+                        viewport: usesScreenTransition ? nil : transitionViewport,
+                        keepsOriginalVisible: usesScreenTransition && hasCompletedOpening
                     ),
-                    onTransitionReady: startOpening,
+                    onTransitionReady: {
+                        isPhotoReady = true
+                        startOpening()
+                    },
+                    onPhotoFrameChanged: { frame in
+                        if !isPhotoMoving || !hasStartedOpening { photoFrame = frame }
+                        startOpening()
+                    },
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
-                    onLike: { viewModel.toggleLike() }
+                    onLike: {
+                        // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 좋아요를 실행하지 않는다.
+                        guard canLike else { return }
+                        viewModel.toggleLike()
+                    }
                 )
                 // 이동 중인 사진이 주제 위로 그려지게 한다.
                 .zIndex(1)
@@ -246,6 +307,19 @@ struct FeedScreen: View {
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
         .scrollDisabled(isPhotoMoving || isPhotoInteracting)
+    }
+
+    private var canLike: Bool {
+        viewModel.viewState.isLikeEnabled && !isBackSwiping && !isPhotoMoving && !isClosing
+    }
+
+    private var usesScreenTransition: Bool {
+        usesPhotoTransition && movingSource != nil
+    }
+
+    // 열고 닫을 때 모두 불투명한 화면 하나를 확대·축소한다.
+    private var visibleContentProgress: CGFloat {
+        usesScreenTransition ? 1 : contentProgress
     }
 
     // MARK: - 줌 전환
@@ -264,12 +338,16 @@ struct FeedScreen: View {
     }
 
     private func startOpening() {
-        guard !hasStartedOpening, !isClosing else { return }
-        hasStartedOpening = true
-        open()
+        guard !hasPreparedOpening, !isClosing else { return }
+        if usesScreenTransition && !hasContentError {
+            guard isPhotoReady, photoFrame != nil, transitionViewport != nil else { return }
+        }
+        hasPreparedOpening = true
+        if !usesScreenTransition || hasContentError { hasStartedOpening = true }
     }
 
-    private func open() {
+    // releaseVelocity: 백 스와이프를 놓은 순간의 사진 진행도 속도(초당). 없으면 멈춘 상태에서 출발한다.
+    private func open(releaseVelocity: CGFloat? = nil) {
         guard usesPhotoTransition else {
             photoProgress = 1
             contentProgress = 1
@@ -280,38 +358,57 @@ struct FeedScreen: View {
         isPhotoMoving = true
         // 열릴 때도 원래 사진을 유지해 이동한 사진 아래 검은 카드 바탕이 드러나지 않게 한다.
         zoomRegistry?.activeSource = nil
-        withAnimation(Metrics.photoAnimation) {
+        withAnimation(photoAnimation(to: 1, releaseVelocity: releaseVelocity)) {
             photoProgress = 1
+            screenDragOffset = 0
         } completion: {
             guard !isClosing else { return }
             isPhotoMoving = false
+            hasCompletedOpening = true
         }
         withAnimation(Metrics.contentAnimation) {
             contentProgress = 1
         }
     }
 
-    private func close() {
+    private func close(releaseVelocity: CGFloat? = nil) {
         guard !isClosing else { return }
         guard usesPhotoTransition else {
             onBack()
             return
         }
-        captureTransitionSource()
+        // 버튼은 현재 카드 위치를 읽고, 스와이프는 시작할 때 고정한 위치를 유지한다.
+        // 손을 뗄 때 다시 측정하면 드래그와 마무리 애니메이션 사이에서 경로가 바뀔 수 있다.
+        if releaseVelocity == nil { captureTransitionSource() }
         isClosing = true
         isPhotoMoving = true
         // 돌아갈 카드는 유지한다. 가려진 사진을 숨기면 반투명 하단바 아래 검은 바탕이 드러난다.
         zoomRegistry?.activeSource = nil
-        withAnimation(Metrics.photoAnimation) {
+        let animation = photoAnimation(to: 0, releaseVelocity: releaseVelocity)
+        withAnimation(animation) {
             photoProgress = 0
+            screenDragOffset = 0
         } completion: {
             zoomRegistry?.activeSource = nil
             onBack()
         }
-        // 사진이 도착하면 화면을 제거한다. 페이드도 같은 시간에 끝나야 뒤 화면의 터치를 지연시키지 않는다.
-        withAnimation(Metrics.photoAnimation) {
+        // 화면 전체를 접는 동안에는 visibleContentProgress가 1을 유지한다.
+        // 복귀 카드가 없는 대체 경로에서만 이 페이드를 사용한다.
+        withAnimation(animation) {
             contentProgress = 0
         }
+    }
+
+    // 버튼으로 열고 닫을 때는 Android와 같은 곡선을 쓴다.
+    // 스와이프를 놓았을 때는 그 속도를 이어받아야 사진이 멈칫했다가 다시 출발하지 않는다.
+    private func photoAnimation(to target: CGFloat, releaseVelocity: CGFloat?) -> Animation {
+        guard let releaseVelocity else { return Metrics.photoAnimation }
+        return FeedBackSwipeRelease.animation(
+            from: photoProgress,
+            to: target,
+            velocity: releaseVelocity,
+            duration: Metrics.photoReleaseDuration
+        )
     }
 
     private func captureTransitionSource() {
@@ -336,18 +433,28 @@ struct FeedScreen: View {
                 zoomRegistry?.activeSource = nil
                 backSwipeTracking.update(to: value.translation)
                 let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
-                photoProgress = 1 - min(dragged, 1)
-                contentProgress = photoProgress
+                if usesScreenTransition {
+                    // 길게 끌어도 창 크기를 유지하고, 손을 놓은 뒤 카드로 접는다.
+                    photoProgress = 1
+                    screenDragOffset = backSwipeTracking.distance * 0.65
+                } else {
+                    photoProgress = 1 - min(dragged, 1)
+                    contentProgress = photoProgress
+                }
             }
             .onEnded { value in
                 guard isBackSwiping else { return }
                 isBackSwiping = false
                 guard !isClosing else { return }
                 backSwipeTracking.update(to: value.translation)
+                // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
+                let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
+                    ? -backSwipeTracking.horizontalVelocity(value.velocity) / Metrics.backSwipeFullDistance
+                    : 0
                 if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
-                    close()
+                    close(releaseVelocity: releaseVelocity)
                 } else {
-                    open()
+                    open(releaseVelocity: releaseVelocity)
                 }
             }
     }
@@ -417,6 +524,34 @@ struct FeedBackSwipeTracking {
         guard abs(delta.width) > abs(delta.height) else { return distance }
         return max(0, distance + delta.width)
     }
+
+    /// 손을 뗀 순간의 가로 속도. 거리 계산과 같이 세로로 움직이며 놓은 속도는 반영하지 않는다.
+    func horizontalVelocity(_ velocity: CGSize) -> CGFloat {
+        abs(velocity.width) > abs(velocity.height) ? velocity.width : 0
+    }
+}
+
+/// 백 스와이프를 놓은 뒤 남은 전환을 유한한 시간 안에 마무리한다.
+enum FeedBackSwipeRelease {
+    static func animation(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval) -> Animation {
+        let timing = timing(from: progress, to: target, velocity: velocity, duration: duration)
+        // x를 균등하게 두어 시간에 대한 초기 기울기가 손을 놓은 속도와 연결된다.
+        // 제어점 y를 0...1 안에 두면 카드 위치를 지나쳤다가 돌아오지 않는다.
+        return .timingCurve(1.0 / 3, timing.initialSlope / 3, 2.0 / 3, 1, duration: timing.duration)
+    }
+
+    static func timing(from progress: CGFloat, to target: CGFloat, velocity: CGFloat, duration: TimeInterval)
+        -> (duration: TimeInterval, initialSlope: Double) {
+        let remaining = Double(target - progress)
+        guard abs(remaining) > 0.001, duration > 0 else { return (0, 0) }
+        // 카드에 가까운 상태에서 놓으면 긴 감속 꼬리 없이 더 빨리 도착한다.
+        let distanceDuration = duration * min(1, sqrt(abs(remaining)))
+        let towardVelocity = max(0, Double(velocity) * (remaining > 0 ? 1 : -1))
+        let velocityDuration = towardVelocity > 0 ? 2 * abs(remaining) / towardVelocity : duration
+        let finishDuration = min(duration, max(0.08, min(distanceDuration, velocityDuration)))
+        let slope = min(3, towardVelocity * finishDuration / abs(remaining))
+        return (finishDuration, slope)
+    }
 }
 
 private enum Metrics {
@@ -432,6 +567,8 @@ private enum Metrics {
     static let photoAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
     // Android NavHost 기본 화면 전환: fadeIn/fadeOut(tween(700)), 기본 easing FastOutSlowInEasing.
     static let contentAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.7)
+    // 스와이프를 놓은 뒤 남은 이동도 photoAnimation과 같은 0.3초 안팎에 끝낸다.
+    static let photoReleaseDuration: TimeInterval = 0.3
     static let backSwipeEdgeWidth: CGFloat = 24
     static let backSwipeMinimumDistance: CGFloat = 12
     static let backSwipeFullDistance: CGFloat = 300

@@ -20,12 +20,13 @@ struct PhotoUploadRoute: View {
     @State private var isPhotoPermissionAlertPresented = false
     @State private var isRequestingPhotoPermission = false
     @State private var photoSelectionLoader = PhotoUploadSelectionLoader()
+    @State private var showsDiscardDialog = false
 
     var body: some View {
         PhotoUploadScreen(
             viewState: viewModel.viewState,
             isCameraAvailable: UIImagePickerController.isSourceTypeAvailable(.camera),
-            onAction: viewModel.handle,
+            onAction: handleAction,
             onRetryTopicLoad: viewModel.retryTopicLoad
         )
         .onChange(of: viewModel.event) { _, event in
@@ -87,6 +88,25 @@ struct PhotoUploadRoute: View {
         } message: {
             Text("촬영한 사진을 자동으로 저장하려면 설정에서 사진 추가 권한을 허용해 주세요.")
         }
+        .alert("작성을 그만둘까요?", isPresented: $showsDiscardDialog) {
+            Button("취소", role: .cancel) {}
+            Button("뒤로 가기", role: .destructive) {
+                viewModel.handle(.backClicked)
+            }
+        } message: {
+            Text("뒤로 가면 작성 중인 내용이 사라져요.\n그래도 뒤로 가시겠어요?")
+        }
+    }
+
+    private func handleAction(_ action: PhotoUploadAction) {
+        if case .backClicked = action {
+            guard !viewModel.viewState.isSubmitting, !showsDiscardDialog else { return }
+            if viewModel.viewState.hasUnsavedDraft {
+                showsDiscardDialog = true
+                return
+            }
+        }
+        viewModel.handle(action)
     }
 
     private var editRequest: Binding<PhotoUploadEditRequest?> {

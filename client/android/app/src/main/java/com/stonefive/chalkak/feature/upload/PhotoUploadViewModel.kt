@@ -56,10 +56,16 @@ class PhotoUploadViewModel(
     }
 
     fun onAction(action: PhotoUploadUiAction) {
-        if (_uiState.value.isSubmitting && action != PhotoUploadUiAction.BackClicked) return
+        if (_uiState.value.isSubmitting) return
 
         when (action) {
-            PhotoUploadUiAction.BackClicked -> sendUiEvent(PhotoUploadUiEvent.NavigateBack)
+            PhotoUploadUiAction.BackClicked -> {
+                if (_uiState.value.hasUnsavedDraft) {
+                    _uiState.update { it.copy(showsDiscardConfirmation = true) }
+                } else {
+                    sendUiEvent(PhotoUploadUiEvent.NavigateBack)
+                }
+            }
 
             PhotoUploadUiAction.GalleryClicked -> sendUiEvent(PhotoUploadUiEvent.OpenGallery)
 
@@ -71,6 +77,17 @@ class PhotoUploadViewModel(
 
             PhotoUploadUiAction.SubmitClicked -> submit()
         }
+    }
+
+    fun onDiscardConfirmed() {
+        val state = _uiState.value
+        if (!state.showsDiscardConfirmation || state.isSubmitting) return
+        onDiscardDismissed()
+        sendUiEvent(PhotoUploadUiEvent.NavigateBack)
+    }
+
+    fun onDiscardDismissed() {
+        _uiState.update { it.copy(showsDiscardConfirmation = false) }
     }
 
     /** 사진을 고르거나 찍으면 편집 화면을 먼저 띄운다. 업로드 준비는 편집을 완료한 뒤 시작한다. */

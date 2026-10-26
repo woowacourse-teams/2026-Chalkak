@@ -18,6 +18,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -32,6 +33,62 @@ class PhotoUploadViewModelTest {
     private val postCreationRepository = FakePostCreationRepository()
     private val uploadTopicDate = LocalDate.of(2026, 8, 29)
     private val viewModel by lazy { PhotoUploadViewModel(postCreationRepository, uploadTopicDate) }
+
+    @Test
+    fun `입력 내용이 없거나 공백뿐이면 확인 없이 뒤로 간다`() = runTest {
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+        assertEquals(PhotoUploadUiEvent.NavigateBack, viewModel.uiEvent.first())
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged(" \n "))
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+        assertEquals(PhotoUploadUiEvent.NavigateBack, viewModel.uiEvent.first())
+        assertFalse(viewModel.uiState.value.showsDiscardConfirmation)
+    }
+
+    @Test
+    fun `설명 작성 중 뒤로 가기를 취소하면 입력을 유지한다`() = runTest {
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged("작품 제목"))
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+
+        assertTrue(viewModel.uiState.value.showsDiscardConfirmation)
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+        viewModel.onDiscardDismissed()
+
+        assertFalse(viewModel.uiState.value.showsDiscardConfirmation)
+        assertEquals("작품 제목", viewModel.uiState.value.caption)
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+    }
+
+    @Test
+    fun `사진 선택 후에는 버리기를 확인해야 뒤로 간다`() = runTest {
+        val image = "content://media/photo/1"
+        viewModel.selectPhoto(image)
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+
+        assertTrue(viewModel.uiState.value.showsDiscardConfirmation)
+        assertEquals(image, viewModel.uiState.value.selectedImage)
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+        viewModel.onDiscardConfirmed()
+
+        assertFalse(viewModel.uiState.value.showsDiscardConfirmation)
+        assertEquals(PhotoUploadUiEvent.NavigateBack, viewModel.uiEvent.first())
+        viewModel.onDiscardConfirmed()
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+    }
+
+    @Test
+    fun `전시 중에는 뒤로 가기로 제출을 중단하지 않는다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        postCreationRepository.await = gate
+        viewModel.selectPhoto("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+        assertTrue(viewModel.uiState.value.isSubmitting)
+
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+
+        assertFalse(viewModel.uiState.value.showsDiscardConfirmation)
+        assertEquals(null, withTimeoutOrNull(1) { viewModel.uiEvent.first() })
+        gate.complete(Unit)
+    }
 
     @Test
     fun `업로드 화면을 열면 고정한 날짜의 주제를 미리 조회한다`() {
