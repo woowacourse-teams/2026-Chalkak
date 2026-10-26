@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.today
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -648,6 +649,12 @@ class TodayViewModelTest {
         val uncaught = mutableListOf<Throwable>()
         val viewModel = todayViewModel(
             repository = object : PostRepository {
+                override suspend fun getAuthorPosts(
+                    authorId: String,
+                    page: Int,
+                    pageSize: Int,
+                ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
                 override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
                 override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
@@ -788,6 +795,7 @@ private fun post(
     contentDescription = "작품 이미지: $id",
     title = id,
     likeCount = likeCount,
+    authorId = "author",
 )
 
 private class RecordingPostRepository(
@@ -795,6 +803,12 @@ private class RecordingPostRepository(
     val pageResults: ArrayDeque<HomeResult<PostPage>> = ArrayDeque(listOf(HomeResult.Success(postPage()))),
     val likeResults: ArrayDeque<HomeResult<HomeLike>> = ArrayDeque(listOf(HomeResult.Success(HomeLike(25, true)))),
 ) : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val todayQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
@@ -830,6 +844,12 @@ private class RecordingPostRepository(
 }
 
 private class ControlledPostRepository(autoInitial: PostContent? = null) : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     private val todayResults = mutableListOf<CompletableDeferred<HomeResult<PostContent>>>()
     private val pageResults = mutableListOf<CompletableDeferred<HomeResult<PostPage>>>()
     private val likeResults = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()

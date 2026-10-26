@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PostDetailResponse(
     val id: String,
+    val authorId: String,
     val topic: TopicResponse,
     val originalImageUrl: String,
     val thumbnailImageUrl: String,
@@ -28,6 +29,7 @@ data class PostPageResponse(
 @Serializable
 data class PostResponse(
     val id: String,
+    val authorId: String,
     val originalImageUrl: String,
     val thumbnailImageUrl: String,
     val signatureOriginalImageUrl: String,

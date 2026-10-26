@@ -20,6 +20,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.stonefive.chalkak.MainActivity
@@ -39,6 +41,48 @@ import org.junit.Test
 class ChalkakNavHostTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun authorSignatureReturnsToExistingGalleryInsteadOfGrowingBackStack() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            navController = rememberNavController()
+            NavHost(navController = navController, startDestination = Home) {
+                composable<Home> {}
+                composable<AuthorPosts> {}
+                composable<Feed> {}
+            }
+        }
+        composeRule.runOnIdle {
+            navController.navigate(AuthorPosts("author", "signature", false))
+        }
+        composeRule.waitForIdle()
+        val galleryEntryId = navController.currentBackStackEntry?.id
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "post", authorId = "author", sourceAuthorId = "author",
+                    originalImageUrl = "photo", thumbnailImageUrl = "thumb",
+                    signatureOriginalImageUrl = "signature", contentDescription = "photo",
+                    title = null, likeCount = 0, dateLabel = "date", topic = "topic",
+                ),
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            val feed = navController.currentBackStackEntry!!.toRoute<Feed>()
+            navController.openAuthorPosts(feed.authorId, "signature", false, feed.sourceAuthorId)
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(galleryEntryId, navController.currentBackStackEntry?.id)
+            navController.popBackStack()
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination!!.hasRoute<Home>())
+        }
+    }
 
     @Test
     fun bottomBarKeepsTheSameInstanceThroughoutMainTabTransitions() {

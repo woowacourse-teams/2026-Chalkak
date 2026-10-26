@@ -479,6 +479,7 @@ private fun samplePhotos(): List<Post> = List(4) { index ->
         contentDescription = "랭킹 사진 $index",
         title = null,
         likeCount = 10 - index,
+        authorId = "author",
     )
 }
 

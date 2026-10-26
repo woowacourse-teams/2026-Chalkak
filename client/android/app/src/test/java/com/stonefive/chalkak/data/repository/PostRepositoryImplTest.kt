@@ -3,6 +3,8 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostResponse
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
@@ -20,6 +22,7 @@ import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
@@ -29,7 +32,13 @@ import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,6 +53,111 @@ class PostRepositoryImplTest {
         sort = PostSort.LATEST,
         page = 1,
     )
+
+    @Test
+    fun `작성자 공개 사진은 페이지와 주제를 매핑하고 썸네일이 없으면 원본을 사용한다`() = runTest {
+        remoteDataSource.authorPostsResult = ApiResult.Success(
+            authorPostsResponse(),
+        )
+
+        val result = repository.getAuthorPosts("author-1", page = 2, pageSize = 20) as HomeResult.Success
+
+        assertEquals(listOf(Triple("author-1", 2, 20)), remoteDataSource.authorPostsQueries)
+        assertEquals(2, result.value.currentPage)
+        assertEquals(20, result.value.pageSize)
+        assertTrue(result.value.hasNext)
+        val post = result.value.posts
+            .single()
+        assertEquals("author-photo", post.id)
+        assertEquals("original", post.imageUrl)
+        assertEquals(LocalDate.of(2026, 10, 19), post.topic.date)
+        assertEquals("주제", post.topic.title)
+        assertEquals(23, post.likeCount)
+        assertTrue(post.isLiked)
+    }
+
+    @Test
+    fun `작성자 목록의 좋아요 수는 0부터 Int 최댓값까지만 허용한다`() = runTest {
+        val response = authorPostsResponse()
+        listOf(0L, Int.MAX_VALUE.toLong()).forEach { count ->
+            remoteDataSource.authorPostsResult = ApiResult.Success(
+                response.copy(
+                    posts = listOf(
+                        response.posts
+                            .single()
+                            .copy(likeCount = count, isLiked = false),
+                    ),
+                ),
+            )
+            val result = repository.getAuthorPosts("author-1", 2, 20) as HomeResult.Success
+            assertEquals(
+                count.toInt(),
+                result.value.posts
+                    .single()
+                    .likeCount,
+            )
+            assertFalse(
+                result.value.posts
+                    .single()
+                    .isLiked,
+            )
+        }
+        listOf(-1L, Int.MAX_VALUE.toLong() + 1L).forEach { count ->
+            remoteDataSource.authorPostsResult = ApiResult.Success(
+                response.copy(
+                    posts = listOf(
+                        response.posts
+                            .single()
+                            .copy(likeCount = count),
+                    ),
+                ),
+            )
+            assertEquals(
+                HomeResult.Failure(HomeFailure.InvalidResponse),
+                repository.getAuthorPosts("author-1", 2, 20),
+            )
+        }
+    }
+
+    @Test
+    fun `작성자 목록의 빈 응답은 성공이며 HTTP 오류는 인증과 찾을 수 없음을 구분한다`() = runTest {
+        remoteDataSource.authorPostsResult =
+            ApiResult.Success(authorPostsResponse().copy(posts = emptyList(), hasNext = false))
+        val result = repository.getAuthorPosts("author-1", 2, 20) as HomeResult.Success
+        assertTrue(
+            result.value.posts
+                .isEmpty(),
+        )
+        assertFalse(result.value.hasNext)
+        listOf(401 to HomeFailure.Unauthorized, 404 to HomeFailure.Http(404)).forEach { (status, failure) ->
+            remoteDataSource.authorPostsResult = ApiResult.Failure(ApiError.Http(status, "BUSINESS_ERROR"))
+            assertEquals(HomeResult.Failure(failure), repository.getAuthorPosts("author-1"))
+        }
+    }
+
+    @Test
+    fun `작성자 목록의 페이지 불일치와 잘못된 날짜는 InvalidResponse다`() = runTest {
+        val response = authorPostsResponse()
+        listOf(
+            response.copy(currentPage = 3),
+            response.copy(pageSize = 10),
+            response.copy(posts = response.posts.map { it.copy(topic = it.topic.copy(topicDate = "invalid")) }),
+        ).forEach { invalid ->
+            remoteDataSource.authorPostsResult = ApiResult.Success(invalid)
+            assertEquals(HomeResult.Failure(HomeFailure.InvalidResponse), repository.getAuthorPosts("author-1", 2, 20))
+        }
+    }
+
+    @Test
+    fun `피드와 상세의 작성자 ID를 조회자나 게시물 ID와 구분해 매핑한다`() = runTest {
+        val content = (repository.getPostContent(query) as HomeResult.Success).value
+        assertEquals(
+            "author-photo-1",
+            content.photos
+                .first()
+                .authorId,
+        )
+    }
 
     @Test
     fun `오늘 작성 여부 true 응답은 허용된 moderation status와 postId를 보존한다`() = runTest {
@@ -192,6 +306,7 @@ class PostRepositoryImplTest {
         remoteDataSource.detailResult = ApiResult.Success(
             PostDetailResponse(
                 id = "photo-1",
+                authorId = "author-1",
                 topic = TopicResponse(
                     id = "topic-1",
                     title = "새 바다",
@@ -213,6 +328,7 @@ class PostRepositoryImplTest {
             PostDetail(
                 post = Post(
                     id = "photo-1",
+                    authorId = "author-1",
                     originalImageUrl = "photo-original",
                     thumbnailImageUrl = "photo-thumbnail",
                     signatureOriginalImageUrl = "signature-original",
@@ -490,6 +606,73 @@ class PostRepositoryImplTest {
     }
 
     @Test
+    fun `성공한 좋아요 응답만 게시물 ID와 함께 변경을 공유한다`() = runTest {
+        val updates = mutableListOf<PostLikeUpdate>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.likeUpdates.toList(updates)
+        }
+        remoteDataSource.likeResult = ApiResult.Failure(ApiError.Network)
+        repository.updateLike("photo-1", true)
+        remoteDataSource.likeResult = ApiResult.Success(PostLikeResponse("other", 25, true))
+        repository.updateLike("photo-1", true)
+        remoteDataSource.likeResult = ApiResult.Success(PostLikeResponse("photo-1", -1, true))
+        repository.updateLike("photo-1", true)
+        yield()
+        assertTrue(updates.isEmpty())
+
+        remoteDataSource.likeResult = ApiResult.Success(PostLikeResponse("photo-1", 25, true))
+        repository.updateLike("photo-1", true)
+        yield()
+        assertEquals(listOf(PostLikeUpdate("photo-1", 25, true)), updates)
+
+        remoteDataSource.likeResult = ApiResult.Success(PostLikeResponse("photo-1", 24, false))
+        repository.updateLike("photo-1", false)
+        yield()
+        assertEquals(PostLikeUpdate("photo-1", 24, false), updates.last())
+    }
+
+    @Test
+    fun `같은 게시물의 늦은 응답은 공유하지 않고 다른 게시물의 변경은 공유한다`() = runTest {
+        val updates = mutableListOf<PostLikeUpdate>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.likeUpdates.toList(updates)
+        }
+        val older = CompletableDeferred<ApiResult<PostLikeResponse>>()
+        val newer = CompletableDeferred<ApiResult<PostLikeResponse>>()
+        val other = CompletableDeferred<ApiResult<PostLikeResponse>>()
+        remoteDataSource.pendingLikes.addAll(listOf(older, newer, other))
+        val olderRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-1", true) }
+        val newerRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-1", false) }
+        val otherRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-2", true) }
+
+        newer.complete(ApiResult.Success(PostLikeResponse("photo-1", 24, false)))
+        newerRequest.await()
+        other.complete(ApiResult.Success(PostLikeResponse("photo-2", 10, true)))
+        otherRequest.await()
+        older.complete(ApiResult.Success(PostLikeResponse("photo-1", 25, true)))
+        val olderResult = olderRequest.await() as HomeResult.Success
+        yield()
+
+        assertEquals(25, olderResult.value.likeCount)
+        assertEquals(
+            listOf(PostLikeUpdate("photo-1", 24, false), PostLikeUpdate("photo-2", 10, true)),
+            updates,
+        )
+    }
+
+    @Test
+    fun `새 구독자에게 이전 좋아요 변경을 재전달하지 않는다`() = runTest {
+        repository.updateLike("photo-1", true)
+        val updates = mutableListOf<PostLikeUpdate>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.likeUpdates.toList(updates)
+        }
+        yield()
+
+        assertTrue(updates.isEmpty())
+    }
+
+    @Test
     fun `토픽 404와 인증 네트워크 응답을 도메인 실패로 구분한다`() = runTest {
         topicRemoteDataSource.result = ApiResult.Failure(ApiError.Http(404, "TOPIC_NOT_FOUND"))
         assertEquals(HomeResult.Failure(HomeFailure.TopicNotFound), repository.getPostContent(query))
@@ -503,6 +686,19 @@ class PostRepositoryImplTest {
 }
 
 private class FakePostRemoteDataSource : PostRemoteDataSource {
+    var authorPostsResult: ApiResult<AuthorPostsResponse> =
+        ApiResult.Failure(ApiError.Network)
+    val authorPostsQueries = mutableListOf<Triple<String, Int, Int>>()
+
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): ApiResult<AuthorPostsResponse> {
+        authorPostsQueries += Triple(authorId, page, pageSize)
+        return authorPostsResult
+    }
+
     val postsQueries = mutableListOf<HomeQuery>()
     var todayPostResult: ApiResult<TodayPostResponse> = ApiResult.Success(
         TodayPostResponse(
@@ -516,6 +712,7 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit)
     var titleUpdateResult: ApiResult<PostTitleUpdateResponse> = ApiResult.Failure(ApiError.Network)
     var updatedTitle: Pair<String, String?>? = null
+    val pendingLikes = ArrayDeque<CompletableDeferred<ApiResult<PostLikeResponse>>>()
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
         PostLikeResponse(
             postId = "photo-1",
@@ -551,7 +748,7 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): ApiResult<PostLikeResponse> = likeResult
+    ): ApiResult<PostLikeResponse> = if (pendingLikes.isEmpty()) likeResult else pendingLikes.removeFirst().await()
 }
 
 private class FakeHomeTopicRemoteDataSource : TopicRemoteDataSource {
@@ -630,6 +827,7 @@ private fun homePost(
     likeCount: Long = 24,
 ) = PostResponse(
     id = id,
+    authorId = "author-$id",
     originalImageUrl = originalImageUrl,
     thumbnailImageUrl = thumbnailImageUrl,
     signatureOriginalImageUrl = signatureOriginalImageUrl,
@@ -639,4 +837,19 @@ private fun homePost(
     likeCount = likeCount,
     isLiked = isLiked,
     isMine = isMine,
+)
+
+private fun authorPostsResponse() = AuthorPostsResponse(
+    currentPage = 2,
+    pageSize = 20,
+    hasNext = true,
+    posts = listOf(
+        AuthorPostResponse(
+            id = "author-photo",
+            likeCount = 23,
+            isLiked = true,
+            originalImageUrl = "original",
+            topic = TopicResponse(id = "topic", title = "주제", topicDate = "2026-10-19"),
+        ),
+    ),
 )

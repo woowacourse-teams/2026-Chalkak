@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.navigation
 
+import com.stonefive.chalkak.domain.model.UserSessionState
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -10,6 +11,8 @@ class ChalkakRouteTest {
     fun `feed route preserves selected post context after serialization`() {
         val route = Feed(
             postId = "post-42",
+            authorId = "author-42",
+            sourceAuthorId = "author-42",
             originalImageUrl = "https://example.com/photo.jpg",
             thumbnailImageUrl = "https://example.com/photo-thumbnail.jpg",
             signatureOriginalImageUrl = "https://example.com/signature.png",
@@ -24,6 +27,25 @@ class ChalkakRouteTest {
         val restored = Json.decodeFromString<Feed>(Json.encodeToString(route))
 
         assertEquals(route, restored)
+    }
+
+    @Test
+    fun `author posts route preserves selected author and signature`() {
+        val route = AuthorPosts("author-42", "https://example.com/signature.png", false)
+
+        assertEquals(route, roundTrip(route))
+        assertEquals(AuthorPosts("my-id", null, true), roundTrip(AuthorPosts("my-id", null, true)))
+    }
+
+    @Test
+    fun `older feed routes remain readable without author id`() {
+        val route = Feed(
+            postId = "post", originalImageUrl = "photo", thumbnailImageUrl = "thumb",
+            signatureOriginalImageUrl = "sign", contentDescription = "photo", title = null,
+            likeCount = 0, dateLabel = "date", topic = "topic",
+        )
+
+        assertEquals("", roundTrip(route).authorId)
     }
 
     @Test
@@ -121,4 +143,21 @@ class ChalkakRouteTest {
     }
 
     private inline fun <reified T> roundTrip(route: T): T = Json.decodeFromString(Json.encodeToString(route))
+
+    @Test
+    fun `author posts ownership is recalculated for the signed-in member`() {
+        val restored = AuthorPosts("account-a", null, isMine = true)
+
+        assertEquals(false, restored.isMineFor(UserSessionState.Authenticated("account-b")))
+        assertEquals(true, restored.isMineFor(UserSessionState.Authenticated("account-a")))
+        assertEquals(
+            true,
+            AuthorPosts("account-b", null, isMine = false).isMineFor(UserSessionState.Authenticated("account-b")),
+        )
+    }
+
+    @Test
+    fun `author posts ownership falls back to the route while the session is unknown`() {
+        assertEquals(true, AuthorPosts("account-a", null, isMine = true).isMineFor(UserSessionState.Loading))
+    }
 }

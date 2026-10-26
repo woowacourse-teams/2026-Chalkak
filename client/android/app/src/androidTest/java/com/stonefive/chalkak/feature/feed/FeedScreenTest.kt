@@ -483,6 +483,7 @@ private val feedUiState = FeedUiState(
             title = "안녕하세요 찰캌입니다.",
             likeCount = 24,
             isOwnedByCurrentUser = true,
+            authorId = "author",
         ),
         isLiked = false,
         topicDate = LocalDate.of(2026, 8, 3),

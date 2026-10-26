@@ -162,6 +162,7 @@ private fun TodayPhotoCardPreview() {
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 찰캌입니다.",
                 likeCount = 24,
+                authorId = "preview-author",
             ),
             isLiked = true,
             isLikeEnabled = true,

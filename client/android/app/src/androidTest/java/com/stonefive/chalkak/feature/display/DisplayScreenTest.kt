@@ -443,6 +443,7 @@ private val photo = Post(
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,
+    authorId = "author",
 )
 
 private fun latestUiState() = DisplayUiState(
