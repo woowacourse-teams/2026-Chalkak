@@ -541,6 +541,17 @@ struct FeedScreenReturnGeometryTests {
         #expect(expanded.cornerRadius == 0)
     }
 
+    @Test("펼쳐지는 도중 하단은 먼저 화면 끝까지 닿아 마지막에 한 번에 채워지지 않는다")
+    func bottomReachesScreenEdgeEarly() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 20, y: 180, width: 160, height: 300), cornerRadius: 12)
+        for progress: CGFloat in [0.6, 0.8, 0.95] {
+            let geometry = FeedScreenReturnGeometry(progress: progress, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+            // 변환 후 화면 좌표의 하단
+            let visibleBottom = canvas.midY + (geometry.clip.maxY - canvas.height / 2) * geometry.scale + geometry.offset.height
+            #expect(abs(visibleBottom - (canvas.maxY + insets.bottom)) < 0.0001)
+        }
+    }
+
     @Test("카드 비율과 위치가 달라도 정확한 카드 영역으로 접힌다")
     func arrivesAtCard() {
         for frame in [CGRect(x: 210, y: 650, width: 160, height: 200), CGRect(x: 20, y: 180, width: 160, height: 90)] {

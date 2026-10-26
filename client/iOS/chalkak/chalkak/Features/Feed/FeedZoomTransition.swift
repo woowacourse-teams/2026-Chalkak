@@ -475,7 +475,7 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
         return content
             .mask {
                 if let geometry {
-                    FeedScreenReturnMask(bounds: geometry.clip, cornerRadius: geometry.cornerRadius)
+                    FeedScreenReturnMask(bounds: geometry.clip, screen: geometry.screen, cornerRadius: geometry.cornerRadius)
                 } else {
                     Rectangle().ignoresSafeArea()
                 }
@@ -489,7 +489,12 @@ struct FeedScreenReturnGeometry {
     let scale: CGFloat
     let offset: CGSize
     let clip: CGRect
+    // 실제 화면(안전 영역 포함)을 변환 전 로컬 좌표로 옮긴 영역.
+    let screen: CGRect
     let cornerRadius: CGFloat
+
+    // 이 진행도에 이르면 하단 가장자리가 먼저 화면 끝에 닿는다.
+    private static let bottomLeadProgress: CGFloat = 0.6
 
     init(progress: CGFloat, dragOffset: CGFloat = 0, source: FeedZoomRegistry.Source,
          photo: CGRect, canvas: CGRect, safeAreaInsets: EdgeInsets = EdgeInsets(),
@@ -524,12 +529,24 @@ struct FeedScreenReturnGeometry {
             width: canvas.width + safeAreaInsets.leading + safeAreaInsets.trailing,
             height: canvas.height + safeAreaInsets.top + safeAreaInsets.bottom
         )
-        clip = CGRect(
+        screen = CGRect(
+            x: canvas.width / 2 + (fullBounds.minX - canvas.width / 2 - offset.width) / scale,
+            y: canvas.height / 2 + (fullBounds.minY - canvas.height / 2 - offset.height) / scale,
+            width: fullBounds.width / scale,
+            height: fullBounds.height / scale
+        )
+        var clip = CGRect(
             x: fullBounds.minX + (endClip.minX - fullBounds.minX) * remaining,
             y: fullBounds.minY + (endClip.minY - fullBounds.minY) * remaining,
             width: fullBounds.width + (endClip.width - fullBounds.width) * remaining,
             height: fullBounds.height + (endClip.height - fullBounds.height) * remaining
         )
+        // 카드에서 전체 화면까지 같은 비율로 키우면 하단이 끝까지 화면에 닿지 못하다가 마지막에 한 번에 채워진다.
+        // 하단은 먼저 화면 끝까지 펼쳐 붙여 둔다. 손으로 끄는 동안에는 떠 있는 창 모양을 유지한다.
+        let bottomLead = min(1, (1 - remaining) / Self.bottomLeadProgress) * (1 - min(max(dragOffset, 0) / 12, 1))
+        let bottom = endClip.maxY + (screen.maxY - endClip.maxY) * bottomLead
+        if bottom > clip.maxY { clip.size.height = bottom - clip.minY }
+        self.clip = clip
         let lift = min(1, max(max(dragOffset, 0) / 12, remaining / 0.06))
         cornerRadius = (floatingRadius * lift * (1 - remaining) + source.cornerRadius * remaining) / scale
     }
@@ -537,12 +554,13 @@ struct FeedScreenReturnGeometry {
 
 private struct FeedScreenReturnMask: Shape {
     let bounds: CGRect
+    let screen: CGRect
     let cornerRadius: CGFloat
 
     func path(in rect: CGRect) -> Path {
-        // 안전 영역 밖에 둥근 모서리를 그리면 실제 피드 하단은 직각으로 잘린다.
-        // 이동 중에는 마스크가 실제로 그려지는 피드 경계에 라운드를 맞춘다.
-        let visibleBounds = cornerRadius > 0 ? bounds.intersection(rect) : bounds
+        // 화면 밖에 둥근 모서리를 그리면 실제 피드 가장자리는 직각으로 잘린다.
+        // 이동 중에는 마스크가 실제로 그려지는 화면 경계에 라운드를 맞춘다.
+        let visibleBounds = cornerRadius > 0 ? bounds.intersection(screen) : bounds
         guard !visibleBounds.isNull else { return Path() }
         return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).path(in: visibleBounds)
     }
