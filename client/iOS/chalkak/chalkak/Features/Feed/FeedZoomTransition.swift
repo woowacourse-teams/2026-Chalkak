@@ -610,8 +610,10 @@ struct FeedScreenReturnGeometry {
             if revealsCoveredSource {
                 // 복귀 사진은 바 아래까지 이동한다. 하단바 자체는 상위 레이어가 그린다.
                 bounds.size.height = max(bounds.maxY, (source.clipFrame ?? source.frame).maxY) - bounds.minY
+                // 교집합이 비면 CGRect.null(무한대 좌표)이 되어 마스크가 깨지므로 적용하지 않는다.
                 if let container = source.containerBounds {
-                    bounds = bounds.intersection(container)
+                    let clipped = bounds.intersection(container)
+                    if !clipped.isNull { bounds = clipped }
                 }
             }
             return interpolatedClip(for: bounds)
