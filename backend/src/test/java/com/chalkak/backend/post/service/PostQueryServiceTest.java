@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -638,6 +640,49 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         assertThat(result.posts()).isEmpty();
         assertThat(result.currentPage()).isEqualTo(1);
         assertThat(result.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false, 3", "true, false, 5", "false, true, 2", "true, true, 3"})
+    @DisplayName("피드는 비로그인 상태 조회와 빈 페이지의 좋아요 쿼리를 생략한다")
+    void getPosts_viewerAndEmptyPage_skipsUnneededLikeQueries(
+            boolean authenticated,
+            boolean empty,
+            long expectedQueries
+    ) {
+        // Given
+        insertPostLike();
+        if (empty) {
+            jdbcTemplate.update("UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?",
+                    POST_ID);
+        }
+        entityManager.flush();
+        entityManager.clear();
+        Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class)
+                .getStatistics();
+        boolean wasEnabled = statistics.isStatisticsEnabled();
+        statistics.setStatisticsEnabled(true);
+        long beforeCount = statistics.getPrepareStatementCount();
+
+        // When & Then
+        try {
+            PostListResult result = postQueryService.getPosts(
+                    TOPIC_DATE,
+                    PostSort.RECENT,
+                    null,
+                    1,
+                    20,
+                    authenticated ? Optional.of(USER_ID) : Optional.empty()
+            );
+            assertThat(result.posts()).hasSize(empty ? 0 : 1).allSatisfy(post -> {
+                assertThat(post.likeCount()).isEqualTo(1L);
+                assertThat(post.isLiked()).isEqualTo(authenticated);
+            });
+            assertThat(statistics.getPrepareStatementCount() - beforeCount)
+                    .isEqualTo(expectedQueries);
+        } finally {
+            statistics.setStatisticsEnabled(wasEnabled);
+        }
     }
 
     private void insertPostLike() {
