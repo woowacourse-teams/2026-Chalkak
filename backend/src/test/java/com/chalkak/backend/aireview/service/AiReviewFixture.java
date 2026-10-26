@@ -228,7 +228,23 @@ public final class AiReviewFixture {
             UUID promptVersionId,
             Instant requestedAt
     ) {
-        UUID id = UUID.randomUUID();
+        return insertQueuedReview(
+                UUID.randomUUID(),
+                postId,
+                userId,
+                promptVersionId,
+                requestedAt
+        );
+    }
+
+    /** 리뷰 ID를 정해 대기 행을 넣는다. ID 순서에 기대는 정렬 테스트에 쓴다. */
+    public UUID insertQueuedReview(
+            UUID id,
+            UUID postId,
+            UUID userId,
+            UUID promptVersionId,
+            Instant requestedAt
+    ) {
         jdbcTemplate.update(
                 """
                         INSERT INTO ai_reviews (id, post_id, user_id, prompt_version_id, status, attempt,
