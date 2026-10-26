@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.upload
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -19,7 +20,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.test.espresso.Espresso.pressBack
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -28,6 +31,44 @@ import org.junit.Test
 class PhotoUploadScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun discardDialogUsesSharedPopupAndPreservesCaptionOnCancel() {
+        val state = mutableStateOf(PhotoUploadUiState(caption = "작품 제목", showsDiscardConfirmation = true))
+        var confirmed = false
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(
+                    uiState = state.value,
+                    onAction = {},
+                    onDiscardConfirmed = { confirmed = true },
+                    onDiscardDismissed = { state.value = state.value.copy(showsDiscardConfirmation = false) },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("작성을 그만둘까요?").assertIsDisplayed()
+        composeRule.onNodeWithText("뒤로 가면 작성 중인 내용이 사라져요.\n그래도 뒤로 가시겠어요?").assertIsDisplayed()
+        composeRule.onNodeWithText("취소").performClick()
+        composeRule.onNodeWithText("작품 제목").assertIsDisplayed()
+        composeRule.runOnIdle { state.value = state.value.copy(showsDiscardConfirmation = true) }
+        composeRule.onNodeWithTag(CONFIRM_BUTTON_TEST_TAG).performClick()
+        composeRule.runOnIdle { assertTrue(confirmed) }
+    }
+
+    @Test
+    fun systemBackUsesSameBackActionAsToolbar() {
+        val actions = mutableListOf<PhotoUploadUiAction>()
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(uiState = PhotoUploadUiState(), onAction = actions::add)
+            }
+        }
+
+        pressBack()
+
+        composeRule.runOnIdle { assertTrue(actions.contains(PhotoUploadUiAction.BackClicked)) }
+    }
 
     @Test
     fun submitButtonIsDisabledWithoutPhoto() {
