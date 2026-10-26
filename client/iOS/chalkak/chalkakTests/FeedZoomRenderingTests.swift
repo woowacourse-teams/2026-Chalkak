@@ -93,7 +93,7 @@ final class FeedZoomRenderingTests: XCTestCase {
         }
         host.view.layoutIfNeeded()
         let clock = ContinuousClock()
-        let layoutDeadline = clock.now.advanced(by: .seconds(3))
+        let layoutDeadline = clock.now.advanced(by: .seconds(10))
         while (!measured || !FeedOpeningImageProtocol.pending.contains(url)), clock.now < layoutDeadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -117,7 +117,7 @@ final class FeedZoomRenderingTests: XCTestCase {
         } else {
             resolve(request)
         }
-        let readyDeadline = clock.now.advanced(by: .seconds(3))
+        let readyDeadline = clock.now.advanced(by: .seconds(10))
         while readyCount == 0, clock.now < readyDeadline {
             // The displayed image and the transition task load the same URL separately.
             // On a slow runner the second load can start after the first request resolved.

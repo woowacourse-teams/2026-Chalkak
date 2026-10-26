@@ -188,7 +188,11 @@ jobs:
       - name: Set up Xcode
         run: xcodebuild -version
 
-      - name: Build debug app
+      # Build the app and test bundles once; the test step reuses them without rebuilding.
+      # Later xcodebuild calls share DERIVED_DATA_PATH to reuse these packages.
+      # Simulator runners are arm64, so the generic destination is limited to arm64.
+      # CI never uses the Xcode code index, so the compiler skips writing it.
+      - name: Build for testing
         run: |
           xcodebuild \
             -project "$PROJECT" \
@@ -196,11 +200,22 @@ jobs:
             -configuration Debug \
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
-            build
+            ARCHS=arm64 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build-for-testing
 
+      # Runs after the build because CoreSimulator can register devices late (#351).
+      # Prefers an iPhone so CI matches local runs; falls back to any simulator with a warning.
       - name: Select available iOS Simulator
         run: |
           set -euo pipefail
+
+          # Prints the first simulator id whose destination line matches the given pattern.
+          pick_simulator() {
+            printf '%s\n' "$destinations" |
+              sed -nE "/platform:iOS Simulator/{/$1/ s/.*id:([0-9A-Fa-f-]{36}),.*/\1/p;}" |
+              sed -n '1p'
+          }
 
           max_attempts=12
           destinations=""
@@ -209,17 +224,24 @@ jobs:
               xcodebuild \
                 -project "$PROJECT" \
                 -scheme "$SCHEME" \
+                -derivedDataPath "$DERIVED_DATA_PATH" \
+                -skipPackageUpdates \
                 -showdestinations 2>&1
             )" || true
 
-            simulator_udid="$(
-              printf '%s\n' "$destinations" |
-                sed -nE '/platform:iOS Simulator/ s/.*id:([0-9A-Fa-f-]{36}),.*/\1/p' |
-                sed -n '1p'
-            )"
+            simulator_udid="$(pick_simulator 'name:iPhone')"
+
+            if [[ -z "$simulator_udid" && "$attempt" -eq "$max_attempts" ]]; then
+              simulator_udid="$(pick_simulator '.')"
+              if [[ -n "$simulator_udid" ]]; then
+                echo "::warning::No iPhone simulator found after $max_attempts attempts; falling back to another iOS Simulator."
+              fi
+            fi
 
             if [[ -n "$simulator_udid" ]]; then
-              echo "Selected iOS Simulator: $simulator_udid"
+              echo "Available iOS Simulators:"
+              printf '%s\n' "$destinations" | grep 'platform:iOS Simulator, arch:arm64' || true
+              echo "Selected iOS Simulator: $(printf '%s\n' "$destinations" | grep -m1 "id:$simulator_udid")"
               echo "SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
               break
             fi
@@ -230,23 +252,65 @@ jobs:
               exit 1
             fi
 
-            echo "Waiting for xcodebuild to register an iOS Simulator (attempt $attempt/$max_attempts)..."
+            echo "Waiting for xcodebuild to register an iPhone simulator (attempt $attempt/$max_attempts)..."
             sleep 5
           done
 
+      # Booting separately keeps simulator startup time visible apart from test time.
+      - name: Boot iOS Simulator
+        timeout-minutes: 8
+        run: |
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+
+      # Runs from the .xctestrun file so xcodebuild skips reopening the project and resolving packages again.
       - name: Run unit tests
         run: |
-          set -o pipefail
+          set -euo pipefail
+
+          xctestrun_files=("$DERIVED_DATA_PATH"/Build/Products/*.xctestrun)
+          if [[ "${#xctestrun_files[@]}" -ne 1 || ! -f "${xctestrun_files[0]}" ]]; then
+            echo "::error::Expected exactly one .xctestrun file, found: ${xctestrun_files[*]}"
+            exit 1
+          fi
+          echo "Using test run file: ${xctestrun_files[0]}"
+
           xcodebuild \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -configuration Debug \
+            -xctestrun "${xctestrun_files[0]}" \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "$RUNNER_TEMP/chalkak-unit-tests.xcresult" \
             -parallel-testing-enabled NO \
-            test \
+            test-without-building \
             -only-testing:chalkakTests 2>&1 | tee "$RUNNER_TEMP/chalkak-unit-tests.log"
+
+      # Reads the counts from the result bundle so the outcome stays visible even when the console log is cut short.
+      # Fails only when the bundle itself reports failed tests; a missing or unreadable bundle just leaves a warning.
+      - name: Summarize test results
+        if: always()
+        run: |
+          set -uo pipefail
+
+          result_bundle="$RUNNER_TEMP/chalkak-unit-tests.xcresult"
+          if [[ ! -d "$result_bundle" ]]; then
+            echo "::warning::No test result bundle was produced."
+            exit 0
+          fi
+
+          if ! summary="$(xcrun xcresulttool get test-results summary --path "$result_bundle" --compact)" ||
+            ! failed_tests="$(printf '%s\n' "$summary" | jq -er '.failedTests')" ||
+            [[ ! "$failed_tests" =~ ^[0-9]+$ ]]; then
+            echo "::warning::Could not read the test counts from the result bundle."
+            exit 0
+          fi
+
+          printf '%s\n' "$summary" |
+            jq -r '"Test results: \(.result) | total \(.totalTestCount), passed \(.passedTests), failed \(.failedTests), skipped \(.skippedTests), expected failures \(.expectedFailures)"' |
+            tee -a "$GITHUB_STEP_SUMMARY"
+
+          if (( failed_tests > 0 )); then
+            echo "::error::The test result bundle reports $failed_tests failed test(s)."
+            exit 1
+          fi
 
       - name: Upload iOS failure reports
         if: failure()
