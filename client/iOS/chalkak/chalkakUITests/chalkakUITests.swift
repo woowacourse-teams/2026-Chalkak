@@ -9,6 +9,42 @@ import XCTest
 
 final class chalkakUITests: XCTestCase {
 
+    @MainActor
+    func testPhotoUploadConfirmsDiscardFromCloseAndDownwardSwipe() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+        XCTAssertTrue(app.buttons["추가"].waitForExistence(timeout: 5))
+        app.buttons["추가"].tap()
+
+        let close = app.buttons["photoUpload.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let caption = app.textFields["사진 설명"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 5))
+        caption.tap()
+        caption.typeText("작품 제목")
+        close.tap()
+
+        let dialogTitle = app.alerts["작성을 그만둘까요?"]
+        XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
+        dialogTitle.buttons["취소"].tap()
+        XCTAssertTrue(dialogTitle.waitForNonExistence(timeout: 3))
+        XCTAssertTrue((caption.value as? String)?.contains("작품 제목") == true)
+
+        let imageArea = app.staticTexts["앨범에서 고르거나 지금 찍어요"]
+        let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 300)))
+        XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
+        dialogTitle.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+
+        app.buttons["추가"].tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(dialogTitle.exists)
+    }
+
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
 
