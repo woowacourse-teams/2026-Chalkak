@@ -70,8 +70,6 @@ struct FeedPost: Identifiable, Equatable, Sendable {
     var isOwnedByCurrentUser: Bool
     // 사진 작성자의 회원 ID. 사인을 눌러 작가 사진 목록을 열 때 쓰며, 응답에 없으면 nil이다.
     var authorID: String? = nil
-    // 전시에서 연 경우 카드에 쓰던 사인 썸네일. 작가 사진 목록 탑바에 우선 사용한다.
-    var signatureThumbnailImageSource: ChalkakImageSource? = nil
 }
 
 enum FeedSignatureTapAction: Equatable, Sendable {

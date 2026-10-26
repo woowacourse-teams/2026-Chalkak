@@ -115,10 +115,9 @@ final class FeedViewModel {
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
             }
-            // 상세 응답에는 사인 썸네일이 없다. 전시 시드에서 받은 값을 유지한다.
+            // 상세 응답에 작성자 ID가 없으면(서버 반영 전) 전시 시드에서 받은 값을 유지한다.
             if let current = viewState.content {
                 merged.post.authorID = merged.post.authorID ?? current.post.authorID
-                merged.post.signatureThumbnailImageSource = current.post.signatureThumbnailImageSource
             }
             if isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
@@ -149,7 +148,8 @@ final class FeedViewModel {
         return .openAuthorPosts(
             AuthorPostsTarget(
                 authorID: authorID,
-                signatureImageSource: post.signatureThumbnailImageSource ?? post.signatureImageSource,
+                // 탑바에서 크게 그리므로 썸네일이 아닌 원본을 쓴다. 피드가 이미 받아 둔 이미지라 바로 그려진다.
+                signatureImageSource: post.signatureImageSource,
                 isMine: post.isOwnedByCurrentUser
             )
         )

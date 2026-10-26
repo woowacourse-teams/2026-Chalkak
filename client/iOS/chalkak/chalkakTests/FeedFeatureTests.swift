@@ -156,11 +156,10 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.topic == "갱신됨")
     }
 
-    @Test("상세 응답에 없는 작성자 ID와 사인 썸네일은 전시 시드 값을 유지한다")
-    func detailKeepsSeedAuthorAndSignatureThumbnail() async {
+    @Test("상세 응답에 작성자 ID가 없으면 전시 시드의 값을 유지한다")
+    func detailKeepsSeedAuthor() async {
         var seed = Self.content(isLiked: false, likeCount: 3)
         seed.post.authorID = "author-1"
-        seed.post.signatureThumbnailImageSource = .asset("preview_signature_thumbnail")
         let viewModel = FeedViewModel(
             postID: "post-1",
             seed: seed,
@@ -171,27 +170,21 @@ struct FeedViewModelTests {
         await viewModel.load()
 
         #expect(viewModel.viewState.content?.post.authorID == "author-1")
-        #expect(viewModel.viewState.content?.post.signatureThumbnailImageSource == .asset("preview_signature_thumbnail"))
     }
 
-    @Test("피드에서 사인을 누르면 작성자 ID와 사인 썸네일로 작가 사진 목록을 연다")
+    @Test("피드에서 사인을 누르면 작성자 ID와 원본 사인으로 작가 사진 목록을 연다")
     func signatureTapOpensAuthorPosts() {
         var seed = Self.content(isLiked: false, likeCount: 3)
         seed.post.authorID = "author-1"
-        seed.post.signatureThumbnailImageSource = .asset("preview_signature_thumbnail")
         let viewModel = FeedViewModel(postID: "post-1", seed: seed)
 
         #expect(viewModel.signatureTapAction() == .openAuthorPosts(
-            AuthorPostsTarget(
-                authorID: "author-1",
-                signatureImageSource: .asset("preview_signature_thumbnail"),
-                isMine: false
-            )
+            AuthorPostsTarget(authorID: "author-1", signatureImageSource: .asset("preview_signature"), isMine: false)
         ))
     }
 
-    @Test("상세에서 연 피드는 썸네일이 없어 원본 사인을, 내 게시물이면 내 목록으로 연다")
-    func signatureTapFallsBackToOriginalSignature() {
+    @Test("내 게시물의 사인을 누르면 내 목록으로 연다")
+    func signatureTapOnMinePostOpensMyPosts() {
         var seed = Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true)
         seed.post.authorID = "me"
         let viewModel = FeedViewModel(postID: "post-1", seed: seed)

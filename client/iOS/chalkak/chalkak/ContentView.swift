@@ -154,14 +154,14 @@ struct ContentView: View {
                 // 피드 위에 작가 사진 목록을 새 층으로 띄운다. 닫으면 아래 피드가 그대로 남아 있다.
                 .overlay {
                     if let authorPostsViewModel = selectedAuthorPosts {
+                        // 사인 자리에서 펼치고 접는 전환과 백 스와이프는 화면이 스스로 한다.
                         AuthorPostsScreen(
                             viewModel: authorPostsViewModel,
-                            onBack: closeAuthorPosts,
+                            onBack: { selectedAuthorPosts = nil },
                             onSelectPost: { selectedAuthorFeed = $0 }
                         )
-                        .overlayEdgeSwipeBack { selectedAuthorPosts = nil }
                         .id(ObjectIdentifier(authorPostsViewModel))
-                        .transition(.move(edge: .trailing))
+                        .transition(.identity)
                         .accessibilityAddTraits(.isModal)
                     }
                 }
@@ -631,15 +631,7 @@ struct ContentView: View {
         )
         // 목록에서 연 피드의 사인은 같은 작가라 돌아가기로 처리된다. 여기 오는 건 피드에서 처음 여는 경우다.
         selectedAuthorFeed = nil
-        withAnimation(.smooth(duration: 0.3)) {
-            selectedAuthorPosts = viewModel
-        }
-    }
-
-    private func closeAuthorPosts() {
-        withAnimation(.smooth(duration: 0.3)) {
-            selectedAuthorPosts = nil
-        }
+        selectedAuthorPosts = viewModel
     }
 
     // 목록에서 연 피드에서 내 사진을 지웠을 때. 목록에서 빼고, 목록을 연 피드도 같은 사진이면 함께 닫는다.

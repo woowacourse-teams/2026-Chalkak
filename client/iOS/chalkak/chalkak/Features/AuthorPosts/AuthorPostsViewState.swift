@@ -7,8 +7,24 @@ struct AuthorPostsTarget: Hashable, Identifiable, Sendable {
     let signatureImageSource: ChalkakImageSource
     // 내 사진 목록이면 그리드 위 설명과 사인 접근성 이름이 달라진다.
     let isMine: Bool
+    // 누른 피드 사인의 화면상(global) 위치. 작가 사진 목록이 이 자리에서 펼쳐지고, 닫을 때 다시 접힌다.
+    // 없으면 펼치지 않고 페이드한다.
+    var signatureTransitionSource: CGRect?
 
     var id: String { authorID }
+
+    // 전환 출발 위치는 같은 작가 목록인지와 관계없어 비교에서 뺀다.
+    static func == (lhs: AuthorPostsTarget, rhs: AuthorPostsTarget) -> Bool {
+        lhs.authorID == rhs.authorID
+            && lhs.signatureImageSource == rhs.signatureImageSource
+            && lhs.isMine == rhs.isMine
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(authorID)
+        hasher.combine(signatureImageSource)
+        hasher.combine(isMine)
+    }
 }
 
 struct AuthorPost: Identifiable, Equatable, Sendable {

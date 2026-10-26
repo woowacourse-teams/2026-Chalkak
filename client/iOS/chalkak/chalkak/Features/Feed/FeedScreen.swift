@@ -285,6 +285,7 @@ struct FeedScreen: View {
                     },
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
                     onSignatureTap: signatureTapHandler,
+                    isSignatureHidden: zoomRegistry?.hidesFeedSignature == true,
                     onLike: {
                         // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 좋아요를 실행하지 않는다.
                         guard canLike else { return }
@@ -304,17 +305,18 @@ struct FeedScreen: View {
     }
 
     // 작성자 ID를 받기 전(상세 로딩 중)이나 사인 탭을 쓰지 않는 화면에서는 nil이라 사인을 누를 수 없다.
-    private var signatureTapHandler: (() -> Void)? {
+    private var signatureTapHandler: ((CGRect?) -> Void)? {
         guard onOpenAuthorPosts != nil, viewModel.viewState.content?.post.authorID != nil else { return nil }
         return handleSignatureTap
     }
 
-    private func handleSignatureTap() {
+    private func handleSignatureTap(signatureFrame: CGRect?) {
         guard !isBackSwiping, !isPhotoMoving, !isClosing else { return }
         switch viewModel.signatureTapAction() {
         case .returnToAuthorPosts:
             close()
-        case let .openAuthorPosts(target):
+        case var .openAuthorPosts(target):
+            target.signatureTransitionSource = signatureFrame
             onOpenAuthorPosts?(target)
         case nil:
             break
