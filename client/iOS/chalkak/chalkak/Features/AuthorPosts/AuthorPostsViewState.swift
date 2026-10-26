@@ -35,6 +35,9 @@ struct AuthorPost: Identifiable, Equatable, Sendable {
     let topic: String
     let topicDate: Date
     let contentDescription: String
+    // 응답에 좋아요 필드가 없으면(운영 서버 반영 전) nil이다.
+    var likeCount: Int? = nil
+    var isLiked: Bool? = nil
 }
 
 struct AuthorPostsPage: Equatable, Sendable {
@@ -79,6 +82,11 @@ struct AuthorPostsViewState: Equatable, Sendable {
         contentStatus == .loaded && posts.isEmpty
     }
 
+    // 모든 사진이 좋아요 정보를 받았을 때만 카드에 좋아요를 그린다.
+    var showsLikes: Bool {
+        posts.allSatisfy { $0.likeCount != nil && $0.isLiked != nil }
+    }
+
     // 404면 작가를 특정할 수 없으므로 탑바 사인과 그리드 위 설명을 숨긴다.
     var showsAuthorIdentity: Bool {
         contentStatus != .error(.authorNotFound)
@@ -88,4 +96,6 @@ struct AuthorPostsViewState: Equatable, Sendable {
 enum AuthorPostsEvent: Equatable, Sendable {
     // 다음 페이지를 받지 못했을 때. 이미 받은 사진은 그대로 둔다.
     case nextPageFailed
+    // 카드의 좋아요를 반영하지 못했을 때. 카드는 이전 상태를 유지한다.
+    case likeFailed
 }

@@ -229,6 +229,18 @@ struct FeedViewModelTests {
         #expect(viewModel.signatureTapAction() == .returnToAuthorPosts)
     }
 
+    @Test("작가 사진 목록에서 바뀐 좋아요를 같은 게시물에만 반영한다")
+    func appliesExternalLikeUpdate() {
+        let viewModel = FeedViewModel(postID: "post-1", seed: Self.content(isLiked: false, likeCount: 3))
+
+        viewModel.applyLikeUpdate(FeedLikeUpdate(postID: "other", isLiked: true, likeCount: 9))
+        #expect(viewModel.viewState.content?.post.likeCount == 3)
+
+        viewModel.applyLikeUpdate(FeedLikeUpdate(postID: "post-1", isLiked: true, likeCount: 4))
+        #expect(viewModel.viewState.content?.post.isLiked == true)
+        #expect(viewModel.viewState.content?.post.likeCount == 4)
+    }
+
     @Test("전시 시드는 상세 확정 전까지 좋아요를 막고, 확정 후 허용한다")
     func displaySeedGatesLikeUntilLoaded() async {
         let viewModel = FeedViewModel(

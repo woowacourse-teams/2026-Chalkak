@@ -42,6 +42,10 @@ struct FeedScreen: View {
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
     // 사인을 눌러 작가 사진 목록을 연다. nil이면 사인을 누를 수 없다.
     var onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)?
+    // 이 피드의 좋아요 상태가 정해지거나 바뀔 때(상세 도착·토글). 작가 사진 목록 카드를 맞추는 데 쓴다.
+    var onLikeChange: ((FeedLikeUpdate) -> Void)?
+    // 다른 화면(작가 사진 목록 카드)에서 바뀐 좋아요. 이 피드의 게시물이면 반영한다.
+    var externalLikeUpdate: FeedLikeUpdate?
 
     init(
         viewModel: FeedViewModel,
@@ -52,7 +56,9 @@ struct FeedScreen: View {
         opensAIReviewOnEntry: Bool = false,
         onBack: @escaping () -> Void = {},
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in },
-        onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)? = nil
+        onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)? = nil,
+        onLikeChange: ((FeedLikeUpdate) -> Void)? = nil,
+        externalLikeUpdate: FeedLikeUpdate? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
         _transitionSource = State(initialValue: transitionSource)
@@ -63,6 +69,8 @@ struct FeedScreen: View {
         self.onBack = onBack
         self.onDeleted = onDeleted
         self.onOpenAuthorPosts = onOpenAuthorPosts
+        self.onLikeChange = onLikeChange
+        self.externalLikeUpdate = externalLikeUpdate
     }
 
     var body: some View {
@@ -198,6 +206,12 @@ struct FeedScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
+        .onChange(of: likeState) { _, state in
+            if let state { onLikeChange?(state) }
+        }
+        .onChange(of: externalLikeUpdate) { _, update in
+            if let update { viewModel.applyLikeUpdate(update) }
+        }
         .alert("게시물을 삭제할까요?", isPresented: $showsDeleteDialog) {
             Button("취소", role: .cancel) {}
             Button("삭제", role: .destructive) { viewModel.deletePost() }
@@ -302,6 +316,13 @@ struct FeedScreen: View {
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
         .scrollDisabled(isPhotoMoving || isPhotoInteracting)
+    }
+
+    // 지금 보이는 게시물의 좋아요 상태. 상세가 도착하거나 좋아요를 누를 때 바뀐다.
+    private var likeState: FeedLikeUpdate? {
+        viewModel.viewState.content.map {
+            FeedLikeUpdate(postID: $0.post.id, isLiked: $0.post.isLiked, likeCount: $0.post.likeCount)
+        }
     }
 
     // 작성자 ID를 받기 전(상세 로딩 중)이나 사인 탭을 쓰지 않는 화면에서는 nil이라 사인을 누를 수 없다.

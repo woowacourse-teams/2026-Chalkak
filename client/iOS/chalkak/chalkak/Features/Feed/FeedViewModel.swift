@@ -155,6 +155,17 @@ final class FeedViewModel {
         )
     }
 
+    /// 다른 화면에서 바뀐 좋아요를 반영한다. 다른 게시물의 값이면 무시한다.
+    /// 진행 중인 상세 조회가 이 값을 덮어쓰지 않도록 좋아요 세대를 올린다.
+    func applyLikeUpdate(_ update: FeedLikeUpdate) {
+        guard var content = viewState.content, content.post.id == update.postID else { return }
+        guard content.post.isLiked != update.isLiked || content.post.likeCount != update.likeCount else { return }
+        likeGeneration += 1
+        content.post.isLiked = update.isLiked
+        content.post.likeCount = update.likeCount
+        viewState.content = content
+    }
+
     func toggleLike() {
         guard viewState.isLikeEnabled, let current = viewState.content else { return }
 

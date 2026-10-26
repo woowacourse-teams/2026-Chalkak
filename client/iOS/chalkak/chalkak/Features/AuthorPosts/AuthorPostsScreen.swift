@@ -16,6 +16,8 @@ struct AuthorPostsScreen: View {
     // 닫는 전환이 끝난 뒤 호출된다. 호출부는 애니메이션 없이 화면을 치우면 된다.
     var onBack: () -> Void = {}
     var onSelectPost: (FeedTarget) -> Void = { _ in }
+    // 카드에서 좋아요를 바꿨을 때. 이 목록을 연 피드도 같은 사진이면 맞출 수 있게 알린다.
+    var onLikeChange: (FeedLikeUpdate) -> Void = { _ in }
 
     // 화면 펼침 진행도(0: 피드 사인 자리로 접힘, 1: 전체 화면).
     @State private var progress: CGFloat = 0
@@ -304,12 +306,18 @@ struct AuthorPostsScreen: View {
                         onEndThreshold: { isReached in
                             Task { await viewModel.didReachEndThreshold(isReached) }
                         },
+                        likingPhotoIDs: viewModel.likingPostIDs,
+                        onLike: { photo in
+                            Task {
+                                if let update = await viewModel.toggleLike(postID: photo.id) { onLikeChange(update) }
+                            }
+                        },
                         onSelect: { photo, ratio, source in
                             onSelectPost(feedTarget(for: photo, ratio: ratio, transitionSource: source))
                         },
                         zoomSource: FeedZoomSource.authorGrid,
                         showsSignature: false,
-                        showsLikeBadge: false
+                        showsLikeBadge: viewModel.viewState.showsLikes
                     )
                 }
             }
@@ -364,7 +372,7 @@ struct AuthorPostsScreen: View {
     }
 
     // 전시 그리드를 그대로 쓰기 위해 전시 카드 모델로 바꾼다.
-    // 목록 응답에는 사인·좋아요가 없어 사인은 탑바와 같은 작가 사인으로, 좋아요는 숨긴 채 0으로 둔다.
+    // 목록 응답에는 사인이 없어 탑바와 같은 작가 사인을 넣는다. 좋아요가 없는 응답이면 배지를 숨긴 채 0으로 둔다.
     private func gridPhoto(_ post: AuthorPost) -> DisplayPhoto {
         DisplayPhoto(
             id: post.id,
@@ -374,8 +382,8 @@ struct AuthorPostsScreen: View {
             signatureThumbnailImageSource: viewModel.target.signatureImageSource,
             contentDescription: post.contentDescription,
             title: nil,
-            likeCount: 0,
-            isLiked: false,
+            likeCount: post.likeCount ?? 0,
+            isLiked: post.isLiked ?? false,
             isOwnedByCurrentUser: viewModel.target.isMine,
             authorID: viewModel.target.authorID
         )
@@ -408,6 +416,8 @@ struct AuthorPostsScreen: View {
         switch event {
         case .nextPageFailed:
             showToast(AuthorPostsError.generic.message)
+        case .likeFailed:
+            showToast("좋아요를 반영하지 못했어요")
         }
         viewModel.consumeEvent()
     }

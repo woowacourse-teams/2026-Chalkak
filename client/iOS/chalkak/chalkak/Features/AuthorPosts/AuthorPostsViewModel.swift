@@ -12,12 +12,16 @@ final class AuthorPostsViewModel {
     nonisolated deinit {}
 
     typealias PageHandler = @MainActor @Sendable (_ page: Int) async -> Result<AuthorPostsPage, AuthorPostsError>
+    typealias LikeHandler = @MainActor @Sendable (_ postID: String, _ isLiked: Bool) async -> Result<FeedLikeUpdate, AuthorPostsError>
 
     let target: AuthorPostsTarget
     private(set) var viewState: AuthorPostsViewState
     private(set) var event: AuthorPostsEvent?
+    // 좋아요 요청 중인 사진. 응답 전까지 같은 카드의 좋아요를 다시 누르지 못하게 한다.
+    private(set) var likingPostIDs: Set<AuthorPost.ID> = []
 
     private let pageHandler: PageHandler
+    private let likeHandler: LikeHandler
     // 다시 시도로 1페이지를 새로 받는 동안 도착한 이전 요청의 응답을 버리기 위한 번호.
     private var generation = 0
     private var isEndThresholdReached = false
@@ -25,14 +29,16 @@ final class AuthorPostsViewModel {
     init(
         target: AuthorPostsTarget,
         initialState: AuthorPostsViewState = AuthorPostsViewState(),
-        pageHandler: @escaping PageHandler = { _ in .failure(.generic) }
+        pageHandler: @escaping PageHandler = { _ in .failure(.generic) },
+        likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) }
     ) {
         self.target = target
         self.viewState = initialState
         self.pageHandler = pageHandler
+        self.likeHandler = likeHandler
     }
 
-    convenience init(target: AuthorPostsTarget, apiClient: AuthorPostsAPIClient) {
+    convenience init(target: AuthorPostsTarget, apiClient: AuthorPostsAPIClient, likeClient: FeedAPIClient) {
         let authorID = target.authorID
         self.init(
             target: target,
@@ -41,6 +47,13 @@ final class AuthorPostsViewModel {
                     return .success(try await apiClient.fetchPage(authorID: authorID, page: page))
                 } catch let error as AuthorPostsAPIError {
                     return .failure(error.authorPostsError)
+                } catch {
+                    return .failure(.generic)
+                }
+            },
+            likeHandler: { postID, isLiked in
+                do {
+                    return .success(try await likeClient.updateLike(postID: postID, isLiked: isLiked))
                 } catch {
                     return .failure(.generic)
                 }
@@ -80,6 +93,37 @@ final class AuthorPostsViewModel {
         guard !isEndThresholdReached else { return }
         isEndThresholdReached = true
         await loadNextPage()
+    }
+
+    /// 카드의 좋아요를 등록·취소한다. 전시 카드처럼 응답을 받은 뒤 반영하고, 반영한 값을 돌려준다.
+    /// 실패하면 카드를 그대로 두고 `.likeFailed`를 알린다.
+    @discardableResult
+    func toggleLike(postID: AuthorPost.ID) async -> FeedLikeUpdate? {
+        guard !likingPostIDs.contains(postID),
+              let isLiked = viewState.posts.first(where: { $0.id == postID })?.isLiked
+        else { return nil }
+        likingPostIDs.insert(postID)
+        defer { likingPostIDs.remove(postID) }
+
+        switch await likeHandler(postID, !isLiked) {
+        case let .success(update):
+            guard update.postID == postID, update.likeCount >= 0 else {
+                event = .likeFailed
+                return nil
+            }
+            applyLike(update)
+            return update
+        case .failure:
+            event = .likeFailed
+            return nil
+        }
+    }
+
+    /// 다른 화면(목록에서 연 피드)에서 바뀐 좋아요를 카드에 맞춘다. 목록에 없는 사진이면 무시한다.
+    func applyLike(_ update: FeedLikeUpdate) {
+        guard let index = viewState.posts.firstIndex(where: { $0.id == update.postID }) else { return }
+        viewState.posts[index].isLiked = update.isLiked
+        viewState.posts[index].likeCount = update.likeCount
     }
 
     /// 목록에서 연 피드에서 내 사진을 삭제했을 때 그리드에서 뺀다.

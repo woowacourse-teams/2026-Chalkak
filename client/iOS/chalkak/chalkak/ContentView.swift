@@ -21,6 +21,8 @@ struct ContentView: View {
     // 피드에서 사인을 눌러 연 작가 사진 목록과, 그 목록에서 연 피드. 피드 overlay 위에 차례로 쌓인다.
     @State private var selectedAuthorPosts: AuthorPostsViewModel?
     @State private var selectedAuthorFeed: FeedTarget?
+    // 작가 사진 목록 카드에서 마지막으로 바꾼 좋아요. 목록을 연 피드가 같은 게시물이면 맞춘다.
+    @State private var authorPostsLikeUpdate: FeedLikeUpdate?
     @State private var selectedIssueURL: URL?
     @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
@@ -116,7 +118,8 @@ struct ContentView: View {
                                         closeNotificationDestination(destination)
                                         handleDeletedPost(postID)
                                     },
-                                    onOpenAuthorPosts: openAuthorPosts
+                                    onOpenAuthorPosts: openAuthorPosts,
+                                    externalLikeUpdate: authorPostsLikeUpdate
                                 )
                                 .id(postID)
                                 .background(InteractivePopGestureEnabler())
@@ -144,7 +147,8 @@ struct ContentView: View {
                             transitionSource: target.transitionSource,
                             onBack: { selectedFeed = nil },
                             onDeleted: handleDeletedPost,
-                            onOpenAuthorPosts: openAuthorPosts
+                            onOpenAuthorPosts: openAuthorPosts,
+                            externalLikeUpdate: authorPostsLikeUpdate
                         )
                         .id(target.id)
                         .transition(.identity)
@@ -158,7 +162,8 @@ struct ContentView: View {
                         AuthorPostsScreen(
                             viewModel: authorPostsViewModel,
                             onBack: { selectedAuthorPosts = nil },
-                            onSelectPost: { selectedAuthorFeed = $0 }
+                            onSelectPost: { selectedAuthorFeed = $0 },
+                            onLikeChange: { authorPostsLikeUpdate = $0 }
                         )
                         .id(ObjectIdentifier(authorPostsViewModel))
                         .transition(.identity)
@@ -175,7 +180,12 @@ struct ContentView: View {
                             transitionSource: target.transitionSource,
                             onBack: { selectedAuthorFeed = nil },
                             onDeleted: handleDeletedAuthorPost,
-                            onOpenAuthorPosts: openAuthorPosts
+                            onOpenAuthorPosts: openAuthorPosts,
+                            // 상세에서 확인·변경한 좋아요를 목록 카드와 목록을 연 피드에 맞춘다.
+                            onLikeChange: { update in
+                                selectedAuthorPosts?.applyLike(update)
+                                authorPostsLikeUpdate = update
+                            }
                         )
                         .id(target.id)
                         .transition(.identity)
@@ -627,10 +637,16 @@ struct ContentView: View {
             apiClient: AuthorPostsAPIClient(
                 configuration: AuthorPostsAPIConfiguration(baseURL: Self.resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
+            ),
+            likeClient: FeedAPIClient(
+                configuration: FeedAPIConfiguration(baseURL: Self.resolvedAPIBaseURL),
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
             )
         )
         // 목록에서 연 피드의 사인은 같은 작가라 돌아가기로 처리된다. 여기 오는 건 피드에서 처음 여는 경우다.
         selectedAuthorFeed = nil
+        // 이전 목록의 값이 남아 있으면 같은 값으로 바뀐 좋아요가 변경으로 감지되지 않는다.
+        authorPostsLikeUpdate = nil
         selectedAuthorPosts = viewModel
     }
 

@@ -31,6 +31,23 @@ struct AuthorPostsAPIClientTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token")
     }
 
+    @Test("좋아요 수와 내 좋아요 여부를 받고, 필드가 없는 응답도 읽는다")
+    func decodesOptionalLikeFields() async throws {
+        let client = Self.makeClient { request in
+            Self.response(
+                for: request,
+                body: #"{"currentPage":1,"pageSize":20,"hasNext":false,"posts":[{"id":"post-1","originalImageUrl":"https://example.com/o1.webp","thumbnailImageUrl":null,"topic":{"id":"t1","title":"하늘","topicDate":"2026-10-19"},"likeCount":2,"isLiked":true},{"id":"post-2","originalImageUrl":"https://example.com/o2.webp","thumbnailImageUrl":null,"topic":{"id":"t2","title":"바다","topicDate":"2026-10-18"}}]}"#
+            )
+        }
+
+        let page = try await client.fetchPage(authorID: "author-1", page: 1)
+
+        #expect(page.posts[0].likeCount == 2)
+        #expect(page.posts[0].isLiked == true)
+        #expect(page.posts[1].likeCount == nil)
+        #expect(page.posts[1].isLiked == nil)
+    }
+
     @Test("공개 사진이 없는 작가는 200 빈 목록으로 받는다")
     func decodesEmptyPage() async throws {
         let client = Self.makeClient { request in
@@ -199,6 +216,83 @@ struct AuthorPostsViewModelTests {
         #expect(viewModel.viewState.posts.map(\.id) == ["a", "b"])
     }
 
+    @Test("카드 좋아요는 응답을 받은 뒤 반영하고 반영한 값을 돌려준다")
+    func togglesLikeAfterResponse() async {
+        let requests = AuthorPostsLikeRecorder()
+        let viewModel = AuthorPostsViewModel(
+            target: Self.target,
+            pageHandler: { _ in
+                .success(AuthorPostsPage(posts: [Self.post("a", likeCount: 2, isLiked: false)], currentPage: 1, hasNext: false))
+            },
+            likeHandler: { postID, isLiked in
+                requests.calls.append(isLiked)
+                return .success(FeedLikeUpdate(postID: postID, isLiked: isLiked, likeCount: 3))
+            }
+        )
+        await viewModel.load()
+
+        let update = await viewModel.toggleLike(postID: "a")
+
+        #expect(requests.calls == [true])
+        #expect(update == FeedLikeUpdate(postID: "a", isLiked: true, likeCount: 3))
+        #expect(viewModel.viewState.posts[0].isLiked == true)
+        #expect(viewModel.viewState.posts[0].likeCount == 3)
+        #expect(viewModel.likingPostIDs.isEmpty)
+        #expect(viewModel.viewState.showsLikes)
+    }
+
+    @Test("좋아요 실패나 잘못된 응답은 카드를 그대로 두고 실패를 알린다")
+    func likeFailureKeepsCard() async {
+        let viewModel = AuthorPostsViewModel(
+            target: Self.target,
+            pageHandler: { _ in
+                .success(AuthorPostsPage(posts: [Self.post("a", likeCount: 2, isLiked: false)], currentPage: 1, hasNext: false))
+            },
+            likeHandler: { _, _ in .failure(.network) }
+        )
+        await viewModel.load()
+
+        let update = await viewModel.toggleLike(postID: "a")
+
+        #expect(update == nil)
+        #expect(viewModel.event == .likeFailed)
+        #expect(viewModel.viewState.posts[0].isLiked == false)
+        #expect(viewModel.viewState.posts[0].likeCount == 2)
+    }
+
+    @Test("좋아요 정보가 없는 응답이면 좋아요를 그리지도 보내지도 않는다")
+    func noLikeInfoHidesLikes() async {
+        let requests = AuthorPostsLikeRecorder()
+        let viewModel = AuthorPostsViewModel(
+            target: Self.target,
+            pageHandler: { _ in .success(AuthorPostsPage(posts: [Self.post("a")], currentPage: 1, hasNext: false)) },
+            likeHandler: { postID, isLiked in
+                requests.calls.append(isLiked)
+                return .success(FeedLikeUpdate(postID: postID, isLiked: isLiked, likeCount: 1))
+            }
+        )
+        await viewModel.load()
+
+        await viewModel.toggleLike(postID: "a")
+
+        #expect(!viewModel.viewState.showsLikes)
+        #expect(requests.calls.isEmpty)
+    }
+
+    @Test("목록에서 연 피드에서 바뀐 좋아요를 카드에 맞춘다")
+    func appliesLikeFromFeed() async {
+        let viewModel = AuthorPostsViewModel(target: Self.target) { _ in
+            .success(AuthorPostsPage(posts: [Self.post("a", likeCount: 2, isLiked: false)], currentPage: 1, hasNext: false))
+        }
+        await viewModel.load()
+
+        viewModel.applyLike(FeedLikeUpdate(postID: "a", isLiked: true, likeCount: 5))
+        viewModel.applyLike(FeedLikeUpdate(postID: "other", isLiked: true, likeCount: 9))
+
+        #expect(viewModel.viewState.posts.map(\.likeCount) == [5])
+        #expect(viewModel.viewState.posts.map(\.isLiked) == [true])
+    }
+
     @Test("목록에서 연 피드에서 삭제한 사진을 그리드에서 뺀다")
     func removesDeletedPost() async {
         let viewModel = AuthorPostsViewModel(target: Self.target) { _ in
@@ -217,16 +311,23 @@ struct AuthorPostsViewModelTests {
         isMine: false
     )
 
-    private static func post(_ id: String) -> AuthorPost {
+    private static func post(_ id: String, likeCount: Int? = nil, isLiked: Bool? = nil) -> AuthorPost {
         AuthorPost(
             id: id,
             originalImageSource: .asset("preview_photo"),
             thumbnailImageSource: .asset("preview_photo"),
             topic: "하늘",
             topicDate: Date(timeIntervalSince1970: 0),
-            contentDescription: "설명"
+            contentDescription: "설명",
+            likeCount: likeCount,
+            isLiked: isLiked
         )
     }
+}
+
+@MainActor
+private final class AuthorPostsLikeRecorder {
+    var calls: [Bool] = []
 }
 
 @MainActor
