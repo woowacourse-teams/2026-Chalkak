@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.domain.PushEventIdPolicy;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -73,7 +74,11 @@ public class ReminderPushService {
         if (occurredAt == null || occurredAt.equals(attemptedReminders.get(reminder.getId()))) {
             return;
         }
-        UUID eventId = UUID.randomUUID();
+        UUID eventId = PushEventIdPolicy.createForOccurrence(
+                NotificationType.REMINDER,
+                reminder.getId(),
+                occurredAt
+        );
         try {
             PublicationTargets targets = transactionTemplate
                     .execute(status -> findTargets(reminder.getId(), occurredAt));
