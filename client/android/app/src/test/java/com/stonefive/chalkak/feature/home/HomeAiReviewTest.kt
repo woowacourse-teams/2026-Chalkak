@@ -547,6 +547,7 @@ class HomeAiReviewTest {
             contentDescription = "사진",
             title = null,
             likeCount = 0,
+            authorId = "author",
         )
     }
 }

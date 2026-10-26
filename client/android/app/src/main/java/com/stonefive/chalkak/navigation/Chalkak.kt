@@ -58,6 +58,7 @@ data class Feed(
     val topicDate: String? = null,
     val isOwnedByCurrentUser: Boolean = false,
     val fetchDetail: Boolean = true,
+    // 저장된 이전 버전 경로에는 authorId가 없을 수 있어 빈 값으로 복원한다(도메인 Post는 필수).
     val authorId: String = "",
     val sourceAuthorId: String? = null,
 )

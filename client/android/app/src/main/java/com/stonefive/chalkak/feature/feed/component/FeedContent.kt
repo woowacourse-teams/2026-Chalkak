@@ -65,6 +65,7 @@ private fun FeedContentPreview() {
                     contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 감사합니다.",
                     likeCount = 24,
+                    authorId = "preview-author",
                 ),
                 isLiked = false,
                 topicDate = LocalDate

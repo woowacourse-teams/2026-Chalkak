@@ -14,5 +14,5 @@ data class Post(
     val likeCount: Int,
     val isLiked: Boolean = false,
     val isOwnedByCurrentUser: Boolean = false,
-    val authorId: String = "",
+    val authorId: String,
 )

@@ -107,6 +107,7 @@ fun AuthorPostsRoute(
 @Composable
 fun AuthorPostsScreen(
     uiState: AuthorPostsUiState,
+    authorId: String,
     signatureThumbnailImageUrl: String?,
     isMine: Boolean,
     onNavigateBack: () -> Unit,
@@ -114,11 +115,10 @@ fun AuthorPostsScreen(
     onRetry: () -> Unit,
     onEndThresholdChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    authorId: String? = null,
     onLikeClick: (Post) -> Unit = {},
 ) {
-    val photos = remember(uiState.posts, signatureThumbnailImageUrl, isMine) {
-        uiState.posts.map { it.toDisplayPost(signatureThumbnailImageUrl, isMine) }
+    val photos = remember(uiState.posts, authorId, signatureThumbnailImageUrl, isMine) {
+        uiState.posts.map { it.toDisplayPost(authorId, signatureThumbnailImageUrl, isMine) }
     }
     val gridState = rememberLazyStaggeredGridState()
     var collapsedFraction by rememberSaveable { mutableFloatStateOf(0f) }
@@ -294,6 +294,7 @@ private fun AuthorPostsDescription(
 }
 
 private fun AuthorPost.toDisplayPost(
+    authorId: String,
     signatureUrl: String?,
     isMine: Boolean,
 ): Post = Post(
@@ -307,6 +308,7 @@ private fun AuthorPost.toDisplayPost(
     likeCount = likeCount,
     isLiked = isLiked,
     isOwnedByCurrentUser = isMine,
+    authorId = authorId,
 )
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 700)
@@ -315,6 +317,7 @@ private fun AuthorPostsScreenPreview() {
     ChalkakTheme {
         AuthorPostsScreen(
             uiState = AuthorPostsUiState(isLoading = false),
+            authorId = "preview-author",
             signatureThumbnailImageUrl = null,
             isMine = false,
             onNavigateBack = {},

@@ -95,6 +95,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "전시에서 선택한 사진",
             likeCount = 31,
+            authorId = "author",
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
@@ -167,6 +168,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "목록 제목",
             likeCount = 31,
+            authorId = "author",
         )
 
         val selectedViewModel = FeedViewModel(
@@ -233,6 +235,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "목록 제목",
             likeCount = 31,
+            authorId = "author",
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
@@ -312,6 +315,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "목록 제목",
             likeCount = 31,
+            authorId = "author",
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
@@ -961,6 +965,7 @@ private fun feedContent() = PostContent(
             contentDescription = "사진",
             title = "안녕하세요 찰캌입니다.",
             likeCount = 24,
+            authorId = "author",
         ),
     ),
     likedPhotoIds = emptySet(),

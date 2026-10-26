@@ -457,6 +457,7 @@ class FeedAiReviewTest {
                 title = null,
                 likeCount = 0,
                 isOwnedByCurrentUser = isOwned,
+                authorId = "author",
             ),
             isLiked = false,
             topicDate = topicDate,

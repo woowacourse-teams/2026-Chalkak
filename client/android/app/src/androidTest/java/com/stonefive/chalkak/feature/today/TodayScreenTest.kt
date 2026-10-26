@@ -443,6 +443,7 @@ private fun photos(count: Int) = List(count) { index ->
         contentDescription = "작품 이미지: 사진 $index",
         title = "사진 $index",
         likeCount = 17,
+        authorId = "author",
     )
 }
 

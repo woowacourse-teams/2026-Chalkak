@@ -795,6 +795,7 @@ private fun post(
     contentDescription = "작품 이미지: $id",
     title = id,
     likeCount = likeCount,
+    authorId = "author",
 )
 
 private class RecordingPostRepository(

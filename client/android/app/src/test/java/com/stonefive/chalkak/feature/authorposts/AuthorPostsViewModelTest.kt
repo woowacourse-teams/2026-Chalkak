@@ -669,6 +669,7 @@ private fun detail(
             title = null,
             likeCount = likeCount,
             isLiked = isLiked,
+            authorId = "author",
         ),
         topic = "주제",
         topicDate = LocalDate.of(2026, 10, 26),

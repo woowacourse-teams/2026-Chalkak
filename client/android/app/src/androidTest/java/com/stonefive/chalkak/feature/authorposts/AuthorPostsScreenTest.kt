@@ -101,6 +101,7 @@ class AuthorPostsScreenTest {
                         onPhotoClick = {},
                         onRetry = {},
                         onEndThresholdChanged = {},
+                        authorId = "author",
                     )
                 } else {
                     FeedScreen(
@@ -268,6 +269,7 @@ class AuthorPostsScreenTest {
                     onLikeClick = onLikeClick,
                     onRetry = onRetry,
                     onEndThresholdChanged = {},
+                    authorId = "author",
                 )
             }
         }

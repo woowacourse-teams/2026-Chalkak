@@ -1117,4 +1117,5 @@ private val post = Post(
     submittedAt = Instant.parse("2026-08-05T03:00:00Z"),
     title = "한낮의 다리",
     likeCount = 17,
+    authorId = "author",
 )

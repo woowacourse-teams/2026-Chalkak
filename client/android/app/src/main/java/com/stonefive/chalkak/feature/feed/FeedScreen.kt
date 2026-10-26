@@ -501,6 +501,7 @@ private fun FeedScreenPreview() {
                         title = "안녕하세요 감사합니다.",
                         likeCount = 24,
                         isOwnedByCurrentUser = true,
+                        authorId = "preview-author",
                     ),
                     isLiked = false,
                     topicDate = LocalDate

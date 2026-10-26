@@ -763,6 +763,7 @@ private fun photo(id: String) = Post(
     contentDescription = "사진 $id",
     title = null,
     likeCount = 10,
+    authorId = "author",
 )
 
 private fun banner() = Banner(
