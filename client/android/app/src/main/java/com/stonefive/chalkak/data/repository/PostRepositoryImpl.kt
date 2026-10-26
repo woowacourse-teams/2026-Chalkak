@@ -24,6 +24,7 @@ import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
@@ -39,12 +40,21 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class PostRepositoryImpl(
     private val remoteDataSource: PostRemoteDataSource,
     private val topicRemoteDataSource: TopicRemoteDataSource,
 ) : PostRepository,
     PhotoUploadEntryRepository {
+    private val _likeUpdates = MutableSharedFlow<PostLikeUpdate>(extraBufferCapacity = 64)
+    override val likeUpdates = _likeUpdates.asSharedFlow()
+    private val likeUpdateMutex = Mutex()
+    private val likeRequestGenerations = mutableMapOf<String, Long>()
+
     override suspend fun getAuthorPosts(
         authorId: String,
         page: Int,
@@ -62,6 +72,8 @@ class PostRepositoryImpl(
             return HomeResult.Failure(HomeFailure.InvalidResponse)
         }
         val mappedPosts = posts.map { post ->
+            val likeCount = post.likeCount.toLikeCountOrNull()
+                ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
             val date = runCatching { LocalDate.parse(post.topic.topicDate) }.getOrNull()
                 ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
             if (post.id.isBlank() || post.originalImageUrl.isBlank() || post.topic.id
@@ -74,6 +86,8 @@ class PostRepositoryImpl(
                 originalImageUrl = post.originalImageUrl,
                 thumbnailImageUrl = post.thumbnailImageUrl,
                 topic = Topic(id = post.topic.id, title = post.topic.title, date = date),
+                likeCount = likeCount,
+                isLiked = post.isLiked,
             )
         }
         return HomeResult.Success(AuthorPostsPage(currentPage, pageSize, hasNext && posts.isNotEmpty(), mappedPosts))
@@ -174,14 +188,29 @@ class PostRepositoryImpl(
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): HomeResult<HomeLike> = when (val result = remoteDataSource.updateLike(photoId, isLiked)) {
-        is ApiResult.Success -> if (result.value.postId == photoId) {
-            result.value.toDomain()
-        } else {
-            HomeResult.Failure(HomeFailure.InvalidResponse)
+    ): HomeResult<HomeLike> {
+        val generation = likeUpdateMutex.withLock {
+            val next = (likeRequestGenerations[photoId] ?: 0L) + 1L
+            likeRequestGenerations[photoId] = next
+            next
         }
+        val result = when (val response = remoteDataSource.updateLike(photoId, isLiked)) {
+            is ApiResult.Success -> if (response.value.postId == photoId) {
+                response.value.toDomain()
+            } else {
+                HomeResult.Failure(HomeFailure.InvalidResponse)
+            }
 
-        is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+            is ApiResult.Failure -> HomeResult.Failure(response.error.toDomain())
+        }
+        if (result is HomeResult.Success) {
+            likeUpdateMutex.withLock {
+                if (likeRequestGenerations[photoId] == generation) {
+                    _likeUpdates.emit(PostLikeUpdate(photoId, result.value.likeCount, result.value.isLiked))
+                }
+            }
+        }
+        return result
     }
 
     private fun PostPageResponse.toDomain(query: HomeQuery): HomeResult<PostPage> {

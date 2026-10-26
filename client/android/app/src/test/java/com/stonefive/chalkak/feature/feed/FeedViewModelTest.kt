@@ -12,6 +12,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostTitleUpdate
@@ -23,6 +24,7 @@ import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceTimeBy
@@ -343,6 +345,65 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun `다른 화면에서 변경한 현재 게시물의 좋아요를 등록과 취소 모두 동기화한다`() = runTest {
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 32, isLiked = true))
+        advanceUntilIdle()
+
+        val likedContent = viewModel.uiState.value.content
+        assertEquals(32, likedContent?.post?.likeCount)
+        assertTrue(likedContent?.post?.isLiked == true)
+        assertTrue(likedContent?.isLiked == true)
+
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 31, isLiked = false))
+        advanceUntilIdle()
+
+        val unlikedContent = viewModel.uiState.value.content
+        assertEquals(31, unlikedContent?.post?.likeCount)
+        assertFalse(unlikedContent?.post?.isLiked == true)
+        assertFalse(unlikedContent?.isLiked == true)
+    }
+
+    @Test
+    fun `다른 게시물의 좋아요 변경은 현재 피드를 바꾸지 않는다`() = runTest {
+        val initialContent = viewModel.uiState.value.content
+
+        repository.likeUpdates.emit(PostLikeUpdate("other-post", likeCount = 100, isLiked = true))
+        advanceUntilIdle()
+
+        assertSame(initialContent, viewModel.uiState.value.content)
+    }
+
+    @Test
+    fun `첫 상세 조회보다 늦게 도착한 응답은 다른 화면에서 동기화한 좋아요를 덮어쓰지 않는다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply { detailRequest = detailResult }
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            postId = PHOTO_ID,
+        )
+
+        selectedRepository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 32, isLiked = true))
+        advanceUntilIdle()
+        detailResult.complete(
+            HomeResult.Success(
+                PostDetail(
+                    post = feedContent().photos.single(),
+                    topic = "바다",
+                    topicDate = LocalDate.of(2026, 8, 5),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val updatedContent = selectedViewModel.uiState.value.content
+        assertEquals(32, updatedContent?.post?.likeCount)
+        assertTrue(updatedContent?.post?.isLiked == true)
+        assertTrue(updatedContent?.isLiked == true)
+    }
+
+    @Test
     fun `Display에서 받은 게시물 좋아요는 주입된 Feed repository로만 전달한다`() = runTest {
         val selectedRepository = FakePostRepository()
         val selectedPost =
@@ -387,6 +448,57 @@ class FeedViewModelTest {
         val content = viewModel.uiState.value.content as FeedContentState.Success
         assertFalse(content.isLiked)
         assertEquals(24, content.post.likeCount)
+    }
+
+    @Test
+    fun `진행 중 좋아요가 실패해도 이후 다른 화면에서 동기화한 상태를 복원하지 않는다`() = runTest {
+        val pendingLike = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.likeRequest = pendingLike
+        viewModel.onLikeClicked()
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 41, isLiked = true))
+        advanceUntilIdle()
+
+        pendingLike.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals(41, content?.post?.likeCount)
+        assertTrue(content?.post?.isLiked == true)
+        assertTrue(content?.isLiked == true)
+    }
+
+    @Test
+    fun `진행 중 좋아요가 성공해도 이후 다른 화면에서 동기화한 상태를 덮어쓰지 않는다`() = runTest {
+        val pendingLike = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.likeRequest = pendingLike
+        viewModel.onLikeClicked()
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 40, isLiked = false))
+        advanceUntilIdle()
+
+        pendingLike.complete(HomeResult.Success(HomeLike(likeCount = 25, isLiked = true)))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals(40, content?.post?.likeCount)
+        assertFalse(content?.post?.isLiked == true)
+        assertFalse(content?.isLiked == true)
+    }
+
+    @Test
+    fun `좋아요 성공 반환 전에 같은 결과가 동기화되어도 서버 상태를 유지한다`() = runTest {
+        val pendingLike = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.likeRequest = pendingLike
+        viewModel.onLikeClicked()
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 32, isLiked = true))
+        advanceUntilIdle()
+
+        pendingLike.complete(HomeResult.Success(HomeLike(likeCount = 32, isLiked = true)))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals(32, content?.post?.likeCount)
+        assertTrue(content?.post?.isLiked == true)
+        assertTrue(content?.isLiked == true)
     }
 
     @Test
@@ -681,6 +793,8 @@ private const val PHOTO_ID = "photo-1"
 private val TEST_DATE = LocalDate.of(2026, 8, 28)
 
 private class FakePostRepository : PostRepository {
+    override val likeUpdates = MutableSharedFlow<PostLikeUpdate>(extraBufferCapacity = 16)
+
     override suspend fun getAuthorPosts(
         authorId: String,
         page: Int,
@@ -691,6 +805,7 @@ private class FakePostRepository : PostRepository {
     var updatedLike: Pair<String, Boolean>? = null
     var failLike = false
     var likeResult: HomeResult<HomeLike>? = null
+    var likeRequest: CompletableDeferred<HomeResult<HomeLike>>? = null
     var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
     var deleteResult: HomeResult<Unit> = HomeResult.Success(Unit)
@@ -729,7 +844,7 @@ private class FakePostRepository : PostRepository {
         isLiked: Boolean,
     ): HomeResult<HomeLike> {
         updatedLike = photoId to isLiked
-        return likeResult ?: if (failLike) {
+        return likeRequest?.await() ?: likeResult ?: if (failLike) {
             HomeResult.Failure(HomeFailure.Network)
         } else {
             HomeResult.Success(HomeLike(if (isLiked) 25 else 24, isLiked))

@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -200,10 +203,10 @@ class AuthorPostsScreenTest {
     }
 
     @Test
-    fun photoClickPassesImageAndSignatureWithoutShowingUnknownLikes() {
+    fun photoClickPassesImageSignatureAndServerLikes() {
         var selectedPhoto: Post? = null
         show(
-            AuthorPostsUiState(isLoading = false, posts = listOf(photo("one"))),
+            AuthorPostsUiState(isLoading = false, posts = listOf(photo("one").copy(likeCount = 7, isLiked = true))),
             onPhotoClick = { selectedPhoto = it },
         )
 
@@ -212,7 +215,39 @@ class AuthorPostsScreenTest {
         assertEquals("one", selectedPhoto?.id)
         assertEquals("https://example.com/one.webp", selectedPhoto?.thumbnailImageUrl)
         assertEquals("https://example.com/signature.png", selectedPhoto?.signatureOriginalImageUrl)
-        composeRule.onNodeWithContentDescription("좋아요 0").assertDoesNotExist()
+        assertEquals(7, selectedPhoto?.likeCount)
+        assertEquals(true, selectedPhoto?.isLiked)
+        composeRule.onNodeWithContentDescription("좋아요 7").assertIsDisplayed()
+    }
+
+    @Test
+    fun likeClickUsesCardCallbackWithoutOpeningPhoto() {
+        var selectedLike: Post? = null
+        var photoClicks = 0
+        show(
+            AuthorPostsUiState(isLoading = false, posts = listOf(photo("one").copy(likeCount = 7, isLiked = true))),
+            onLikeClick = { selectedLike = it },
+            onPhotoClick = { photoClicks++ },
+        )
+
+        composeRule
+            .onNodeWithContentDescription("좋아요 7")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "좋아요 선택됨"))
+            .performClick()
+
+        assertEquals("one", selectedLike?.id)
+        assertEquals(true, selectedLike?.isLiked)
+        assertEquals(0, photoClicks)
+    }
+
+    @Test
+    fun zeroLikesAreDisplayedAsUnselected() {
+        show(AuthorPostsUiState(isLoading = false, posts = listOf(photo("zero"))))
+
+        composeRule
+            .onNodeWithContentDescription("좋아요 0")
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "좋아요 선택 안 됨"))
     }
 
     private fun show(
@@ -220,6 +255,7 @@ class AuthorPostsScreenTest {
         isMine: Boolean = false,
         onRetry: () -> Unit = {},
         onPhotoClick: (Post) -> Unit = {},
+        onLikeClick: (Post) -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -229,6 +265,7 @@ class AuthorPostsScreenTest {
                     isMine = isMine,
                     onNavigateBack = {},
                     onPhotoClick = onPhotoClick,
+                    onLikeClick = onLikeClick,
                     onRetry = onRetry,
                     onEndThresholdChanged = {},
                 )

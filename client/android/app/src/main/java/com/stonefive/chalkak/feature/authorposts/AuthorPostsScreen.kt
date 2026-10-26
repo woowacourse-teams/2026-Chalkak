@@ -46,6 +46,7 @@ import coil3.compose.AsyncImage
 import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPostContent
 import com.stonefive.chalkak.core.designsystem.component.image.sharedAuthorSignature
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.AuthorPost
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.display.DisplayErrorContent
@@ -67,6 +68,7 @@ fun AuthorPostsRoute(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
     LaunchedEffect(removedPostId) {
         removedPostId?.let(viewModel::onPostDeleted)
     }
@@ -81,6 +83,7 @@ fun AuthorPostsRoute(
         onNavigateBack = onNavigateBack,
         onPhotoClick = onPhotoClick,
         onRetry = viewModel::retry,
+        onLikeClick = { viewModel.updateLike(it.id) },
         onEndThresholdChanged = viewModel::onEndThresholdChanged,
         modifier = modifier,
     )
@@ -97,6 +100,7 @@ fun AuthorPostsScreen(
     onEndThresholdChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     authorId: String? = null,
+    onLikeClick: (Post) -> Unit = {},
 ) {
     val photos = remember(uiState.posts, signatureThumbnailImageUrl, isMine) {
         uiState.posts.map { it.toDisplayPost(signatureThumbnailImageUrl, isMine) }
@@ -185,7 +189,7 @@ fun AuthorPostsScreen(
                         onPhotoClick = onPhotoClick,
                         onEndThresholdChanged = onEndThresholdChanged,
                         isLoadingNext = uiState.isLoadingNext,
-                        showLikeCount = false,
+                        onLikeClick = onLikeClick,
                         showSignature = false,
                         header = {
                             AuthorPostsDescription(
@@ -285,7 +289,8 @@ private fun AuthorPost.toDisplayPost(
     signatureThumbnailImageUrl = signatureUrl,
     contentDescription = "${topic.date} ${topic.title}",
     title = null,
-    likeCount = 0,
+    likeCount = likeCount,
+    isLiked = isLiked,
     isOwnedByCurrentUser = isMine,
 )
 

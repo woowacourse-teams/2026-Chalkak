@@ -6,11 +6,17 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.AuthorPost
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.repository.PostRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -22,8 +28,15 @@ class AuthorPostsViewModel(
     val uiState = _uiState.asStateFlow()
     private val deletedPostIds = mutableSetOf<String>()
     private var isNearEnd = false
+    private val pendingLikePostIds = mutableSetOf<String>()
+    private val latestLikeUpdates = mutableMapOf<String, PostLikeUpdate>()
+    private val likeRevisions = mutableMapOf<String, Int>()
+    private var nextMessageId = 0L
 
     init {
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.likeUpdates.collect(::applyLikeUpdate)
+        }
         loadPage(1)
     }
 
@@ -49,6 +62,94 @@ class AuthorPostsViewModel(
         _uiState.update { it.copy(posts = it.posts.filterNot { post -> post.id == postId }) }
     }
 
+    fun updateLike(postId: String) {
+        val state = _uiState.value
+        if (state.isAuthorUnavailable || state.isLoginRequired || !pendingLikePostIds.add(postId)) return
+        val previousPost = state.posts.find { it.id == postId }
+        if (previousPost == null) {
+            pendingLikePostIds.remove(postId)
+            return
+        }
+        val isLiked = !previousPost.isLiked
+        applyLikeUpdate(
+            PostLikeUpdate(
+                postId = postId,
+                likeCount = (previousPost.likeCount.toLong() + if (isLiked) 1 else -1)
+                    .coerceIn(0, Int.MAX_VALUE.toLong())
+                    .toInt(),
+                isLiked = isLiked,
+            ),
+        )
+        val optimisticRevision = likeRevisions[postId]
+        viewModelScope.launch {
+            try {
+                val result = try {
+                    repository.updateLike(postId, isLiked)
+                } catch (cancellation: CancellationException) {
+                    restoreLike(previousPost, optimisticRevision)
+                    throw cancellation
+                } catch (_: Exception) {
+                    HomeResult.Failure(HomeFailure.Network)
+                }
+                when (result) {
+                    is HomeResult.Success -> if (likeRevisions[postId] == optimisticRevision) {
+                        applyLikeUpdate(PostLikeUpdate(postId, result.value.likeCount, result.value.isLiked))
+                    }
+
+                    is HomeResult.Failure -> {
+                        restoreLike(previousPost, optimisticRevision)
+                        val isUnauthorized = result.reason == HomeFailure.Unauthorized ||
+                            result.reason == HomeFailure.Http(401)
+                        _uiState.update {
+                            it.copy(
+                                isLoginRequired = it.isLoginRequired || isUnauthorized,
+                                pendingMessage = if (isUnauthorized) {
+                                    it.pendingMessage
+                                } else {
+                                    UiMessage.Toast(
+                                        id = nextMessageId++,
+                                        text = "좋아요를 변경하지 못했어요. 다시 시도해주세요",
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            } finally {
+                pendingLikePostIds.remove(postId)
+            }
+        }
+    }
+
+    fun onMessageShown(messageId: Long) {
+        _uiState.update { state ->
+            if (state.pendingMessage?.id == messageId) state.copy(pendingMessage = null) else state
+        }
+    }
+
+    private fun restoreLike(
+        previousPost: AuthorPost,
+        optimisticRevision: Int?,
+    ) {
+        if (likeRevisions[previousPost.id] == optimisticRevision) {
+            applyLikeUpdate(PostLikeUpdate(previousPost.id, previousPost.likeCount, previousPost.isLiked))
+        }
+    }
+
+    private fun applyLikeUpdate(update: PostLikeUpdate) {
+        if (update.postId in deletedPostIds) return
+        likeRevisions[update.postId] = (likeRevisions[update.postId] ?: 0) + 1
+        latestLikeUpdates[update.postId] = update
+        _uiState.update { state ->
+            state.copy(posts = state.posts.map { post -> post.withLatestLike() })
+        }
+    }
+
+    private fun AuthorPost.withLatestLike(): AuthorPost {
+        val update = latestLikeUpdates[id] ?: return this
+        return copy(likeCount = update.likeCount, isLiked = update.isLiked)
+    }
+
     private fun loadPage(page: Int) {
         _uiState.update {
             if (page == 1) {
@@ -66,7 +167,8 @@ class AuthorPostsViewModel(
                     state.copy(
                         posts = (if (page == 1) response.posts else state.posts + response.posts)
                             .filterNot { it.id in deletedPostIds }
-                            .distinctBy { it.id },
+                            .distinctBy { it.id }
+                            .map { it.withLatestLike() },
                         isLoading = false,
                         isLoadingNext = false,
                         currentPage = response.currentPage,

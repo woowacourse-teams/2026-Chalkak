@@ -610,7 +610,7 @@ fun ChalkakNavHost(
                                 isLiked = feed.isLiked,
                                 isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                             ),
-                            isLiked = false,
+                            isLiked = feed.isLiked,
                             topicDate = feed.topicDate?.toLocalDateOrNull(),
                         ),
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
@@ -697,7 +697,8 @@ fun ChalkakNavHost(
                                         signatureThumbnailImageUrl = author.signatureThumbnailImageUrl,
                                         contentDescription = post.contentDescription,
                                         title = null,
-                                        likeCount = 0,
+                                        likeCount = post.likeCount,
+                                        isLiked = post.isLiked,
                                         dateLabel = "",
                                         topic = post.contentDescription,
                                         isOwnedByCurrentUser = author.isMine,

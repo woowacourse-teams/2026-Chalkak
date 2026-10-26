@@ -1,9 +1,11 @@
 package com.stonefive.chalkak.feature.authorposts
 
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.AuthorPost
 
 data class AuthorPostsUiState(
     val posts: List<AuthorPost> = emptyList(),
+    val pendingMessage: UiMessage? = null,
     val isLoading: Boolean = true,
     val isLoadingNext: Boolean = false,
     val currentPage: Int = 0,

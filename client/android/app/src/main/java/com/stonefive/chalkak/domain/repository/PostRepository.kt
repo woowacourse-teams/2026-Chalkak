@@ -7,11 +7,16 @@ import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import java.time.YearMonth
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 interface PostRepository {
+    val likeUpdates: Flow<PostLikeUpdate> get() = emptyFlow()
+
     suspend fun getAuthorPosts(
         authorId: String,
         page: Int = 1,

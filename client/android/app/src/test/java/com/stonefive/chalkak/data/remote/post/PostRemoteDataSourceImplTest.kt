@@ -47,7 +47,7 @@ class PostRemoteDataSourceImplTest {
     fun `작성자 공개 사진은 userId 경로와 페이지 조건으로 요청하고 없는 썸네일을 허용한다`() = runTest {
         server.enqueue(
             jsonResponse(
-                """{"currentPage":2,"pageSize":20,"hasNext":false,"posts":[{"id":"post","originalImageUrl":"original","topic":{"id":"topic","title":"주제","topicDate":"2026-10-19"}}]}""",
+                """{"currentPage":2,"pageSize":20,"hasNext":false,"posts":[{"id":"post","originalImageUrl":"original","likeCount":23,"isLiked":true,"topic":{"id":"topic","title":"주제","topicDate":"2026-10-19"}}]}""",
             ),
         )
 
@@ -55,11 +55,47 @@ class PostRemoteDataSourceImplTest {
 
         assertEquals("/api/v1/users/author-id/posts?page=2&pageSize=20", server.takeRequest().path)
         assertEquals(2, result.value.currentPage)
+        assertEquals(
+            23L,
+            result.value.posts
+                .single()
+                .likeCount,
+        )
+        assertTrue(
+            result.value.posts
+                .single()
+                .isLiked,
+        )
         assertNull(
             result.value.posts
                 .single()
                 .thumbnailImageUrl,
         )
+    }
+
+    @Test
+    fun `작성자 공개 사진의 좋아요 0과 미선택 상태를 그대로 받는다`() = runTest {
+        server.enqueue(
+            jsonResponse(
+                """{"currentPage":1,"pageSize":20,"hasNext":false,"posts":[{"id":"post","originalImageUrl":"original","likeCount":0,"isLiked":false,"topic":{"id":"topic","title":"주제","topicDate":"2026-10-19"}}]}""",
+            ),
+        )
+
+        val result = dataSource.getAuthorPosts("author-id", 1, 20) as ApiResult.Success
+
+        assertEquals(
+            0L,
+            result.value.posts
+                .single()
+                .likeCount,
+        )
+        assertEquals(
+            false,
+            result.value.posts
+                .single()
+                .isLiked,
+        )
+        assertEquals(1, server.requestCount)
     }
 
     @Test

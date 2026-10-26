@@ -17,4 +17,6 @@ data class AuthorPostResponse(
     val originalImageUrl: String,
     val thumbnailImageUrl: String? = null,
     val topic: TopicResponse,
+    val likeCount: Long,
+    val isLiked: Boolean,
 )

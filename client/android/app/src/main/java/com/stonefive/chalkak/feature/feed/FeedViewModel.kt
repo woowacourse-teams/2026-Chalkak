@@ -12,6 +12,7 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
@@ -21,6 +22,7 @@ import com.stonefive.chalkak.feature.aireview.AiReviewSession
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,6 +92,8 @@ class FeedViewModel(
         return post.takeIf { it.authorId.isNotBlank() }
     }
 
+    private var syncedLikeRevision = 0
+    private var syncedLike: Pair<Int, PostLikeUpdate>? = null
     private var latestLikeGeneration = 0
     private var nextMessageId = 0L
 
@@ -103,6 +107,30 @@ class FeedViewModel(
     )
 
     init {
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.likeUpdates.collect { update ->
+                if (update.postId != (
+                        _uiState.value.content
+                            ?.post
+                            ?.id ?: postId
+                        )
+                ) {
+                    return@collect
+                }
+                syncedLike = ++syncedLikeRevision to update
+                // 동기화된 서버 상태가 더 최신이므로 이 화면에서 진행 중인 좋아요의 성공 반영·롤백을 무효화한다.
+                latestLikeGeneration++
+                _uiState.update { state ->
+                    val content = state.content ?: return@update state
+                    state.copy(
+                        content = content.copy(
+                            post = content.post.copy(likeCount = update.likeCount, isLiked = update.isLiked),
+                            isLiked = update.isLiked,
+                        ),
+                    )
+                }
+            }
+        }
         syncFeedbackTarget()
         val initialSession = sessionState.value
         viewModelScope.launch {
@@ -388,6 +416,7 @@ class FeedViewModel(
     private fun loadPostDetail(postId: String) {
         val requestUserId = currentUserId()
         val likeGenerationAtRequestStart = latestLikeGeneration
+        val syncRevisionAtRequestStart = syncedLikeRevision
         _uiState.update {
             it.copy(
                 isLoading = it.content == null,
@@ -405,7 +434,13 @@ class FeedViewModel(
             }
 
             when (result) {
-                is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart, requestUserId)
+                is HomeResult.Success -> applyPostDetail(
+                    result.value,
+                    likeGenerationAtRequestStart,
+                    syncRevisionAtRequestStart,
+                    requestUserId,
+                )
+
                 is HomeResult.Failure -> handleDetailFailure(result.reason)
             }
         }
@@ -440,6 +475,7 @@ class FeedViewModel(
     private fun applyPostDetail(
         detail: PostDetail,
         likeGenerationAtRequestStart: Int,
+        syncRevisionAtRequestStart: Int,
         requestUserId: String?,
     ) {
         val previousContent = _uiState.value.content
@@ -447,9 +483,13 @@ class FeedViewModel(
         val shouldPreserveCurrentLike =
             previousPost != null && likeGenerationAtRequestStart != latestLikeGeneration
         val currentLikePost = previousPost?.takeIf { shouldPreserveCurrentLike }
+        val newerSyncedLike = syncedLike
+            ?.takeIf {
+                it.first > syncRevisionAtRequestStart && it.second.postId == detail.post.id
+            }?.second
         val updatedPost = detail.post.copy(
-            likeCount = currentLikePost?.likeCount ?: detail.post.likeCount,
-            isLiked = currentLikePost?.isLiked ?: detail.post.isLiked,
+            likeCount = newerSyncedLike?.likeCount ?: currentLikePost?.likeCount ?: detail.post.likeCount,
+            isLiked = newerSyncedLike?.isLiked ?: currentLikePost?.isLiked ?: detail.post.isLiked,
             signatureThumbnailImageUrl = detail.post.signatureThumbnailImageUrl
                 ?: previousPost?.signatureThumbnailImageUrl,
             submittedAt = detail.post.submittedAt ?: previousPost?.submittedAt,
