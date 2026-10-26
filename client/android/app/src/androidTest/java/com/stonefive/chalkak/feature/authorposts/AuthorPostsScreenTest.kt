@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.authorposts
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -9,8 +10,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.AuthorPost
@@ -50,8 +53,8 @@ class AuthorPostsScreenTest {
                 posts = List(30) { index -> photo(index.toString()) },
             ),
         )
-        composeRule.onNodeWithTag("author-posts-header").assertHeightIsEqualTo(188.dp)
-        composeRule.onNodeWithTag("author-posts-signature").assertHeightIsEqualTo(80.dp)
+        composeRule.onNodeWithTag("author-posts-header").assertHeightIsEqualTo(112.dp)
+        composeRule.onNodeWithTag("author-posts-signature").assertHeightIsEqualTo(64.dp)
         val backButtonTop = composeRule
             .onNodeWithContentDescription("뒤로 가기")
             .fetchSemanticsNode()
@@ -76,9 +79,21 @@ class AuthorPostsScreenTest {
     fun emptyAuthorShowsDescriptionAndEmptyMessage() {
         show(AuthorPostsUiState(isLoading = false))
 
-        composeRule.onNodeWithText("다른 작가님의 시선을 따라가 보세요").assertIsDisplayed()
+        composeRule.onNodeWithText("다른 작가님만의 시선을 감상해보세요").assertIsDisplayed()
         composeRule.onNodeWithText("아직 공개된 사진이 없어요").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("작성자 사인").assertExists()
+    }
+
+    @Test
+    fun descriptionIsStartAligned() {
+        show(AuthorPostsUiState(isLoading = false))
+        val layouts = mutableListOf<TextLayoutResult>()
+
+        composeRule
+            .onNodeWithText("다른 작가님만의 시선을 감상해보세요")
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+
+        assertEquals(0f, layouts.single().getLineLeft(0), 1f)
     }
 
     @Test
@@ -94,7 +109,7 @@ class AuthorPostsScreenTest {
         show(AuthorPostsUiState(isLoading = false, isAuthorUnavailable = true))
 
         composeRule.onNodeWithText("더 이상 사진을 볼 수 없어요").assertIsDisplayed()
-        composeRule.onNodeWithText("다른 작가님의 시선을 따라가 보세요").assertDoesNotExist()
+        composeRule.onNodeWithText("다른 작가님만의 시선을 감상해보세요").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("작성자 사인").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
     }
@@ -120,7 +135,7 @@ class AuthorPostsScreenTest {
 
         repeat(2) { composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() } }
 
-        composeRule.onNodeWithText("다른 작가님의 시선을 따라가 보세요").assertIsNotDisplayed()
+        composeRule.onNodeWithText("다른 작가님만의 시선을 감상해보세요").assertIsNotDisplayed()
         composeRule.onNodeWithContentDescription("작성자 사인").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
     }

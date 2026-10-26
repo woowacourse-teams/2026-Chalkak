@@ -250,8 +250,8 @@ private fun AuthorPostsDescription(
     modifier: Modifier = Modifier,
 ) {
     Text(
-        text = if (isMine) "작가님이 공개한 시선들이에요" else "다른 작가님의 시선을 따라가 보세요",
-        textAlign = TextAlign.Center,
+        text = if (isMine) "작가님이 공개한 시선들이에요" else "다른 작가님만의 시선을 감상해보세요",
+        textAlign = TextAlign.Start,
         color = ChalkakTheme.colors.textSecondary,
         style = ChalkakTheme.typography.subheadline,
         modifier = modifier,
@@ -293,7 +293,7 @@ private val TopBarTouchSize = 44.dp
 private val SignatureWidth = 72.dp
 private val SignatureHeight = 32.dp
 
-private val ExpandedHeaderHeight = 188.dp
-private val ExpandedSignatureWidth = 180.dp
-private val ExpandedSignatureHeight = 80.dp
-private val ExpandedSignatureTop = 88.dp
+private val ExpandedHeaderHeight = 112.dp
+private val ExpandedSignatureWidth = 144.dp
+private val ExpandedSignatureHeight = 64.dp
+private val ExpandedSignatureTop = 40.dp
