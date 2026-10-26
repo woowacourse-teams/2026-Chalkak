@@ -687,7 +687,7 @@ fun ChalkakNavHost(
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.popBackStack()
                         },
-                        onPhotoClick = { post ->
+                        onPhotoClick = { post, dateLabel, topic, topicDate ->
                             if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
                                 navController.navigate(
                                     Feed(
@@ -702,8 +702,9 @@ fun ChalkakNavHost(
                                         title = null,
                                         likeCount = post.likeCount,
                                         isLiked = post.isLiked,
-                                        dateLabel = "",
-                                        topic = post.contentDescription,
+                                        dateLabel = dateLabel,
+                                        topic = topic,
+                                        topicDate = topicDate.toString(),
                                         isOwnedByCurrentUser = isMine,
                                     ),
                                 )

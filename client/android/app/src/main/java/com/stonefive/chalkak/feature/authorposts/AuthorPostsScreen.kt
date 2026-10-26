@@ -55,6 +55,7 @@ import com.stonefive.chalkak.domain.model.AuthorPost
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.display.DisplayErrorContent
 import com.stonefive.chalkak.feature.display.component.DisplayPhotoGrid
+import java.time.LocalDate
 
 @Composable
 fun AuthorPostsRoute(
@@ -62,7 +63,8 @@ fun AuthorPostsRoute(
     signatureThumbnailImageUrl: String?,
     isMine: Boolean,
     onNavigateBack: () -> Unit,
-    onPhotoClick: (Post) -> Unit,
+    // 사진, 상세 상단 날짜 문구("10월 25일의 주제"), 주제 제목, 주제 날짜
+    onPhotoClick: (Post, String, String, LocalDate) -> Unit,
     onLoginRequired: () -> Unit,
     modifier: Modifier = Modifier,
     removedPostId: String? = null,
@@ -94,8 +96,11 @@ fun AuthorPostsRoute(
         isMine = isMine,
         onNavigateBack = onNavigateBack,
         onPhotoClick = { post ->
-            viewModel.onPostOpened(post.id)
-            onPhotoClick(post)
+            // 상세 응답이 오기 전에도 상단에 실제 주제가 보이도록 목록의 주제 정보를 함께 넘긴다.
+            uiState.posts.firstOrNull { it.id == post.id }?.topic?.let { topic ->
+                viewModel.onPostOpened(post.id)
+                onPhotoClick(post, topic.date.toFeedDateLabel(), topic.title, topic.date)
+            }
         },
         onRetry = viewModel::retry,
         onLikeClick = { viewModel.updateLike(it.id) },
@@ -292,6 +297,8 @@ private fun AuthorPostsDescription(
         modifier = modifier,
     )
 }
+
+private fun LocalDate.toFeedDateLabel(): String = "${monthValue}월 ${dayOfMonth}일의 주제"
 
 private fun AuthorPost.toDisplayPost(
     authorId: String,
