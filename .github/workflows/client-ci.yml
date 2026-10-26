@@ -283,6 +283,35 @@ jobs:
             test-without-building \
             -only-testing:chalkakTests 2>&1 | tee "$RUNNER_TEMP/chalkak-unit-tests.log"
 
+      # Reads the counts from the result bundle so the outcome stays visible even when the console log is cut short.
+      # Fails only when the bundle itself reports failed tests; a missing or unreadable bundle just leaves a warning.
+      - name: Summarize test results
+        if: always()
+        run: |
+          set -uo pipefail
+
+          result_bundle="$RUNNER_TEMP/chalkak-unit-tests.xcresult"
+          if [[ ! -d "$result_bundle" ]]; then
+            echo "::warning::No test result bundle was produced."
+            exit 0
+          fi
+
+          if ! summary="$(xcrun xcresulttool get test-results summary --path "$result_bundle" --compact)" ||
+            ! failed_tests="$(printf '%s\n' "$summary" | jq -er '.failedTests')" ||
+            [[ ! "$failed_tests" =~ ^[0-9]+$ ]]; then
+            echo "::warning::Could not read the test counts from the result bundle."
+            exit 0
+          fi
+
+          printf '%s\n' "$summary" |
+            jq -r '"Test results: \(.result) | total \(.totalTestCount), passed \(.passedTests), failed \(.failedTests), skipped \(.skippedTests), expected failures \(.expectedFailures)"' |
+            tee -a "$GITHUB_STEP_SUMMARY"
+
+          if (( failed_tests > 0 )); then
+            echo "::error::The test result bundle reports $failed_tests failed test(s)."
+            exit 1
+          fi
+
       - name: Upload iOS failure reports
         if: failure()
         uses: actions/upload-artifact@v6
