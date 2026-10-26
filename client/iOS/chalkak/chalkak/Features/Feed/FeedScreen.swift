@@ -204,7 +204,7 @@ struct FeedScreen: View {
                 .textInputAutocapitalization(.never)
             Button("취소", role: .cancel) { showsTitleEditDialog = false }
             Button("저장") { viewModel.updatePostTitle(titleDraft) }
-                .disabled(viewModel.viewState.isUpdatingTitle || titleDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(viewModel.viewState.isUpdatingTitle)
         } message: {
             Text("새 제목을 입력해 저장하면 게시물에 바로 반영돼요.")
         }
