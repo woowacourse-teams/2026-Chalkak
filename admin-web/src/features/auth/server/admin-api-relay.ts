@@ -26,6 +26,8 @@ const ROUTES = [
   { pattern: /^\/ai-prompt-previews$/, methods: ["POST"] },
   { pattern: /^\/ai-prompt-versions$/, methods: ["GET", "POST"] },
   { pattern: new RegExp(`^/ai-prompt-versions/${UUID}$`), methods: ["GET"] },
+  { pattern: /^\/ai-reviews$/, methods: ["GET"] },
+  { pattern: new RegExp(`^/ai-reviews/${UUID}$`), methods: ["GET"] },
   { pattern: /^\/auth\/login$/, methods: ["POST"] },
   { pattern: /^\/auth\/me$/, methods: ["GET"] },
   { pattern: /^\/auth\/logout$/, methods: ["POST"] },
