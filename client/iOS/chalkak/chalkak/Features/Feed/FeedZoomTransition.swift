@@ -42,10 +42,18 @@ final class FeedZoomRegistry {
         var registrationID: UUID?
         // 홈 랭킹처럼 패딩 안쪽 가로 스크롤에 걸친 카드는 그 경계에서 잘려 보인다.
         var containerBounds: CGRect?
+
+        func acceptsTap(at location: CGPoint) -> Bool {
+            (clipFrame ?? frame).contains(location)
+                && (visibleBounds?.contains(location) ?? true)
+        }
     }
 
     // 사진이 이동하는 동안 숨길 출발 뷰. 이동 중인 사진과 겹쳐 두 장으로 보이지 않게 한다.
     var activeSource: FeedZoomSource?
+    // 뒤로가기 스와이프로 창이 떠 있는 동안에는 가려진 부분까지 숨겨 같은 사진이 남지 않게 한다.
+    var hidesWholeSource = false
+    var sourceBarOpacity: CGFloat = 0
     @ObservationIgnored private var sources: [FeedZoomSource: Source] = [:]
     @ObservationIgnored private var viewports: [FeedZoomViewport: CGRect] = [:]
     @ObservationIgnored var bottomBarFrame: CGRect?
@@ -183,9 +191,12 @@ private struct FeedZoomSourceModifier: ViewModifier {
                     GeometryReader { proxy in
                         Color.clear
                             .contentShape(Rectangle())
-                            .onTapGesture {
+                            .onTapGesture(coordinateSpace: .global) { location in
                                 // Lazy 셀의 이전 등록 여부와 무관하게 실제 탭한 위치를 전달한다.
-                                onSelect(register(proxy.frame(in: .global)))
+                                let measured = register(proxy.frame(in: .global))
+                                // 하단바나 스크롤 경계 뒤에 가려진 부분에서는 전환을 시작하지 않는다.
+                                guard measured.acceptsTap(at: location) else { return }
+                                onSelect(measured)
                             }
                     }
                     .accessibilityHidden(true)
@@ -220,9 +231,24 @@ private struct FeedZoomSourceModifier: ViewModifier {
             .onChange(of: containerBounds) { _, _ in
                 if let frame { register(frame) }
             }
-            .opacity(registry?.activeSource == source ? 0 : 1)
+            .mask {
+                if registry?.activeSource == source {
+                    FeedZoomSourceRemainder(hidden: hiddenBounds)
+                        .fill(style: FillStyle(eoFill: true))
+                } else {
+                    Rectangle()
+                }
+            }
             .onAppear { if let frame { register(frame) } }
             .onDisappear { registry?.remove(source, registrationID: registrationID) }
+    }
+
+    // 이동하는 사진이 대신 그리는 영역. 하단바·패딩에 가려진 부분은 이동하는 사진이 그리지 않으므로 남긴다.
+    // 전부 숨기면 반투명 하단바 아래가 비고, 전부 남기면 복귀 스와이프 중 같은 사진이 두 장 보인다.
+    private var hiddenBounds: CGRect? {
+        guard registry?.hidesWholeSource != true else { return nil }
+        guard let frame, let visible = registry?.source(for: source)?.visibleBounds else { return nil }
+        return visible.offsetBy(dx: -frame.minX, dy: -frame.minY)
     }
 
     @discardableResult
@@ -264,6 +290,19 @@ private struct FeedZoomViewportModifier: ViewModifier {
         content.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
             registry?.updateViewport($0, for: viewport)
         }
+    }
+}
+
+/// 출발 뷰에서 `hidden` 영역만 뺀 모양. `hidden`이 없으면 전부 숨긴다.
+struct FeedZoomSourceRemainder: Shape {
+    let hidden: CGRect?
+
+    func path(in rect: CGRect) -> Path {
+        guard let hidden else { return Path() }
+        var path = Path(rect)
+        let overlap = rect.intersection(hidden)
+        if !overlap.isNull { path.addRect(overlap) }
+        return path
     }
 }
 
@@ -451,6 +490,7 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
     let photo: CGRect?
     let canvas: CGRect?
     let safeAreaInsets: EdgeInsets
+    var revealsCoveredSource = false
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(progress, dragOffset) }
@@ -466,7 +506,8 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
            photo.width > 0, photo.height > 0, source.frame.width > 0, source.frame.height > 0 {
             geometry = FeedScreenReturnGeometry(
                 progress: progress, dragOffset: dragOffset, source: source, photo: photo,
-                canvas: canvas, safeAreaInsets: safeAreaInsets, floatingRadius: theme.shapes.sheet
+                canvas: canvas, safeAreaInsets: safeAreaInsets, floatingRadius: theme.shapes.sheet,
+                revealsCoveredSource: revealsCoveredSource
             )
         } else {
             geometry = nil
@@ -476,6 +517,7 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
             .mask {
                 if let geometry {
                     FeedScreenReturnMask(bounds: geometry.clip, screen: geometry.screen, cornerRadius: geometry.cornerRadius)
+                        .clipShape(Path(geometry.viewportClip))
                 } else {
                     Rectangle().ignoresSafeArea()
                 }
@@ -489,6 +531,7 @@ struct FeedScreenReturnGeometry {
     let scale: CGFloat
     let offset: CGSize
     let clip: CGRect
+    let viewportClip: CGRect
     // 실제 화면(안전 영역 포함)을 변환 전 로컬 좌표로 옮긴 영역.
     let screen: CGRect
     let cornerRadius: CGFloat
@@ -498,7 +541,7 @@ struct FeedScreenReturnGeometry {
 
     init(progress: CGFloat, dragOffset: CGFloat = 0, source: FeedZoomRegistry.Source,
          photo: CGRect, canvas: CGRect, safeAreaInsets: EdgeInsets = EdgeInsets(),
-         floatingRadius: CGFloat = ChalkakShapes.sheet) {
+         floatingRadius: CGFloat = ChalkakShapes.sheet, revealsCoveredSource: Bool = false) {
         let remaining = 1 - min(max(progress, 0), 1)
         let endScale = max(source.frame.width / photo.width, source.frame.height / photo.height)
         // 드래그 중에는 최대 4%만 작아지고 전체 화면 영역을 보존한다.
@@ -512,41 +555,51 @@ struct FeedScreenReturnGeometry {
             width: endOffset.width * remaining + dragOffset * (1 - remaining),
             height: endOffset.height * remaining
         )
-        var target = source.clipFrame ?? source.frame
-        if let visible = source.visibleBounds {
-            let intersection = target.intersection(visible)
-            if !intersection.isNull { target = intersection }
-        }
-        // 최종 변환을 역산해 카드 클립을 상세 화면의 로컬 좌표로 옮긴다.
-        let endClip = CGRect(
-            x: canvas.width / 2 + (target.minX - canvas.midX - endOffset.width) / endScale,
-            y: canvas.height / 2 + (target.minY - canvas.midY - endOffset.height) / endScale,
-            width: target.width / endScale,
-            height: target.height / endScale
-        )
         let fullBounds = CGRect(
             x: -safeAreaInsets.leading, y: -safeAreaInsets.top,
             width: canvas.width + safeAreaInsets.leading + safeAreaInsets.trailing,
             height: canvas.height + safeAreaInsets.top + safeAreaInsets.bottom
         )
-        screen = CGRect(
+        let screen = CGRect(
             x: canvas.width / 2 + (fullBounds.minX - canvas.width / 2 - offset.width) / scale,
             y: canvas.height / 2 + (fullBounds.minY - canvas.height / 2 - offset.height) / scale,
             width: fullBounds.width / scale,
             height: fullBounds.height / scale
         )
-        var clip = CGRect(
-            x: fullBounds.minX + (endClip.minX - fullBounds.minX) * remaining,
-            y: fullBounds.minY + (endClip.minY - fullBounds.minY) * remaining,
-            width: fullBounds.width + (endClip.width - fullBounds.width) * remaining,
-            height: fullBounds.height + (endClip.height - fullBounds.height) * remaining
-        )
-        // 카드에서 전체 화면까지 같은 비율로 키우면 하단이 끝까지 화면에 닿지 못하다가 마지막에 한 번에 채워진다.
-        // 하단은 먼저 화면 끝까지 펼쳐 붙여 둔다. 손으로 끄는 동안에는 떠 있는 창 모양을 유지한다.
-        let bottomLead = min(1, (1 - remaining) / Self.bottomLeadProgress) * (1 - min(max(dragOffset, 0) / 12, 1))
-        let bottom = endClip.maxY + (screen.maxY - endClip.maxY) * bottomLead
-        if bottom > clip.maxY { clip.size.height = bottom - clip.minY }
-        self.clip = clip
+        self.screen = screen
+        // 카드 모서리와 가려지는 경계는 별도로 보간한다. 교집합을 둥글게 만들면
+        // 하단바 경계에 가짜 모서리가 생겼다가 원래 카드로 교체될 때 펴진다.
+        func interpolatedClip(for target: CGRect) -> CGRect {
+            let endClip = CGRect(
+                x: canvas.width / 2 + (target.minX - canvas.midX - endOffset.width) / endScale,
+                y: canvas.height / 2 + (target.minY - canvas.midY - endOffset.height) / endScale,
+                width: target.width / endScale,
+                height: target.height / endScale
+            )
+            var bounds = CGRect(
+                x: fullBounds.minX + (endClip.minX - fullBounds.minX) * remaining,
+                y: fullBounds.minY + (endClip.minY - fullBounds.minY) * remaining,
+                width: fullBounds.width + (endClip.width - fullBounds.width) * remaining,
+                height: fullBounds.height + (endClip.height - fullBounds.height) * remaining
+            )
+            let bottomLead = min(1, (1 - remaining) / Self.bottomLeadProgress)
+                * (1 - min(max(dragOffset, 0) / 12, 1))
+            let bottom = endClip.maxY + (screen.maxY - endClip.maxY) * bottomLead
+            if bottom > bounds.maxY { bounds.size.height = bottom - bounds.minY }
+            return bounds
+        }
+        clip = interpolatedClip(for: source.clipFrame ?? source.frame)
+        viewportClip = source.visibleBounds.map { visible in
+            var bounds = visible
+            if revealsCoveredSource {
+                // 복귀 사진은 바 아래까지 이동한다. 하단바 자체는 상위 레이어가 그린다.
+                bounds.size.height = max(bounds.maxY, (source.clipFrame ?? source.frame).maxY) - bounds.minY
+                if let container = source.containerBounds {
+                    bounds = bounds.intersection(container)
+                }
+            }
+            return interpolatedClip(for: bounds)
+        } ?? clip
         let lift = min(1, max(max(dragOffset, 0) / 12, remaining / 0.06))
         cornerRadius = (floatingRadius * lift * (1 - remaining) + source.cornerRadius * remaining) / scale
     }

@@ -113,7 +113,12 @@ private struct DisplayFeaturedCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .onTapGesture(coordinateSpace: .global) { location in
+            if let source = zoomRegistry?.source(for: .displayFeatured(photo.id)),
+               !source.acceptsTap(at: location) { return }
+            onSelect()
+        }
+        .accessibilityAction { onSelect() }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("피드 열기")
         .overlay(alignment: .bottomLeading) {

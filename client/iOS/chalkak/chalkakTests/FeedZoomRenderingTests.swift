@@ -36,8 +36,11 @@ final class FeedZoomRenderingTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertEqual(registry.activeSource, source, "The moving feed photo must replace its source card")
+        XCTAssertTrue(registry.hidesWholeSource, "Do not leave a stationary fragment below the bar during opening")
         try await Task.sleep(for: .seconds(1))
         XCTAssertEqual(registry.activeSource, source, "Keep the source hidden after opening so a return swipe cannot expose a duplicate")
+        XCTAssertTrue(registry.hidesWholeSource)
+        XCTAssertEqual(registry.sourceBarOpacity, 0, "The bar must disappear when the feed has opened")
         host.rootView = AnyView(Color.clear)
         host.view.layoutIfNeeded()
         let disappearanceDeadline = clock.now.advanced(by: .seconds(3))
@@ -45,6 +48,8 @@ final class FeedZoomRenderingTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertNil(registry.activeSource, "Restore the source when the feed disappears")
+        XCTAssertFalse(registry.hidesWholeSource)
+        XCTAssertEqual(registry.sourceBarOpacity, 0)
     }
 
     func testOpeningWaitsForUncachedPhotoAfterLayoutIsMeasured() async throws {
@@ -398,6 +403,73 @@ final class FeedZoomRenderingTests: XCTestCase {
         }
     }
 
+    func testScreenReturnDoesNotRoundOcclusionEdges() async throws {
+        let canvas = CGRect(x: 0, y: 0, width: 402, height: 874)
+        for sourceY: CGFloat in [100, 700] {
+            for usesFitCard in [false, true] {
+                let card = CGRect(x: 20, y: sourceY, width: 160, height: 210)
+                let source = FeedZoomRegistry.Source(
+                    frame: usesFitCard ? card.insetBy(dx: 0, dy: 20) : card,
+                    cornerRadius: 12,
+                    clipFrame: usesFitCard ? card : nil,
+                    visibleBounds: CGRect(x: 0, y: 220, width: 402, height: 560)
+                )
+                let scene = ZStack {
+                    Color.white
+                    Color(.sRGB, red: 1, green: 0, blue: 0, opacity: 1).modifier(FeedScreenReturnEffect(
+                        progress: 0, dragOffset: 0, source: source,
+                        photo: CGRect(x: 0, y: 160, width: 402, height: 400),
+                        canvas: canvas, safeAreaInsets: EdgeInsets()
+                    ))
+                }.frame(width: canvas.width, height: canvas.height)
+                let renderer = ImageRenderer(content: scene)
+                renderer.scale = 1
+                let image = try XCTUnwrap(renderer.uiImage)
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "Return straight occlusion y=\(sourceY) fit=\(usesFitCard)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let edgeY = sourceY == 100 ? 221 : 778
+                XCTAssertEqual(try pixel(image, x: 22, y: edgeY), [255, 0, 0, 255], "Occlusion must not create a rounded corner")
+                XCTAssertEqual(try pixel(image, x: 177, y: edgeY), [255, 0, 0, 255])
+                XCTAssertEqual(try pixel(image, x: 100, y: sourceY == 100 ? 210 : 790), [255, 255, 255, 255])
+                XCTAssertEqual(try pixel(image, x: 20, y: sourceY == 100 ? 309 : 700), [255, 255, 255, 255], "Actual card corners stay rounded")
+            }
+        }
+    }
+
+    func testClosingScreenCarriesPhotoBelowBottomBarUntilArrival() async throws {
+        let canvas = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let card = CGRect(x: 220, y: 700, width: 160, height: 150)
+        let source = FeedZoomRegistry.Source(
+            frame: card, cornerRadius: 12,
+            visibleBounds: CGRect(x: 0, y: 220, width: 402, height: 560)
+        )
+        for progress: CGFloat in [1, 0.5, 0.1, 0.01, 0] {
+            let scene = ZStack(alignment: .topLeading) {
+                Color.white
+                // Only the moving photo is drawn; the original card stays hidden.
+                Color(.sRGB, red: 1, green: 0, blue: 0, opacity: 1)
+                    .modifier(FeedScreenReturnEffect(
+                        progress: progress, dragOffset: 0, source: source,
+                        photo: CGRect(x: 0, y: 160, width: 402, height: 400),
+                        canvas: canvas, safeAreaInsets: EdgeInsets(), revealsCoveredSource: true
+                    ))
+                Color.blue.frame(width: 362, height: 40).offset(x: 20, y: 780)
+            }.frame(width: canvas.width, height: canvas.height)
+            let renderer = ImageRenderer(content: scene)
+            renderer.scale = 1
+            let image = try XCTUnwrap(renderer.uiImage)
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "Single moving photo return progress=\(progress)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if progress <= 0.01 {
+                XCTAssertEqual(try pixel(image, x: 300, y: 830), [255, 0, 0, 255], "Moving photo must arrive below the bar before source restoration")
+            }
+        }
+    }
+
     func testSourceViewportExcludesBarsWithoutChangingPhotoBounds() async {
         let registry = FeedZoomRegistry()
         let photo = CGRect(x: 25, y: 100, width: 82, height: 250)
@@ -420,6 +492,58 @@ final class FeedZoomRenderingTests: XCTestCase {
         let source = registry.source(for: .homeTrending("photo"))
         XCTAssertEqual(source?.frame, photo)
         XCTAssertEqual(source?.visibleBounds, row)
+    }
+
+    func testSourceCardKeepsOnlyThePartCoveredByBottomBar() {
+        // A 160x210 card whose lower 80pt sits under the bottom bar.
+        let card = CGRect(x: 0, y: 0, width: 160, height: 210)
+        let remainder = FeedZoomSourceRemainder(hidden: CGRect(x: -20, y: -700, width: 402, height: 830)).path(in: card)
+        XCTAssertFalse(remainder.contains(CGPoint(x: 80, y: 60), eoFill: true), "The moving photo replaces the visible part")
+        XCTAssertTrue(remainder.contains(CGPoint(x: 80, y: 180), eoFill: true), "Keep the part the moving photo does not draw")
+        XCTAssertTrue(FeedZoomSourceRemainder(hidden: nil).path(in: card).isEmpty, "Without a viewport the whole card is replaced")
+    }
+
+    func testBackSwipeHidesSourceCardUnderBottomBar() async throws {
+        let registry = FeedZoomRegistry()
+        let source = FeedZoomSource.displayGrid("swipe")
+        let host = UIHostingController(rootView: AnyView(
+            ZStack(alignment: .topLeading) {
+                Color.white
+                Color.red
+                    .frame(width: 160, height: 210)
+                    .feedZoomSource(source)
+                    .offset(x: 20, y: 300)
+            }
+            .ignoresSafeArea()
+            .environment(\.feedZoomRegistry, registry)
+        ))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        // The lower part of the card (y 450...510) sits under the bottom bar.
+        registry.updateViewport(CGRect(x: 0, y: 0, width: 402, height: 874), for: .display)
+        registry.bottomBarFrame = CGRect(x: 0, y: 450, width: 402, height: 74)
+        registry.activeSource = source
+        func underBar() async throws -> [UInt8] {
+            try await Task.sleep(for: .milliseconds(100))
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            return try pixel(image, x: Int(100 * image.scale), y: Int(480 * image.scale))
+        }
+        let opening = try await underBar()
+        XCTAssertGreaterThan(Int(opening[0]) - Int(opening[1]), 100, "Opening keeps the part the moving photo does not draw")
+        registry.hidesWholeSource = true
+        let swiping = try await underBar()
+        XCTAssertLessThan(abs(Int(swiping[0]) - Int(swiping[1])), 20, "A back swipe must not leave the card under the bar")
     }
 
     func testFeaturedPhotoUsesFittedImageBounds() {
