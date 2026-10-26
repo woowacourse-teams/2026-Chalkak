@@ -138,7 +138,7 @@ class AuthorPostsScreenTest {
     fun emptyAuthorShowsDescriptionAndEmptyMessage() {
         show(AuthorPostsUiState(isLoading = false))
 
-        composeRule.onNodeWithText("다른 작가님만의 시선을 감상해보세요").assertIsDisplayed()
+        composeRule.onNodeWithText("이 작가님의 시선을 감상해보세요").assertIsDisplayed()
         composeRule.onNodeWithText("아직 공개된 사진이 없어요").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("작성자 사인").assertExists()
     }
@@ -149,7 +149,7 @@ class AuthorPostsScreenTest {
         val layouts = mutableListOf<TextLayoutResult>()
 
         composeRule
-            .onNodeWithText("다른 작가님만의 시선을 감상해보세요")
+            .onNodeWithText("이 작가님의 시선을 감상해보세요")
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
 
         assertEquals(0f, layouts.single().getLineLeft(0), 1f)
@@ -168,7 +168,7 @@ class AuthorPostsScreenTest {
         show(AuthorPostsUiState(isLoading = false, isAuthorUnavailable = true))
 
         composeRule.onNodeWithText("더 이상 사진을 볼 수 없어요").assertIsDisplayed()
-        composeRule.onNodeWithText("다른 작가님만의 시선을 감상해보세요").assertDoesNotExist()
+        composeRule.onNodeWithText("이 작가님의 시선을 감상해보세요").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("작성자 사인").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
     }
@@ -194,7 +194,7 @@ class AuthorPostsScreenTest {
 
         repeat(2) { composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() } }
 
-        composeRule.onNodeWithText("다른 작가님만의 시선을 감상해보세요").assertIsNotDisplayed()
+        composeRule.onNodeWithText("이 작가님의 시선을 감상해보세요").assertIsNotDisplayed()
         composeRule.onNodeWithContentDescription("작성자 사인").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
     }

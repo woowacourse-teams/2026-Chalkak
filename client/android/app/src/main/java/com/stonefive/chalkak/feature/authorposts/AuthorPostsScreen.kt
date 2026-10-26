@@ -266,7 +266,7 @@ private fun AuthorPostsDescription(
     modifier: Modifier = Modifier,
 ) {
     Text(
-        text = if (isMine) "작가님이 공개한 시선들이에요" else "다른 작가님만의 시선을 감상해보세요",
+        text = if (isMine) "작가님이 공개한 시선들이에요" else "이 작가님의 시선을 감상해보세요",
         textAlign = TextAlign.Start,
         color = ChalkakTheme.colors.textSecondary,
         style = ChalkakTheme.typography.subheadline,
