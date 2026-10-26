@@ -169,6 +169,8 @@ struct AuthorPostsScreen: View {
             )
         )
         target.transitionSource = transitionSource
+        // 이 피드에서 같은 작가의 사인을 누르면 목록을 새로 열지 않고, 뒤로 가기처럼 이 카드로 접혀 돌아온다.
+        target.sourceAuthorID = viewModel.target.authorID
         return target
     }
 

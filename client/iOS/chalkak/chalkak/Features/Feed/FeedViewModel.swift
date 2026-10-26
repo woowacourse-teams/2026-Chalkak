@@ -19,6 +19,7 @@ final class FeedViewModel {
 
     private let postID: String
     private let isOwnedByCurrentUser: Bool
+    private let sourceAuthorID: String?
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
     private let deleteHandler: DeleteHandler
@@ -32,6 +33,7 @@ final class FeedViewModel {
         seed: FeedContent? = nil,
         isLikeConfirmed: Bool = false,
         isOwnedByCurrentUser: Bool = false,
+        sourceAuthorID: String? = nil,
         initialState: FeedViewState? = nil,
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
@@ -48,6 +50,7 @@ final class FeedViewModel {
         }
         self.postID = postID
         self.isOwnedByCurrentUser = isOwnedByCurrentUser
+        self.sourceAuthorID = sourceAuthorID
         if let initialState {
             self.viewState = initialState
         } else if let seed {
@@ -71,6 +74,7 @@ final class FeedViewModel {
             seed: target.seed,
             isLikeConfirmed: target.isLikeConfirmed,
             isOwnedByCurrentUser: target.isOwnedByCurrentUser,
+            sourceAuthorID: target.sourceAuthorID,
             detailHandler: { postID in
                 await feedResult { try await apiClient.fetchPostDetail(postID: postID) }
             },
@@ -134,6 +138,21 @@ final class FeedViewModel {
 
     func retry() async {
         await load()
+    }
+
+    /// 사인을 눌렀을 때 할 일. 작성자 ID를 아직 모르면 nil이라 아무것도 하지 않는다.
+    /// 작가 사진 목록에서 연 피드의 사인은 항상 그 작가라서, 목록을 다시 쌓지 않고 돌아가게 한다.
+    /// 예) 목록(작가 A) → 피드(A의 사진) → 사인 탭 → `.returnToAuthorPosts`
+    func signatureTapAction() -> FeedSignatureTapAction? {
+        guard let post = viewState.content?.post, let authorID = post.authorID else { return nil }
+        if authorID == sourceAuthorID { return .returnToAuthorPosts }
+        return .openAuthorPosts(
+            AuthorPostsTarget(
+                authorID: authorID,
+                signatureImageSource: post.signatureThumbnailImageSource ?? post.signatureImageSource,
+                isMine: post.isOwnedByCurrentUser
+            )
+        )
     }
 
     func toggleLike() {

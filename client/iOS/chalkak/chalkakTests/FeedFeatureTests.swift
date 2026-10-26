@@ -174,6 +174,68 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.post.signatureThumbnailImageSource == .asset("preview_signature_thumbnail"))
     }
 
+    @Test("피드에서 사인을 누르면 작성자 ID와 사인 썸네일로 작가 사진 목록을 연다")
+    func signatureTapOpensAuthorPosts() {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        seed.post.signatureThumbnailImageSource = .asset("preview_signature_thumbnail")
+        let viewModel = FeedViewModel(postID: "post-1", seed: seed)
+
+        #expect(viewModel.signatureTapAction() == .openAuthorPosts(
+            AuthorPostsTarget(
+                authorID: "author-1",
+                signatureImageSource: .asset("preview_signature_thumbnail"),
+                isMine: false
+            )
+        ))
+    }
+
+    @Test("상세에서 연 피드는 썸네일이 없어 원본 사인을, 내 게시물이면 내 목록으로 연다")
+    func signatureTapFallsBackToOriginalSignature() {
+        var seed = Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true)
+        seed.post.authorID = "me"
+        let viewModel = FeedViewModel(postID: "post-1", seed: seed)
+
+        #expect(viewModel.signatureTapAction() == .openAuthorPosts(
+            AuthorPostsTarget(authorID: "me", signatureImageSource: .asset("preview_signature"), isMine: true)
+        ))
+    }
+
+    @Test("작가 사진 목록에서 연 피드의 같은 작가 사인은 목록으로 돌아가기다")
+    func signatureTapFromAuthorPostsReturns() {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        let fromList = FeedViewModel(postID: "post-1", seed: seed, sourceAuthorID: "author-1")
+        let fromOtherList = FeedViewModel(postID: "post-1", seed: seed, sourceAuthorID: "author-2")
+
+        #expect(fromList.signatureTapAction() == .returnToAuthorPosts)
+        #expect(fromOtherList.signatureTapAction() == .openAuthorPosts(
+            AuthorPostsTarget(authorID: "author-1", signatureImageSource: .asset("preview_signature"), isMine: false)
+        ))
+    }
+
+    @Test("작성자 ID를 모르면 사인을 눌러도 아무것도 하지 않는다")
+    func signatureTapWithoutAuthorDoesNothing() {
+        let withoutAuthor = FeedViewModel(postID: "post-1", seed: Self.content(isLiked: false, likeCount: 3))
+        let loading = FeedViewModel(postID: "post-1")
+
+        #expect(withoutAuthor.signatureTapAction() == nil)
+        #expect(loading.signatureTapAction() == nil)
+    }
+
+    @Test("목록에서 여는 FeedTarget의 출발 작가 ID가 피드 뷰모델까지 전달된다")
+    func feedTargetPassesSourceAuthor() {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        var target = FeedTarget(seed: seed, isLikeConfirmed: true, zoomSource: .authorGrid("post-1"))
+        target.sourceAuthorID = "author-1"
+
+        let viewModel = FeedViewModel(target: target, apiClient: FeedAPIClient())
+
+        #expect(target.zoomSource?.viewport == .authorPosts)
+        #expect(viewModel.signatureTapAction() == .returnToAuthorPosts)
+    }
+
     @Test("전시 시드는 상세 확정 전까지 좋아요를 막고, 확정 후 허용한다")
     func displaySeedGatesLikeUntilLoaded() async {
         let viewModel = FeedViewModel(

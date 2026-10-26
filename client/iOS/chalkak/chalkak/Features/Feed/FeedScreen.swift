@@ -40,6 +40,8 @@ struct FeedScreen: View {
     // 닫는 전환이 끝난 뒤 호출된다.
     var onBack: () -> Void = {}
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
+    // 사인을 눌러 작가 사진 목록을 연다. nil이면 사인을 누를 수 없다.
+    var onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)?
 
     init(
         viewModel: FeedViewModel,
@@ -49,7 +51,8 @@ struct FeedScreen: View {
         usesPhotoTransition: Bool = true,
         opensAIReviewOnEntry: Bool = false,
         onBack: @escaping () -> Void = {},
-        onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
+        onDeleted: @escaping (FeedPost.ID) -> Void = { _ in },
+        onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
         _transitionSource = State(initialValue: transitionSource)
@@ -59,6 +62,7 @@ struct FeedScreen: View {
         self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
+        self.onOpenAuthorPosts = onOpenAuthorPosts
     }
 
     var body: some View {
@@ -280,6 +284,7 @@ struct FeedScreen: View {
                         startOpening()
                     },
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
+                    onSignatureTap: signatureTapHandler,
                     onLike: {
                         // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 좋아요를 실행하지 않는다.
                         guard canLike else { return }
@@ -296,6 +301,24 @@ struct FeedScreen: View {
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
         .scrollDisabled(isPhotoMoving || isPhotoInteracting)
+    }
+
+    // 작성자 ID를 받기 전(상세 로딩 중)이나 사인 탭을 쓰지 않는 화면에서는 nil이라 사인을 누를 수 없다.
+    private var signatureTapHandler: (() -> Void)? {
+        guard onOpenAuthorPosts != nil, viewModel.viewState.content?.post.authorID != nil else { return nil }
+        return handleSignatureTap
+    }
+
+    private func handleSignatureTap() {
+        guard !isBackSwiping, !isPhotoMoving, !isClosing else { return }
+        switch viewModel.signatureTapAction() {
+        case .returnToAuthorPosts:
+            close()
+        case let .openAuthorPosts(target):
+            onOpenAuthorPosts?(target)
+        case nil:
+            break
+        }
     }
 
     private var canLike: Bool {
