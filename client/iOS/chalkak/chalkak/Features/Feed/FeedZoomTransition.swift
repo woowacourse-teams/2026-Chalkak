@@ -27,6 +27,10 @@ enum FeedZoomViewport: Hashable {
 @MainActor
 @Observable
 final class FeedZoomRegistry {
+    // Avoid the isolated-deinit back-deployment crash on iOS 26.2 and older.
+    // No actor-bound cleanup is needed. See swiftlang/swift#88036.
+    nonisolated deinit {}
+
     struct Source: Sendable {
         let frame: CGRect
         let cornerRadius: CGFloat
