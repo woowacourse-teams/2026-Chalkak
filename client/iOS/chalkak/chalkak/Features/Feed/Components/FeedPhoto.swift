@@ -11,6 +11,11 @@ struct FeedPhoto: View {
     let onPhotoFrameChanged: (CGRect) -> Void
     let onPhotoInteractionChanged: (Bool) -> Void
     let onLike: () -> Void
+    // nil이면 사인을 누를 수 없다(작성자 ID를 모르거나 사인 탭을 쓰지 않는 화면).
+    // 누른 순간 사인의 화면상(global) 위치를 넘긴다. 작가 사진 목록이 이 자리에서 펼쳐진다.
+    let onSignatureTap: ((CGRect?) -> Void)?
+    // 작가 사진 목록이 이 사인 자리에서 펼쳐지는 동안 제자리의 사인을 숨긴다.
+    let isSignatureHidden: Bool
     @State private var imageRatio: CGFloat?
     @State private var imageSwap: FeedPhotoImageSwap
     @State private var didReportReady = false
@@ -31,6 +36,8 @@ struct FeedPhoto: View {
         onTransitionReady: @escaping () -> Void = {},
         onPhotoFrameChanged: @escaping (CGRect) -> Void = { _ in },
         onPhotoInteractionChanged: @escaping (Bool) -> Void = { _ in },
+        onSignatureTap: ((CGRect?) -> Void)? = nil,
+        isSignatureHidden: Bool = false,
         onLike: @escaping () -> Void
     ) {
         self.post = post
@@ -40,6 +47,8 @@ struct FeedPhoto: View {
         self.onTransitionReady = onTransitionReady
         self.onPhotoFrameChanged = onPhotoFrameChanged
         self.onPhotoInteractionChanged = onPhotoInteractionChanged
+        self.onSignatureTap = onSignatureTap
+        self.isSignatureHidden = isSignatureHidden
         self.onLike = onLike
         let cached = placeholder?.preloadedImage ?? placeholder?.imageSource.cachedImage()
             ?? post?.originalImageSource.cachedImage()
@@ -76,7 +85,7 @@ struct FeedPhoto: View {
                                 source: signatureZoomSource,
                                 destinationFrame: signatureFrame
                             )
-                            .opacity(signatureOpacity)
+                            .opacity(isSignatureHidden ? 0 : signatureOpacity)
                             .padding(theme.spacing.sm)
                         }
                     }
@@ -107,6 +116,12 @@ struct FeedPhoto: View {
             .overlay {
                 FeedPhotoTouchSurface(isEnabled: zoom.isSettled, onTouchesChanged: updateTouches)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            // 터치 표면보다 위에 두어야 사인 탭이 사진 확대 제스처에 가려지지 않는다.
+            .overlay(alignment: .bottomTrailing) {
+                if let onSignatureTap, zoom.isSettled, !isPhotoInteracting {
+                    signatureButton(action: onSignatureTap)
+                }
             }
             .zIndex(1)
             .task(id: placeholder?.imageSource ?? post?.originalImageSource) {
@@ -181,6 +196,20 @@ struct FeedPhoto: View {
                 .opacity(zoom.contentProgress)
             }
         }
+    }
+
+    // 사진 위에 그려진 사인 자리를 덮는 투명 버튼. 사인 둘레 여백까지 눌리게 해 44pt 이상을 확보한다.
+    private func signatureButton(action: @escaping (CGRect?) -> Void) -> some View {
+        Button { action(signatureFrame) } label: {
+            Color.clear
+                .frame(width: Metrics.signatureSize.width, height: Metrics.signatureSize.height)
+                .padding(theme.spacing.sm)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(post?.isOwnedByCurrentUser == true ? "내 사인" : "작성자 사인")
+        .accessibilityHint("사진 모아보기")
+        .accessibilityIdentifier("feed-signature")
     }
 
     private func updateTouches(_ touches: [FeedPhotoTouch], origin: CGPoint) {

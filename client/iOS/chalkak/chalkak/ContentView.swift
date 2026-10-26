@@ -18,6 +18,11 @@ struct ContentView: View {
     @State private var selectedTab: ChalkakBottomBarItem = .home
     @State private var isBottomBarCompact = false
     @State private var selectedFeed: FeedTarget?
+    // 피드에서 사인을 눌러 연 작가 사진 목록과, 그 목록에서 연 피드. 피드 overlay 위에 차례로 쌓인다.
+    @State private var selectedAuthorPosts: AuthorPostsViewModel?
+    @State private var selectedAuthorFeed: FeedTarget?
+    // 작가 사진 목록 카드에서 마지막으로 바꾼 좋아요. 목록을 연 피드가 같은 게시물이면 맞춘다.
+    @State private var authorPostsLikeUpdate: FeedLikeUpdate?
     @State private var selectedIssueURL: URL?
     @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
@@ -112,7 +117,9 @@ struct ContentView: View {
                                     onDeleted: { postID in
                                         closeNotificationDestination(destination)
                                         handleDeletedPost(postID)
-                                    }
+                                    },
+                                    onOpenAuthorPosts: openAuthorPosts,
+                                    externalLikeUpdate: authorPostsLikeUpdate
                                 )
                                 .id(postID)
                                 .background(InteractivePopGestureEnabler())
@@ -139,7 +146,48 @@ struct ContentView: View {
                             zoomSource: target.zoomSource,
                             transitionSource: target.transitionSource,
                             onBack: { selectedFeed = nil },
-                            onDeleted: handleDeletedPost
+                            onDeleted: handleDeletedPost,
+                            onOpenAuthorPosts: openAuthorPosts,
+                            externalLikeUpdate: authorPostsLikeUpdate
+                        )
+                        .id(target.id)
+                        .transition(.identity)
+                        .accessibilityAddTraits(.isModal)
+                    }
+                }
+                // 피드 위에 작가 사진 목록을 새 층으로 띄운다. 닫으면 아래 피드가 그대로 남아 있다.
+                .overlay {
+                    if let authorPostsViewModel = selectedAuthorPosts {
+                        // 사인 자리에서 펼치고 접는 전환과 백 스와이프는 화면이 스스로 한다.
+                        AuthorPostsScreen(
+                            viewModel: authorPostsViewModel,
+                            onBack: { selectedAuthorPosts = nil },
+                            onSelectPost: { selectedAuthorFeed = $0 },
+                            onLikeChange: { authorPostsLikeUpdate = $0 }
+                        )
+                        .id(ObjectIdentifier(authorPostsViewModel))
+                        .transition(.identity)
+                        .accessibilityAddTraits(.isModal)
+                    }
+                }
+                // 목록에서 연 피드는 목록 위의 또 다른 층이다. 닫으면 목록이 스크롤 위치 그대로 보인다.
+                .overlay {
+                    if let target = selectedAuthorFeed {
+                        FeedScreen(
+                            viewModel: makeFeedViewModel(target),
+                            placeholder: target.placeholder,
+                            zoomSource: target.zoomSource,
+                            transitionSource: target.transitionSource,
+                            onBack: { selectedAuthorFeed = nil },
+                            onDeleted: handleDeletedAuthorPost,
+                            onOpenAuthorPosts: openAuthorPosts,
+                            // 상세에서 확인·변경한 좋아요를 목록 카드와 목록을 연 피드에 맞춘다.
+                            onLikeChange: { update in
+                                selectedAuthorPosts?.applyLike(update)
+                                authorPostsLikeUpdate = update
+                            },
+                            // 카드 좋아요 응답이 상세를 연 뒤에 도착해도 이 상세에 맞춘다.
+                            externalLikeUpdate: authorPostsLikeUpdate
                         )
                         .id(target.id)
                         .transition(.identity)
@@ -580,6 +628,48 @@ struct ContentView: View {
         recordViewModel.removeDeletedPost(postID)
     }
 
+    private func openAuthorPosts(_ target: AuthorPostsTarget) {
+        // 작가 사진 목록은 로그인이 필요하다(POST-007). 비로그인 피드에서도 사인은 보이므로 안내만 띄운다.
+        guard KeychainSessionStore.hasAuthenticatedSession() else {
+            showMessage("다른 사진도 보려면 로그인이 필요해요")
+            return
+        }
+        let viewModel = AuthorPostsViewModel(
+            target: target,
+            apiClient: AuthorPostsAPIClient(
+                configuration: AuthorPostsAPIConfiguration(baseURL: Self.resolvedAPIBaseURL),
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            ),
+            likeClient: FeedAPIClient(
+                configuration: FeedAPIConfiguration(baseURL: Self.resolvedAPIBaseURL),
+                accessTokenProvider: { KeychainSessionStore.accessToken() }
+            )
+        )
+        // 목록에서 연 피드의 사인은 같은 작가라 돌아가기로 처리된다. 여기 오는 건 피드에서 처음 여는 경우다.
+        selectedAuthorFeed = nil
+        // 이전 목록의 값이 남아 있으면 같은 값으로 바뀐 좋아요가 변경으로 감지되지 않는다.
+        authorPostsLikeUpdate = nil
+        selectedAuthorPosts = viewModel
+    }
+
+    // 목록에서 연 피드에서 내 사진을 지웠을 때. 목록에서 빼고, 목록을 연 피드도 같은 사진이면 함께 닫는다.
+    private func handleDeletedAuthorPost(_ postID: FeedPost.ID) {
+        selectedAuthorFeed = nil
+        selectedAuthorPosts?.removePost(postID)
+        if selectedFeed?.id == postID {
+            selectedAuthorPosts = nil
+            handleDeletedPost(postID)
+            return
+        }
+        if let destination = notificationPath.last,
+           destination == .approved(postID) || destination == .aiReview(postID) {
+            selectedAuthorPosts = nil
+            closeNotificationDestination(destination)
+        }
+        showMessage("게시물이 삭제됐어요")
+        recordViewModel.removeDeletedPost(postID)
+    }
+
     private func showMain() {
         resetMainState()
         route = .main
@@ -665,6 +755,8 @@ struct ContentView: View {
 
     private func openNotificationDestination(_ tap: PushNotificationTap, fromInbox: Bool) {
         selectedFeed = nil
+        selectedAuthorPosts = nil
+        selectedAuthorFeed = nil
         withAnimation {
             notificationPath = fromInbox ? [.inbox] : []
             switch tap {
@@ -824,6 +916,8 @@ struct ContentView: View {
         homeViewModel.cancel()
         selectedTab = .home
         selectedFeed = nil
+        selectedAuthorPosts = nil
+        selectedAuthorFeed = nil
         selectedIssueURL = nil
         signatureAnalyticsScreen = nil
         isNotificationInboxPresented = false
@@ -1125,6 +1219,12 @@ struct ContentView: View {
         }
         if let signatureAnalyticsScreen {
             return signatureAnalyticsScreen
+        }
+        if selectedAuthorFeed != nil {
+            return AnalyticsScreen(name: "feed", screenClass: "Feed")
+        }
+        if selectedAuthorPosts != nil {
+            return AnalyticsScreen(name: "author_posts", screenClass: "AuthorPosts")
         }
         if selectedFeed != nil {
             return AnalyticsScreen(name: "feed", screenClass: "Feed")

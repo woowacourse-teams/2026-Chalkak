@@ -156,6 +156,114 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.topic == "갱신됨")
     }
 
+    @Test("상세 응답에 작성자 ID가 없으면 전시 시드의 값을 유지한다")
+    func detailKeepsSeedAuthor() async {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: seed,
+            isLikeConfirmed: true,
+            detailHandler: { _ in .success(Self.content(isLiked: false, likeCount: 3)) }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.content?.post.authorID == "author-1")
+    }
+
+    @Test("피드에서 사인을 누르면 작성자 ID와 원본 사인으로 작가 사진 목록을 연다")
+    func signatureTapOpensAuthorPosts() {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        let viewModel = FeedViewModel(postID: "post-1", seed: seed)
+
+        #expect(viewModel.signatureTapAction() == .openAuthorPosts(
+            AuthorPostsTarget(authorID: "author-1", signatureImageSource: .asset("preview_signature"), isMine: false)
+        ))
+    }
+
+    @Test("내 게시물의 사인을 누르면 내 목록으로 연다")
+    func signatureTapOnMinePostOpensMyPosts() {
+        var seed = Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true)
+        seed.post.authorID = "me"
+        let viewModel = FeedViewModel(postID: "post-1", seed: seed)
+
+        #expect(viewModel.signatureTapAction() == .openAuthorPosts(
+            AuthorPostsTarget(authorID: "me", signatureImageSource: .asset("preview_signature"), isMine: true)
+        ))
+    }
+
+    @Test("작가 사진 목록에서 연 피드의 같은 작가 사인은 목록으로 돌아가기다")
+    func signatureTapFromAuthorPostsReturns() {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        let fromList = FeedViewModel(postID: "post-1", seed: seed, sourceAuthorID: "author-1")
+        let fromOtherList = FeedViewModel(postID: "post-1", seed: seed, sourceAuthorID: "author-2")
+
+        #expect(fromList.signatureTapAction() == .returnToAuthorPosts)
+        #expect(fromOtherList.signatureTapAction() == .openAuthorPosts(
+            AuthorPostsTarget(authorID: "author-1", signatureImageSource: .asset("preview_signature"), isMine: false)
+        ))
+    }
+
+    @Test("작성자 ID를 모르면 사인을 눌러도 아무것도 하지 않는다")
+    func signatureTapWithoutAuthorDoesNothing() {
+        let withoutAuthor = FeedViewModel(postID: "post-1", seed: Self.content(isLiked: false, likeCount: 3))
+        let loading = FeedViewModel(postID: "post-1")
+
+        #expect(withoutAuthor.signatureTapAction() == nil)
+        #expect(loading.signatureTapAction() == nil)
+    }
+
+    @Test("목록에서 여는 FeedTarget의 출발 작가 ID가 피드 뷰모델까지 전달된다")
+    func feedTargetPassesSourceAuthor() {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        var target = FeedTarget(seed: seed, isLikeConfirmed: true, zoomSource: .authorGrid("post-1"))
+        target.sourceAuthorID = "author-1"
+
+        let viewModel = FeedViewModel(target: target, apiClient: FeedAPIClient())
+
+        #expect(target.zoomSource?.viewport == .authorPosts)
+        #expect(viewModel.signatureTapAction() == .returnToAuthorPosts)
+    }
+
+    @Test("작가 사진 목록에서 바뀐 좋아요를 같은 게시물에만 반영한다")
+    func appliesExternalLikeUpdate() {
+        let viewModel = FeedViewModel(postID: "post-1", seed: Self.content(isLiked: false, likeCount: 3))
+
+        viewModel.applyLikeUpdate(FeedLikeUpdate(postID: "other", isLiked: true, likeCount: 9))
+        #expect(viewModel.viewState.content?.post.likeCount == 3)
+
+        viewModel.applyLikeUpdate(FeedLikeUpdate(postID: "post-1", isLiked: true, likeCount: 4))
+        #expect(viewModel.viewState.content?.post.isLiked == true)
+        #expect(viewModel.viewState.content?.post.likeCount == 4)
+    }
+
+    @Test("상세를 받기 전에 도착한 다른 화면의 좋아요를 상세 도착 뒤에도 유지한다")
+    func keepsExternalLikeArrivedBeforeDetail() async {
+        let gate = AsyncGate()
+        defer { gate.release() }
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            detailHandler: { _ in
+                await gate.waitForRelease()
+                // 카드 좋아요가 반영되기 전 상태로 처리된 상세 응답.
+                return .success(Self.content(isLiked: false, likeCount: 3))
+            }
+        )
+
+        let loadTask = Task { await viewModel.load() }
+        await gate.waitUntilEntered()
+        viewModel.applyLikeUpdate(FeedLikeUpdate(postID: "post-1", isLiked: true, likeCount: 4))
+        gate.release()
+        await loadTask.value
+
+        #expect(viewModel.viewState.content?.post.isLiked == true)
+        #expect(viewModel.viewState.content?.post.likeCount == 4)
+    }
+
     @Test("전시 시드는 상세 확정 전까지 좋아요를 막고, 확정 후 허용한다")
     func displaySeedGatesLikeUntilLoaded() async {
         let viewModel = FeedViewModel(

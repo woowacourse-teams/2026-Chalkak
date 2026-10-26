@@ -928,6 +928,7 @@ struct DisplayAPIClientTests {
         #expect(content.page.photos.first?.isLiked == true)
         #expect(content.page.photos.first?.isOwnedByCurrentUser == true)
         #expect(content.page.photos.first?.thumbnailImageSource == .remote(URL(string: "https://example.com/thumb.webp")))
+        #expect(content.page.photos.first?.authorID == nil)
         let requests = await recorder.requests
         #expect(requests.count == 2)
         #expect(requests[0].url?.query?.contains("date=2026-09-02") == true)
@@ -935,6 +936,23 @@ struct DisplayAPIClientTests {
         #expect(requests[1].url?.query?.contains("sort=recent") == true)
         #expect(requests[1].url?.query?.contains("pageSize=20") == true)
         #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
+    }
+
+    @Test("목록 응답의 authorId를 사진 작성자 ID로 매핑한다")
+    func mapsAuthorIDFromPostPage() async throws {
+        let client = Self.makeClient { request in
+            if request.url?.path == "/api/v1/topics" {
+                return Self.response(for: request, body: #"{"title":"반짝임","topicDate":"2026-09-01"}"#)
+            }
+            return Self.response(
+                for: request,
+                body: #"{"currentPage":1,"pageSize":20,"hasNext":false,"posts":[{"id":"post-1","authorId":"author-1","originalImageUrl":"https://example.com/original.webp","thumbnailImageUrl":"https://example.com/thumb.webp","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumb.png","title":"빛","likeCount":0,"isLiked":false}]}"#
+            )
+        }
+
+        let content = try await client.fetchDisplay(date: Self.date(2026, 9, 1), sort: .latest)
+
+        #expect(content.page.photos.first?.authorID == "author-1")
     }
 
     @Test("random 첫 페이지 재조회도 기존 시드를 posts 요청에 전달한다")

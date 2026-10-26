@@ -19,11 +19,14 @@ final class FeedViewModel {
 
     private let postID: String
     private let isOwnedByCurrentUser: Bool
+    private let sourceAuthorID: String?
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
     private let deleteHandler: DeleteHandler
     private let updateTitleHandler: UpdateTitleHandler
     private var likeGeneration = 0
+    // 상세를 받기 전에 다른 화면에서 도착한 좋아요. 상세가 도착하면 그 위에 덮어쓴다.
+    private var pendingLikeUpdate: FeedLikeUpdate?
     // 직전 좋아요 요청. 다음 요청은 이 태스크가 끝난 뒤에 보내 직렬화한다.
     private var likeTask: Task<Void, Never>?
 
@@ -32,6 +35,7 @@ final class FeedViewModel {
         seed: FeedContent? = nil,
         isLikeConfirmed: Bool = false,
         isOwnedByCurrentUser: Bool = false,
+        sourceAuthorID: String? = nil,
         initialState: FeedViewState? = nil,
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
@@ -48,6 +52,7 @@ final class FeedViewModel {
         }
         self.postID = postID
         self.isOwnedByCurrentUser = isOwnedByCurrentUser
+        self.sourceAuthorID = sourceAuthorID
         if let initialState {
             self.viewState = initialState
         } else if let seed {
@@ -71,6 +76,7 @@ final class FeedViewModel {
             seed: target.seed,
             isLikeConfirmed: target.isLikeConfirmed,
             isOwnedByCurrentUser: target.isOwnedByCurrentUser,
+            sourceAuthorID: target.sourceAuthorID,
             detailHandler: { postID in
                 await feedResult { try await apiClient.fetchPostDetail(postID: postID) }
             },
@@ -111,8 +117,18 @@ final class FeedViewModel {
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
             }
+            // 상세 응답에 작성자 ID가 없으면(서버 반영 전) 전시 시드에서 받은 값을 유지한다.
+            if let current = viewState.content {
+                merged.post.authorID = merged.post.authorID ?? current.post.authorID
+            }
             if isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
+            }
+            // 상세 요청이 좋아요 반영 전에 처리됐을 수 있어, 그 사이 받은 좋아요 결과를 우선한다.
+            if let pending = pendingLikeUpdate {
+                merged.post.isLiked = pending.isLiked
+                merged.post.likeCount = pending.likeCount
+                pendingLikeUpdate = nil
             }
             aiReview?.updateTopicDate(merged.topicDate)
             viewState.content = merged
@@ -129,6 +145,38 @@ final class FeedViewModel {
 
     func retry() async {
         await load()
+    }
+
+    /// 사인을 눌렀을 때 할 일. 작성자 ID를 아직 모르면 nil이라 아무것도 하지 않는다.
+    /// 작가 사진 목록에서 연 피드의 사인은 항상 그 작가라서, 목록을 다시 쌓지 않고 돌아가게 한다.
+    /// 예) 목록(작가 A) → 피드(A의 사진) → 사인 탭 → `.returnToAuthorPosts`
+    func signatureTapAction() -> FeedSignatureTapAction? {
+        guard let post = viewState.content?.post, let authorID = post.authorID else { return nil }
+        if authorID == sourceAuthorID { return .returnToAuthorPosts }
+        return .openAuthorPosts(
+            AuthorPostsTarget(
+                authorID: authorID,
+                // 탑바에서 크게 그리므로 썸네일이 아닌 원본을 쓴다. 피드가 이미 받아 둔 이미지라 바로 그려진다.
+                signatureImageSource: post.signatureImageSource,
+                isMine: post.isOwnedByCurrentUser
+            )
+        )
+    }
+
+    /// 다른 화면에서 바뀐 좋아요를 반영한다. 다른 게시물의 값이면 무시한다.
+    /// 진행 중인 상세 조회가 이 값을 덮어쓰지 않도록 좋아요 세대를 올린다.
+    /// 예) 작가 목록 카드에서 좋아요를 누르고 응답 전에 같은 사진 상세를 열면, 상세 도착 전후 어느 쪽이든 카드 결과로 맞춘다.
+    func applyLikeUpdate(_ update: FeedLikeUpdate) {
+        guard update.postID == postID else { return }
+        guard var content = viewState.content else {
+            pendingLikeUpdate = update
+            return
+        }
+        guard content.post.isLiked != update.isLiked || content.post.likeCount != update.likeCount else { return }
+        likeGeneration += 1
+        content.post.isLiked = update.isLiked
+        content.post.likeCount = update.likeCount
+        viewState.content = content
     }
 
     func toggleLike() {
