@@ -145,6 +145,29 @@ struct AuthorPostsViewModelTests {
         #expect(recorder.pages == [1, 2])
     }
 
+    @Test("이미 받은 사진만 온 페이지면 끝 도달 신호 없이 다음 페이지를 이어 받는다")
+    func continuesAfterDuplicateOnlyPage() async {
+        let recorder = AuthorPostsPageRecorder()
+        let viewModel = AuthorPostsViewModel(target: Self.target) { page in
+            recorder.pages.append(page)
+            switch page {
+            case 1:
+                return .success(AuthorPostsPage(posts: [Self.post("a"), Self.post("b")], currentPage: 1, hasNext: true))
+            case 2:
+                return .success(AuthorPostsPage(posts: [Self.post("a"), Self.post("b")], currentPage: 2, hasNext: true))
+            default:
+                return .success(AuthorPostsPage(posts: [Self.post("c")], currentPage: 3, hasNext: false))
+            }
+        }
+
+        await viewModel.load()
+        await viewModel.didReachEndThreshold(true)
+
+        #expect(recorder.pages == [1, 2, 3])
+        #expect(viewModel.viewState.posts.map(\.id) == ["a", "b", "c"])
+        #expect(!viewModel.viewState.isLoadingNext)
+    }
+
     @Test("빈 목록은 loaded 상태의 빈 화면이다")
     func emptyPageIsLoadedAndEmpty() async {
         let viewModel = AuthorPostsViewModel(target: Self.target) { _ in

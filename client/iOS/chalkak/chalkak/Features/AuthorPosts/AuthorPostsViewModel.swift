@@ -153,9 +153,14 @@ final class AuthorPostsViewModel {
         switch result {
         case let .success(page):
             var existingIDs = Set(viewState.posts.map(\.id))
-            viewState.posts.append(contentsOf: page.posts.filter { existingIDs.insert($0.id).inserted })
+            let newPosts = page.posts.filter { existingIDs.insert($0.id).inserted }
+            viewState.posts.append(contentsOf: newPosts)
             viewState.currentPage = page.currentPage
             viewState.hasNext = page.hasNext
+            // 이미 받은 사진만 온 페이지면 새 카드가 없어 끝 도달 신호가 다시 오지 않는다. 바로 다음 페이지를 이어 받는다.
+            if newPosts.isEmpty, page.hasNext {
+                await loadNextPage()
+            }
         case .failure:
             // 다음에 끝에 다시 닿으면 같은 페이지를 다시 요청한다.
             isEndThresholdReached = false
