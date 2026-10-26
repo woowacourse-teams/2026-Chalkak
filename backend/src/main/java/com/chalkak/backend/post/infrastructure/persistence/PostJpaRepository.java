@@ -58,6 +58,9 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             @Param("excludedStatus") ModerationStatus excludedStatus
     );
 
+    /**
+     * 조건을 바꾸면 관리자 AI 리뷰 조회의 visibleToAuthor(AdminAiReviewJpql)도 함께 고친다.
+     */
     @Query("""
             SELECT post
             FROM Post post
