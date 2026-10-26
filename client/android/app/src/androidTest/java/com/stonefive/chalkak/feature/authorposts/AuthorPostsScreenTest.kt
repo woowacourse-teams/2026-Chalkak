@@ -1,13 +1,17 @@
 package com.stonefive.chalkak.feature.authorposts
 
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.AuthorPost
 import com.stonefive.chalkak.domain.model.Post
@@ -22,10 +26,57 @@ class AuthorPostsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun loadingIndicatorIsCenteredInTheAvailableBody() {
+        show(AuthorPostsUiState(isLoading = true))
+
+        val body = composeRule
+            .onNodeWithTag("author-posts-body")
+            .fetchSemanticsNode()
+            .boundsInRoot
+        val loading = composeRule
+            .onNodeWithTag("author-posts-loading")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        assertEquals(body.center.x, loading.center.x, 1f)
+        assertEquals(body.center.y, loading.center.y, 1f)
+    }
+
+    @Test
+    fun largeSignatureCollapsesIntoSmallTopBarWhenGridIsScrolled() {
+        show(
+            AuthorPostsUiState(
+                isLoading = false,
+                posts = List(30) { index -> photo(index.toString()) },
+            ),
+        )
+        composeRule.onNodeWithTag("author-posts-header").assertHeightIsEqualTo(188.dp)
+        composeRule.onNodeWithTag("author-posts-signature").assertHeightIsEqualTo(80.dp)
+        val backButtonTop = composeRule
+            .onNodeWithContentDescription("뒤로 가기")
+            .fetchSemanticsNode()
+            .boundsInRoot.top
+
+        composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() }
+
+        composeRule.onNodeWithTag("author-posts-header").assertHeightIsEqualTo(44.dp)
+        composeRule.onNodeWithTag("author-posts-signature").assertHeightIsEqualTo(32.dp)
+        composeRule.onNodeWithContentDescription("작성자 사인").assertIsDisplayed()
+        assertEquals(
+            backButtonTop,
+            composeRule
+                .onNodeWithContentDescription("뒤로 가기")
+                .fetchSemanticsNode()
+                .boundsInRoot.top,
+            1f,
+        )
+    }
+
+    @Test
     fun emptyAuthorShowsDescriptionAndEmptyMessage() {
         show(AuthorPostsUiState(isLoading = false))
 
-        composeRule.onNodeWithText("한 작가님의 시선을 따라가 보세요").assertIsDisplayed()
+        composeRule.onNodeWithText("다른 작가님의 시선을 따라가 보세요").assertIsDisplayed()
         composeRule.onNodeWithText("아직 공개된 사진이 없어요").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("작성자 사인").assertExists()
     }
@@ -43,7 +94,7 @@ class AuthorPostsScreenTest {
         show(AuthorPostsUiState(isLoading = false, isAuthorUnavailable = true))
 
         composeRule.onNodeWithText("더 이상 사진을 볼 수 없어요").assertIsDisplayed()
-        composeRule.onNodeWithText("한 작가님의 시선을 따라가 보세요").assertDoesNotExist()
+        composeRule.onNodeWithText("다른 작가님의 시선을 따라가 보세요").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("작성자 사인").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
     }
@@ -67,9 +118,9 @@ class AuthorPostsScreenTest {
             ),
         )
 
-        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(20)
+        repeat(2) { composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() } }
 
-        composeRule.onNodeWithText("한 작가님의 시선을 따라가 보세요").assertIsNotDisplayed()
+        composeRule.onNodeWithText("다른 작가님의 시선을 따라가 보세요").assertIsNotDisplayed()
         composeRule.onNodeWithContentDescription("작성자 사인").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
     }
