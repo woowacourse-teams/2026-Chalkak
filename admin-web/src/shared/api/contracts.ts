@@ -375,3 +375,70 @@ export interface AiPromptVersionDetail extends AiPromptVersionSummary {
     distinctivePerspectiveThreshold: number;
   };
 }
+
+export type AiReviewStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export interface AiReviewUsage {
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  outputTokens: number | null;
+  reasoningTokens: number | null;
+}
+
+export interface AiReviewPromptVersion {
+  promptVersionId: string;
+  version: number;
+  model: string;
+}
+
+export interface AiReviewAuthor {
+  userId: string;
+  email: string | null;
+  status: UserStatus;
+  deletedAt: Instant | null;
+}
+
+export interface AdminAiReviewSummary {
+  aiReviewId: string;
+  status: AiReviewStatus;
+  // Kept after a failed attempt, so a QUEUED review waiting for a retry can still have one.
+  errorCode: string | null;
+  requestCount: number;
+  overallScore: number | null;
+  promptVersion: AiReviewPromptVersion;
+  post: {
+    postId: string;
+    thumbnailUrl: string | null;
+    moderationStatus: ModerationStatus;
+    deletedAt: Instant | null;
+  };
+  author: AiReviewAuthor;
+  usage: AiReviewUsage;
+  latencyMs: number | null;
+  requestedAt: Instant;
+  lastRequestedAt: Instant;
+  completedAt: Instant | null;
+  visibleToAuthor: boolean;
+}
+
+export interface AdminAiReviewListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  aiReviews: AdminAiReviewSummary[];
+}
+
+export interface AdminAiReviewDetail extends Omit<AdminAiReviewSummary, "post"> {
+  post: AdminAiReviewSummary["post"] & { imageUrl: string | null };
+  startedAt: Instant | null;
+  attempt: number;
+  openaiResponseId: string | null;
+  result: {
+    overallScore: number;
+    criteria: { key: string; label: string; score: number }[];
+    distinctivePerspective: boolean;
+    feedback: AiPromptPreviewFeedback;
+  } | null;
+  // Raw model output; only completed reviews have it.
+  output: Record<string, unknown> | null;
+}

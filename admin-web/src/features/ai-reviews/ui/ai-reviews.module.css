@@ -1,0 +1,22 @@
+.filterRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; padding: 16px; }
+.filterRow label { display: grid; min-width: 0; gap: 7px; }
+.filterRow span { color: #565867; font-size: 12px; }
+.filterRow select { width: 100%; min-height: 44px; border: 1px solid #d4d5df; border-radius: 6px; background: #fff; padding: 8px 10px; color: #252631; font: inherit; font-size: 14px; }
+.filterRow select:focus { outline: 2px solid #6262d9; outline-offset: 2px; }
+.thumbLink { display: block; width: 76px; }
+.cell { display: grid; min-width: 0; gap: 4px; font-size: 13px; overflow-wrap: anywhere; }
+.cell small, .muted { color: #77798d; font-size: 12px; }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rawNote { display: grid; gap: 2px; margin: 0; color: #77798d; font-size: 12px; line-height: 1.6; }
+.detailLink { display: inline-flex; min-height: 44px; align-items: center; color: #5557a1; font-weight: 700; }
+.detailLink:hover { text-decoration: underline; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.links a { display: inline-flex; min-height: 44px; align-items: center; color: #5557a1; font-size: 13px; }
+.links a:hover { text-decoration: underline; }
+.imageBox { max-width: 520px; }
+.rawOutput { margin: 0; }
+.rawOutput summary { min-height: 44px; align-content: center; color: #5557a1; font-size: 13px; cursor: pointer; }
+.rawOutput pre { max-height: 480px; margin: 8px 0 0; overflow: auto; border: 1px solid #e3e4ed; border-radius: 6px; background: #f6f7fb; padding: 14px; color: #252631; font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .filterRow { padding: 14px; } .filterRow select { font-size: 16px; } }
+.nowrap { white-space: nowrap; }
+.email { overflow-wrap: anywhere; }

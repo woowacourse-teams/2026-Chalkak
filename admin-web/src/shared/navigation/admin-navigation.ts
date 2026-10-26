@@ -24,6 +24,9 @@ export function getCurrentNavigation(pathname: string): AdminNavigationItem {
   if (pathname === "/pushes" || pathname.startsWith("/pushes/")) {
     return { href: "/pushes", label: "알림", icon: "clock" };
   }
+  if (pathname === "/ai-reviews" || pathname.startsWith("/ai-reviews/")) {
+    return { href: "/ai-prompts", label: "AI", icon: "sparkle" };
+  }
   return adminNavigation.find((item) =>
     pathname === item.href || pathname.startsWith(`${item.href}/`),
   ) ?? adminNavigation[0];
