@@ -70,15 +70,24 @@ public class PostQueryService {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다.");
         }
 
+        PostSlice postSlice = postRepository.findVisibleRecentByAuthorId(
+                authorId,
+                page,
+                pageSize
+        );
+        List<UUID> postIds = postSlice.posts().stream().map(Post::getId).toList();
+        Map<UUID, Long> likeCounts = findLikeCounts(postIds);
+        Set<UUID> likedPostIds = postIds.isEmpty()
+                ? Set.of()
+                : postLikeRepository.findLikedPostIds(postIds, viewerId);
+
         return AuthorPostListResult.fromPostSlice(
-                postRepository.findVisibleRecentByAuthorId(
-                        authorId,
-                        page,
-                        pageSize
-                ),
+                postSlice,
                 page,
                 pageSize,
-                imageUrlProvider
+                imageUrlProvider,
+                likeCounts,
+                likedPostIds
         );
     }
 
@@ -256,10 +265,7 @@ public class PostQueryService {
             );
         }
 
-        Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
-                .collect(Collectors.toMap(
-                        PostLikeCount::postId,
-                        PostLikeCount::likeCount));
+        Map<UUID, Long> likeCounts = findLikeCounts(postIds);
         Set<UUID> likedPostIds = userId
                 .map(id -> postLikeRepository.findLikedPostIds(postIds, id))
                 .orElseGet(Set::of);
@@ -274,6 +280,16 @@ public class PostQueryService {
                 likedPostIds,
                 userId
         );
+    }
+
+    private Map<UUID, Long> findLikeCounts(List<UUID> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        return postLikeRepository.countByPostIds(postIds).stream()
+                .collect(Collectors.toMap(
+                        PostLikeCount::postId,
+                        PostLikeCount::likeCount));
     }
 
     private Topic getOpenTopic(Instant now) {

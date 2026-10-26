@@ -9,10 +9,13 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +32,9 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @ParameterizedTest
     @ValueSource(strings = {"ACTIVE", "BANNED"})
@@ -478,5 +484,192 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
         assertThat(pastEnd.currentPage()).isEqualTo(3);
         assertThat(pastEnd.pageSize()).isEqualTo(2);
         assertThat(pastEnd.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED"})
+    @DisplayName("좋아요 수와 조회자별 상태를 구분하고 다음 페이지의 0건도 반환한다")
+    void getAuthorPosts_likesAcrossPages_returnsViewerState(String viewerStatus) {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        jdbcTemplate.update(
+                "UPDATE users SET status = ?::user_status WHERE id = ?",
+                viewerStatus,
+                viewerId
+        );
+        List<UUID> postIds = new ArrayList<>();
+        for (int day = 3; day >= 1; day--) {
+            postIds.add(createPost(
+                    jdbcTemplate,
+                    authorId,
+                    LocalDate.of(
+                            2026,
+                            4,
+                            day
+                    ),
+                    ModerationStatus.APPROVED
+            ));
+        }
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?), (?, ?), (?, ?)",
+                postIds.get(0),
+                viewerId,
+                postIds.get(0),
+                authorId,
+                postIds.get(1),
+                authorId
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AuthorPostListResult first = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                2,
+                viewerId
+        );
+        AuthorPostListResult second = postQueryService.getAuthorPosts(
+                authorId,
+                2,
+                2,
+                viewerId
+        );
+        AuthorPostListResult own = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                2,
+                authorId
+        );
+
+        // Then
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::id)
+                .containsExactly(postIds.get(0), postIds.get(1));
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::likeCount)
+                .containsExactly(2L, 1L);
+        assertThat(first.posts()).extracting(AuthorPostListResult.PostSummary::isLiked)
+                .containsExactly(true, false);
+        assertThat(first.hasNext()).isTrue();
+        assertThat(second.posts()).singleElement().satisfies(post -> {
+            assertThat(post.id()).isEqualTo(postIds.get(2));
+            assertThat(post.likeCount()).isZero();
+            assertThat(post.isLiked()).isFalse();
+        });
+        assertThat(second.hasNext()).isFalse();
+        assertThat(own.posts()).allSatisfy(post -> assertThat(post.isLiked()).isTrue());
+    }
+
+    @Test
+    @DisplayName("좋아요 취소 후 다시 조회하면 개수와 내 상태를 갱신한다")
+    void getAuthorPosts_likeCancelled_returnsCurrentLikes() {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        UUID postId = createPost(
+                jdbcTemplate,
+                authorId,
+                LocalDate.of(
+                        2026,
+                        4,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                postId,
+                viewerId
+        );
+        AuthorPostListResult before = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        );
+        jdbcTemplate.update("DELETE FROM post_likes WHERE post_id = ?", postId);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AuthorPostListResult after = postQueryService.getAuthorPosts(
+                authorId,
+                1,
+                20,
+                viewerId
+        );
+
+        // Then
+        assertThat(before.posts()).singleElement().satisfies(post -> {
+            assertThat(post.likeCount()).isEqualTo(1);
+            assertThat(post.isLiked()).isTrue();
+        });
+        assertThat(after.posts()).singleElement().satisfies(post -> {
+            assertThat(post.likeCount()).isZero();
+            assertThat(post.isLiked()).isFalse();
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 20, 100})
+    @DisplayName("사진 수와 무관하게 좋아요를 일괄 조회하고 빈 페이지는 좋아요 쿼리를 생략한다")
+    void getAuthorPosts_pageSize_usesBoundedQueries(int count) {
+        // Given
+        UUID authorId = createUser(jdbcTemplate);
+        UUID viewerId = createUser(jdbcTemplate);
+        for (int day = 0; day < count; day++) {
+            UUID postId = createPost(
+                    jdbcTemplate,
+                    authorId,
+                    LocalDate.of(
+                            2026,
+                            1,
+                            1
+                    ).plusDays(day),
+                    ModerationStatus.APPROVED
+            );
+            jdbcTemplate.update(
+                    "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                    postId,
+                    viewerId
+            );
+        }
+        entityManager.flush();
+        entityManager.clear();
+        Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class)
+                .getStatistics();
+        boolean wasEnabled = statistics.isStatisticsEnabled();
+        statistics.setStatisticsEnabled(true);
+        long beforeCount = statistics.getPrepareStatementCount();
+
+        // When & Then
+        try {
+            AuthorPostListResult result = postQueryService.getAuthorPosts(
+                    authorId,
+                    1,
+                    100,
+                    viewerId
+            );
+            assertThat(result.posts()).hasSize(count).allSatisfy(post -> {
+                assertThat(post.likeCount()).isEqualTo(1);
+                assertThat(post.isLiked()).isTrue();
+            });
+            assertThat(statistics.getPrepareStatementCount() - beforeCount)
+                    .isEqualTo(count == 0 ? 3 : 5);
+            entityManager.clear();
+            long beforeEmptyPage = statistics.getPrepareStatementCount();
+            AuthorPostListResult empty = postQueryService.getAuthorPosts(
+                    authorId,
+                    2,
+                    100,
+                    viewerId
+            );
+            assertThat(empty.posts()).isEmpty();
+            assertThat(empty.currentPage()).isEqualTo(2);
+            assertThat(empty.hasNext()).isFalse();
+            assertThat(statistics.getPrepareStatementCount() - beforeEmptyPage).isEqualTo(3);
+        } finally {
+            statistics.setStatisticsEnabled(wasEnabled);
+        }
     }
 }

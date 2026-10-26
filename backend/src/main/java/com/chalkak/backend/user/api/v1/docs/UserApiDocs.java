@@ -30,6 +30,7 @@ public interface UserApiDocs {
             각 요청 시점의 공개 사진을 기준으로 하므로 조회 중 승인·삭제에 따라 중복되거나 건너뛰는 사진이 생길 수 있습니다.
             정지 회원도 조회할 수 있고 공개 사진이 없으면 빈 목록을 반환합니다.
             본인 조회에도 승인 대기·반려 사진은 포함하지 않습니다.
+            각 사진에 현재 전체 좋아요 수와 인증된 조회자 본인의 좋아요 여부를 제공합니다. 비로그인 조회는 허용하지 않습니다.
             """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "최근 공개 사진 조회 성공", useReturnTypeSchema = true),

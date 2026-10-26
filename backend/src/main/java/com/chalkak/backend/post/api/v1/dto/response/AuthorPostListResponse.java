@@ -29,7 +29,10 @@ public record AuthorPostListResponse(
             String originalImageUrl,
             @Schema(nullable = true)
             String thumbnailImageUrl,
-            AuthorPostTopicResponse topic
+            AuthorPostTopicResponse topic,
+            long likeCount,
+            @Schema(description = "인증된 조회자 본인의 좋아요 여부")
+            boolean isLiked
     ) {
 
         private static AuthorPostResponse fromPostSummary(AuthorPostListResult.PostSummary post) {
@@ -37,7 +40,9 @@ public record AuthorPostListResponse(
                     post.id(),
                     post.originalImageUrl(),
                     post.thumbnailImageUrl(),
-                    AuthorPostTopicResponse.fromTopicSummary(post.topic())
+                    AuthorPostTopicResponse.fromTopicSummary(post.topic()),
+                    post.likeCount(),
+                    post.isLiked()
             );
         }
     }
