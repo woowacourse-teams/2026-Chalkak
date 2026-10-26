@@ -384,6 +384,8 @@ fun ChalkakNavHost(
                                 launchSingleTop = true
                             }
                             signaturePreviewPng = null
+                            // 가입을 마친 사용자는 홈에서 시작한다. 남겨 두면 다음 로그인 때 상관없는 작가 화면이 열린다.
+                            pendingAuthorPosts = null
                         },
                         onReauthenticationRequired = {
                             navController.navigate(Login) {
