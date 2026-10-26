@@ -193,32 +193,20 @@ struct FeedScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .overlay {
-            if showsDeleteDialog {
-                ChalkakConfirmDialog(
-                    title: "게시물 삭제",
-                    message: "게시물을 삭제하시겠어요?",
-                    confirmText: "삭제",
-                    confirmStyle: .destructive,
-                    onConfirm: {
-                        showsDeleteDialog = false
-                        viewModel.deletePost()
-                    },
-                    onDismiss: { showsDeleteDialog = false }
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            }
+        .alert("게시물을 삭제할까요?", isPresented: $showsDeleteDialog) {
+            Button("취소", role: .cancel) {}
+            Button("삭제", role: .destructive) { viewModel.deletePost() }
+        } message: {
+            Text("삭제한 게시물은 피드에서 사라지며 다시 복구할 수 없어요.")
         }
-        .overlay {
-            if showsTitleEditDialog {
-                FeedTitleEditDialog(
-                    title: $titleDraft,
-                    isSubmitting: viewModel.viewState.isUpdatingTitle,
-                    onConfirm: { viewModel.updatePostTitle(titleDraft) },
-                    onDismiss: { showsTitleEditDialog = false }
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            }
+        .alert("게시물 제목 수정", isPresented: $showsTitleEditDialog) {
+            TextField("제목을 입력해 주세요", text: $titleDraft)
+                .textInputAutocapitalization(.never)
+            Button("취소", role: .cancel) { showsTitleEditDialog = false }
+            Button("저장") { viewModel.updatePostTitle(titleDraft) }
+                .disabled(viewModel.viewState.isUpdatingTitle)
+        } message: {
+            Text("새 제목을 입력해 저장하면 게시물에 바로 반영돼요.")
         }
     }
 

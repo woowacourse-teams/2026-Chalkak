@@ -5,12 +5,12 @@ import UIKit
 @testable import chalkak
 
 struct SettingsAccountDialogTests {
-    @Test("로그아웃과 회원탈퇴 다이얼로그 문구 및 강조 방식을 구분한다")
+    @Test("로그아웃과 회원탈퇴 안내가 사용자에게 결과를 설명한다")
     func exposesAccountDialogContent() {
         #expect(SettingsAccountDialog.logout.title == "로그아웃")
-        #expect(SettingsAccountDialog.logout.message == "정말 로그아웃 하시겠습니까?")
+        #expect(SettingsAccountDialog.logout.message == "로그아웃하면 다시 로그인해야 찰칵을 이용할 수 있어요.")
         #expect(SettingsAccountDialog.withdraw.title == "회원탈퇴")
-        #expect(SettingsAccountDialog.withdraw.message == "정말 회원탈퇴 하시겠습니까?")
+        #expect(SettingsAccountDialog.withdraw.message == "회원탈퇴하면 계정과 게시물이 삭제되며, 삭제한 내용은 복구할 수 없어요.")
     }
 }
 

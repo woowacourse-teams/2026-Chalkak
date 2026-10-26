@@ -246,7 +246,7 @@ final class chalkakUITests: XCTestCase {
 
         if app.buttons["로그아웃"].exists {
             app.buttons["로그아웃"].tap()
-            app.buttons["confirmDialog.confirm"].tap()
+            app.alerts.buttons["로그아웃"].tap()
             XCTAssertTrue(guestButton.waitForExistence(timeout: 5))
             guestButton.tap()
             settingsButton.tap()

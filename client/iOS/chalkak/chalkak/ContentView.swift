@@ -223,38 +223,21 @@ struct ContentView: View {
         }
         .chalkakToast(message)
         .environment(\.chalkakShowToast, showMessage)
-        .overlay {
+        .alert(
+            "업데이트가 필요해요",
+            isPresented: Binding(
+                get: { appVersionGate.requiredUpdateStoreURL != nil },
+                set: { _ in }
+            )
+        ) {
             if let storeURL = appVersionGate.requiredUpdateStoreURL {
-                ChalkakConfirmDialog(
-                    title: "업데이트가 필요해요",
-                    message: "원활한 서비스 이용을 위해 최신 버전으로 업데이트해 주세요.",
-                    confirmText: "업데이트",
-                    confirmStyle: .primary,
-                    isDismissible: false,
-                    onConfirm: { openURL(storeURL) },
-                    onDismiss: {}
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                Button("업데이트") { openURL(storeURL) }
             }
+        } message: {
+            Text("최신 버전으로 업데이트하면 찰칵을 계속 이용할 수 있어요.")
         }
-        .animation(.easeOut(duration: 0.16), value: appVersionGate.requiredUpdateStoreURL)
         .onAppear {
             trackCurrentScreen()
-        }
-        .alert(
-            "알림을 허용하시겠어요?",
-            isPresented: $isNotificationSettingsGuidancePresented
-        ) {
-            Button("거부", role: .cancel) {
-                Task { await applyInitialNotificationChoice(enabled: false) }
-            }
-            Button("허용") {
-                Task { await applyInitialNotificationChoice(enabled: true) }
-            }
-            .keyboardShortcut(.defaultAction)
-            .tint(.blue)
-        } message: {
-            Text("오늘 주제와 게시물 승인 반려 소식을 알려드려요.")
         }
         .onChange(of: currentAnalyticsScreen) { _, _ in
             trackCurrentScreen()
@@ -403,6 +386,16 @@ struct ContentView: View {
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                     feedZoomRegistry.bottomBarFrame = $0
                 }
+            }
+            .alert("알림을 켤까요?", isPresented: $isNotificationSettingsGuidancePresented) {
+                Button("나중에", role: .cancel) {
+                    Task { await applyInitialNotificationChoice(enabled: false) }
+                }
+                Button("알림 켜기") {
+                    Task { await applyInitialNotificationChoice(enabled: true) }
+                }
+            } message: {
+                Text("알림을 켜면 오늘의 주제와 게시물 승인·반려 소식을 받아볼 수 있어요.")
             }
     }
 
