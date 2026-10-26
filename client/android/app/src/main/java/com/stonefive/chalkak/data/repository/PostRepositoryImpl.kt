@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
@@ -12,6 +13,8 @@ import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
+import com.stonefive.chalkak.domain.model.AuthorPost
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -29,6 +32,7 @@ import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
+import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.Instant
@@ -41,6 +45,40 @@ class PostRepositoryImpl(
     private val topicRemoteDataSource: TopicRemoteDataSource,
 ) : PostRepository,
     PhotoUploadEntryRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = when (val result = remoteDataSource.getAuthorPosts(authorId, page, pageSize)) {
+        is ApiResult.Success -> result.value.toDomain(page, pageSize)
+        is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+    }
+
+    private fun AuthorPostsResponse.toDomain(
+        requestedPage: Int,
+        requestedPageSize: Int,
+    ): HomeResult<AuthorPostsPage> {
+        if (currentPage != requestedPage || pageSize != requestedPageSize) {
+            return HomeResult.Failure(HomeFailure.InvalidResponse)
+        }
+        val mappedPosts = posts.map { post ->
+            val date = runCatching { LocalDate.parse(post.topic.topicDate) }.getOrNull()
+                ?: return HomeResult.Failure(HomeFailure.InvalidResponse)
+            if (post.id.isBlank() || post.originalImageUrl.isBlank() || post.topic.id
+                    .isBlank()
+            ) {
+                return HomeResult.Failure(HomeFailure.InvalidResponse)
+            }
+            AuthorPost(
+                id = post.id,
+                originalImageUrl = post.originalImageUrl,
+                thumbnailImageUrl = post.thumbnailImageUrl,
+                topic = Topic(id = post.topic.id, title = post.topic.title, date = date),
+            )
+        }
+        return HomeResult.Success(AuthorPostsPage(currentPage, pageSize, hasNext && posts.isNotEmpty(), mappedPosts))
+    }
+
     override suspend fun getTodayPostStatus(): TodayPostStatusResult =
         when (val result = remoteDataSource.getTodayPostStatus()) {
             is ApiResult.Success -> result.value.toDomain()
@@ -230,6 +268,7 @@ class PostRepositoryImpl(
         val mappedLikeCount = likeCount.toLikeCountOrNull() ?: return null
         return Post(
             id = id,
+            authorId = authorId,
             originalImageUrl = originalImageUrl,
             thumbnailImageUrl = thumbnailImageUrl,
             signatureOriginalImageUrl = signatureOriginalImageUrl,
@@ -261,6 +300,7 @@ class PostRepositoryImpl(
             PostDetail(
                 post = Post(
                     id = id,
+                    authorId = authorId,
                     originalImageUrl = originalImageUrl,
                     thumbnailImageUrl = thumbnailImageUrl,
                     signatureOriginalImageUrl = signatureOriginalImageUrl,

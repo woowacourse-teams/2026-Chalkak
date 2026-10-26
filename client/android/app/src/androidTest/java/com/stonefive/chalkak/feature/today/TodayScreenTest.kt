@@ -21,6 +21,7 @@ import androidx.compose.ui.test.swipe
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -446,6 +447,12 @@ private fun photos(count: Int) = List(count) { index ->
 }
 
 private class GuestPostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     var likeRequestCount = 0
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
@@ -482,6 +489,12 @@ private class GuestPostRepository : PostRepository {
 }
 
 private class PageFailurePostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val pageResult = CompletableDeferred<HomeResult<PostPage>>()
     var pageRequestCount = 0
 

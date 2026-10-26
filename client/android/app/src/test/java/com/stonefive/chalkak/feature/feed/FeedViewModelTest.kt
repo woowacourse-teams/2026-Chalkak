@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.feed
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.AiReview
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -18,12 +19,15 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -576,12 +580,113 @@ class FeedViewModelTest {
         detailRequest.complete(HomeResult.Failure(HomeFailure.Network))
         advanceUntilIdle()
     }
+
+    @Test
+    fun `비로그인 사인 탭은 로그인 안내만 표시한다`() = runTest {
+        val selected = signatureViewModel(UserSessionState.Guest)
+        assertEquals(null, selected.onSignatureClicked())
+        assertEquals(
+            "다른 사진도 보려면 로그인이 필요해요",
+            (selected.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `로그인 사인 탭은 게시물 ID 대신 작가 ID를 반환한다`() = runTest {
+        val selected = signatureViewModel(UserSessionState.Authenticated("viewer"))
+        assertEquals("author", selected.onSignatureClicked()?.authorId)
+    }
+
+    @Test
+    fun `다른 작가 사인이 보이면 노출을 기록하고 4초 후 닫는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val selected = signatureViewModel(hint = hint)
+        selected.onSignatureVisible()
+        runCurrent()
+        assertTrue(selected.uiState.value.showSignatureHint)
+        assertEquals(1, hint.claims)
+        selected.onSignatureVisible()
+        assertEquals(1, hint.claims)
+        advanceTimeBy(4_000)
+        runCurrent()
+        assertFalse(selected.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `내 사인과 이미 노출된 안내는 다시 표시하지 않는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val mine = signatureViewModel(hint = hint, isMine = true)
+        mine.onSignatureVisible()
+        runCurrent()
+        assertEquals(0, hint.claims)
+        val selected = signatureViewModel(hint = hint)
+        selected.onSignatureVisible()
+        runCurrent()
+        selected.dismissSignatureHint()
+        val reopened = signatureViewModel(hint = hint)
+        reopened.onSignatureVisible()
+        runCurrent()
+        assertFalse(reopened.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `사인이 보이기 전 스크롤은 첫 안내를 소진하지 않는다`() = runTest {
+        val selected = signatureViewModel()
+        selected.dismissSignatureHint()
+        selected.onSignatureVisible()
+        runCurrent()
+        assertTrue(selected.uiState.value.showSignatureHint)
+        selected.dismissSignatureHint()
+        assertFalse(selected.uiState.value.showSignatureHint)
+        selected.onSignatureVisible()
+        runCurrent()
+        assertFalse(selected.uiState.value.showSignatureHint)
+    }
+
+    private fun signatureViewModel(
+        session: UserSessionState = UserSessionState.Authenticated("viewer"),
+        hint: SignatureHintRepository = FakeSignatureHintRepository(),
+        isMine: Boolean = false,
+    ): FeedViewModel = FeedViewModel(
+        repository = FakePostRepository(),
+        aiReviewRepository = FakeAiReviewRepository(),
+        sessionState = MutableStateFlow(session),
+        initialContent = FeedContentState.Success(
+            dateLabel = "오늘의 주제",
+            topic = "하늘",
+            post = feedContent()
+                .photos
+                .single()
+                .copy(authorId = "author", isOwnedByCurrentUser = isMine),
+            isLiked = false,
+        ),
+        postId = null,
+        signatureHintRepository = hint,
+    )
+}
+
+private class FakeSignatureHintRepository : SignatureHintRepository {
+    var claims = 0
+    private var seen = false
+
+    override suspend fun claimFirstExposure(): Boolean {
+        claims++
+        if (seen) return false
+        seen = true
+        return true
+    }
 }
 
 private const val PHOTO_ID = "photo-1"
 private val TEST_DATE = LocalDate.of(2026, 8, 28)
 
 private class FakePostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val requestedQueries = mutableListOf<HomeQuery>()
     var updatedLike: Pair<String, Boolean>? = null
     var failLike = false
@@ -641,6 +746,12 @@ private class FakeAiReviewRepository : AiReviewRepository {
 }
 
 private class ControlledPostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")

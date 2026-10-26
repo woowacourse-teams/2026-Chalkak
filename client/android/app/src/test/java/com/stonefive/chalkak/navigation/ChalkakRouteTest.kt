@@ -10,6 +10,8 @@ class ChalkakRouteTest {
     fun `feed route preserves selected post context after serialization`() {
         val route = Feed(
             postId = "post-42",
+            authorId = "author-42",
+            sourceAuthorId = "author-42",
             originalImageUrl = "https://example.com/photo.jpg",
             thumbnailImageUrl = "https://example.com/photo-thumbnail.jpg",
             signatureOriginalImageUrl = "https://example.com/signature.png",
@@ -24,6 +26,25 @@ class ChalkakRouteTest {
         val restored = Json.decodeFromString<Feed>(Json.encodeToString(route))
 
         assertEquals(route, restored)
+    }
+
+    @Test
+    fun `author posts route preserves selected author and signature`() {
+        val route = AuthorPosts("author-42", "https://example.com/signature.png", false)
+
+        assertEquals(route, roundTrip(route))
+        assertEquals(AuthorPosts("my-id", null, true), roundTrip(AuthorPosts("my-id", null, true)))
+    }
+
+    @Test
+    fun `older feed routes remain readable without author id`() {
+        val route = Feed(
+            postId = "post", originalImageUrl = "photo", thumbnailImageUrl = "thumb",
+            signatureOriginalImageUrl = "sign", contentDescription = "photo", title = null,
+            likeCount = 0, dateLabel = "date", topic = "topic",
+        )
+
+        assertEquals("", roundTrip(route).authorId)
     }
 
     @Test

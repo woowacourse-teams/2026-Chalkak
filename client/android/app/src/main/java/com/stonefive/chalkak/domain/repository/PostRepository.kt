@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.domain.repository
 
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -11,6 +12,12 @@ import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import java.time.YearMonth
 
 interface PostRepository {
+    suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int = 1,
+        pageSize: Int = 20,
+    ): HomeResult<AuthorPostsPage>
+
     suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar>
 
     suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = HomeResult.Success(emptyList())

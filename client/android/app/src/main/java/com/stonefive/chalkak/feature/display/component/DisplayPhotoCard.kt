@@ -53,6 +53,8 @@ fun DisplayPhotoCard(
     imageAspectRatio: Float? = null,
     onImageAspectRatioAvailable: (Float) -> Unit = {},
     transitionSourceId: String = "display-${variant.name}:${photo.id}",
+    showLikeCount: Boolean = true,
+    showSignature: Boolean = true,
 ) {
     val isFeatured = variant == DisplayPhotoCardVariant.FEATURED
     var loadedImageAspectRatio by rememberSaveable(photo.originalImageUrl, photo.thumbnailImageUrl) {
@@ -61,7 +63,11 @@ fun DisplayPhotoCard(
     val photoSource = rememberSharedPhotoSource(
         key = PhotoTransitionKey(photo.id, transitionSourceId),
         imageModel = if (isFeatured) photo.originalImageUrl else photo.thumbnailImageUrl,
-        signatureModel = if (isFeatured) photo.signatureOriginalImageUrl else photo.signatureThumbnailImageUrl,
+        signatureModel = if (showSignature) {
+            if (isFeatured) photo.signatureOriginalImageUrl else photo.signatureThumbnailImageUrl
+        } else {
+            null
+        },
         aspectRatio = imageAspectRatio,
         contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
         sourceShape = if (isFeatured) {
@@ -119,14 +125,16 @@ fun DisplayPhotoCard(
             onThumbnailSignatureSuccess = photoSource.onSignatureSuccess,
             imageModifier = photoSource.modifier,
             imageModel = if (isFeatured) photo.originalImageUrl else thumbnailImageRequest,
-            signatureModel = if (isFeatured) {
+            signatureModel = if (!showSignature) {
+                null
+            } else if (isFeatured) {
                 photo.signatureOriginalImageUrl
             } else {
                 photo.signatureThumbnailImageUrl
             },
             contentDescription = if (onClick == null) photo.contentDescription else null,
             thumbnailImageModel = photo.thumbnailImageUrl.takeIf { isFeatured },
-            thumbnailSignatureModel = photo.signatureThumbnailImageUrl.takeIf { isFeatured },
+            thumbnailSignatureModel = photo.signatureThumbnailImageUrl.takeIf { isFeatured && showSignature },
             contentScale = if (isFeatured) ContentScale.Fit else ContentScale.FillWidth,
             imageAspectRatio = if (isFeatured) loadedImageAspectRatio ?: imageAspectRatio else null,
             modifier = if (isFeatured) {
@@ -142,12 +150,14 @@ fun DisplayPhotoCard(
             ),
         )
 
-        DisplayLikeCount(
-            likeCount = photo.likeCount,
-            isLiked = photo.isLiked,
-            onClick = onLikeClick,
-            modifier = Modifier.align(Alignment.BottomStart),
-        )
+        if (showLikeCount) {
+            DisplayLikeCount(
+                likeCount = photo.likeCount,
+                isLiked = photo.isLiked,
+                onClick = onLikeClick,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+        }
 
         if (isFeatured) {
             Text(

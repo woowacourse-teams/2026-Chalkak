@@ -75,6 +75,7 @@ fun FeedRoute(
     onNavigateBack: () -> Unit,
     onPostDeleted: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onAuthorClick: (String, String, Boolean) -> Unit = { _, _, _ -> },
     postId: String? = null,
     entryThumbnailImageUrl: String? = null,
     openAiReviewResult: Boolean = false,
@@ -136,6 +137,17 @@ fun FeedRoute(
         onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
+        onSignatureClick = {
+            viewModel.onSignatureClicked()?.let { post ->
+                onAuthorClick(
+                    post.authorId,
+                    post.signatureThumbnailImageUrl ?: post.signatureOriginalImageUrl,
+                    post.isOwnedByCurrentUser,
+                )
+            }
+        },
+        onSignatureVisible = viewModel::onSignatureVisible,
+        onDismissSignatureHint = viewModel::dismissSignatureHint,
         snackbarHostState = snackbarHostState,
         onRetryClick = viewModel::retry,
         onStartFeedback = viewModel::startFeedback,
@@ -153,6 +165,9 @@ fun FeedScreen(
     onLikeClick: () -> Unit,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    onSignatureClick: () -> Unit = {},
+    onSignatureVisible: () -> Unit = {},
+    onDismissSignatureHint: () -> Unit = {},
     onEditTitleClick: (String?) -> Unit = {},
     onRetryClick: () -> Unit = {},
     entryPostId: String? = null,
@@ -338,6 +353,10 @@ fun FeedScreen(
                     entryPostId = entryPostId,
                     entryThumbnailImageUrl = entryThumbnailImageUrl,
                     onPhotoBoundsChanged = { photoBounds = it },
+                    onSignatureClick = onSignatureClick,
+                    onSignatureVisible = onSignatureVisible,
+                    showSignatureHint = uiState.showSignatureHint,
+                    onDismissSignatureHint = onDismissSignatureHint,
                 )
 
                 uiState.isLoading -> CircularProgressIndicator(

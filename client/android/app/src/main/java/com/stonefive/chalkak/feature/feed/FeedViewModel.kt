@@ -16,10 +16,12 @@ import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +35,7 @@ class FeedViewModel(
     private val initialContent: FeedContentState.Success? = null,
     private val postId: String? = initialContent?.post?.id,
     private val isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
+    private val signatureHintRepository: SignatureHintRepository? = null,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -44,6 +47,48 @@ class FeedViewModel(
         ),
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+
+    private var hintAttempted = false
+    private var hintDismissed = false
+
+    fun onSignatureVisible() {
+        val post = _uiState.value.content
+            ?.post ?: return
+        if (hintAttempted || post.isOwnedByCurrentUser || post.authorId.isBlank()) return
+        val repository = signatureHintRepository ?: return
+        hintAttempted = true
+        viewModelScope.launch {
+            val claimed = try {
+                repository.claimFirstExposure()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                false
+            }
+            if (claimed && !hintDismissed) {
+                _uiState.update { it.copy(showSignatureHint = true) }
+                delay(SIGNATURE_HINT_DURATION_MILLIS)
+                dismissSignatureHint()
+            }
+        }
+    }
+
+    fun dismissSignatureHint() {
+        if (hintAttempted) hintDismissed = true
+        _uiState.update { it.copy(showSignatureHint = false) }
+    }
+
+    fun onSignatureClicked(): Post? {
+        hintDismissed = true
+        dismissSignatureHint()
+        val post = _uiState.value.content
+            ?.post ?: return null
+        if (currentUserId() == null) {
+            _uiState.update { it.copy(pendingMessage = nextToast("다른 사진도 보려면 로그인이 필요해요")) }
+            return null
+        }
+        return post.takeIf { it.authorId.isNotBlank() }
+    }
 
     private var latestLikeGeneration = 0
     private var nextMessageId = 0L
@@ -493,6 +538,7 @@ class FeedViewModel(
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedViewModel(
                     repository = application.appContainer.postRepository,
+                    signatureHintRepository = application.appContainer.signatureHintRepository,
                     aiReviewRepository = application.appContainer.aiReviewRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
                     initialContent = initialContent,
@@ -517,3 +563,5 @@ class FeedViewModel(
         text = text,
     )
 }
+
+private const val SIGNATURE_HINT_DURATION_MILLIS = 4_000L

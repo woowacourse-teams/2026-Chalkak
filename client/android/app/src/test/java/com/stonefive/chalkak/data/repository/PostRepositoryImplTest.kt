@@ -3,6 +3,8 @@ package com.stonefive.chalkak.data.repository
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostResponse
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
@@ -44,6 +46,66 @@ class PostRepositoryImplTest {
         sort = PostSort.LATEST,
         page = 1,
     )
+
+    @Test
+    fun `작성자 공개 사진은 페이지와 주제를 매핑하고 썸네일이 없으면 원본을 사용한다`() = runTest {
+        remoteDataSource.authorPostsResult = ApiResult.Success(
+            authorPostsResponse(),
+        )
+
+        val result = repository.getAuthorPosts("author-1", page = 2, pageSize = 20) as HomeResult.Success
+
+        assertEquals(listOf(Triple("author-1", 2, 20)), remoteDataSource.authorPostsQueries)
+        assertEquals(2, result.value.currentPage)
+        assertEquals(20, result.value.pageSize)
+        assertTrue(result.value.hasNext)
+        val post = result.value.posts
+            .single()
+        assertEquals("author-photo", post.id)
+        assertEquals("original", post.imageUrl)
+        assertEquals(LocalDate.of(2026, 10, 19), post.topic.date)
+        assertEquals("주제", post.topic.title)
+    }
+
+    @Test
+    fun `작성자 목록의 빈 응답은 성공이며 HTTP 오류는 인증과 찾을 수 없음을 구분한다`() = runTest {
+        remoteDataSource.authorPostsResult =
+            ApiResult.Success(authorPostsResponse().copy(posts = emptyList(), hasNext = false))
+        val result = repository.getAuthorPosts("author-1", 2, 20) as HomeResult.Success
+        assertTrue(
+            result.value.posts
+                .isEmpty(),
+        )
+        assertFalse(result.value.hasNext)
+        listOf(401 to HomeFailure.Unauthorized, 404 to HomeFailure.Http(404)).forEach { (status, failure) ->
+            remoteDataSource.authorPostsResult = ApiResult.Failure(ApiError.Http(status, "BUSINESS_ERROR"))
+            assertEquals(HomeResult.Failure(failure), repository.getAuthorPosts("author-1"))
+        }
+    }
+
+    @Test
+    fun `작성자 목록의 페이지 불일치와 잘못된 날짜는 InvalidResponse다`() = runTest {
+        val response = authorPostsResponse()
+        listOf(
+            response.copy(currentPage = 3),
+            response.copy(pageSize = 10),
+            response.copy(posts = response.posts.map { it.copy(topic = it.topic.copy(topicDate = "invalid")) }),
+        ).forEach { invalid ->
+            remoteDataSource.authorPostsResult = ApiResult.Success(invalid)
+            assertEquals(HomeResult.Failure(HomeFailure.InvalidResponse), repository.getAuthorPosts("author-1", 2, 20))
+        }
+    }
+
+    @Test
+    fun `피드와 상세의 작성자 ID를 조회자나 게시물 ID와 구분해 매핑한다`() = runTest {
+        val content = (repository.getPostContent(query) as HomeResult.Success).value
+        assertEquals(
+            "author-photo-1",
+            content.photos
+                .first()
+                .authorId,
+        )
+    }
 
     @Test
     fun `오늘 작성 여부 true 응답은 허용된 moderation status와 postId를 보존한다`() = runTest {
@@ -192,6 +254,7 @@ class PostRepositoryImplTest {
         remoteDataSource.detailResult = ApiResult.Success(
             PostDetailResponse(
                 id = "photo-1",
+                authorId = "author-1",
                 topic = TopicResponse(
                     id = "topic-1",
                     title = "새 바다",
@@ -213,6 +276,7 @@ class PostRepositoryImplTest {
             PostDetail(
                 post = Post(
                     id = "photo-1",
+                    authorId = "author-1",
                     originalImageUrl = "photo-original",
                     thumbnailImageUrl = "photo-thumbnail",
                     signatureOriginalImageUrl = "signature-original",
@@ -503,6 +567,19 @@ class PostRepositoryImplTest {
 }
 
 private class FakePostRemoteDataSource : PostRemoteDataSource {
+    var authorPostsResult: ApiResult<AuthorPostsResponse> =
+        ApiResult.Failure(ApiError.Network)
+    val authorPostsQueries = mutableListOf<Triple<String, Int, Int>>()
+
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): ApiResult<AuthorPostsResponse> {
+        authorPostsQueries += Triple(authorId, page, pageSize)
+        return authorPostsResult
+    }
+
     val postsQueries = mutableListOf<HomeQuery>()
     var todayPostResult: ApiResult<TodayPostResponse> = ApiResult.Success(
         TodayPostResponse(
@@ -630,6 +707,7 @@ private fun homePost(
     likeCount: Long = 24,
 ) = PostResponse(
     id = id,
+    authorId = "author-$id",
     originalImageUrl = originalImageUrl,
     thumbnailImageUrl = thumbnailImageUrl,
     signatureOriginalImageUrl = signatureOriginalImageUrl,
@@ -639,4 +717,17 @@ private fun homePost(
     likeCount = likeCount,
     isLiked = isLiked,
     isMine = isMine,
+)
+
+private fun authorPostsResponse() = AuthorPostsResponse(
+    currentPage = 2,
+    pageSize = 20,
+    hasNext = true,
+    posts = listOf(
+        AuthorPostResponse(
+            id = "author-photo",
+            originalImageUrl = "original",
+            topic = TopicResponse(id = "topic", title = "주제", topicDate = "2026-10-19"),
+        ),
+    ),
 )

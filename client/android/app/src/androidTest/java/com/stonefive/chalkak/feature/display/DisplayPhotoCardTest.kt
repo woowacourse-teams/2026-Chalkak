@@ -124,6 +124,21 @@ class DisplayPhotoCardTest {
         }
     }
 
+    @Test
+    fun authorPhotosHideUnavailableLikeInformation() {
+        composeRule.setContent {
+            ChalkakTheme {
+                DisplayPhotoCard(
+                    photo = previewDisplayPost,
+                    showLikeCount = false,
+                    modifier = Modifier.size(180.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("좋아요 ${previewDisplayPost.likeCount}").assertDoesNotExist()
+    }
+
     private fun assertPhotoCentered(
         description: String,
         expectedRatio: Float,

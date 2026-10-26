@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.domain.model.AiReview
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.BannerPage
 import com.stonefive.chalkak.domain.model.HomeFailure
@@ -659,6 +660,12 @@ private class FakeHomeRepository :
     PhotoUploadEntryRepository,
     BannerRepository,
     AiReviewRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val contentQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val months = mutableListOf<YearMonth>()

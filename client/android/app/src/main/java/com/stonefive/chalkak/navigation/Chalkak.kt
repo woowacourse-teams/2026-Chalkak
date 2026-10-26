@@ -57,6 +57,15 @@ data class Feed(
     val topicDate: String? = null,
     val isOwnedByCurrentUser: Boolean = false,
     val fetchDetail: Boolean = true,
+    val authorId: String = "",
+    val sourceAuthorId: String? = null,
+)
+
+@Serializable
+data class AuthorPosts(
+    val authorId: String,
+    val signatureThumbnailImageUrl: String?,
+    val isMine: Boolean,
 )
 
 @Serializable
