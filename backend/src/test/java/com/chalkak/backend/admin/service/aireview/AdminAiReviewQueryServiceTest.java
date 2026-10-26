@@ -3,17 +3,20 @@ package com.chalkak.backend.admin.service.aireview;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.COMPLETED_AT;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.MODEL;
+import static com.chalkak.backend.aireview.service.AiReviewFixture.ORIGINAL_STORAGE_KEY;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.REQUESTED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewDetail;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewSummary;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.ListResult;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -34,6 +37,7 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
 
     private static final String THUMBNAIL_STORAGE_KEY = "chalkak/test/ai-review/thumb-original.webp";
     private static final String THUMBNAIL_URL = "https://cdn.example.com/test/ai-review/thumb-original.webp";
+    private static final String ORIGINAL_URL = "https://cdn.example.com/test/ai-review/original.webp";
 
     @Autowired
     private AdminAiReviewQueryService queryService;
@@ -63,6 +67,7 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
                 reviewId
         );
         given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
+        given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_URL);
     }
 
     @Test
@@ -231,5 +236,85 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
         assertThat(minSize.hasNext()).isTrue();
         assertThat(maxSize.aiReviews()).hasSize(2);
         assertThat(maxSize.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("완료된 리뷰를 상세 조회하면 목록 값에 결과·원출력 객체·응답 ID·시도 횟수·시작 시각·원본 이미지 URL을 더해 반환한다")
+    void getAiReview_completedReview_returnsDetail() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE ai_reviews SET openai_response_id = 'resp_abc' WHERE id = ?",
+                reviewId
+        );
+
+        // When
+        AiReviewDetail detail = queryService.getAiReview(reviewId);
+
+        // Then
+        assertThat(detail.summary().aiReviewId()).isEqualTo(reviewId);
+        assertThat(detail.summary().overallScore()).isEqualTo(7.5);
+        assertThat(detail.summary().post().thumbnailUrl()).isEqualTo(THUMBNAIL_URL);
+        assertThat(detail.summary().visibleToAuthor()).isTrue();
+        assertThat(detail.originalImageUrl()).isEqualTo(ORIGINAL_URL);
+        assertThat(detail.result()).isNotNull();
+        assertThat(detail.result().overallScore()).isEqualTo(7.5);
+        assertThat(detail.output().isObject()).isTrue();
+        assertThat(detail.output().get("compositionScore").asDouble()).isEqualTo(7.46);
+        assertThat(detail.output().get("themeExpressionScore").asInt()).isEqualTo(8);
+        assertThat(detail.openaiResponseId()).isEqualTo("resp_abc");
+        assertThat(detail.attempt()).isEqualTo(1);
+        assertThat(detail.startedAt()).isEqualTo(REQUESTED_AT);
+    }
+
+    @Test
+    @DisplayName("실패한 리뷰를 상세 조회하면 결과와 원출력이 null이고 오류 코드를 담는다")
+    void getAiReview_failedReview_returnsNullResultAndOutput() {
+        // Given
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertSecondPublicPost();
+        UUID failedId = fixture.insertSecondQueuedReview(
+                promptVersionId,
+                REQUESTED_AT.plusSeconds(60)
+        );
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET status = 'FAILED', attempt = 1, round_attempt = 1,
+                            started_at = requested_at, completed_at = requested_at,
+                            error_code = 'TIMEOUT'
+                        WHERE id = ?
+                        """,
+                failedId
+        );
+
+        // When
+        AiReviewDetail detail = queryService.getAiReview(failedId);
+
+        // Then
+        assertThat(detail.summary().errorCode()).isEqualTo("TIMEOUT");
+        assertThat(detail.result()).isNull();
+        assertThat(detail.output()).isNull();
+    }
+
+    @Test
+    @DisplayName("숨겨진 리뷰도 상세 조회하고 visibleToAuthor는 false이다")
+    void getAiReview_hiddenReview_isReturnedWithVisibleToAuthorFalse() {
+        // Given
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP");
+
+        // When
+        AiReviewDetail detail = queryService.getAiReview(reviewId);
+
+        // Then
+        assertThat(detail.summary().post().deletedAt()).isNotNull();
+        assertThat(detail.summary().visibleToAuthor()).isFalse();
+    }
+
+    @Test
+    @DisplayName("없는 리뷰 ID로 상세 조회하면 404 예외를 던진다")
+    void getAiReview_unknownId_throwsNotFound() {
+        // When & Then
+        assertThatThrownBy(() -> queryService.getAiReview(UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("AI 리뷰를 찾을 수 없습니다.");
     }
 }

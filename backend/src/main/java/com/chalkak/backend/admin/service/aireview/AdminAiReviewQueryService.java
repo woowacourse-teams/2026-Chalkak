@@ -3,10 +3,13 @@ package com.chalkak.backend.admin.service.aireview;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository;
 import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.Criteria;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.DetailProjection;
 import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.SummaryProjection;
 import com.chalkak.backend.aireview.domain.AiReview;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -16,9 +19,11 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
- * 관리자가 전체 AI 리뷰를 상태·프롬프트 버전으로 걸러 본다. 사용자 앱에서 숨겨진 리뷰도 거르지 않는다.
+ * 관리자가 전체 AI 리뷰를 상태·프롬프트 버전으로 걸러 보고 하나씩 상세히 본다. 사용자 앱에서 숨겨진 리뷰도 거르지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class AdminAiReviewQueryService {
 
     private final AdminAiReviewQueryRepository aiReviewQueryRepository;
     private final ImageUrlProvider imageUrlProvider;
+    private final ObjectMapper objectMapper;
 
     public ListResult getAiReviews(
             AiReview.Status status,
@@ -47,6 +53,22 @@ public class AdminAiReviewQueryService {
                 result.pageSize(),
                 result.hasNext(),
                 result.items().stream().map(this::toSummary).toList()
+        );
+    }
+
+    public AiReviewDetail getAiReview(UUID aiReviewId) {
+        DetailProjection detail = aiReviewQueryRepository.findAiReview(aiReviewId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "AI 리뷰를 찾을 수 없습니다."));
+        return new AiReviewDetail(
+                toSummary(detail.summary()),
+                detail.summary().result(),
+                detail.output() == null ? null : objectMapper.readTree(detail.output()),
+                detail.openaiResponseId(),
+                detail.attempt(),
+                detail.startedAt(),
+                imageUrlProvider.getUrl(detail.originalStorageKey())
         );
     }
 
@@ -119,6 +141,20 @@ public class AdminAiReviewQueryService {
             Instant lastRequestedAt,
             Instant completedAt,
             boolean visibleToAuthor
+    ) {
+    }
+
+    /**
+     * output은 모델이 돌려준 원출력을 JSON 객체로 푼 값이다. 저장 컬럼이 jsonb라 항상 올바른 JSON이다.
+     */
+    public record AiReviewDetail(
+            AiReviewSummary summary,
+            AiReviewResult result,
+            JsonNode output,
+            String openaiResponseId,
+            int attempt,
+            Instant startedAt,
+            String originalImageUrl
     ) {
     }
 

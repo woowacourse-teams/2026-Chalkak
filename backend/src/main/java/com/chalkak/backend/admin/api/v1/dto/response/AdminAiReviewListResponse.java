@@ -86,7 +86,7 @@ public record AdminAiReviewListResponse(
             String model
     ) {
 
-        private static PromptVersionResponse from(PromptVersionSummary promptVersion) {
+        static PromptVersionResponse from(PromptVersionSummary promptVersion) {
             return new PromptVersionResponse(
                     promptVersion.promptVersionId(),
                     promptVersion.version(),
@@ -125,7 +125,7 @@ public record AdminAiReviewListResponse(
             Instant deletedAt
     ) {
 
-        private static AuthorResponse from(AuthorSummary author) {
+        static AuthorResponse from(AuthorSummary author) {
             return new AuthorResponse(
                     author.userId(),
                     author.email(),
@@ -147,7 +147,7 @@ public record AdminAiReviewListResponse(
             Integer reasoningTokens
     ) {
 
-        private static UsageResponse from(UsageSummary usage) {
+        static UsageResponse from(UsageSummary usage) {
             return new UsageResponse(
                     usage.inputTokens(),
                     usage.cachedInputTokens(),

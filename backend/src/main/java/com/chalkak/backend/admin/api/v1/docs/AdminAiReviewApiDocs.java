@@ -2,6 +2,7 @@ package com.chalkak.backend.admin.api.v1.docs;
 
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminAiReviewListRequest;
+import com.chalkak.backend.admin.api.v1.dto.response.AdminAiReviewDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminAiReviewListResponse;
 import com.chalkak.backend.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,4 +35,20 @@ public interface AdminAiReviewApiDocs {
     ResponseEntity<AdminAiReviewListResponse> getAiReviews(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @ParameterObject AdminAiReviewListRequest request);
+
+    @Operation(summary = "AI 리뷰 상세 조회", description = "AI 리뷰 하나를 목록 항목의 모든 값과 함께 결과(result)·모델 원출력(output)·OpenAI 응답 ID·시도 횟수·시작 시각·원본 사진 URL까지 조회합니다. "
+            + "사용자 앱에서 보이지 않는 숨겨진 리뷰(게시물 삭제·미승인, 주제·사진 삭제, 작성자 탈퇴)도 거르지 않고 포함하며, 게시물과 작성자의 원값(deletedAt, status)을 그대로 줍니다. "
+            + "visibleToAuthor는 작성자 앱에서 이 리뷰가 보이는지를 뜻합니다. 게시물이 승인됐고 게시물·주제·사진·작성자가 모두 삭제되지 않았을 때만 true이며, 정지된 작성자는 영향을 주지 않습니다. "
+            + "result는 서비스 규칙으로 변환한 결과이며 완료된 리뷰만 값이 있습니다. "
+            + "output은 모델이 돌려준 원출력을 문자열이 아닌 JSON 객체로 그대로 담으며 구도 점수(compositionScore)와 주제 표현 점수(themeExpressionScore)의 원점수와 피드백이 들어 있습니다. 원출력이 없으면 null입니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "AI 리뷰 상세", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "aiReviewId가 UUID 형식이 아님", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증되지 않음", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "AI 리뷰를 찾을 수 없음", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<AdminAiReviewDetailResponse> getAiReview(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(description = "AI 리뷰 ID", schema = @Schema(type = "string", format = "uuid")) String aiReviewId);
 }

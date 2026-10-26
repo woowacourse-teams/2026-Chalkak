@@ -359,6 +359,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/ai-prompt-versions"),
                 Arguments.of("GET", "/api/v1/admin/ai-prompt-versions/" + id),
                 Arguments.of("GET", "/api/v1/admin/ai-reviews"),
+                Arguments.of("GET", "/api/v1/admin/ai-reviews/" + id),
                 Arguments.of("POST", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("GET", "/api/v1/admin/topic-push-schedules"),
                 Arguments.of("PUT", "/api/v1/admin/topic-push-schedules/" + id),

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository;
 import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.Criteria;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.DetailProjection;
 import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.SummaryProjection;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
@@ -15,6 +16,7 @@ import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -493,6 +495,186 @@ class AdminAiReviewQueryRepositoryTest extends IntegrationTestSupport {
         // Then
         assertThat(page.items()).hasSize(1);
         assertThat(page.items().get(0).thumbnailStorageKey()).isNull();
+    }
+
+    @Test
+    @DisplayName("완료된 리뷰를 상세 조회하면 목록 항목 값에 결과·원출력·응답 ID·시도 횟수·시작 시각·원본 키를 더해 담는다")
+    void findAiReview_completed_mapsSummaryAndDetailFields() {
+        // Given
+        UUID completed = insertReview(
+                1,
+                firstVersionId,
+                BASE_TIME
+        );
+        markCompleted(completed);
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET request_count = 2, input_tokens = 1200, latency_ms = 21000,
+                            openai_response_id = 'resp_abc'
+                        WHERE id = ?
+                        """,
+                completed
+        );
+        flushAndClear();
+
+        // When
+        Optional<DetailProjection> found = repository.findAiReview(completed);
+
+        // Then
+        assertThat(found).isPresent();
+        DetailProjection detail = found.get();
+        SummaryProjection summary = detail.summary();
+        assertThat(summary.aiReviewId()).isEqualTo(completed);
+        assertThat(summary.status()).isEqualTo(Status.COMPLETED);
+        assertThat(summary.requestCount()).isEqualTo(2);
+        assertThat(summary.promptVersionId()).isEqualTo(firstVersionId);
+        assertThat(summary.promptVersion()).isEqualTo(1);
+        assertThat(summary.postId()).isEqualTo(postId(1));
+        assertThat(summary.thumbnailStorageKey()).isEqualTo("chalkak/test/thumb-1.webp");
+        assertThat(summary.authorId()).isEqualTo(userId(1));
+        assertThat(summary.authorEmail()).isEqualTo("reviewer-1@example.com");
+        assertThat(summary.inputTokens()).isEqualTo(1200);
+        assertThat(summary.latencyMs()).isEqualTo(21000L);
+        assertThat(summary.visibleToAuthor()).isTrue();
+        assertThat(summary.result()).isNotNull();
+        assertThat(summary.result().overallScore()).isEqualTo(8.25);
+        assertThat(detail.output()).contains("\"feedback\"").contains("좋아요");
+        assertThat(detail.openaiResponseId()).isEqualTo("resp_abc");
+        assertThat(detail.attempt()).isEqualTo(1);
+        assertThat(detail.startedAt()).isEqualTo(BASE_TIME);
+        assertThat(detail.originalStorageKey()).isEqualTo("chalkak/test/original-1.webp");
+    }
+
+    @Test
+    @DisplayName("실패한 리뷰를 상세 조회하면 오류 코드와 마지막 시도 값을 담고 결과와 원출력은 null이다")
+    void findAiReview_failed_mapsErrorCodeWithoutResultAndOutput() {
+        // Given
+        UUID failed = insertReview(
+                1,
+                firstVersionId,
+                BASE_TIME
+        );
+        markFailed(failed);
+        jdbcTemplate.update(
+                "UPDATE ai_reviews SET openai_response_id = 'resp_failed' WHERE id = ?",
+                failed
+        );
+        flushAndClear();
+
+        // When
+        DetailProjection detail = repository.findAiReview(failed).orElseThrow();
+
+        // Then
+        assertThat(detail.summary().status()).isEqualTo(Status.FAILED);
+        assertThat(detail.summary().errorCode()).isEqualTo("TIMEOUT");
+        assertThat(detail.summary().result()).isNull();
+        assertThat(detail.output()).isNull();
+        assertThat(detail.openaiResponseId()).isEqualTo("resp_failed");
+        assertThat(detail.attempt()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("대기 중인 리뷰를 상세 조회하면 결과·원출력·응답 ID·시작 시각이 비어 있다")
+    void findAiReview_queued_mapsNulls() {
+        // Given
+        UUID queued = insertReview(
+                1,
+                firstVersionId,
+                BASE_TIME
+        );
+        flushAndClear();
+
+        // When
+        DetailProjection detail = repository.findAiReview(queued).orElseThrow();
+
+        // Then
+        assertThat(detail.summary().status()).isEqualTo(Status.QUEUED);
+        assertThat(detail.summary().result()).isNull();
+        assertThat(detail.summary().errorCode()).isNull();
+        assertThat(detail.output()).isNull();
+        assertThat(detail.openaiResponseId()).isNull();
+        assertThat(detail.attempt()).isZero();
+        assertThat(detail.startedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("숨겨진 리뷰도 상세 조회하며 원값과 visibleToAuthor를 함께 담는다")
+    void findAiReview_hiddenReview_isReturnedWithRawValues() {
+        // Given
+        UUID postDeleted = insertReview(
+                1,
+                firstVersionId,
+                BASE_TIME,
+                new Target(
+                        "APPROVED",
+                        true,
+                        false,
+                        false,
+                        "ACTIVE",
+                        false
+                )
+        );
+        UUID authorWithdrawn = insertReview(
+                2,
+                firstVersionId,
+                BASE_TIME.plusSeconds(10),
+                new Target(
+                        "APPROVED",
+                        false,
+                        false,
+                        false,
+                        "ACTIVE",
+                        true
+                )
+        );
+        UUID bannedAuthor = insertReview(
+                3,
+                firstVersionId,
+                BASE_TIME.plusSeconds(20),
+                new Target(
+                        "APPROVED",
+                        false,
+                        false,
+                        false,
+                        "BANNED",
+                        false
+                )
+        );
+        flushAndClear();
+
+        // When
+        SummaryProjection deletedPost = repository.findAiReview(postDeleted).orElseThrow()
+                .summary();
+        SummaryProjection withdrawn = repository.findAiReview(authorWithdrawn).orElseThrow()
+                .summary();
+        SummaryProjection banned = repository.findAiReview(bannedAuthor).orElseThrow()
+                .summary();
+
+        // Then
+        assertThat(deletedPost.postDeletedAt()).isNotNull();
+        assertThat(deletedPost.visibleToAuthor()).isFalse();
+        assertThat(withdrawn.authorDeletedAt()).isNotNull();
+        assertThat(withdrawn.visibleToAuthor()).isFalse();
+        assertThat(banned.authorStatus()).isEqualTo(UserStatus.BANNED);
+        assertThat(banned.visibleToAuthor()).isTrue();
+    }
+
+    @Test
+    @DisplayName("없는 리뷰 ID로 상세 조회하면 빈 값을 반환한다")
+    void findAiReview_unknownId_returnsEmpty() {
+        // Given
+        insertReview(
+                1,
+                firstVersionId,
+                BASE_TIME
+        );
+        flushAndClear();
+
+        // When
+        Optional<DetailProjection> found = repository.findAiReview(UUID.randomUUID());
+
+        // Then
+        assertThat(found).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")

@@ -11,6 +11,7 @@ import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService;
+import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewDetail;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewSummary;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AuthorSummary;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.ListResult;
@@ -18,9 +19,11 @@ import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.Post
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.PromptVersionSummary;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.UsageSummary;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
@@ -38,6 +41,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @WebMvcTest(AdminAiReviewController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -53,6 +58,9 @@ class AdminAiReviewControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockitoBean
     private AdminAiReviewQueryService queryService;
@@ -254,6 +262,136 @@ class AdminAiReviewControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
+    }
+
+    @Test
+    @DisplayName("상세 조회는 목록 항목 전체와 결과·원출력 객체·응답 ID·시도 횟수·시작 시각·원본 이미지 URL을 응답한다")
+    void getAiReview_existing_returnsFullDetail() throws Exception {
+        // Given
+        given(queryService.getAiReview(REVIEW_ID)).willReturn(detail(
+                summary(Status.COMPLETED, 7.5),
+                objectMapper.readTree(
+                        """
+                                {"compositionScore":7.46,"themeExpressionScore":8,
+                                 "feedback":{"summary":"요약","strength":"강점","weakness":"약점","suggestion":"제안"}}
+                                """)
+        ));
+
+        // When & Then
+        mockMvc.perform(get(PATH + "/" + REVIEW_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiReviewId").value(REVIEW_ID.toString()))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.errorCode").value(nullValue()))
+                .andExpect(jsonPath("$.requestCount").value(2))
+                .andExpect(jsonPath("$.overallScore").value(7.5))
+                .andExpect(jsonPath("$.promptVersion.promptVersionId")
+                        .value(VERSION_ID.toString()))
+                .andExpect(jsonPath("$.promptVersion.version").value(3))
+                .andExpect(jsonPath("$.promptVersion.model").value("gpt-6.1-sol"))
+                .andExpect(jsonPath("$.post.postId").value(POST_ID.toString()))
+                .andExpect(jsonPath("$.post.thumbnailUrl")
+                        .value("https://cdn.example.com/thumb.webp"))
+                .andExpect(jsonPath("$.post.imageUrl")
+                        .value("https://cdn.example.com/original.webp"))
+                .andExpect(jsonPath("$.post.moderationStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.post.deletedAt").value(nullValue()))
+                .andExpect(jsonPath("$.author.userId").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.author.email").value("author@example.com"))
+                .andExpect(jsonPath("$.author.status").value("BANNED"))
+                .andExpect(jsonPath("$.author.deletedAt").value(nullValue()))
+                .andExpect(jsonPath("$.usage.inputTokens").value(1200))
+                .andExpect(jsonPath("$.usage.cachedInputTokens").value(200))
+                .andExpect(jsonPath("$.usage.outputTokens").value(300))
+                .andExpect(jsonPath("$.usage.reasoningTokens").value(100))
+                .andExpect(jsonPath("$.latencyMs").value(21000))
+                .andExpect(jsonPath("$.requestedAt").value("2026-10-20T05:00:00Z"))
+                .andExpect(jsonPath("$.lastRequestedAt").value("2026-10-21T05:00:00Z"))
+                .andExpect(jsonPath("$.startedAt").value("2026-10-21T05:00:01Z"))
+                .andExpect(jsonPath("$.completedAt").value("2026-10-21T05:00:21Z"))
+                .andExpect(jsonPath("$.visibleToAuthor").value(true))
+                .andExpect(jsonPath("$.openaiResponseId").value("resp_abc"))
+                .andExpect(jsonPath("$.attempt").value(1))
+                .andExpect(jsonPath("$.result.overallScore").value(7.5))
+                .andExpect(jsonPath("$.result.criteria[0].key").value("COMPOSITION"))
+                .andExpect(jsonPath("$.result.feedback.summary").value("요약"))
+                .andExpect(jsonPath("$.output.compositionScore").value(7.46))
+                .andExpect(jsonPath("$.output.themeExpressionScore").value(8))
+                .andExpect(jsonPath("$.output.feedback.summary").value("요약"));
+    }
+
+    @Test
+    @DisplayName("결과·원출력·응답 ID·시작 시각이 없는 리뷰는 해당 필드를 null로 응답한다")
+    void getAiReview_withoutResultAndOutput_returnsNulls() throws Exception {
+        // Given
+        given(queryService.getAiReview(REVIEW_ID)).willReturn(new AiReviewDetail(
+                summary(Status.QUEUED, null),
+                null,
+                null,
+                null,
+                0,
+                null,
+                "https://cdn.example.com/original.webp"
+        ));
+
+        // When & Then
+        mockMvc.perform(get(PATH + "/" + REVIEW_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value(nullValue()))
+                .andExpect(jsonPath("$.output").value(nullValue()))
+                .andExpect(jsonPath("$.openaiResponseId").value(nullValue()))
+                .andExpect(jsonPath("$.attempt").value(0))
+                .andExpect(jsonPath("$.startedAt").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("UUID 형식이 아닌 리뷰 ID는 400을 반환하고 서비스를 호출하지 않는다")
+    void getAiReview_invalidId_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get(PATH + "/invalid-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+        then(queryService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("없는 리뷰 ID는 404 BUSINESS_ERROR로 변환한다")
+    void getAiReview_unknownId_returnsNotFound() throws Exception {
+        // Given
+        given(queryService.getAiReview(REVIEW_ID)).willThrow(
+                new NotFoundException(ErrorCode.BUSINESS_ERROR, "AI 리뷰를 찾을 수 없습니다."));
+
+        // When & Then
+        mockMvc.perform(get(PATH + "/" + REVIEW_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("AI 리뷰를 찾을 수 없습니다."));
+    }
+
+    private AiReviewDetail detail(AiReviewSummary summary, JsonNode output) {
+        return new AiReviewDetail(
+                summary,
+                new AiReviewResult(
+                        7.5,
+                        List.of(new AiReviewResult.Criterion(
+                                "COMPOSITION",
+                                "구도",
+                                7.5
+                        )),
+                        false,
+                        new AiReviewResult.Feedback(
+                                "요약",
+                                "강점",
+                                "약점",
+                                "제안"
+                        )
+                ),
+                output,
+                "resp_abc",
+                1,
+                Instant.parse("2026-10-21T05:00:01Z"),
+                "https://cdn.example.com/original.webp"
+        );
     }
 
     private AiReviewSummary summary(Status status, Double overallScore) {
