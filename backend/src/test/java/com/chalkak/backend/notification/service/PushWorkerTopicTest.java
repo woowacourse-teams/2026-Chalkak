@@ -42,6 +42,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 class PushWorkerTopicTest extends IntegrationTestSupport {
+    @Autowired
+    private PushDeliveryService deliveryService;
     private static final Instant NOW = Instant.parse("2026-10-12T00:00:00Z");
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID TOPIC_ID = UUID.randomUUID();
@@ -452,7 +454,8 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(now, ZoneOffset.UTC),
-                manager
+                manager,
+                deliveryService
         );
     }
 

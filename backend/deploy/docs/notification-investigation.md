@@ -280,3 +280,27 @@ DLQ 연결 시험만으로 실제 Worker의 FCM 오류 재처리까지 검증했
 각 검증의 날짜·배포 SHA·대상 환경/큐·사건 식별자·경보 ALARM/OK 시각·Slack 도착 여부를
 팀 운영 기록에 남긴다. 키·토큰 원문은 남기지 않는다. 실험 후 변경한 플래그·Agent·경보 동작을
 원래 값으로 복구하고 남은 PENDING·큐 작업을 확인한다. 현재 #494의 실제 AWS 장애·경보·DLQ 검증은 미실행이다.
+
+## 발송 이력과 Lease로 재처리 원인 확인
+
+`push_deliveries`는 `(event_id, user_id)`당 하나다. `device_results`에는 기기 UUID별 `status`,
+`attemptCount`, `lastErrorCode`, `sendStartedAt`, `acceptedAt`을 저장한다. FCM 토큰·제목·본문은 저장하지 않는다.
+
+- `COMPLETED`: 같은 사건을 다시 FCM에 요청하지 않는다. 기기별 영구 실패로 종료한 작업도 포함하므로 상태만으로 FCM 수락 성공을 집계하지 않는다. 수락은 기기의 `status=ACCEPTED`로 확인한다.
+- `SENDING`: 시작 기록 이후 결과가 저장되지 않았다. 실제 요청 전 중단과 FCM 수락 후 저장 전 중단을 구분할 수 없으므로 확정 실패·성공으로 세지 않는다.
+- `UNKNOWN`: SDK 호출 중 예상하지 못한 예외로 정상 결과를 확정하지 못한 기록이다. 다음 SQS 수신에서 재처리할 수 있다.
+- `attemptCount`: DB에 기록한 시작 시도 수다. SDK 내부 HTTP 재시도 수나 SQS 수신 횟수가 아니며, 이 값으로 별도 재시도 상한을 적용하지 않는다.
+
+Lease는 DB 시간 기준 60초이며 30초마다 갱신한다. SQS Visibility Timeout은 기존 60초·40초 주기 연장을 유지한다.
+`worker_delivery_skipped`의 `ALREADY_COMPLETED`는 완료 기록 때문에 생략한 것이고, `ACCEPTED_HISTORY`는
+기기 수락 이력으로 사용자 완료를 복구한 것이다. `worker_delivery_previous_unknown`은 이전 미확정 시도를 다시 처리하는 경우다.
+`worker_delivery_lease_unavailable`은 다른 Worker가 소유하거나 처리 권한을 잃어 메시지를 재처리에 남기는 경우다.
+`worker_delivery_lease_failed`는 갱신·기록 SQL 실패이며, 오류 원문 대신 예외 클래스 이름을 남긴다.
+
+기존 `dbTransactions`는 기기 목록·최신 업무 조건·무효 토큰 정리 구간을 측정한다. 추가한 발송 이력의
+조회·Lease·기기 결과 SQL 비용은 이 배열에 포함하지 않으므로 총 DB 비용으로 해석하지 않는다.
+전체 처리 시간에는 포함되며, 성능 비교 시 이 추가 SQL과 Lease 갱신 비용을 함께 측정해야 한다.
+`worker_summary`의 결과는 기기 발송 루프의 집계다. 이후 Lease 완료 저장이나 SQS 삭제까지 성공했다는
+뜻은 아니므로 `worker_delivery_*`, `worker_attempt_completed`와 DB 상태를 함께 확인한다.
+
+이 단계는 로컬 검증이다. SQS 재수신·처리 중 프로세스 종료·실제 FCM 요청 경계 검증과 이력 보관·정리 정책은 후속 단계에서 확인한다.

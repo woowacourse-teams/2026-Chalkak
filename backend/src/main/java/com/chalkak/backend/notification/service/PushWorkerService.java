@@ -8,6 +8,8 @@ import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
+import com.chalkak.backend.notification.domain.PushDelivery.DeviceResult;
+import com.chalkak.backend.exception.PushLeaseLostException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -45,6 +47,7 @@ public class PushWorkerService {
     private final DevicePushSender sender;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
+    private final PushDeliveryService deliveryService;
 
     public PushWorkerService(
             NotificationRepository notificationRepository,
@@ -55,7 +58,8 @@ public class PushWorkerService {
             LoginSessionService loginSessionService,
             DevicePushSender sender,
             Clock clock,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            PushDeliveryService deliveryService
     ) {
         this.notificationRepository = notificationRepository;
         this.topicRepository = topicRepository;
@@ -66,6 +70,7 @@ public class PushWorkerService {
         this.sender = sender;
         this.clock = clock;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.deliveryService = deliveryService;
     }
 
     public PushProcessingResult process(PushMessage message) {
@@ -87,7 +92,11 @@ public class PushWorkerService {
         }
         PushWorkerDbTiming dbTiming = new PushWorkerDbTiming();
         try {
-            return processDevices(message, dbTiming);
+            return deliveryService.process(message, lease -> processDevices(
+                    message,
+                    dbTiming,
+                    lease
+            ));
         } catch (RuntimeException exception) {
             PushWorkerTimingLog.logSummaryFailed(
                     message,
@@ -98,7 +107,11 @@ public class PushWorkerService {
         }
     }
 
-    private PushProcessingResult processDevices(PushMessage message, PushWorkerDbTiming dbTiming) {
+    private PushProcessingResult processDevices(
+            PushMessage message,
+            PushWorkerDbTiming dbTiming,
+            PushDeliveryLease lease
+    ) {
         List<UUID> deviceIds = findDeviceIds(message, dbTiming);
         if (deviceIds.isEmpty()) {
             logSkipped(
@@ -115,7 +128,8 @@ public class PushWorkerService {
             DevicePushResult result = sendToDevice(
                     message,
                     deviceId,
-                    dbTiming
+                    dbTiming,
+                    lease
             );
             counts.merge(
                     result.status(),
@@ -162,7 +176,8 @@ public class PushWorkerService {
     private DevicePushResult sendToDevice(
             PushMessage message,
             UUID deviceId,
-            PushWorkerDbTiming dbTiming
+            PushWorkerDbTiming dbTiming,
+            PushDeliveryLease lease
     ) {
         DevicePushTiming timing = new DevicePushTiming();
         try {
@@ -170,8 +185,11 @@ public class PushWorkerService {
                     message,
                     deviceId,
                     timing,
-                    dbTiming
+                    dbTiming,
+                    lease
             );
+        } catch (PushLeaseLostException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
             logDeviceFailure(
                     message,
@@ -188,7 +206,8 @@ public class PushWorkerService {
             PushMessage message,
             UUID deviceId,
             DevicePushTiming timing,
-            PushWorkerDbTiming dbTiming
+            PushWorkerDbTiming dbTiming,
+            PushDeliveryLease lease
     ) {
         DevicePushRequest request = findCurrentRequest(
                 message,
@@ -198,7 +217,13 @@ public class PushWorkerService {
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
-        DevicePushResult result = sender.send(request, timing);
+        DevicePushResult result = sendAndRecord(
+                message,
+                deviceId,
+                request,
+                timing,
+                lease
+        );
         if (result.status() == DevicePushResult.Status.SKIPPED) {
             logSkipped(
                     message,
@@ -208,12 +233,6 @@ public class PushWorkerService {
             );
             return result;
         }
-        logResult(
-                message,
-                deviceId,
-                result,
-                timing
-        );
         if (result.isInvalidToken()) {
             deleteInvalidToken(
                     message,
@@ -222,6 +241,53 @@ public class PushWorkerService {
                     dbTiming
             );
         }
+        return result;
+    }
+
+    private DevicePushResult sendAndRecord(
+            PushMessage message,
+            UUID deviceId,
+            DevicePushRequest request,
+            DevicePushTiming timing,
+            PushDeliveryLease lease
+    ) {
+        DeviceResult started = lease.startDevice(deviceId, clock.instant());
+        if (started == null) {
+            return DevicePushResult.skipped("DELIVERY_ALREADY_PROCESSED");
+        }
+        DevicePushResult result;
+        try {
+            result = sender.send(request, timing);
+        } catch (RuntimeException exception) {
+            logDeviceFailure(
+                    message,
+                    deviceId,
+                    "worker_device_failed",
+                    exception,
+                    timing
+            );
+            lease.recordUnknown(
+                    deviceId,
+                    started,
+                    exception,
+                    clock.instant()
+            );
+            return DevicePushResult.retryable(exception.getClass().getSimpleName());
+        }
+        if (result.status() != DevicePushResult.Status.SKIPPED) {
+            logResult(
+                    message,
+                    deviceId,
+                    result,
+                    timing
+            );
+        }
+        lease.recordResult(
+                deviceId,
+                started,
+                result,
+                clock.instant()
+        );
         return result;
     }
 

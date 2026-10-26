@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.infrastructure.infra;
 
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,6 +20,7 @@ public class NotificationCleanupScheduler {
     private static final Duration WITHDRAWN_RETENTION = Duration.ofDays(30);
 
     private final NotificationRepository notificationRepository;
+    private final PushDeliveryRepository pushDeliveryRepository;
     private final Clock clock;
 
     @Scheduled(cron = "0 50 4 * * *", zone = "Asia/Seoul")
@@ -27,5 +29,7 @@ public class NotificationCleanupScheduler {
         Instant now = clock.instant();
         notificationRepository.deleteExpiredForActiveUsers(Notification.getRetentionThreshold(now));
         notificationRepository.deleteExpiredForWithdrawnUsers(now.minus(WITHDRAWN_RETENTION));
+        pushDeliveryRepository.deleteExpiredForActiveUsers(Notification.getRetentionThreshold(now));
+        pushDeliveryRepository.deleteExpiredForWithdrawnUsers(now.minus(WITHDRAWN_RETENTION));
     }
 }

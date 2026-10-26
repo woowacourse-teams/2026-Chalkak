@@ -1,5 +1,9 @@
 package com.chalkak.backend.notification.service;
 
+import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
+
+import com.chalkak.backend.notification.domain.PushDeliveryStatus;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,6 +30,8 @@ import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.PushDevice;
+import com.chalkak.backend.notification.domain.PushDelivery;
+import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
@@ -63,6 +69,10 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class PushWorkerServiceTest extends IntegrationTestSupport {
+    @Autowired
+    private PushDeliveryService deliveryService;
+    @Autowired
+    private PushDeliveryRepository deliveries;
     private static final Instant NOW = Instant.parse("2026-10-07T00:00:00Z");
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID POST_ID = UUID.randomUUID();
@@ -165,6 +175,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         MDC.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_device_delete ON push_devices");
         jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_device_delete()");
+        jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_delivery_write ON push_deliveries");
+        jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_delivery_write()");
         new DatabaseCleaner(jdbc).clean();
     }
 
@@ -326,7 +338,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                unavailable
+                unavailable,
+                deliveryService
         );
         // When & Then
         assertThatThrownBy(() -> failingWorker.process(message))
@@ -393,6 +406,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_concurrentMessages_keepsSeparateTimingContexts() throws Exception {
         // Given
         PushWorkerService worker = worker(NOW);
+        PushMessage secondMessage = createAdditionalMessage();
         CountDownLatch bothSending = new CountDownLatch(2);
         List<DevicePushTiming> timings = new CopyOnWriteArrayList<>();
         given(sender.send(any(), any())).willAnswer(call -> {
@@ -414,8 +428,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         });
         // When
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> processWithContext(worker, "first-sqs"));
-            var second = executor.submit(() -> processWithContext(worker, "second-sqs"));
+            var first = executor.submit(() -> processWithContext(
+                    worker,
+                    "first-sqs",
+                    message
+            ));
+            var second = executor.submit(() -> processWithContext(
+                    worker,
+                    "second-sqs",
+                    secondMessage
+            ));
             // Then
             assertThat(first.get(10, TimeUnit.SECONDS)).containsExactly(
                     Map.entry("sqsMessageId", "first-sqs"));
@@ -796,6 +818,262 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         });
     }
 
+    @Test
+    @DisplayName("완료한 사건이 다시 오거나 새 기기가 등록돼도 FCM을 재호출하지 않는다")
+    void process_completedDeliveryAndNewDevice_doesNotResend() {
+        // Given
+        worker(NOW).process(message);
+        addDevice("newly-registered-token");
+
+        // When
+        PushProcessingResult repeated = worker(NOW.plusSeconds(10)).process(message);
+
+        // Then
+        assertThat(repeated.retryable()).isFalse();
+        verify(sender).send(any(), any());
+        PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getDeviceResults()).hasSize(1);
+        assertThat(saved.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(saved.getDeviceResults().get(deviceId).isAccepted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("명확한 일시 실패는 기록을 남기고 다음 수신에서만 다시 발송한다")
+    void process_transientRedelivery_recordsAttemptsWithoutInternalRetryLoop() {
+        // Given
+        given(sender.send(any(), any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"))
+                .willReturn(DevicePushResult.accepted());
+
+        // When
+        PushProcessingResult first = worker(NOW).process(message);
+        PushDelivery pending = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        PushProcessingResult second = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(first.retryable()).isTrue();
+        assertThat(pending.getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+        assertThat(pending.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(second.retryable()).isFalse();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
+                .getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+        verify(sender, times(2)).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("SDK 호출 중 예상하지 못한 예외는 결과 불명으로 기록하고 다음 수신에서 재처리한다")
+    void process_unknownResult_preservesUncertaintyAndRetriesOnRedelivery() {
+        // Given
+        given(sender.send(any(), any())).willThrow(new IllegalStateException("SDK interrupted"))
+                .willReturn(DevicePushResult.accepted());
+
+        // When
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        PushDelivery uncertain = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
+
+        // Then
+        assertThat(uncertain.getDeviceResults().get(deviceId).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.UNKNOWN);
+        assertThat(uncertain.getDeviceResults().get(deviceId).getAcceptedAt()).isNull();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
+                .getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+        verify(sender, times(2)).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("동시에 같은 사건을 받아도 현재 Lease를 가진 Worker만 FCM을 요청한다")
+    void process_concurrentSameEvent_sendsOnlyFromLeaseOwner() throws Exception {
+        // Given
+        CountDownLatch sending = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        given(sender.send(any(), any())).willAnswer(call -> {
+            sending.countDown();
+            assertThat(finish.await(5, TimeUnit.SECONDS)).isTrue();
+            return DevicePushResult.accepted();
+        });
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var first = pool.submit(() -> worker(NOW).process(message));
+            try {
+                assertThat(sending.await(5, TimeUnit.SECONDS)).isTrue();
+
+                // When
+                PushProcessingResult other = worker(NOW).process(message);
+
+                // Then
+                assertThat(other.retryable()).isTrue();
+                verify(sender).send(any(), any());
+            } finally {
+                finish.countDown();
+            }
+            assertThat(first.get(5, TimeUnit.SECONDS).retryable()).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("FCM 처리 중 Lease가 만료되면 결과를 덮어쓰거나 다음 기기 발송을 시작하지 않는다")
+    void process_leaseExpiresDuringSend_stopsRemainingDevicesAndRejectsStaleResult() {
+        // Given
+        addDevice("second-token");
+        given(sender.send(any(), any())).willAnswer(call -> {
+            jdbc.update(
+                    "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+            return DevicePushResult.accepted();
+        });
+
+        // When
+        PushProcessingResult result = worker(NOW).process(message);
+
+        // Then
+        assertThat(result.retryable()).isTrue();
+        verify(sender).send(any(), any());
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
+                .getDeviceResults().values()).singleElement()
+                .satisfies(record -> assertThat(record.getStatus())
+                        .isEqualTo(PushDeviceDeliveryStatus.SENDING));
+    }
+
+    @Test
+    @DisplayName("기기 수락만 저장한 뒤 중단된 작업은 재수신에서 완료하고 새 기기에도 다시 보내지 않는다")
+    void process_acceptedHistoryWithoutCompletion_recoversWithoutResending() {
+        // Given
+        UUID token = UUID.randomUUID();
+        PushDelivery claimed = deliveries.claim(
+                message.eventId(),
+                USER_ID,
+                token,
+                Duration.ofSeconds(60)
+        ).orElseThrow();
+        var accepted = claimed.startDevice(deviceId, NOW).finish(
+                PushDeviceDeliveryStatus.ACCEPTED,
+                null,
+                NOW
+        );
+        deliveries.saveDeviceResult(
+                claimed.getId(),
+                token,
+                deviceId,
+                accepted
+        );
+        jdbc.update("UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+        addDevice("new-device-after-crash");
+
+        // When
+        assertThat(worker(NOW).process(message).retryable()).isFalse();
+
+        // Then
+        verifyNoInteractions(sender);
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
+                .isCompleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("로그아웃으로 기기 행을 삭제해도 완료 기록과 기기 결과는 유지한다")
+    void process_deviceDeletedAfterAcceptance_preservesDeliveryHistory() {
+        // Given
+        worker(NOW).process(message);
+        jdbc.update("DELETE FROM push_devices WHERE id=?", deviceId);
+
+        // When
+        PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+
+        // Then
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getDeviceResults()).containsKey(deviceId);
+    }
+
+    @Test
+    @DisplayName("최신 조건에서 생략한 잘못된 메시지는 정상 사건의 완료 기록을 선점하지 않는다")
+    void process_invalidOccurrenceBeforeValidMessage_doesNotPoisonCompletion() {
+        // Given
+        PushMessage invalid = new PushMessage(
+                message.eventId(),
+                message.notificationId(),
+                USER_ID,
+                message.type(),
+                message.sourceType(),
+                POST_ID,
+                NOW.plusSeconds(1),
+                NOW.plusSeconds(1801)
+        );
+
+        // When
+        assertThat(worker(NOW.plusSeconds(1)).process(invalid).retryable()).isFalse();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+        assertThat(worker(NOW).process(message).retryable()).isFalse();
+
+        // Then
+        verify(sender).send(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("시작 기록 저장 실패 시 FCM을 호출하지 않고, 수락 결과 저장 실패 시 성공으로 확정하지 않는다")
+    void process_deliveryWriteFailure_preservesUncertainty(boolean failAcceptance) {
+        // Given
+        jdbc.execute(
+                """
+                        CREATE FUNCTION worker_reject_delivery_write() RETURNS trigger LANGUAGE plpgsql AS $$
+                        BEGIN
+                            IF NOT TG_ARGV[0]::boolean OR
+                                jsonb_path_exists(NEW.device_results, '$.* ? (@.status == "ACCEPTED")') THEN
+                                RAISE EXCEPTION 'delivery write failed';
+                            END IF;
+                            RETURN NEW;
+                        END $$
+                        """);
+        jdbc.execute("""
+                CREATE TRIGGER worker_reject_delivery_write BEFORE UPDATE OF device_results
+                ON push_deliveries FOR EACH ROW EXECUTE FUNCTION worker_reject_delivery_write('%s')
+                """.formatted(failAcceptance));
+
+        // When
+        PushProcessingResult result = worker(NOW).process(message);
+
+        // Then
+        assertThat(result.retryable()).isTrue();
+        PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(saved.isCompleted()).isFalse();
+        if (failAcceptance) {
+            verify(sender).send(any(), any());
+            assertThat(logsAtStage("fcm_result")).singleElement()
+                    .satisfies(log -> assertThat(log).containsEntry("result",
+                            DevicePushResult.Status.ACCEPTED));
+            assertThat(saved.getDeviceResults().get(deviceId).getStatus())
+                    .isEqualTo(PushDeviceDeliveryStatus.SENDING);
+            return;
+        }
+        verifyNoInteractions(sender);
+        assertThat(saved.getDeviceResults()).isEmpty();
+    }
+
+    private PushMessage createAdditionalMessage() {
+        return new TransactionTemplate(manager).execute(status -> {
+            Notification notification = notifications.save(Notification.approved(
+                    USER_ID,
+                    POST_ID,
+                    UUID.randomUUID(),
+                    NOW,
+                    true
+            ));
+            return new PushMessage(
+                    notification.getEventKey(),
+                    notification.getId(),
+                    USER_ID,
+                    notification.getType(),
+                    notification.getSourceType(),
+                    POST_ID,
+                    NOW,
+                    NOW.plusSeconds(1800)
+            );
+        });
+    }
+
     private void recordSdkTiming(
             DevicePushTiming timing,
             long durationMs,
@@ -836,7 +1114,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(now, ZoneOffset.UTC),
-                manager
+                manager,
+                deliveryService
         );
     }
 
@@ -850,14 +1129,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                transactionManager
+                transactionManager,
+                deliveryService
         );
     }
 
-    private Map<String, String> processWithContext(PushWorkerService worker, String sqsMessageId) {
+    private Map<String, String> processWithContext(
+            PushWorkerService worker,
+            String sqsMessageId,
+            PushMessage source
+    ) {
         MDC.put("sqsMessageId", sqsMessageId);
         try {
-            worker.process(message);
+            worker.process(source);
             return MDC.getCopyOfContextMap();
         } finally {
             MDC.clear();
