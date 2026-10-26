@@ -16,15 +16,8 @@ enum SettingsAccountDialog: Equatable {
 
     var message: String {
         switch self {
-        case .logout: "정말 로그아웃 하시겠습니까?"
-        case .withdraw: "정말 회원탈퇴 하시겠습니까?"
-        }
-    }
-
-    var style: ChalkakConfirmDialogStyle {
-        switch self {
-        case .logout: .primary
-        case .withdraw: .destructive
+        case .logout: "로그아웃하면 다시 로그인해야 찰칵을 이용할 수 있어요."
+        case .withdraw: "회원탈퇴하면 계정과 게시물이 삭제되며, 삭제한 내용은 복구할 수 없어요."
         }
     }
 }
@@ -147,20 +140,21 @@ struct SettingsScreen: View {
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .overlay {
-            if let accountDialog = viewModel.viewState.accountDialog {
-                ChalkakConfirmDialog(
-                    title: accountDialog.title,
-                    message: accountDialog.message,
-                    confirmText: accountDialog.title,
-                    confirmStyle: accountDialog.style,
-                    onConfirm: { Task { await viewModel.confirmAccountAction() } },
-                    onDismiss: viewModel.dismissAccountDialog
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        .alert(
+            viewModel.viewState.accountDialog?.title ?? "",
+            isPresented: Binding(
+                get: { viewModel.viewState.accountDialog != nil },
+                set: { if !$0 { viewModel.dismissAccountDialog() } }
+            ),
+            presenting: viewModel.viewState.accountDialog
+        ) { accountDialog in
+            Button("취소", role: .cancel, action: viewModel.dismissAccountDialog)
+            Button(accountDialog.title, role: accountDialog == .withdraw ? .destructive : nil) {
+                Task { await viewModel.confirmAccountAction(for: accountDialog) }
             }
+        } message: { accountDialog in
+            Text(accountDialog.message)
         }
-        .animation(.easeOut(duration: 0.16), value: viewModel.viewState.accountDialog)
         .task {
             await viewModel.load()
             if viewModel.viewState.isLoggedIn {

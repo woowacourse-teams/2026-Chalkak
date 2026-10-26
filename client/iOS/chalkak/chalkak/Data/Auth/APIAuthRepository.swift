@@ -143,7 +143,10 @@ final class APIAuthRepository: AuthRepository {
               let endpoint = try? apiURL(path: "auth/logout"),
               let body = try? JSONEncoder().encode(RefreshTokenRequest(refreshToken: refreshToken))
         else { return }
-        _ = try? await requestData(url: endpoint, body: body)
+        // Local sign-out must not wait for best-effort server token revocation.
+        Task {
+            _ = try? await requestData(url: endpoint, body: body)
+        }
     }
 
     private func requestLogin(
