@@ -48,7 +48,7 @@ class PostOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("작성자 사진 조회 문서는 UUID·인증·최소 응답과 오류 계약을 제공한다")
+    @DisplayName("작성자 사진 조회 문서는 UUID·인증·좋아요 응답과 오류 계약을 제공한다")
     void userApiDocs_getAuthorPosts_exposesContract() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
@@ -117,7 +117,16 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         "$.components.schemas.AuthorPostListResponse.properties.nextCursor")
                         .doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AuthorPostResponse.properties")
-                        .value(aMapWithSize(4)))
+                        .value(aMapWithSize(6)))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostResponse.properties.likeCount.type")
+                        .value("integer"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostResponse.properties.likeCount.format")
+                        .value("int64"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AuthorPostResponse.properties.isLiked.type")
+                        .value("boolean"))
                 .andExpect(jsonPath(
                         "$.components.schemas.AuthorPostResponse.properties.thumbnailImageUrl.type")
                         .value(containsInAnyOrder("string", "null")))

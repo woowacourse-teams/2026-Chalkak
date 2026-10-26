@@ -83,7 +83,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         addDevice("topic-token");
         message = topicMessage(NOW);
         sender = mock(DevicePushSender.class);
-        given(sender.send(any())).willReturn(DevicePushResult.accepted());
+        given(sender.send(any(), any())).willReturn(DevicePushResult.accepted());
     }
 
     @AfterEach
@@ -102,7 +102,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         ArgumentCaptor<DevicePushRequest> request = ArgumentCaptor
                 .forClass(DevicePushRequest.class);
-        verify(sender).send(request.capture());
+        verify(sender).send(request.capture(), any());
         assertThat(request.getValue().message()).isEqualTo(message);
         assertThat(request.getValue().title()).isEqualTo("오늘의 주제");
         assertThat(request.getValue().body()).isEqualTo("빛과 그림자");
@@ -138,7 +138,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         if (sendable) {
-            verify(sender).send(any());
+            verify(sender).send(any(), any());
             return;
         }
         verifyNoInteractions(sender);
@@ -213,14 +213,14 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
 
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
-        verify(sender).send(any());
+        verify(sender).send(any(), any());
     }
 
     @Test
     @DisplayName("일시 실패 후 제출한 회원은 같은 메시지를 다시 받아도 FCM 재발송 없이 완료한다")
     void process_submissionBeforeRedelivery_completesWithoutResending() {
         // Given
-        given(sender.send(any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"));
+        given(sender.send(any(), any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"));
         PushWorkerService service = worker(NOW.plusSeconds(60));
         assertThat(service.process(message).retryable()).isTrue();
         insertPost(
@@ -235,7 +235,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
 
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
-        verify(sender, times(1)).send(any());
+        verify(sender, times(1)).send(any(), any());
     }
 
     @Test
@@ -243,7 +243,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     void process_submissionBetweenDevices_rechecksBeforeEachSend() {
         // Given
         addDevice("second-topic-token");
-        given(sender.send(any())).willAnswer(call -> {
+        given(sender.send(any(), any())).willAnswer(call -> {
             insertPost(
                     USER_ID,
                     TOPIC_ID,
@@ -258,7 +258,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
 
         // Then
         assertThat(result).isEqualTo(PushProcessingResult.completed());
-        verify(sender, times(1)).send(any());
+        verify(sender, times(1)).send(any(), any());
     }
 
     @ParameterizedTest
@@ -309,7 +309,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         assertThat(worker(NOW.plusSeconds(seconds)).process(message))
                 .isEqualTo(PushProcessingResult.completed());
         if (seconds < 1800) {
-            verify(sender).send(any());
+            verify(sender).send(any(), any());
             return;
         }
         verifyNoInteractions(sender);
@@ -369,7 +369,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     @DisplayName("재전달 때는 당시의 기기를 다시 조회하고 새 등록 기기로 발송한다")
     void process_redelivery_usesCurrentDevices() {
         // Given
-        given(sender.send(any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"),
+        given(sender.send(any(), any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"),
                 DevicePushResult.accepted());
         assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isTrue();
         jdbc.update("DELETE FROM push_devices");
@@ -380,7 +380,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         assertThat(result).isEqualTo(PushProcessingResult.completed());
         ArgumentCaptor<DevicePushRequest> requests = ArgumentCaptor
                 .forClass(DevicePushRequest.class);
-        verify(sender, times(2)).send(requests.capture());
+        verify(sender, times(2)).send(requests.capture(), any());
         assertThat(requests.getAllValues()).extracting(DevicePushRequest::token)
                 .containsExactly("topic-token", "new-topic-token");
     }
@@ -390,12 +390,12 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     void process_partialAcceptance_completesUserMessage() {
         // Given
         addDevice("second-topic-token");
-        given(sender.send(any())).willReturn(DevicePushResult.accepted(),
+        given(sender.send(any(), any())).willReturn(DevicePushResult.accepted(),
                 DevicePushResult.retryable("UNAVAILABLE"));
         // When & Then
         assertThat(worker(NOW.plusSeconds(60)).process(message))
                 .isEqualTo(PushProcessingResult.completed());
-        verify(sender, times(2)).send(any());
+        verify(sender, times(2)).send(any(), any());
     }
 
     @Test
@@ -403,7 +403,7 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     void process_allTransientFailures_retriesWithLongestDelay() {
         // Given
         addDevice("second-topic-token");
-        given(sender.send(any())).willReturn(
+        given(sender.send(any(), any())).willReturn(
                 DevicePushResult.retryable("UNAVAILABLE", Duration.ofSeconds(60)),
                 DevicePushResult.retryable("QUOTA_EXCEEDED", Duration.ofSeconds(120)));
         // When
@@ -418,7 +418,8 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     void process_permanentFailureAndInvalidToken_completesAndCleansOnlyInvalidDevice() {
         // Given
         addDevice("second-topic-token");
-        given(sender.send(any())).willReturn(DevicePushResult.permanentFailure("INVALID_ARGUMENT"),
+        given(sender.send(any(), any())).willReturn(
+                DevicePushResult.permanentFailure("INVALID_ARGUMENT"),
                 DevicePushResult.invalidToken("UNREGISTERED"));
         // When
         PushProcessingResult result = worker(NOW.plusSeconds(60)).process(message);
