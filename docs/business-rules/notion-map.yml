@@ -60,6 +60,7 @@ rule_pages:
       피드백 조회: [ADMIN-009]
       AI 프롬프트 미리보기: [ADMIN-010]
       AI 프롬프트 버전: [ADMIN-011]
+      AI 리뷰 조회: [ADMIN-012]
   docs/business-rules/rules/banner.md:
     domain: 배너
     pages:
