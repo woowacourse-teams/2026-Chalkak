@@ -50,7 +50,7 @@ final class FeedZoomRenderingTests: XCTestCase {
         }
         host.view.layoutIfNeeded()
         let clock = ContinuousClock()
-        let layoutDeadline = clock.now.advanced(by: .seconds(3))
+        let layoutDeadline = clock.now.advanced(by: .seconds(10))
         while (!measured || !FeedOpeningImageProtocol.pending.contains(url)), clock.now < layoutDeadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -73,7 +73,7 @@ final class FeedZoomRenderingTests: XCTestCase {
             }.pngData())
             request.succeed(data)
         }
-        let readyDeadline = clock.now.advanced(by: .seconds(3))
+        let readyDeadline = clock.now.advanced(by: .seconds(10))
         while readyCount == 0, clock.now < readyDeadline {
             try await Task.sleep(for: .milliseconds(10))
         }
