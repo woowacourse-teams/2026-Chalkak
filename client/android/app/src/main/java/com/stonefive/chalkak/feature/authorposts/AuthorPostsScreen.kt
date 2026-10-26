@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.authorposts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +34,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.stonefive.chalkak.core.designsystem.component.empty.ChalkakEmptyPostContent
+import com.stonefive.chalkak.core.designsystem.component.image.sharedAuthorSignature
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.AuthorPost
 import com.stonefive.chalkak.domain.model.Post
@@ -72,6 +75,7 @@ fun AuthorPostsRoute(
     }
     AuthorPostsScreen(
         uiState = uiState,
+        authorId = authorId,
         signatureThumbnailImageUrl = signatureThumbnailImageUrl,
         isMine = isMine,
         onNavigateBack = onNavigateBack,
@@ -92,13 +96,14 @@ fun AuthorPostsScreen(
     onRetry: () -> Unit,
     onEndThresholdChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    authorId: String? = null,
 ) {
     val photos = remember(uiState.posts, signatureThumbnailImageUrl, isMine) {
         uiState.posts.map { it.toDisplayPost(signatureThumbnailImageUrl, isMine) }
     }
     val gridState = rememberLazyStaggeredGridState()
     var collapsedFraction by rememberSaveable { mutableFloatStateOf(0f) }
-    val collapseRangePx = with(LocalDensity.current) { (ExpandedHeaderHeight - TopBarTouchSize).toPx() }
+    val collapseRangePx = with(LocalDensity.current) { (ExpandedHeaderHeight - CollapsedHeaderHeight).toPx() }
     val scrollConnection = remember(gridState, collapseRangePx) {
         object : NestedScrollConnection {
             override fun onPreScroll(
@@ -126,14 +131,13 @@ fun AuthorPostsScreen(
             .nestedScroll(scrollConnection),
     ) {
         AuthorPostsTopBar(
+            authorId = authorId,
             signatureThumbnailImageUrl = signatureThumbnailImageUrl,
             isMine = isMine,
             isSignatureVisible = !uiState.isAuthorUnavailable,
             collapsedFraction = if (uiState.isAuthorUnavailable) 1f else collapsedFraction,
             onNavigateBack = onNavigateBack,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = ChalkakTheme.spacing.md),
+            modifier = Modifier.fillMaxWidth(),
         )
         if (photos.isEmpty() && !uiState.isAuthorUnavailable) {
             AuthorPostsDescription(
@@ -206,6 +210,7 @@ fun AuthorPostsScreen(
 
 @Composable
 private fun AuthorPostsTopBar(
+    authorId: String?,
     signatureThumbnailImageUrl: String?,
     isMine: Boolean,
     isSignatureVisible: Boolean,
@@ -213,17 +218,22 @@ private fun AuthorPostsTopBar(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val headerHeight = lerp(ExpandedHeaderHeight, TopBarTouchSize, collapsedFraction)
+    val headerHeight = lerp(ExpandedHeaderHeight, CollapsedHeaderHeight, collapsedFraction)
     val signatureHeight = lerp(ExpandedSignatureHeight, SignatureHeight, collapsedFraction)
     val signatureWidth = lerp(ExpandedSignatureWidth, SignatureWidth, collapsedFraction)
     Box(modifier = modifier.height(headerHeight).testTag("author-posts-header")) {
-        IconButton(
-            onClick = onNavigateBack,
-            modifier = Modifier.align(Alignment.TopStart).size(TopBarTouchSize),
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = BackButtonStart, y = BackButtonTop)
+                .size(TopBarTouchSize)
+                .semantics { contentDescription = "뒤로 가기" }
+                .clickable(interactionSource = null, indication = null, onClick = onNavigateBack),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "뒤로 가기",
+                contentDescription = null,
                 tint = ChalkakTheme.colors.iconPrimary,
                 modifier = Modifier.size(ChalkakTheme.spacing.xl),
             )
@@ -236,7 +246,13 @@ private fun AuthorPostsTopBar(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = lerp(ExpandedSignatureTop, (TopBarTouchSize - SignatureHeight) / 2, collapsedFraction))
+                    .offset(
+                        y = lerp(
+                            ExpandedSignatureTop,
+                            BackButtonTop + (TopBarTouchSize - SignatureHeight) / 2,
+                            collapsedFraction,
+                        ),
+                    ).sharedAuthorSignature(authorId)
                     .size(signatureWidth, signatureHeight)
                     .testTag("author-posts-signature"),
             )
@@ -297,3 +313,7 @@ private val ExpandedHeaderHeight = 112.dp
 private val ExpandedSignatureWidth = 144.dp
 private val ExpandedSignatureHeight = 64.dp
 private val ExpandedSignatureTop = 40.dp
+
+private val BackButtonStart = 8.dp
+private val BackButtonTop = 10.dp
+private val CollapsedHeaderHeight = 62.dp

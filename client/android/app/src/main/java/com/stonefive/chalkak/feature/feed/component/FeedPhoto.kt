@@ -58,6 +58,7 @@ import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransit
 import com.stonefive.chalkak.core.designsystem.component.image.LocalSharedTransitionScope
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.component.image.SharedPhotoImage
+import com.stonefive.chalkak.core.designsystem.component.image.sharedAuthorSignature
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakPhotoActionText
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -83,6 +84,7 @@ fun FeedPhoto(
         if (isSignatureVisible && isSignatureLoaded && post != null) onSignatureVisible()
     }
     val signatureModifier = Modifier
+        .sharedAuthorSignature(post?.authorId)
         .size(width = FeedSignatureWidth, height = FeedSignatureHeight)
         .onGloballyPositioned { coordinates ->
             val bounds = coordinates.boundsInWindow()

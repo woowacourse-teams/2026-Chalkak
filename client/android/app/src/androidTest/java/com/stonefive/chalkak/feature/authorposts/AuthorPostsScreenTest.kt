@@ -1,5 +1,9 @@
 package com.stonefive.chalkak.feature.authorposts
 
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
@@ -19,6 +23,8 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.AuthorPost
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.feature.feed.FeedScreen
+import com.stonefive.chalkak.feature.feed.FeedUiState
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -62,7 +68,7 @@ class AuthorPostsScreenTest {
 
         composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() }
 
-        composeRule.onNodeWithTag("author-posts-header").assertHeightIsEqualTo(44.dp)
+        composeRule.onNodeWithTag("author-posts-header").assertHeightIsEqualTo(62.dp)
         composeRule.onNodeWithTag("author-posts-signature").assertHeightIsEqualTo(32.dp)
         composeRule.onNodeWithContentDescription("작성자 사인").assertIsDisplayed()
         assertEquals(
@@ -72,6 +78,59 @@ class AuthorPostsScreenTest {
                 .fetchSemanticsNode()
                 .boundsInRoot.top,
             1f,
+        )
+    }
+
+    @Test
+    fun authorBackButtonMatchesFeedBeforeAndAfterHeaderCollapse() {
+        var showAuthor by mutableStateOf(false)
+        composeRule.setContent {
+            ChalkakTheme {
+                if (showAuthor) {
+                    AuthorPostsScreen(
+                        uiState = AuthorPostsUiState(
+                            isLoading = false,
+                            posts = List(30) { index -> photo(index.toString()) },
+                        ),
+                        signatureThumbnailImageUrl = null,
+                        isMine = false,
+                        onNavigateBack = {},
+                        onPhotoClick = {},
+                        onRetry = {},
+                        onEndThresholdChanged = {},
+                    )
+                } else {
+                    FeedScreen(
+                        uiState = FeedUiState(isLoading = true),
+                        onNavigateBack = {},
+                        onDeleteClick = {},
+                        onLikeClick = {},
+                        snackbarHostState = SnackbarHostState(),
+                    )
+                }
+            }
+        }
+        val feedBackBounds = composeRule
+            .onNodeWithContentDescription("뒤로 가기")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        composeRule.runOnIdle { showAuthor = true }
+
+        assertEquals(
+            feedBackBounds,
+            composeRule
+                .onNodeWithContentDescription("뒤로 가기")
+                .fetchSemanticsNode()
+                .boundsInRoot,
+        )
+        composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp() }
+        assertEquals(
+            feedBackBounds,
+            composeRule
+                .onNodeWithContentDescription("뒤로 가기")
+                .fetchSemanticsNode()
+                .boundsInRoot,
         )
     }
 
