@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.service;
 
+import com.chalkak.backend.like.domain.PostLikes;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostSlice;
@@ -18,14 +19,20 @@ public record AuthorPostListResult(
             PostSlice slice,
             int currentPage,
             int pageSize,
-            ImageUrlProvider imageUrlProvider
+            ImageUrlProvider imageUrlProvider,
+            PostLikes postLikes
     ) {
         return new AuthorPostListResult(
                 currentPage,
                 pageSize,
                 slice.hasNext(),
                 slice.posts().stream()
-                        .map(post -> PostSummary.fromPost(post, imageUrlProvider))
+                        .map(post -> PostSummary.fromPost(
+                                post,
+                                imageUrlProvider,
+                                postLikes.getLikeCount(post.getId()),
+                                postLikes.isLiked(post.getId())
+                        ))
                         .toList()
         );
     }
@@ -34,10 +41,17 @@ public record AuthorPostListResult(
             UUID id,
             String originalImageUrl,
             String thumbnailImageUrl,
-            TopicSummary topic
+            TopicSummary topic,
+            long likeCount,
+            boolean isLiked
     ) {
 
-        private static PostSummary fromPost(Post post, ImageUrlProvider imageUrlProvider) {
+        private static PostSummary fromPost(
+                Post post,
+                ImageUrlProvider imageUrlProvider,
+                long likeCount,
+                boolean isLiked
+        ) {
             return new PostSummary(
                     post.getId(),
                     imageUrlProvider.getUrl(post.getPhoto().getOriginalStorageKey()),
@@ -46,7 +60,9 @@ public record AuthorPostListResult(
                             post.getTopic().getId(),
                             post.getTopic().getTitle(),
                             post.getTopic().getTopicDate()
-                    )
+                    ),
+                    likeCount,
+                    isLiked
             );
         }
     }

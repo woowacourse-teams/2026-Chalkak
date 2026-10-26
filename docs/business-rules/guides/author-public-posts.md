@@ -47,6 +47,8 @@ Authorization: Bearer {accessToken}
       "id": "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
       "originalImageUrl": "https://cdn.example.com/posts/original.webp",
       "thumbnailImageUrl": "https://cdn.example.com/posts/thumbnail.webp",
+      "likeCount": 2,
+      "isLiked": true,
       "topic": {
         "id": "0198f6c1-62ba-7d30-8b12-0f733b6570b2",
         "title": "오늘의 하늘",
@@ -59,7 +61,9 @@ Authorization: Bearer {accessToken}
 
 - 사진과 주제 정보를 함께 표시한다. `id`는 회원 ID가 아닌 게시물 ID다.
 - 목록에서는 썸네일을 사용하고 `thumbnailImageUrl`이 `null`인 기존 사진은 원본 URL을 사용할 수 있다.
-- 사진을 선택하면 `GET /api/v1/posts/{postId}`에 해당 `id`를 사용한다. 사진 제목·좋아요 등의 상세 정보는 이 API에서 받는다.
+- `likeCount`는 피드와 같은 현재 전체 좋아요 수이며, `isLiked`는 인증된 조회자 본인의 좋아요 여부다. 작성자의 좋아요 여부와 구분한다. 좋아요가 없으면 `0`·`false`이며 본인 사진의 좋아요도 같은 기준이다. 목록은 기존처럼 로그인 필수다.
+- 카드에서 좋아요를 등록·취소할 때는 기존 `PUT /api/v1/posts/{postId}/likes`·`DELETE /api/v1/posts/{postId}/likes`를 사용한다. 기존 LIKE-001~003 자격·대상·중복 규칙을 따르며 정지 회원의 조회 허용이 좋아요 등록 허용을 뜻하지 않는다. 상세에서 돌아오거나 새로고침하면 목록의 개수·내 상태를 동기화한다.
+- 사진을 선택하면 `GET /api/v1/posts/{postId}`에 해당 `id`를 사용한다. 사진 제목 등의 상세 정보는 이 API에서 받는다.
 - 목록의 이미지 URL은 파일을 한꺼번에 내려받으라는 의미가 아니다. 앱에서 화면에 필요한 이미지를 로드한다.
 
 ## 다음 페이지와 새로고침
@@ -92,3 +96,5 @@ Authorization: Bearer {accessToken}
 ## 연동 적용 범위
 
 백엔드는 작성자 ID와 공개 사진 목록·상세 API를 제공한다. 사인 터치 영역, 로그인 후 선택한 작성자로 복귀, 목록 화면과 스크롤·중복 표시 처리는 앱에서 연결한다. 이 설명서와 코드의 갱신이 운영 서버 배포 완료를 뜻하지 않으므로 실제 서버 적용 버전을 확인한 뒤 연동한다.
+
+좋아요 필드 추가는 [#816](https://github.com/woowacourse-teams/2026-Chalkak/issues/816) 범위이며 Android [#813](https://github.com/woowacourse-teams/2026-Chalkak/issues/813)·iOS [#814](https://github.com/woowacourse-teams/2026-Chalkak/issues/814)에서 카드 표시·토글 및 상세와의 상태 동기화를 연결한다. 필드 추가는 기존 v1의 하위 호환 확장이며 운영 서버 반영 여부는 별도로 확인한다.

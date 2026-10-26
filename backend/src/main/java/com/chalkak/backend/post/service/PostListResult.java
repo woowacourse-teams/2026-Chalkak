@@ -1,13 +1,12 @@
 package com.chalkak.backend.post.service;
 
+import com.chalkak.backend.like.domain.PostLikes;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostSlice;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 public record PostListResult(
@@ -24,8 +23,7 @@ public record PostListResult(
             int pageSize,
             String randomSeed,
             ImageUrlProvider imageUrlProvider,
-            Map<UUID, Long> likeCounts,
-            Set<UUID> likedPostIds,
+            PostLikes postLikes,
             Optional<UUID> viewerId
     ) {
         return new PostListResult(
@@ -37,8 +35,8 @@ public record PostListResult(
                         .map(post -> PostSummary.fromPost(
                                 post,
                                 imageUrlProvider,
-                                likeCounts.getOrDefault(post.getId(), 0L),
-                                likedPostIds.contains(post.getId()),
+                                postLikes.getLikeCount(post.getId()),
+                                postLikes.isLiked(post.getId()),
                                 viewerId.map(post::isAuthoredBy).orElse(false)
                         ))
                         .toList()

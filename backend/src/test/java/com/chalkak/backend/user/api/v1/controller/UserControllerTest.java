@@ -64,8 +64,8 @@ class UserControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("작성자의 사진·게시물 ID·주제만 응답으로 제공한다")
-    void getAuthorPosts_validAuthor_returnsMinimalResponse() throws Exception {
+    @DisplayName("작성자의 사진·게시물 ID·주제와 좋아요 정보를 응답한다")
+    void getAuthorPosts_validAuthor_returnsPhotoAndLikes() throws Exception {
         // Given
         UUID postId = UUID.randomUUID();
         UUID topicId = UUID.randomUUID();
@@ -91,7 +91,9 @@ class UserControllerTest {
                                                 4,
                                                 1
                                         )
-                                )
+                                ),
+                                2L,
+                                true
                         ))
                 ));
 
@@ -103,11 +105,13 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.currentPage").value(1))
                 .andExpect(jsonPath("$.pageSize").value(20))
                 .andExpect(jsonPath("$.nextCursor").doesNotExist())
-                .andExpect(jsonPath("$.posts[0]").value(aMapWithSize(4)))
+                .andExpect(jsonPath("$.posts[0]").value(aMapWithSize(6)))
                 .andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
                 .andExpect(jsonPath("$.posts[0].originalImageUrl")
                         .value("https://cdn.example.com/original.webp"))
                 .andExpect(jsonPath("$.posts[0].thumbnailImageUrl").isEmpty())
+                .andExpect(jsonPath("$.posts[0].likeCount").value(2))
+                .andExpect(jsonPath("$.posts[0].isLiked").value(true))
                 .andExpect(jsonPath("$.posts[0].topic").value(aMapWithSize(3)))
                 .andExpect(jsonPath("$.posts[0].topic.id").value(topicId.toString()))
                 .andExpect(jsonPath("$.posts[0].topic.title").value("오늘의 하늘"))
