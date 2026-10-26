@@ -321,7 +321,7 @@ struct FeedScreen: View {
 
     private var morphsPhotoAspectRatio: Bool {
         switch zoomSource {
-        case .homeYesterday, .homeTrending, .displayGrid, .displayFeatured: true
+        case .homeYesterday, .homeTrending, .displayGrid, .displayFeatured, .authorGrid: true
         default: false
         }
     }

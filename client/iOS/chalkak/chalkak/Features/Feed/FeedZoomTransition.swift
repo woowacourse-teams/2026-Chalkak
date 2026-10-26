@@ -8,18 +8,21 @@ enum FeedZoomSource: Hashable, Sendable {
     case homeYesterday(FeedPost.ID)
     case homeTrending(FeedPost.ID)
     case record(FeedPost.ID)
+    // 작가 사진 목록의 그리드. 아래 탭의 전시 그리드에 같은 사진이 있어도 따로 등록한다.
+    case authorGrid(FeedPost.ID)
 
     var viewport: FeedZoomViewport? {
         switch self {
         case .displayFeatured, .displayGrid: .display
         case .homeYesterday, .homeTrending: .home
+        case .authorGrid: .authorPosts
         case .record: nil
         }
     }
 }
 
 enum FeedZoomViewport: Hashable {
-    case home, display
+    case home, display, authorPosts
 }
 
 /// 줌 전환 출발 뷰들의 현재 화면상 위치를 모아 둔다.
