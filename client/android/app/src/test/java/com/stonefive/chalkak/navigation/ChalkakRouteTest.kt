@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.navigation
 
+import com.stonefive.chalkak.domain.model.UserSessionState
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -142,4 +143,21 @@ class ChalkakRouteTest {
     }
 
     private inline fun <reified T> roundTrip(route: T): T = Json.decodeFromString(Json.encodeToString(route))
+
+    @Test
+    fun `author posts ownership is recalculated for the signed-in member`() {
+        val restored = AuthorPosts("account-a", null, isMine = true)
+
+        assertEquals(false, restored.isMineFor(UserSessionState.Authenticated("account-b")))
+        assertEquals(true, restored.isMineFor(UserSessionState.Authenticated("account-a")))
+        assertEquals(
+            true,
+            AuthorPosts("account-b", null, isMine = false).isMineFor(UserSessionState.Authenticated("account-b")),
+        )
+    }
+
+    @Test
+    fun `author posts ownership falls back to the route while the session is unknown`() {
+        assertEquals(true, AuthorPosts("account-a", null, isMine = true).isMineFor(UserSessionState.Loading))
+    }
 }

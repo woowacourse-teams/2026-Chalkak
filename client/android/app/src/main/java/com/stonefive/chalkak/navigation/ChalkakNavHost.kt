@@ -673,6 +673,7 @@ fun ChalkakNavHost(
                     coordinator = photoTransitionCoordinator,
                 ) {
                     val author = backStackEntry.toRoute<AuthorPosts>()
+                    val isMine = author.isMineFor(sessionState)
                     val removedPostId by backStackEntry.savedStateHandle
                         .getStateFlow<String?>(POST_DELETED_KEY, null)
                         .collectAsStateWithLifecycle()
@@ -680,7 +681,7 @@ fun ChalkakNavHost(
                         authorId = author.authorId,
                         removedPostId = removedPostId,
                         signatureThumbnailImageUrl = author.signatureThumbnailImageUrl,
-                        isMine = author.isMine,
+                        isMine = isMine,
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.popBackStack()
                         },
@@ -701,7 +702,7 @@ fun ChalkakNavHost(
                                         isLiked = post.isLiked,
                                         dateLabel = "",
                                         topic = post.contentDescription,
-                                        isOwnedByCurrentUser = author.isMine,
+                                        isOwnedByCurrentUser = isMine,
                                     ),
                                 )
                             }

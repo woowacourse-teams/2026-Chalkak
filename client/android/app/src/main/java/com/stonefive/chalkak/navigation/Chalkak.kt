@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.navigation
 
+import com.stonefive.chalkak.domain.model.UserSessionState
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -67,6 +68,16 @@ data class AuthorPosts(
     val signatureThumbnailImageUrl: String?,
     val isMine: Boolean,
 )
+
+/**
+ * 지금 로그인한 사용자 기준으로 이 작가 화면이 내 화면인지 판단한다.
+ * 로그인 후 복원한 경로에는 이전 계정 기준의 [AuthorPosts.isMine]이 남아 있을 수 있으므로,
+ * 로그인 상태면 회원 ID와 [AuthorPosts.authorId]를 비교해 다시 계산하고, 세션을 아직 모르면 경로 값을 쓴다.
+ *
+ * 예: A 계정의 내 작가 화면(isMine=true)을 B 계정 로그인 후 복원하면 false가 된다.
+ */
+fun AuthorPosts.isMineFor(session: UserSessionState): Boolean =
+    (session as? UserSessionState.Authenticated)?.let { it.userId == authorId } ?: isMine
 
 @Serializable
 data class FeedById(
