@@ -325,6 +325,24 @@ struct AuthorPostsViewModelTests {
     }
 }
 
+@Suite(.serialized)
+struct AuthorPostsSignatureHintTests {
+    @Test("안내 시트는 기록 전에는 안 띄운 상태이고, 띄운 기록은 새 인스턴스에서도 유지된다")
+    func remembersShownHint() throws {
+        let suiteName = "AuthorPostsSignatureHintTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let hint = AuthorPostsSignatureHint(defaults: defaults)
+        #expect(!hint.hasShown)
+
+        hint.markShown()
+
+        #expect(hint.hasShown)
+        #expect(AuthorPostsSignatureHint(defaults: defaults).hasShown)
+    }
+}
+
 @MainActor
 private final class AuthorPostsLikeRecorder {
     var calls: [Bool] = []
