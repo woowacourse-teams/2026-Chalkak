@@ -111,6 +111,11 @@ final class FeedViewModel {
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
             }
+            // 상세 응답에는 사인 썸네일이 없다. 전시 시드에서 받은 값을 유지한다.
+            if let current = viewState.content {
+                merged.post.authorID = merged.post.authorID ?? current.post.authorID
+                merged.post.signatureThumbnailImageSource = current.post.signatureThumbnailImageSource
+            }
             if isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
             }

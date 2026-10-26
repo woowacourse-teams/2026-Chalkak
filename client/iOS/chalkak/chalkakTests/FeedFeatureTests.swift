@@ -156,6 +156,24 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.topic == "갱신됨")
     }
 
+    @Test("상세 응답에 없는 작성자 ID와 사인 썸네일은 전시 시드 값을 유지한다")
+    func detailKeepsSeedAuthorAndSignatureThumbnail() async {
+        var seed = Self.content(isLiked: false, likeCount: 3)
+        seed.post.authorID = "author-1"
+        seed.post.signatureThumbnailImageSource = .asset("preview_signature_thumbnail")
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: seed,
+            isLikeConfirmed: true,
+            detailHandler: { _ in .success(Self.content(isLiked: false, likeCount: 3)) }
+        )
+
+        await viewModel.load()
+
+        #expect(viewModel.viewState.content?.post.authorID == "author-1")
+        #expect(viewModel.viewState.content?.post.signatureThumbnailImageSource == .asset("preview_signature_thumbnail"))
+    }
+
     @Test("전시 시드는 상세 확정 전까지 좋아요를 막고, 확정 후 허용한다")
     func displaySeedGatesLikeUntilLoaded() async {
         let viewModel = FeedViewModel(
