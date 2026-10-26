@@ -522,6 +522,13 @@ private final class AsyncGate {
 
 @MainActor
 struct FeedZoomCropTests {
+    @Test("하단바가 있는 탭에서 연 피드만 돌아갈 때 하단바를 띄운다")
+    func onlyTabSourcesShowBottomBar() {
+        #expect(FeedZoomSource.displayGrid("photo").showsBottomBar)
+        #expect(FeedZoomSource.homeTrending("photo").showsBottomBar)
+        #expect(!FeedZoomSource.authorGrid("photo").showsBottomBar)
+    }
+
     @Test("등록이 누락된 그리드 사진도 탭 좌표와 가림 영역을 즉시 전달한다")
     func tappedPhotoSuppliesSourceWithoutPriorRegistration() {
         let registry = FeedZoomRegistry()

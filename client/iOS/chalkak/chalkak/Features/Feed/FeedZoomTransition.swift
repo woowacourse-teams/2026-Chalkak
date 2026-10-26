@@ -19,6 +19,15 @@ enum FeedZoomSource: Hashable, Sendable {
         case .record: nil
         }
     }
+
+    // 출발 화면 아래에 탭 하단바가 있는지. 피드가 접히며 돌아갈 때 이 화면에서만 하단바를 다시 띄운다.
+    // 작가 사진 목록은 탭 위에 덮인 층이라 하단바가 없다.
+    var showsBottomBar: Bool {
+        switch self {
+        case .displayFeatured, .displayGrid, .homeYesterday, .homeTrending, .record: true
+        case .authorGrid: false
+        }
+    }
 }
 
 enum FeedZoomViewport: Hashable {

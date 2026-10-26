@@ -174,7 +174,7 @@ struct FeedScreen: View {
                 guard !hasStartedOpening, !isClosing else { return }
                 zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
                 zoomRegistry?.hidesWholeSource = usesScreenTransition
-                zoomRegistry?.sourceBarOpacity = usesScreenTransition ? 1 : 0
+                zoomRegistry?.sourceBarOpacity = revealsSourceBottomBar ? 1 : 0
                 hasStartedOpening = true
             }
             .allowsHitTesting(false)
@@ -409,6 +409,11 @@ struct FeedScreen: View {
         usesPhotoTransition && movingSource != nil
     }
 
+    // 화면이 출발 카드로 접히는 동안 출발 화면의 하단바를 함께 보여줄지.
+    private var revealsSourceBottomBar: Bool {
+        usesScreenTransition && zoomSource?.showsBottomBar == true
+    }
+
     // FeedScreenReturnEffect와 같은 값으로 서명만 따로 출발 서명에 맞춘다.
     private var screenZoom: FeedScreenZoom? {
         guard usesScreenTransition, hasStartedOpening,
@@ -496,7 +501,7 @@ struct FeedScreen: View {
         let animation = photoAnimation(to: 0, releaseVelocity: releaseVelocity)
         // 하단바는 사진이 카드에 거의 도착한 뒤에 드러낸다. 끄는 동안에는 띄우지 않는다.
         withAnimation(Metrics.sourceBarAnimation) {
-            zoomRegistry?.sourceBarOpacity = usesScreenTransition ? 1 : 0
+            zoomRegistry?.sourceBarOpacity = revealsSourceBottomBar ? 1 : 0
         }
         withAnimation(animation) {
             photoProgress = 0
