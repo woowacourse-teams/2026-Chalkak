@@ -204,4 +204,5 @@ private fun previewRankingPost(
     contentDescription = "랭킹 사진 $id",
     title = "사진 $id",
     likeCount = id.toInt(),
+    authorId = "preview-author",
 )

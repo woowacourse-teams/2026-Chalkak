@@ -12,14 +12,17 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +36,7 @@ class FeedViewModel(
     private val initialContent: FeedContentState.Success? = null,
     private val postId: String? = initialContent?.post?.id,
     private val isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
+    private val signatureHintRepository: SignatureHintRepository? = null,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -45,6 +49,66 @@ class FeedViewModel(
     )
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
 
+    private var hintAttempted = false
+    private var signatureClicked = false
+
+    /**
+     * 사진 상세에서 사인이 화면에 처음 보일 때 첫 안내 바텀시트를 띄운다. 내 사진이어도 띄운다.
+     * 시트는 시간이 지나도 닫히지 않고 사용자가 닫아야 하며([dismissSignatureHint]), 한 번 닫으면 다시 띄우지 않는다.
+     */
+    fun onSignatureVisible() {
+        val post = _uiState.value.content
+            ?.post ?: return
+        if (hintAttempted || post.authorId.isBlank()) return
+        val repository = signatureHintRepository ?: return
+        hintAttempted = true
+        viewModelScope.launch {
+            val completed = try {
+                repository.isCompleted()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                true
+            }
+            if (!completed && !signatureClicked) {
+                _uiState.update { it.copy(showSignatureHint = true) }
+            }
+        }
+    }
+
+    /** 첫 안내 바텀시트를 쓸어내리거나 바깥을 눌러 닫았을 때 호출한다. 이후로는 다시 띄우지 않는다. */
+    fun dismissSignatureHint() {
+        _uiState.update { it.copy(showSignatureHint = false) }
+        completeSignatureHint()
+    }
+
+    fun onSignatureClicked(): Post? {
+        signatureClicked = true
+        _uiState.update { it.copy(showSignatureHint = false) }
+        val post = _uiState.value.content
+            ?.post ?: return null
+        if (currentUserId() == null) {
+            _uiState.update { it.copy(pendingMessage = nextToast("다른 사진도 보려면 로그인이 필요해요")) }
+            return null
+        }
+        return post.takeIf { it.authorId.isNotBlank() }?.also { completeSignatureHint() }
+    }
+
+    private fun completeSignatureHint() {
+        val repository = signatureHintRepository ?: return
+        viewModelScope.launch {
+            try {
+                repository.complete()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                // 저장에 실패하면 다음 상세 진입에서 안내가 한 번 더 보일 뿐이다.
+            }
+        }
+    }
+
+    private var syncedLikeRevision = 0
+    private var syncedLike: Pair<Int, PostLikeUpdate>? = null
     private var latestLikeGeneration = 0
     private var nextMessageId = 0L
 
@@ -58,6 +122,30 @@ class FeedViewModel(
     )
 
     init {
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.likeUpdates.collect { update ->
+                if (update.postId != (
+                        _uiState.value.content
+                            ?.post
+                            ?.id ?: postId
+                        )
+                ) {
+                    return@collect
+                }
+                syncedLike = ++syncedLikeRevision to update
+                // 동기화된 서버 상태가 더 최신이므로 이 화면에서 진행 중인 좋아요의 성공 반영·롤백을 무효화한다.
+                latestLikeGeneration++
+                _uiState.update { state ->
+                    val content = state.content ?: return@update state
+                    state.copy(
+                        content = content.copy(
+                            post = content.post.copy(likeCount = update.likeCount, isLiked = update.isLiked),
+                            isLiked = update.isLiked,
+                        ),
+                    )
+                }
+            }
+        }
         syncFeedbackTarget()
         val initialSession = sessionState.value
         viewModelScope.launch {
@@ -343,6 +431,7 @@ class FeedViewModel(
     private fun loadPostDetail(postId: String) {
         val requestUserId = currentUserId()
         val likeGenerationAtRequestStart = latestLikeGeneration
+        val syncRevisionAtRequestStart = syncedLikeRevision
         _uiState.update {
             it.copy(
                 isLoading = it.content == null,
@@ -360,7 +449,13 @@ class FeedViewModel(
             }
 
             when (result) {
-                is HomeResult.Success -> applyPostDetail(result.value, likeGenerationAtRequestStart, requestUserId)
+                is HomeResult.Success -> applyPostDetail(
+                    result.value,
+                    likeGenerationAtRequestStart,
+                    syncRevisionAtRequestStart,
+                    requestUserId,
+                )
+
                 is HomeResult.Failure -> handleDetailFailure(result.reason)
             }
         }
@@ -395,6 +490,7 @@ class FeedViewModel(
     private fun applyPostDetail(
         detail: PostDetail,
         likeGenerationAtRequestStart: Int,
+        syncRevisionAtRequestStart: Int,
         requestUserId: String?,
     ) {
         val previousContent = _uiState.value.content
@@ -402,9 +498,13 @@ class FeedViewModel(
         val shouldPreserveCurrentLike =
             previousPost != null && likeGenerationAtRequestStart != latestLikeGeneration
         val currentLikePost = previousPost?.takeIf { shouldPreserveCurrentLike }
+        val newerSyncedLike = syncedLike
+            ?.takeIf {
+                it.first > syncRevisionAtRequestStart && it.second.postId == detail.post.id
+            }?.second
         val updatedPost = detail.post.copy(
-            likeCount = currentLikePost?.likeCount ?: detail.post.likeCount,
-            isLiked = currentLikePost?.isLiked ?: detail.post.isLiked,
+            likeCount = newerSyncedLike?.likeCount ?: currentLikePost?.likeCount ?: detail.post.likeCount,
+            isLiked = newerSyncedLike?.isLiked ?: currentLikePost?.isLiked ?: detail.post.isLiked,
             signatureThumbnailImageUrl = detail.post.signatureThumbnailImageUrl
                 ?: previousPost?.signatureThumbnailImageUrl,
             submittedAt = detail.post.submittedAt ?: previousPost?.submittedAt,
@@ -493,6 +593,7 @@ class FeedViewModel(
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedViewModel(
                     repository = application.appContainer.postRepository,
+                    signatureHintRepository = application.appContainer.signatureHintRepository,
                     aiReviewRepository = application.appContainer.aiReviewRepository,
                     sessionState = application.appContainer.authRepository.sessionState,
                     initialContent = initialContent,

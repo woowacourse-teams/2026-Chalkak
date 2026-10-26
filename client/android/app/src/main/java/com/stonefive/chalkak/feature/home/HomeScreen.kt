@@ -617,6 +617,7 @@ private fun previewHomePost(
     contentDescription = "$title 사진",
     title = title,
     likeCount = id.toInt(),
+    authorId = "preview-author",
 )
 
 private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"

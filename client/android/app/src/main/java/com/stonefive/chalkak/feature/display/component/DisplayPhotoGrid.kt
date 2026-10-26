@@ -42,6 +42,8 @@ fun DisplayPhotoGrid(
     horizontalContentPadding: Dp = 21.dp,
     verticalItemSpacing: Dp = 9.dp,
     header: (@Composable () -> Unit)? = null,
+    showLikeCount: Boolean = true,
+    showSignature: Boolean = true,
 ) {
     val imageAspectRatios = rememberSaveable(saver = ImageAspectRatiosSaver) {
         mutableStateMapOf<String, Float>()
@@ -78,6 +80,8 @@ fun DisplayPhotoGrid(
         ) { photo ->
             DisplayPhotoCard(
                 photo = photo,
+                showLikeCount = showLikeCount,
+                showSignature = showSignature,
                 onClick = { onPhotoClick(photo) },
                 onLikeClick = { onLikeClick(photo) },
                 imageAspectRatio = imageAspectRatios[photo.thumbnailImageUrl],

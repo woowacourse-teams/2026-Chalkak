@@ -5,7 +5,9 @@ import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.AiReviewContent
 import com.stonefive.chalkak.domain.model.AiReviewCriterion
 import com.stonefive.chalkak.domain.model.AiReviewFeedback
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.BannerPage
+import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -473,6 +475,12 @@ class HomeAiReviewTest {
         PostRepository,
         PhotoUploadEntryRepository,
         BannerRepository {
+        override suspend fun getAuthorPosts(
+            authorId: String,
+            page: Int,
+            pageSize: Int,
+        ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
         var postId = POST_ID
 
         override suspend fun getPostCalendar(month: YearMonth) = HomeResult.Success(
@@ -539,6 +547,7 @@ class HomeAiReviewTest {
             contentDescription = "사진",
             title = null,
             likeCount = 0,
+            authorId = "author",
         )
     }
 }

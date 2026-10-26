@@ -32,14 +32,26 @@ struct FeedScreen: View {
     private let usesPhotoTransition: Bool
     @State private var showsDeleteDialog = false
     @State private var showsAIReviewSheet = false
+    // AI 피드백 시트가 닫히는 애니메이션까지 끝났는지. 시트 두 개를 겹쳐 띄우지 않으려고 따로 둔다.
+    @State private var isAIReviewSheetOnScreen = false
     @State private var showsTitleEditDialog = false
     @State private var titleDraft = ""
+    @State private var showsSignatureHint = false
+    // 코드가 안내 시트를 닫는 중인지. 사용자가 닫은 경우와 구분해, 사용자가 닫았을 때만 다시 띄우지 않도록 기록한다.
+    @State private var isHidingSignatureHintByCode = false
+    private let signatureHint = AuthorPostsSignatureHint()
     // 원본 이미지가 로드되기 전까지 사진 자리에 보여줄 이미지.
     var placeholder: FeedPhotoPlaceholder?
     var zoomSource: FeedZoomSource?
     // 닫는 전환이 끝난 뒤 호출된다.
     var onBack: () -> Void = {}
     var onDeleted: (FeedPost.ID) -> Void = { _ in }
+    // 사인을 눌러 작가 사진 목록을 연다. nil이면 사인을 누를 수 없다.
+    var onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)?
+    // 이 피드의 좋아요 상태가 정해지거나 바뀔 때(상세 도착·토글). 작가 사진 목록 카드를 맞추는 데 쓴다.
+    var onLikeChange: ((FeedLikeUpdate) -> Void)?
+    // 다른 화면(작가 사진 목록 카드)에서 바뀐 좋아요. 이 피드의 게시물이면 반영한다.
+    var externalLikeUpdate: FeedLikeUpdate?
 
     init(
         viewModel: FeedViewModel,
@@ -49,7 +61,10 @@ struct FeedScreen: View {
         usesPhotoTransition: Bool = true,
         opensAIReviewOnEntry: Bool = false,
         onBack: @escaping () -> Void = {},
-        onDeleted: @escaping (FeedPost.ID) -> Void = { _ in }
+        onDeleted: @escaping (FeedPost.ID) -> Void = { _ in },
+        onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)? = nil,
+        onLikeChange: ((FeedLikeUpdate) -> Void)? = nil,
+        externalLikeUpdate: FeedLikeUpdate? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
         _transitionSource = State(initialValue: transitionSource)
@@ -59,6 +74,9 @@ struct FeedScreen: View {
         self.usesPhotoTransition = usesPhotoTransition
         self.onBack = onBack
         self.onDeleted = onDeleted
+        self.onOpenAuthorPosts = onOpenAuthorPosts
+        self.onLikeChange = onLikeChange
+        self.externalLikeUpdate = externalLikeUpdate
     }
 
     var body: some View {
@@ -99,7 +117,7 @@ struct FeedScreen: View {
                     .opacity(visibleContentProgress)
             }
         }
-        .sheet(isPresented: $showsAIReviewSheet) {
+        .sheet(isPresented: $showsAIReviewSheet, onDismiss: { isAIReviewSheetOnScreen = false }) {
             if let aiReview = viewModel.aiReview {
                 FeedAIReviewSheet(model: aiReview, onDismiss: { showsAIReviewSheet = false }) {
                     Task {
@@ -111,6 +129,13 @@ struct FeedScreen: View {
                 }
                 .presentationDetents(aiReviewSheetDetents(aiReview))
             }
+        }
+        // 아래로 쓸어내리거나 바깥을 눌러 닫으면 다시 띄우지 않는다.
+        .sheet(isPresented: $showsSignatureHint, onDismiss: handleSignatureHintDismiss) {
+            FeedSignatureHintSheet()
+        }
+        .onChange(of: showsAIReviewSheet) { _, shows in
+            if shows { isAIReviewSheetOnScreen = true }
         }
         .onChange(of: canObserveAIReview, initial: true) { _, canObserve in
             guard opensAIReviewOnEntry, canObserve, !hasOpenedInitialAIReview else { return }
@@ -199,6 +224,15 @@ struct FeedScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
+        .onChange(of: likeState) { _, state in
+            if let state { onLikeChange?(state) }
+        }
+        .onChange(of: externalLikeUpdate) { _, update in
+            if let update { viewModel.applyLikeUpdate(update) }
+        }
+        .onChange(of: canShowSignatureHint, initial: true) { _, canShow in
+            updateSignatureHint(canShow: canShow)
+        }
         .alert("게시물을 삭제할까요?", isPresented: $showsDeleteDialog) {
             Button("취소", role: .cancel) {}
             Button("삭제", role: .destructive) { viewModel.deletePost() }
@@ -286,6 +320,8 @@ struct FeedScreen: View {
                         startOpening()
                     },
                     onPhotoInteractionChanged: { isPhotoInteracting = $0 },
+                    onSignatureTap: signatureTapHandler,
+                    isSignatureHidden: zoomRegistry?.hidesFeedSignature == true,
                     onLike: {
                         // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 좋아요를 실행하지 않는다.
                         guard canLike else { return }
@@ -302,6 +338,67 @@ struct FeedScreen: View {
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
         .scrollDisabled(isPhotoMoving || isPhotoInteracting)
+    }
+
+    // 지금 보이는 게시물의 좋아요 상태. 상세가 도착하거나 좋아요를 누를 때 바뀐다.
+    private var likeState: FeedLikeUpdate? {
+        viewModel.viewState.content.map {
+            FeedLikeUpdate(postID: $0.post.id, isLiked: $0.post.isLiked, likeCount: $0.post.likeCount)
+        }
+    }
+
+    // 작성자 ID를 받기 전(상세 로딩 중)이나 사인 탭을 쓰지 않는 화면에서는 nil이라 사인을 누를 수 없다.
+    private var signatureTapHandler: ((CGRect?) -> Void)? {
+        guard onOpenAuthorPosts != nil, viewModel.viewState.content?.post.authorID != nil else { return nil }
+        return handleSignatureTap
+    }
+
+    private func handleSignatureTap(signatureFrame: CGRect?) {
+        guard !isBackSwiping, !isPhotoMoving, !isClosing else { return }
+        // 사인을 한 번 눌러 봤으면 안내를 다시 띄우지 않는다.
+        signatureHint.markShown()
+        hideSignatureHint()
+        switch viewModel.signatureTapAction() {
+        case .returnToAuthorPosts:
+            close()
+        case var .openAuthorPosts(target):
+            target.signatureTransitionSource = signatureFrame
+            onOpenAuthorPosts?(target)
+        case nil:
+            break
+        }
+    }
+
+    // 사인을 누를 수 있는 게시물(내 게시물 포함)의 사인이 화면에 자리 잡으면 안내 시트를 띄운다.
+    // 비로그인도 띄운다(사인을 누르면 로그인 안내). 시트를 한 번 닫거나 사인을 누르면 다시 띄우지 않는다.
+    // AI 피드백 시트가 떠 있거나 진입하자마자 열릴 예정이면, 그 시트가 완전히 닫힌 뒤에 띄운다.
+    private var canShowSignatureHint: Bool {
+        signatureTapHandler != nil
+            && !isPhotoMoving && !isClosing && !isBackSwiping
+            && !showsAIReviewSheet && !isAIReviewSheetOnScreen
+            && !(opensAIReviewOnEntry && !hasOpenedInitialAIReview)
+    }
+
+    private func updateSignatureHint(canShow: Bool) {
+        guard canShow else {
+            hideSignatureHint()
+            return
+        }
+        guard !showsSignatureHint, !signatureHint.hasShown else { return }
+        showsSignatureHint = true
+    }
+
+    // 사진 이동·백 스와이프처럼 안내를 띄울 수 없는 상태가 되면 코드가 잠시 닫는다. 이때는 기록하지 않아 다시 띄울 수 있다.
+    private func hideSignatureHint() {
+        guard showsSignatureHint else { return }
+        isHidingSignatureHintByCode = true
+        showsSignatureHint = false
+    }
+
+    // 아래로 쓸어내리거나 바깥을 눌러 사용자가 닫았을 때만 기록한다.
+    private func handleSignatureHintDismiss() {
+        if !isHidingSignatureHintByCode { signatureHint.markShown() }
+        isHidingSignatureHintByCode = false
     }
 
     private var canLike: Bool {
@@ -342,7 +439,7 @@ struct FeedScreen: View {
 
     private var morphsPhotoAspectRatio: Bool {
         switch zoomSource {
-        case .homeYesterday, .homeTrending, .displayGrid, .displayFeatured: true
+        case .homeYesterday, .homeTrending, .displayGrid, .displayFeatured, .authorGrid: true
         default: false
         }
     }

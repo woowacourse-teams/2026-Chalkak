@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.record
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -689,6 +690,12 @@ private val RecordTestMonth = YearMonth.of(2026, 8)
 private val RecordLatestMonth = YearMonth.of(2026, 9)
 
 private class FakePostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val requests = mutableListOf<YearMonth>()
     var failureMonth: YearMonth? = null
     var unauthorizedMonth: YearMonth? = null

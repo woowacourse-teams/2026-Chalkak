@@ -60,6 +60,7 @@ import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
 import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
+import com.stonefive.chalkak.feature.authorposts.AuthorPostsRoute
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
@@ -85,6 +86,8 @@ import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
 import com.stonefive.chalkak.feature.web.WebPageRoute
 import java.time.LocalDate
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -107,6 +110,7 @@ fun ChalkakNavHost(
         .collectAsStateWithLifecycle()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
+    var pendingAuthorPosts by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingMessage by remember { mutableStateOf<UiMessage?>(null) }
     var nextMessageId by remember { mutableLongStateOf(0L) }
     val photoUploadEntryGateViewModel: PhotoUploadEntryGateViewModel =
@@ -305,8 +309,13 @@ fun ChalkakNavHost(
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
                         }
+                        pendingAuthorPosts?.let { encoded ->
+                            navController.navigate(Json.decodeFromString<AuthorPosts>(encoded))
+                            pendingAuthorPosts = null
+                        }
                     },
                     onGuestAccessGranted = {
+                        pendingAuthorPosts = null
                         navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
@@ -375,6 +384,8 @@ fun ChalkakNavHost(
                                 launchSingleTop = true
                             }
                             signaturePreviewPng = null
+                            // 가입을 마친 사용자는 홈에서 시작한다. 남겨 두면 다음 로그인 때 상관없는 작가 화면이 열린다.
+                            pendingAuthorPosts = null
                         },
                         onReauthenticationRequired = {
                             navController.navigate(Login) {
@@ -540,6 +551,7 @@ fun ChalkakNavHost(
                                 navController.navigate(
                                     Feed(
                                         postId = post.id,
+                                        authorId = post.authorId,
                                         originalImageUrl = post.originalImageUrl,
                                         thumbnailImageUrl = post.thumbnailImageUrl,
                                         signatureOriginalImageUrl = post.signatureOriginalImageUrl,
@@ -578,12 +590,18 @@ fun ChalkakNavHost(
                     }
 
                     FeedRoute(
+                        onAuthorClick = { authorId, signatureUrl, isMine ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.openAuthorPosts(authorId, signatureUrl, isMine, feed.sourceAuthorId)
+                            }
+                        },
                         postId = feed.postId.takeIf { feed.fetchDetail },
                         initialContent = FeedContentState.Success(
                             dateLabel = feed.dateLabel,
                             topic = feed.topic,
                             post = Post(
                                 id = feed.postId,
+                                authorId = feed.authorId,
                                 originalImageUrl = feed.originalImageUrl,
                                 thumbnailImageUrl = feed.thumbnailImageUrl,
                                 signatureOriginalImageUrl = feed.signatureOriginalImageUrl,
@@ -594,7 +612,7 @@ fun ChalkakNavHost(
                                 isLiked = feed.isLiked,
                                 isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                             ),
-                            isLiked = false,
+                            isLiked = feed.isLiked,
                             topicDate = feed.topicDate?.toLocalDateOrNull(),
                         ),
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
@@ -626,6 +644,11 @@ fun ChalkakNavHost(
                     }
 
                     FeedRoute(
+                        onAuthorClick = { authorId, signatureUrl, isMine ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.openAuthorPosts(authorId, signatureUrl, isMine)
+                            }
+                        },
                         postId = feed.postId,
                         entryThumbnailImageUrl = feed.thumbnailImageUrl,
                         isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
@@ -640,6 +663,56 @@ fun ChalkakNavHost(
                                 postId,
                             )
                             navController.popBackStack()
+                        },
+                    )
+                }
+            }
+
+            composable<AuthorPosts> { backStackEntry ->
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    val author = backStackEntry.toRoute<AuthorPosts>()
+                    val isMine = author.isMineFor(sessionState)
+                    val removedPostId by backStackEntry.savedStateHandle
+                        .getStateFlow<String?>(POST_DELETED_KEY, null)
+                        .collectAsStateWithLifecycle()
+                    AuthorPostsRoute(
+                        authorId = author.authorId,
+                        removedPostId = removedPostId,
+                        signatureThumbnailImageUrl = author.signatureThumbnailImageUrl,
+                        isMine = isMine,
+                        onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                            navController.popBackStack()
+                        },
+                        onPhotoClick = { post, dateLabel, topic, topicDate ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(
+                                    Feed(
+                                        postId = post.id,
+                                        authorId = author.authorId,
+                                        sourceAuthorId = author.authorId,
+                                        originalImageUrl = post.originalImageUrl,
+                                        thumbnailImageUrl = post.thumbnailImageUrl,
+                                        signatureOriginalImageUrl = author.signatureThumbnailImageUrl.orEmpty(),
+                                        signatureThumbnailImageUrl = author.signatureThumbnailImageUrl,
+                                        contentDescription = post.contentDescription,
+                                        title = null,
+                                        likeCount = post.likeCount,
+                                        isLiked = post.isLiked,
+                                        dateLabel = dateLabel,
+                                        topic = topic,
+                                        topicDate = topicDate.toString(),
+                                        isOwnedByCurrentUser = isMine,
+                                    ),
+                                )
+                            }
+                        },
+                        onLoginRequired = {
+                            pendingAuthorPosts = Json.encodeToString(author)
+                            navigateToLogin()
                         },
                     )
                 }
@@ -960,6 +1033,7 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<WebPage>() -> AnalyticsScreen(name = "issue", screenClass = "IssueWeb")
     hasRoute<Notifications>() -> AnalyticsScreen(name = "notifications", screenClass = "Notifications")
     hasRoute<NotificationDetail>() -> AnalyticsScreen(name = "notification_detail", screenClass = "NotificationDetail")
+    hasRoute<AuthorPosts>() -> AnalyticsScreen(name = "author_posts", screenClass = "AuthorPosts")
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")
@@ -1050,4 +1124,17 @@ private fun NavDestination.bottomBarItem(): ChalkakBottomBarItem? = when {
     hasRoute<Record>() -> ChalkakBottomBarItem.RECORD
     hasRoute<Settings>() -> ChalkakBottomBarItem.SETTINGS
     else -> null
+}
+
+internal fun NavHostController.openAuthorPosts(
+    authorId: String,
+    signatureUrl: String?,
+    isMine: Boolean,
+    sourceAuthorId: String? = null,
+) {
+    if (authorId == sourceAuthorId) {
+        popBackStack()
+    } else {
+        navigate(AuthorPosts(authorId, signatureUrl, isMine))
+    }
 }

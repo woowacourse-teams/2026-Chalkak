@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.display
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -991,6 +992,12 @@ private val ARCHIVE_DATE: LocalDate = LocalDate.of(2026, 8, 4)
 private val EARLIEST_DATE: LocalDate = LocalDate.of(2026, 8, 1)
 
 private class FakePostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val requests = mutableListOf<HomeQuery>()
     val pageRequests = mutableListOf<HomeQuery>()
     val detailRequests = mutableListOf<String>()
@@ -1110,4 +1117,5 @@ private val post = Post(
     submittedAt = Instant.parse("2026-08-05T03:00:00Z"),
     title = "한낮의 다리",
     likeCount = 17,
+    authorId = "author",
 )

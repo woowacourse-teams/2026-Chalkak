@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.feed
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.AiReview
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -11,6 +12,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
+import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostTitleUpdate
@@ -18,12 +20,16 @@ import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -89,6 +95,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "전시에서 선택한 사진",
             likeCount = 31,
+            authorId = "author",
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
@@ -161,6 +168,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "목록 제목",
             likeCount = 31,
+            authorId = "author",
         )
 
         val selectedViewModel = FeedViewModel(
@@ -227,6 +235,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "목록 제목",
             likeCount = 31,
+            authorId = "author",
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
@@ -306,6 +315,7 @@ class FeedViewModelTest {
             contentDescription = "전시 사진",
             title = "목록 제목",
             likeCount = 31,
+            authorId = "author",
         )
         val selectedViewModel = FeedViewModel(
             repository = selectedRepository,
@@ -325,6 +335,65 @@ class FeedViewModelTest {
             HomeResult.Success(
                 PostDetail(
                     post = selectedPost,
+                    topic = "바다",
+                    topicDate = LocalDate.of(2026, 8, 5),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        val updatedContent = selectedViewModel.uiState.value.content
+        assertEquals(32, updatedContent?.post?.likeCount)
+        assertTrue(updatedContent?.post?.isLiked == true)
+        assertTrue(updatedContent?.isLiked == true)
+    }
+
+    @Test
+    fun `다른 화면에서 변경한 현재 게시물의 좋아요를 등록과 취소 모두 동기화한다`() = runTest {
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 32, isLiked = true))
+        advanceUntilIdle()
+
+        val likedContent = viewModel.uiState.value.content
+        assertEquals(32, likedContent?.post?.likeCount)
+        assertTrue(likedContent?.post?.isLiked == true)
+        assertTrue(likedContent?.isLiked == true)
+
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 31, isLiked = false))
+        advanceUntilIdle()
+
+        val unlikedContent = viewModel.uiState.value.content
+        assertEquals(31, unlikedContent?.post?.likeCount)
+        assertFalse(unlikedContent?.post?.isLiked == true)
+        assertFalse(unlikedContent?.isLiked == true)
+    }
+
+    @Test
+    fun `다른 게시물의 좋아요 변경은 현재 피드를 바꾸지 않는다`() = runTest {
+        val initialContent = viewModel.uiState.value.content
+
+        repository.likeUpdates.emit(PostLikeUpdate("other-post", likeCount = 100, isLiked = true))
+        advanceUntilIdle()
+
+        assertSame(initialContent, viewModel.uiState.value.content)
+    }
+
+    @Test
+    fun `첫 상세 조회보다 늦게 도착한 응답은 다른 화면에서 동기화한 좋아요를 덮어쓰지 않는다`() = runTest {
+        val detailResult = CompletableDeferred<HomeResult<PostDetail>>()
+        val selectedRepository = FakePostRepository().apply { detailRequest = detailResult }
+        val selectedViewModel = FeedViewModel(
+            repository = selectedRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            postId = PHOTO_ID,
+        )
+
+        selectedRepository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 32, isLiked = true))
+        advanceUntilIdle()
+        detailResult.complete(
+            HomeResult.Success(
+                PostDetail(
+                    post = feedContent().photos.single(),
                     topic = "바다",
                     topicDate = LocalDate.of(2026, 8, 5),
                 ),
@@ -383,6 +452,57 @@ class FeedViewModelTest {
         val content = viewModel.uiState.value.content as FeedContentState.Success
         assertFalse(content.isLiked)
         assertEquals(24, content.post.likeCount)
+    }
+
+    @Test
+    fun `진행 중 좋아요가 실패해도 이후 다른 화면에서 동기화한 상태를 복원하지 않는다`() = runTest {
+        val pendingLike = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.likeRequest = pendingLike
+        viewModel.onLikeClicked()
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 41, isLiked = true))
+        advanceUntilIdle()
+
+        pendingLike.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals(41, content?.post?.likeCount)
+        assertTrue(content?.post?.isLiked == true)
+        assertTrue(content?.isLiked == true)
+    }
+
+    @Test
+    fun `진행 중 좋아요가 성공해도 이후 다른 화면에서 동기화한 상태를 덮어쓰지 않는다`() = runTest {
+        val pendingLike = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.likeRequest = pendingLike
+        viewModel.onLikeClicked()
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 40, isLiked = false))
+        advanceUntilIdle()
+
+        pendingLike.complete(HomeResult.Success(HomeLike(likeCount = 25, isLiked = true)))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals(40, content?.post?.likeCount)
+        assertFalse(content?.post?.isLiked == true)
+        assertFalse(content?.isLiked == true)
+    }
+
+    @Test
+    fun `좋아요 성공 반환 전에 같은 결과가 동기화되어도 서버 상태를 유지한다`() = runTest {
+        val pendingLike = CompletableDeferred<HomeResult<HomeLike>>()
+        repository.likeRequest = pendingLike
+        viewModel.onLikeClicked()
+        repository.likeUpdates.emit(PostLikeUpdate(PHOTO_ID, likeCount = 32, isLiked = true))
+        advanceUntilIdle()
+
+        pendingLike.complete(HomeResult.Success(HomeLike(likeCount = 32, isLiked = true)))
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals(32, content?.post?.likeCount)
+        assertTrue(content?.post?.isLiked == true)
+        assertTrue(content?.isLiked == true)
     }
 
     @Test
@@ -576,16 +696,160 @@ class FeedViewModelTest {
         detailRequest.complete(HomeResult.Failure(HomeFailure.Network))
         advanceUntilIdle()
     }
+
+    @Test
+    fun `비로그인 사인 탭은 로그인 안내만 표시한다`() = runTest {
+        val selected = signatureViewModel(UserSessionState.Guest)
+        assertEquals(null, selected.onSignatureClicked())
+        assertEquals(
+            "다른 사진도 보려면 로그인이 필요해요",
+            (selected.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `로그인 사인 탭은 게시물 ID 대신 작가 ID를 반환한다`() = runTest {
+        val selected = signatureViewModel(UserSessionState.Authenticated("viewer"))
+        assertEquals("author", selected.onSignatureClicked()?.authorId)
+    }
+
+    @Test
+    fun `사인이 보이면 안내 시트를 띄우고 시간이 지나도 닫지 않는다`() = runTest {
+        val selected = signatureViewModel()
+        selected.onSignatureVisible()
+        runCurrent()
+        assertTrue(selected.uiState.value.showSignatureHint)
+
+        advanceTimeBy(60_000)
+        runCurrent()
+
+        assertTrue(selected.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `사인을 눌러 작가 사진으로 이동하면 안내를 닫고 다음 진입부터 띄우지 않는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val selected = signatureViewModel(hint = hint)
+        selected.onSignatureVisible()
+        runCurrent()
+
+        assertEquals("author", selected.onSignatureClicked()?.authorId)
+        runCurrent()
+
+        assertFalse(selected.uiState.value.showSignatureHint)
+        assertEquals(1, hint.completeCalls)
+        val reopened = signatureViewModel(hint = hint)
+        reopened.onSignatureVisible()
+        runCurrent()
+        assertFalse(reopened.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `안내 시트를 닫으면 완료로 기록하고 다음 진입부터 띄우지 않는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val selected = signatureViewModel(hint = hint)
+        selected.onSignatureVisible()
+        runCurrent()
+
+        selected.dismissSignatureHint()
+        runCurrent()
+
+        assertFalse(selected.uiState.value.showSignatureHint)
+        assertEquals(1, hint.completeCalls)
+        val reopened = signatureViewModel(hint = hint)
+        reopened.onSignatureVisible()
+        runCurrent()
+        assertFalse(reopened.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `안내 시트를 닫지 않은 채 다시 들어오면 안내를 다시 띄운다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        signatureViewModel(hint = hint).onSignatureVisible()
+        runCurrent()
+
+        val reopened = signatureViewModel(hint = hint)
+        reopened.onSignatureVisible()
+        runCurrent()
+
+        assertTrue(reopened.uiState.value.showSignatureHint)
+        assertEquals(0, hint.completeCalls)
+    }
+
+    @Test
+    fun `내 사진이어도 처음에는 안내를 띄운다`() = runTest {
+        val mine = signatureViewModel(isMine = true)
+        mine.onSignatureVisible()
+        runCurrent()
+        assertTrue(mine.uiState.value.showSignatureHint)
+    }
+
+    @Test
+    fun `비로그인 사인 탭은 안내를 닫지만 완료로 기록하지 않는다`() = runTest {
+        val hint = FakeSignatureHintRepository()
+        val selected = signatureViewModel(session = UserSessionState.SignedOut, hint = hint)
+        selected.onSignatureVisible()
+        runCurrent()
+        assertTrue(selected.uiState.value.showSignatureHint)
+
+        assertEquals(null, selected.onSignatureClicked())
+        runCurrent()
+
+        assertFalse(selected.uiState.value.showSignatureHint)
+        assertEquals(0, hint.completeCalls)
+    }
+
+    private fun signatureViewModel(
+        session: UserSessionState = UserSessionState.Authenticated("viewer"),
+        hint: SignatureHintRepository = FakeSignatureHintRepository(),
+        isMine: Boolean = false,
+    ): FeedViewModel = FeedViewModel(
+        repository = FakePostRepository(),
+        aiReviewRepository = FakeAiReviewRepository(),
+        sessionState = MutableStateFlow(session),
+        initialContent = FeedContentState.Success(
+            dateLabel = "오늘의 주제",
+            topic = "하늘",
+            post = feedContent()
+                .photos
+                .single()
+                .copy(authorId = "author", isOwnedByCurrentUser = isMine),
+            isLiked = false,
+        ),
+        postId = null,
+        signatureHintRepository = hint,
+    )
+}
+
+private class FakeSignatureHintRepository : SignatureHintRepository {
+    var completeCalls = 0
+    private var completed = false
+
+    override suspend fun isCompleted(): Boolean = completed
+
+    override suspend fun complete() {
+        completeCalls++
+        completed = true
+    }
 }
 
 private const val PHOTO_ID = "photo-1"
 private val TEST_DATE = LocalDate.of(2026, 8, 28)
 
 private class FakePostRepository : PostRepository {
+    override val likeUpdates = MutableSharedFlow<PostLikeUpdate>(extraBufferCapacity = 16)
+
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val requestedQueries = mutableListOf<HomeQuery>()
     var updatedLike: Pair<String, Boolean>? = null
     var failLike = false
     var likeResult: HomeResult<HomeLike>? = null
+    var likeRequest: CompletableDeferred<HomeResult<HomeLike>>? = null
     var detailResult: HomeResult<PostDetail> = HomeResult.Failure(HomeFailure.Network)
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
     var deleteResult: HomeResult<Unit> = HomeResult.Success(Unit)
@@ -624,7 +888,7 @@ private class FakePostRepository : PostRepository {
         isLiked: Boolean,
     ): HomeResult<HomeLike> {
         updatedLike = photoId to isLiked
-        return likeResult ?: if (failLike) {
+        return likeRequest?.await() ?: likeResult ?: if (failLike) {
             HomeResult.Failure(HomeFailure.Network)
         } else {
             HomeResult.Success(HomeLike(if (isLiked) 25 else 24, isLiked))
@@ -641,6 +905,12 @@ private class FakeAiReviewRepository : AiReviewRepository {
 }
 
 private class ControlledPostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
@@ -695,6 +965,7 @@ private fun feedContent() = PostContent(
             contentDescription = "사진",
             title = "안녕하세요 찰캌입니다.",
             likeCount = 24,
+            authorId = "author",
         ),
     ),
     likedPhotoIds = emptySet(),

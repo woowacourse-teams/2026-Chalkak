@@ -68,6 +68,14 @@ struct FeedPost: Identifiable, Equatable, Sendable {
     var likeCount: Int
     var isLiked: Bool
     var isOwnedByCurrentUser: Bool
+    // 사진 작성자의 회원 ID. 사인을 눌러 작가 사진 목록을 열 때 쓰며, 응답에 없으면 nil이다.
+    var authorID: String? = nil
+}
+
+enum FeedSignatureTapAction: Equatable, Sendable {
+    case openAuthorPosts(AuthorPostsTarget)
+    // 이 피드를 연 작가 사진 목록으로 돌아간다.
+    case returnToAuthorPosts
 }
 
 struct FeedContent: Equatable, Sendable {
@@ -147,6 +155,8 @@ struct FeedTarget: Hashable, Identifiable, Sendable {
     let placeholder: FeedPhotoPlaceholder?
     // 탭 순간의 출발 좌표. LazyVStack 셀의 수명과 독립적으로 열림 전환 동안 보존한다.
     var transitionSource: FeedZoomRegistry.Source?
+    // 작가 사진 목록에서 연 피드면 그 작가의 ID. 같은 작가의 사인을 누르면 목록을 새로 쌓지 않고 돌아간다.
+    var sourceAuthorID: String?
 
     init(
         seed: FeedContent,

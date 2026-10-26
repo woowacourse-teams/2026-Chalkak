@@ -66,6 +66,7 @@ import com.stonefive.chalkak.feature.aireview.component.AiReviewResultSheet
 import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.aireview.component.AiReviewStartSheet
 import com.stonefive.chalkak.feature.feed.component.FeedContent
+import com.stonefive.chalkak.feature.feed.component.FeedSignatureHintSheet
 import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 import java.time.LocalDate
@@ -75,6 +76,7 @@ fun FeedRoute(
     onNavigateBack: () -> Unit,
     onPostDeleted: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onAuthorClick: (String, String, Boolean) -> Unit = { _, _, _ -> },
     postId: String? = null,
     entryThumbnailImageUrl: String? = null,
     openAiReviewResult: Boolean = false,
@@ -136,6 +138,17 @@ fun FeedRoute(
         onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
+        onSignatureClick = {
+            viewModel.onSignatureClicked()?.let { post ->
+                onAuthorClick(
+                    post.authorId,
+                    post.signatureThumbnailImageUrl ?: post.signatureOriginalImageUrl,
+                    post.isOwnedByCurrentUser,
+                )
+            }
+        },
+        onSignatureVisible = viewModel::onSignatureVisible,
+        onDismissSignatureHint = viewModel::dismissSignatureHint,
         snackbarHostState = snackbarHostState,
         onRetryClick = viewModel::retry,
         onStartFeedback = viewModel::startFeedback,
@@ -153,6 +166,9 @@ fun FeedScreen(
     onLikeClick: () -> Unit,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
+    onSignatureClick: () -> Unit = {},
+    onSignatureVisible: () -> Unit = {},
+    onDismissSignatureHint: () -> Unit = {},
     onEditTitleClick: (String?) -> Unit = {},
     onRetryClick: () -> Unit = {},
     entryPostId: String? = null,
@@ -250,6 +266,9 @@ fun FeedScreen(
             AiReviewResultSheet(result = result, onDismiss = { showAiResultSheet = false })
         }
     }
+    if (uiState.showSignatureHint) {
+        FeedSignatureHintSheet(onDismiss = onDismissSignatureHint)
+    }
     if (showAiStartSheet) {
         val sheetState = rememberModalBottomSheetState()
         androidx.compose.material3.ModalBottomSheet(
@@ -338,6 +357,8 @@ fun FeedScreen(
                     entryPostId = entryPostId,
                     entryThumbnailImageUrl = entryThumbnailImageUrl,
                     onPhotoBoundsChanged = { photoBounds = it },
+                    onSignatureClick = onSignatureClick,
+                    onSignatureVisible = onSignatureVisible,
                 )
 
                 uiState.isLoading -> CircularProgressIndicator(
@@ -480,6 +501,7 @@ private fun FeedScreenPreview() {
                         title = "안녕하세요 감사합니다.",
                         likeCount = 24,
                         isOwnedByCurrentUser = true,
+                        authorId = "preview-author",
                     ),
                     isLiked = false,
                     topicDate = LocalDate
