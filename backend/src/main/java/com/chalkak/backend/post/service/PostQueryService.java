@@ -4,6 +4,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.like.domain.PostLikes;
 import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
@@ -70,15 +71,20 @@ public class PostQueryService {
             throw new NotFoundException(ErrorCode.BUSINESS_ERROR, "작성자를 찾을 수 없습니다.");
         }
 
+        PostSlice postSlice = postRepository.findVisibleRecentByAuthorId(
+                authorId,
+                page,
+                pageSize
+        );
+        List<UUID> postIds = postSlice.posts().stream().map(Post::getId).toList();
+        PostLikes postLikes = findPostLikes(postIds, Optional.of(viewerId));
+
         return AuthorPostListResult.fromPostSlice(
-                postRepository.findVisibleRecentByAuthorId(
-                        authorId,
-                        page,
-                        pageSize
-                ),
+                postSlice,
                 page,
                 pageSize,
-                imageUrlProvider
+                imageUrlProvider,
+                postLikes
         );
     }
 
@@ -243,26 +249,7 @@ public class PostQueryService {
         List<UUID> postIds = postSlice.posts().stream()
                 .map(Post::getId)
                 .toList();
-        if (postIds.isEmpty()) {
-            return PostListResult.from(
-                    postSlice,
-                    page,
-                    pageSize,
-                    randomSeed,
-                    imageUrlProvider,
-                    Map.of(),
-                    Set.of(),
-                    userId
-            );
-        }
-
-        Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
-                .collect(Collectors.toMap(
-                        PostLikeCount::postId,
-                        PostLikeCount::likeCount));
-        Set<UUID> likedPostIds = userId
-                .map(id -> postLikeRepository.findLikedPostIds(postIds, id))
-                .orElseGet(Set::of);
+        PostLikes postLikes = findPostLikes(postIds, userId);
 
         return PostListResult.from(
                 postSlice,
@@ -270,10 +257,23 @@ public class PostQueryService {
                 pageSize,
                 randomSeed,
                 imageUrlProvider,
-                likeCounts,
-                likedPostIds,
+                postLikes,
                 userId
         );
+    }
+
+    private PostLikes findPostLikes(List<UUID> postIds, Optional<UUID> viewerId) {
+        if (postIds.isEmpty()) {
+            return PostLikes.createEmpty();
+        }
+        Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
+                .collect(Collectors.toMap(
+                        PostLikeCount::postId,
+                        PostLikeCount::likeCount));
+        Set<UUID> likedPostIds = viewerId
+                .map(id -> postLikeRepository.findLikedPostIds(postIds, id))
+                .orElseGet(Set::of);
+        return new PostLikes(likeCounts, likedPostIds);
     }
 
     private Topic getOpenTopic(Instant now) {

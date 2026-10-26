@@ -1,0 +1,320 @@
+package com.chalkak.backend.admin.service.aireview;
+
+import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
+import static com.chalkak.backend.aireview.service.AiReviewFixture.COMPLETED_AT;
+import static com.chalkak.backend.aireview.service.AiReviewFixture.MODEL;
+import static com.chalkak.backend.aireview.service.AiReviewFixture.ORIGINAL_STORAGE_KEY;
+import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
+import static com.chalkak.backend.aireview.service.AiReviewFixture.REQUESTED_AT;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+
+import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewDetail;
+import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewSummary;
+import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.ListResult;
+import com.chalkak.backend.aireview.domain.AiReview.Status;
+import com.chalkak.backend.aireview.service.AiReviewFixture;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.user.domain.UserStatus;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
+
+@Transactional
+class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
+
+    private static final String THUMBNAIL_STORAGE_KEY = "chalkak/test/ai-review/thumb-original.webp";
+    private static final String THUMBNAIL_URL = "https://cdn.example.com/test/ai-review/thumb-original.webp";
+    private static final String ORIGINAL_URL = "https://cdn.example.com/test/ai-review/original.webp";
+
+    @Autowired
+    private AdminAiReviewQueryService queryService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @MockitoBean
+    private ImageUrlProvider imageUrlProvider;
+
+    private UUID promptVersionId;
+    private UUID reviewId;
+
+    @BeforeEach
+    void setUp() {
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertPublicPost();
+        promptVersionId = fixture.insertPromptVersion(1);
+        reviewId = fixture.insertReview(promptVersionId, "COMPLETED");
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET request_count = 2, input_tokens = 1200,
+                            cached_input_tokens = 200, output_tokens = 300, reasoning_tokens = 100,
+                            latency_ms = 21000
+                        WHERE id = ?
+                        """,
+                reviewId
+        );
+        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
+        given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_URL);
+    }
+
+    @Test
+    @DisplayName("완료된 리뷰를 점수·프롬프트 버전·게시물 썸네일 URL·작성자·사용량과 함께 조회한다")
+    void getAiReviews_completedReview_returnsSummary() {
+        // When
+        ListResult result = queryService.getAiReviews(
+                null,
+                null,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.currentPage()).isEqualTo(1);
+        assertThat(result.pageSize()).isEqualTo(20);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.aiReviews()).hasSize(1);
+        AiReviewSummary summary = result.aiReviews().get(0);
+        assertThat(summary.aiReviewId()).isEqualTo(reviewId);
+        assertThat(summary.status()).isEqualTo(Status.COMPLETED);
+        assertThat(summary.errorCode()).isNull();
+        assertThat(summary.requestCount()).isEqualTo(2);
+        assertThat(summary.overallScore()).isEqualTo(7.5);
+        assertThat(summary.promptVersion().promptVersionId()).isEqualTo(promptVersionId);
+        assertThat(summary.promptVersion().version()).isEqualTo(1);
+        assertThat(summary.promptVersion().model()).isEqualTo(MODEL);
+        assertThat(summary.post().postId()).isEqualTo(POST_ID);
+        assertThat(summary.post().thumbnailUrl()).isEqualTo(THUMBNAIL_URL);
+        assertThat(summary.post().moderationStatus()).isEqualTo(ModerationStatus.APPROVED);
+        assertThat(summary.post().deletedAt()).isNull();
+        assertThat(summary.author().userId()).isEqualTo(AUTHOR_ID);
+        assertThat(summary.author().email()).isEqualTo("ai-review-author@example.com");
+        assertThat(summary.author().status()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(summary.author().deletedAt()).isNull();
+        assertThat(summary.usage().inputTokens()).isEqualTo(1200);
+        assertThat(summary.usage().cachedInputTokens()).isEqualTo(200);
+        assertThat(summary.usage().outputTokens()).isEqualTo(300);
+        assertThat(summary.usage().reasoningTokens()).isEqualTo(100);
+        assertThat(summary.latencyMs()).isEqualTo(21000L);
+        assertThat(summary.requestedAt()).isEqualTo(REQUESTED_AT);
+        assertThat(summary.lastRequestedAt()).isEqualTo(REQUESTED_AT);
+        assertThat(summary.completedAt()).isEqualTo(COMPLETED_AT);
+        assertThat(summary.visibleToAuthor()).isTrue();
+    }
+
+    @Test
+    @DisplayName("없는 프롬프트 버전 ID로 조회하면 404가 아니라 빈 목록을 반환한다")
+    void getAiReviews_unknownPromptVersionId_returnsEmptyList() {
+        // When
+        ListResult result = queryService.getAiReviews(
+                null,
+                UUID.randomUUID(),
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.aiReviews()).isEmpty();
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 20",
+            "1, 0",
+            "1, 101",
+            "2147483647, 100"
+    })
+    @DisplayName("페이지 번호나 크기가 범위를 벗어나거나 offset이 int 범위를 넘으면 조회 조건 오류를 던진다")
+    void getAiReviews_invalidPagination_throwsBusinessException(int page, int pageSize) {
+        // When & Then
+        assertThatThrownBy(() -> queryService.getAiReviews(
+                null,
+                null,
+                page,
+                pageSize
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("조회 조건이 올바르지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("완료되지 않은 리뷰는 점수가 null이고 실패 오류 코드는 그대로 담는다")
+    void getAiReviews_nonCompletedReviews_returnsNullScore() {
+        // Given
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertSecondPublicPost();
+        UUID failedId = fixture.insertSecondQueuedReview(
+                promptVersionId,
+                REQUESTED_AT.plusSeconds(60)
+        );
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET status = 'FAILED', attempt = 1, round_attempt = 1,
+                            started_at = requested_at, completed_at = requested_at,
+                            error_code = 'TIMEOUT'
+                        WHERE id = ?
+                        """,
+                failedId
+        );
+
+        // When
+        ListResult result = queryService.getAiReviews(
+                Status.FAILED,
+                null,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.aiReviews()).hasSize(1);
+        AiReviewSummary summary = result.aiReviews().get(0);
+        assertThat(summary.aiReviewId()).isEqualTo(failedId);
+        assertThat(summary.status()).isEqualTo(Status.FAILED);
+        assertThat(summary.errorCode()).isEqualTo("TIMEOUT");
+        assertThat(summary.overallScore()).isNull();
+    }
+
+    @Test
+    @DisplayName("썸네일 저장 키가 없으면 썸네일 URL은 null이다")
+    void getAiReviews_nullThumbnailKey_returnsNullThumbnailUrl() {
+        // Given
+        jdbcTemplate.update("UPDATE photos SET thumbnail_storage_key = NULL");
+
+        // When
+        ListResult result = queryService.getAiReviews(
+                null,
+                null,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.aiReviews()).hasSize(1);
+        assertThat(result.aiReviews().get(0).post().thumbnailUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("페이지 크기 경계값 1과 100을 허용하며 hasNext는 남은 리뷰 유무를 따른다")
+    void getAiReviews_pageSizeBoundary_setsHasNext() {
+        // Given
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertSecondPublicPost();
+        fixture.insertSecondQueuedReview(
+                promptVersionId,
+                REQUESTED_AT.plusSeconds(60)
+        );
+
+        // When
+        ListResult minSize = queryService.getAiReviews(
+                null,
+                null,
+                1,
+                1
+        );
+        ListResult maxSize = queryService.getAiReviews(
+                null,
+                null,
+                1,
+                100
+        );
+
+        // Then
+        assertThat(minSize.aiReviews()).hasSize(1);
+        assertThat(minSize.hasNext()).isTrue();
+        assertThat(maxSize.aiReviews()).hasSize(2);
+        assertThat(maxSize.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("완료된 리뷰를 상세 조회하면 목록 값에 결과·원출력 객체·응답 ID·시도 횟수·시작 시각·원본 이미지 URL을 더해 반환한다")
+    void getAiReview_completedReview_returnsDetail() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE ai_reviews SET openai_response_id = 'resp_abc' WHERE id = ?",
+                reviewId
+        );
+
+        // When
+        AiReviewDetail detail = queryService.getAiReview(reviewId);
+
+        // Then
+        assertThat(detail.summary().aiReviewId()).isEqualTo(reviewId);
+        assertThat(detail.summary().overallScore()).isEqualTo(7.5);
+        assertThat(detail.summary().post().thumbnailUrl()).isEqualTo(THUMBNAIL_URL);
+        assertThat(detail.summary().visibleToAuthor()).isTrue();
+        assertThat(detail.originalImageUrl()).isEqualTo(ORIGINAL_URL);
+        assertThat(detail.result()).isNotNull();
+        assertThat(detail.result().overallScore()).isEqualTo(7.5);
+        assertThat(detail.output().isObject()).isTrue();
+        assertThat(detail.output().get("compositionScore").asDouble()).isEqualTo(7.46);
+        assertThat(detail.output().get("themeExpressionScore").asInt()).isEqualTo(8);
+        assertThat(detail.openaiResponseId()).isEqualTo("resp_abc");
+        assertThat(detail.attempt()).isEqualTo(1);
+        assertThat(detail.startedAt()).isEqualTo(REQUESTED_AT);
+    }
+
+    @Test
+    @DisplayName("실패한 리뷰를 상세 조회하면 결과와 원출력이 null이고 오류 코드를 담는다")
+    void getAiReview_failedReview_returnsNullResultAndOutput() {
+        // Given
+        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
+        fixture.insertSecondPublicPost();
+        UUID failedId = fixture.insertSecondQueuedReview(
+                promptVersionId,
+                REQUESTED_AT.plusSeconds(60)
+        );
+        jdbcTemplate.update(
+                """
+                        UPDATE ai_reviews SET status = 'FAILED', attempt = 1, round_attempt = 1,
+                            started_at = requested_at, completed_at = requested_at,
+                            error_code = 'TIMEOUT'
+                        WHERE id = ?
+                        """,
+                failedId
+        );
+
+        // When
+        AiReviewDetail detail = queryService.getAiReview(failedId);
+
+        // Then
+        assertThat(detail.summary().errorCode()).isEqualTo("TIMEOUT");
+        assertThat(detail.result()).isNull();
+        assertThat(detail.output()).isNull();
+    }
+
+    @Test
+    @DisplayName("숨겨진 리뷰도 상세 조회하고 visibleToAuthor는 false이다")
+    void getAiReview_hiddenReview_isReturnedWithVisibleToAuthorFalse() {
+        // Given
+        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP");
+
+        // When
+        AiReviewDetail detail = queryService.getAiReview(reviewId);
+
+        // Then
+        assertThat(detail.summary().post().deletedAt()).isNotNull();
+        assertThat(detail.summary().visibleToAuthor()).isFalse();
+    }
+
+    @Test
+    @DisplayName("없는 리뷰 ID로 상세 조회하면 404 예외를 던진다")
+    void getAiReview_unknownId_throwsNotFound() {
+        // When & Then
+        assertThatThrownBy(() -> queryService.getAiReview(UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("AI 리뷰를 찾을 수 없습니다.");
+    }
+}
