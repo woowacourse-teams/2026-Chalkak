@@ -11,6 +11,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -28,6 +29,15 @@ import org.junit.jupiter.params.provider.CsvSource;
 import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
+import com.chalkak.backend.notification.infrastructure.infra.SqsPushService;
+import java.util.function.Consumer;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageResponse;
+import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.domain.PushDelivery;
@@ -1050,6 +1060,216 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         }
         verifyNoInteractions(sender);
         assertThat(saved.getDeviceResults()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("SQS 삭제 실패 후 같은 메시지나 재발행 메시지를 받아도 FCM은 다시 보내지 않는다")
+    void process_sqsDeletionFailsThenRedelivers_retriesOnlyDeletion(boolean republished) {
+        // Given
+        SqsClient sqs = mock(SqsClient.class);
+        List<String> deletedReceipts = new CopyOnWriteArrayList<>();
+        given(sqs.deleteMessage(
+                org.mockito.ArgumentMatchers.<Consumer<DeleteMessageRequest.Builder>>any()))
+                .willAnswer(call -> {
+                    Consumer<DeleteMessageRequest.Builder> configure = call.getArgument(0);
+                    DeleteMessageRequest.Builder request = DeleteMessageRequest.builder();
+                    configure.accept(request);
+                    deletedReceipts.add(request.build().receiptHandle());
+                    assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                            .orElseThrow().isCompleted()).isTrue();
+                    if (deletedReceipts.size() == 1) {
+                        throw new IllegalStateException("SQS delete unavailable");
+                    }
+                    return DeleteMessageResponse.builder().build();
+                });
+        ScheduledExecutorService visibilityExecutor = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> visibilityTask = mock(ScheduledFuture.class);
+        doReturn(visibilityTask).when(visibilityExecutor).scheduleAtFixedRate(
+                any(Runnable.class),
+                org.mockito.ArgumentMatchers.eq(40L),
+                org.mockito.ArgumentMatchers.eq(40L),
+                org.mockito.ArgumentMatchers.eq(TimeUnit.SECONDS)
+        );
+        SqsPushService sqsService = new SqsPushService(
+                sqs,
+                "https://sqs.ap-northeast-2.amazonaws.com/123456789012/test-push",
+                JsonMapper.builder().build(),
+                worker(NOW),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                visibilityExecutor
+        );
+        String nextMessageId = "message-first";
+        String nextReceiveCount = "2";
+        if (republished) {
+            nextMessageId = "message-republished";
+            nextReceiveCount = "1";
+        }
+
+        // When
+        sqsService.process(sqsMessage(
+                "message-first",
+                "receipt-first",
+                "1"
+        ));
+        assertThat(logsAtStage("worker_processing_failed")).hasSize(1);
+        sqsService.process(sqsMessage(
+                nextMessageId,
+                "receipt-next",
+                nextReceiveCount
+        ));
+
+        // Then
+        verify(sender).send(any(), any());
+        assertThat(deletedReceipts).containsExactly("receipt-first", "receipt-next");
+        assertThat(logsAtStage("worker_delivery_skipped")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("reason", "ALREADY_COMPLETED"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("중단 후 SENDING만 남으면 만료 뒤 재시도하고 수락 기록이 남으면 재발송 없이 완료한다")
+    void process_restartWithPersistedAttempt_waitsForLeaseThenRecovers(
+            boolean acceptedBeforeCrash) {
+        // Given: 프로세스를 실제로 종료하지 않고 중단 시 남는 DB 상태를 구성한다.
+        UUID previousToken = UUID.randomUUID();
+        PushDelivery previous = deliveries.claim(
+                message.eventId(),
+                USER_ID,
+                previousToken,
+                Duration.ofSeconds(60)
+        ).orElseThrow();
+        PushDelivery.DeviceResult stored = previous.startDevice(deviceId, NOW);
+        if (acceptedBeforeCrash) {
+            stored = stored.finish(
+                    PushDeviceDeliveryStatus.ACCEPTED,
+                    null,
+                    NOW
+            );
+        }
+        assertThat(deliveries.saveDeviceResult(
+                previous.getId(),
+                previousToken,
+                deviceId,
+                stored
+        )).isTrue();
+        // 이전 프로세스의 release/갱신 없이 새 서비스 객체가 DB 이력만으로 복구한다.
+        try (var renewalExecutor = Executors.newSingleThreadScheduledExecutor()) {
+            PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries,
+                    renewalExecutor);
+            PushWorkerService restarted = new PushWorkerService(
+                    notifications,
+                    topics,
+                    posts,
+                    reminders,
+                    devices,
+                    sessions,
+                    sender,
+                    Clock.fixed(NOW.plusSeconds(60), ZoneOffset.UTC),
+                    manager,
+                    restartedDelivery
+            );
+
+            // When: SQS가 먼저 재전달해도 DB Lease가 유효하면 발송하지 않는다.
+            assertThat(restarted.process(message).retryable()).isTrue();
+            verifyNoInteractions(sender);
+            jdbc.update(
+                    "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+            assertThat(restarted.process(message).retryable()).isFalse();
+
+            // Then
+            PushDelivery recovered = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                    .orElseThrow();
+            assertThat(recovered.isCompleted()).isTrue();
+            assertThat(recovered.getLeaseToken()).isNull();
+            assertThat(recovered.getDeviceResults().get(deviceId).isAccepted()).isTrue();
+            if (acceptedBeforeCrash) {
+                verifyNoInteractions(sender);
+                assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount())
+                        .isEqualTo(1);
+                return;
+            }
+            verify(sender).send(any(), any());
+            assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+        }
+    }
+
+    @Test
+    @DisplayName("새 Worker가 인계한 뒤 이전 Worker가 복귀해도 새 Lease와 기기 결과를 덮어쓰지 않는다")
+    void process_oldWorkerReturnsAfterTakeover_preservesNewOwnerAndResult() throws Exception {
+        // Given
+        CountDownLatch oldSending = new CountDownLatch(1);
+        CountDownLatch newSending = new CountDownLatch(1);
+        CountDownLatch finishOld = new CountDownLatch(1);
+        CountDownLatch finishNew = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            if (calls.incrementAndGet() == 1) {
+                oldSending.countDown();
+                assertThat(finishOld.await(10, TimeUnit.SECONDS)).isTrue();
+                return DevicePushResult.permanentFailure("OLD_RESULT");
+            }
+            newSending.countDown();
+            assertThat(finishNew.await(10, TimeUnit.SECONDS)).isTrue();
+            return DevicePushResult.accepted();
+        });
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var old = pool.submit(() -> worker(NOW).process(message));
+            try {
+                assertThat(oldSending.await(5, TimeUnit.SECONDS)).isTrue();
+                UUID oldToken = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                        .orElseThrow().getLeaseToken();
+                jdbc.update(
+                        "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+
+                // When
+                var replacement = pool.submit(() -> worker(NOW.plusSeconds(60)).process(message));
+                assertThat(newSending.await(5, TimeUnit.SECONDS)).isTrue();
+                PushDelivery takenOver = deliveries
+                        .findByEventIdAndUserId(message.eventId(), USER_ID)
+                        .orElseThrow();
+                assertThat(takenOver.getLeaseToken()).isNotEqualTo(oldToken);
+                finishOld.countDown();
+                assertThat(old.get(5, TimeUnit.SECONDS).retryable()).isTrue();
+
+                // Then: 이전 Worker의 결과 저장과 close가 새 담당자의 상태를 바꾸면 안 된다.
+                PushDelivery stillOwned = deliveries
+                        .findByEventIdAndUserId(message.eventId(), USER_ID)
+                        .orElseThrow();
+                assertThat(stillOwned.getLeaseToken()).isEqualTo(takenOver.getLeaseToken());
+                assertThat(stillOwned.getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
+                assertThat(stillOwned.getDeviceResults().get(deviceId).getStatus())
+                        .isEqualTo(PushDeviceDeliveryStatus.SENDING);
+                assertThat(stillOwned.getDeviceResults().get(deviceId).getAttemptCount())
+                        .isEqualTo(2);
+                finishNew.countDown();
+                assertThat(replacement.get(5, TimeUnit.SECONDS).retryable()).isFalse();
+                PushDelivery completed = deliveries
+                        .findByEventIdAndUserId(message.eventId(), USER_ID)
+                        .orElseThrow();
+                assertThat(completed.isCompleted()).isTrue();
+                assertThat(completed.getDeviceResults().get(deviceId).isAccepted()).isTrue();
+                assertThat(completed.getDeviceResults().get(deviceId).getLastErrorCode()).isNull();
+                verify(sender, times(2)).send(any(), any());
+            } finally {
+                finishOld.countDown();
+                finishNew.countDown();
+            }
+        }
+    }
+
+    private Message sqsMessage(
+            String messageId,
+            String receiptHandle,
+            String receiveCount
+    ) {
+        return Message.builder()
+                .messageId(messageId)
+                .receiptHandle(receiptHandle)
+                .body(JsonMapper.builder().build().writeValueAsString(message))
+                .attributes(
+                        Map.of(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT, receiveCount))
+                .build();
     }
 
     private PushMessage createAdditionalMessage() {
