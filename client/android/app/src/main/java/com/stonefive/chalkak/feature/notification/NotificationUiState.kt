@@ -9,6 +9,7 @@ data class NotificationUiState(
     val hasNext: Boolean = false,
     val currentPage: Int = 0,
     val hasUnread: Boolean = false,
+    val isMarkingAllRead: Boolean = false,
     val errorMessage: String? = null,
     val pendingMessage: UiMessage? = null,
 )

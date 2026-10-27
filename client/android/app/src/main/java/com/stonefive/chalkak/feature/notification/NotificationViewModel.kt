@@ -129,12 +129,40 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
     }
 
     fun markAllAsRead() {
+        val state = _uiState.value
+        if (!state.hasUnread || state.isMarkingAllRead) return
+
+        _uiState.update { it.copy(isMarkingAllRead = true) }
         viewModelScope.launch {
-            when (repository.markAllAsRead()) {
-                is NotificationResult.Success -> refresh()
+            val result = try {
+                repository.markAllAsRead()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                NotificationResult.Failure(NotificationFailure.Network)
+            }
+            when (result) {
+                is NotificationResult.Success -> {
+                    val readAt = Instant.now().toString()
+                    _uiState.update { current ->
+                        current.copy(
+                            notifications = current.notifications.map { item ->
+                                if (item.isUnread) item.copy(readAt = readAt, isUnread = false) else item
+                            },
+                            hasUnread = false,
+                            isMarkingAllRead = false,
+                        )
+                    }
+                }
 
                 is NotificationResult.Failure -> _uiState.update {
-                    it.copy(errorMessage = "읽음 처리에 실패했어요. 다시 시도해 주세요.")
+                    it.copy(
+                        isMarkingAllRead = false,
+                        pendingMessage = UiMessage.Toast(
+                            nextMessageId++,
+                            "모두 읽음 처리하지 못했어요. 다시 시도해 주세요.",
+                        ),
+                    )
                 }
             }
         }

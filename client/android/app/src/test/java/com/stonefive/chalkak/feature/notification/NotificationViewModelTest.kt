@@ -243,6 +243,61 @@ class NotificationViewModelTest {
         }
     }
 
+    @Test
+    fun `모두 읽음은 불러온 알림과 미읽음 표시를 모두 읽음으로 바꾼다`() = runTest {
+        val repository = FakeNotificationRepository()
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasUnread)
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, repository.markAllRequestCount)
+        assertTrue(state.notifications.none { it.isUnread })
+        assertFalse(state.hasUnread)
+        assertFalse(state.isMarkingAllRead)
+    }
+
+    @Test
+    fun `모두 읽음 실패는 미읽음 상태를 유지하고 토스트를 표시한다`() = runTest {
+        val repository = FakeNotificationRepository().apply {
+            markAllResult = NotificationResult.Failure(NotificationFailure.Network)
+        }
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(
+            state.notifications
+                .single()
+                .isUnread,
+        )
+        assertTrue(state.hasUnread)
+        assertFalse(state.isMarkingAllRead)
+        assertEquals(
+            "모두 읽음 처리하지 못했어요. 다시 시도해 주세요.",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `모두 읽음 진행 중 반복 요청은 무시한다`() = runTest {
+        val repository = FakeNotificationRepository()
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.markAllAsRead()
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.markAllRequestCount)
+    }
+
     private class FakeNotificationRepository : NotificationRepository {
         var items = listOf(notification)
         val readIds = mutableListOf<String>()
@@ -250,6 +305,8 @@ class NotificationViewModelTest {
         var readException: Exception? = null
         var listRequestCount = 0
         var unreadRequestCount = 0
+        var markAllResult: NotificationResult<Unit> = NotificationResult.Success(Unit)
+        var markAllRequestCount = 0
 
         override suspend fun getNotifications(
             page: Int,
@@ -275,7 +332,10 @@ class NotificationViewModelTest {
         override suspend fun getNotification(notificationId: String): NotificationResult<NotificationDetail> =
             error("Unexpected detail request")
 
-        override suspend fun markAllAsRead(): NotificationResult<Unit> = error("Unexpected mark-all request")
+        override suspend fun markAllAsRead(): NotificationResult<Unit> {
+            markAllRequestCount++
+            return markAllResult
+        }
 
         override suspend fun getPushSettings(): NotificationResult<NotificationPushSettings> =
             error("Unexpected settings request")
