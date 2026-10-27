@@ -161,7 +161,8 @@ struct FeedScreen: View {
             source: usesScreenTransition && hasStartedOpening ? movingSource : nil,
             photo: photoFrame,
             canvas: transitionViewport,
-            safeAreaInsets: transitionSafeAreaInsets
+            safeAreaInsets: transitionSafeAreaInsets,
+            revealsCoveredSource: usesScreenTransition
         ))
         // 측정 전 전체 화면이 순간 노출되지 않도록 레이아웃은 유지하고 표시만 기다린다.
         .opacity(usesScreenTransition && !hasStartedOpening ? 0 : 1)
@@ -172,6 +173,8 @@ struct FeedScreen: View {
             FeedOpeningFrameGate(isEnabled: hasPreparedOpening && !hasStartedOpening) {
                 guard !hasStartedOpening, !isClosing else { return }
                 zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
+                zoomRegistry?.hidesWholeSource = usesScreenTransition
+                zoomRegistry?.sourceBarOpacity = revealsSourceBottomBar ? 1 : 0
                 hasStartedOpening = true
             }
             .allowsHitTesting(false)
@@ -195,6 +198,8 @@ struct FeedScreen: View {
             if movingSource == nil || !usesPhotoTransition { startOpening() }
         }
         .onDisappear {
+            zoomRegistry?.sourceBarOpacity = 0
+            zoomRegistry?.hidesWholeSource = false
             if zoomRegistry?.activeSource == zoomSource {
                 zoomRegistry?.activeSource = nil
             }
@@ -303,7 +308,8 @@ struct FeedScreen: View {
                         isSettled: !isPhotoMoving,
                         morphsAspectRatio: morphsPhotoAspectRatio,
                         viewport: usesScreenTransition ? nil : transitionViewport,
-                        keepsOriginalVisible: usesScreenTransition && hasCompletedOpening
+                        keepsOriginalVisible: usesScreenTransition && hasCompletedOpening,
+                        screen: screenZoom
                     ),
                     onTransitionReady: {
                         isPhotoReady = true
@@ -403,6 +409,26 @@ struct FeedScreen: View {
         usesPhotoTransition && movingSource != nil
     }
 
+    // 화면이 출발 카드로 접히는 동안 출발 화면의 하단바를 함께 보여줄지.
+    private var revealsSourceBottomBar: Bool {
+        usesScreenTransition && zoomSource?.showsBottomBar == true
+    }
+
+    // FeedScreenReturnEffect와 같은 값으로 서명만 따로 출발 서명에 맞춘다.
+    private var screenZoom: FeedScreenZoom? {
+        guard usesScreenTransition, hasStartedOpening,
+              let movingSource, let photoFrame, let transitionViewport else { return nil }
+        return FeedScreenZoom(
+            progress: photoProgress,
+            dragOffset: screenDragOffset,
+            source: movingSource,
+            photo: photoFrame,
+            canvas: transitionViewport,
+            safeAreaInsets: transitionSafeAreaInsets,
+            revealsCoveredSource: true
+        )
+    }
+
     // 열고 닫을 때 모두 불투명한 화면 하나를 확대·축소한다.
     private var visibleContentProgress: CGFloat {
         usesScreenTransition ? 1 : contentProgress
@@ -445,6 +471,7 @@ struct FeedScreen: View {
         // 상세 사진이 원래 카드를 대신한다. 복귀가 끝날 때까지 뒤에 같은 사진을 그리지 않는다.
         zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
         withAnimation(photoAnimation(to: 1, releaseVelocity: releaseVelocity)) {
+            zoomRegistry?.sourceBarOpacity = 0
             photoProgress = 1
             screenDragOffset = 0
         } completion: {
@@ -468,13 +495,21 @@ struct FeedScreen: View {
         if releaseVelocity == nil { captureTransitionSource() }
         isClosing = true
         isPhotoMoving = true
+        // 원본 카드 전체를 도착할 때까지 숨겨 먼저 나타나는 사진 조각이 없게 한다.
+        zoomRegistry?.hidesWholeSource = true
         zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
         let animation = photoAnimation(to: 0, releaseVelocity: releaseVelocity)
+        // 하단바는 사진이 카드에 거의 도착한 뒤에 드러낸다. 끄는 동안에는 띄우지 않는다.
+        withAnimation(Metrics.sourceBarAnimation) {
+            zoomRegistry?.sourceBarOpacity = revealsSourceBottomBar ? 1 : 0
+        }
         withAnimation(animation) {
             photoProgress = 0
             screenDragOffset = 0
         } completion: {
             zoomRegistry?.activeSource = nil
+            zoomRegistry?.hidesWholeSource = false
+            zoomRegistry?.sourceBarOpacity = 0
             onBack()
         }
         // 화면 전체를 접는 동안에는 visibleContentProgress가 1을 유지한다.
@@ -511,6 +546,7 @@ struct FeedScreen: View {
                           value.startLocation.x <= Metrics.backSwipeEdgeWidth,
                           value.translation.width > abs(value.translation.height) else { return }
                     isBackSwiping = true
+                    zoomRegistry?.hidesWholeSource = true
                     backSwipeTracking = FeedBackSwipeTracking()
                     captureTransitionSource()
                     isPhotoMoving = true
@@ -654,6 +690,8 @@ private enum Metrics {
     static let contentAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.7)
     // 스와이프를 놓은 뒤 남은 이동도 photoAnimation과 같은 0.3초 안팎에 끝낸다.
     static let photoReleaseDuration: TimeInterval = 0.3
+    // 닫힘 전환(0.3초)의 뒤쪽 절반에서 하단바를 드러낸다.
+    static let sourceBarAnimation: Animation = .easeIn(duration: 0.15).delay(0.15)
     static let backSwipeEdgeWidth: CGFloat = 24
     static let backSwipeMinimumDistance: CGFloat = 12
     static let backSwipeFullDistance: CGFloat = 300

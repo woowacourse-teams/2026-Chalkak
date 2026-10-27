@@ -194,6 +194,14 @@ struct ContentView: View {
                         .accessibilityAddTraits(.isModal)
                     }
                 }
+                .overlay(alignment: .bottom) {
+                    if selectedFeed != nil {
+                        bottomBar
+                            .opacity(feedZoomRegistry.sourceBarOpacity)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .environment(\.feedZoomRegistry, feedZoomRegistry)
             case .photoUploadSuccess:
                 if let successSubmission {
@@ -418,22 +426,13 @@ struct ContentView: View {
             tabContent
         }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                ChalkakBottomBar(
-                    selectedItem: selectedTab,
-                    isCompact: $isBottomBarCompact,
-                    onSelect: selectBottomBarItem,
-                    onAdd: { openPhotoUpload(from: selectedTab) }
-                )
-                .padding(
-                    .horizontal,
-                    bottomBarHorizontalPadding
-                )
-                .padding(.bottom, bottomBarBottomPadding)
-                .background(bottomBarBackground)
-                .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-                    feedZoomRegistry.bottomBarFrame = $0
-                }
+                bottomBar
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                        feedZoomRegistry.bottomBarFrame = $0
+                    }
+                    // 전환 레이어의 바가 대신 그리되, 기존 inset과 카드 위치는 유지한다.
+                    .opacity(feedZoomRegistry.activeSource == nil ? 1 : 0)
+                    .animation(nil, value: feedZoomRegistry.activeSource)
             }
             .alert("알림을 켤까요?", isPresented: $isNotificationSettingsGuidancePresented) {
                 Button("나중에", role: .cancel) {
@@ -445,6 +444,22 @@ struct ContentView: View {
             } message: {
                 Text("알림을 켜면 오늘의 주제와 게시물 승인·반려 소식을 받아볼 수 있어요.")
             }
+    }
+
+    private var bottomBar: some View {
+        ChalkakBottomBar(
+            selectedItem: selectedTab,
+            isCompact: $isBottomBarCompact,
+            onSelect: selectBottomBarItem,
+            onAdd: { openPhotoUpload(from: selectedTab) }
+        )
+        .padding(
+            .horizontal,
+            bottomBarHorizontalPadding
+        )
+        .padding(.bottom, bottomBarBottomPadding)
+        .background(bottomBarBackground)
+        .animation(.smooth(duration: 0.75), value: isBottomBarCompact)
     }
 
     private var bottomBarHorizontalPadding: CGFloat {

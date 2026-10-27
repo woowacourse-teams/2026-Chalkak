@@ -73,18 +73,19 @@ struct FeedPhoto: View {
                     }
                     // Android처럼 출발 화면의 서명은 사진과 따로, 출발 서명 위치·크기에서 제자리로 이동한다.
                     .overlay(alignment: .bottomTrailing) {
-                        if let signatureSource = (imageSwap.hasOriginal ? post?.signatureImageSource : nil) ?? placeholder?.signatureImageSource {
+                        if let signature = displayedSignature {
                             FeedPlaceholderImage(
-                                preloaded: imageSwap.hasOriginal ? nil : placeholder?.preloadedSignatureImage,
-                                source: signatureSource,
+                                preloaded: signature.preloaded,
+                                source: signature.source,
                                 contentMode: .fit
                             )
-                            .frame(width: Metrics.signatureSize.width, height: Metrics.signatureSize.height)
+                            .frame(width: signatureSize.width, height: signatureSize.height)
                             .feedZoomEffect(
                                 progress: zoom.photoProgress,
                                 source: signatureZoomSource,
                                 destinationFrame: signatureFrame
                             )
+                            .modifier(FeedScreenSignatureEffect(screen: zoom.screen, destinationFrame: signatureFrame))
                             .opacity(isSignatureHidden ? 0 : signatureOpacity)
                             .padding(theme.spacing.sm)
                         }
@@ -148,20 +149,16 @@ struct FeedPhoto: View {
             }
             .task(id: post?.originalImageSource) {
                 guard let post else { return }
-                let image: UIImage?
-                if let cached = post.originalImageSource.cachedImage() {
-                    image = cached
-                } else if case let .remote(url?) = post.originalImageSource {
-                    image = try? await RemoteImageCache.shared.load(url)
-                } else {
-                    image = nil
-                }
+                // 원본 서명도 함께 받아 두고 사진과 같은 프레임에 바꾼다. 따로 받으면 받는 동안 서명이 비었다가 나타난다.
+                async let signature = Self.loadImage(post.signatureImageSource)
+                let image = await Self.loadImage(post.originalImageSource)
+                let signatureImage = await signature
                 guard !Task.isCancelled else { return }
                 if let image {
                     var transaction = Transaction()
                     transaction.disablesAnimations = true
                     withTransaction(transaction) {
-                        imageSwap.receiveOriginal(image, isSettled: zoom.isSettled)
+                        imageSwap.receiveOriginal(image, signature: signatureImage, isSettled: zoom.isSettled)
                     }
                 }
                 // 목록에서 받은 썸네일도 원본 비율이다. 원본은 화질만 교체하고
@@ -202,7 +199,7 @@ struct FeedPhoto: View {
     private func signatureButton(action: @escaping (CGRect?) -> Void) -> some View {
         Button { action(signatureFrame) } label: {
             Color.clear
-                .frame(width: Metrics.signatureSize.width, height: Metrics.signatureSize.height)
+                .frame(width: signatureSize.width, height: signatureSize.height)
                 .padding(theme.spacing.sm)
                 .contentShape(Rectangle())
         }
@@ -328,15 +325,43 @@ struct FeedPhoto: View {
     private var signatureFrame: CGRect? {
         imageFrame.map { frame in
             CGRect(
-                x: frame.maxX - theme.spacing.sm - Metrics.signatureSize.width,
-                y: frame.maxY - theme.spacing.sm - Metrics.signatureSize.height,
-                width: Metrics.signatureSize.width,
-                height: Metrics.signatureSize.height
+                x: frame.maxX - theme.spacing.sm - signatureSize.width,
+                y: frame.maxY - theme.spacing.sm - signatureSize.height,
+                width: signatureSize.width,
+                height: signatureSize.height
             )
         }
     }
 
+    // 출발 뷰에서 사진 대비 서명 비율을 그대로 이어받아, 확대·축소 중에도 서명이 사진과 같은 비율로 보이게 한다.
+    // 출발 서명을 모르면 기본 크기를 쓴다.
+    private var signatureSize: CGSize {
+        guard let source = zoom.source,
+              let sourceSignature = source.signatureFrame,
+              let imageFrame,
+              source.frame.width > 0 else { return Metrics.defaultSignatureSize }
+        let scale = imageFrame.width / source.frame.width
+        return CGSize(width: sourceSignature.width * scale, height: sourceSignature.height * scale)
+    }
+
     // 사진은 날아가는데 출발 서명 위치를 모르면, 서명은 제자리에서 다른 콘텐츠와 함께 페이드된다.
+    // 원본 서명을 받아 둔 뒤에만 원본으로 바꾸고, 그 전에는 출발 화면의 서명을 계속 보여준다.
+    private var displayedSignature: (source: ChalkakImageSource, preloaded: UIImage?)? {
+        if imageSwap.hasOriginal, let post, let image = imageSwap.originalSignature {
+            return (post.signatureImageSource, image)
+        }
+        if let source = placeholder?.signatureImageSource {
+            return (source, placeholder?.preloadedSignatureImage)
+        }
+        return imageSwap.hasOriginal ? post.map { ($0.signatureImageSource, nil) } : nil
+    }
+
+    private static func loadImage(_ source: ChalkakImageSource) async -> UIImage? {
+        if let cached = source.cachedImage() { return cached }
+        guard case let .remote(url?) = source else { return nil }
+        return try? await RemoteImageCache.shared.load(url)
+    }
+
     private var signatureOpacity: CGFloat {
         zoom.source != nil && signatureZoomSource == nil ? zoom.contentProgress : 1
     }
@@ -363,22 +388,27 @@ func feedPhotoPinchOffset(
 struct FeedPhotoImageSwap {
     var displayedImage: UIImage?
     private(set) var hasOriginal = false
+    private(set) var originalSignature: UIImage?
     private var pendingOriginal: UIImage?
+    private var pendingSignature: UIImage?
 
     init(displayedImage: UIImage?) {
         self.displayedImage = displayedImage
     }
 
-    mutating func receiveOriginal(_ image: UIImage, isSettled: Bool) {
+    mutating func receiveOriginal(_ image: UIImage, signature: UIImage? = nil, isSettled: Bool) {
         pendingOriginal = image
+        pendingSignature = signature
         if isSettled || displayedImage == nil { finishTransition() }
     }
 
     mutating func finishTransition() {
         guard let pendingOriginal else { return }
         displayedImage = pendingOriginal
+        originalSignature = pendingSignature
         hasOriginal = true
         self.pendingOriginal = nil
+        pendingSignature = nil
     }
 }
 
@@ -464,7 +494,7 @@ struct FeedLikeRow: View {
 private enum Metrics {
     static let defaultImageRatio: CGFloat = 1
     static let maximumPinchScale: CGFloat = 4
-    static let signatureSize = CGSize(width: 70, height: 52)
+    static let defaultSignatureSize = CGSize(width: 70, height: 52)
     static let rowHeight: CGFloat = 57
     static let likeSpacing: CGFloat = 9
     static let heartSize: CGFloat = 24

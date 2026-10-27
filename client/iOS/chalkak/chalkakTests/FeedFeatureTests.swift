@@ -522,6 +522,13 @@ private final class AsyncGate {
 
 @MainActor
 struct FeedZoomCropTests {
+    @Test("하단바가 있는 탭에서 연 피드만 돌아갈 때 하단바를 띄운다")
+    func onlyTabSourcesShowBottomBar() {
+        #expect(FeedZoomSource.displayGrid("photo").showsBottomBar)
+        #expect(FeedZoomSource.homeTrending("photo").showsBottomBar)
+        #expect(!FeedZoomSource.authorGrid("photo").showsBottomBar)
+    }
+
     @Test("등록이 누락된 그리드 사진도 탭 좌표와 가림 영역을 즉시 전달한다")
     func tappedPhotoSuppliesSourceWithoutPriorRegistration() {
         let registry = FeedZoomRegistry()
@@ -647,6 +654,17 @@ struct FeedScreenReturnGeometryTests {
         #expect(moving.cornerRadius * moving.scale > 15)
         let expanded = FeedScreenReturnGeometry(progress: 1, source: source, photo: photo, canvas: canvas)
         #expect(expanded.cornerRadius == 0)
+    }
+
+    @Test("펼쳐지는 도중 하단은 먼저 화면 끝까지 닿아 마지막에 한 번에 채워지지 않는다")
+    func bottomReachesScreenEdgeEarly() {
+        let source = FeedZoomRegistry.Source(frame: CGRect(x: 20, y: 180, width: 160, height: 300), cornerRadius: 12)
+        for progress: CGFloat in [0.6, 0.8, 0.95] {
+            let geometry = FeedScreenReturnGeometry(progress: progress, source: source, photo: photo, canvas: canvas, safeAreaInsets: insets)
+            // 변환 후 화면 좌표의 하단
+            let visibleBottom = canvas.midY + (geometry.clip.maxY - canvas.height / 2) * geometry.scale + geometry.offset.height
+            #expect(abs(visibleBottom - (canvas.maxY + insets.bottom)) < 0.0001)
+        }
     }
 
     @Test("카드 비율과 위치가 달라도 정확한 카드 영역으로 접힌다")
