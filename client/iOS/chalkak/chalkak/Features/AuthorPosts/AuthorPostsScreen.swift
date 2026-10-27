@@ -2,16 +2,13 @@ import SwiftUI
 
 /// 한 작가가 공개한 사진을 전시와 같은 2열 그리드로 모아 본다.
 /// 탑바의 뒤로 가기는 고정이고, 작가 사인은 처음에 크게 보였다가 스크롤하면 탑바 가운데로 줄어든다.
-/// 피드에서 누른 사인의 위치(`AuthorPostsTarget.signatureTransitionSource`)를 받으면 피드의 사진 전환과 같은 구조로,
-/// 화면 하나가 그 사인 자리에서 펼쳐진다. 닫을 때(뒤로 가기·백 스와이프)는 접히기 시작하자마자 화면이 투명해지고
-/// 흰색으로 바뀐 사인만 피드 사인 자리로 접혀 돌아간다.
-/// 탑바 사인이 피드 사인 자리에 겹치도록 화면 전체를 축소·이동한다(`FeedScreenReturnEffect`).
+/// push 화면처럼 오른쪽에서 밀려 들어오고, 닫을 때(뒤로 가기·왼쪽 가장자리 백 스와이프)는 오른쪽으로 밀려 나간다.
+/// 배경과 콘텐츠를 한 덩어리로 옮겨, 늦게 그려지는 사진도 화면과 함께 움직인다.
 /// 사진을 누르면 `onSelectPost`로 피드를 연다.
 struct AuthorPostsScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.feedZoomRegistry) private var zoomRegistry
     var viewModel: AuthorPostsViewModel
     // 닫는 전환이 끝난 뒤 호출된다. 호출부는 애니메이션 없이 화면을 치우면 된다.
     var onBack: () -> Void = {}
@@ -19,19 +16,11 @@ struct AuthorPostsScreen: View {
     // 카드에서 좋아요를 바꿨을 때. 이 목록을 연 피드도 같은 사진이면 맞출 수 있게 알린다.
     var onLikeChange: (FeedLikeUpdate) -> Void = { _ in }
 
-    // 화면 펼침 진행도(0: 피드 사인 자리로 접힘, 1: 전체 화면).
+    // 화면이 들어온 정도(0: 오른쪽 밖, 1: 제자리).
     @State private var progress: CGFloat = 0
-    // 펼칠 출발 위치가 없을 때(동작 줄이기 등)만 쓰는 페이드 진행도.
-    @State private var contentProgress: CGFloat = 0
-    @State private var dragOffset: CGFloat = 0
-    // 펼치고 접는 기준인 탑바 사인 위치. 전환 중에는 변환된 좌표가 들어오지 않게 고정한다.
-    @State private var signatureFrame: CGRect?
-    @State private var transitionViewport: CGRect?
-    @State private var transitionSafeAreaInsets = EdgeInsets()
+    // 백 스와이프 거리를 진행도로 바꾸는 기준.
+    @State private var screenWidth: CGFloat = 0
     @State private var isTransitioning = true
-    @State private var hasPreparedOpening = false
-    @State private var hasStartedOpening = false
-    @State private var hasLaunchedOpening = false
     @State private var isBackSwiping = false
     @State private var backSwipeTracking = FeedBackSwipeTracking()
     @State private var isClosing = false
@@ -42,7 +31,6 @@ struct AuthorPostsScreen: View {
             // 탑바 자리. 탑바는 펼친 사인이 아래 콘텐츠 위로 넘쳐 그려지도록 overlay로 올린다.
             Color.clear.frame(height: AuthorPostsTopBar.height)
             content
-                .opacity(surfaceOpacity)
         }
         .overlay(alignment: .top) {
             AuthorPostsTopBar(
@@ -51,75 +39,28 @@ struct AuthorPostsScreen: View {
                     : nil,
                 isMine: viewModel.target.isMine,
                 collapseProgress: collapseProgress,
-                signatureColor: theme.colors.textOnImage.mix(with: theme.colors.iconPrimary, by: surfaceOpacity),
-                chromeOpacity: surfaceOpacity,
-                onBack: { close() },
-                onSignatureFrameChange: { frame in
-                    if !isTransitioning || !hasStartedOpening { signatureFrame = frame }
-                    startOpening()
-                }
+                onBack: { close() }
             )
-            .background(theme.colors.background.opacity(surfaceOpacity))
+            .background(theme.colors.background)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.colors.background.opacity(surfaceOpacity))
-        .opacity(usesScreenTransition ? 1 : contentProgress)
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-            if !isTransitioning || transitionViewport == nil {
-                transitionViewport = $0
-                startOpening()
-            }
-        }
-        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: {
-            if !hasStartedOpening || !isTransitioning { transitionSafeAreaInsets = $0 }
-        }
-        .modifier(FeedScreenReturnEffect(
-            progress: usesScreenTransition ? progress : 1,
-            dragOffset: dragOffset,
-            source: usesScreenTransition && hasStartedOpening ? transitionSource : nil,
-            photo: signatureFrame,
-            canvas: transitionViewport,
-            safeAreaInsets: transitionSafeAreaInsets,
-            // 배경이 상태 바·홈 인디케이터 영역까지 그려지므로, 그 영역도 펼치는 동안 함께 덮는다.
-            clipsRoundedCornersToSafeArea: false
-        ))
-        // 측정 전 전체 화면이 순간 노출되지 않도록 레이아웃은 유지하고 표시만 기다린다.
-        .opacity(usesScreenTransition && !hasStartedOpening ? 0 : 1)
-        .animation(nil, value: hasStartedOpening)
+        .background(theme.colors.background)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
+        // 움직이는 동안 아래 피드와 경계가 보이도록 왼쪽 끝에 그림자를 둔다.
+        .shadow(color: .black.opacity(progress < 1 ? Metrics.shadowOpacity : 0), radius: Metrics.shadowRadius)
+        // 동작 줄이기에서는 밀지 않고 페이드한다.
+        .modifier(AuthorPostsSlideEffect(progress: reduceMotion ? 1 : progress))
+        .opacity(reduceMotion ? progress : 1)
         .background {
-            // 접힌 시작 상태를 한 화면 갱신 동안 보여 준 뒤 펼친다. 피드 사진 전환과 같은 순서다.
-            FeedOpeningFrameGate(isEnabled: hasPreparedOpening && !hasStartedOpening) {
-                guard !hasStartedOpening, !isClosing else { return }
-                hasStartedOpening = true
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
-        .background {
-            FeedOpeningFrameGate(isEnabled: hasStartedOpening && !hasLaunchedOpening) {
-                guard !hasLaunchedOpening, !isClosing else { return }
-                hasLaunchedOpening = true
-                open()
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+            // push처럼 아래 피드를 살짝 어둡게 한다. 화면을 따라 움직이지 않게 슬라이드 바깥에 둔다.
+            Color.black.opacity(Metrics.dimOpacity * progress)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
         .simultaneousGesture(backSwipeGesture)
         .allowsHitTesting(!isClosing)
-        // 접힌 사인이 보이는 순간부터 피드의 사인을 숨겨, 반투명한 동안 사인이 두 개로 겹쳐 보이지 않게 한다.
-        .onChange(of: hasStartedOpening) { _, hasStarted in
-            if hasStarted, usesScreenTransition { zoomRegistry?.hidesFeedSignature = true }
-        }
-        .onDisappear {
-            zoomRegistry?.hidesFeedSignature = false
-        }
-        .task {
-            // 탑바 사인 위치를 받지 못하면(사인이 그려지지 않는 경우) 펼침 없이 페이드로 연다.
-            try? await Task.sleep(for: Metrics.signatureFrameTimeout)
-            guard !hasPreparedOpening, !isClosing else { return }
-            hasPreparedOpening = true
-            hasStartedOpening = true
-        }
+        .onAppear { open() }
         .task(id: ObjectIdentifier(viewModel)) {
             // 목록에서 연 피드를 닫고 돌아올 때는 이미 받은 목록과 스크롤 위치를 유지한다.
             guard viewModel.viewState.contentStatus == .loading else { return }
@@ -135,53 +76,16 @@ struct AuthorPostsScreen: View {
         min(max(scrollOffset / Metrics.collapseDistance, 0), 1)
     }
 
-    // MARK: - 펼침 전환
-
-    // 펼칠 출발 위치. 피드 사인 칸은 직각이라 모서리 반지름이 없다.
-    private var transitionSource: FeedZoomRegistry.Source? {
-        guard !reduceMotion, let frame = viewModel.target.signatureTransitionSource else { return nil }
-        return FeedZoomRegistry.Source(frame: frame, cornerRadius: 0)
-    }
-
-    // 펼치는 동안 배경·콘텐츠의 불투명도. 접힌 상태(0)에서는 투명해서 피드 사진 위에 흰 사인만 보이고,
-    // 펼쳐지기 시작하자마자(진행도 `openFadeEnd`까지) 화면 배경과 아이콘 색 사인으로 바뀐다.
-    // 닫을 때는 접히기 시작하자마자(진행도 `closeFadeStart` ~ `closeFadeEnd`) 투명해지고, 흰 사인만 피드 위에서 접힌다.
-    // 예) 열 때 진행도 0 → 0, 0.175 → 0.5, 0.35 이상 → 1 / 닫을 때 1 → 1, 0.55 → 0.5, 0.1 이하 → 0
-    private var surfaceOpacity: CGFloat {
-        guard usesScreenTransition else { return 1 }
-        let (transparentAt, opaqueAt) = isClosing
-            ? (Metrics.closeFadeEnd, Metrics.closeFadeStart)
-            : (0, Metrics.openFadeEnd)
-        return min(max((progress - transparentAt) / (opaqueAt - transparentAt), 0), 1)
-    }
-
-    // 사인 위치를 끝내 받지 못한 대체 경로에서는 펼치지 않고 페이드한다.
-    private var usesScreenTransition: Bool {
-        transitionSource != nil && signatureFrame != nil
-    }
-
-    private func startOpening() {
-        guard !hasPreparedOpening, !isClosing else { return }
-        if transitionSource != nil {
-            guard signatureFrame != nil, transitionViewport != nil else { return }
-        }
-        hasPreparedOpening = true
-        if !usesScreenTransition { hasStartedOpening = true }
-    }
+    // MARK: - 화면 전환
 
     // releaseVelocity: 백 스와이프를 놓은 순간의 진행도 속도(초당). 없으면 멈춘 상태에서 출발한다.
     private func open(releaseVelocity: CGFloat? = nil) {
         isTransitioning = true
         withAnimation(screenAnimation(to: 1, releaseVelocity: releaseVelocity)) {
             progress = 1
-            dragOffset = 0
         } completion: {
             guard !isClosing else { return }
             isTransitioning = false
-            zoomRegistry?.hidesFeedSignature = false
-        }
-        withAnimation(Metrics.contentAnimation) {
-            contentProgress = 1
         }
     }
 
@@ -189,26 +93,13 @@ struct AuthorPostsScreen: View {
         guard !isClosing else { return }
         isClosing = true
         isTransitioning = true
-        guard usesScreenTransition else {
-            withAnimation(Metrics.contentAnimation) {
-                contentProgress = 0
-            } completion: {
-                onBack()
-            }
-            return
-        }
-        // 흰 사인이 돌아가는 동안 제자리의 피드 사인을 숨겨 두 개로 보이지 않게 한다.
-        zoomRegistry?.hidesFeedSignature = true
         withAnimation(screenAnimation(to: 0, releaseVelocity: releaseVelocity)) {
             progress = 0
-            dragOffset = 0
         } completion: {
-            zoomRegistry?.hidesFeedSignature = false
             onBack()
         }
     }
 
-    // 버튼으로 열고 닫을 때는 Android와 같은 곡선을 쓴다.
     // 스와이프를 놓았을 때는 그 속도를 이어받아야 화면이 멈칫했다가 다시 출발하지 않는다.
     private func screenAnimation(to target: CGFloat, releaseVelocity: CGFloat?) -> Animation {
         guard let releaseVelocity else { return Metrics.screenAnimation }
@@ -220,11 +111,12 @@ struct AuthorPostsScreen: View {
         )
     }
 
-    // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 동안 화면이 살짝 따라오고, 놓으면 사인만 피드 사인 자리로 접힌다.
+    // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 만큼 화면이 오른쪽으로 따라온다.
+    // 화면이 손을 따라 움직이므로 위치는 화면 밖(global) 기준으로 잰다.
     private var backSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
+        DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance, coordinateSpace: .global)
             .onChanged { value in
-                guard !isClosing else { return }
+                guard !isClosing, screenWidth > 0 else { return }
                 if !isBackSwiping {
                     guard !isTransitioning,
                           value.startLocation.x <= Metrics.backSwipeEdgeWidth,
@@ -234,23 +126,15 @@ struct AuthorPostsScreen: View {
                     backSwipeTracking = FeedBackSwipeTracking()
                 }
                 backSwipeTracking.update(to: value.translation)
-                if usesScreenTransition {
-                    // 길게 끌어도 창 크기를 유지하고, 손을 놓은 뒤 사인 자리로 접는다.
-                    progress = 1
-                    dragOffset = backSwipeTracking.distance * Metrics.backSwipeDragRatio
-                } else {
-                    contentProgress = 1 - min(backSwipeTracking.distance / Metrics.backSwipeFullDistance, 1)
-                }
+                progress = 1 - min(backSwipeTracking.distance / screenWidth, 1)
             }
             .onEnded { value in
                 guard isBackSwiping else { return }
                 isBackSwiping = false
                 guard !isClosing else { return }
                 backSwipeTracking.update(to: value.translation)
-                // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
-                let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
-                    ? -backSwipeTracking.horizontalVelocity(value.velocity) / Metrics.backSwipeFullDistance
-                    : 0
+                // 오른쪽으로 밀수록 진행도는 줄어든다.
+                let releaseVelocity = -backSwipeTracking.horizontalVelocity(value.velocity) / screenWidth
                 if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
                     close(releaseVelocity: releaseVelocity)
                 } else {
@@ -327,7 +211,7 @@ struct AuthorPostsScreen: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             scrollOffset = offset
         }
-        // 펼치고 접는 동안 스크롤로 사인 크기가 바뀌면 접힐 자리가 어긋난다.
+        // 밀려 들어오고 나가는 동안(백 스와이프 포함)에는 그리드가 세로로 움직이지 않게 한다.
         .scrollDisabled(isTransitioning)
         .feedZoomViewport(.authorPosts)
     }
@@ -436,26 +320,35 @@ private enum Metrics {
     // 펼친 사인 아래 끝과 설명 사이를 sm만큼 띄운 거리. 이만큼 스크롤하면 사인이 다 접힌다.
     // 탑바 + 이 거리 + 설명 + lg가 전시 화면에서 필터를 뺀 헤더 높이와 같다.
     static let collapseDistance: CGFloat = AuthorPostsTopBar.expandedSignatureBottom - AuthorPostsTopBar.height + ChalkakSpacing.sm
-    // 피드 사진 전환과 같은 값. Android PhotoTransition의 boundsTransform: tween(300, FastOutSlowInEasing).
-    static let screenAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
+    // 시스템 push와 비슷한 감속 곡선.
+    static let screenAnimation: Animation = .smooth(duration: 0.35)
     static let screenReleaseDuration: TimeInterval = 0.3
-    // 펼칠 때 배경이 다 불투명해지는 진행도.
-    static let openFadeEnd: CGFloat = 0.35
-    // 닫을 때 배경이 투명해지기 시작·끝나는 진행도.
-    static let closeFadeStart: CGFloat = 1
-    static let closeFadeEnd: CGFloat = 0.1
-    // 펼칠 수 없을 때의 대체 페이드. Android NavHost 기본 화면 전환: fadeIn/fadeOut(tween(700)).
-    static let contentAnimation: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.7)
-    static let signatureFrameTimeout: Duration = .milliseconds(150)
-    // 백 스와이프 값도 피드와 같다.
+    static let shadowOpacity: CGFloat = 0.12
+    static let shadowRadius: CGFloat = 8
+    // 화면이 다 들어왔을 때 아래 피드를 어둡게 하는 정도.
+    static let dimOpacity: CGFloat = 0.1
+    // 백 스와이프 값은 피드와 같다.
     static let backSwipeEdgeWidth: CGFloat = 24
     static let backSwipeMinimumDistance: CGFloat = 12
-    static let backSwipeFullDistance: CGFloat = 300
     static let backSwipeCloseDistance: CGFloat = 120
-    static let backSwipeDragRatio: CGFloat = 0.65
     static let emptyIconSize: CGFloat = 34
     static let emptyTopPadding: CGFloat = 96
     static let minimumTouchSize: CGFloat = 44
+}
+
+/// 화면을 자기 폭만큼 오른쪽으로 민다. 진행도 0이면 화면 밖, 1이면 제자리다.
+/// 첫 화면부터 실제 폭을 쓰므로, 폭을 재기 전에 제자리에 한 번 그려지는 일이 없다.
+private struct AuthorPostsSlideEffect: GeometryEffect {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: (1 - progress) * size.width, y: 0))
+    }
 }
 
 #Preview("Author Posts") {

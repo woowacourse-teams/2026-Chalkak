@@ -66,8 +66,6 @@ final class FeedZoomRegistry {
     // 뒤로가기 스와이프로 창이 떠 있는 동안에는 가려진 부분까지 숨겨 같은 사진이 남지 않게 한다.
     var hidesWholeSource = false
     var sourceBarOpacity: CGFloat = 0
-    // 작가 사진 목록이 피드 사인 자리에서 펼쳐지거나 접히는 동안 피드의 사인을 숨긴다.
-    var hidesFeedSignature = false
     @ObservationIgnored private var sources: [FeedZoomSource: Source] = [:]
     @ObservationIgnored private var viewports: [FeedZoomViewport: CGRect] = [:]
     @ObservationIgnored var bottomBarFrame: CGRect?
@@ -518,9 +516,6 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
     let canvas: CGRect?
     let safeAreaInsets: EdgeInsets
     var revealsCoveredSource = false
-    // 모서리가 둥근 동안 마스크를 화면 안쪽으로 자를지. 피드는 화면 밖이 직각으로 잘려 보이지 않게 자른다.
-    // 배경이 안전 영역까지 그려지는 화면(작가 사진 목록)은 false로 두어 위아래 영역도 함께 펼친다.
-    var clipsRoundedCornersToSafeArea = true
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(progress, dragOffset) }
@@ -546,12 +541,7 @@ struct FeedScreenReturnEffect: ViewModifier, Animatable {
         return content
             .mask {
                 if let geometry {
-                    FeedScreenReturnMask(
-                        bounds: geometry.clip,
-                        screen: geometry.screen,
-                        cornerRadius: geometry.cornerRadius,
-                        clipsToSafeArea: clipsRoundedCornersToSafeArea
-                    )
+                    FeedScreenReturnMask(bounds: geometry.clip, screen: geometry.screen, cornerRadius: geometry.cornerRadius)
                     .clipShape(Path(geometry.viewportClip))
                 } else {
                     Rectangle().ignoresSafeArea()
@@ -717,12 +707,11 @@ private struct FeedScreenReturnMask: Shape {
     let bounds: CGRect
     let screen: CGRect
     let cornerRadius: CGFloat
-    var clipsToSafeArea = true
 
     func path(in rect: CGRect) -> Path {
         // 화면 밖에 둥근 모서리를 그리면 실제 피드 가장자리는 직각으로 잘린다.
         // 이동 중에는 마스크가 실제로 그려지는 화면 경계에 라운드를 맞춘다.
-        let visibleBounds = cornerRadius > 0 && clipsToSafeArea ? bounds.intersection(screen) : bounds
+        let visibleBounds = cornerRadius > 0 ? bounds.intersection(screen) : bounds
         guard !visibleBounds.isNull else { return Path() }
         return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).path(in: visibleBounds)
     }
