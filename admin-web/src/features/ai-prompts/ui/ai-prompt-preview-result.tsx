@@ -13,7 +13,7 @@ function Usage({ usage }: { usage: AiPromptPreviewResponse["usage"] }) {
   </>;
 }
 
-function PreviewFeedback({ feedback }: { feedback: NonNullable<AiPromptPreviewResponse["result"]>["feedback"] }) {
+export function PreviewFeedback({ feedback }: { feedback: NonNullable<AiPromptPreviewResponse["result"]>["feedback"] }) {
   // 백엔드 #731 배포 후 이 문자열 분기와 contracts의 `| string`을 함께 제거한다.
   if (typeof feedback === "string") return <p className={styles.feedback}>{feedback}</p>;
   return <div className={styles.feedbackSections}>

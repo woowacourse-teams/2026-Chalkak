@@ -333,7 +333,7 @@ describe("admin write and path restrictions", () => {
   });
 
   it.each([
-    "dashboard", "pushes", "auth/refresh", "posts/not-a-uuid", `posts/${resourceId}/delete`,
+    "dashboard", "pushes", "auth/refresh", "posts/not-a-uuid", "ai-reviews/not-a-uuid", `ai-reviews/${resourceId}/retry`, `posts/${resourceId}/delete`,
     "../users", "posts/../users", "posts/%2e%2e/users", "https://attacker.test", "//attacker.test",
   ])("rejects unknown or traversal path %s", async (path) => {
     const response = await relay(path, { cookie: token });
@@ -347,6 +347,7 @@ describe("admin write and path restrictions", () => {
     ["feedbacks", "POST"], ["feedbacks", "DELETE"],
     ["ai-prompt-previews", "GET"], ["ai-prompt-versions", "DELETE"],
     [`ai-prompt-versions/${resourceId}`, "PUT"], [`ai-prompt-versions/${resourceId}`, "DELETE"],
+    ["ai-reviews", "POST"], [`ai-reviews/${resourceId}`, "PUT"], [`ai-reviews/${resourceId}`, "DELETE"],
   ])("rejects unsupported method on %s: %s", async (path, method) => {
     const response = await relay(path, { method, cookie: token });
     expect(response.status).toBe(405);
@@ -361,7 +362,7 @@ describe("admin write and path restrictions", () => {
     [`topics/${resourceId}`, "GET"], [`topics/${resourceId}`, "PUT"], [`topics/${resourceId}`, "DELETE"],
     ["audit-logs", "GET"], ["feedbacks", "GET"],
     ["ai-prompt-previews", "POST"], ["ai-prompt-versions", "GET"], ["ai-prompt-versions", "POST"],
-    [`ai-prompt-versions/${resourceId}`, "GET"],
+    [`ai-prompt-versions/${resourceId}`, "GET"], ["ai-reviews", "GET"], [`ai-reviews/${resourceId}`, "GET"],
   ])("allows supported path %s: %s", async (path, method) => {
     fetchMock.mockResolvedValue(Response.json({ success: true }));
     const response = await relay(path, { method, cookie: token, body: method === "GET" ? undefined : { reason: "test" } });
@@ -679,6 +680,30 @@ describe("notice relay", () => {
     expect((await relay("notices", { method: "POST", cookie: token, omitOrigin: true })).status).toBe(403);
     expect((await relay(`notices/${resourceId}`, { method: "DELETE", cookie: token })).status).toBe(415);
     expect((await relay(`notices/${resourceId}`, { method: "PATCH", cookie: token })).status).toBe(405);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("reminder relay", () => {
+  const body = { title: "리마인더", body: "본문", repeat: "DAILY", target: "TOPIC_NON_PARTICIPANTS", scheduledAt: "2099-10-25T12:00:00Z" };
+  it.each([
+    ["reminders?page=2&pageSize=20", "GET", undefined, 200],
+    ["reminders", "POST", body, 201],
+    [`reminders/${resourceId}`, "PUT", body, 200],
+    [`reminders/${resourceId}`, "DELETE", undefined, 204],
+  ])("forwards %s %s to the admin backend path using the server session", async (path, method, requestBody, status) => {
+    fetchMock.mockResolvedValue(status === 204 ? new Response(null, { status }) : Response.json({ reminderId: resourceId }, { status: status as number }));
+    const response = await relay(path as string, { method: method as string, body: requestBody, cookie: token });
+    expect(response.status).toBe(status);
+    expect(fetchMock).toHaveBeenCalledWith(`${upstream}/${path}`, expect.objectContaining({ method, body: requestBody ? JSON.stringify(requestBody) : undefined }));
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+  });
+  it("requires authentication and same-origin mutations, and rejects unsupported reminder routes", async () => {
+    expect((await relay("reminders")).status).toBe(401);
+    expect((await relay("reminders", { method: "POST", cookie: token, omitOrigin: true })).status).toBe(403);
+    expect((await relay(`reminders/${resourceId}`, { cookie: token })).status).toBe(405);
+    expect((await relay(`reminders/${resourceId}`, { method: "PATCH", cookie: token })).status).toBe(405);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ export interface DisplayStatus {
   tone: "neutral" | "info" | "warning" | "success" | "danger";
 }
 
-const moderationDisplay: Record<ModerationStatus, DisplayStatus> = {
+export const moderationDisplay: Record<ModerationStatus, DisplayStatus> = {
   PENDING: { label: "검수 대기", tone: "warning" },
   APPROVED: { label: "승인", tone: "success" },
   REJECTED: { label: "거절", tone: "danger" },

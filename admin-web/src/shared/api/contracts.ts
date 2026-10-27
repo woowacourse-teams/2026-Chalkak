@@ -179,7 +179,7 @@ export interface AdminAuditLogResponse {
   actorAdminId: string;
   actorUsername: string;
   action: string;
-  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER" | "AI_PROMPT_VERSION";
+  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER" | "REMINDER" | "AI_PROMPT_VERSION";
   targetId: string;
   reason: string | null;
   beforeState: Record<string, unknown>;
@@ -261,6 +261,29 @@ export interface AdminNoticeListResponse {
 }
 
 export type AdminNoticeInput = Pick<AdminNotice, "title" | "body" | "scheduledAt">;
+
+export type AdminReminderRepeat = "ONCE" | "DAILY";
+export type AdminReminderTarget = "ALL" | "TOPIC_PARTICIPANTS" | "TOPIC_NON_PARTICIPANTS";
+
+export interface AdminReminder {
+  reminderId: string;
+  title: string;
+  body: string;
+  repeat: AdminReminderRepeat;
+  target: AdminReminderTarget;
+  scheduledAt: Instant;
+  createdAt: Instant;
+  updatedAt: Instant;
+}
+
+export interface AdminReminderListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  reminders: AdminReminder[];
+}
+
+export type AdminReminderInput = Pick<AdminReminder, "title" | "body" | "repeat" | "target" | "scheduledAt">;
 
 export type AiPromptType = "PHOTO_REVIEW";
 export type AiImageDetail = "LOW" | "HIGH" | "AUTO";
@@ -351,4 +374,71 @@ export interface AiPromptVersionDetail extends AiPromptVersionSummary {
     reasoningEffort: AiReasoningEffort | null;
     distinctivePerspectiveThreshold: number;
   };
+}
+
+export type AiReviewStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export interface AiReviewUsage {
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  outputTokens: number | null;
+  reasoningTokens: number | null;
+}
+
+export interface AiReviewPromptVersion {
+  promptVersionId: string;
+  version: number;
+  model: string;
+}
+
+export interface AiReviewAuthor {
+  userId: string;
+  email: string | null;
+  status: UserStatus;
+  deletedAt: Instant | null;
+}
+
+export interface AdminAiReviewSummary {
+  aiReviewId: string;
+  status: AiReviewStatus;
+  // Kept after a failed attempt, so a QUEUED review waiting for a retry can still have one.
+  errorCode: string | null;
+  requestCount: number;
+  overallScore: number | null;
+  promptVersion: AiReviewPromptVersion;
+  post: {
+    postId: string;
+    thumbnailUrl: string | null;
+    moderationStatus: ModerationStatus;
+    deletedAt: Instant | null;
+  };
+  author: AiReviewAuthor;
+  usage: AiReviewUsage;
+  latencyMs: number | null;
+  requestedAt: Instant;
+  lastRequestedAt: Instant;
+  completedAt: Instant | null;
+  visibleToAuthor: boolean;
+}
+
+export interface AdminAiReviewListResponse {
+  currentPage: number;
+  pageSize: number;
+  hasNext: boolean;
+  aiReviews: AdminAiReviewSummary[];
+}
+
+export interface AdminAiReviewDetail extends Omit<AdminAiReviewSummary, "post"> {
+  post: AdminAiReviewSummary["post"] & { imageUrl: string | null };
+  startedAt: Instant | null;
+  attempt: number;
+  openaiResponseId: string | null;
+  result: {
+    overallScore: number;
+    criteria: { key: string; label: string; score: number }[];
+    distinctivePerspective: boolean;
+    feedback: AiPromptPreviewFeedback;
+  } | null;
+  // Raw model output; only completed reviews have it.
+  output: Record<string, unknown> | null;
 }
