@@ -9,6 +9,12 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.NotificationDetail
+import com.stonefive.chalkak.domain.model.NotificationFailure
+import com.stonefive.chalkak.domain.model.NotificationPage
+import com.stonefive.chalkak.domain.model.NotificationPushSettings
+import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
+import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -27,6 +33,7 @@ import com.stonefive.chalkak.domain.repository.AiReviewFailure
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.BannerRepository
+import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -646,13 +653,106 @@ class HomeViewModelTest {
         assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
     }
 
+    @Test
+    fun `unread notifications show dot and refresh on resume`() = runTest {
+        val notifications = FakeUnreadNotificationRepository(hasUnread = true)
+        val viewModel = createViewModel(FakeHomeRepository(), notificationRepository = notifications)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasUnreadNotifications)
+
+        notifications.hasUnread = false
+        viewModel.onPause()
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasUnreadNotifications)
+    }
+
+    @Test
+    fun `unread notification dot survives home reload and is cleared on sign out`() = runTest {
+        val notifications = FakeUnreadNotificationRepository(hasUnread = true)
+        var date = TODAY
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            session = session,
+            dateProvider = { date },
+            notificationRepository = notifications,
+        )
+        advanceUntilIdle()
+        notifications.failure = true
+        date = TODAY.plusDays(1)
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasUnreadNotifications)
+
+        session.value = UserSessionState.SignedOut
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasUnreadNotifications)
+    }
+
+    @Test
+    fun `guest does not request unread notifications`() = runTest {
+        val notifications = FakeUnreadNotificationRepository(hasUnread = true)
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            session = MutableStateFlow(UserSessionState.Guest),
+            notificationRepository = notifications,
+        )
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertEquals(0, notifications.unreadRequestCount)
+        assertFalse(viewModel.uiState.value.hasUnreadNotifications)
+    }
+
     private fun createViewModel(
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
-    ) = HomeViewModel(repository, repository, session, repository, repository, dateProvider).also {
+        notificationRepository: NotificationRepository? = null,
+    ) = HomeViewModel(
+        repository,
+        repository,
+        session,
+        repository,
+        repository,
+        dateProvider,
+        notificationRepository,
+    ).also {
         it.startPreloading()
     }
+}
+
+private class FakeUnreadNotificationRepository(var hasUnread: Boolean) : NotificationRepository {
+    var failure = false
+    var unreadRequestCount = 0
+
+    override suspend fun getUnreadStatus(): NotificationResult<Boolean> {
+        unreadRequestCount++
+        return if (failure) {
+            NotificationResult.Failure(NotificationFailure.Network)
+        } else {
+            NotificationResult.Success(hasUnread)
+        }
+    }
+
+    override suspend fun getNotifications(
+        page: Int,
+        pageSize: Int,
+    ): NotificationResult<NotificationPage> = error("Not used")
+
+    override suspend fun getNotification(notificationId: String): NotificationResult<NotificationDetail> =
+        error("Not used")
+
+    override suspend fun markAsRead(notificationId: String): NotificationResult<Unit> = error("Not used")
+
+    override suspend fun markAllAsRead(): NotificationResult<Unit> = error("Not used")
+
+    override suspend fun getPushSettings(): NotificationResult<NotificationPushSettings> = error("Not used")
+
+    override suspend fun updatePushSettings(settings: NotificationPushSettingsUpdate): NotificationResult<Unit> =
+        error("Not used")
+
+    override suspend fun registerCurrentPushDevice(fcmToken: String): NotificationResult<Unit> = error("Not used")
 }
 
 private class FakeHomeRepository :

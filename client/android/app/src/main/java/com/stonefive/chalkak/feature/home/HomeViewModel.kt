@@ -9,6 +9,7 @@ import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
@@ -18,6 +19,7 @@ import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.BannerRepository
+import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
@@ -48,11 +50,13 @@ class HomeViewModel(
     private val bannerRepository: BannerRepository,
     private val aiReviewRepository: AiReviewRepository,
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
+    private val notificationRepository: NotificationRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
     private var bannerLoadMoreJob: Job? = null
+    private var unreadNotificationsJob: Job? = null
     private var hasBeenPresented = false
     private var isResumed = false
     private val isPreloadingEnabled = MutableStateFlow(false)
@@ -71,7 +75,10 @@ class HomeViewModel(
                 .collectLatest { (session, enabled) ->
                     if (!enabled) return@collectLatest
                     when {
-                        session.canLoadHome() -> loadHome(reset = true)
+                        session.canLoadHome() -> {
+                            loadHome(reset = true)
+                            refreshUnreadNotifications()
+                        }
 
                         session == UserSessionState.SignedOut -> {
                             loadJob?.cancel()
@@ -113,6 +120,7 @@ class HomeViewModel(
         hasBeenPresented = true
         if (!sessionState.value.canLoadHome()) return
         isResumed = true
+        refreshUnreadNotifications()
         if (_uiState.value.date != dateProvider()) {
             loadHome(reset = true)
         } else if (!isFirstPresentation && loadJob?.isActive != true) {
@@ -148,7 +156,29 @@ class HomeViewModel(
 
     private fun resetState(state: HomeUiState) {
         aiReviewSession.setTarget(null)
-        _uiState.value = state
+        val isAuthenticated = sessionState.value is UserSessionState.Authenticated
+        if (!isAuthenticated) unreadNotificationsJob?.cancel()
+        _uiState.value = state.copy(
+            hasUnreadNotifications = isAuthenticated && _uiState.value.hasUnreadNotifications,
+        )
+    }
+
+    private fun refreshUnreadNotifications() {
+        val repository = notificationRepository ?: return
+        if (sessionState.value !is UserSessionState.Authenticated) return
+        unreadNotificationsJob?.cancel()
+        unreadNotificationsJob = viewModelScope.launch {
+            val result = try {
+                repository.getUnreadStatus().also { currentCoroutineContext().ensureActive() }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (result is NotificationResult.Success) {
+                _uiState.update { it.copy(hasUnreadNotifications = result.value) }
+            }
+        }
     }
 
     private fun loadHome(
@@ -393,6 +423,7 @@ class HomeViewModel(
                     sessionState = application.appContainer.authRepository.sessionState,
                     bannerRepository = application.appContainer.bannerRepository,
                     aiReviewRepository = application.appContainer.aiReviewRepository,
+                    notificationRepository = application.appContainer.notificationRepository,
                 )
             }
         }

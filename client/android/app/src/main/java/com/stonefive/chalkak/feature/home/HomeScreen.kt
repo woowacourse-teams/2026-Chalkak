@@ -157,6 +157,7 @@ fun HomeScreen(
             ) {
                 HomeTopBar(
                     onNotificationClick = onNotificationClick,
+                    hasUnreadNotifications = uiState.hasUnreadNotifications,
                     modifier = Modifier
                         .fillMaxWidth()
                         .photoTransitionChrome()

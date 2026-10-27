@@ -30,6 +30,7 @@ data class HomeUiState(
     val feedbackResult: AiReviewContent? = null,
     val feedbackMessage: String? = null,
     val feedbackCanRequestAgain: Boolean = false,
+    val hasUnreadNotifications: Boolean = false,
 )
 
 val HomeUiState.isInitialLoadComplete: Boolean

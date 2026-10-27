@@ -1085,7 +1085,8 @@ struct ContentView: View {
         return NotificationInboxViewModel(
             loadPage: { try await client.fetchPage(page: $0) },
             loadUnread: { try await client.fetchUnreadStatus() },
-            markRead: { try await client.markRead(notificationID: $0) }
+            markRead: { try await client.markRead(notificationID: $0) },
+            markAllRead: { try await client.markAllRead() }
         )
     }
 
