@@ -158,7 +158,7 @@ struct ContentView: View {
                 // 피드 위에 작가 사진 목록을 새 층으로 띄운다. 닫으면 아래 피드가 그대로 남아 있다.
                 .overlay {
                     if let authorPostsViewModel = selectedAuthorPosts {
-                        // 사인 자리에서 펼치고 접는 전환과 백 스와이프는 화면이 스스로 한다.
+                        // 오른쪽에서 밀려 들어오고 나가는 전환과 백 스와이프는 화면이 스스로 한다.
                         AuthorPostsScreen(
                             viewModel: authorPostsViewModel,
                             onBack: { selectedAuthorPosts = nil },

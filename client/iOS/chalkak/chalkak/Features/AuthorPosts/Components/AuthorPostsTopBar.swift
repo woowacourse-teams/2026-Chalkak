@@ -16,13 +16,7 @@ struct AuthorPostsTopBar: View {
     let isMine: Bool
     // 0: 펼침(큰 사인), 1: 접힘(작은 사인). 범위 밖 값은 잘라서 쓴다.
     var collapseProgress: CGFloat = 0
-    // 사인 색. nil이면 기본 아이콘 색이다. 피드 사인(흰색)에서 펼쳐지는 동안 호출부가 색을 바꿔 넘긴다.
-    var signatureColor: Color?
-    // 사인을 뺀 나머지(뒤로 가기)의 불투명도. 펼쳐지는 동안 사인만 먼저 보이게 할 때 쓴다.
-    var chromeOpacity: CGFloat = 1
     let onBack: () -> Void
-    // 사인 자리의 화면상(global) 위치. 피드 사인 자리에서 화면을 펼치고 접는 기준으로 쓴다.
-    var onSignatureFrameChange: (CGRect) -> Void = { _ in }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -32,7 +26,6 @@ struct AuthorPostsTopBar: View {
             }
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
-            .opacity(chromeOpacity)
 
             if let signatureImageSource {
                 signature(signatureImageSource)
@@ -52,12 +45,11 @@ struct AuthorPostsTopBar: View {
         )
         let top = Metrics.expandedSignatureTop + (Metrics.collapsedSignatureTop - Metrics.expandedSignatureTop) * progress
 
-        return (signatureColor ?? theme.colors.iconPrimary)
+        return theme.colors.iconPrimary
             .mask {
                 ChalkakImage(source: source, contentDescription: nil, contentMode: .fit, showsLoadingSkeleton: false)
             }
             .frame(width: size.width, height: size.height)
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onSignatureFrameChange($0) }
             .padding(.top, top)
             .accessibilityElement()
             .accessibilityLabel(isMine ? "내 사인" : "작성자 사인")
