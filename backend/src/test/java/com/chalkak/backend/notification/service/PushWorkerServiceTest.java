@@ -1,5 +1,9 @@
 package com.chalkak.backend.notification.service;
 
+import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
+
+import com.chalkak.backend.notification.domain.PushDeliveryStatus;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,6 +11,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -24,8 +29,19 @@ import org.junit.jupiter.params.provider.CsvSource;
 import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
+import com.chalkak.backend.notification.infrastructure.infra.SqsPushService;
+import java.util.function.Consumer;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageResponse;
+import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.PushDevice;
+import com.chalkak.backend.notification.domain.PushDelivery;
+import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
@@ -63,6 +79,10 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class PushWorkerServiceTest extends IntegrationTestSupport {
+    @Autowired
+    private PushDeliveryService deliveryService;
+    @Autowired
+    private PushDeliveryRepository deliveries;
     private static final Instant NOW = Instant.parse("2026-10-07T00:00:00Z");
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID POST_ID = UUID.randomUUID();
@@ -165,6 +185,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         MDC.clear();
         jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_device_delete ON push_devices");
         jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_device_delete()");
+        jdbc.execute("DROP TRIGGER IF EXISTS worker_reject_delivery_write ON push_deliveries");
+        jdbc.execute("DROP FUNCTION IF EXISTS worker_reject_delivery_write()");
         new DatabaseCleaner(jdbc).clean();
     }
 
@@ -326,7 +348,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                unavailable
+                unavailable,
+                deliveryService
         );
         // When & Then
         assertThatThrownBy(() -> failingWorker.process(message))
@@ -393,6 +416,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     void process_concurrentMessages_keepsSeparateTimingContexts() throws Exception {
         // Given
         PushWorkerService worker = worker(NOW);
+        PushMessage secondMessage = createAdditionalMessage();
         CountDownLatch bothSending = new CountDownLatch(2);
         List<DevicePushTiming> timings = new CopyOnWriteArrayList<>();
         given(sender.send(any(), any())).willAnswer(call -> {
@@ -414,8 +438,16 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         });
         // When
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> processWithContext(worker, "first-sqs"));
-            var second = executor.submit(() -> processWithContext(worker, "second-sqs"));
+            var first = executor.submit(() -> processWithContext(
+                    worker,
+                    "first-sqs",
+                    message
+            ));
+            var second = executor.submit(() -> processWithContext(
+                    worker,
+                    "second-sqs",
+                    secondMessage
+            ));
             // Then
             assertThat(first.get(10, TimeUnit.SECONDS)).containsExactly(
                     Map.entry("sqsMessageId", "first-sqs"));
@@ -527,26 +559,63 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 .extracting(log -> log.get("deviceId")).doesNotHaveDuplicates().hasSize(2);
     }
 
-    @Test
-    @DisplayName("기기 하나라도 수락되면 나머지 일시 실패를 재시도하지 않는다")
-    void process_partialAcceptance_completesUserMessage() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("일부 기기가 수락돼도 일시 실패 기기만 재전달에서 다시 보내고 모두 종료되면 완료한다")
+    void process_partialAcceptance_retriesOnlyFailedDevice(boolean firstDeviceFails) {
         // Given
-        addDevice("second-token");
-        given(sender.send(any(), any())).willReturn(
-                DevicePushResult.retryable("UNAVAILABLE",
-                        Duration.ofSeconds(60)),
-                DevicePushResult.accepted());
-        // When & Then
-        assertThat(worker(NOW).process(message).retryable()).isFalse();
+        UUID other = addDevice("second-token");
+        UUID failedDevice = other;
+        UUID acceptedDevice = deviceId;
+        String failedToken = "second-token";
+        if (firstDeviceFails) {
+            failedDevice = deviceId;
+            acceptedDevice = other;
+            failedToken = "worker-token";
+        }
+        String retryToken = failedToken;
+        AtomicInteger failedAttempts = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals(retryToken) && failedAttempts.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE", Duration.ofSeconds(120));
+            }
+            return DevicePushResult.accepted();
+        });
+
+        // When
+        PushProcessingResult first = worker(NOW).process(message);
+
+        // Then
+        assertThat(first.retryable()).isTrue();
+        assertThat(first.retryAfter()).isEqualTo(Duration.ofSeconds(120));
         verify(sender, times(2)).send(any(), any());
         assertThat(logsAtStage("worker_summary")).singleElement().satisfies(log -> assertThat(log)
                 .containsEntry("targetCount", 2).containsEntry("acceptedCount", 1)
-                .containsEntry("retryableCount", 1).containsEntry("retryable", false));
+                .containsEntry("retryableCount", 1).containsEntry("retryable", true));
+        PushDelivery pending = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(pending.getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+        assertThat(pending.getDeviceResults().get(acceptedDevice).isAccepted()).isTrue();
+        assertThat(pending.getDeviceResults().get(failedDevice).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.RETRYABLE);
+
+        PushProcessingResult repeated = worker(NOW.plusSeconds(120)).process(message);
+
+        assertThat(repeated.retryable()).isFalse();
+        verify(sender, times(3)).send(any(), any());
+        PushDelivery completed = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(completed.isCompleted()).isTrue();
+        assertThat(completed.getDeviceResults().get(acceptedDevice).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(failedDevice).getAttemptCount()).isEqualTo(2);
+        assertThat(completed.getDeviceResults().values())
+                .allMatch(PushDelivery.DeviceResult::isAccepted);
     }
 
     @Test
-    @DisplayName("첫 기기 수락 후 다음 기기의 예외가 발생해도 사용자 작업을 완료한다")
-    void process_acceptedThenDeviceException_completesUserMessage() {
+    @DisplayName("첫 기기 수락 후 다른 기기의 결과가 불명확하면 수락 이력을 보존하고 재처리한다")
+    void process_acceptedThenDeviceException_preservesAcceptanceAndRetries() {
         // Given
         addDevice("second-token");
         given(sender.send(any(), any()))
@@ -555,13 +624,125 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
-        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        assertThat(result.retryable()).isTrue();
         verify(sender, times(2)).send(any(), any());
+        PushDelivery pending = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(pending.isCompleted()).isFalse();
+        assertThat(pending.getDeviceResults().values())
+                .extracting(PushDelivery.DeviceResult::getStatus)
+                .containsExactlyInAnyOrder(PushDeviceDeliveryStatus.ACCEPTED,
+                        PushDeviceDeliveryStatus.UNKNOWN);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PERMANENT_FAILURE", "INVALID_TOKEN", "SKIPPED"})
+    @DisplayName("수락·종료된 기기는 반복 발송하지 않고 일시 실패한 기기만 재처리한다")
+    void process_mixedDeviceResults_retriesOnlyTransientFailure(String terminalStatus) {
+        // Given
+        UUID retryDevice = addDevice("retry-token");
+        UUID terminalDevice = addDevice("terminal-token");
+        AtomicInteger retryCalls = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-token") && retryCalls.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            if (request.token().equals("terminal-token")) {
+                return switch (terminalStatus) {
+                    case "INVALID_TOKEN" -> DevicePushResult.invalidToken("UNREGISTERED");
+                    case "SKIPPED" -> DevicePushResult.skipped("EXPIRED");
+                    default -> DevicePushResult.permanentFailure("INVALID_ARGUMENT");
+                };
+            }
+            return DevicePushResult.accepted();
+        });
+
+        // When
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
+
+        // Then
+        verify(sender, times(4)).send(any(), any());
+        PushDelivery completed = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(completed.isCompleted()).isTrue();
+        assertThat(completed.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(retryDevice).getAttemptCount()).isEqualTo(2);
+        assertThat(completed.getDeviceResults().get(terminalDevice).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(terminalDevice).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.valueOf(terminalStatus));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"LOGOUT", "PUSH_DISABLED", "READ", "DELETED", "WITHDRAWN"})
+    @DisplayName("일시 실패 기기의 최신 발송 조건이 무효가 되면 재요청하지 않고 처리를 종료한다")
+    void process_failedDeviceBecomesIneligible_completesWithoutResending(String changedState) {
+        // Given
+        UUID failed = addDevice("retry-token");
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-token")) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            return DevicePushResult.accepted();
+        });
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        switch (changedState) {
+            case "LOGOUT" -> jdbc.update("""
+                    DELETE FROM user_refresh_tokens
+                    WHERE session_id = (SELECT session_id FROM push_devices WHERE id = ?)
+                    """, failed);
+            case "PUSH_DISABLED" -> jdbc.update("UPDATE users SET moderation_push_enabled=false");
+            case "READ" -> jdbc.update("UPDATE notifications SET read_at=CURRENT_TIMESTAMP");
+            case "DELETED" -> jdbc.update("UPDATE posts SET deleted_at=CURRENT_TIMESTAMP");
+            default -> jdbc.update("UPDATE users SET deleted_at=CURRENT_TIMESTAMP");
+        }
+
+        // When
+        PushProcessingResult repeated = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(repeated.retryable()).isFalse();
+        verify(sender, times(2)).send(any(), any());
+        PushDelivery completed = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(completed.isCompleted()).isTrue();
+        assertThat(completed.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(failed).getAttemptCount()).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1799, 1800, 1801})
+    @DisplayName("부분 수락 후에도 실패 기기는 원래 30분 기한 직전까지만 새 요청을 시작한다")
+    void process_partialAcceptanceAtDeadline_retriesOnlyBeforeDeadline(long seconds) {
+        // Given
+        addDevice("retry-token");
+        AtomicInteger retryCalls = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-token") && retryCalls.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            return DevicePushResult.accepted();
+        });
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+
+        // When
+        PushProcessingResult repeated = worker(NOW.plusSeconds(seconds)).process(message);
+
+        // Then
+        assertThat(repeated.retryable()).isFalse();
+        int expectedCalls = 2;
+        if (seconds < 1800) {
+            expectedCalls = 3;
+        }
+        verify(sender, times(expectedCalls)).send(any(), any());
     }
 
     @Test
-    @DisplayName("첫 기기의 예외가 발생해도 다음 기기를 발송하고 수락되면 완료한다")
-    void process_deviceExceptionThenAccepted_completesUserMessage() {
+    @DisplayName("첫 기기가 결과 불명이어도 다음 기기는 발송하고 미확정 기기는 재처리한다")
+    void process_deviceExceptionThenAccepted_retriesUnknownDevice() {
         // Given
         addDevice("second-token");
         given(sender.send(any(), any()))
@@ -570,7 +751,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
-        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        assertThat(result.retryable()).isTrue();
         verify(sender, times(2)).send(any(), any());
     }
 
@@ -796,6 +977,389 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         });
     }
 
+    @Test
+    @DisplayName("완료한 사건이 다시 오거나 새 기기가 등록돼도 FCM을 재호출하지 않는다")
+    void process_completedDeliveryAndNewDevice_doesNotResend() {
+        // Given
+        worker(NOW).process(message);
+        addDevice("newly-registered-token");
+
+        // When
+        PushProcessingResult repeated = worker(NOW.plusSeconds(10)).process(message);
+
+        // Then
+        assertThat(repeated.retryable()).isFalse();
+        verify(sender).send(any(), any());
+        PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getDeviceResults()).hasSize(1);
+        assertThat(saved.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(saved.getDeviceResults().get(deviceId).isAccepted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("명확한 일시 실패는 기록을 남기고 다음 수신에서만 다시 발송한다")
+    void process_transientRedelivery_recordsAttemptsWithoutInternalRetryLoop() {
+        // Given
+        given(sender.send(any(), any())).willReturn(DevicePushResult.retryable("UNAVAILABLE"))
+                .willReturn(DevicePushResult.accepted());
+
+        // When
+        PushProcessingResult first = worker(NOW).process(message);
+        PushDelivery pending = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        PushProcessingResult second = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(first.retryable()).isTrue();
+        assertThat(pending.getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+        assertThat(pending.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(second.retryable()).isFalse();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
+                .getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+        verify(sender, times(2)).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("SDK 호출 중 예상하지 못한 예외는 결과 불명으로 기록하고 다음 수신에서 재처리한다")
+    void process_unknownResult_preservesUncertaintyAndRetriesOnRedelivery() {
+        // Given
+        given(sender.send(any(), any())).willThrow(new IllegalStateException("SDK interrupted"))
+                .willReturn(DevicePushResult.accepted());
+
+        // When
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        PushDelivery uncertain = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
+
+        // Then
+        assertThat(uncertain.getDeviceResults().get(deviceId).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.UNKNOWN);
+        assertThat(uncertain.getDeviceResults().get(deviceId).getAcceptedAt()).isNull();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
+                .getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+        verify(sender, times(2)).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("동시에 같은 사건을 받아도 Java 락을 획득한 Worker만 FCM을 요청한다")
+    void process_concurrentSameEvent_sendsOnlyFromLockOwner() throws Exception {
+        // Given
+        CountDownLatch sending = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        given(sender.send(any(), any())).willAnswer(call -> {
+            sending.countDown();
+            assertThat(finish.await(5, TimeUnit.SECONDS)).isTrue();
+            return DevicePushResult.accepted();
+        });
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var first = pool.submit(() -> worker(NOW).process(message));
+            try {
+                assertThat(sending.await(5, TimeUnit.SECONDS)).isTrue();
+
+                // When
+                PushProcessingResult other = worker(NOW).process(message);
+
+                // Then
+                assertThat(other.retryable()).isTrue();
+                verify(sender).send(any(), any());
+            } finally {
+                finish.countDown();
+            }
+            assertThat(first.get(5, TimeUnit.SECONDS).retryable()).isFalse();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"NOT_STARTED", "SENDING", "UNKNOWN", "RETRYABLE"})
+    @DisplayName("수락 기록을 남기고 중단돼도 수락한 기기는 생략하고 미완료 기기를 이어 보낸다")
+    void process_acceptedHistoryWithoutCompletion_recoversRemainingDevice(String previousStatus) {
+        // Given
+        PushDelivery claimed = deliveries.createIfAbsent(message.eventId(), USER_ID).orElseThrow();
+        var accepted = claimed.startDevice(deviceId, NOW).finish(
+                PushDeviceDeliveryStatus.ACCEPTED,
+                null,
+                NOW
+        );
+        deliveries.saveDeviceResult(
+                claimed.getId(),
+                deviceId,
+                accepted
+        );
+        UUID remaining = addDevice("remaining-device-after-crash");
+        if (!previousStatus.equals("NOT_STARTED")) {
+            var previous = claimed.startDevice(remaining, NOW);
+            if (!previousStatus.equals("SENDING")) {
+                previous = previous.finish(
+                        PushDeviceDeliveryStatus.valueOf(previousStatus),
+                        "PREVIOUS_FAILURE",
+                        NOW
+                );
+            }
+            deliveries.saveDeviceResult(
+                    claimed.getId(),
+                    remaining,
+                    previous
+            );
+        }
+
+        // When: 프로세스 중단 뒤 남은 DB 기록만으로 다음 처리를 시작한다.
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
+
+        // Then
+        var requests = org.mockito.ArgumentCaptor.forClass(DevicePushRequest.class);
+        verify(sender).send(requests.capture(), any());
+        assertThat(requests.getValue().token()).isEqualTo("remaining-device-after-crash");
+        PushDelivery recovered = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(recovered.isCompleted()).isTrue();
+        assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(recovered.getDeviceResults().get(remaining).isAccepted()).isTrue();
+        int expectedAttempts = 2;
+        if (previousStatus.equals("NOT_STARTED")) {
+            expectedAttempts = 1;
+        }
+        assertThat(recovered.getDeviceResults().get(remaining).getAttemptCount())
+                .isEqualTo(expectedAttempts);
+    }
+
+    @Test
+    @DisplayName("로그아웃으로 기기 행을 삭제해도 완료 기록과 기기 결과는 유지한다")
+    void process_deviceDeletedAfterAcceptance_preservesDeliveryHistory() {
+        // Given
+        worker(NOW).process(message);
+        jdbc.update("DELETE FROM push_devices WHERE id=?", deviceId);
+
+        // When
+        PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+
+        // Then
+        assertThat(saved.isCompleted()).isTrue();
+        assertThat(saved.getDeviceResults()).containsKey(deviceId);
+    }
+
+    @Test
+    @DisplayName("최신 조건에서 생략한 잘못된 메시지는 정상 사건의 완료 기록을 선점하지 않는다")
+    void process_invalidOccurrenceBeforeValidMessage_doesNotPoisonCompletion() {
+        // Given
+        PushMessage invalid = new PushMessage(
+                message.eventId(),
+                message.notificationId(),
+                USER_ID,
+                message.type(),
+                message.sourceType(),
+                POST_ID,
+                NOW.plusSeconds(1),
+                NOW.plusSeconds(1801)
+        );
+
+        // When
+        assertThat(worker(NOW.plusSeconds(1)).process(invalid).retryable()).isFalse();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+        assertThat(worker(NOW).process(message).retryable()).isFalse();
+
+        // Then
+        verify(sender).send(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("시작 기록 저장 실패 시 FCM을 호출하지 않고, 수락 결과 저장 실패 시 성공으로 확정하지 않는다")
+    void process_deliveryWriteFailure_preservesUncertainty(boolean failAcceptance) {
+        // Given
+        jdbc.execute(
+                """
+                        CREATE FUNCTION worker_reject_delivery_write() RETURNS trigger LANGUAGE plpgsql AS $$
+                        BEGIN
+                            IF NOT TG_ARGV[0]::boolean OR
+                                jsonb_path_exists(NEW.device_results, '$.* ? (@.status == "ACCEPTED")') THEN
+                                RAISE EXCEPTION 'delivery write failed';
+                            END IF;
+                            RETURN NEW;
+                        END $$
+                        """);
+        jdbc.execute("""
+                CREATE TRIGGER worker_reject_delivery_write BEFORE UPDATE OF device_results
+                ON push_deliveries FOR EACH ROW EXECUTE FUNCTION worker_reject_delivery_write('%s')
+                """.formatted(failAcceptance));
+
+        // When
+        PushProcessingResult result = worker(NOW).process(message);
+
+        // Then
+        assertThat(result.retryable()).isTrue();
+        if (failAcceptance) {
+            PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                    .orElseThrow();
+            assertThat(saved.isCompleted()).isFalse();
+            verify(sender).send(any(), any());
+            assertThat(logsAtStage("fcm_result")).singleElement()
+                    .satisfies(log -> assertThat(log).containsEntry("result",
+                            DevicePushResult.Status.ACCEPTED));
+            assertThat(saved.getDeviceResults().get(deviceId).getStatus())
+                    .isEqualTo(PushDeviceDeliveryStatus.SENDING);
+            return;
+        }
+        verifyNoInteractions(sender);
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("SQS 삭제 실패 후 같은 메시지나 재발행 메시지를 받아도 FCM은 다시 보내지 않는다")
+    void process_sqsDeletionFailsThenRedelivers_retriesOnlyDeletion(boolean republished) {
+        // Given
+        SqsClient sqs = mock(SqsClient.class);
+        List<String> deletedReceipts = new CopyOnWriteArrayList<>();
+        given(sqs.deleteMessage(
+                org.mockito.ArgumentMatchers.<Consumer<DeleteMessageRequest.Builder>>any()))
+                .willAnswer(call -> {
+                    Consumer<DeleteMessageRequest.Builder> configure = call.getArgument(0);
+                    DeleteMessageRequest.Builder request = DeleteMessageRequest.builder();
+                    configure.accept(request);
+                    deletedReceipts.add(request.build().receiptHandle());
+                    assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                            .orElseThrow().isCompleted()).isTrue();
+                    if (deletedReceipts.size() == 1) {
+                        throw new IllegalStateException("SQS delete unavailable");
+                    }
+                    return DeleteMessageResponse.builder().build();
+                });
+        ScheduledExecutorService visibilityExecutor = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> visibilityTask = mock(ScheduledFuture.class);
+        doReturn(visibilityTask).when(visibilityExecutor).scheduleAtFixedRate(
+                any(Runnable.class),
+                org.mockito.ArgumentMatchers.eq(40L),
+                org.mockito.ArgumentMatchers.eq(40L),
+                org.mockito.ArgumentMatchers.eq(TimeUnit.SECONDS)
+        );
+        SqsPushService sqsService = new SqsPushService(
+                sqs,
+                "https://sqs.ap-northeast-2.amazonaws.com/123456789012/test-push",
+                JsonMapper.builder().build(),
+                worker(NOW),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                visibilityExecutor
+        );
+        String nextMessageId = "message-first";
+        String nextReceiveCount = "2";
+        if (republished) {
+            nextMessageId = "message-republished";
+            nextReceiveCount = "1";
+        }
+
+        // When
+        sqsService.process(sqsMessage(
+                "message-first",
+                "receipt-first",
+                "1"
+        ));
+        assertThat(logsAtStage("worker_processing_failed")).hasSize(1);
+        sqsService.process(sqsMessage(
+                nextMessageId,
+                "receipt-next",
+                nextReceiveCount
+        ));
+
+        // Then
+        verify(sender).send(any(), any());
+        assertThat(deletedReceipts).containsExactly("receipt-first", "receipt-next");
+        assertThat(logsAtStage("worker_delivery_skipped")).singleElement()
+                .satisfies(log -> assertThat(log).containsEntry("reason", "ALREADY_COMPLETED"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("중단 후 SENDING만 남으면 재시도하고 수락 기록이 남으면 재발송 없이 완료한다")
+    void process_restartWithPersistedAttempt_recoversFromDeviceResults(
+            boolean acceptedBeforeCrash) {
+        // Given: 프로세스를 실제로 종료하지 않고 중단 시 남는 DB 상태를 구성한다.
+        PushDelivery previous = deliveries.createIfAbsent(message.eventId(), USER_ID).orElseThrow();
+        PushDelivery.DeviceResult stored = previous.startDevice(deviceId, NOW);
+        if (acceptedBeforeCrash) {
+            stored = stored.finish(
+                    PushDeviceDeliveryStatus.ACCEPTED,
+                    null,
+                    NOW
+            );
+        }
+        assertThat(deliveries.saveDeviceResult(
+                previous.getId(),
+                deviceId,
+                stored
+        )).isTrue();
+        // 새 서비스 객체에는 이전 프로세스의 Java 락이 남지 않는다.
+        PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries, manager);
+        PushWorkerService restarted = new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                reminders,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(NOW.plusSeconds(60), ZoneOffset.UTC),
+                manager,
+                restartedDelivery
+        );
+
+        // When: DB에 수락이 남으면 생략하고 SENDING만 남으면 다시 보낸다.
+        assertThat(restarted.process(message).retryable()).isFalse();
+
+        // Then
+        PushDelivery recovered = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(recovered.isCompleted()).isTrue();
+        assertThat(recovered.getDeviceResults().get(deviceId).isAccepted()).isTrue();
+        if (acceptedBeforeCrash) {
+            verifyNoInteractions(sender);
+            assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount())
+                    .isEqualTo(1);
+            return;
+        }
+        verify(sender).send(any(), any());
+        assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+    }
+
+    private Message sqsMessage(
+            String messageId,
+            String receiptHandle,
+            String receiveCount
+    ) {
+        return Message.builder()
+                .messageId(messageId)
+                .receiptHandle(receiptHandle)
+                .body(JsonMapper.builder().build().writeValueAsString(message))
+                .attributes(
+                        Map.of(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT, receiveCount))
+                .build();
+    }
+
+    private PushMessage createAdditionalMessage() {
+        return new TransactionTemplate(manager).execute(status -> {
+            Notification notification = notifications.save(Notification.approved(
+                    USER_ID,
+                    POST_ID,
+                    UUID.randomUUID(),
+                    NOW,
+                    true
+            ));
+            return new PushMessage(
+                    notification.getEventKey(),
+                    notification.getId(),
+                    USER_ID,
+                    notification.getType(),
+                    notification.getSourceType(),
+                    POST_ID,
+                    NOW,
+                    NOW.plusSeconds(1800)
+            );
+        });
+    }
+
     private void recordSdkTiming(
             DevicePushTiming timing,
             long durationMs,
@@ -836,7 +1400,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(now, ZoneOffset.UTC),
-                manager
+                manager,
+                deliveryService
         );
     }
 
@@ -850,14 +1415,19 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                transactionManager
+                transactionManager,
+                deliveryService
         );
     }
 
-    private Map<String, String> processWithContext(PushWorkerService worker, String sqsMessageId) {
+    private Map<String, String> processWithContext(
+            PushWorkerService worker,
+            String sqsMessageId,
+            PushMessage source
+    ) {
         MDC.put("sqsMessageId", sqsMessageId);
         try {
-            worker.process(message);
+            worker.process(source);
             return MDC.getCopyOfContextMap();
         } finally {
             MDC.clear();

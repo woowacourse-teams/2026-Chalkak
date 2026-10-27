@@ -144,6 +144,50 @@ class ReminderPushServiceTest extends IntegrationTestSupport {
         verify(publisher, times(1)).publish(any());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ONCE", "DAILY"})
+    @DisplayName("서비스를 다시 만들어 발행해도 일회성·매일 반복의 같은 회차는 같은 사건 ID를 사용한다")
+    void publishDueReminders_restartedService_preservesEventIdAndDeadline(String repeat) {
+        // Given
+        insertReminder(repeat, "ALL");
+        service.publishDueReminders();
+        clock.set(SCHEDULED_AT.plusSeconds(70));
+        ReminderPushService restarted = new ReminderPushService(
+                reminders,
+                topics,
+                notifications,
+                new DirectPushPublisher(publisher, clock),
+                clock,
+                manager
+        );
+
+        // When
+        restarted.publishDueReminders();
+
+        // Then
+        List<PushMessage> messages = captureMessages(2);
+        assertThat(messages.get(1)).isEqualTo(messages.getFirst());
+    }
+
+    @Test
+    @DisplayName("같은 매일 반복 리마인더도 다음 날 회차는 다른 사건 ID를 사용한다")
+    void publishDueReminders_nextDailyOccurrence_usesDifferentEventId() {
+        // Given
+        insertReminder("DAILY", "ALL");
+        service.publishDueReminders();
+        clock.set(SCHEDULED_AT.plusSeconds(86410));
+
+        // When
+        service.publishDueReminders();
+
+        // Then
+        List<PushMessage> messages = captureMessages(2);
+        assertThat(messages).extracting(PushMessage::eventId).doesNotHaveDuplicates();
+        assertThat(messages.get(1).sourceId()).isEqualTo(messages.getFirst().sourceId());
+        assertThat(messages.get(1).occurredAt()).isEqualTo(SCHEDULED_AT.plusSeconds(86400));
+        assertThat(messages.get(1).expiresAt()).isEqualTo(SCHEDULED_AT.plusSeconds(88200));
+    }
+
     @Test
     @DisplayName("다른 요청이 리마인더 행을 잠그고 있으면 이번 확인은 건너뛰고 잠금이 풀린 뒤 다음 확인 때 발행한다")
     void publishDueReminders_lockedReminder_skipsAndPublishesNextMinute() throws Exception {
