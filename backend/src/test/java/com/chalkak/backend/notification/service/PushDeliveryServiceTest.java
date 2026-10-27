@@ -288,6 +288,29 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("중첩 진입이 거절돼도 바깥 처리의 키를 지우지 않고 종료 후 재처리를 허용한다")
+    void process_nestedSameKey_preservesRegistrationUntilOuterFinishes() {
+        // When
+        PushProcessingResult outer = service.process(message, attempt -> {
+            for (int index = 0; index < 2; index++) {
+                PushProcessingResult nested = service.process(message, ignored -> {
+                    throw new AssertionError("진행 중인 키의 중첩 처리에 진입하면 안 된다");
+                });
+
+                // Then
+                assertThat(nested.retryable()).isTrue();
+                assertThat(nested.retryAfter()).isEqualTo(Duration.ofMinutes(1));
+            }
+            return new PushProcessingResult(true, Duration.ZERO);
+        });
+
+        // Then
+        assertThat(outer.retryable()).isTrue();
+        assertThat(send(message).retryable()).isFalse();
+        assertThat(current().isCompleted()).isTrue();
+    }
+
+    @Test
     @DisplayName("같은 사건·회원은 DB 행이 생기기 전에도 중복 진입을 막고 다음 수신으로 넘긴다")
     void process_sameKeyBeforeRecordExists_rejectsConcurrentAction() throws Exception {
         // Given

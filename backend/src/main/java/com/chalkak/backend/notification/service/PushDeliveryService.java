@@ -4,7 +4,6 @@ import com.chalkak.backend.notification.domain.PushDelivery;
 import com.chalkak.backend.exception.PushDeliveryRecordException;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import java.time.Duration;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,8 +36,7 @@ public class PushDeliveryService {
             PushMessage message,
             Function<PushDeliveryAttempt, PushProcessingResult> action
     ) {
-        ReentrantLock lock = locks.tryAcquire(message.eventId(), message.userId()).orElse(null);
-        if (lock == null) {
+        if (!locks.tryAcquire(message.eventId(), message.userId())) {
             log.atInfo().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_delivery_lock_busy")
                     .addKeyValue("eventId", message.eventId())
@@ -54,11 +52,7 @@ public class PushDeliveryService {
                     .addKeyValue("userId", message.userId()).log("푸시 기록 확인 불가로 재처리 대기");
             return new PushProcessingResult(true, RETRY_DELAY);
         } finally {
-            locks.release(
-                    message.eventId(),
-                    message.userId(),
-                    lock
-            );
+            locks.release(message.eventId(), message.userId());
         }
     }
 

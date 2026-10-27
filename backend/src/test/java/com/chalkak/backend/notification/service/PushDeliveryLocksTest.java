@@ -1,9 +1,8 @@
 package com.chalkak.backend.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -15,54 +14,45 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 class PushDeliveryLocksTest {
     @Test
-    @DisplayName("같은 스레드의 중첩 진입도 거절해 외부 작업이 끝나기 전에 락이 제거되지 않는다")
-    void tryAcquire_nestedSameKey_rejectsReentry() {
+    @DisplayName("같은 스레드의 중첩 진입을 거절하고 해제 후에는 다시 등록한다")
+    void tryAcquire_nestedSameKey_rejectsReentryUntilReleased() {
         // Given
         PushDeliveryLocks locks = new PushDeliveryLocks();
         UUID event = UUID.randomUUID();
         UUID user = UUID.randomUUID();
-        var held = locks.tryAcquire(event, user).orElseThrow();
+        assertThat(locks.tryAcquire(event, user)).isTrue();
         try {
             // When & Then
-            assertThat(locks.tryAcquire(event, user)).isEmpty();
+            assertThat(locks.tryAcquire(event, user)).isFalse();
         } finally {
-            locks.release(
-                    event,
-                    user,
-                    held
-            );
+            locks.release(event, user);
         }
-        var next = locks.tryAcquire(event, user).orElseThrow();
-        locks.release(
-                event,
-                user,
-                next
-        );
+        assertThat(locks.tryAcquire(event, user)).isTrue();
+        locks.release(event, user);
     }
 
     @Test
-    @DisplayName("잘못된 키의 해제는 거절하고 실제 작업의 락은 유지한다")
-    void release_differentKey_preservesOriginalLock() {
+    @DisplayName("사건이나 회원이 다르면 동시에 등록하고 각 키를 독립적으로 제거한다")
+    void tryAcquire_differentKeys_keepsIndependentRegistrations() {
         // Given
         PushDeliveryLocks locks = new PushDeliveryLocks();
         UUID event = UUID.randomUUID();
         UUID user = UUID.randomUUID();
-        var held = locks.tryAcquire(event, user).orElseThrow();
-        try {
-            // When & Then
-            assertThatThrownBy(() -> locks.release(
-                    UUID.randomUUID(),
-                    user,
-                    held
-            )).isInstanceOf(IllegalStateException.class);
-            assertThat(locks.tryAcquire(event, user)).isEmpty();
-        } finally {
-            locks.release(
-                    event,
-                    user,
-                    held
-            );
-        }
+        UUID otherEvent = UUID.randomUUID();
+        UUID otherUser = UUID.randomUUID();
+        assertThat(locks.tryAcquire(event, user)).isTrue();
+
+        // When
+        assertThat(locks.tryAcquire(otherEvent, user)).isTrue();
+        assertThat(locks.tryAcquire(event, otherUser)).isTrue();
+        locks.release(otherEvent, user);
+
+        // Then
+        assertThat(locks.tryAcquire(event, user)).isFalse();
+        assertThat(locks.tryAcquire(event, otherUser)).isFalse();
+        locks.release(event, user);
+        locks.release(event, otherUser);
+        assertThat((Set<?>) ReflectionTestUtils.getField(locks, "inProgress")).isEmpty();
     }
 
     @Test
@@ -85,8 +75,7 @@ class PushDeliveryLocksTest {
                 throw new IllegalStateException(exception);
             }
             for (int index = 0; index < 2000; index++) {
-                var acquired = locks.tryAcquire(event, user);
-                if (acquired.isEmpty()) {
+                if (!locks.tryAcquire(event, user)) {
                     continue;
                 }
                 try {
@@ -95,11 +84,7 @@ class PushDeliveryLocksTest {
                     Thread.yield();
                 } finally {
                     active.decrementAndGet();
-                    locks.release(
-                            event,
-                            user,
-                            acquired.orElseThrow()
-                    );
+                    locks.release(event, user);
                 }
             }
         };
@@ -117,6 +102,6 @@ class PushDeliveryLocksTest {
         assertThat(entered.get()).isPositive();
         assertThat(maximum.get()).isEqualTo(1);
         assertThat(active.get()).isZero();
-        assertThat((Map<?, ?>) ReflectionTestUtils.getField(locks, "locks")).isEmpty();
+        assertThat((Set<?>) ReflectionTestUtils.getField(locks, "inProgress")).isEmpty();
     }
 }
