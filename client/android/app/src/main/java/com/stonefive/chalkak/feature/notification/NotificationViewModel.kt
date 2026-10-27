@@ -136,7 +136,7 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
 
     fun markAllAsRead() {
         val state = _uiState.value
-        if (!state.hasUnread || state.isMarkingAllRead) return
+        if (!state.canMarkAllRead) return
 
         _uiState.update { it.copy(isMarkingAllRead = true) }
         viewModelScope.launch {

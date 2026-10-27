@@ -158,6 +158,28 @@ struct NotificationInboxViewModelTests {
         #expect(viewModel.message == "모두 읽음 처리하지 못했어요. 다시 시도해 주세요.")
     }
 
+    @Test("미읽음 조회가 실패해도 목록에 읽지 않은 알림이 있으면 모두 읽음을 보낸다")
+    func markAllReadUsesLoadedUnreadItemsWhenUnreadStatusFails() async {
+        var markAllCount = 0
+        let viewModel = Self.viewModel(
+            pageLoader: NotificationInboxPageLoader(results: [
+                .success(Self.page(1, hasNext: false, items: [Self.item(id: Self.notificationID(1))])),
+            ]),
+            unreadLoader: NotificationUnreadLoader(results: [.failure(NotificationAPIError.network)]),
+            readAction: NotificationReadAction(results: []),
+            markAllRead: { markAllCount += 1 }
+        )
+
+        await viewModel.refresh()
+        #expect(!viewModel.hasUnread)
+        #expect(viewModel.canMarkAllRead)
+        await viewModel.markAllRead()
+
+        #expect(markAllCount == 1)
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+        #expect(!viewModel.canMarkAllRead)
+    }
+
     @Test("미읽음 알림이 없으면 모두 읽음 요청을 보내지 않는다")
     func markAllReadWithoutUnreadSkipsRequest() async {
         var markAllCount = 0

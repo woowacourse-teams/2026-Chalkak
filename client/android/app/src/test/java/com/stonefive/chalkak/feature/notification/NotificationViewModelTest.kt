@@ -310,6 +310,23 @@ class NotificationViewModelTest {
     }
 
     @Test
+    fun `미읽음 조회가 실패해도 목록에 읽지 않은 알림이 있으면 모두 읽음을 보낸다`() = runTest {
+        val repository = FakeNotificationRepository().apply { unreadFailure = true }
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasUnread)
+        assertTrue(viewModel.uiState.value.canMarkAllRead)
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, repository.markAllRequestCount)
+        assertTrue(state.notifications.none { it.isUnread })
+        assertFalse(state.canMarkAllRead)
+    }
+
+    @Test
     fun `모두 읽음 진행 중 반복 요청은 무시한다`() = runTest {
         val repository = FakeNotificationRepository()
         val viewModel = NotificationViewModel(repository)
@@ -333,6 +350,7 @@ class NotificationViewModelTest {
         var markAllRequestCount = 0
         var listGate: CompletableDeferred<Unit>? = null
         var unreadGate: CompletableDeferred<Unit>? = null
+        var unreadFailure = false
 
         override suspend fun getNotifications(
             page: Int,
@@ -348,6 +366,7 @@ class NotificationViewModelTest {
         override suspend fun getUnreadStatus(): NotificationResult<Boolean> {
             unreadRequestCount++
             unreadGate?.await()
+            if (unreadFailure) return NotificationResult.Failure(NotificationFailure.Network)
             return NotificationResult.Success(true)
         }
 

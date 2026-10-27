@@ -10,7 +10,7 @@ struct NotificationScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             NotificationTopBar(
-                isMarkAllReadEnabled: viewModel.hasUnread && !viewModel.isMarkingAllRead,
+                isMarkAllReadEnabled: viewModel.canMarkAllRead,
                 onBackClick: onBackClick,
                 onMarkAllRead: {
                     Task { await viewModel.markAllRead() }

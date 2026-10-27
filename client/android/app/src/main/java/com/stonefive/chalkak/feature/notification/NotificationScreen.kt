@@ -132,7 +132,7 @@ fun NotificationScreen(
             onBackClick = onBackClick,
             modifier = Modifier.fillMaxWidth(),
             onMarkAllReadClick = onMarkAllReadClick,
-            isMarkAllReadEnabled = uiState.hasUnread && !uiState.isMarkingAllRead,
+            isMarkAllReadEnabled = uiState.canMarkAllRead,
         )
 
         when {

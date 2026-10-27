@@ -55,6 +55,10 @@ final class NotificationInboxViewModel {
     private(set) var isMarkingAllRead = false
     private(set) var message: String?
     private var isRefreshing = false
+    /// 미읽음 조회가 실패해도 불러온 목록에 읽지 않은 알림이 있으면 모두 읽음을 허용한다.
+    var canMarkAllRead: Bool {
+        (hasUnread || items.contains { $0.readAt == nil }) && !isMarkingAllRead
+    }
     private var currentPage = 0
     private var generation = 0
     private var unreadGeneration = 0
@@ -157,7 +161,7 @@ final class NotificationInboxViewModel {
 
     /// 아직 불러오지 않은 페이지까지 서버에서 읽음 처리하므로 목록은 다시 조회하지 않고 로컬만 갱신한다.
     func markAllRead() async {
-        guard hasUnread, !isMarkingAllRead else { return }
+        guard canMarkAllRead else { return }
         isMarkingAllRead = true
         defer { isMarkingAllRead = false }
         message = nil
