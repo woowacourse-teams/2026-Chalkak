@@ -1191,10 +1191,10 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(result.retryable()).isTrue();
-        PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
-                .orElseThrow();
-        assertThat(saved.isCompleted()).isFalse();
         if (failAcceptance) {
+            PushDelivery saved = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                    .orElseThrow();
+            assertThat(saved.isCompleted()).isFalse();
             verify(sender).send(any(), any());
             assertThat(logsAtStage("fcm_result")).singleElement()
                     .satisfies(log -> assertThat(log).containsEntry("result",
@@ -1204,7 +1204,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             return;
         }
         verifyNoInteractions(sender);
-        assertThat(saved.getDeviceResults()).isEmpty();
+        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
     }
 
     @ParameterizedTest
@@ -1292,7 +1292,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 stored
         )).isTrue();
         // 새 서비스 객체에는 이전 프로세스의 Java 락이 남지 않는다.
-        PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries);
+        PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries, manager);
         PushWorkerService restarted = new PushWorkerService(
                 notifications,
                 topics,

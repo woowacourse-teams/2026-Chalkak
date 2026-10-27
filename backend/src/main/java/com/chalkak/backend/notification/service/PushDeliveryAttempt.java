@@ -11,21 +11,25 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 public final class PushDeliveryAttempt {
     private final PushDeliveryRepository repository;
     private final PushMessage message;
+    private final TransactionTemplate preparationTransaction;
     private PushDelivery delivery;
 
     PushDeliveryAttempt(
             PushMessage message,
             PushDeliveryRepository repository,
-            PushDelivery delivery
+            PushDelivery delivery,
+            TransactionTemplate preparationTransaction
     ) {
         this.message = message;
         this.repository = repository;
         this.delivery = delivery;
+        this.preparationTransaction = preparationTransaction;
     }
 
     PushProcessingResult process(Function<PushDeliveryAttempt, PushProcessingResult> action) {
@@ -68,6 +72,17 @@ public final class PushDeliveryAttempt {
     }
 
     private DeviceResult startDevice(UUID deviceId, Instant now) {
+        try {
+            return preparationTransaction.execute(status -> prepareDevice(deviceId, now));
+        } catch (PushDeliveryRecordException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            logRecordFailure(exception);
+            throw new PushDeliveryRecordException();
+        }
+    }
+
+    private DeviceResult prepareDevice(UUID deviceId, Instant now) {
         if (delivery == null) {
             try {
                 delivery = repository.createIfAbsent(message.eventId(), message.userId())

@@ -26,6 +26,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class PushDeliveryServiceTest extends IntegrationTestSupport {
@@ -39,14 +42,16 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
     private PushDeliveryService service;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
     private PushMessage message;
 
     @BeforeEach
     void setUp() {
         new DatabaseCleaner(jdbc).clean();
         insertUser(USER_ID, "delivery-test@example.com");
-        service = new PushDeliveryService(repository);
         message = message(UUID.randomUUID(), USER_ID);
     }
 
@@ -138,13 +143,86 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
         assertThat(current().isCompleted()).isTrue();
     }
 
-    @Test
-    @DisplayName("시작 기록이 실패하면 발송 없이 종료하고 락 해제 후 같은 사건을 다시 처리한다")
-    void process_startRecordFails_unlocksWithoutSending() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("시작 기록 실패는 신규 이력 생성을 롤백하고 기존 기기의 수락 기록은 보존한다")
+    void process_startRecordFails_rollsBackPreparationAndUnlocks(boolean existingAcceptance) {
         // Given
+        UUID target = UUID.randomUUID();
+        if (existingAcceptance) {
+            PushDelivery previous = repository.createIfAbsent(message.eventId(), USER_ID)
+                    .orElseThrow();
+            repository.saveDeviceResult(
+                    previous.getId(),
+                    DEVICE_ID,
+                    previous.startDevice(DEVICE_ID, NOW).finish(
+                            PushDeviceDeliveryStatus.ACCEPTED,
+                            null,
+                            NOW
+                    )
+            );
+        }
         jdbc.execute("""
                 ALTER TABLE push_deliveries ADD CONSTRAINT ck_test_push_delivery_start
-                CHECK (device_results = '{}'::jsonb)
+                CHECK (NOT jsonb_path_exists(device_results, '$.* ? (@.status == "SENDING")'))
+                """);
+        try {
+            // When
+            PushProcessingResult failed = service.process(message, attempt -> {
+                attempt.send(
+                        target,
+                        CLOCK,
+                        () -> {
+                            throw new AssertionError("준비가 커밋되지 않으면 FCM을 호출하면 안 된다");
+                        }
+                );
+                return PushProcessingResult.completed();
+            });
+
+            // Then
+            assertThat(failed.retryable()).isTrue();
+            if (existingAcceptance) {
+                assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+                assertThat(current().getDeviceResults()).hasSize(1);
+                assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
+            }
+            if (!existingAcceptance) {
+                assertThat(repository.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+            }
+        } finally {
+            jdbc.execute("ALTER TABLE push_deliveries DROP CONSTRAINT ck_test_push_delivery_start");
+        }
+
+        // When: 롤백과 락 해제 후 같은 사건을 다시 처리한다.
+        PushProcessingResult retried = service.process(message, attempt -> {
+            attempt.send(
+                    target,
+                    CLOCK,
+                    DevicePushResult::accepted
+            );
+            return PushProcessingResult.completed();
+        });
+
+        // Then
+        assertThat(retried.retryable()).isFalse();
+        assertThat(current().isCompleted()).isTrue();
+        assertThat(current().getDeviceResults().get(target).getAttemptCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("준비 SQL이 성공해도 커밋이 실패하면 이력을 롤백하고 FCM 호출 없이 락을 해제한다")
+    void process_preparationCommitFails_rollsBackBeforeSendAndUnlocks() {
+        // Given: SQL 실행 이후 커밋할 때 실패한다.
+        jdbc.execute("""
+                CREATE FUNCTION delivery_test_reject_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'preparation commit failed';
+                END $$
+                """);
+        jdbc.execute("""
+                CREATE CONSTRAINT TRIGGER delivery_test_reject_commit
+                AFTER UPDATE ON push_deliveries DEFERRABLE INITIALLY DEFERRED
+                FOR EACH ROW EXECUTE FUNCTION delivery_test_reject_commit()
                 """);
         try {
             // When
@@ -153,21 +231,33 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
                         DEVICE_ID,
                         CLOCK,
                         () -> {
-                            throw new AssertionError("시작 기록이 실패하면 FCM을 호출하면 안 된다");
+                            throw new AssertionError("커밋이 실패하면 FCM을 호출하면 안 된다");
                         }
                 );
                 return PushProcessingResult.completed();
             });
 
-            // Then: 트랜잭션 통합은 보류하므로 먼저 생성한 PENDING 행은 남는다.
+            // Then
             assertThat(failed.retryable()).isTrue();
-            assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
-            assertThat(current().getDeviceResults()).isEmpty();
+            assertThat(repository.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
         } finally {
-            jdbc.execute("ALTER TABLE push_deliveries DROP CONSTRAINT ck_test_push_delivery_start");
+            jdbc.execute("DROP TRIGGER delivery_test_reject_commit ON push_deliveries");
+            jdbc.execute("DROP FUNCTION delivery_test_reject_commit()");
         }
         assertThat(send(message).retryable()).isFalse();
         assertThat(current().isCompleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("상위 트랜잭션에서 발송을 호출하면 FCM 대기에 DB 연결을 보유하지 않도록 진입을 거절한다")
+    void process_insideTransaction_rejectsEntryBeforeSending() {
+        // When & Then
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager)
+                .execute(status -> service.process(message, attempt -> {
+                    throw new AssertionError("상위 트랜잭션이 있으면 발송에 진입하면 안 된다");
+                }))).isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(repository.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+        assertThat(send(message).retryable()).isFalse();
     }
 
     @Test

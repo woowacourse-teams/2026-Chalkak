@@ -8,6 +8,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @Slf4j
@@ -16,11 +20,19 @@ public class PushDeliveryService {
 
     private final PushDeliveryRepository repository;
     private final PushDeliveryLocks locks = new PushDeliveryLocks();
+    private final TransactionTemplate preparationTransaction;
 
-    public PushDeliveryService(PushDeliveryRepository repository) {
+    public PushDeliveryService(
+            PushDeliveryRepository repository,
+            PlatformTransactionManager transactionManager
+    ) {
         this.repository = repository;
+        this.preparationTransaction = new TransactionTemplate(transactionManager);
+        this.preparationTransaction.setTimeout(5);
     }
 
+    // 외부 응답 대기까지 DB 연결을 보유하는 상위 트랜잭션에서 호출하지 않는다.
+    @Transactional(propagation = Propagation.NEVER)
     public PushProcessingResult process(
             PushMessage message,
             Function<PushDeliveryAttempt, PushProcessingResult> action
@@ -63,7 +75,8 @@ public class PushDeliveryService {
         PushDeliveryAttempt attempt = new PushDeliveryAttempt(
                 message,
                 repository,
-                existing
+                existing,
+                preparationTransaction
         );
         return attempt.process(action);
     }
