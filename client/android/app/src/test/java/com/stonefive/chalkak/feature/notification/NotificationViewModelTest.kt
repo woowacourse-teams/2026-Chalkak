@@ -11,8 +11,10 @@ import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
 import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -286,6 +288,28 @@ class NotificationViewModelTest {
     }
 
     @Test
+    fun `모두 읽음 전에 시작한 조회 응답은 읽음 상태를 되돌리지 않는다`() = runTest {
+        val repository = FakeNotificationRepository()
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+        repository.listGate = CompletableDeferred()
+        repository.unreadGate = CompletableDeferred()
+        viewModel.refresh()
+        runCurrent()
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+        repository.listGate!!.complete(Unit)
+        repository.unreadGate!!.complete(Unit)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.notifications.isNotEmpty())
+        assertTrue(state.notifications.none { it.isUnread })
+        assertFalse(state.hasUnread)
+    }
+
+    @Test
     fun `모두 읽음 진행 중 반복 요청은 무시한다`() = runTest {
         val repository = FakeNotificationRepository()
         val viewModel = NotificationViewModel(repository)
@@ -307,12 +331,15 @@ class NotificationViewModelTest {
         var unreadRequestCount = 0
         var markAllResult: NotificationResult<Unit> = NotificationResult.Success(Unit)
         var markAllRequestCount = 0
+        var listGate: CompletableDeferred<Unit>? = null
+        var unreadGate: CompletableDeferred<Unit>? = null
 
         override suspend fun getNotifications(
             page: Int,
             pageSize: Int,
         ): NotificationResult<NotificationPage> {
             listRequestCount++
+            listGate?.await()
             return NotificationResult.Success(
                 NotificationPage(page, pageSize, false, items),
             )
@@ -320,6 +347,7 @@ class NotificationViewModelTest {
 
         override suspend fun getUnreadStatus(): NotificationResult<Boolean> {
             unreadRequestCount++
+            unreadGate?.await()
             return NotificationResult.Success(true)
         }
 
