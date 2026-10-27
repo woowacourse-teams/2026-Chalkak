@@ -62,6 +62,9 @@ final class NotificationInboxViewModel {
     private var currentPage = 0
     private var generation = 0
     private var unreadGeneration = 0
+    // 모두 읽음 이전에 시작한 목록 조회의 응답이 읽음 상태를 되돌리지 않게 한다.
+    private var readAllGeneration = 0
+    private var readAllAt: Date?
     private var readingIDs: Set<String> = []
     private let loadPage: PageLoader
     private let loadUnread: UnreadLoader
@@ -93,6 +96,7 @@ final class NotificationInboxViewModel {
     func refresh() async {
         generation += 1
         let requestGeneration = generation
+        let requestReadAllGeneration = readAllGeneration
         isRefreshing = true
         defer { if generation == requestGeneration { isRefreshing = false } }
         isLoadingMore = false
@@ -101,7 +105,7 @@ final class NotificationInboxViewModel {
         do {
             let page = try await loadPage(1)
             guard generation == requestGeneration, !Task.isCancelled else { return }
-            apply(page, replacing: true)
+            apply(page, replacing: true, readAllGeneration: requestReadAllGeneration)
             status = .content
         } catch is CancellationError {
             return
@@ -116,12 +120,13 @@ final class NotificationInboxViewModel {
     func loadNextPage() async {
         guard status == .content, hasNext, !isLoadingMore, !isRefreshing else { return }
         let requestGeneration = generation
+        let requestReadAllGeneration = readAllGeneration
         isLoadingMore = true
         message = nil
         do {
             let page = try await loadPage(currentPage + 1)
             guard generation == requestGeneration, !Task.isCancelled else { return }
-            apply(page, replacing: false)
+            apply(page, replacing: false, readAllGeneration: requestReadAllGeneration)
         } catch is CancellationError {
             // 취소한 추가 조회는 오류 메시지를 표시하지 않는다.
         } catch {
@@ -172,8 +177,10 @@ final class NotificationInboxViewModel {
             for index in items.indices where items[index].readAt == nil {
                 items[index].readAt = now
             }
-            // 요청 전에 시작된 미읽음 조회가 결과를 덮어쓰지 않게 한다.
+            // 요청 전에 시작된 미읽음·목록 조회가 결과를 덮어쓰지 않게 한다.
             unreadGeneration += 1
+            readAllGeneration += 1
+            readAllAt = now
             hasUnread = false
         } catch NotificationAPIError.unauthorized {
             return
@@ -184,9 +191,14 @@ final class NotificationInboxViewModel {
         }
     }
 
-    private func apply(_ page: NotificationPage, replacing: Bool) {
+    private func apply(_ page: NotificationPage, replacing: Bool, readAllGeneration requestReadAllGeneration: Int) {
         var seen = Set(replacing ? [] : items.map(\.id))
-        let unique = page.items.filter { seen.insert($0.id).inserted }
+        var unique = page.items.filter { seen.insert($0.id).inserted }
+        if requestReadAllGeneration != readAllGeneration {
+            for index in unique.indices where unique[index].readAt == nil {
+                unique[index].readAt = readAllAt
+            }
+        }
         items = replacing ? unique : items + unique
         currentPage = page.currentPage
         hasNext = page.hasNext

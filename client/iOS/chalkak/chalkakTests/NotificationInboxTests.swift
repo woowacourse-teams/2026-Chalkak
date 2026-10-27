@@ -180,6 +180,54 @@ struct NotificationInboxViewModelTests {
         #expect(!viewModel.canMarkAllRead)
     }
 
+    @Test("모두 읽음 전에 시작한 새로고침 응답은 읽음 상태를 되돌리지 않는다")
+    func refreshStartedBeforeMarkAllReadKeepsItemsRead() async {
+        let loader = SuspendedNotificationInboxPageLoader()
+        loader.completeImmediately(
+            .success(Self.page(1, hasNext: false, items: [Self.item(id: Self.notificationID(1))]))
+        )
+        let viewModel = Self.viewModel(pageLoader: loader)
+        await viewModel.refresh()
+
+        let refresh = Task { await viewModel.refresh() }
+        await loader.waitForRequestCount(2)
+        await viewModel.markAllRead()
+        loader.completeRequest(
+            at: 0,
+            with: .success(Self.page(1, hasNext: false, items: [
+                Self.item(id: Self.notificationID(1)),
+                Self.item(id: Self.notificationID(2)),
+            ]))
+        )
+        await refresh.value
+
+        #expect(viewModel.items.count == 2)
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+        #expect(!viewModel.canMarkAllRead)
+    }
+
+    @Test("모두 읽음 전에 시작한 다음 페이지 응답은 읽음 상태를 되돌리지 않는다")
+    func nextPageStartedBeforeMarkAllReadKeepsItemsRead() async {
+        let loader = SuspendedNotificationInboxPageLoader()
+        loader.completeImmediately(
+            .success(Self.page(1, hasNext: true, items: [Self.item(id: Self.notificationID(1))]))
+        )
+        let viewModel = Self.viewModel(pageLoader: loader)
+        await viewModel.refresh()
+
+        let nextPage = Task { await viewModel.loadNextPage() }
+        await loader.waitForRequestCount(2)
+        await viewModel.markAllRead()
+        loader.completeRequest(
+            at: 0,
+            with: .success(Self.page(2, hasNext: false, items: [Self.item(id: Self.notificationID(2))]))
+        )
+        await nextPage.value
+
+        #expect(viewModel.items.map(\.id) == [Self.notificationID(1), Self.notificationID(2)])
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+    }
+
     @Test("미읽음 알림이 없으면 모두 읽음 요청을 보내지 않는다")
     func markAllReadWithoutUnreadSkipsRequest() async {
         var markAllCount = 0
