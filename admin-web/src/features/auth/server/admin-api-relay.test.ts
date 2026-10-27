@@ -333,7 +333,7 @@ describe("admin write and path restrictions", () => {
   });
 
   it.each([
-    "dashboard", "pushes", "auth/refresh", "posts/not-a-uuid", `posts/${resourceId}/delete`,
+    "dashboard", "pushes", "auth/refresh", "posts/not-a-uuid", "ai-reviews/not-a-uuid", `ai-reviews/${resourceId}/retry`, `posts/${resourceId}/delete`,
     "../users", "posts/../users", "posts/%2e%2e/users", "https://attacker.test", "//attacker.test",
   ])("rejects unknown or traversal path %s", async (path) => {
     const response = await relay(path, { cookie: token });
@@ -347,6 +347,7 @@ describe("admin write and path restrictions", () => {
     ["feedbacks", "POST"], ["feedbacks", "DELETE"],
     ["ai-prompt-previews", "GET"], ["ai-prompt-versions", "DELETE"],
     [`ai-prompt-versions/${resourceId}`, "PUT"], [`ai-prompt-versions/${resourceId}`, "DELETE"],
+    ["ai-reviews", "POST"], [`ai-reviews/${resourceId}`, "PUT"], [`ai-reviews/${resourceId}`, "DELETE"],
   ])("rejects unsupported method on %s: %s", async (path, method) => {
     const response = await relay(path, { method, cookie: token });
     expect(response.status).toBe(405);
@@ -361,7 +362,7 @@ describe("admin write and path restrictions", () => {
     [`topics/${resourceId}`, "GET"], [`topics/${resourceId}`, "PUT"], [`topics/${resourceId}`, "DELETE"],
     ["audit-logs", "GET"], ["feedbacks", "GET"],
     ["ai-prompt-previews", "POST"], ["ai-prompt-versions", "GET"], ["ai-prompt-versions", "POST"],
-    [`ai-prompt-versions/${resourceId}`, "GET"],
+    [`ai-prompt-versions/${resourceId}`, "GET"], ["ai-reviews", "GET"], [`ai-reviews/${resourceId}`, "GET"],
   ])("allows supported path %s: %s", async (path, method) => {
     fetchMock.mockResolvedValue(Response.json({ success: true }));
     const response = await relay(path, { method, cookie: token, body: method === "GET" ? undefined : { reason: "test" } });

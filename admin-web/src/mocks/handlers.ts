@@ -1,4 +1,5 @@
 import { createAiPromptHandlers, resetAiPromptMocks } from "./ai-prompt-handlers";
+import { aiReviewHandlers } from "./ai-review-handlers";
 import { createBannerHandlers, resetBannerMocks } from "./banner-handlers";
 import { delay, http, HttpResponse } from "msw";
 import { noticeHandlers, resetNoticeMocks } from "./notice-handlers";
@@ -275,6 +276,7 @@ export const handlers = [
     (action, id, before, after) => recordAudit(action, "AI_PROMPT_VERSION", id, null, before, after),
     (postId) => { const post = postStore[postId]; return post?.moderationStatus === "APPROVED" && !post.deletedAt; },
   ),
+  ...aiReviewHandlers,
   http.get(adminApi + "/topic-push-schedules", () => HttpResponse.json({ schedules: [...scheduleStore].sort((left, right) => left.sendTime.localeCompare(right.sendTime)) })),
   http.post(adminApi + "/topic-push-schedules", ({ request }) => saveSchedule(request)),
   http.put(adminApi + "/topic-push-schedules/:scheduleId", ({ request, params }) => saveSchedule(request, String(params.scheduleId))),

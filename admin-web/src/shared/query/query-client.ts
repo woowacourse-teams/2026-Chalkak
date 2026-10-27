@@ -53,4 +53,5 @@ export const queryKeys = {
   reminders: ["admin", "reminders"] as const,
   banners: ["admin", "banners"] as const,
   aiPrompts: ["admin", "ai-prompts"] as const,
+  aiReviews: ["admin", "ai-reviews"] as const,
 };
