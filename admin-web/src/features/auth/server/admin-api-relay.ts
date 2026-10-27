@@ -21,9 +21,13 @@ const ROUTES = [
   { pattern: new RegExp(`^/banners/${UUID}$`), methods: ["DELETE"] },
   { pattern: /^\/notices$/, methods: ["GET", "POST"] },
   { pattern: new RegExp(`^/notices/${UUID}$`), methods: ["GET", "PUT", "DELETE"] },
+  { pattern: /^\/reminders$/, methods: ["GET", "POST"] },
+  { pattern: new RegExp(`^/reminders/${UUID}$`), methods: ["PUT", "DELETE"] },
   { pattern: /^\/ai-prompt-previews$/, methods: ["POST"] },
   { pattern: /^\/ai-prompt-versions$/, methods: ["GET", "POST"] },
   { pattern: new RegExp(`^/ai-prompt-versions/${UUID}$`), methods: ["GET"] },
+  { pattern: /^\/ai-reviews$/, methods: ["GET"] },
+  { pattern: new RegExp(`^/ai-reviews/${UUID}$`), methods: ["GET"] },
   { pattern: /^\/auth\/login$/, methods: ["POST"] },
   { pattern: /^\/auth\/me$/, methods: ["GET"] },
   { pattern: /^\/auth\/logout$/, methods: ["POST"] },
@@ -233,7 +237,7 @@ async function upstreamError(response: Response, secrets: string[]) {
 async function forward(request: NextRequest, path: string, token: string | undefined) {
   const isLogin = path === "/auth/login";
   const isLogout = path === "/auth/logout";
-  const isBodylessDelete = request.method === "DELETE" && new RegExp(`^/(topic-push-schedules|banners)/${UUID}$`).test(path);
+  const isBodylessDelete = request.method === "DELETE" && new RegExp(`^/(topic-push-schedules|banners|reminders)/${UUID}$`).test(path);
   const isAiPromptWrite = request.method === "POST" && (path === "/ai-prompt-previews" || path === "/ai-prompt-versions");
   const body = await requestBody(request, isLogout, isLogin, isBodylessDelete, isAiPromptWrite ? MAX_AI_PROMPT_BODY_BYTES : MAX_BODY_BYTES);
   const url = upstreamUrl(path, request.nextUrl.search, request.method);

@@ -1,7 +1,9 @@
 import { createAiPromptHandlers, resetAiPromptMocks } from "./ai-prompt-handlers";
+import { aiReviewHandlers } from "./ai-review-handlers";
 import { createBannerHandlers, resetBannerMocks } from "./banner-handlers";
 import { delay, http, HttpResponse } from "msw";
 import { noticeHandlers, resetNoticeMocks } from "./notice-handlers";
+import { createReminderHandlers, resetReminderMocks } from "./reminder-handlers";
 
 import type {
   AdminAuditLogResponse,
@@ -43,6 +45,7 @@ let scheduleStore = structuredClone(scheduleFixtures);
 export function resetMockData() {
   resetNoticeMocks();
   resetBannerMocks();
+  resetReminderMocks();
   resetAiPromptMocks();
   mockAdminSignedIn = false;
   auditStore = [];
@@ -268,10 +271,12 @@ async function saveSchedule(request: Request, scheduleId?: string) {
 export const handlers = [
   ...noticeHandlers,
   ...createBannerHandlers((action, id, before, after) => recordAudit(action, "BANNER", id, null, before, after)),
+  ...createReminderHandlers((action, id, before, after) => recordAudit(action, "REMINDER", id, null, before, after)),
   ...createAiPromptHandlers(
     (action, id, before, after) => recordAudit(action, "AI_PROMPT_VERSION", id, null, before, after),
     (postId) => { const post = postStore[postId]; return post?.moderationStatus === "APPROVED" && !post.deletedAt; },
   ),
+  ...aiReviewHandlers,
   http.get(adminApi + "/topic-push-schedules", () => HttpResponse.json({ schedules: [...scheduleStore].sort((left, right) => left.sendTime.localeCompare(right.sendTime)) })),
   http.post(adminApi + "/topic-push-schedules", ({ request }) => saveSchedule(request)),
   http.put(adminApi + "/topic-push-schedules/:scheduleId", ({ request, params }) => saveSchedule(request, String(params.scheduleId))),
