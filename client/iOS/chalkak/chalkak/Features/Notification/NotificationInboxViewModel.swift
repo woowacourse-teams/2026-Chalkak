@@ -45,12 +45,14 @@ final class NotificationInboxViewModel {
     typealias PageLoader = @MainActor (Int) async throws -> NotificationPage
     typealias UnreadLoader = @MainActor () async throws -> Bool
     typealias ReadAction = @MainActor (String) async throws -> Void
+    typealias ReadAllAction = @MainActor () async throws -> Void
 
     private(set) var items: [NotificationItem] = []
     private(set) var status: NotificationInboxStatus = .loading
     private(set) var hasUnread = false
     private(set) var hasNext = false
     private(set) var isLoadingMore = false
+    private(set) var isMarkingAllRead = false
     private(set) var message: String?
     private var isRefreshing = false
     private var currentPage = 0
@@ -60,11 +62,18 @@ final class NotificationInboxViewModel {
     private let loadPage: PageLoader
     private let loadUnread: UnreadLoader
     private let markRead: ReadAction
+    private let markAllReadAction: ReadAllAction
 
-    init(loadPage: @escaping PageLoader, loadUnread: @escaping UnreadLoader, markRead: @escaping ReadAction) {
+    init(
+        loadPage: @escaping PageLoader,
+        loadUnread: @escaping UnreadLoader,
+        markRead: @escaping ReadAction,
+        markAllRead: @escaping ReadAllAction
+    ) {
         self.loadPage = loadPage
         self.loadUnread = loadUnread
         self.markRead = markRead
+        self.markAllReadAction = markAllRead
     }
 
     func refreshUnread() async {
@@ -143,6 +152,31 @@ final class NotificationInboxViewModel {
         } catch {
             message = "읽음 처리하지 못했어요. 다시 열어 주세요."
             return true
+        }
+    }
+
+    /// 아직 불러오지 않은 페이지까지 서버에서 읽음 처리하므로 목록은 다시 조회하지 않고 로컬만 갱신한다.
+    func markAllRead() async {
+        guard hasUnread, !isMarkingAllRead else { return }
+        isMarkingAllRead = true
+        defer { isMarkingAllRead = false }
+        message = nil
+        do {
+            try await markAllReadAction()
+            guard !Task.isCancelled else { return }
+            let now = Date()
+            for index in items.indices where items[index].readAt == nil {
+                items[index].readAt = now
+            }
+            // 요청 전에 시작된 미읽음 조회가 결과를 덮어쓰지 않게 한다.
+            unreadGeneration += 1
+            hasUnread = false
+        } catch NotificationAPIError.unauthorized {
+            return
+        } catch is CancellationError {
+            return
+        } catch {
+            message = "모두 읽음 처리하지 못했어요. 다시 시도해 주세요."
         }
     }
 
