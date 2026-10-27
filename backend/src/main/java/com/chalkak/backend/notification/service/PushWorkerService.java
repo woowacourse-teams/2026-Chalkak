@@ -8,7 +8,7 @@ import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
-import com.chalkak.backend.exception.PushLeaseLostException;
+import com.chalkak.backend.exception.PushDeliveryRecordException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -91,10 +91,10 @@ public class PushWorkerService {
         }
         PushWorkerDbTiming dbTiming = new PushWorkerDbTiming();
         try {
-            return deliveryService.process(message, lease -> processDevices(
+            return deliveryService.process(message, attempt -> processDevices(
                     message,
                     dbTiming,
-                    lease
+                    attempt
             ));
         } catch (RuntimeException exception) {
             PushWorkerTimingLog.logSummaryFailed(
@@ -109,7 +109,7 @@ public class PushWorkerService {
     private PushProcessingResult processDevices(
             PushMessage message,
             PushWorkerDbTiming dbTiming,
-            PushDeliveryLease lease
+            PushDeliveryAttempt attempt
     ) {
         List<UUID> deviceIds = findDeviceIds(message, dbTiming);
         if (deviceIds.isEmpty()) {
@@ -127,7 +127,7 @@ public class PushWorkerService {
                     message,
                     deviceId,
                     dbTiming,
-                    lease
+                    attempt
             );
             counts.merge(
                     result.status(),
@@ -171,7 +171,7 @@ public class PushWorkerService {
             PushMessage message,
             UUID deviceId,
             PushWorkerDbTiming dbTiming,
-            PushDeliveryLease lease
+            PushDeliveryAttempt attempt
     ) {
         DevicePushTiming timing = new DevicePushTiming();
         try {
@@ -180,9 +180,9 @@ public class PushWorkerService {
                     deviceId,
                     timing,
                     dbTiming,
-                    lease
+                    attempt
             );
-        } catch (PushLeaseLostException exception) {
+        } catch (PushDeliveryRecordException exception) {
             throw exception;
         } catch (RuntimeException exception) {
             logDeviceFailure(
@@ -201,7 +201,7 @@ public class PushWorkerService {
             UUID deviceId,
             DevicePushTiming timing,
             PushWorkerDbTiming dbTiming,
-            PushDeliveryLease lease
+            PushDeliveryAttempt attempt
     ) {
         DevicePushRequest request = findCurrentRequest(
                 message,
@@ -211,7 +211,7 @@ public class PushWorkerService {
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
-        DevicePushResult result = lease.send(
+        DevicePushResult result = attempt.send(
                 deviceId,
                 clock,
                 () -> sendToFcm(

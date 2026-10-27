@@ -208,12 +208,11 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @CsvSource({"false,-60,false", "false,600,true", "true,-60,false", "true,600,true"})
-    @DisplayName("기간이 지난 발송 이력도 DB 기준 유효한 Lease가 있으면 보관한다")
-    void deleteExpiredNotifications_processingDelivery_preservesValidLease(
+    @CsvSource({"false,PENDING", "false,COMPLETED", "true,PENDING", "true,COMPLETED"})
+    @DisplayName("발송 이력은 처리 상태와 무관하게 해당 회원의 30일 보관 기한이 지나면 삭제한다")
+    void deleteExpiredNotifications_pendingOrCompletedDelivery_usesRetentionPeriod(
             boolean withdrawn,
-            int leaseSeconds,
-            boolean retained
+            String status
     ) {
         // Given
         UUID userId = activeUserId;
@@ -222,22 +221,20 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
             userId = withdrawnUserId;
         }
         UUID deliveryId = insertDelivery(userId, NORMAL_THRESHOLD.minusSeconds(1));
-        jdbcTemplate.update(
-                """
-                        UPDATE push_deliveries SET status = 'PROCESSING', lease_token = ?,
-                            lease_until = clock_timestamp() + ? * INTERVAL '1 second'
-                        WHERE id = ?
-                        """,
-                UUID.randomUUID(),
-                leaseSeconds,
-                deliveryId
-        );
+        if (status.equals("COMPLETED")) {
+            jdbcTemplate.update(
+                    """
+                            UPDATE push_deliveries SET status = 'COMPLETED', completed_at = clock_timestamp()
+                            WHERE id = ?
+                            """,
+                    deliveryId);
+        }
 
         // When
         notificationCleanupScheduler.deleteExpiredNotifications();
 
         // Then
-        assertThat(deliveryExists(deliveryId)).isEqualTo(retained);
+        assertThat(deliveryExists(deliveryId)).isFalse();
     }
 
     @Test

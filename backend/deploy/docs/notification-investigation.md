@@ -282,33 +282,35 @@ DLQ 연결 시험만으로 실제 Worker의 FCM 오류 재처리까지 검증했
 팀 운영 기록에 남긴다. 키·토큰 원문은 남기지 않는다. 실험 후 변경한 플래그·Agent·경보 동작을
 원래 값으로 복구하고 남은 PENDING·큐 작업을 확인한다. 현재 #494의 실제 AWS 장애·경보·DLQ 검증은 미실행이다.
 
-## 발송 이력과 Lease로 재처리 원인 확인
+## 발송 이력과 Java 락으로 재처리 원인 확인
 
 `push_deliveries`는 `(event_id, user_id)`당 하나다. `device_results`에는 기기 UUID별 `status`,
-`attemptCount`, `lastErrorCode`, `sendStartedAt`, `acceptedAt`을 저장한다. FCM 토큰·제목·본문은 저장하지 않는다.
+`attemptCount`, `lastErrorCode`, `sendStartedAt`, `acceptedAt`을 저장한다. 토큰·제목·본문은 저장하지 않는다.
 
-- `COMPLETED`: 같은 사건을 다시 FCM에 요청하지 않는다. 기기별 영구 실패로 종료한 작업도 포함하므로 상태만으로 FCM 수락 성공을 집계하지 않는다. 수락은 기기의 `status=ACCEPTED`로 확인한다.
-- `SENDING`: 시작 기록 이후 결과가 저장되지 않았다. 실제 요청 전 중단과 FCM 수락 후 저장 전 중단을 구분할 수 없으므로 확정 실패·성공으로 세지 않는다.
-- `UNKNOWN`: SDK 호출 중 예상하지 못한 예외로 정상 결과를 확정하지 못한 기록이다. 다음 SQS 수신에서 재처리할 수 있다.
-- `attemptCount`: DB에 기록한 시작 시도 수다. SDK 내부 HTTP 재시도 수나 SQS 수신 횟수가 아니며, 이 값으로 별도 재시도 상한을 적용하지 않는다.
+- `COMPLETED`: 사용자 처리 종료다. 수락 여부는 기기 `status=ACCEPTED`로 확인한다.
+- `PENDING`: 아직 사용자 처리가 완료되지 않은 이력이다. 기기 결과를 보고 재처리 대상을 판단한다.
+- `SENDING`: 시작 이후 결과가 저장되지 않았다. 실제 요청 전 중단과 수락 후 저장 전 중단을 구분할 수 없다.
+- `UNKNOWN`: SDK 예외로 정상 결과를 확정하지 못했다. 다음 SQS 수신에서 재처리할 수 있다.
+- `attemptCount`: DB에 저장한 시작 횟수다. SDK HTTP·SQS 수신 횟수나 별도 재시도 상한이 아니다.
 
-Lease는 DB 시간 기준 60초이며 30초마다 갱신한다. SQS Visibility Timeout은 기존 60초·40초 주기 연장을 유지한다.
-`worker_delivery_skipped`의 `ALREADY_COMPLETED`는 사용자 처리 완료 기록 때문에 생략한 것이다.
-기기 수락 기록만으로 전체를 완료하지 않으며, 미완료 사건에서는 해당 기기만 생략하고 나머지 현재 대상을 확인한다. `worker_delivery_previous_unknown`은 이전 미확정 시도를 다시 처리하는 경우다.
-`worker_delivery_lease_unavailable`은 다른 Worker가 소유하거나 처리 권한을 잃어 메시지를 재처리에 남기는 경우다.
-`worker_delivery_lease_failed`는 갱신·기록 SQL 실패이며, 오류 원문 대신 예외 클래스 이름을 남긴다.
+두 Worker는 같은 서비스 빈의 사건·회원별 Java 락을 공유한다. `worker_delivery_lock_busy`는 같은
+키가 진행 중이어서 FCM을 호출하지 않고 메시지를 기존 SQS 재처리에 남겼다는 뜻이다.
+DB 행이 없어도 락을 획득하며, 종료 때 메모리에서 제거한다. DB Lease·주기 갱신은 사용하지 않는다.
+SQS Visibility Timeout은 기존 60초·40초 주기 연장을 유지한다.
 
-기존 `dbTransactions`는 기기 목록·최신 업무 조건·무효 토큰 정리 구간을 측정한다. 추가한 발송 이력의
-조회·Lease·기기 결과 SQL 비용은 이 배열에 포함하지 않으므로 총 DB 비용으로 해석하지 않는다.
-전체 처리 시간에는 포함되며, 성능 비교 시 이 추가 SQL과 Lease 갱신 비용을 함께 측정해야 한다.
-`worker_summary`의 결과는 기기 발송 루프의 집계다. 이후 Lease 완료 저장이나 SQS 삭제까지 성공했다는
-뜻은 아니므로 `worker_delivery_*`, `worker_attempt_completed`와 DB 상태를 함께 확인한다.
+`worker_delivery_skipped`의 `ALREADY_COMPLETED`는 완료 기록 때문에 생략한 것이다. 미완료 사건은
+수락 기기를 건너뛰고 나머지 현재 대상을 확인한다. `worker_delivery_previous_unknown`은 이전 미확정
+시도의 재처리다. `worker_delivery_record_failed`·`worker_delivery_record_unavailable`은 시작·결과 기록을
+확인하지 못해 현재 사용자 작업의 추가 요청을 중단하는 경로다. 원문 대신 오류 종류만 기록한다.
 
-이력 정리는 기존 알림 정리 작업과 함께 매일 04:50 KST에 실행한다. 일반·정지 회원은 이력 생성 후 30일,
-탈퇴 회원은 탈퇴 후 30일이 지난 행을 삭제한다. 경계 시각과 유효한 Lease는 보존하며 기기 JSON은 행과 함께 삭제한다.
-조사할 때 보관 기간이 지난 이력의 부재를 미발송 증거로 해석하지 않는다.
+기존 `dbTransactions`는 기기 목록·최신 업무 조건·무효 토큰 정리 구간을 측정한다. 추가 발송 이력
+조회·기기 결과·완료 SQL은 배열에 포함하지 않으므로 총 DB 비용으로 해석하지 않는다. 전체 처리 시간에는
+포함된다. `worker_summary`는 기기 루프 집계이며 이후 완료 저장·SQS 삭제 성공과 구분한다.
 
-로컬 테스트에서는 실제 Worker·PostgreSQL에 SQS 삭제 실패·재전달을 모의하고, 중단 뒤 남은 DB 상태로 복구를 확인했다.
-만료 후 다른 Worker가 처리 중일 때 이전 Worker의 늦은 결과 저장·해제가 거절되는 것도 검증했다.
-실제 프로세스 강제 종료, AWS·FCM·기기 수신, 추가 SQL·갱신 부하 검증은 수행하지 않았다.
-클래스별 전체 흐름과 검증 근거는 [발송 이력 설계 기록](../../docs/interviews/발송-이력과-처리-권한으로-재전달을-다루는-선택.md)을 참고한다.
+정리는 매일 04:50 KST, 일반·정지 회원 생성 후 30일·탈퇴 회원 탈퇴 후 30일이다. 경계는 보관하며
+기기 JSON은 행과 함께 삭제한다. 보관 기한이 지난 이력의 부재를 미발송 증거로 해석하지 않는다.
+단일 JVM 운영을 전제로 하며 다중 프로세스나 중첩 배포로 전환하기 전에 동시 처리 제어를 다시 결정한다.
+
+로컬 테스트 범위는 동일 키 경쟁·다른 키 병렬, 예외 후 락 해제, 저장된 기기 결과로 중단 복구,
+모의 SQS 삭제 실패·재전달·재발행, 보관·마이그레이션이다. 실제 강제 종료·AWS·FCM·기기 수신·부하 검증은 별도다.
+[발송 이력 설계 기록](../../docs/interviews/발송-이력과-처리-권한으로-재전달을-다루는-선택.md)에 흐름과 근거를 연결한다.

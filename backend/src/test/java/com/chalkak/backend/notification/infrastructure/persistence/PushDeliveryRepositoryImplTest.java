@@ -1,18 +1,16 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
-import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
-
-import com.chalkak.backend.notification.domain.PushDeliveryStatus;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.notification.domain.PushDelivery;
+import com.chalkak.backend.notification.domain.PushDeliveryStatus;
+import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
-import java.time.Duration;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -25,11 +23,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class PushDeliveryRepositoryImplTest extends IntegrationTestSupport {
-    private static final Duration LIFETIME = Duration.ofSeconds(60);
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID EVENT_ID = UUID.randomUUID();
 
@@ -50,98 +48,91 @@ class PushDeliveryRepositoryImplTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("같은 사건·회원은 하나의 기록만 만들고 Lease를 보유하면 다른 시도가 획득하지 못한다")
-    void claim_sameEventAndUser_keepsOneRowAndOneOwner() {
-        // When
-        PushDelivery first = claim(UUID.randomUUID());
-        var second = repository.claim(
-                EVENT_ID,
-                USER_ID,
-                UUID.randomUUID(),
-                LIFETIME
+    @DisplayName("같은 사건·회원으로 다시 생성해도 기존 기기 결과와 완료 상태를 보존한다")
+    void createIfAbsent_existingDelivery_preservesHistory() {
+        // Given
+        PushDelivery first = create();
+        UUID deviceId = UUID.randomUUID();
+        var accepted = started().finish(
+                PushDeviceDeliveryStatus.ACCEPTED,
+                null,
+                Instant.now()
         );
+        repository.saveDeviceResult(
+                first.getId(),
+                deviceId,
+                accepted
+        );
+        repository.complete(first.getId());
+
+        // When
+        PushDelivery second = create();
 
         // Then
-        assertThat(second).isEmpty();
-        assertThat(first.getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
-        assertThat(first.getLeaseUntil()).isAfter(first.getCreatedAt());
+        assertThat(second.getId()).isEqualTo(first.getId());
+        assertThat(second.isCompleted()).isTrue();
+        assertThat(second.getDeviceResults()).containsEntry(deviceId, accepted);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM push_deliveries", Integer.class))
                 .isEqualTo(1);
     }
 
     @Test
-    @DisplayName("같은 사건도 수신 회원이 다르면 별도 기록과 Lease를 가진다")
-    void claim_sameEventForDifferentUsers_keepsSeparateDeliveries() {
+    @DisplayName("같은 사건도 수신 회원이 다르면 별도 발송 이력을 만든다")
+    void createIfAbsent_differentUsers_keepsSeparateDeliveries() {
         // Given
         UUID otherUser = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO users(id,email,signature_original_storage_key)
                 VALUES (?, 'other-delivery@example.com', 'delivery/other')
                 """, otherUser);
-        PushDelivery first = claim(UUID.randomUUID());
+        PushDelivery first = create();
 
         // When
-        PushDelivery other = repository.claim(
-                EVENT_ID,
-                otherUser,
-                UUID.randomUUID(),
-                LIFETIME
-        ).orElseThrow();
+        PushDelivery other = repository.createIfAbsent(EVENT_ID, otherUser).orElseThrow();
 
         // Then
         assertThat(other.getId()).isNotEqualTo(first.getId());
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM push_deliveries", Integer.class))
-                .isEqualTo(2);
+        assertThat(other.getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
     }
 
     @Test
-    @DisplayName("동시에 같은 작업을 확보해도 한 시도만 Lease를 획득한다")
-    void claim_concurrentAttempts_grantsOnlyOneLease() throws Exception {
+    @DisplayName("동시에 같은 이력을 생성해도 유니크 제약으로 하나의 행을 반환한다")
+    void createIfAbsent_concurrentAttempts_returnsOneRecord() throws Exception {
         // Given
         CountDownLatch start = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {
             var first = pool.submit(() -> {
                 start.await();
-                return repository.claim(
-                        EVENT_ID,
-                        USER_ID,
-                        UUID.randomUUID(),
-                        LIFETIME
-                );
+                return create();
             });
             var second = pool.submit(() -> {
                 start.await();
-                return repository.claim(
-                        EVENT_ID,
-                        USER_ID,
-                        UUID.randomUUID(),
-                        LIFETIME
-                );
+                return create();
             });
 
             // When
             start.countDown();
-            int owners = 0;
-            if (first.get(5, TimeUnit.SECONDS).isPresent()) {
-                owners++;
-            }
-            if (second.get(5, TimeUnit.SECONDS).isPresent()) {
-                owners++;
-            }
 
             // Then
-            assertThat(owners).isEqualTo(1);
+            assertThat(first.get(5, TimeUnit.SECONDS).getId())
+                    .isEqualTo(second.get(5, TimeUnit.SECONDS).getId());
             assertThat(jdbc.queryForObject("SELECT count(*) FROM push_deliveries", Integer.class))
                     .isEqualTo(1);
         }
     }
 
     @Test
-    @DisplayName("기기별 JSON 일부만 갱신해 다른 기기의 수락 결과를 유지하고 완료 후 재획득을 막는다")
+    @DisplayName("존재하지 않는 회원의 이력은 생성하지 않는다")
+    void createIfAbsent_missingUser_returnsEmpty() {
+        // When & Then
+        assertThat(repository.createIfAbsent(EVENT_ID, UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("기기 JSON 부분 갱신은 다른 기기의 수락 기록을 보존하고 완료 행은 변경하지 않는다")
     void saveDeviceResult_multipleDevices_preservesResultsAndCompletion() {
         // Given
-        UUID token = UUID.randomUUID();
-        PushDelivery delivery = claim(token);
+        PushDelivery delivery = create();
         UUID acceptedDevice = UUID.randomUUID();
         UUID retryDevice = UUID.randomUUID();
         var accepted = started().finish(
@@ -153,121 +144,170 @@ class PushDeliveryRepositoryImplTest extends IntegrationTestSupport {
         // When
         assertThat(repository.saveDeviceResult(
                 delivery.getId(),
-                token,
                 acceptedDevice,
                 accepted
         )).isTrue();
         assertThat(repository.saveDeviceResult(
                 delivery.getId(),
-                token,
                 retryDevice,
                 started()
         )).isTrue();
-        assertThat(repository.complete(delivery.getId(), token)).isTrue();
-        PushDelivery saved = repository.findByEventIdAndUserId(EVENT_ID, USER_ID).orElseThrow();
+        assertThat(repository.complete(delivery.getId())).isTrue();
+        PushDelivery saved = create();
 
         // Then
         assertThat(saved.isCompleted()).isTrue();
-        assertThat(saved.getLeaseToken()).isNull();
-        assertThat(saved.getLeaseUntil()).isNull();
         assertThat(saved.getCompletedAt()).isNotNull();
         assertThat(saved.getDeviceResults()).containsEntry(acceptedDevice, accepted)
                 .containsKey(retryDevice);
-        assertThat(repository.claim(
-                EVENT_ID,
-                USER_ID,
-                UUID.randomUUID(),
-                LIFETIME
-        )).isEmpty();
+        assertThat(repository.saveDeviceResult(
+                delivery.getId(),
+                retryDevice,
+                started()
+        )).isFalse();
+        assertThat(repository.complete(delivery.getId())).isFalse();
     }
 
     @Test
-    @DisplayName("같은 트랜잭션에서 조건부 갱신 후 조회해도 이전 영속 객체 대신 최신 결과를 반환한다")
-    void update_withPreviouslyLoadedEntity_returnsFreshDeviceResultsAndCompletion() {
+    @DisplayName("기록이 사라지면 결과 저장과 완료 갱신은 실패를 반환한다")
+    void update_missingDelivery_returnsFalse() {
+        // When & Then
+        UUID missing = UUID.randomUUID();
+        assertThat(repository.saveDeviceResult(
+                missing,
+                UUID.randomUUID(),
+                started()
+        )).isFalse();
+        assertThat(repository.complete(missing)).isFalse();
+    }
+
+    @Test
+    @DisplayName("조건부 갱신 후 조회는 이전 영속 객체 대신 최신 기기 결과와 완료 상태를 반환한다")
+    void update_withPreviouslyLoadedEntity_returnsFreshResults() {
         // Given
-        UUID token = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
         var accepted = started().finish(
                 PushDeviceDeliveryStatus.ACCEPTED,
                 null,
                 Instant.now()
         );
-
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            PushDelivery previous = claim(token);
+            PushDelivery previous = create();
 
             // When
             assertThat(repository.saveDeviceResult(
                     previous.getId(),
-                    token,
                     deviceId,
                     accepted
             )).isTrue();
-            PushDelivery updated = repository.findByEventIdAndUserId(EVENT_ID, USER_ID)
-                    .orElseThrow();
-            assertThat(repository.complete(previous.getId(), token)).isTrue();
-            PushDelivery completed = repository.findByEventIdAndUserId(EVENT_ID, USER_ID)
-                    .orElseThrow();
+            PushDelivery updated = create();
+            assertThat(repository.complete(previous.getId())).isTrue();
+            PushDelivery completed = create();
 
             // Then
             assertThat(updated).isNotSameAs(previous);
             assertThat(previous.getDeviceResults()).isEmpty();
             assertThat(updated.getDeviceResults()).containsEntry(deviceId, accepted);
             assertThat(completed.isCompleted()).isTrue();
-            assertThat(completed.getLeaseToken()).isNull();
         });
     }
 
     @Test
-    @DisplayName("만료된 Lease는 갱신·기기 저장·완료·해제를 거부하고 새 소유자에게만 갱신을 허용한다")
-    void update_expiredOrReplacedLease_rejectsStaleOwner() {
-        // Given
-        UUID oldToken = UUID.randomUUID();
-        PushDelivery old = claim(oldToken);
-        jdbc.update("UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-
+    @DisplayName("이력 생성 트랜잭션이 롤백되면 행이 남지 않는다")
+    void createIfAbsent_transactionRollsBack_leavesNoRecord() {
         // When & Then
-        assertRejected(old.getId(), oldToken);
-        UUID newToken = UUID.randomUUID();
-        PushDelivery current = claim(newToken);
-        assertRejected(old.getId(), oldToken);
-        assertThat(repository.renew(
-                current.getId(),
-                newToken,
-                Duration.ofSeconds(120)
-        )).isTrue();
-        assertThat(
-                repository.findByEventIdAndUserId(EVENT_ID, USER_ID).orElseThrow().getLeaseUntil())
-                .isAfter(current.getLeaseUntil());
-        assertThat(repository.release(current.getId(), newToken)).isTrue();
-        assertThat(repository.findByEventIdAndUserId(EVENT_ID, USER_ID).orElseThrow().getStatus())
-                .isEqualTo(PushDeliveryStatus.PENDING);
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).execute(status -> {
+            create();
+            throw new IllegalStateException("rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(repository.findByEventIdAndUserId(EVENT_ID, USER_ID)).isEmpty();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {
             "status='INVALID'",
-            "status='PENDING'",
+            "status='PROCESSING'",
+            "status='COMPLETED'",
             "completed_at=clock_timestamp()",
             "device_results='[]'::jsonb"
     })
-    @DisplayName("DB는 허용하지 않는 상태·Lease·완료 시각·JSON 형식을 거절한다")
+    @DisplayName("DB는 허용하지 않는 상태와 완료 시각·JSON 형식의 불일치를 거절한다")
     void update_invalidStoredState_rejectsConstraintViolation(String assignment) {
         // Given
-        claim(UUID.randomUUID());
+        create();
 
         // When & Then
         assertThatThrownBy(() -> jdbc.update("UPDATE push_deliveries SET " + assignment))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    private PushDelivery claim(UUID token) {
-        return repository.claim(
-                EVENT_ID,
-                USER_ID,
-                token,
-                LIFETIME
-        ).orElseThrow();
+    @Test
+    @DisplayName("Lease 제거 마이그레이션은 이전 진행 상태를 대기로 바꾸고 기기 결과와 완료 이력을 보존한다")
+    void migrate_legacyLeaseRows_preservesDeviceHistory() throws Exception {
+        // Given: 실제 테이블 대신 같은 연결의 임시 테이블로 이전 스키마를 구성한다.
+        String migration = new ClassPathResource(
+                "db/migration/V202610271200__replace_push_delivery_lease_with_local_lock.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbc.execute(
+                    """
+                            CREATE TEMP TABLE push_deliveries (
+                                id UUID, status VARCHAR(20), lease_token UUID, lease_until TIMESTAMPTZ,
+                                device_results JSONB, completed_at TIMESTAMPTZ,
+                                CONSTRAINT ck_push_deliveries_lease CHECK (
+                                    (status = 'PROCESSING' AND lease_token IS NOT NULL AND lease_until IS NOT NULL)
+                                    OR (status <> 'PROCESSING' AND lease_token IS NULL AND lease_until IS NULL)),
+                                CONSTRAINT ck_push_deliveries_status CHECK (status IN ('PENDING','PROCESSING','COMPLETED'))
+                            ) ON COMMIT DROP
+                            """);
+            UUID pending = UUID.randomUUID();
+            UUID completed = UUID.randomUUID();
+            jdbc.update(
+                    """
+                            INSERT INTO push_deliveries VALUES (?, 'PROCESSING', ?, clock_timestamp(),
+                                '{"device":{"status":"SENDING"}}'::jsonb, NULL)
+                            """,
+                    pending,
+                    UUID.randomUUID()
+            );
+            jdbc.update("""
+                    INSERT INTO push_deliveries VALUES (?, 'COMPLETED', NULL, NULL,
+                        '{"device":{"status":"ACCEPTED"}}'::jsonb, clock_timestamp())
+                    """, completed);
+
+            // When
+            jdbc.execute(migration);
+
+            // Then
+            assertThat(jdbc.queryForObject(
+                    "SELECT status FROM push_deliveries WHERE id = ?",
+                    String.class,
+                    pending
+            )).isEqualTo("PENDING");
+            assertThat(jdbc.queryForObject(
+                    "SELECT device_results->'device'->>'status' FROM push_deliveries WHERE id = ?",
+                    String.class,
+                    pending
+            )).isEqualTo("SENDING");
+            assertThat(jdbc.queryForObject(
+                    "SELECT status FROM push_deliveries WHERE id = ?",
+                    String.class,
+                    completed
+            )).isEqualTo("COMPLETED");
+            assertThat(jdbc.queryForObject(
+                    "SELECT device_results->'device'->>'status' FROM push_deliveries WHERE id = ?",
+                    String.class,
+                    completed
+            )).isEqualTo("ACCEPTED");
+            assertThat(jdbc.queryForList("""
+                    SELECT attname FROM pg_attribute
+                    WHERE attrelid = 'pg_temp.push_deliveries'::regclass AND NOT attisdropped
+                    """, String.class)).doesNotContain("lease_token", "lease_until");
+        });
+    }
+
+    private PushDelivery create() {
+        return repository.createIfAbsent(EVENT_ID, USER_ID).orElseThrow();
     }
 
     private PushDelivery.DeviceResult started() {
@@ -278,21 +318,5 @@ class PushDeliveryRepositoryImplTest extends IntegrationTestSupport {
                 Instant.now(),
                 null
         );
-    }
-
-    private void assertRejected(UUID id, UUID token) {
-        assertThat(repository.renew(
-                id,
-                token,
-                LIFETIME
-        )).isFalse();
-        assertThat(repository.saveDeviceResult(
-                id,
-                token,
-                UUID.randomUUID(),
-                started()
-        )).isFalse();
-        assertThat(repository.complete(id, token)).isFalse();
-        assertThat(repository.release(id, token)).isFalse();
     }
 }

@@ -162,6 +162,27 @@ class PushDeliveryTest {
         )).isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    @DisplayName("저장한 기기 결과를 반영하면 같은 실행에서도 수락 기기를 다시 시작하지 않는다")
+    void recordDeviceResult_acceptedResult_updatesCurrentSnapshot() {
+        // Given
+        PushDelivery delivery = snapshot(Map.of());
+        DeviceResult accepted = delivery.startDevice(DEVICE_ID, NOW).finish(
+                PushDeviceDeliveryStatus.ACCEPTED,
+                null,
+                NOW
+        );
+
+        // When
+        delivery.recordDeviceResult(DEVICE_ID, accepted);
+
+        // Then
+        assertThat(delivery.canSendTo(DEVICE_ID)).isFalse();
+        assertThat(delivery.getDeviceResults()).containsEntry(DEVICE_ID, accepted);
+        assertThatThrownBy(() -> delivery.startDevice(DEVICE_ID, NOW))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private DeviceResult sending(int count) {
         return new DeviceResult(
                 PushDeviceDeliveryStatus.SENDING,
@@ -177,9 +198,7 @@ class PushDeliveryTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                PushDeliveryStatus.PROCESSING,
-                UUID.randomUUID(),
-                NOW.plusSeconds(60),
+                PushDeliveryStatus.PENDING,
                 results,
                 null,
                 NOW,

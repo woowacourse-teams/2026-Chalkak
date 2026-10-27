@@ -22,44 +22,13 @@ public interface PushDeliveryJpaRepository extends JpaRepository<PushDelivery, U
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-            UPDATE push_deliveries SET status = 'PROCESSING', lease_token = :leaseToken,
-                lease_until = clock_timestamp() + :leaseMillis * INTERVAL '1 millisecond',
-                updated_at = clock_timestamp()
-            WHERE event_id = :eventId AND user_id = :userId AND status <> 'COMPLETED'
-                AND (lease_until IS NULL OR lease_until <= clock_timestamp())
-            """, nativeQuery = true)
-    int claim(
-            @Param("eventId") UUID eventId,
-            @Param("userId") UUID userId,
-            @Param("leaseToken") UUID leaseToken,
-            @Param("leaseMillis") long leaseMillis
-    );
-
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(value = """
-            UPDATE push_deliveries
-            SET lease_until = clock_timestamp() + :leaseMillis * INTERVAL '1 millisecond',
-                updated_at = clock_timestamp()
-            WHERE id = :id AND status = 'PROCESSING' AND lease_token = :leaseToken
-                AND lease_until > clock_timestamp()
-            """, nativeQuery = true)
-    int renew(
-            @Param("id") UUID id,
-            @Param("leaseToken") UUID leaseToken,
-            @Param("leaseMillis") long leaseMillis
-    );
-
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(value = """
             UPDATE push_deliveries
             SET device_results = jsonb_set(device_results, ARRAY[CAST(:deviceId AS text)],
                 CAST(:result AS jsonb), true), updated_at = clock_timestamp()
-            WHERE id = :id AND status = 'PROCESSING' AND lease_token = :leaseToken
-                AND lease_until > clock_timestamp()
+            WHERE id = :id AND status = 'PENDING'
             """, nativeQuery = true)
     int saveDeviceResult(
             @Param("id") UUID id,
-            @Param("leaseToken") UUID leaseToken,
             @Param("deviceId") String deviceId,
             @Param("result") String result
     );
@@ -67,26 +36,15 @@ public interface PushDeliveryJpaRepository extends JpaRepository<PushDelivery, U
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             UPDATE push_deliveries SET status = 'COMPLETED', completed_at = clock_timestamp(),
-                lease_token = NULL, lease_until = NULL, updated_at = clock_timestamp()
-            WHERE id = :id AND status = 'PROCESSING' AND lease_token = :leaseToken
-                AND lease_until > clock_timestamp()
+                updated_at = clock_timestamp()
+            WHERE id = :id AND status = 'PENDING'
             """, nativeQuery = true)
-    int complete(@Param("id") UUID id, @Param("leaseToken") UUID leaseToken);
-
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(value = """
-            UPDATE push_deliveries SET status = 'PENDING', lease_token = NULL,
-                lease_until = NULL, updated_at = clock_timestamp()
-            WHERE id = :id AND status = 'PROCESSING' AND lease_token = :leaseToken
-                AND lease_until > clock_timestamp()
-            """, nativeQuery = true)
-    int release(@Param("id") UUID id, @Param("leaseToken") UUID leaseToken);
+    int complete(@Param("id") UUID id);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             DELETE FROM push_deliveries delivery
             WHERE delivery.created_at < :createdBefore
-                AND (delivery.lease_until IS NULL OR delivery.lease_until <= clock_timestamp())
                 AND EXISTS (
                     SELECT 1 FROM users member
                     WHERE member.id = delivery.user_id AND member.deleted_at IS NULL
@@ -97,8 +55,7 @@ public interface PushDeliveryJpaRepository extends JpaRepository<PushDelivery, U
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             DELETE FROM push_deliveries delivery
-            WHERE (delivery.lease_until IS NULL OR delivery.lease_until <= clock_timestamp())
-                AND EXISTS (
+            WHERE EXISTS (
                     SELECT 1 FROM users member
                     WHERE member.id = delivery.user_id AND member.deleted_at < :withdrawnBefore
                 )

@@ -1044,8 +1044,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("동시에 같은 사건을 받아도 현재 Lease를 가진 Worker만 FCM을 요청한다")
-    void process_concurrentSameEvent_sendsOnlyFromLeaseOwner() throws Exception {
+    @DisplayName("동시에 같은 사건을 받아도 Java 락을 획득한 Worker만 FCM을 요청한다")
+    void process_concurrentSameEvent_sendsOnlyFromLockOwner() throws Exception {
         // Given
         CountDownLatch sending = new CountDownLatch(1);
         CountDownLatch finish = new CountDownLatch(1);
@@ -1072,41 +1072,12 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         }
     }
 
-    @Test
-    @DisplayName("FCM 처리 중 Lease가 만료되면 결과를 덮어쓰거나 다음 기기 발송을 시작하지 않는다")
-    void process_leaseExpiresDuringSend_stopsRemainingDevicesAndRejectsStaleResult() {
-        // Given
-        addDevice("second-token");
-        given(sender.send(any(), any())).willAnswer(call -> {
-            jdbc.update(
-                    "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-            return DevicePushResult.accepted();
-        });
-
-        // When
-        PushProcessingResult result = worker(NOW).process(message);
-
-        // Then
-        assertThat(result.retryable()).isTrue();
-        verify(sender).send(any(), any());
-        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
-                .getDeviceResults().values()).singleElement()
-                .satisfies(record -> assertThat(record.getStatus())
-                        .isEqualTo(PushDeviceDeliveryStatus.SENDING));
-    }
-
     @ParameterizedTest
     @ValueSource(strings = {"NOT_STARTED", "SENDING", "UNKNOWN", "RETRYABLE"})
     @DisplayName("수락 기록을 남기고 중단돼도 수락한 기기는 생략하고 미완료 기기를 이어 보낸다")
     void process_acceptedHistoryWithoutCompletion_recoversRemainingDevice(String previousStatus) {
         // Given
-        UUID token = UUID.randomUUID();
-        PushDelivery claimed = deliveries.claim(
-                message.eventId(),
-                USER_ID,
-                token,
-                Duration.ofSeconds(60)
-        ).orElseThrow();
+        PushDelivery claimed = deliveries.createIfAbsent(message.eventId(), USER_ID).orElseThrow();
         var accepted = claimed.startDevice(deviceId, NOW).finish(
                 PushDeviceDeliveryStatus.ACCEPTED,
                 null,
@@ -1114,7 +1085,6 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         );
         deliveries.saveDeviceResult(
                 claimed.getId(),
-                token,
                 deviceId,
                 accepted
         );
@@ -1130,16 +1100,12 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
             }
             deliveries.saveDeviceResult(
                     claimed.getId(),
-                    token,
                     remaining,
                     previous
             );
         }
 
-        // When: 기존 Worker의 권한이 유효한 동안은 발송하지 않는다.
-        assertThat(worker(NOW).process(message).retryable()).isTrue();
-        verifyNoInteractions(sender);
-        jdbc.update("UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+        // When: 프로세스 중단 뒤 남은 DB 기록만으로 다음 처리를 시작한다.
         assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
 
         // Then
@@ -1307,17 +1273,11 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    @DisplayName("중단 후 SENDING만 남으면 만료 뒤 재시도하고 수락 기록이 남으면 재발송 없이 완료한다")
-    void process_restartWithPersistedAttempt_waitsForLeaseThenRecovers(
+    @DisplayName("중단 후 SENDING만 남으면 재시도하고 수락 기록이 남으면 재발송 없이 완료한다")
+    void process_restartWithPersistedAttempt_recoversFromDeviceResults(
             boolean acceptedBeforeCrash) {
         // Given: 프로세스를 실제로 종료하지 않고 중단 시 남는 DB 상태를 구성한다.
-        UUID previousToken = UUID.randomUUID();
-        PushDelivery previous = deliveries.claim(
-                message.eventId(),
-                USER_ID,
-                previousToken,
-                Duration.ofSeconds(60)
-        ).orElseThrow();
+        PushDelivery previous = deliveries.createIfAbsent(message.eventId(), USER_ID).orElseThrow();
         PushDelivery.DeviceResult stored = previous.startDevice(deviceId, NOW);
         if (acceptedBeforeCrash) {
             stored = stored.finish(
@@ -1328,113 +1288,40 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         }
         assertThat(deliveries.saveDeviceResult(
                 previous.getId(),
-                previousToken,
                 deviceId,
                 stored
         )).isTrue();
-        // 이전 프로세스의 release/갱신 없이 새 서비스 객체가 DB 이력만으로 복구한다.
-        try (var renewalExecutor = Executors.newSingleThreadScheduledExecutor()) {
-            PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries,
-                    renewalExecutor);
-            PushWorkerService restarted = new PushWorkerService(
-                    notifications,
-                    topics,
-                    posts,
-                    reminders,
-                    devices,
-                    sessions,
-                    sender,
-                    Clock.fixed(NOW.plusSeconds(60), ZoneOffset.UTC),
-                    manager,
-                    restartedDelivery
-            );
+        // 새 서비스 객체에는 이전 프로세스의 Java 락이 남지 않는다.
+        PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries);
+        PushWorkerService restarted = new PushWorkerService(
+                notifications,
+                topics,
+                posts,
+                reminders,
+                devices,
+                sessions,
+                sender,
+                Clock.fixed(NOW.plusSeconds(60), ZoneOffset.UTC),
+                manager,
+                restartedDelivery
+        );
 
-            // When: SQS가 먼저 재전달해도 DB Lease가 유효하면 발송하지 않는다.
-            assertThat(restarted.process(message).retryable()).isTrue();
+        // When: DB에 수락이 남으면 생략하고 SENDING만 남으면 다시 보낸다.
+        assertThat(restarted.process(message).retryable()).isFalse();
+
+        // Then
+        PushDelivery recovered = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(recovered.isCompleted()).isTrue();
+        assertThat(recovered.getDeviceResults().get(deviceId).isAccepted()).isTrue();
+        if (acceptedBeforeCrash) {
             verifyNoInteractions(sender);
-            jdbc.update(
-                    "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-            assertThat(restarted.process(message).retryable()).isFalse();
-
-            // Then
-            PushDelivery recovered = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
-                    .orElseThrow();
-            assertThat(recovered.isCompleted()).isTrue();
-            assertThat(recovered.getLeaseToken()).isNull();
-            assertThat(recovered.getDeviceResults().get(deviceId).isAccepted()).isTrue();
-            if (acceptedBeforeCrash) {
-                verifyNoInteractions(sender);
-                assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount())
-                        .isEqualTo(1);
-                return;
-            }
-            verify(sender).send(any(), any());
-            assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
+            assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount())
+                    .isEqualTo(1);
+            return;
         }
-    }
-
-    @Test
-    @DisplayName("새 Worker가 인계한 뒤 이전 Worker가 복귀해도 새 Lease와 기기 결과를 덮어쓰지 않는다")
-    void process_oldWorkerReturnsAfterTakeover_preservesNewOwnerAndResult() throws Exception {
-        // Given
-        CountDownLatch oldSending = new CountDownLatch(1);
-        CountDownLatch newSending = new CountDownLatch(1);
-        CountDownLatch finishOld = new CountDownLatch(1);
-        CountDownLatch finishNew = new CountDownLatch(1);
-        AtomicInteger calls = new AtomicInteger();
-        given(sender.send(any(), any())).willAnswer(call -> {
-            if (calls.incrementAndGet() == 1) {
-                oldSending.countDown();
-                assertThat(finishOld.await(10, TimeUnit.SECONDS)).isTrue();
-                return DevicePushResult.permanentFailure("OLD_RESULT");
-            }
-            newSending.countDown();
-            assertThat(finishNew.await(10, TimeUnit.SECONDS)).isTrue();
-            return DevicePushResult.accepted();
-        });
-        try (var pool = Executors.newFixedThreadPool(2)) {
-            var old = pool.submit(() -> worker(NOW).process(message));
-            try {
-                assertThat(oldSending.await(5, TimeUnit.SECONDS)).isTrue();
-                UUID oldToken = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
-                        .orElseThrow().getLeaseToken();
-                jdbc.update(
-                        "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-
-                // When
-                var replacement = pool.submit(() -> worker(NOW.plusSeconds(60)).process(message));
-                assertThat(newSending.await(5, TimeUnit.SECONDS)).isTrue();
-                PushDelivery takenOver = deliveries
-                        .findByEventIdAndUserId(message.eventId(), USER_ID)
-                        .orElseThrow();
-                assertThat(takenOver.getLeaseToken()).isNotEqualTo(oldToken);
-                finishOld.countDown();
-                assertThat(old.get(5, TimeUnit.SECONDS).retryable()).isTrue();
-
-                // Then: 이전 Worker의 결과 저장과 close가 새 담당자의 상태를 바꾸면 안 된다.
-                PushDelivery stillOwned = deliveries
-                        .findByEventIdAndUserId(message.eventId(), USER_ID)
-                        .orElseThrow();
-                assertThat(stillOwned.getLeaseToken()).isEqualTo(takenOver.getLeaseToken());
-                assertThat(stillOwned.getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
-                assertThat(stillOwned.getDeviceResults().get(deviceId).getStatus())
-                        .isEqualTo(PushDeviceDeliveryStatus.SENDING);
-                assertThat(stillOwned.getDeviceResults().get(deviceId).getAttemptCount())
-                        .isEqualTo(2);
-                finishNew.countDown();
-                assertThat(replacement.get(5, TimeUnit.SECONDS).retryable()).isFalse();
-                PushDelivery completed = deliveries
-                        .findByEventIdAndUserId(message.eventId(), USER_ID)
-                        .orElseThrow();
-                assertThat(completed.isCompleted()).isTrue();
-                assertThat(completed.getDeviceResults().get(deviceId).isAccepted()).isTrue();
-                assertThat(completed.getDeviceResults().get(deviceId).getLastErrorCode()).isNull();
-                verify(sender, times(2)).send(any(), any());
-            } finally {
-                finishOld.countDown();
-                finishNew.countDown();
-            }
-        }
+        verify(sender).send(any(), any());
+        assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(2);
     }
 
     private Message sqsMessage(

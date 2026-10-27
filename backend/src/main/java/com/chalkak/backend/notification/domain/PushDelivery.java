@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -22,7 +23,7 @@ import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-// 조회는 JPA로 매핑하고, 갱신은 Lease 소유권을 검증하는 조건부 쿼리만 사용한다.
+// DB 갱신은 저장소의 부분 UPDATE로 수행하고, 저장 성공 후 메모리의 기기 결과도 갱신한다.
 @Entity
 @Table(name = "push_deliveries")
 @Immutable
@@ -41,12 +42,6 @@ public class PushDelivery {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PushDeliveryStatus status;
-
-    @Column(name = "lease_token")
-    private UUID leaseToken;
-
-    @Column(name = "lease_until")
-    private Instant leaseUntil;
 
     @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.JSON)
@@ -67,8 +62,6 @@ public class PushDelivery {
             UUID eventId,
             UUID userId,
             PushDeliveryStatus status,
-            UUID leaseToken,
-            Instant leaseUntil,
             Map<UUID, DeviceResult> deviceResults,
             Instant completedAt,
             Instant createdAt,
@@ -78,8 +71,6 @@ public class PushDelivery {
         this.eventId = eventId;
         this.userId = userId;
         this.status = status;
-        this.leaseToken = leaseToken;
-        this.leaseUntil = leaseUntil;
         this.deviceResults = Map.copyOf(deviceResults);
         this.completedAt = completedAt;
         this.createdAt = createdAt;
@@ -115,6 +106,12 @@ public class PushDelivery {
                 startedAt,
                 null
         );
+    }
+
+    public void recordDeviceResult(UUID deviceId, DeviceResult result) {
+        Map<UUID, DeviceResult> updated = new HashMap<>(deviceResults);
+        updated.put(deviceId, result);
+        deviceResults = Map.copyOf(updated);
     }
 
     public Map<UUID, DeviceResult> getDeviceResults() {

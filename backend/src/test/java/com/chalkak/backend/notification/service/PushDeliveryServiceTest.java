@@ -1,38 +1,29 @@
 package com.chalkak.backend.notification.service;
 
-import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
-
-import com.chalkak.backend.notification.domain.PushDeliveryStatus;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PushDelivery;
+import com.chalkak.backend.notification.domain.PushDeliveryStatus;
+import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -50,131 +41,29 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
 
     private PushDeliveryService service;
     private PushMessage message;
-    private ScheduledExecutorService executor;
-    private ScheduledFuture<?> renewal;
 
     @BeforeEach
     void setUp() {
         new DatabaseCleaner(jdbc).clean();
-        jdbc.update("""
-                INSERT INTO users(id,email,signature_original_storage_key)
-                VALUES (?, 'lease-test@example.com', 'lease/signature')
-                """, USER_ID);
-        executor = mock(ScheduledExecutorService.class);
-        renewal = mock(ScheduledFuture.class);
-        doReturn(renewal).when(executor).scheduleAtFixedRate(
-                any(Runnable.class),
-                eq(30L),
-                eq(30L),
-                eq(TimeUnit.SECONDS)
-        );
-        service = new PushDeliveryService(repository, executor);
-        message = new PushMessage(
-                UUID.randomUUID(),
-                null,
-                USER_ID,
-                NotificationType.TOPIC,
-                NotificationSourceType.TOPIC,
-                UUID.randomUUID(),
-                NOW,
-                NOW.plusSeconds(1800)
-        );
+        insertUser(USER_ID, "delivery-test@example.com");
+        service = new PushDeliveryService(repository);
+        message = message(UUID.randomUUID(), USER_ID);
     }
 
     @Test
-    @DisplayName("30초 주기로 예약한 갱신은 DB 시간을 기준으로 Lease를 늘리고 종료 시 예약을 취소한다")
-    void process_activeLease_renewsAndCancelsOnExit() {
-        // When
-        PushProcessingResult result = service.process(message, lease -> {
-            lease.send(
-                    DEVICE_ID,
-                    CLOCK,
-                    () -> {
-                        jdbc.update(
-                                "UPDATE push_deliveries SET lease_until=clock_timestamp()+INTERVAL '5 seconds'");
-                        Instant before = current().getLeaseUntil();
-                        renewalTask().run();
-                        assertThat(current().getLeaseUntil()).isAfter(before.plusSeconds(50));
-                        return DevicePushResult.retryable("UNAVAILABLE");
-                    }
-            );
-            return new PushProcessingResult(true, Duration.ofSeconds(60));
-        });
-
-        // Then
-        assertThat(result.retryable()).isTrue();
-        assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
-        assertThat(current().getLeaseToken()).isNull();
-        verify(renewal).cancel(false);
-    }
-
-    @Test
-    @DisplayName("갱신에 실패하면 추가 기기 발송을 시작하지 않고 SQS 재처리를 요청한다")
-    void process_expiredLeaseAtRenewal_stopsStartingDevices() {
-        // When
-        PushProcessingResult result = service.process(message, lease -> {
-            lease.send(
-                    DEVICE_ID,
-                    CLOCK,
-                    () -> {
-                        jdbc.update(
-                                "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-                        renewalTask().run();
-                        return DevicePushResult.accepted();
-                    }
-            );
-            lease.send(
-                    UUID.randomUUID(),
-                    CLOCK,
-                    DevicePushResult::accepted
-            );
-            return PushProcessingResult.completed();
-        });
-
-        // Then
-        assertThat(result.retryable()).isTrue();
-        assertThat(current().getDeviceResults()).hasSize(1);
-        assertThat(current().isCompleted()).isFalse();
-        verify(renewal).cancel(false);
-    }
-
-    @Test
-    @DisplayName("외부 발송 중 예상하지 못한 예외는 결과 불명으로 저장하고 Lease를 반납한다")
-    void process_sendFails_recordsUnknownAndReleasesLease() {
-        // When & Then
-        PushProcessingResult result = service.process(message, lease -> {
-            DevicePushResult failed = lease.send(
-                    DEVICE_ID,
-                    CLOCK,
-                    () -> {
-                        throw new IllegalStateException("send failed");
-                    }
-            );
-            return new PushProcessingResult(failed.isRetryable(), failed.retryAfter());
-        });
-        assertThat(result.retryable()).isTrue();
-        assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
-        assertThat(current().getDeviceResults().get(DEVICE_ID).getStatus())
-                .isEqualTo(PushDeviceDeliveryStatus.UNKNOWN);
-        assertThat(current().getDeviceResults().get(DEVICE_ID).getLastErrorCode())
-                .isEqualTo("IllegalStateException");
-        verify(renewal).cancel(false);
-    }
-
-    @Test
-    @DisplayName("수락한 기기가 있어도 다른 기기의 재처리가 필요하면 완료하지 않고 Lease를 반납한다")
+    @DisplayName("수락한 기기가 있어도 다른 기기의 재처리가 필요하면 미완료 이력을 유지한다")
     void process_acceptedAndRetryableDevices_keepsPendingDelivery() {
         // Given
         UUID other = UUID.randomUUID();
 
         // When
-        PushProcessingResult result = service.process(message, lease -> {
-            lease.send(
+        PushProcessingResult result = service.process(message, attempt -> {
+            attempt.send(
                     DEVICE_ID,
                     CLOCK,
                     DevicePushResult::accepted
             );
-            lease.send(
+            attempt.send(
                     other,
                     CLOCK,
                     () -> DevicePushResult.retryable("UNAVAILABLE")
@@ -186,80 +75,45 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
         assertThat(result.retryable()).isTrue();
         assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
         assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
-        assertThat(current().getLeaseToken()).isNull();
         assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
         assertThat(current().getDeviceResults().get(other).getStatus())
                 .isEqualTo(PushDeviceDeliveryStatus.RETRYABLE);
-        verify(renewal).cancel(false);
     }
 
     @Test
-    @DisplayName("시작 기록은 외부 호출 전에 커밋되고 결과 기록과 사용자 완료도 각각 커밋된다")
-    void process_sendOutsideTransaction_preservesTransactionBoundaries() {
+    @DisplayName("SDK 예외는 결과 불명으로 저장하고 락을 해제해 다음 재처리를 허용한다")
+    void process_sendFails_recordsUnknownAndUnlocks() {
         // When
-        PushProcessingResult result = service.process(message, lease -> {
-            DevicePushResult sent = lease.send(
+        PushProcessingResult failed = service.process(message, attempt -> {
+            DevicePushResult sent = attempt.send(
                     DEVICE_ID,
                     CLOCK,
                     () -> {
-                        assertThat(TransactionSynchronizationManager.isActualTransactionActive())
-                                .isFalse();
-                        assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
-                        assertThat(current().getDeviceResults().get(DEVICE_ID).getStatus())
-                                .isEqualTo(PushDeviceDeliveryStatus.SENDING);
-                        return DevicePushResult.accepted();
+                        throw new IllegalStateException("send failed");
                     }
             );
-            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-            assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
-            assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
             return new PushProcessingResult(sent.isRetryable(), sent.retryAfter());
         });
 
         // Then
-        assertThat(result.retryable()).isFalse();
-        assertThat(current().isCompleted()).isTrue();
-        assertThat(current().getLeaseToken()).isNull();
-    }
+        assertThat(failed.retryable()).isTrue();
+        assertThat(current().getDeviceResults().get(DEVICE_ID).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.UNKNOWN);
+        assertThat(current().getDeviceResults().get(DEVICE_ID).getLastErrorCode())
+                .isEqualTo("IllegalStateException");
 
-    @Test
-    @DisplayName("외부 발송 대기 중 다른 스레드의 Lease 갱신은 차단되지 않는다")
-    void process_waitingForSend_allowsConcurrentLeaseRenewal() {
-        // Given
-        try (var renewalThread = Executors.newSingleThreadExecutor()) {
-            // When
-            PushProcessingResult result = service.process(message, lease -> {
-                DevicePushResult sent = lease.send(
-                        DEVICE_ID,
-                        CLOCK,
-                        () -> {
-                            jdbc.update("""
-                                    UPDATE push_deliveries
-                                    SET lease_until=clock_timestamp()+INTERVAL '5 seconds'
-                                    """);
-                            Instant before = current().getLeaseUntil();
-                            CompletableFuture.runAsync(renewalTask(), renewalThread)
-                                    .orTimeout(5, TimeUnit.SECONDS).join();
-                            assertThat(current().getLeaseUntil()).isAfter(before.plusSeconds(50));
-                            return DevicePushResult.accepted();
-                        }
-                );
-                return new PushProcessingResult(sent.isRetryable(), sent.retryAfter());
-            });
-
-            // Then
-            assertThat(result.retryable()).isFalse();
-            assertThat(current().isCompleted()).isTrue();
-            verify(renewal).cancel(false);
-        }
-    }
-
-    @Test
-    @DisplayName("기기 결과 저장 이후 후속 처리 예외는 수락 기록을 보존하고 Lease를 반납한다")
-    void process_actionFailsAfterAcceptance_preservesResultAndReleasesLease() {
         // When & Then
-        assertThatThrownBy(() -> service.process(message, lease -> {
-            lease.send(
+        assertThat(send(message).retryable()).isFalse();
+        assertThat(current().isCompleted()).isTrue();
+        assertThat(current().getDeviceResults().get(DEVICE_ID).getAttemptCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("수락 결과 이후 예외가 나도 수락 기록은 남고 락은 해제된다")
+    void process_actionFailsAfterAcceptance_preservesResultAndUnlocks() {
+        // When & Then
+        assertThatThrownBy(() -> service.process(message, attempt -> {
+            attempt.send(
                     DEVICE_ID,
                     CLOCK,
                     DevicePushResult::accepted
@@ -268,45 +122,236 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
         })).isInstanceOf(IllegalStateException.class);
         assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
         assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
-        assertThat(current().getLeaseToken()).isNull();
-        verify(renewal).cancel(false);
+
+        PushProcessingResult retried = service.process(message, attempt -> {
+            DevicePushResult skipped = attempt.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    () -> {
+                        throw new AssertionError("수락한 기기는 다시 발송하면 안 된다");
+                    }
+            );
+            assertThat(skipped.status()).isEqualTo(DevicePushResult.Status.SKIPPED);
+            return PushProcessingResult.completed();
+        });
+        assertThat(retried.retryable()).isFalse();
+        assertThat(current().isCompleted()).isTrue();
     }
 
     @Test
-    @DisplayName("완료된 발송은 조건 조회와 갱신 예약 없이 종료한다")
-    void process_completedDelivery_skipsActionAndRenewal() {
+    @DisplayName("시작 기록이 실패하면 발송 없이 종료하고 락 해제 후 같은 사건을 다시 처리한다")
+    void process_startRecordFails_unlocksWithoutSending() {
         // Given
-        UUID token = UUID.randomUUID();
-        PushDelivery delivery = repository.claim(
-                message.eventId(),
-                USER_ID,
-                token,
-                Duration.ofSeconds(60)
-        ).orElseThrow();
-        repository.complete(delivery.getId(), token);
+        jdbc.execute("""
+                ALTER TABLE push_deliveries ADD CONSTRAINT ck_test_push_delivery_start
+                CHECK (device_results = '{}'::jsonb)
+                """);
+        try {
+            // When
+            PushProcessingResult failed = service.process(message, attempt -> {
+                attempt.send(
+                        DEVICE_ID,
+                        CLOCK,
+                        () -> {
+                            throw new AssertionError("시작 기록이 실패하면 FCM을 호출하면 안 된다");
+                        }
+                );
+                return PushProcessingResult.completed();
+            });
 
+            // Then: 트랜잭션 통합은 보류하므로 먼저 생성한 PENDING 행은 남는다.
+            assertThat(failed.retryable()).isTrue();
+            assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+            assertThat(current().getDeviceResults()).isEmpty();
+        } finally {
+            jdbc.execute("ALTER TABLE push_deliveries DROP CONSTRAINT ck_test_push_delivery_start");
+        }
+        assertThat(send(message).retryable()).isFalse();
+        assertThat(current().isCompleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("시작 기록은 FCM 호출 전에 커밋되고 FCM 대기 중에는 DB 트랜잭션이 없다")
+    void process_sendOutsideTransaction_preservesTransactionBoundaries() {
         // When
-        PushProcessingResult result = service.process(message, lease -> {
-            throw new AssertionError("완료한 사건의 발송 조건을 다시 조회하면 안 된다");
+        PushProcessingResult result = service.process(message, attempt -> {
+            DevicePushResult sent = attempt.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    () -> {
+                        assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                                .isFalse();
+                        assertThat(current().getDeviceResults().get(DEVICE_ID).getStatus())
+                                .isEqualTo(PushDeviceDeliveryStatus.SENDING);
+                        return DevicePushResult.accepted();
+                    }
+            );
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+            assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
+            return new PushProcessingResult(sent.isRetryable(), sent.retryAfter());
         });
 
         // Then
         assertThat(result.retryable()).isFalse();
-        verifyNoInteractions(executor);
+        assertThat(current().isCompleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("같은 사건·회원은 DB 행이 생기기 전에도 중복 진입을 막고 다음 수신으로 넘긴다")
+    void process_sameKeyBeforeRecordExists_rejectsConcurrentAction() throws Exception {
+        // Given
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var first = pool.submit(() -> service.process(message, attempt -> {
+                entered.countDown();
+                await(finish);
+                attempt.send(
+                        DEVICE_ID,
+                        CLOCK,
+                        DevicePushResult::accepted
+                );
+                return PushProcessingResult.completed();
+            }));
+            try {
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThat(repository.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+
+                // When
+                PushProcessingResult duplicate = service.process(message, attempt -> {
+                    throw new AssertionError("같은 키의 진행 중 작업에 진입하면 안 된다");
+                });
+
+                // Then
+                assertThat(duplicate.retryable()).isTrue();
+                assertThat(duplicate.retryAfter()).isEqualTo(Duration.ofMinutes(1));
+            } finally {
+                finish.countDown();
+            }
+            assertThat(first.get(5, TimeUnit.SECONDS).retryable()).isFalse();
+        }
+        assertThat(service.process(message, attempt -> {
+            throw new AssertionError("완료 기록을 먼저 확인해야 한다");
+        }).retryable()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("사건이나 회원 중 하나가 다르면 기존 작업이 FCM을 기다려도 병렬로 처리한다")
+    void process_differentKey_runsWhileOtherIsSending(boolean differentUser) throws Exception {
+        // Given
+        UUID otherUser = USER_ID;
+        UUID otherEvent = UUID.randomUUID();
+        if (differentUser) {
+            otherUser = UUID.randomUUID();
+            otherEvent = message.eventId();
+            insertUser(otherUser, "other-delivery@example.com");
+        }
+        PushMessage otherMessage = message(otherEvent, otherUser);
+        CountDownLatch sending = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> service.process(message, attempt -> {
+                attempt.send(
+                        DEVICE_ID,
+                        CLOCK,
+                        () -> {
+                            sending.countDown();
+                            await(finish);
+                            return DevicePushResult.accepted();
+                        }
+                );
+                return PushProcessingResult.completed();
+            }));
+            try {
+                assertThat(sending.await(5, TimeUnit.SECONDS)).isTrue();
+
+                // When & Then
+                var other = pool.submit(() -> send(otherMessage));
+                assertThat(other.get(5, TimeUnit.SECONDS).retryable()).isFalse();
+                assertThat(first.isDone()).isFalse();
+                assertThat(repository.findByEventIdAndUserId(otherMessage.eventId(),
+                        otherMessage.userId()).orElseThrow().isCompleted()).isTrue();
+            } finally {
+                finish.countDown();
+            }
+            assertThat(first.get(5, TimeUnit.SECONDS).retryable()).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("발송할 기기가 없으면 이력을 만들지 않고 같은 키의 다음 처리를 허용한다")
+    void process_noDevice_createsNoRecordAndUnlocks() {
+        // When & Then
+        assertThat(
+                service.process(message, attempt -> PushProcessingResult.completed()).retryable())
+                .isFalse();
+        assertThat(repository.findByEventIdAndUserId(message.eventId(), USER_ID)).isEmpty();
+        assertThat(send(message).retryable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("완료된 이력은 기기 처리에 진입하지 않고 락을 해제한다")
+    void process_completedDelivery_skipsActionAndUnlocks() {
+        // Given
+        PushDelivery delivery = repository.createIfAbsent(message.eventId(), USER_ID).orElseThrow();
+        repository.complete(delivery.getId());
+
+        // When & Then
+        for (int index = 0; index < 2; index++) {
+            assertThat(service.process(message, attempt -> {
+                throw new AssertionError("완료된 사건은 다시 처리하면 안 된다");
+            }).retryable()).isFalse();
+        }
+    }
+
+    private PushProcessingResult send(PushMessage target) {
+        return service.process(target, attempt -> {
+            DevicePushResult result = attempt.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    DevicePushResult::accepted
+            );
+            return new PushProcessingResult(result.isRetryable(), result.retryAfter());
+        });
+    }
+
+    private void insertUser(UUID userId, String email) {
+        jdbc.update(
+                """
+                        INSERT INTO users(id,email,signature_original_storage_key)
+                        VALUES (?, ?, ?)
+                        """,
+                userId,
+                email,
+                "delivery/" + userId
+        );
+    }
+
+    private PushMessage message(UUID eventId, UUID userId) {
+        return new PushMessage(
+                eventId,
+                null,
+                userId,
+                NotificationType.TOPIC,
+                NotificationSourceType.TOPIC,
+                UUID.randomUUID(),
+                NOW,
+                NOW.plusSeconds(1800)
+        );
     }
 
     private PushDelivery current() {
         return repository.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow();
     }
 
-    private Runnable renewalTask() {
-        ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
-        verify(executor).scheduleAtFixedRate(
-                task.capture(),
-                eq(30L),
-                eq(30L),
-                eq(TimeUnit.SECONDS)
-        );
-        return task.getValue();
+    private void await(CountDownLatch latch) {
+        try {
+            assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 }
