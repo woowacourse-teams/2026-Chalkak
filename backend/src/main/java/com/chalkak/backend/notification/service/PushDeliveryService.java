@@ -54,7 +54,7 @@ public class PushDeliveryService {
             if (lease.isCompleted()) {
                 return PushProcessingResult.completed();
             }
-            if (lease.hasAcceptedDevice() || !result.retryable()) {
+            if (!result.retryable()) {
                 lease.complete();
                 return PushProcessingResult.completed();
             }

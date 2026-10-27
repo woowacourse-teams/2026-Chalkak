@@ -559,26 +559,63 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 .extracting(log -> log.get("deviceId")).doesNotHaveDuplicates().hasSize(2);
     }
 
-    @Test
-    @DisplayName("기기 하나라도 수락되면 나머지 일시 실패를 재시도하지 않는다")
-    void process_partialAcceptance_completesUserMessage() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("일부 기기가 수락돼도 일시 실패 기기만 재전달에서 다시 보내고 모두 종료되면 완료한다")
+    void process_partialAcceptance_retriesOnlyFailedDevice(boolean firstDeviceFails) {
         // Given
-        addDevice("second-token");
-        given(sender.send(any(), any())).willReturn(
-                DevicePushResult.retryable("UNAVAILABLE",
-                        Duration.ofSeconds(60)),
-                DevicePushResult.accepted());
-        // When & Then
-        assertThat(worker(NOW).process(message).retryable()).isFalse();
+        UUID other = addDevice("second-token");
+        UUID failedDevice = other;
+        UUID acceptedDevice = deviceId;
+        String failedToken = "second-token";
+        if (firstDeviceFails) {
+            failedDevice = deviceId;
+            acceptedDevice = other;
+            failedToken = "worker-token";
+        }
+        String retryToken = failedToken;
+        AtomicInteger failedAttempts = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals(retryToken) && failedAttempts.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE", Duration.ofSeconds(120));
+            }
+            return DevicePushResult.accepted();
+        });
+
+        // When
+        PushProcessingResult first = worker(NOW).process(message);
+
+        // Then
+        assertThat(first.retryable()).isTrue();
+        assertThat(first.retryAfter()).isEqualTo(Duration.ofSeconds(120));
         verify(sender, times(2)).send(any(), any());
         assertThat(logsAtStage("worker_summary")).singleElement().satisfies(log -> assertThat(log)
                 .containsEntry("targetCount", 2).containsEntry("acceptedCount", 1)
-                .containsEntry("retryableCount", 1).containsEntry("retryable", false));
+                .containsEntry("retryableCount", 1).containsEntry("retryable", true));
+        PushDelivery pending = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(pending.getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+        assertThat(pending.getDeviceResults().get(acceptedDevice).isAccepted()).isTrue();
+        assertThat(pending.getDeviceResults().get(failedDevice).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.RETRYABLE);
+
+        PushProcessingResult repeated = worker(NOW.plusSeconds(120)).process(message);
+
+        assertThat(repeated.retryable()).isFalse();
+        verify(sender, times(3)).send(any(), any());
+        PushDelivery completed = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(completed.isCompleted()).isTrue();
+        assertThat(completed.getDeviceResults().get(acceptedDevice).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(failedDevice).getAttemptCount()).isEqualTo(2);
+        assertThat(completed.getDeviceResults().values())
+                .allMatch(PushDelivery.DeviceResult::isAccepted);
     }
 
     @Test
-    @DisplayName("첫 기기 수락 후 다음 기기의 예외가 발생해도 사용자 작업을 완료한다")
-    void process_acceptedThenDeviceException_completesUserMessage() {
+    @DisplayName("첫 기기 수락 후 다른 기기의 결과가 불명확하면 수락 이력을 보존하고 재처리한다")
+    void process_acceptedThenDeviceException_preservesAcceptanceAndRetries() {
         // Given
         addDevice("second-token");
         given(sender.send(any(), any()))
@@ -587,13 +624,125 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
-        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        assertThat(result.retryable()).isTrue();
         verify(sender, times(2)).send(any(), any());
+        PushDelivery pending = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(pending.isCompleted()).isFalse();
+        assertThat(pending.getDeviceResults().values())
+                .extracting(PushDelivery.DeviceResult::getStatus)
+                .containsExactlyInAnyOrder(PushDeviceDeliveryStatus.ACCEPTED,
+                        PushDeviceDeliveryStatus.UNKNOWN);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PERMANENT_FAILURE", "INVALID_TOKEN", "SKIPPED"})
+    @DisplayName("수락·종료된 기기는 반복 발송하지 않고 일시 실패한 기기만 재처리한다")
+    void process_mixedDeviceResults_retriesOnlyTransientFailure(String terminalStatus) {
+        // Given
+        UUID retryDevice = addDevice("retry-token");
+        UUID terminalDevice = addDevice("terminal-token");
+        AtomicInteger retryCalls = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-token") && retryCalls.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            if (request.token().equals("terminal-token")) {
+                return switch (terminalStatus) {
+                    case "INVALID_TOKEN" -> DevicePushResult.invalidToken("UNREGISTERED");
+                    case "SKIPPED" -> DevicePushResult.skipped("EXPIRED");
+                    default -> DevicePushResult.permanentFailure("INVALID_ARGUMENT");
+                };
+            }
+            return DevicePushResult.accepted();
+        });
+
+        // When
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
+
+        // Then
+        verify(sender, times(4)).send(any(), any());
+        PushDelivery completed = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(completed.isCompleted()).isTrue();
+        assertThat(completed.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(retryDevice).getAttemptCount()).isEqualTo(2);
+        assertThat(completed.getDeviceResults().get(terminalDevice).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(terminalDevice).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.valueOf(terminalStatus));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"LOGOUT", "PUSH_DISABLED", "READ", "DELETED", "WITHDRAWN"})
+    @DisplayName("일시 실패 기기의 최신 발송 조건이 무효가 되면 재요청하지 않고 처리를 종료한다")
+    void process_failedDeviceBecomesIneligible_completesWithoutResending(String changedState) {
+        // Given
+        UUID failed = addDevice("retry-token");
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-token")) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            return DevicePushResult.accepted();
+        });
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        switch (changedState) {
+            case "LOGOUT" -> jdbc.update("""
+                    DELETE FROM user_refresh_tokens
+                    WHERE session_id = (SELECT session_id FROM push_devices WHERE id = ?)
+                    """, failed);
+            case "PUSH_DISABLED" -> jdbc.update("UPDATE users SET moderation_push_enabled=false");
+            case "READ" -> jdbc.update("UPDATE notifications SET read_at=CURRENT_TIMESTAMP");
+            case "DELETED" -> jdbc.update("UPDATE posts SET deleted_at=CURRENT_TIMESTAMP");
+            default -> jdbc.update("UPDATE users SET deleted_at=CURRENT_TIMESTAMP");
+        }
+
+        // When
+        PushProcessingResult repeated = worker(NOW.plusSeconds(60)).process(message);
+
+        // Then
+        assertThat(repeated.retryable()).isFalse();
+        verify(sender, times(2)).send(any(), any());
+        PushDelivery completed = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(completed.isCompleted()).isTrue();
+        assertThat(completed.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(completed.getDeviceResults().get(failed).getAttemptCount()).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1799, 1800, 1801})
+    @DisplayName("부분 수락 후에도 실패 기기는 원래 30분 기한 직전까지만 새 요청을 시작한다")
+    void process_partialAcceptanceAtDeadline_retriesOnlyBeforeDeadline(long seconds) {
+        // Given
+        addDevice("retry-token");
+        AtomicInteger retryCalls = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-token") && retryCalls.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            return DevicePushResult.accepted();
+        });
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+
+        // When
+        PushProcessingResult repeated = worker(NOW.plusSeconds(seconds)).process(message);
+
+        // Then
+        assertThat(repeated.retryable()).isFalse();
+        int expectedCalls = 2;
+        if (seconds < 1800) {
+            expectedCalls = 3;
+        }
+        verify(sender, times(expectedCalls)).send(any(), any());
     }
 
     @Test
-    @DisplayName("첫 기기의 예외가 발생해도 다음 기기를 발송하고 수락되면 완료한다")
-    void process_deviceExceptionThenAccepted_completesUserMessage() {
+    @DisplayName("첫 기기가 결과 불명이어도 다음 기기는 발송하고 미확정 기기는 재처리한다")
+    void process_deviceExceptionThenAccepted_retriesUnknownDevice() {
         // Given
         addDevice("second-token");
         given(sender.send(any(), any()))
@@ -602,7 +751,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         // When
         PushProcessingResult result = worker(NOW).process(message);
         // Then
-        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        assertThat(result.retryable()).isTrue();
         verify(sender, times(2)).send(any(), any());
     }
 
@@ -946,9 +1095,10 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                         .isEqualTo(PushDeviceDeliveryStatus.SENDING));
     }
 
-    @Test
-    @DisplayName("기기 수락만 저장한 뒤 중단된 작업은 재수신에서 완료하고 새 기기에도 다시 보내지 않는다")
-    void process_acceptedHistoryWithoutCompletion_recoversWithoutResending() {
+    @ParameterizedTest
+    @ValueSource(strings = {"NOT_STARTED", "SENDING", "UNKNOWN", "RETRYABLE"})
+    @DisplayName("수락 기록을 남기고 중단돼도 수락한 기기는 생략하고 미완료 기기를 이어 보낸다")
+    void process_acceptedHistoryWithoutCompletion_recoversRemainingDevice(String previousStatus) {
         // Given
         UUID token = UUID.randomUUID();
         PushDelivery claimed = deliveries.claim(
@@ -968,16 +1118,45 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
                 deviceId,
                 accepted
         );
-        jdbc.update("UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-        addDevice("new-device-after-crash");
+        UUID remaining = addDevice("remaining-device-after-crash");
+        if (!previousStatus.equals("NOT_STARTED")) {
+            var previous = claimed.startDevice(remaining, NOW);
+            if (!previousStatus.equals("SENDING")) {
+                previous = previous.finish(
+                        PushDeviceDeliveryStatus.valueOf(previousStatus),
+                        "PREVIOUS_FAILURE",
+                        NOW
+                );
+            }
+            deliveries.saveDeviceResult(
+                    claimed.getId(),
+                    token,
+                    remaining,
+                    previous
+            );
+        }
 
-        // When
-        assertThat(worker(NOW).process(message).retryable()).isFalse();
+        // When: 기존 Worker의 권한이 유효한 동안은 발송하지 않는다.
+        assertThat(worker(NOW).process(message).retryable()).isTrue();
+        verifyNoInteractions(sender);
+        jdbc.update("UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isFalse();
 
         // Then
-        verifyNoInteractions(sender);
-        assertThat(deliveries.findByEventIdAndUserId(message.eventId(), USER_ID).orElseThrow()
-                .isCompleted()).isTrue();
+        var requests = org.mockito.ArgumentCaptor.forClass(DevicePushRequest.class);
+        verify(sender).send(requests.capture(), any());
+        assertThat(requests.getValue().token()).isEqualTo("remaining-device-after-crash");
+        PushDelivery recovered = deliveries.findByEventIdAndUserId(message.eventId(), USER_ID)
+                .orElseThrow();
+        assertThat(recovered.isCompleted()).isTrue();
+        assertThat(recovered.getDeviceResults().get(deviceId).getAttemptCount()).isEqualTo(1);
+        assertThat(recovered.getDeviceResults().get(remaining).isAccepted()).isTrue();
+        int expectedAttempts = 2;
+        if (previousStatus.equals("NOT_STARTED")) {
+            expectedAttempts = 1;
+        }
+        assertThat(recovered.getDeviceResults().get(remaining).getAttemptCount())
+                .isEqualTo(expectedAttempts);
     }
 
     @Test

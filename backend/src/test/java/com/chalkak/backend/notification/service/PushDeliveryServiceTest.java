@@ -131,6 +131,42 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("수락한 기기가 있어도 다른 기기의 재처리가 필요하면 완료하지 않고 Lease를 반납한다")
+    void process_acceptedAndRetryableDevices_keepsPendingDelivery() {
+        // Given
+        UUID other = UUID.randomUUID();
+
+        // When
+        PushProcessingResult result = service.process(message, lease -> {
+            var accepted = lease.startDevice(DEVICE_ID, NOW);
+            lease.recordResult(
+                    DEVICE_ID,
+                    accepted,
+                    DevicePushResult.accepted(),
+                    NOW
+            );
+            var retryable = lease.startDevice(other, NOW);
+            lease.recordResult(
+                    other,
+                    retryable,
+                    DevicePushResult.retryable("UNAVAILABLE"),
+                    NOW
+            );
+            return new PushProcessingResult(true, Duration.ofSeconds(120));
+        });
+
+        // Then
+        assertThat(result.retryable()).isTrue();
+        assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
+        assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+        assertThat(current().getLeaseToken()).isNull();
+        assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
+        assertThat(current().getDeviceResults().get(other).getStatus())
+                .isEqualTo(PushDeviceDeliveryStatus.RETRYABLE);
+        verify(renewal).cancel(false);
+    }
+
+    @Test
     @DisplayName("완료된 발송은 조건 조회와 갱신 예약 없이 종료한다")
     void process_completedDelivery_skipsActionAndRenewal() {
         // Given

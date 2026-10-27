@@ -221,8 +221,8 @@ filter type = "notification" and stage in ["fcm_result", "worker_skipped", "work
 | `worker_message_deleted` | 현재 SQS 작업 완료. 수락·정상 생략·영구 실패 중 무엇인지 앞선 로그로 확인 |
 | `worker_processing_failed` | 전체 처리 예외. 메시지를 유지하며 재전달 또는 DLQ 이동 가능 |
 
-`worker_summary`는 기기별 처리 결과를 모은 값이다. 하나라도 수락했으면 다른 기기 실패가 있어도
-전체 메시지를 완료한다. 전부 실패하고 일시 오류가 있으면 재처리한다. 수신 횟수는
+`worker_summary`는 이번 기기별 처리 결과를 모은 값이다. 다른 기기의 수락 여부와 관계없이
+일시 실패·결과 불명인 현재 대상 기기가 남으면 재처리한다. 이전 수락·종료 기록이 있는 기기는 다시 요청하지 않는다. 수신 횟수는
 `receiveCount`로 보며 SDK 내부 HTTP 재시도 횟수나 회원별 고유 발송 건수로 해석하지 않는다.
 발송 완료 기록이 저장돼 있으면 SQS 삭제 실패 후 재전달이나 같은 사건의 재발행에서도 FCM을 다시 호출하지 않는다.
 FCM 수락 후 DB 기록 전 중단처럼 결과를 확인할 수 없는 경우에는 중복 요청 가능성이 남는다.
@@ -293,8 +293,8 @@ DLQ 연결 시험만으로 실제 Worker의 FCM 오류 재처리까지 검증했
 - `attemptCount`: DB에 기록한 시작 시도 수다. SDK 내부 HTTP 재시도 수나 SQS 수신 횟수가 아니며, 이 값으로 별도 재시도 상한을 적용하지 않는다.
 
 Lease는 DB 시간 기준 60초이며 30초마다 갱신한다. SQS Visibility Timeout은 기존 60초·40초 주기 연장을 유지한다.
-`worker_delivery_skipped`의 `ALREADY_COMPLETED`는 완료 기록 때문에 생략한 것이고, `ACCEPTED_HISTORY`는
-기기 수락 이력으로 사용자 완료를 복구한 것이다. `worker_delivery_previous_unknown`은 이전 미확정 시도를 다시 처리하는 경우다.
+`worker_delivery_skipped`의 `ALREADY_COMPLETED`는 사용자 처리 완료 기록 때문에 생략한 것이다.
+기기 수락 기록만으로 전체를 완료하지 않으며, 미완료 사건에서는 해당 기기만 생략하고 나머지 현재 대상을 확인한다. `worker_delivery_previous_unknown`은 이전 미확정 시도를 다시 처리하는 경우다.
 `worker_delivery_lease_unavailable`은 다른 Worker가 소유하거나 처리 권한을 잃어 메시지를 재처리에 남기는 경우다.
 `worker_delivery_lease_failed`는 갱신·기록 SQL 실패이며, 오류 원문 대신 예외 클래스 이름을 남긴다.
 

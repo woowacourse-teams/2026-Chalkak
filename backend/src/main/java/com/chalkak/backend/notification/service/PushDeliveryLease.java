@@ -26,7 +26,6 @@ public final class PushDeliveryLease implements AutoCloseable {
     private ScheduledFuture<?> renewal;
     private boolean owned = true;
     private boolean completed;
-    private boolean accepted;
 
     PushDeliveryLease(
             PushMessage message,
@@ -44,10 +43,6 @@ public final class PushDeliveryLease implements AutoCloseable {
 
     synchronized boolean isCompleted() {
         return completed;
-    }
-
-    synchronized boolean hasAcceptedDevice() {
-        return accepted;
     }
 
     public synchronized DeviceResult startDevice(UUID deviceId, Instant now) {
@@ -80,7 +75,6 @@ public final class PushDeliveryLease implements AutoCloseable {
                 result.errorCode(),
                 now
         ));
-        accepted = accepted || result.isAccepted();
     }
 
     public synchronized void recordUnknown(
@@ -139,10 +133,6 @@ public final class PushDeliveryLease implements AutoCloseable {
             owned = false;
             logLeaseFailure(exception);
             throw new PushLeaseLostException();
-        }
-        if (delivery.hasAcceptedDevice()) {
-            complete();
-            logSkipped("ACCEPTED_HISTORY");
         }
     }
 

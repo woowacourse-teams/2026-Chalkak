@@ -388,15 +388,14 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("주제도 기기 하나가 수락하면 다른 기기의 실패를 재시도하지 않는다")
-    void process_partialAcceptance_completesUserMessage() {
+    @DisplayName("주제도 수락한 기기가 있어도 다른 기기의 일시 실패는 재처리한다")
+    void process_partialAcceptance_retriesFailedDevice() {
         // Given
         addDevice("second-topic-token");
         given(sender.send(any(), any())).willReturn(DevicePushResult.accepted(),
                 DevicePushResult.retryable("UNAVAILABLE"));
         // When & Then
-        assertThat(worker(NOW.plusSeconds(60)).process(message))
-                .isEqualTo(PushProcessingResult.completed());
+        assertThat(worker(NOW.plusSeconds(60)).process(message).retryable()).isTrue();
         verify(sender, times(2)).send(any(), any());
     }
 

@@ -121,7 +121,6 @@ public class PushWorkerService {
             );
         }
         Map<DevicePushResult.Status, Integer> counts = new EnumMap<>(DevicePushResult.Status.class);
-        boolean accepted = false;
         boolean retryable = false;
         Duration retryAfter = Duration.ZERO;
         for (UUID deviceId : deviceIds) {
@@ -136,7 +135,6 @@ public class PushWorkerService {
                     1,
                     Integer::sum
             );
-            accepted = accepted || result.isAccepted();
             retryable = retryable || result.isRetryable();
             retryAfter = findLongestRetryAfter(retryAfter, result);
         }
@@ -144,12 +142,9 @@ public class PushWorkerService {
                 message,
                 deviceIds.size(),
                 counts,
-                !accepted && retryable,
+                retryable,
                 dbTiming
         );
-        if (accepted) {
-            return PushProcessingResult.completed();
-        }
         return new PushProcessingResult(retryable, retryAfter);
     }
 
