@@ -9,12 +9,15 @@ import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.sql.Connection;
 import java.time.Instant;
-import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +26,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -31,6 +34,8 @@ class PushDeliveryRepositoryImplTest extends IntegrationTestSupport {
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID EVENT_ID = UUID.randomUUID();
 
+    @Autowired
+    private DataSource dataSource;
     @Autowired
     private PushDeliveryRepository repository;
     @Autowired
@@ -242,68 +247,81 @@ class PushDeliveryRepositoryImplTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("Lease 제거 마이그레이션은 이전 진행 상태를 대기로 바꾸고 기기 결과와 완료 이력을 보존한다")
-    void migrate_legacyLeaseRows_preservesDeviceHistory() throws Exception {
-        // Given: 실제 테이블 대신 같은 연결의 임시 테이블로 이전 스키마를 구성한다.
-        String migration = new ClassPathResource(
-                "db/migration/V202610271200__replace_push_delivery_lease_with_local_lock.sql")
-                .getContentAsString(StandardCharsets.UTF_8);
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            jdbc.execute(
-                    """
-                            CREATE TEMP TABLE push_deliveries (
-                                id UUID, status VARCHAR(20), lease_token UUID, lease_until TIMESTAMPTZ,
-                                device_results JSONB, completed_at TIMESTAMPTZ,
-                                CONSTRAINT ck_push_deliveries_lease CHECK (
-                                    (status = 'PROCESSING' AND lease_token IS NOT NULL AND lease_until IS NOT NULL)
-                                    OR (status <> 'PROCESSING' AND lease_token IS NULL AND lease_until IS NULL)),
-                                CONSTRAINT ck_push_deliveries_status CHECK (status IN ('PENDING','PROCESSING','COMPLETED'))
-                            ) ON COMMIT DROP
-                            """);
-            UUID pending = UUID.randomUUID();
-            UUID completed = UUID.randomUUID();
-            jdbc.update(
-                    """
-                            INSERT INTO push_deliveries VALUES (?, 'PROCESSING', ?, clock_timestamp(),
-                                '{"device":{"status":"SENDING"}}'::jsonb, NULL)
-                            """,
-                    pending,
-                    UUID.randomUUID()
-            );
-            jdbc.update("""
-                    INSERT INTO push_deliveries VALUES (?, 'COMPLETED', NULL, NULL,
-                        '{"device":{"status":"ACCEPTED"}}'::jsonb, clock_timestamp())
-                    """, completed);
+    @DisplayName("발송 이력 생성 마이그레이션 하나로 최종 스키마를 만들고 기존 회원을 보존한다")
+    void migrate_existingUsers_createsFinalDeliverySchema() throws Exception {
+        // Given
+        String schema = "push_delivery_migration_" + UUID.randomUUID().toString().replace("-", "");
+        jdbc.execute("CREATE SCHEMA " + schema);
+        try {
+            migrate(schema, "202610212350");
+            try (Connection connection = dataSource.getConnection()) {
+                String previousSchema = connection.getSchema();
+                connection.setSchema(schema);
+                try {
+                    JdbcTemplate isolated = new JdbcTemplate(
+                            new SingleConnectionDataSource(connection, true));
+                    isolated.update(
+                            """
+                                    INSERT INTO users(id, email, signature_original_storage_key,
+                                        topic_push_enabled, moderation_push_enabled)
+                                    VALUES (?, 'existing-delivery@example.com', 'delivery/existing', FALSE, TRUE)
+                                    """,
+                            USER_ID);
+                    Map<String, Object> before = isolated.queryForMap("SELECT * FROM users");
 
-            // When
-            jdbc.execute(migration);
+                    // When
+                    migrate(schema, "202610262100");
 
-            // Then
-            assertThat(jdbc.queryForObject(
-                    "SELECT status FROM push_deliveries WHERE id = ?",
-                    String.class,
-                    pending
-            )).isEqualTo("PENDING");
-            assertThat(jdbc.queryForObject(
-                    "SELECT device_results->'device'->>'status' FROM push_deliveries WHERE id = ?",
-                    String.class,
-                    pending
-            )).isEqualTo("SENDING");
-            assertThat(jdbc.queryForObject(
-                    "SELECT status FROM push_deliveries WHERE id = ?",
-                    String.class,
-                    completed
-            )).isEqualTo("COMPLETED");
-            assertThat(jdbc.queryForObject(
-                    "SELECT device_results->'device'->>'status' FROM push_deliveries WHERE id = ?",
-                    String.class,
-                    completed
-            )).isEqualTo("ACCEPTED");
-            assertThat(jdbc.queryForList("""
-                    SELECT attname FROM pg_attribute
-                    WHERE attrelid = 'pg_temp.push_deliveries'::regclass AND NOT attisdropped
-                    """, String.class)).doesNotContain("lease_token", "lease_until");
-        });
+                    // Then
+                    assertThat(isolated.queryForMap("SELECT * FROM users")).isEqualTo(before);
+                    assertThat(isolated.queryForList(
+                            """
+                                    SELECT column_name FROM information_schema.columns
+                                    WHERE table_schema = ? AND table_name = 'push_deliveries'
+                                    """,
+                            String.class,
+                            schema
+                    )).containsExactlyInAnyOrder(
+                            "id",
+                            "event_id",
+                            "user_id",
+                            "status",
+                            "device_results",
+                            "completed_at",
+                            "created_at",
+                            "updated_at"
+                    );
+                    assertThat(isolated.queryForObject("""
+                            SELECT count(*) FROM flyway_schema_history
+                            WHERE version IN ('202610262100', '202610271200')
+                            """, Integer.class)).isEqualTo(1);
+                    Map<String, Object> created = isolated.queryForMap(
+                            """
+                                    INSERT INTO push_deliveries(event_id, user_id) VALUES (?, ?)
+                                    RETURNING id, status, device_results::text, completed_at,
+                                        created_at, updated_at
+                                    """,
+                            EVENT_ID,
+                            USER_ID
+                    );
+                    assertThat(created.get("id")).isNotNull();
+                    assertThat(created.get("status")).isEqualTo("PENDING");
+                    assertThat(created.get("device_results")).isEqualTo("{}");
+                    assertThat(created.get("completed_at")).isNull();
+                    assertThat(created.get("created_at")).isNotNull();
+                    assertThat(created.get("updated_at")).isNotNull();
+                } finally {
+                    connection.setSchema(previousSchema);
+                }
+            }
+        } finally {
+            jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
+        }
+    }
+
+    private void migrate(String schema, String target) {
+        Flyway.configure().dataSource(dataSource).defaultSchema(schema).schemas(schema)
+                .locations("classpath:db/migration").target(target).load().migrate();
     }
 
     private PushDelivery create() {
