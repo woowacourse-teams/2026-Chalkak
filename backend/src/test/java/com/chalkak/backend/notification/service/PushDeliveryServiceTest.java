@@ -21,7 +21,11 @@ import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -31,11 +35,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class PushDeliveryServiceTest extends IntegrationTestSupport {
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID DEVICE_ID = UUID.randomUUID();
     private static final Instant NOW = Instant.parse("2026-10-26T00:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     @Autowired
     private PushDeliveryRepository repository;
@@ -80,12 +86,18 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
     void process_activeLease_renewsAndCancelsOnExit() {
         // When
         PushProcessingResult result = service.process(message, lease -> {
-            lease.startDevice(DEVICE_ID, NOW);
-            jdbc.update(
-                    "UPDATE push_deliveries SET lease_until=clock_timestamp()+INTERVAL '5 seconds'");
-            Instant before = current().getLeaseUntil();
-            renewalTask().run();
-            assertThat(current().getLeaseUntil()).isAfter(before.plusSeconds(50));
+            lease.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    () -> {
+                        jdbc.update(
+                                "UPDATE push_deliveries SET lease_until=clock_timestamp()+INTERVAL '5 seconds'");
+                        Instant before = current().getLeaseUntil();
+                        renewalTask().run();
+                        assertThat(current().getLeaseUntil()).isAfter(before.plusSeconds(50));
+                        return DevicePushResult.retryable("UNAVAILABLE");
+                    }
+            );
             return new PushProcessingResult(true, Duration.ofSeconds(60));
         });
 
@@ -101,11 +113,21 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
     void process_expiredLeaseAtRenewal_stopsStartingDevices() {
         // When
         PushProcessingResult result = service.process(message, lease -> {
-            lease.startDevice(DEVICE_ID, NOW);
-            jdbc.update(
-                    "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
-            renewalTask().run();
-            lease.startDevice(UUID.randomUUID(), NOW);
+            lease.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    () -> {
+                        jdbc.update(
+                                "UPDATE push_deliveries SET lease_until=clock_timestamp()-INTERVAL '1 second'");
+                        renewalTask().run();
+                        return DevicePushResult.accepted();
+                    }
+            );
+            lease.send(
+                    UUID.randomUUID(),
+                    CLOCK,
+                    DevicePushResult::accepted
+            );
             return PushProcessingResult.completed();
         });
 
@@ -117,16 +139,25 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("처리 중 예외가 나도 시작 기록을 보존하고 Lease를 해제하며 예약을 취소한다")
-    void process_actionFails_preservesStartedAttemptAndReleasesLease() {
+    @DisplayName("외부 발송 중 예상하지 못한 예외는 결과 불명으로 저장하고 Lease를 반납한다")
+    void process_sendFails_recordsUnknownAndReleasesLease() {
         // When & Then
-        assertThatThrownBy(() -> service.process(message, lease -> {
-            lease.startDevice(DEVICE_ID, NOW);
-            throw new IllegalStateException("processing failed");
-        })).isInstanceOf(IllegalStateException.class);
+        PushProcessingResult result = service.process(message, lease -> {
+            DevicePushResult failed = lease.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    () -> {
+                        throw new IllegalStateException("send failed");
+                    }
+            );
+            return new PushProcessingResult(failed.isRetryable(), failed.retryAfter());
+        });
+        assertThat(result.retryable()).isTrue();
         assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
         assertThat(current().getDeviceResults().get(DEVICE_ID).getStatus())
-                .isEqualTo(PushDeviceDeliveryStatus.SENDING);
+                .isEqualTo(PushDeviceDeliveryStatus.UNKNOWN);
+        assertThat(current().getDeviceResults().get(DEVICE_ID).getLastErrorCode())
+                .isEqualTo("IllegalStateException");
         verify(renewal).cancel(false);
     }
 
@@ -138,19 +169,15 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
 
         // When
         PushProcessingResult result = service.process(message, lease -> {
-            var accepted = lease.startDevice(DEVICE_ID, NOW);
-            lease.recordResult(
+            lease.send(
                     DEVICE_ID,
-                    accepted,
-                    DevicePushResult.accepted(),
-                    NOW
+                    CLOCK,
+                    DevicePushResult::accepted
             );
-            var retryable = lease.startDevice(other, NOW);
-            lease.recordResult(
+            lease.send(
                     other,
-                    retryable,
-                    DevicePushResult.retryable("UNAVAILABLE"),
-                    NOW
+                    CLOCK,
+                    () -> DevicePushResult.retryable("UNAVAILABLE")
             );
             return new PushProcessingResult(true, Duration.ofSeconds(120));
         });
@@ -163,6 +190,85 @@ class PushDeliveryServiceTest extends IntegrationTestSupport {
         assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
         assertThat(current().getDeviceResults().get(other).getStatus())
                 .isEqualTo(PushDeviceDeliveryStatus.RETRYABLE);
+        verify(renewal).cancel(false);
+    }
+
+    @Test
+    @DisplayName("시작 기록은 외부 호출 전에 커밋되고 결과 기록과 사용자 완료도 각각 커밋된다")
+    void process_sendOutsideTransaction_preservesTransactionBoundaries() {
+        // When
+        PushProcessingResult result = service.process(message, lease -> {
+            DevicePushResult sent = lease.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    () -> {
+                        assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                                .isFalse();
+                        assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
+                        assertThat(current().getDeviceResults().get(DEVICE_ID).getStatus())
+                                .isEqualTo(PushDeviceDeliveryStatus.SENDING);
+                        return DevicePushResult.accepted();
+                    }
+            );
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PROCESSING);
+            assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
+            return new PushProcessingResult(sent.isRetryable(), sent.retryAfter());
+        });
+
+        // Then
+        assertThat(result.retryable()).isFalse();
+        assertThat(current().isCompleted()).isTrue();
+        assertThat(current().getLeaseToken()).isNull();
+    }
+
+    @Test
+    @DisplayName("외부 발송 대기 중 다른 스레드의 Lease 갱신은 차단되지 않는다")
+    void process_waitingForSend_allowsConcurrentLeaseRenewal() {
+        // Given
+        try (var renewalThread = Executors.newSingleThreadExecutor()) {
+            // When
+            PushProcessingResult result = service.process(message, lease -> {
+                DevicePushResult sent = lease.send(
+                        DEVICE_ID,
+                        CLOCK,
+                        () -> {
+                            jdbc.update("""
+                                    UPDATE push_deliveries
+                                    SET lease_until=clock_timestamp()+INTERVAL '5 seconds'
+                                    """);
+                            Instant before = current().getLeaseUntil();
+                            CompletableFuture.runAsync(renewalTask(), renewalThread)
+                                    .orTimeout(5, TimeUnit.SECONDS).join();
+                            assertThat(current().getLeaseUntil()).isAfter(before.plusSeconds(50));
+                            return DevicePushResult.accepted();
+                        }
+                );
+                return new PushProcessingResult(sent.isRetryable(), sent.retryAfter());
+            });
+
+            // Then
+            assertThat(result.retryable()).isFalse();
+            assertThat(current().isCompleted()).isTrue();
+            verify(renewal).cancel(false);
+        }
+    }
+
+    @Test
+    @DisplayName("기기 결과 저장 이후 후속 처리 예외는 수락 기록을 보존하고 Lease를 반납한다")
+    void process_actionFailsAfterAcceptance_preservesResultAndReleasesLease() {
+        // When & Then
+        assertThatThrownBy(() -> service.process(message, lease -> {
+            lease.send(
+                    DEVICE_ID,
+                    CLOCK,
+                    DevicePushResult::accepted
+            );
+            throw new IllegalStateException("processing failed after result");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(current().getStatus()).isEqualTo(PushDeliveryStatus.PENDING);
+        assertThat(current().getDeviceResults().get(DEVICE_ID).isAccepted()).isTrue();
+        assertThat(current().getLeaseToken()).isNull();
         verify(renewal).cancel(false);
     }
 

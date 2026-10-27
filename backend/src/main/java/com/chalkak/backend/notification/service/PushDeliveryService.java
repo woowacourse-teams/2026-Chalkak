@@ -44,21 +44,7 @@ public class PushDeliveryService {
             if (existing != null && existing.hasAcceptedDevice()) {
                 lease.ensureClaimed();
             }
-            if (lease.isCompleted()) {
-                return PushProcessingResult.completed();
-            }
-            PushProcessingResult result = action.apply(lease);
-            if (!lease.isClaimed()) {
-                return result;
-            }
-            if (lease.isCompleted()) {
-                return PushProcessingResult.completed();
-            }
-            if (!result.retryable()) {
-                lease.complete();
-                return PushProcessingResult.completed();
-            }
-            return result;
+            return lease.process(action);
         } catch (PushLeaseLostException exception) {
             log.atWarn().addKeyValue("type", "notification")
                     .addKeyValue("stage", "worker_delivery_lease_unavailable")

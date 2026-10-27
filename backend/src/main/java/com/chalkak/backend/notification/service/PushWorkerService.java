@@ -8,7 +8,6 @@ import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
-import com.chalkak.backend.notification.domain.PushDelivery.DeviceResult;
 import com.chalkak.backend.exception.PushLeaseLostException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
@@ -212,12 +211,15 @@ public class PushWorkerService {
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
-        DevicePushResult result = sendAndRecord(
-                message,
+        DevicePushResult result = lease.send(
                 deviceId,
-                request,
-                timing,
-                lease
+                clock,
+                () -> sendToFcm(
+                        message,
+                        deviceId,
+                        request,
+                        timing
+                )
         );
         if (result.status() == DevicePushResult.Status.SKIPPED) {
             logSkipped(
@@ -239,17 +241,12 @@ public class PushWorkerService {
         return result;
     }
 
-    private DevicePushResult sendAndRecord(
+    private DevicePushResult sendToFcm(
             PushMessage message,
             UUID deviceId,
             DevicePushRequest request,
-            DevicePushTiming timing,
-            PushDeliveryLease lease
+            DevicePushTiming timing
     ) {
-        DeviceResult started = lease.startDevice(deviceId, clock.instant());
-        if (started == null) {
-            return DevicePushResult.skipped("DELIVERY_ALREADY_PROCESSED");
-        }
         DevicePushResult result;
         try {
             result = sender.send(request, timing);
@@ -261,13 +258,7 @@ public class PushWorkerService {
                     exception,
                     timing
             );
-            lease.recordUnknown(
-                    deviceId,
-                    started,
-                    exception,
-                    clock.instant()
-            );
-            return DevicePushResult.retryable(exception.getClass().getSimpleName());
+            throw exception;
         }
         if (result.status() != DevicePushResult.Status.SKIPPED) {
             logResult(
@@ -277,12 +268,6 @@ public class PushWorkerService {
                     timing
             );
         }
-        lease.recordResult(
-                deviceId,
-                started,
-                result,
-                clock.instant()
-        );
         return result;
     }
 

@@ -5,12 +5,15 @@ import com.chalkak.backend.notification.domain.PushDelivery.DeviceResult;
 import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
 import com.chalkak.backend.exception.PushLeaseLostException;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -37,15 +40,59 @@ public final class PushDeliveryLease implements AutoCloseable {
         this.executor = executor;
     }
 
-    synchronized boolean isClaimed() {
-        return delivery != null;
+    PushProcessingResult process(Function<PushDeliveryLease, PushProcessingResult> action) {
+        if (isCompleted()) {
+            return PushProcessingResult.completed();
+        }
+        return finish(action.apply(this));
     }
 
-    synchronized boolean isCompleted() {
-        return completed;
+    public DevicePushResult send(
+            UUID deviceId,
+            Clock clock,
+            Supplier<DevicePushResult> action
+    ) {
+        DeviceResult started = startDevice(deviceId, clock.instant());
+        if (started == null) {
+            return DevicePushResult.skipped("DELIVERY_ALREADY_PROCESSED");
+        }
+        DevicePushResult result;
+        try {
+            result = action.get();
+        } catch (RuntimeException exception) {
+            recordUnknown(
+                    deviceId,
+                    started,
+                    exception,
+                    clock.instant()
+            );
+            return DevicePushResult.retryable(exception.getClass().getSimpleName());
+        }
+        recordResult(
+                deviceId,
+                started,
+                result,
+                clock.instant()
+        );
+        return result;
     }
 
-    public synchronized DeviceResult startDevice(UUID deviceId, Instant now) {
+    @Override
+    public synchronized void close() {
+        if (renewal != null) {
+            renewal.cancel(false);
+        }
+        if (delivery != null && owned && !completed) {
+            try {
+                repository.release(delivery.getId(), token);
+            } catch (RuntimeException exception) {
+                logLeaseFailure(exception);
+            }
+        }
+        owned = false;
+    }
+
+    private synchronized DeviceResult startDevice(UUID deviceId, Instant now) {
         ensureClaimed();
         if (completed || !delivery.canSendTo(deviceId)) {
             return null;
@@ -64,7 +111,7 @@ public final class PushDeliveryLease implements AutoCloseable {
         return started;
     }
 
-    public synchronized void recordResult(
+    private synchronized void recordResult(
             UUID deviceId,
             DeviceResult started,
             DevicePushResult result,
@@ -77,7 +124,7 @@ public final class PushDeliveryLease implements AutoCloseable {
         ));
     }
 
-    public synchronized void recordUnknown(
+    private synchronized void recordUnknown(
             UUID deviceId,
             DeviceResult started,
             RuntimeException exception,
@@ -88,21 +135,6 @@ public final class PushDeliveryLease implements AutoCloseable {
                 exception.getClass().getSimpleName(),
                 now
         ));
-    }
-
-    @Override
-    public synchronized void close() {
-        if (renewal != null) {
-            renewal.cancel(false);
-        }
-        if (delivery != null && owned && !completed) {
-            try {
-                repository.release(delivery.getId(), token);
-            } catch (RuntimeException exception) {
-                logLeaseFailure(exception);
-            }
-        }
-        owned = false;
     }
 
     synchronized void ensureClaimed() {
@@ -204,7 +236,25 @@ public final class PushDeliveryLease implements AutoCloseable {
         return PushDeviceDeliveryStatus.SKIPPED;
     }
 
-    synchronized void complete() {
+    private synchronized PushProcessingResult finish(PushProcessingResult result) {
+        if (delivery == null) {
+            return result;
+        }
+        if (completed) {
+            return PushProcessingResult.completed();
+        }
+        if (result.retryable()) {
+            return result;
+        }
+        complete();
+        return PushProcessingResult.completed();
+    }
+
+    private synchronized boolean isCompleted() {
+        return completed;
+    }
+
+    private void complete() {
         if (!owned || !repository.complete(delivery.getId(), token)) {
             owned = false;
             throw new PushLeaseLostException();
