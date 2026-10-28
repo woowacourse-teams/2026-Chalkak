@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.dialog.CONFIRM_BUTTON_TEST_TAG
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -28,7 +29,7 @@ class SettingsScreenTest {
         setSettingsContent(
             SettingsUiState(
                 isLoggedIn = true,
-                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                signatureUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
         )
@@ -45,7 +46,7 @@ class SettingsScreenTest {
         setSettingsContent(
             uiState = SettingsUiState(
                 isLoggedIn = true,
-                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                signatureUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
             onChangeSignatureClick = { changeClicked = true },

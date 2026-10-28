@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
@@ -257,7 +258,7 @@ private fun RecordSelectedPhotoPreview() {
             post = PostCalendarItem(
                 postId = "preview-post",
                 topicDate = LocalDate.of(2026, 8, 2),
-                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
+                thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
                 status = PostStatus.APPROVED,
             ),
             modifier = Modifier.fillMaxWidth(),

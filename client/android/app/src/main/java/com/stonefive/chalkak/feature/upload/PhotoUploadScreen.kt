@@ -52,6 +52,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
@@ -427,7 +428,7 @@ const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
 private const val CAPTION_MAX_LENGTH = 10
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
-    "android.resource://com.stonefive.chalkak/$resourceId"
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 @Preview(
     showBackground = true,

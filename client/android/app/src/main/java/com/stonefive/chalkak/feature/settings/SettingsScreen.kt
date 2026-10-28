@@ -25,7 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.buildvariant.BuildVariantSettingsEntry
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
@@ -92,6 +94,7 @@ fun SettingsRoute(
                 context.openDeviceNotificationSettings()
             }
         },
+        buildVariantContent = { BuildVariantSettingsEntry(modifier = Modifier.fillMaxWidth()) },
         onAiReviewPushChanged = { enabled ->
             viewModel.updateAiReviewPushEnabled(enabled)
             if (enabled && !context.areDeviceNotificationsEnabled()) {
@@ -118,6 +121,7 @@ fun SettingsScreen(
     onTopicPushChanged: (Boolean) -> Unit,
     onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    buildVariantContent: @Composable () -> Unit = {},
     onAiReviewPushChanged: (Boolean) -> Unit = {},
 ) {
     uiState.accountDialog?.let { accountDialog ->
@@ -229,6 +233,8 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            buildVariantContent()
+
             Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
         }
     }
@@ -257,7 +263,7 @@ private fun AuthenticatedSettingsScreenPreview() {
         SettingsScreenPreview(
             uiState = SettingsUiState(
                 isLoggedIn = true,
-                signatureUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                signatureUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 versionName = "1.0",
             ),
         )

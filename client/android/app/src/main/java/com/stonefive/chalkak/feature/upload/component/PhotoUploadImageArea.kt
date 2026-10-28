@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakInputBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -173,7 +174,7 @@ private fun PhotoUploadImageAreaWithoutCameraPreview() {
 private const val PHOTO_AREA_ASPECT_RATIO = 1.216f
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
-    "android.resource://com.stonefive.chalkak/$resourceId"
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 private fun Modifier.photoUploadDashedOutline(
     color: Color,

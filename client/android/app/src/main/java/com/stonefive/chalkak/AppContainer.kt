@@ -73,7 +73,7 @@ class AppContainer(context: Context) {
     }
 
     val appUpdateGateway: AppUpdateGateway by lazy {
-        if (BuildConfig.DEBUG) {
+        if (!BuildConfig.ENABLE_PLAY_APP_UPDATES) {
             DisabledAppUpdateGateway()
         } else {
             PlayAppUpdateGateway(context)

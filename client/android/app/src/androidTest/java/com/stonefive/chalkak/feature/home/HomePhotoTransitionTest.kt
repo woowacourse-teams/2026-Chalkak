@@ -14,6 +14,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionCoordinator
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
@@ -38,7 +39,7 @@ class HomePhotoTransitionTest {
     fun rankingPhotoExpandsIntoFeedAndReturnsToTheSelectedRow() {
         val coordinator = PhotoTransitionCoordinator()
         val today = LocalDate.of(2026, 10, 9)
-        val image = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}"
+        val image = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}"
         val post = Post(
             id = "same-post",
             originalImageUrl = image,

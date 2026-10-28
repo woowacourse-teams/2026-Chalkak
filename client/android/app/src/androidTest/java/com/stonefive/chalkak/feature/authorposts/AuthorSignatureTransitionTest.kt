@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionProvider
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -39,8 +40,8 @@ class AuthorSignatureTransitionTest {
     private fun assertSignatureMatchesBothDirections(useSharedPhoto: Boolean) {
         var showAuthor by mutableStateOf(false)
         var transitionActive = false
-        val image = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}"
-        val signature = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}"
+        val image = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}"
+        val signature = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}"
         val post = Post(
             id = "post",
             authorId = "author",

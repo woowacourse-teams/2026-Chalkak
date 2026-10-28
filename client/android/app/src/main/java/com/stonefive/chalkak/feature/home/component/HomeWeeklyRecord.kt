@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
@@ -247,7 +248,8 @@ private fun HomeWeeklyRecordPreview() {
                         PostCalendarItem(
                             postId = "preview-$index",
                             topicDate = today.plusDays(index.toLong()),
-                            thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_photo}",
+                            thumbnailImageUrl =
+                                "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_photo}",
                             status = PostStatus.APPROVED,
                         )
                     } else {
