@@ -48,6 +48,7 @@ class HomePhotoTransitionTest {
             contentDescription = "어제 사진",
             title = null,
             likeCount = 10,
+            authorId = "author",
         )
         val yesterdayKey = PhotoTransitionKey(post.id, "home-ranking:${today.minusDays(1)}:${post.id}")
         val todayKey = PhotoTransitionKey(post.id, "home-ranking:$today:${post.id}")

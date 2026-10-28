@@ -116,6 +116,7 @@ private fun TodayPhotoListPreview() {
                     contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 찰캌입니다.",
                     likeCount = 24,
+                    authorId = "preview-author",
                 ),
                 Post(
                     id = "preview-2",
@@ -126,6 +127,7 @@ private fun TodayPhotoListPreview() {
                     contentDescription = "두 번째 사진",
                     title = null,
                     likeCount = 12,
+                    authorId = "preview-author",
                 ),
             ),
             contentRevision = 1,

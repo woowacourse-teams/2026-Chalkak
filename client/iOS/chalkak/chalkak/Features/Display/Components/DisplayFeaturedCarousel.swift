@@ -59,10 +59,14 @@ struct DisplayFeaturedCarousel: View {
 
 private struct DisplayFeaturedCard: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     let photo: DisplayPhoto
     let isLiking: Bool
     let onLike: () -> Void
     let onSelect: () -> Void
+    @State private var originalRatio: CGFloat?
+    @State private var thumbnailRatio: CGFloat?
+    @State private var isOriginalLoaded = false
 
     var body: some View {
         // Android(indication = null)처럼 눌림 효과 없이 탭만 받는다. 그리드 셀과 같은 방식이다.
@@ -75,13 +79,23 @@ private struct DisplayFeaturedCard: View {
                 contentDescription: photo.contentDescription,
                 contentMode: .fit,
                 signatureSize: Metrics.signatureSize,
+                onImageLoad: {
+                    isOriginalLoaded = true
+                    originalRatio = cachedRatio(for: photo.originalImageSource) ?? originalRatio
+                },
                 // Android 랭킹 카드처럼 원본을 받는 동안 썸네일을 먼저 보여준다.
                 thumbnailImageSource: photo.thumbnailImageSource,
                 thumbnailSignatureSource: photo.signatureThumbnailImageSource
             )
-            // 사진만 숨겨 검은 카드·좋아요 수·제목은 남긴다. 출발 위치는 카드 안에 맞춘 사진 영역이고,
-            // Android(sourceShape = null)처럼 둥근 모서리 없이 출발한다.
-            .feedZoomSource(.displayFeatured(photo.id), signatureSize: Metrics.signatureSize)
+            // 사진과 좋아요 배지는 전환 중 숨긴다. 출발 위치는 카드 안에 맞춘 사진 영역이고,
+            // 카드 마스크를 함께 전달해 비율이 다른 사진도 출발 때 보이던 모서리를 유지한다.
+            .feedZoomSource(
+                .displayFeatured(photo.id),
+                cornerRadius: theme.shapes.photoCard,
+                signatureSize: Metrics.signatureSize,
+                fittedImageAspectRatio: displayedImageRatio,
+                clipsToContainer: true
+            )
         }
         .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
@@ -99,7 +113,12 @@ private struct DisplayFeaturedCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .onTapGesture(coordinateSpace: .global) { location in
+            if let source = zoomRegistry?.source(for: .displayFeatured(photo.id)),
+               !source.acceptsTap(at: location) { return }
+            onSelect()
+        }
+        .accessibilityAction { onSelect() }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("피드 열기")
         .overlay(alignment: .bottomLeading) {
@@ -109,8 +128,39 @@ private struct DisplayFeaturedCard: View {
                 isEnabled: !isLiking,
                 onLike: onLike
             )
-            .padding(Metrics.badgeInset)
+            .opacity(zoomRegistry?.activeSource == .displayFeatured(photo.id) ? 0 : 1)
+            .allowsHitTesting(zoomRegistry?.activeSource != .displayFeatured(photo.id))
         }
+        .task(id: photo.id) {
+            // 썸네일이 먼저 보이는 동안에도 실제 fit 영역을 출발 프레임으로 사용한다.
+            if let cached = cachedRatio(for: photo.thumbnailImageSource) {
+                thumbnailRatio = cached
+            } else {
+                let ratio = await ImageRatioLoader.ratio(for: photo.thumbnailImageSource)
+                guard !Task.isCancelled else { return }
+                thumbnailRatio = ratio
+            }
+            guard !Task.isCancelled else { return }
+            if let cached = cachedRatio(for: photo.originalImageSource) {
+                originalRatio = cached
+            } else {
+                let ratio = await ImageRatioLoader.ratio(for: photo.originalImageSource)
+                guard !Task.isCancelled else { return }
+                originalRatio = ratio
+            }
+        }
+    }
+
+    private var displayedImageRatio: CGFloat? {
+        if isOriginalLoaded || photo.originalImageSource.cachedImage() != nil {
+            return cachedRatio(for: photo.originalImageSource) ?? originalRatio
+        }
+        return cachedRatio(for: photo.thumbnailImageSource) ?? thumbnailRatio
+    }
+
+    private func cachedRatio(for source: ChalkakImageSource) -> CGFloat? {
+        guard let image = source.cachedImage(), image.size.width > 0 else { return nil }
+        return image.size.height / image.size.width
     }
 }
 
@@ -147,7 +197,6 @@ private enum Metrics {
     static let scaleFalloff: CGFloat = 0.08
     static let opacityFalloff: CGFloat = 0.12
     static let signatureSize = CGSize(width: 48, height: 36)
-    static let badgeInset: CGFloat = 10
     static let titleBottomPadding: CGFloat = 10
     static let dotSpacing: CGFloat = 8
     static let dotSize: CGFloat = 7

@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
@@ -22,6 +22,7 @@ import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadSuccessCard
 import java.time.LocalDate
 
@@ -32,6 +33,7 @@ fun PhotoUploadSuccessScreen(
     content: PhotoUploadSuccessContent,
     onConfirmClick: () -> Unit,
     modifier: Modifier = Modifier,
+    edit: PhotoEdit = PhotoEdit(),
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -54,13 +56,14 @@ fun PhotoUploadSuccessScreen(
                 .fillMaxSize()
                 .background(ChalkakBackground)
                 .verticalScroll(rememberScrollState())
-                .statusBarsPadding()
+                .systemBarsPadding()
                 .padding(bottom = innerPadding.calculateBottomPadding()),
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
             PhotoUploadSuccessCard(
                 imageModel = imageModel,
+                edit = edit,
                 contentDescription = "전시한 사진",
                 date = content.date,
                 title = caption.takeIf(String::isNotBlank) ?: content.topic,

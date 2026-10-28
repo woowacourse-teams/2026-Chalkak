@@ -3,6 +3,7 @@ import UIKit
 
 struct PhotoUploadScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
 
     let viewState: PhotoUploadViewState
     let isCameraAvailable: Bool
@@ -12,8 +13,6 @@ struct PhotoUploadScreen: View {
     @State private var isCaptionFocused = false
     @State private var isKeyboardVisible = false
     @State private var isBackPending = false
-    @State private var message: String?
-    @State private var messageDismissTask: Task<Void, Never>?
     @State private var captionFrame: CGRect = .zero
     @State private var scrollOffset: CGFloat = 0
     @State private var canDismissCurrentDrag: Bool?
@@ -25,6 +24,8 @@ struct PhotoUploadScreen: View {
                     selectedImage: viewState.selectedImage,
                     topicTitle: viewState.topicTitle,
                     isCameraAvailable: isCameraAvailable,
+                    isImageEditable: viewState.canEditSelectedImage && !viewState.isSubmitting,
+                    onImageClick: { onAction(.selectedImageClicked) },
                     onGalleryClick: { onAction(.galleryClicked) },
                     onCameraClick: { onAction(.cameraClicked) }
                 )
@@ -110,19 +111,6 @@ struct PhotoUploadScreen: View {
             .padding(.horizontal, 26)
             .padding(.bottom, 26)
         }
-        .overlay(alignment: .bottom) {
-            if let message {
-                Text(message)
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.onActionPrimary)
-                    .padding(.horizontal, theme.spacing.lg)
-                    .padding(.vertical, theme.spacing.md)
-                    .background(theme.colors.actionPrimary, in: Capsule())
-                    .padding(.bottom, 88)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel(message)
-            }
-        }
         .contentShape(Rectangle())
         .coordinateSpace(name: "photoUpload.dismiss")
         .simultaneousGesture(dismissGesture)
@@ -143,9 +131,6 @@ struct PhotoUploadScreen: View {
         .onChange(of: isCaptionFocused) { _, isFocused in
             guard !isFocused, isBackPending, !isKeyboardVisible else { return }
             completePendingBack()
-        }
-        .onDisappear {
-            messageDismissTask?.cancel()
         }
     }
 
@@ -197,17 +182,7 @@ struct PhotoUploadScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 
     private enum Constants {

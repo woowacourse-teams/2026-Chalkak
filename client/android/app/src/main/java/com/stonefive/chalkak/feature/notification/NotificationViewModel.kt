@@ -24,6 +24,10 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
     val uiState: StateFlow<NotificationUiState> = _uiState.asStateFlow()
     private var nextMessageId = 0L
 
+    // 모두 읽음 이전에 시작한 조회의 응답이 읽음 상태를 되돌리지 않게 한다.
+    private var readAllGeneration = 0
+    private var readAllAt: String? = null
+
     init {
         refresh()
     }
@@ -40,6 +44,7 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
         if (!state.hasNext || state.isLoading || state.isLoadingMore) return
 
         _uiState.update { it.copy(isLoadingMore = true, errorMessage = null) }
+        val requestGeneration = readAllGeneration
         viewModelScope.launch {
             when (
                 val result = repository.getNotifications(
@@ -51,7 +56,8 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
                     current.copy(
                         notifications =
                             current.notifications + result.value.notifications
-                                .map(NotificationItem::toUiState),
+                                .map(NotificationItem::toUiState)
+                                .readIfMarkedAllSince(requestGeneration),
                         currentPage = result.value.currentPage,
                         hasNext = result.value.hasNext,
                         isLoadingMore = false,
@@ -91,6 +97,18 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
             }
 
             is NotificationResult.Failure -> {
+                // 읽음 저장 실패와 알림 내용의 접근 가능 여부는 별개다.
+                if (result.reason == NotificationFailure.Network) {
+                    _uiState.update {
+                        it.copy(
+                            pendingMessage = UiMessage.Toast(
+                                nextMessageId++,
+                                "읽음 상태를 저장하지 못했어요. 네트워크 연결을 확인해 주세요.",
+                            ),
+                        )
+                    }
+                    return true
+                }
                 val isNotFound = (result.reason as? NotificationFailure.Http)?.statusCode == 404
                 if (isNotFound) {
                     _uiState.update {
@@ -117,18 +135,49 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
     }
 
     fun markAllAsRead() {
+        val state = _uiState.value
+        if (!state.canMarkAllRead) return
+
+        _uiState.update { it.copy(isMarkingAllRead = true) }
         viewModelScope.launch {
-            when (repository.markAllAsRead()) {
-                is NotificationResult.Success -> refresh()
+            val result = try {
+                repository.markAllAsRead()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                NotificationResult.Failure(NotificationFailure.Network)
+            }
+            when (result) {
+                is NotificationResult.Success -> {
+                    val readAt = Instant.now().toString()
+                    readAllGeneration++
+                    readAllAt = readAt
+                    _uiState.update { current ->
+                        current.copy(
+                            notifications = current.notifications.map { item ->
+                                if (item.isUnread) item.copy(readAt = readAt, isUnread = false) else item
+                            },
+                            hasUnread = false,
+                            isMarkingAllRead = false,
+                        )
+                    }
+                }
 
                 is NotificationResult.Failure -> _uiState.update {
-                    it.copy(errorMessage = "읽음 처리에 실패했어요. 다시 시도해 주세요.")
+                    it.copy(
+                        isMarkingAllRead = false,
+                        pendingMessage = UiMessage.Toast(
+                            nextMessageId++,
+                            "모두 읽음 처리하지 못했어요. 다시 시도해 주세요.",
+                        ),
+                    )
                 }
             }
         }
     }
 
     private suspend fun loadFirstPage() {
+        val requestGeneration = readAllGeneration
         when (
             val result = repository.getNotifications(
                 page = FIRST_NOTIFICATION_PAGE,
@@ -138,7 +187,8 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
             is NotificationResult.Success -> _uiState.update {
                 it.copy(
                     notifications = result.value.notifications
-                        .map(NotificationItem::toUiState),
+                        .map(NotificationItem::toUiState)
+                        .readIfMarkedAllSince(requestGeneration),
                     currentPage = result.value.currentPage,
                     hasNext = result.value.hasNext,
                     isLoading = false,
@@ -158,10 +208,19 @@ class NotificationViewModel(private val repository: NotificationRepository) : Vi
     }
 
     private suspend fun refreshUnreadStatus() {
+        val requestGeneration = readAllGeneration
         when (val result = repository.getUnreadStatus()) {
-            is NotificationResult.Success -> _uiState.update { it.copy(hasUnread = result.value) }
+            is NotificationResult.Success -> if (requestGeneration == readAllGeneration) {
+                _uiState.update { it.copy(hasUnread = result.value) }
+            }
+
             is NotificationResult.Failure -> Unit
         }
+    }
+
+    private fun List<NotificationItemUiState>.readIfMarkedAllSince(generation: Int): List<NotificationItemUiState> {
+        if (generation == readAllGeneration) return this
+        return map { item -> if (item.isUnread) item.copy(readAt = readAllAt, isUnread = false) else item }
     }
 
     companion object {

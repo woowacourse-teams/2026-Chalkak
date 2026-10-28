@@ -29,8 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.feature.notification.component.NotificationListItem
 import com.stonefive.chalkak.feature.notification.component.NotificationTopBar
@@ -43,6 +45,7 @@ fun NotificationRoute(
     onBackClick: () -> Unit,
     onNotificationClick: (NotificationItemUiState) -> Unit = {},
     modifier: Modifier = Modifier,
+    onReadFailureMessage: (String) -> Unit = {},
     viewModel: NotificationViewModel = viewModel(factory = NotificationViewModel.Factory),
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -55,9 +58,20 @@ fun NotificationRoute(
         onBackClick = onBackClick,
         onRefresh = viewModel::refresh,
         onLoadNextPage = viewModel::loadNextPage,
+        onMarkAllReadClick = viewModel::markAllAsRead,
         onNotificationClick = { item ->
             coroutineScope.launch {
-                if (viewModel.markAsRead(item.id)) onNotificationClick(item)
+                val previousMessageId = viewModel.uiState.value.pendingMessage
+                    ?.id
+                if (viewModel.markAsRead(item.id)) {
+                    val message = viewModel.uiState.value.pendingMessage
+                    if (message is UiMessage.Toast && message.id != previousMessageId) {
+                        // 알림함을 떠나도 안내가 보이도록 상위 내비게이션에 전달한다.
+                        onReadFailureMessage(message.text)
+                        viewModel.onMessageShown(message.id)
+                    }
+                    onNotificationClick(item)
+                }
             }
         },
         modifier = modifier,
@@ -71,6 +85,7 @@ fun NotificationScreen(
     modifier: Modifier = Modifier,
     onRefresh: () -> Unit = {},
     onLoadNextPage: () -> Unit = {},
+    onMarkAllReadClick: () -> Unit = {},
     onNotificationClick: (NotificationItemUiState) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
@@ -116,6 +131,8 @@ fun NotificationScreen(
         NotificationTopBar(
             onBackClick = onBackClick,
             modifier = Modifier.fillMaxWidth(),
+            onMarkAllReadClick = onMarkAllReadClick,
+            isMarkAllReadEnabled = uiState.canMarkAllRead,
         )
 
         when {
@@ -161,7 +178,7 @@ fun NotificationScreen(
                 ) { notification ->
                     NotificationListItem(
                         item = notification,
-                        onClick = { onNotificationClick(notification) },
+                        onClick = dropUnlessResumed { onNotificationClick(notification) },
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = ChalkakTheme.spacing.screenHorizontal),
                     )

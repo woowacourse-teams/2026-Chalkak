@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f6f3">
+  <meta name="description" content="찰캌 베타테스트에 함께해주신 여러분, 감사합니다.">
+  <title>함께 만들어주신 찰캌 · 감사합니다</title>
+  <link rel="stylesheet" href="beta.css">
+  <script src="beta-data.js" defer></script>
+  <script src="beta.js" defer></script>
+</head>
+<body>
+  <main class="beta-page">
+    <header class="thanks-heading">
+      <h1>베타테스트에<br>도움 주셔서 감사합니다!</h1>
+      <p>여러분의 시선으로 채워진 사진들,<br>그리고 함께 남겨주신 사인들.<br>덕분에 찰캌의 첫 이야기가 시작됐어요.</p>
+    </header>
+    <section class="beta-stats" aria-label="함께 만든 찰캌의 기록">
+      <dl class="stats-grid">
+        <div><dt>남겨주신 사진</dt><dd>687<span>장</span></dd></div>
+        <div><dt>보내주신 좋아요</dt><dd>2,963<span>개</span></dd></div>
+        <div><dt>함께한 사람들</dt><dd>134<span>명</span></dd></div>
+        <div><dt>하루 평균 접속</dt><dd>약 36<span>명</span></dd></div>
+      </dl>
+    </section>
+    <section class="signatures" aria-label="함께해주신 베타테스터의 사인">
+      <div id="signature-rows"></div>
+      <button id="motion-toggle" type="button" aria-pressed="false">사인 움직임 멈추기</button>
+    </section>
+    <section class="memories" aria-labelledby="memories-title">
+      <div class="memories-heading"><h2 id="memories-title">함께 남긴 순간들</h2><p>하루의 주제를 각자의 시선으로 담아주셨습니다.</p></div>
+      <div id="beta-gallery" class="beta-gallery"></div>
+    </section>
+    <p class="thanks-ending">보내주신 마음을 담아,<br>찰캌을 더 좋은 공간으로 만들어갈게요.</p>
+    <noscript><p>사진과 사인을 보려면 JavaScript를 활성화해주세요.</p></noscript>
+  </main>
+</body>
+</html>

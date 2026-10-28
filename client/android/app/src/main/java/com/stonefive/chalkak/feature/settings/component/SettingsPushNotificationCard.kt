@@ -23,6 +23,8 @@ fun SettingsPushNotificationCard(
     onTopicPushChanged: (Boolean) -> Unit,
     onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    onAiReviewPushChanged: (Boolean) -> Unit = {},
+    isAiReviewSaving: Boolean = false,
 ) {
     SettingsCard(modifier = modifier) {
         SettingsPushToggleRow(
@@ -37,6 +39,13 @@ fun SettingsPushNotificationCard(
             checked = settings?.moderationPushEnabled == true,
             enabled = settings != null && !isModerationSaving,
             onCheckedChange = onModerationPushChanged,
+        )
+        SettingsDivider(modifier = Modifier.fillMaxWidth())
+        SettingsPushToggleRow(
+            text = "AI 피드백 알림",
+            checked = settings?.aiReviewPushEnabled == true,
+            enabled = settings != null && !isAiReviewSaving,
+            onCheckedChange = onAiReviewPushChanged,
         )
     }
 }

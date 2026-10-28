@@ -13,6 +13,7 @@ val previewDisplayPost = Post(
     contentDescription = "푸른 운동화",
     title = "한낮의 다리",
     likeCount = 17,
+    authorId = "preview-author",
 )
 
 val previewDisplayPhotos = listOf(

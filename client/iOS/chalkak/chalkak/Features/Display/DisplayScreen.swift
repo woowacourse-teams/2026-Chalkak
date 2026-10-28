@@ -2,23 +2,26 @@ import SwiftUI
 
 struct DisplayScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     @Bindable var viewModel: DisplayViewModel
+    @State private var scrollPosition = ScrollPosition()
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
     var onSelectPhoto: (FeedTarget) -> Void = { _ in }
 
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
+    @State private var isDatePickerPresented = false
 
     // Feed가 원본을 로드할 때까지 출발 카드에 떠 있던 이미지를 대신 보여준다.
     private func feedTarget(
         for photo: DisplayPhoto,
         zoomSource: FeedZoomSource,
-        placeholder: FeedPhotoPlaceholder
+        placeholder: FeedPhotoPlaceholder,
+        transitionSource: FeedZoomRegistry.Source? = nil
     ) -> FeedTarget {
         let dateLabel = viewModel.viewState.selectedDate.map(FeedDateLabel.make(from:)) ?? ""
-        return FeedTarget(
+        var target = FeedTarget(
             seed: FeedContent(
                 dateLabel: dateLabel,
                 topicDate: viewModel.viewState.selectedDate ?? Date(),
@@ -31,69 +34,83 @@ struct DisplayScreen: View {
                     title: photo.title,
                     likeCount: photo.likeCount,
                     isLiked: photo.isLiked,
-                    isOwnedByCurrentUser: photo.isOwnedByCurrentUser
+                    isOwnedByCurrentUser: photo.isOwnedByCurrentUser,
+                    authorID: photo.authorID
                 )
             ),
             isLikeConfirmed: true,
             zoomSource: zoomSource,
             placeholder: placeholder
         )
+        target.transitionSource = transitionSource ?? zoomRegistry?.source(for: zoomSource)
+        return target
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            dateHeader
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .overlay(alignment: .bottom) { toast }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .task {
+        // 홈이나 사진 업로드 완료에서 날짜를 지정해 열면 뷰모델을 새로 만든다. 탭 전환 애니메이션 중에는 화면이 재사용될 수 있어
+        // 나타날 때만이 아니라 뷰모델이 바뀔 때도 다시 불러온다.
+        .task(id: ObjectIdentifier(viewModel)) {
             guard viewModel.viewState.contentStatus == .loading else { return }
             await viewModel.load()
         }
-        .onDisappear {
-            messageDismissTask?.cancel()
+        .sheet(isPresented: $isDatePickerPresented) {
+            datePickerSheet
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            DisplayDateHeader(
-                date: viewModel.viewState.selectedDate,
-                canGoPrevious: viewModel.viewState.canGoPrevious,
-                canGoNext: viewModel.viewState.canGoNext,
-                onPrevious: { Task { await viewModel.moveToPreviousDate() } },
-                onNext: { Task { await viewModel.moveToNextDate() } }
-            )
-
-            if isLoaded {
-                DisplayTopic(
-                    topic: viewModel.viewState.topic,
-                    description: topicDescription
-                )
-                .padding(.top, Metrics.dateToTopicSpacing)
-                .padding(.bottom, Metrics.topicToDividerSpacing)
+    @ViewBuilder
+    private var datePickerSheet: some View {
+        if let selectedDate = viewModel.viewState.selectedDate,
+           let latestDate = viewModel.viewState.latestDate {
+            DisplayDatePickerSheet(
+                selectedDate: selectedDate,
+                startDate: viewModel.viewState.earliestDate ?? selectedDate,
+                endDate: latestDate
+            ) { date in
+                isDatePickerPresented = false
+                Task { await viewModel.moveToDate(date) }
             }
         }
+    }
+
+    private var dateHeader: some View {
+        DisplayDateHeader(
+            date: viewModel.viewState.selectedDate,
+            canGoPrevious: viewModel.viewState.canGoPrevious,
+            canGoNext: viewModel.viewState.canGoNext,
+            onPrevious: { Task { await viewModel.moveToPreviousDate() } },
+            onNext: { Task { await viewModel.moveToNextDate() } },
+            canPickDate: viewModel.viewState.canPickDate,
+            onDateTap: { isDatePickerPresented = true }
+        )
+        .padding(.horizontal, theme.spacing.screenHorizontal)
+        .background(theme.colors.background)
+    }
+
+    private var topicHeader: some View {
+        DisplayTopic(
+            topic: viewModel.viewState.topic,
+            description: topicDescription
+        )
+        .padding(.top, Metrics.dateToTopicSpacing)
+        .padding(.bottom, Metrics.topicToDividerSpacing)
         .padding(.horizontal, theme.spacing.screenHorizontal)
         .background(theme.colors.background)
         .overlay(alignment: .bottom) {
-            if isLoaded {
-                Rectangle()
-                    .fill(theme.colors.border)
-                    .frame(height: Metrics.dividerHeight)
-                    .accessibilityHidden(true)
-            }
+            Rectangle()
+                .fill(theme.colors.border)
+                .frame(height: Metrics.dividerHeight)
+                .accessibilityHidden(true)
         }
-    }
-
-    private var isLoaded: Bool {
-        viewModel.viewState.contentStatus == .latest
-            || viewModel.viewState.contentStatus == .archive
     }
 
     @ViewBuilder
@@ -136,6 +153,9 @@ struct DisplayScreen: View {
     private var loadedContent: some View {
         ScrollView {
             VStack(spacing: 0) {
+                topicHeader
+                    .padding(.horizontal, -theme.spacing.screenHorizontal)
+
                 if viewModel.viewState.contentStatus == .archive,
                    !viewModel.viewState.featuredPhotos.isEmpty {
                     DisplayFeaturedCarousel(
@@ -188,7 +208,7 @@ struct DisplayScreen: View {
                         },
                         likingPhotoIDs: viewModel.likingPhotoIDs,
                         onLike: { photo in Task { await viewModel.toggleLike(photoID: photo.id) } },
-                        onSelect: { photo, ratio in
+                        onSelect: { photo, ratio, source in
                             onSelectPhoto(
                                 feedTarget(
                                     for: photo,
@@ -197,7 +217,8 @@ struct DisplayScreen: View {
                                         imageSource: photo.thumbnailImageSource,
                                         signatureImageSource: photo.signatureThumbnailImageSource,
                                         heightToWidthRatio: ratio
-                                    )
+                                    ),
+                                    transitionSource: source
                                 )
                             )
                         }
@@ -207,6 +228,13 @@ struct DisplayScreen: View {
             }
             .padding(.horizontal, theme.spacing.screenHorizontal)
             .padding(.bottom, theme.spacing.xxl)
+        }
+        .feedZoomViewport(.display)
+        .scrollPosition($scrollPosition)
+        .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
+            withAnimation(.snappy) {
+                scrollPosition.scrollTo(edge: .top)
+            }
         }
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .background(theme.colors.background)
@@ -245,21 +273,6 @@ struct DisplayScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
-        }
-    }
-
     private func centeredContainer(@ViewBuilder _ content: () -> some View) -> some View {
         VStack {
             Spacer(minLength: 0)
@@ -281,17 +294,7 @@ struct DisplayScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 }
 
@@ -300,7 +303,6 @@ private enum Metrics {
     static let retryButtonSize: CGFloat = 48
     static let emptyIconSize: CGFloat = 34
     static let emptyTopPadding: CGFloat = 96
-    static let toastBottomPadding: CGFloat = 88
     static let dividerHeight: CGFloat = 0.5
     // Android DisplayDateHeader / DisplayScreen 간격.
     static let dateToTopicSpacing: CGFloat = 15

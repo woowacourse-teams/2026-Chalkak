@@ -26,7 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -44,8 +47,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
@@ -54,11 +57,13 @@ import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.feature.record.component.RecordCalendarGrid
+import com.stonefive.chalkak.feature.record.component.RecordMonthPickerSheet
 import com.stonefive.chalkak.feature.record.component.RecordPhotoActions
 import com.stonefive.chalkak.feature.record.component.RecordSelectedPhoto
 import com.stonefive.chalkak.feature.record.component.RecordTopBar
 import com.stonefive.chalkak.feature.record.component.RecordWeekdayHeader
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,6 +80,8 @@ fun RecordRoute(
     onOpenFeed: (String, String) -> Unit = { _, _ -> },
     deletedPostId: String? = null,
     onDeletedPostConsumed: () -> Unit = {},
+    requestedDate: LocalDate? = null,
+    onRequestedDateConsumed: () -> Unit = {},
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
@@ -91,6 +98,13 @@ fun RecordRoute(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    LaunchedEffect(requestedDate) {
+        requestedDate?.let {
+            viewModel.openDate(it)
+            onRequestedDateConsumed()
+        }
+    }
+
     LaunchedEffect(deletedPostId) {
         deletedPostId?.let {
             viewModel.removeDeletedPost(it)
@@ -102,6 +116,7 @@ fun RecordRoute(
         uiState = uiState,
         onPreviousMonthClick = viewModel::moveToPreviousMonth,
         onNextMonthClick = viewModel::moveToNextMonth,
+        onMonthPicked = viewModel::moveToMonth,
         onDateClick = viewModel::selectDate,
         onRetryClick = viewModel::retryCurrentMonth,
         onOpenPhotoUpload = onOpenPhotoUpload,
@@ -132,7 +147,9 @@ fun RecordScreen(
     onOpenDisplay: (LocalDate) -> Unit = {
         onNavigateToBottomBar(ChalkakBottomBarItem.DISPLAY)
     },
+    onMonthPicked: (YearMonth) -> Unit = {},
 ) {
+    var isMonthPickerVisible by rememberSaveable { mutableStateOf(false) }
     val photoTransitionCoordinator = LocalPhotoTransitionCoordinator.current
     val scrollState = rememberScrollState()
     val context = LocalContext.current
@@ -179,7 +196,7 @@ fun RecordScreen(
         containerColor = ChalkakBackground,
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            ChalkakBottomBar(
+            ChalkakScreenBottomBar(
                 selectedItem = ChalkakBottomBarItem.RECORD,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onOpenPhotoUpload,
@@ -217,6 +234,8 @@ fun RecordScreen(
                             onPreviousMonthClick = onPreviousMonthClick,
                             onNextMonthClick = onNextMonthClick,
                             showSaveLink = false,
+                            onMonthClick = { isMonthPickerVisible = true },
+                            canPickMonth = uiState.canPickMonth,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -312,6 +331,17 @@ fun RecordScreen(
                 }
             }
         }
+    }
+    if (isMonthPickerVisible) {
+        RecordMonthPickerSheet(
+            month = uiState.month,
+            availableMonths = uiState.availableMonths,
+            onConfirm = { month ->
+                isMonthPickerVisible = false
+                onMonthPicked(month)
+            },
+            onDismiss = { isMonthPickerVisible = false },
+        )
     }
 }
 

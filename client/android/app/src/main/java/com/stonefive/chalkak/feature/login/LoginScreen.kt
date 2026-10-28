@@ -21,7 +21,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
@@ -72,14 +75,17 @@ fun LoginRoute(
         }
     }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
     LoginScreen(
         onSocialLoginClick = { provider ->
-            when (provider) {
-                SocialLoginProvider.GOOGLE -> loginWithGoogle()
-                SocialLoginProvider.KAKAO -> loginWithKakao()
+            if (lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                when (provider) {
+                    SocialLoginProvider.GOOGLE -> loginWithGoogle()
+                    SocialLoginProvider.KAKAO -> loginWithKakao()
+                }
             }
         },
-        onContinueAsGuestClick = viewModel::continueAsGuest,
+        onContinueAsGuestClick = dropUnlessResumed(block = viewModel::continueAsGuest),
         modifier = modifier,
         enabled = uiState.canSubmit,
     )

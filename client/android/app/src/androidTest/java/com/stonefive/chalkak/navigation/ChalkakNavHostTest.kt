@@ -2,16 +2,26 @@ package com.stonefive.chalkak.navigation
 
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.stonefive.chalkak.MainActivity
@@ -23,6 +33,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -30,6 +41,231 @@ import org.junit.Test
 class ChalkakNavHostTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun authorSignatureReturnsToExistingGalleryInsteadOfGrowingBackStack() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            navController = rememberNavController()
+            NavHost(navController = navController, startDestination = Home) {
+                composable<Home> {}
+                composable<AuthorPosts> {}
+                composable<Feed> {}
+            }
+        }
+        composeRule.runOnIdle {
+            navController.navigate(AuthorPosts("author", "signature", false))
+        }
+        composeRule.waitForIdle()
+        val galleryEntryId = navController.currentBackStackEntry?.id
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "post", authorId = "author", sourceAuthorId = "author",
+                    originalImageUrl = "photo", thumbnailImageUrl = "thumb",
+                    signatureOriginalImageUrl = "signature", contentDescription = "photo",
+                    title = null, likeCount = 0, dateLabel = "date", topic = "topic",
+                ),
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            val feed = navController.currentBackStackEntry!!.toRoute<Feed>()
+            navController.openAuthorPosts(feed.authorId, "signature", false, feed.sourceAuthorId)
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(galleryEntryId, navController.currentBackStackEntry?.id)
+            navController.popBackStack()
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination!!.hasRoute<Home>())
+        }
+    }
+
+    @Test
+    fun bottomBarKeepsTheSameInstanceThroughoutMainTabTransitions() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+        val bottomBarId = composeRule
+            .onNodeWithTag("main_bottom_bar")
+            .fetchSemanticsNode()
+            .id
+        composeRule.mainClock.autoAdvance = false
+        try {
+            val navigateToTabs = listOf(
+                { navController.navigate(Display(date = LocalDate.now().toString())) },
+                { navController.navigate(Settings) },
+            )
+            navigateToTabs.forEach { navigate ->
+                composeRule.runOnIdle { navigate() }
+                // Sample both the initial frame and the middle of the destination transition.
+                listOf(16L, 120L, 200L).forEach { frameDuration ->
+                    composeRule.mainClock.advanceTimeBy(frameDuration)
+                    composeRule.waitForIdle()
+                    composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+                    composeRule.onNodeWithTag("main_bottom_bar").assertIsDisplayed()
+                    assertEquals(
+                        bottomBarId,
+                        composeRule
+                            .onNodeWithTag("main_bottom_bar")
+                            .fetchSemanticsNode()
+                            .id,
+                    )
+                }
+                composeRule.mainClock.advanceTimeBy(1_000)
+                composeRule.waitForIdle()
+            }
+        } finally {
+            composeRule.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
+    fun bottomBarIsHiddenInFeedAndReturnsWithDisplay() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Display(date = LocalDate.now().toString()),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "bottom-bar-visibility",
+                    originalImageUrl = "",
+                    thumbnailImageUrl = "",
+                    signatureOriginalImageUrl = "",
+                    contentDescription = "photo",
+                    title = "title",
+                    likeCount = 0,
+                    dateLabel = "오늘",
+                    topic = "주제",
+                    fetchDetail = false,
+                ),
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(0)
+
+        composeRule.runOnIdle { navController.popBackStack() }
+        composeRule.waitForIdle()
+        composeRule.onAllNodesWithTag("main_bottom_bar").assertCountEquals(1)
+        composeRule.onNodeWithTag("main_bottom_bar").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Display>() == true)
+        }
+    }
+
+    @Test
+    fun displayResumesAfterPhotoReturnsWithoutWaitingForOpeningFade() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Display(date = LocalDate.now().toString()),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        val displayEntry = navController.currentBackStackEntry!!
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "return-timing",
+                    originalImageUrl = "",
+                    thumbnailImageUrl = "",
+                    signatureOriginalImageUrl = "",
+                    contentDescription = "photo",
+                    title = "title",
+                    likeCount = 0,
+                    dateLabel = "오늘",
+                    topic = "주제",
+                    fetchDetail = false,
+                ),
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { navController.popBackStack() }
+        // Allow frame scheduling beyond the 300ms photo motion, but stay well below 700ms.
+        composeRule.mainClock.advanceTimeBy(350)
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertSame(displayEntry, navController.currentBackStackEntry)
+            assertEquals(Lifecycle.State.RESUMED, displayEntry.lifecycle.currentState)
+        }
+        composeRule.mainClock.autoAdvance = true
+    }
+
+    @Test
+    fun issueWebPageTracksOneScreenViewOnEntry() {
+        lateinit var navController: NavHostController
+        val screenViews = mutableListOf<Pair<String, String>>()
+        val analyticsTracker = object : AnalyticsTracker {
+            override fun trackScreenView(
+                screenName: String,
+                screenClass: String,
+            ) {
+                screenViews += screenName to screenClass
+            }
+
+            override fun trackBottomNavigationSelection(destination: String) = Unit
+        }
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = analyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            navController.navigate(WebPage(title = "ISSUE", url = "about:blank"))
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            screenViews.count { it == ("issue" to "IssueWeb") } == 1
+        }
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<WebPage>() == true)
+            assertEquals(1, screenViews.count { it == ("issue" to "IssueWeb") })
+        }
+    }
 
     @Test
     fun notificationsOpenFromHomeAndBackReturnsToHome() {
@@ -49,8 +285,7 @@ class ChalkakNavHostTest {
         }
 
         composeRule.onNodeWithContentDescription("알림").performClick()
-        composeRule.onNodeWithText("9월 22일 오늘의 주제를 확인해보세요.").assertIsDisplayed()
-        composeRule.onNodeWithText("어제 21:10").assertIsDisplayed()
+        composeRule.onNodeWithText("알림").assertIsDisplayed()
         composeRule.runOnIdle {
             assertTrue(navController.currentDestination?.hasRoute<Notifications>() == true)
         }
@@ -58,6 +293,236 @@ class ChalkakNavHostTest {
         composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
         composeRule.runOnIdle {
             assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
+        }
+    }
+
+    @Test
+    fun repeatedBackClicksPopOnlyOneEntryAndBackWorksAfterTransition() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { navController.navigate(Notifications) }
+        composeRule.waitForIdle()
+        val firstNotificationEntry = navController.currentBackStackEntry!!
+        composeRule.runOnIdle { navController.navigate(Notifications) }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(
+                Lifecycle.State.RESUMED,
+                navController.currentBackStackEntry!!
+                    .lifecycle.currentState,
+            )
+        }
+
+        // Invoke the same rendered button twice before Compose can replace its callback.
+        val backClick = composeRule
+            .onNodeWithContentDescription("뒤로 가기")
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        composeRule.runOnIdle {
+            backClick()
+            backClick()
+            assertEquals(firstNotificationEntry.id, navController.currentBackStackEntry?.id)
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(Lifecycle.State.RESUMED, firstNotificationEntry.lifecycle.currentState)
+            // An old callback must stay harmless even after the previous screen resumes.
+            backClick()
+            assertEquals(firstNotificationEntry.id, navController.currentBackStackEntry?.id)
+        }
+
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
+        }
+    }
+
+    @Test
+    fun rapidHomeForwardClicksOnlyRunFirstRenderedCallback() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        val notificationClick = composeRule
+            .onNodeWithContentDescription("알림")
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        composeRule.onNodeWithTag(HOME_CONTENT_TEST_TAG).performScrollToIndex(4)
+        val displayClick = composeRule
+            .onNodeWithContentDescription("오늘 인기있는 사진 더보기")
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+
+        // Invoke different callbacks from the same Home composition before it can recompose.
+        composeRule.runOnIdle {
+            notificationClick()
+            displayClick()
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Notifications>() == true)
+        }
+
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Home>() == true)
+        }
+    }
+
+    @Test
+    fun selectingHomeWhileAlreadyHomeKeepsTheSameEntry() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        val homeEntry = navController.currentBackStackEntry!!
+        val homeClick = composeRule
+            .onNode(hasText("홈") and hasClickAction())
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        composeRule.runOnIdle {
+            homeClick()
+            homeClick()
+            assertSame(homeEntry, navController.currentBackStackEntry)
+            assertEquals(Lifecycle.State.RESUMED, homeEntry.lifecycle.currentState)
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertSame(homeEntry, navController.currentBackStackEntry)
+            assertEquals(null, navController.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun rapidBottomTabSelectionsOnlyRunFirstRenderedCallbackAndTabsWorkAfterTransition() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        val settingsClick = composeRule
+            .onNode(hasText("설정") and hasClickAction())
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        val displayClick = composeRule
+            .onNode(hasText("전시") and hasClickAction())
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+
+        // Both actions come from the Home bottom bar; only the first should survive.
+        composeRule.runOnIdle {
+            settingsClick()
+            displayClick()
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Settings>() == true)
+        }
+
+        composeRule.onNodeWithText("전시").performClick()
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<Display>() == true)
+        }
+    }
+
+    @Test
+    fun rapidSignatureSubmissionsOpenOnlyOnePreview() {
+        lateinit var navController: NavHostController
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = OnboardingSignature,
+                )
+            }
+        }
+        composeRule.onNodeWithTag("signaturePad").performTouchInput { click(center) }
+        val submit = composeRule
+            .onNodeWithTag("signatureSubmitButton")
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+        composeRule.runOnIdle {
+            submit()
+            submit()
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<OnboardingSignaturePreview>() == true)
+            assertTrue(
+                navController.previousBackStackEntry
+                    ?.destination
+                    ?.hasRoute<OnboardingSignature>() == true,
+            )
+        }
+        composeRule.onNodeWithText("다시 그리기").performClick()
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(navController.currentDestination?.hasRoute<OnboardingSignature>() == true)
         }
     }
 
@@ -236,6 +701,42 @@ class ChalkakNavHostTest {
     }
 
     @Test
+    fun noticeNotificationOpensDetailUsingMemberNotificationId() {
+        lateinit var navController: NavHostController
+        val notificationId = "019a0010-0000-7000-8000-000000000009"
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "NOTICE",
+                sourceType = "NOTICE",
+                sourceId = "019a0000-0000-7000-8000-000000000592",
+                notificationId = notificationId,
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<NotificationDetail>() == true
+        }
+        composeRule.runOnIdle {
+            val detail = navController.currentBackStackEntry!!.toRoute<NotificationDetail>()
+            val previous = navController.previousBackStackEntry!!
+            assertEquals(notificationId, detail.notificationId)
+            assertTrue(previous.destination.hasRoute<Home>())
+        }
+    }
+
+    @Test
     fun topicNotificationWithoutNotificationIdOpensHomeFromOtherTab() {
         lateinit var navController: NavHostController
 
@@ -273,6 +774,130 @@ class ChalkakNavHostTest {
         composeRule.runOnIdle {
             assertFalse(navController.currentDestination?.hasRoute<Notifications>() == true)
             assertEquals(null, navController.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun aiReviewCompletedNotificationOpensOwnedFeedWithResultIntent() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "AI_REVIEW_COMPLETED",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "notification-id",
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<FeedById>() == true
+        }
+        composeRule.runOnIdle {
+            val route = navController.currentBackStackEntry!!.toRoute<FeedById>()
+            assertEquals("post-id", route.postId)
+            assertTrue(route.isOwnedByCurrentUser)
+            assertTrue(route.openAiReviewResult)
+            navController.openNotificationTarget(
+                type = "AI_REVIEW_FAILED",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "failed-notification-id",
+            )
+            val failedRoute = navController.currentBackStackEntry!!.toRoute<FeedById>()
+            assertEquals("post-id", failedRoute.postId)
+            assertTrue(failedRoute.openAiReviewResult)
+            assertTrue(
+                navController.previousBackStackEntry
+                    ?.destination
+                    ?.hasRoute<Home>() == true,
+            )
+        }
+    }
+
+    @Test
+    fun aiReviewNotificationReplacesSamePostFeedOnTop() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.navigate(
+                Feed(
+                    postId = "post-id",
+                    originalImageUrl = "original",
+                    thumbnailImageUrl = "thumbnail",
+                    signatureOriginalImageUrl = "signature",
+                    contentDescription = "사진",
+                    title = null,
+                    likeCount = 0,
+                    dateLabel = "8월 28일의 주제",
+                    topic = "하늘",
+                    isOwnedByCurrentUser = true,
+                ),
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Feed>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "AI_REVIEW_COMPLETED",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "notification-id",
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<FeedById>() == true
+        }
+        composeRule.runOnIdle {
+            assertTrue(
+                navController.currentBackStackEntry!!
+                    .toRoute<FeedById>()
+                    .openAiReviewResult,
+            )
+            assertTrue(
+                navController.previousBackStackEntry
+                    ?.destination
+                    ?.hasRoute<Home>() == true,
+            )
         }
     }
 

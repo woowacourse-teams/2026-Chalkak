@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.display
 
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
@@ -13,6 +14,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.repository.PostRepository
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
@@ -422,6 +424,223 @@ class DisplayViewModelTest {
     }
 
     @Test
+    fun `랜덤 피드 복귀는 시드와 페이지를 유지하고 상세 변경만 갱신한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = listOf(post.copy(id = "tail-photo")),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = true,
+                    randomSeed = "seed-1",
+                ),
+            )
+            detailResult = HomeResult.Success(
+                PostDetail(
+                    post = post.copy(title = "수정한 제목", likeCount = 20, isLiked = true),
+                    topic = "바다",
+                    topicDate = LATEST_DATE,
+                ),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.updateEndThreshold(true)
+        randomViewModel.onFeedOpened(post.id)
+        randomRepository.firstPageRandomSeed = "seed-2"
+
+        randomViewModel.onResume()
+
+        val state = randomViewModel.uiState.value
+        val photos = (state.content as DisplayContentState.Latest).photos
+        assertEquals("seed-1", state.randomSeed)
+        assertEquals(2, state.currentPage)
+        assertTrue(state.hasNext)
+        assertEquals(listOf(post.id, "tail-photo"), photos.map(Post::id))
+        assertEquals("수정한 제목", photos.first().title)
+        assertEquals(20, photos.first().likeCount)
+        assertTrue(post.id in state.likedPhotoIds)
+        assertEquals(listOf(post.id), randomRepository.detailRequests)
+        assertEquals(1, randomRepository.requests.size)
+
+        randomViewModel.updateEndThreshold(false)
+        randomViewModel.updateEndThreshold(true)
+        assertEquals(
+            HomeQuery(date = LATEST_DATE, sort = PostSort.RANDOM, page = 3, randomSeed = "seed-1"),
+            randomRepository.pageRequests.last(),
+        )
+    }
+
+    @Test
+    fun `랜덤 피드 복귀 시 상세 응답에 없는 사인 썸네일과 제출 시각을 캐시에도 보존한다`() = runTest {
+        val randomRepository = FakePostRepository()
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val refreshedContent = randomViewModel.uiState.value.content as DisplayContentState.Latest
+        val refreshedPhoto = refreshedContent.photos.single()
+        assertEquals(post.signatureThumbnailImageUrl, refreshedPhoto.signatureThumbnailImageUrl)
+        assertEquals(post.submittedAt, refreshedPhoto.submittedAt)
+
+        randomViewModel.selectSort(PostSort.LATEST)
+        randomRepository.pendingContentResult = CompletableDeferred()
+        randomViewModel.selectSort(PostSort.RANDOM)
+
+        val cachedContent = randomViewModel.uiState.value.content as DisplayContentState.Latest
+        val cachedPhoto = cachedContent.photos.single()
+        assertEquals(post.signatureThumbnailImageUrl, cachedPhoto.signatureThumbnailImageUrl)
+        assertEquals(post.submittedAt, cachedPhoto.submittedAt)
+    }
+
+    @Test
+    fun `랜덤 피드 복귀 시 상세 응답에 있는 사인 썸네일과 제출 시각은 갱신한다`() = runTest {
+        val updatedPost = post.copy(
+            signatureThumbnailImageUrl = "https://example.com/new-signature-thumbnail.png",
+            submittedAt = requireNotNull(post.submittedAt).plusSeconds(60),
+        )
+        val randomRepository = FakePostRepository().apply {
+            detailResult = HomeResult.Success(
+                PostDetail(post = updatedPost, topic = "바다", topicDate = LATEST_DATE),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val refreshedContent = randomViewModel.uiState.value.content as DisplayContentState.Latest
+        val refreshedPhoto = refreshedContent.photos.single()
+        assertEquals(updatedPost, refreshedPhoto)
+    }
+
+    @Test
+    fun `랜덤 피드 복귀의 상세 갱신 실패는 기존 세션을 유지한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            detailResult = HomeResult.Failure(HomeFailure.Network)
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        val previousState = randomViewModel.uiState.value
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val state = randomViewModel.uiState.value
+        assertEquals(previousState.content, state.content)
+        assertEquals(previousState.randomSeed, state.randomSeed)
+        assertEquals(previousState.currentPage, state.currentPage)
+        assertEquals(previousState.hasNext, state.hasNext)
+        assertTrue(state.pendingMessage is UiMessage.Toast)
+        assertEquals(1, randomRepository.requests.size)
+    }
+
+    @Test
+    fun `랜덤 피드에서 삭제한 사진은 복귀 시 제거하고 시드는 유지한다`() = runTest {
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+            detailResult = HomeResult.Failure(HomeFailure.Http(404))
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+
+        randomViewModel.onResume()
+
+        val state = randomViewModel.uiState.value
+        assertTrue((state.content as DisplayContentState.Latest).photos.isEmpty())
+        assertEquals("seed-1", state.randomSeed)
+        assertEquals(1, state.currentPage)
+        assertTrue(state.hasNext)
+        assertEquals(1, randomRepository.requests.size)
+    }
+
+    @Test
+    fun `랜덤 피드에서 날짜가 바뀌면 과거 전시로 재검증한다`() = runTest {
+        var today = LATEST_DATE
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-1"
+        }
+        val randomViewModel = DisplayViewModel(
+            repository = randomRepository,
+            initialSort = PostSort.RANDOM,
+            dateProvider = { today },
+        )
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+        today = today.plusDays(1)
+
+        randomViewModel.onResume()
+
+        assertTrue(randomViewModel.uiState.value.content is DisplayContentState.Archive)
+        assertEquals(firstPageQuery(LATEST_DATE, PostSort.POPULAR), randomRepository.requests.last())
+        assertTrue(randomRepository.detailRequests.isEmpty())
+    }
+
+    @Test
+    fun `피드 복귀 상세 응답은 요청 이후 성공한 좋아요를 덮어쓰지 않는다`() = runTest {
+        val pendingDetail = CompletableDeferred<HomeResult<PostDetail>>()
+        val randomRepository = FakePostRepository().apply {
+            firstPageRandomSeed = "seed-1"
+            pendingDetailResult = pendingDetail
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+        randomViewModel.onResume()
+        randomViewModel.updateLike(post.id)
+        pendingDetail.complete(
+            HomeResult.Success(PostDetail(post = post, topic = "바다", topicDate = LATEST_DATE)),
+        )
+        advanceUntilIdle()
+
+        val state = randomViewModel.uiState.value
+        val photo = (state.content as DisplayContentState.Latest).photos.single()
+        assertTrue(photo.isLiked)
+        assertEquals(18, photo.likeCount)
+        assertTrue(post.id in state.likedPhotoIds)
+        assertEquals("seed-1", state.randomSeed)
+    }
+
+    @Test
+    fun `피드 복귀를 반복하면 이전 상세 요청을 취소하고 최근 결과를 유지한다`() = runTest {
+        val oldDetail = CompletableDeferred<HomeResult<PostDetail>>()
+        val randomRepository = FakePostRepository().apply {
+            firstPageRandomSeed = "seed-1"
+            pendingDetailResult = oldDetail
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM)
+        randomViewModel.onResume()
+        randomViewModel.onFeedOpened(post.id)
+        randomViewModel.onResume()
+        randomRepository.pendingDetailResult = null
+        randomRepository.detailResult = HomeResult.Success(
+            PostDetail(post = post.copy(title = "최근 제목"), topic = "바다", topicDate = LATEST_DATE),
+        )
+        randomViewModel.onFeedOpened(post.id)
+        randomViewModel.onResume()
+        oldDetail.complete(
+            HomeResult.Success(PostDetail(post = post, topic = "바다", topicDate = LATEST_DATE)),
+        )
+        advanceUntilIdle()
+
+        val state = randomViewModel.uiState.value
+        val photo = (state.content as DisplayContentState.Latest).photos.single()
+        assertEquals("최근 제목", photo.title)
+        assertEquals("seed-1", state.randomSeed)
+        assertEquals(listOf(post.id, post.id), randomRepository.detailRequests)
+    }
+
+    @Test
     fun `랜덤 첫 페이지 재검증은 같은 시드의 꼬리만 유지한다`() = runTest {
         val randomRepository = FakePostRepository().apply {
             firstPageHasNext = true
@@ -515,15 +734,98 @@ class DisplayViewModelTest {
     }
 
     @Test
-    fun `이전 날짜에 주제가 없으면 현재 날짜를 최초 전시일로 확정한다`() = runTest {
+    fun `첫 주제 날짜를 최초 전시일로 두고 그 이전으로는 이동하지 않는다`() = runTest {
+        val earliestRepository = FakePostRepository()
+        val earliestViewModel = displayViewModel(
+            repository = earliestRepository,
+            initialDate = EARLIEST_DATE,
+        )
+
+        earliestViewModel.moveToPreviousDate()
+
+        val state = earliestViewModel.uiState.value
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertEquals(EARLIEST_DATE, state.selectedDate)
+        assertFalse(state.canGoPrevious)
+        assertEquals(listOf(firstPageQuery(EARLIEST_DATE, PostSort.POPULAR)), earliestRepository.requests)
+    }
+
+    @Test
+    fun `이전 날짜에 주제가 없으면 기존 전시를 유지하고 최초 전시일은 바꾸지 않는다`() = runTest {
         repository.topicNotFoundDates = setOf(ARCHIVE_DATE)
 
         viewModel.moveToPreviousDate()
 
         val state = viewModel.uiState.value
         assertEquals(LATEST_DATE, state.selectedDate)
-        assertEquals(LATEST_DATE, state.earliestDate)
-        assertFalse(state.canGoPrevious)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+    }
+
+    @Test
+    fun `고른 날짜로 이동하면 그 날짜의 과거 전시를 불러온다`() = runTest {
+        val pickedDate = EARLIEST_DATE.plusDays(1)
+
+        viewModel.moveToDate(pickedDate)
+
+        val state = viewModel.uiState.value
+        assertEquals(pickedDate, state.selectedDate)
+        assertTrue(state.content is DisplayContentState.Archive)
+        assertEquals(firstPageQuery(pickedDate, PostSort.POPULAR), repository.requests.last())
+    }
+
+    @Test
+    fun `고른 날짜는 최초 전시일과 오늘 사이로 맞춘다`() = runTest {
+        viewModel.moveToDate(EARLIEST_DATE.minusDays(10))
+
+        assertEquals(EARLIEST_DATE, viewModel.uiState.value.selectedDate)
+
+        viewModel.moveToDate(LATEST_DATE.plusDays(3))
+
+        assertEquals(LATEST_DATE, viewModel.uiState.value.selectedDate)
+        assertEquals(firstPageQuery(LATEST_DATE, PostSort.LATEST), repository.requests.last())
+    }
+
+    @Test
+    fun `지금 날짜를 고르면 다시 불러오지 않는다`() = runTest {
+        val requestCount = repository.requests.size
+
+        viewModel.moveToDate(LATEST_DATE)
+
+        assertEquals(requestCount, repository.requests.size)
+    }
+
+    @Test
+    fun `건너뛴 날짜에 주제가 없으면 기존 전시를 유지하고 최초 전시일은 바꾸지 않는다`() = runTest {
+        val previousContent = viewModel.uiState.value.content
+        val pickedDate = EARLIEST_DATE.plusDays(1)
+        repository.topicNotFoundDates = setOf(pickedDate)
+
+        viewModel.moveToDate(pickedDate)
+
+        val state = viewModel.uiState.value
+        assertEquals(LATEST_DATE, state.selectedDate)
+        assertEquals(previousContent, state.content)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
+        assertTrue(state.canGoPrevious)
+        assertEquals(
+            "전시를 불러오지 못했어요",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `날짜를 불러오는 중에는 고른 날짜로 이동하지 않는다`() = runTest {
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        repository.pendingContentResult = pendingResult
+        viewModel.moveToPreviousDate()
+        val requestCount = repository.requests.size
+
+        viewModel.moveToDate(EARLIEST_DATE)
+
+        assertEquals(ARCHIVE_DATE, viewModel.uiState.value.selectedDate)
+        assertEquals(requestCount, repository.requests.size)
+        assertFalse(viewModel.uiState.value.canPickDate)
     }
 
     @Test
@@ -536,7 +838,7 @@ class DisplayViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(LATEST_DATE, state.selectedDate)
         assertEquals(previousContent, state.content)
-        assertEquals(null, state.earliestDate)
+        assertEquals(EARLIEST_DATE, state.earliestDate)
         assertTrue(state.canGoPrevious)
         assertEquals(
             "전시를 불러오지 못했어요",
@@ -690,8 +992,23 @@ private val ARCHIVE_DATE: LocalDate = LocalDate.of(2026, 8, 4)
 private val EARLIEST_DATE: LocalDate = LocalDate.of(2026, 8, 1)
 
 private class FakePostRepository : PostRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val requests = mutableListOf<HomeQuery>()
     val pageRequests = mutableListOf<HomeQuery>()
+    val detailRequests = mutableListOf<String>()
+    var pendingDetailResult: CompletableDeferred<HomeResult<PostDetail>>? = null
+    var detailResult: HomeResult<PostDetail> = HomeResult.Success(
+        PostDetail(
+            post = post.copy(signatureThumbnailImageUrl = null, submittedAt = null),
+            topic = "바다",
+            topicDate = LATEST_DATE,
+        ),
+    )
     var firstPageHasNext = false
     var firstPageRandomSeed: String? = null
     var topicNotFoundDates: Set<LocalDate> = emptySet()
@@ -718,7 +1035,10 @@ private class FakePostRepository : PostRepository {
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
-    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
+    override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> {
+        detailRequests += postId
+        return pendingDetailResult?.await() ?: detailResult
+    }
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
@@ -775,6 +1095,7 @@ private fun displayViewModel(
     initialDate = initialDate,
     initialSort = initialSort,
     dateProvider = { LATEST_DATE },
+    firstTopicDate = EARLIEST_DATE,
 )
 
 private fun firstPageQuery(
@@ -793,6 +1114,8 @@ private val post = Post(
     signatureOriginalImageUrl = "https://example.com/signature.png",
     signatureThumbnailImageUrl = "https://example.com/signature-thumbnail.png",
     contentDescription = "사진",
+    submittedAt = Instant.parse("2026-08-05T03:00:00Z"),
     title = "한낮의 다리",
     likeCount = 17,
+    authorId = "author",
 )

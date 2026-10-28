@@ -4,13 +4,16 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.BuildConfig
@@ -92,6 +95,49 @@ class DisplayPhotoCardTest {
             .fetchSemanticsNode()
             .boundsInRoot
         assertEquals(card.height, photoBounds("tall photo").height, 1f)
+    }
+
+    @Test
+    fun tappingCardBottomStartCornerLikesInsteadOfOpeningPhoto() {
+        var photoClickCount = 0
+        var likeClickCount = 0
+        composeRule.setContent {
+            ChalkakTheme {
+                DisplayPhotoCard(
+                    photo = previewDisplayPost,
+                    modifier = Modifier.size(180.dp).testTag("card"),
+                    onClick = { photoClickCount++ },
+                    onLikeClick = { likeClickCount++ },
+                )
+            }
+        }
+
+        // 하트는 카드 모서리에서 10dp 안쪽에 그려진다. 하트와 모서리 사이(모서리에서 6dp)를 눌러도 좋아요여야 한다.
+        // 6dp는 둥근 모서리(반지름 12dp) 안쪽이라 카드 위를 누른 것으로 판정된다.
+        composeRule.onNodeWithTag("card").performTouchInput {
+            val inset = 6.dp.toPx()
+            click(Offset(inset, height - inset))
+        }
+
+        composeRule.runOnIdle {
+            assertEquals(1, likeClickCount)
+            assertEquals(0, photoClickCount)
+        }
+    }
+
+    @Test
+    fun authorPhotosHideUnavailableLikeInformation() {
+        composeRule.setContent {
+            ChalkakTheme {
+                DisplayPhotoCard(
+                    photo = previewDisplayPost,
+                    showLikeCount = false,
+                    modifier = Modifier.size(180.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("좋아요 ${previewDisplayPost.likeCount}").assertDoesNotExist()
     }
 
     private fun assertPhotoCentered(

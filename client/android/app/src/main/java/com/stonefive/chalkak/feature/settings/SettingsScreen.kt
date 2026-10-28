@@ -28,8 +28,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.buildvariant.BuildVariantSettingsEntry
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -51,14 +51,22 @@ fun SettingsRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onOpenPhotoUpload: () -> Unit,
     signatureUpdateUrl: String? = null,
+    onSignatureUpdateConsumed: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     UiMessageEffect(uiState.pendingMessage, viewModel::onMessageShown)
 
+    LaunchedEffect(viewModel) {
+        viewModel.refreshSignature()
+    }
+
     LaunchedEffect(signatureUpdateUrl) {
-        signatureUpdateUrl?.let(viewModel::applySignatureUpdate)
+        signatureUpdateUrl?.let {
+            viewModel.applySignatureUpdate(it)
+            onSignatureUpdateConsumed()
+        }
     }
 
     SettingsScreen(
@@ -87,6 +95,12 @@ fun SettingsRoute(
             }
         },
         buildVariantContent = { BuildVariantSettingsEntry(modifier = Modifier.fillMaxWidth()) },
+        onAiReviewPushChanged = { enabled ->
+            viewModel.updateAiReviewPushEnabled(enabled)
+            if (enabled && !context.areDeviceNotificationsEnabled()) {
+                context.openDeviceNotificationSettings()
+            }
+        },
     )
 }
 
@@ -108,6 +122,7 @@ fun SettingsScreen(
     onModerationPushChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     buildVariantContent: @Composable () -> Unit = {},
+    onAiReviewPushChanged: (Boolean) -> Unit = {},
 ) {
     uiState.accountDialog?.let { accountDialog ->
         ChalkakConfirmDialog(
@@ -125,7 +140,7 @@ fun SettingsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakTheme.colors.background,
         bottomBar = {
-            ChalkakBottomBar(
+            ChalkakScreenBottomBar(
                 selectedItem = ChalkakBottomBarItem.SETTINGS,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onAddClick,
@@ -164,8 +179,10 @@ fun SettingsScreen(
                     settings = uiState.pushSettings,
                     isTopicSaving = uiState.isTopicPushSaving,
                     isModerationSaving = uiState.isModerationPushSaving,
+                    isAiReviewSaving = uiState.isAiReviewPushSaving,
                     onTopicPushChanged = onTopicPushChanged,
                     onModerationPushChanged = onModerationPushChanged,
+                    onAiReviewPushChanged = onAiReviewPushChanged,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -282,6 +299,7 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onAddClick = {},
         onTopicPushChanged = {},
         onModerationPushChanged = {},
+        onAiReviewPushChanged = {},
     )
 }
 

@@ -44,6 +44,70 @@ class PostRemoteDataSourceImplTest {
     }
 
     @Test
+    fun `작성자 공개 사진은 userId 경로와 페이지 조건으로 요청하고 없는 썸네일을 허용한다`() = runTest {
+        server.enqueue(
+            jsonResponse(
+                """{"currentPage":2,"pageSize":20,"hasNext":false,"posts":[{"id":"post","originalImageUrl":"original","likeCount":23,"isLiked":true,"topic":{"id":"topic","title":"주제","topicDate":"2026-10-19"}}]}""",
+            ),
+        )
+
+        val result = dataSource.getAuthorPosts("author-id", 2, 20) as ApiResult.Success
+
+        assertEquals("/api/v1/users/author-id/posts?page=2&pageSize=20", server.takeRequest().path)
+        assertEquals(2, result.value.currentPage)
+        assertEquals(
+            23L,
+            result.value.posts
+                .single()
+                .likeCount,
+        )
+        assertTrue(
+            result.value.posts
+                .single()
+                .isLiked,
+        )
+        assertNull(
+            result.value.posts
+                .single()
+                .thumbnailImageUrl,
+        )
+    }
+
+    @Test
+    fun `작성자 공개 사진의 좋아요 0과 미선택 상태를 그대로 받는다`() = runTest {
+        server.enqueue(
+            jsonResponse(
+                """{"currentPage":1,"pageSize":20,"hasNext":false,"posts":[{"id":"post","originalImageUrl":"original","likeCount":0,"isLiked":false,"topic":{"id":"topic","title":"주제","topicDate":"2026-10-19"}}]}""",
+            ),
+        )
+
+        val result = dataSource.getAuthorPosts("author-id", 1, 20) as ApiResult.Success
+
+        assertEquals(
+            0L,
+            result.value.posts
+                .single()
+                .likeCount,
+        )
+        assertEquals(
+            false,
+            result.value.posts
+                .single()
+                .isLiked,
+        )
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `작성자 공개 사진의 401과 404는 HTTP 오류 상태를 유지한다`() = runTest {
+        listOf(401, 404).forEach { status ->
+            server.enqueue(MockResponse().setResponseCode(status))
+            val result = dataSource.getAuthorPosts("author-id", 1, 20) as ApiResult.Failure
+            assertEquals(status, (result.error as ApiError.Http).statusCode)
+        }
+    }
+
+    @Test
     fun `오늘 게시물 작성 여부는 posts today 경로로 요청한다`() = runTest {
         server.enqueue(jsonResponse(TODAY_POST_BODY))
 
@@ -348,9 +412,9 @@ class PostRemoteDataSourceImplTest {
     private companion object {
         const val POST_ID = "11111111-1111-1111-1111-111111111111"
         const val POSTS_BODY =
-            """{"currentPage":1,"pageSize":20,"hasNext":true,"randomSeed":"seed-1","posts":[{"id":"$POST_ID","originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumbnail.png","title":"바다 사진","submittedAt":"2026-08-28T01:00:00Z","likeCount":3,"isLiked":false,"isMine":true}]}"""
+            """{"currentPage":1,"pageSize":20,"hasNext":true,"randomSeed":"seed-1","posts":[{"id":"$POST_ID","authorId":"author-id","originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumbnail.png","title":"바다 사진","submittedAt":"2026-08-28T01:00:00Z","likeCount":3,"isLiked":false,"isMine":true}]}"""
         const val DETAIL_BODY =
-            """{"id":"$POST_ID","topic":{"id":"topic-id","title":"바다","topicDate":"2026-08-28"},"originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","title":"바다 사진","likeCount":3,"isLiked":false,"isMine":true}"""
+            """{"id":"$POST_ID","authorId":"author-id","topic":{"id":"topic-id","title":"바다","topicDate":"2026-08-28"},"originalImageUrl":"https://example.com/original.jpg","thumbnailImageUrl":"https://example.com/thumbnail.jpg","signatureOriginalImageUrl":"https://example.com/signature.png","title":"바다 사진","likeCount":3,"isLiked":false,"isMine":true}"""
         const val LIKE_BODY =
             """{"postId":"$POST_ID","likeCount":4,"isLiked":true}"""
         const val CALENDAR_BODY =

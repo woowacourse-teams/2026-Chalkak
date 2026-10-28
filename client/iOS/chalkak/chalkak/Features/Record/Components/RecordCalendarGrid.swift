@@ -8,6 +8,12 @@ import UIKit
 /// - 셀 사이 간격 중앙에 1pt 구분선을 그린다(color = calendarCellBorder α0.6).
 /// 화면 좌우 패딩은 호출부가 관리한다.
 struct RecordCalendarGrid: View {
+    /// 달력 칸 사진을 디코딩·캐시할 최대 폭(픽셀).
+    /// 칸은 화면 폭의 1/7 정도(가장 넓은 iPhone에서 약 52pt, 3배율 156px)라 화면 폭 기본값으로 풀면
+    /// 1080px 썸네일 한 장이 약 3.5MB를 차지해 한 달치 사진만으로 이미지 캐시가 넘친다.
+    /// 칸을 채우도록 잘라 그리므로 가로 사진(4:3)도 높이가 칸보다 크게 남도록 여유를 둔다.
+    static let thumbnailMaxPixelWidth: CGFloat = 240
+
     @Environment(\.chalkakTheme) private var theme
     let month: RecordMonth
     let posts: [RecordPost]
@@ -110,7 +116,8 @@ struct RecordCalendarGrid: View {
             ChalkakImage(
                 source: post.thumbnailImageSource,
                 contentDescription: nil,
-                contentMode: .fill
+                contentMode: .fill,
+                maxPixelWidth: Self.thumbnailMaxPixelWidth
             )
         }
     }

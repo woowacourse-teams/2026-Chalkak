@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
@@ -17,6 +18,14 @@ class PostRemoteDataSourceImpl(
     private val postApi: PostApi,
     private val requestExecutor: ApiRequestExecutor,
 ) : PostRemoteDataSource {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): ApiResult<AuthorPostsResponse> = requestExecutor.execute {
+        postApi.getAuthorPosts(authorId, page, pageSize)
+    }
+
     override suspend fun getTodayPostStatus() = requestExecutor.execute {
         postApi.getTodayPostStatus()
     }

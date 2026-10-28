@@ -31,8 +31,9 @@ class DisplayViewModel(
     private val initialDate: LocalDate? = null,
     initialSort: PostSort = PostSort.LATEST,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
+    firstTopicDate: LocalDate = FIRST_TOPIC_DATE,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(DisplayUiState())
+    private val _uiState = MutableStateFlow(DisplayUiState(earliestDate = firstTopicDate))
     val uiState: StateFlow<DisplayUiState> = _uiState.asStateFlow()
 
     private var latestLoadGeneration = 0
@@ -41,7 +42,9 @@ class DisplayViewModel(
     private var isEndThresholdReached = false
     private var isRevalidating = false
     private var hasBeenPresented = false
+    private var openedPhotoId: String? = null
     private var nextPageJob: Job? = null
+    private var photoRefreshJob: Job? = null
     private var nextMessageId = 0L
     private var likeRevision = 0
     private val displayCache = mutableMapOf<DisplayCacheKey, DisplayCacheEntry>()
@@ -70,6 +73,18 @@ class DisplayViewModel(
         val selectedDate = state.selectedDate ?: return
         val latestDate = state.latestDate ?: return
         val targetDate = selectedDate.plusDays(1).coerceAtMost(latestDate)
+        if (targetDate == selectedDate) return
+
+        startDateChange(targetDate, state)
+    }
+
+    /** 날짜 휠에서 고른 날짜로 이동한다. 첫 주제 날짜와 오늘 사이로 맞추고, 같은 날짜면 다시 불러오지 않는다. */
+    fun moveToDate(date: LocalDate) {
+        val state = _uiState.value
+        if (state.content is DisplayContentState.Loading) return
+        val selectedDate = state.selectedDate ?: return
+        val latestDate = state.latestDate ?: return
+        val targetDate = date.coerceIn(state.earliestDate ?: date, latestDate)
         if (targetDate == selectedDate) return
 
         startDateChange(targetDate, state)
@@ -108,7 +123,77 @@ class DisplayViewModel(
             hasBeenPresented = true
             return
         }
-        revalidate()
+        val photoId = openedPhotoId
+        openedPhotoId = null
+        val state = _uiState.value
+        if (photoId != null &&
+            (state.content as? DisplayContentState.Latest)?.selectedSort == PostSort.RANDOM &&
+            state.selectedDate == dateProvider()
+        ) {
+            // 랜덤 첫 페이지 재요청은 새 시드를 발급하므로 복귀 시 상세 변경만 반영한다.
+            refreshOpenedPhoto(photoId)
+        } else {
+            revalidate()
+        }
+    }
+
+    fun onFeedOpened(photoId: String) {
+        openedPhotoId = photoId
+    }
+
+    private fun refreshOpenedPhoto(photoId: String) {
+        photoRefreshJob?.cancel()
+        val generation = latestLoadGeneration
+        val requestLikeRevision = likeRevision
+        photoRefreshJob = viewModelScope.launch {
+            val result = try {
+                repository.getPostDetail(photoId)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                HomeResult.Failure(HomeFailure.Network)
+            }
+            if (generation != latestLoadGeneration) return@launch
+
+            when (result) {
+                is HomeResult.Success -> {
+                    val photo = result.value.post
+                    val newerLike = likeUpdates[photoId]
+                        ?.takeIf { it.revision > requestLikeRevision }
+                        ?.value
+                    val updatedPhoto = if (newerLike == null) {
+                        photo
+                    } else {
+                        photo.copy(likeCount = newerLike.likeCount, isLiked = newerLike.isLiked)
+                    }
+                    applyLikeState(
+                        photoId = photoId,
+                        likedPhotoIds = if (updatedPhoto.isLiked) {
+                            _uiState.value.likedPhotoIds + photoId
+                        } else {
+                            _uiState.value.likedPhotoIds - photoId
+                        },
+                    ) { previousPhoto ->
+                        updatedPhoto.copy(
+                            signatureThumbnailImageUrl = updatedPhoto.signatureThumbnailImageUrl
+                                ?: previousPhoto.signatureThumbnailImageUrl,
+                            submittedAt = updatedPhoto.submittedAt ?: previousPhoto.submittedAt,
+                        )
+                    }
+                }
+
+                is HomeResult.Failure -> {
+                    if (result.reason == HomeFailure.Http(404)) {
+                        _uiState.update { it.withoutPhoto(photoId) }
+                        displayCache.replaceAll { _, entry ->
+                            entry.copy(state = entry.state.withoutPhoto(photoId))
+                        }
+                    } else {
+                        _uiState.update { it.copy(pendingMessage = nextToast(DISPLAY_ERROR_MESSAGE)) }
+                    }
+                }
+            }
+        }
     }
 
     fun revalidate() {
@@ -244,6 +329,8 @@ class DisplayViewModel(
         val requestedSort = if (requestedDate < latestDate) PostSort.POPULAR else sort
         val generation = ++latestLoadGeneration
         isRevalidating = keepsContentVisible
+        photoRefreshJob?.cancel()
+        photoRefreshJob = null
         nextPageJob?.cancel()
         nextPageJob = null
         isEndThresholdReached = false
@@ -285,8 +372,6 @@ class DisplayViewModel(
                 )
 
                 is HomeResult.Failure -> if (previousState != null) {
-                    val isPreviousDateRequest = result.reason == HomeFailure.TopicNotFound &&
-                        requireNotNull(date) < requireNotNull(previousState.selectedDate)
                     selectedSort = (previousState.content as? DisplayContentState.Latest)
                         ?.selectedSort
                         ?: selectedSort
@@ -300,11 +385,6 @@ class DisplayViewModel(
                         hasNext = previousState.hasNext,
                         randomSeed = previousState.randomSeed,
                         isLoadingNext = false,
-                        earliestDate = if (isPreviousDateRequest) {
-                            previousState.selectedDate
-                        } else {
-                            previousState.earliestDate
-                        },
                         pendingMessage = pendingMessage,
                     )
                     _uiState.update { restoredState.withAppliedLikeUpdatesAfter(requestLikeRevision) }
@@ -611,6 +691,12 @@ class DisplayViewModel(
 
         val Factory = factory()
 
+        /**
+         * 서비스의 첫 주제 날짜(KST). 이보다 이전 날짜로는 이동하거나 고를 수 없다.
+         * 주제 날짜 목록을 알려주는 API가 없어 앱에 고정한다.
+         */
+        val FIRST_TOPIC_DATE: LocalDate = LocalDate.of(2026, 9, 17)
+
         private val KST: ZoneId = ZoneId.of("Asia/Seoul")
         private const val FEATURED_PHOTO_COUNT = 5
     }
@@ -700,3 +786,26 @@ private data class DisplayCacheEntry(
 
 private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"
 private const val LIKE_ERROR_MESSAGE = "좋아요를 반영하지 못했어요"
+
+private fun DisplayUiState.withoutPhoto(photoId: String): DisplayUiState = copy(
+    content = when (val currentContent = content) {
+        is DisplayContentState.Latest -> currentContent.copy(
+            photos = currentContent.photos.filterNot { it.id == photoId },
+        )
+
+        is DisplayContentState.Archive -> {
+            val featuredPhotos = currentContent.featuredPhotos.filterNot { it.id == photoId }
+            currentContent.copy(
+                photos = currentContent.photos.filterNot { it.id == photoId },
+                featuredPhotos = featuredPhotos,
+                featuredPage = currentContent.featuredPage.coerceIn(
+                    0,
+                    featuredPhotos.lastIndex.coerceAtLeast(0),
+                ),
+            )
+        }
+
+        else -> content
+    },
+    likedPhotoIds = likedPhotoIds - photoId,
+)

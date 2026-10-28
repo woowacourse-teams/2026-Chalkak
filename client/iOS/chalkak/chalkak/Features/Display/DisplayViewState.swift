@@ -44,6 +44,8 @@ struct DisplayPhoto: Identifiable, Equatable, Sendable {
     var likeCount: Int
     var isLiked: Bool
     let isOwnedByCurrentUser: Bool
+    // 사진 작성자의 회원 ID. 응답에 없으면 nil이다.
+    var authorID: String? = nil
 }
 
 struct DisplayPage: Equatable, Sendable {
@@ -93,6 +95,11 @@ struct DisplayViewState: Equatable, Sendable {
               let latestDate
         else { return false }
         return selectedDate < latestDate
+    }
+
+    /// 날짜 휠을 열 수 있는지. 휠의 범위는 `earliestDate`부터 `latestDate`까지다.
+    var canPickDate: Bool {
+        contentStatus != .loading && selectedDate != nil && latestDate != nil
     }
 }
 

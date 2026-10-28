@@ -12,7 +12,10 @@ struct RecordSelectedPhoto: View {
         ChalkakImage(
             source: post.thumbnailImageSource,
             contentDescription: "\(Self.dateFormatter.string(from: post.topicDate)) 기록 사진",
-            contentMode: .fit
+            contentMode: .fit,
+            // 큰 사진을 받는 동안 달력 칸이 이미 받아 둔 작은 사진을 먼저 보여준다.
+            thumbnailSource: post.thumbnailImageSource,
+            thumbnailMaxPixelWidth: RecordCalendarGrid.thumbnailMaxPixelWidth
         )
         // 사진만 숨겨 날짜·상태 표시는 남긴다.
         .feedZoomSource(.record(post.postId))

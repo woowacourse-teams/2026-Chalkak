@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.home.component
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,6 +19,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -27,6 +30,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun HomeTopBar(
     onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
+    hasUnreadNotifications: Boolean = false,
 ) {
     Row(
         modifier = modifier,
@@ -37,8 +41,10 @@ fun HomeTopBar(
         Box(
             modifier = Modifier
                 .size(NotificationTouchTargetSize)
-                .semantics { contentDescription = "알림" }
-                .clickable(
+                .semantics {
+                    contentDescription = "알림"
+                    stateDescription = if (hasUnreadNotifications) "읽지 않은 알림 있음" else "읽지 않은 알림 없음"
+                }.clickable(
                     interactionSource = null,
                     indication = null,
                     role = Role.Button,
@@ -52,6 +58,15 @@ fun HomeTopBar(
                 tint = ChalkakTheme.colors.iconPrimary,
                 modifier = Modifier.size(NotificationIconSize),
             )
+            if (hasUnreadNotifications) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(x = UnreadDotCenterOffset, y = -UnreadDotCenterOffset)
+                        .size(UnreadDotSize)
+                        .background(ChalkakTheme.colors.inputCursor, CircleShape),
+                )
+            }
         }
     }
 }
@@ -60,6 +75,11 @@ val HomeTopBarHeight = 55.dp
 
 private val NotificationTouchTargetSize = 40.dp
 private val NotificationIconSize = 24.dp
+private val UnreadDotSize = 7.dp
+private val UnreadDotOffset = 2.dp
+
+// Matches iOS: the dot hugs the icon's top-trailing corner, nudged outward.
+private val UnreadDotCenterOffset = (NotificationIconSize - UnreadDotSize) / 2 + UnreadDotOffset
 
 // The lettering sits above the center of its font's line box.
 private val LogoOpticalCenterOffset = 5.dp
@@ -71,6 +91,7 @@ private fun HomeTopBarPreview() {
         HomeTopBar(
             onNotificationClick = {
             },
+            hasUnreadNotifications = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(

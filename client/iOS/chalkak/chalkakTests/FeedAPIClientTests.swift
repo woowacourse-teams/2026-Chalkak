@@ -28,8 +28,33 @@ struct FeedAPIClientTests {
         let content = try await client.fetchPostDetail(postID: "post-1")
 
         #expect(content.post.id == "post-1")
+        #expect(content.post.authorID == nil)
         let request = try #require(await recorder.firstRequest)
         #expect(request.url?.path == "/api/v1/posts/post-1")
+    }
+
+    @Test("상세 응답의 authorId를 게시물 작성자 ID로 매핑한다")
+    func mapsAuthorIDFromPostDetail() async throws {
+        FeedAPIClientURLProtocol.handler = { request in
+            Self.response(
+                for: request,
+                body: #"{"id":"post-1","authorId":"author-1","topic":{"title":"하늘","topicDate":"2026-09-01"},"originalImageUrl":"https://example.com/original.webp","signatureOriginalImageUrl":"https://example.com/signature.webp","title":"제목","likeCount":1,"isLiked":false,"isMine":false}"#
+            )
+        }
+        defer { FeedAPIClientURLProtocol.handler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FeedAPIClientURLProtocol.self]
+        let client = FeedAPIClient(
+            configuration: FeedAPIConfiguration(
+                baseURL: URL(string: "https://example.com/api/v1")!
+            ),
+            session: URLSession(configuration: configuration)
+        )
+
+        let content = try await client.fetchPostDetail(postID: "post-1")
+
+        #expect(content.post.authorID == "author-1")
     }
 
     @Test("게시물 제목 수정은 PUT과 정규화된 제목을 전송한다")

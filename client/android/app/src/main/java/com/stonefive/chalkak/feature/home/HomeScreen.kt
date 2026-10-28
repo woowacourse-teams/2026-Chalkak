@@ -13,41 +13,59 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.ZeroCornerSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
+import com.stonefive.chalkak.core.designsystem.component.bottombar.rememberScreenBottomBarScrollState
+import com.stonefive.chalkak.core.designsystem.component.image.photoTransitionChrome
 import com.stonefive.chalkak.core.designsystem.scroll.ChalkakScrollToTopButton
 import com.stonefive.chalkak.core.designsystem.scroll.CollapsingScrollToTopThreshold
-import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
+import com.stonefive.chalkak.feature.home.component.HomeFeedbackCard
+import com.stonefive.chalkak.feature.home.component.HomeFeedbackStartSheet
 import com.stonefive.chalkak.feature.home.component.HomeHeroCard
 import com.stonefive.chalkak.feature.home.component.HomeIssueSection
 import com.stonefive.chalkak.feature.home.component.HomeRankingRow
@@ -57,6 +75,7 @@ import com.stonefive.chalkak.feature.home.component.HomeWeeklyRecord
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 const val HOME_CONTENT_TEST_TAG = "home-content"
@@ -71,11 +90,19 @@ fun HomeScreen(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onRetry: () -> Unit,
     onNotificationClick: () -> Unit,
-    onIssueClick: () -> Unit,
+    onIssueClick: (title: String, url: String) -> Unit,
+    onStartFeedback: () -> Unit,
     modifier: Modifier = Modifier,
+    onLoadMoreBanners: () -> Unit = {},
+    onOpenRecordDate: (LocalDate) -> Unit = {},
+    onDismissFeedbackMessage: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
-    val bottomBarState = rememberBottomBarScrollState()
+    // 날짜가 바뀌면 다른 사진의 카드이므로 펼침·시트 상태를 처음으로 되돌린다.
+    val feedbackIdentity = uiState.date to (uiState.hero as? HomeHeroState.Photo)?.postId
+    var isFeedbackExpanded by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
+    var isFeedbackSheetVisible by rememberSaveable(feedbackIdentity) { mutableStateOf(false) }
+    val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.HOME)
     val interactionScope = rememberCoroutineScope()
     val scrollToTopToggleThresholdPx = with(LocalDensity.current) {
         CollapsingScrollToTopThreshold.toPx()
@@ -131,8 +158,11 @@ fun HomeScreen(
             ) {
                 HomeTopBar(
                     onNotificationClick = onNotificationClick,
+                    hasUnreadNotifications = uiState.hasUnreadNotifications,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .photoTransitionChrome()
+                        .background(ChalkakTheme.colors.background)
                         .statusBarsPadding()
                         .height(HomeTopBarHeight)
                         .homeBottomDivider()
@@ -142,11 +172,24 @@ fun HomeScreen(
                     uiState = uiState,
                     onOpenPhotoUpload = onOpenPhotoUpload,
                     onOpenRecord = onOpenRecord,
+                    onOpenRecordDate = onOpenRecordDate,
                     onOpenDisplay = onOpenDisplay,
                     onOpenFeed = onOpenFeed,
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
+                    isFeedbackExpanded = isFeedbackExpanded,
+                    onFeedbackStartClick = {
+                        // 실패한 리뷰는 시작 안내 없이 바로 다시 요청한다.
+                        if (uiState.feedbackPhase == HomeFeedbackPhase.Failed) {
+                            onStartFeedback()
+                        } else {
+                            isFeedbackSheetVisible = true
+                        }
+                    },
+                    onFeedbackToggleExpanded = { isFeedbackExpanded = !isFeedbackExpanded },
+                    onLoadMoreBanners = onLoadMoreBanners,
                     listState = listState,
+                    bottomBarHeight = bottomBarHeight,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -160,23 +203,87 @@ fun HomeScreen(
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
+                        .photoTransitionChrome()
                         .padding(
                             end = 24.dp,
                             bottom = bottomBarHeight + 18.dp,
                         ),
                 )
             }
-            ChalkakBottomBar(
+            ChalkakScreenBottomBar(
                 selectedItem = ChalkakBottomBarItem.HOME,
                 onItemSelected = onNavigateToBottomBar,
                 onAddClick = onOpenPhotoUpload,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .onSizeChanged { bottomBarState.height = it.height }
-                    .graphicsLayer { translationY = bottomBarState.offset },
+                    .fillMaxWidth(),
+                scrollState = bottomBarState,
             )
         }
+    }
+    if (isFeedbackSheetVisible) {
+        HomeFeedbackStartBottomSheet(
+            onStart = {
+                isFeedbackSheetVisible = false
+                onStartFeedback()
+            },
+            onDismiss = { isFeedbackSheetVisible = false },
+        )
+    }
+    uiState.feedbackMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissFeedbackMessage,
+            confirmButton = {
+                TextButton(onClick = onDismissFeedbackMessage) {
+                    Text("확인", color = ChalkakTheme.colors.actionPrimary, style = ChalkakTheme.typography.callout)
+                }
+            },
+            text = {
+                Text(message, color = ChalkakTheme.colors.textPrimary, style = ChalkakTheme.typography.callout)
+            },
+            shape = ChalkakTheme.shapes.large,
+            containerColor = ChalkakTheme.colors.surfaceElevated,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeFeedbackStartBottomSheet(
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = null,
+        // 화면 아래 끝과 좌우를 꽉 채우도록 위쪽 모서리만 둥글게 하고 기본 최대 너비(640dp) 제한을 푼다.
+        sheetMaxWidth = Dp.Unspecified,
+        shape = ChalkakTheme.shapes.sheet
+            .copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize),
+        containerColor = ChalkakTheme.colors.surfaceElevated,
+    ) {
+        AiReviewSheetDragHandle(sheetState = sheetState, onDismiss = onDismiss, modifier = Modifier.fillMaxWidth())
+        HomeFeedbackStartSheet(
+            onStart = {
+                // 시트가 내려가는 애니메이션을 마친 뒤 닫힌 상태로 바꿔야 시트가 뚝 끊기지 않는다.
+                // 그 사이 날짜가 바뀌어 시트가 화면에서 사라지면 코루틴이 취소되어 이전 날짜의 분석을 시작하지 않는다.
+                scope.launch {
+                    sheetState.hide()
+                    onStart()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = ChalkakTheme.spacing.xl,
+                    top = ChalkakTheme.spacing.sm,
+                    end = ChalkakTheme.spacing.xl,
+                    bottom = ChalkakTheme.spacing.xl,
+                ),
+        )
     }
 }
 
@@ -194,11 +301,37 @@ private fun HomeContent(
     onOpenDisplay: (LocalDate) -> Unit,
     onOpenFeed: (Post) -> Unit,
     onRetry: () -> Unit,
-    onIssueClick: () -> Unit,
+    onIssueClick: (title: String, url: String) -> Unit,
+    isFeedbackExpanded: Boolean,
+    onOpenRecordDate: (LocalDate) -> Unit,
+    onFeedbackStartClick: () -> Unit,
+    onFeedbackToggleExpanded: () -> Unit,
+    onLoadMoreBanners: () -> Unit,
     listState: LazyListState,
+    bottomBarHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
+    val currentUiState by rememberUpdatedState(uiState)
+    val currentOnLoadMoreBanners by rememberUpdatedState(onLoadMoreBanners)
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val state = currentUiState
+            val lastVisibleIssue = listState.layoutInfo.visibleItemsInfo
+                .mapNotNull { it.key as? HomeIssueItemKey }
+                .maxOfOrNull { it.index }
+            state.banners.isNotEmpty() &&
+                state.bannerStatus == HomeSectionStatus.Ready &&
+                state.bannerHasNext &&
+                !state.isRefreshing &&
+                !state.isLoadingMoreBanners &&
+                !state.bannerLoadMoreError &&
+                lastVisibleIssue != null &&
+                lastVisibleIssue >= state.banners.lastIndex - ISSUE_PREFETCH_DISTANCE
+        }.distinctUntilChanged().collect { shouldLoadMore ->
+            if (shouldLoadMore) currentOnLoadMoreBanners()
+        }
+    }
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
@@ -218,7 +351,7 @@ private fun HomeContent(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(HOME_CONTENT_TEST_TAG),
-            contentPadding = PaddingValues(bottom = ChalkakTheme.spacing.xxl),
+            contentPadding = PaddingValues(bottom = bottomBarHeight + ChalkakTheme.spacing.xxl),
         ) {
             item {
                 HomeTopicHeader(
@@ -240,17 +373,35 @@ private fun HomeContent(
                     hero = uiState.hero,
                     topic = uiState.topic,
                     onOpenPhotoUpload = onOpenPhotoUpload,
-                    onOpenRecord = onOpenRecord,
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
             }
+            if (uiState.showsFeedback) {
+                item {
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+                    HomeFeedbackCard(
+                        phase = uiState.feedbackPhase,
+                        result = uiState.feedbackResult,
+                        canRequestAgain = uiState.feedbackCanRequestAgain,
+                        isExpanded = isFeedbackExpanded,
+                        onStart = onFeedbackStartClick,
+                        onToggleExpanded = onFeedbackToggleExpanded,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                    )
+                }
+            }
             item {
-                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
+                Spacer(
+                    modifier = Modifier.height(
+                        if (uiState.showsFeedback) ChalkakTheme.spacing.xl else ChalkakTheme.spacing.xxl,
+                    ),
+                )
                 HomeWeeklyRecord(
                     days = uiState.week,
                     status = uiState.recordsStatus,
                     onOpenRecord = onOpenRecord,
+                    onOpenRecordDate = onOpenRecordDate,
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
@@ -277,12 +428,71 @@ private fun HomeContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            item {
-                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))
-                HomeIssueSection(
-                    onIssueClick = onIssueClick,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
-                )
+            if (uiState.banners.isNotEmpty() || uiState.bannerStatus == HomeSectionStatus.Loading) {
+                item(key = "issue-header") {
+                    Text(
+                        text = "ISSUE",
+                        color = ChalkakTheme.colors.textPrimary,
+                        style = ChalkakTheme.typography.headline,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = ChalkakTheme.spacing.screenHorizontal,
+                                top = ChalkakTheme.spacing.xxl,
+                                end = ChalkakTheme.spacing.screenHorizontal,
+                            ),
+                    )
+                }
+                if (uiState.banners.isEmpty()) {
+                    item(key = "issue-loading") {
+                        HomeIssueSection(
+                            banner = null,
+                            onIssueClick = onIssueClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
+                                .padding(top = ChalkakTheme.spacing.lg),
+                            showHeader = false,
+                        )
+                    }
+                }
+                itemsIndexed(
+                    items = uiState.banners,
+                    key = { index, banner -> HomeIssueItemKey(banner.id, index) },
+                ) { index, banner ->
+                    HomeIssueSection(
+                        banner = banner,
+                        onIssueClick = onIssueClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
+                            .padding(top = if (index == 0) ChalkakTheme.spacing.lg else ChalkakTheme.spacing.xxl),
+                        showHeader = false,
+                    )
+                }
+                if (uiState.isLoadingMoreBanners || uiState.bannerLoadMoreError) {
+                    item(key = "issue-pagination") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(ChalkakTheme.spacing.xl),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (uiState.isLoadingMoreBanners) {
+                                CircularProgressIndicator(color = ChalkakTheme.colors.actionPrimary)
+                            } else {
+                                TextButton(onClick = onLoadMoreBanners) {
+                                    Text(
+                                        text = "다시 시도",
+                                        color = ChalkakTheme.colors.actionPrimary,
+                                        style = ChalkakTheme.typography.body,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -327,6 +537,13 @@ private fun Modifier.homeBottomDivider(): Modifier {
         )
     }
 }
+
+private const val ISSUE_PREFETCH_DISTANCE = 2
+
+private data class HomeIssueItemKey(
+    val id: String,
+    val index: Int,
+) : java.io.Serializable
 
 private val HomeDateFormatter = DateTimeFormatter.ofPattern("M월 d일", Locale.KOREAN)
 private val HomeDividerWidth = 0.5.dp
@@ -376,7 +593,8 @@ private fun HomeScreenPreview() {
             onNavigateToBottomBar = {},
             onRetry = {},
             onNotificationClick = {},
-            onIssueClick = {},
+            onIssueClick = { _, _ -> },
+            onStartFeedback = {},
         )
     }
 }
@@ -401,6 +619,7 @@ private fun previewHomePost(
     contentDescription = "$title 사진",
     title = title,
     likeCount = id.toInt(),
+    authorId = "preview-author",
 )
 
 private fun drawableResourceUrl(resourceId: Int): String =

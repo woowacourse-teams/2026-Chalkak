@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
@@ -200,6 +201,75 @@ class DisplayScreenTest {
     }
 
     @Test
+    fun displayReselectRestoresTopHeaderFilterAndFirstPhotoWithoutFloatingButton() {
+        val requested = mutableStateOf(false)
+        var handledRequests = 0
+        setDisplayContent(
+            uiState = scrollableLatestUiState(),
+            scrollToTopRequested = { requested.value },
+            onScrollToTopHandled = {
+                handledRequests++
+                requested.value = false
+            },
+        )
+        val grid = composeRule.onNode(hasScrollAction())
+        repeat(2) { grid.performTouchInput { swipeUp() } }
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+        composeRule.runOnIdle { requested.value = true }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("바다").assertIsDisplayed()
+        composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        assertEquals(1, handledRequests)
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+
+        grid.performTouchInput { swipeUp() }
+        composeRule.runOnIdle { requested.value = true }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        assertEquals(2, handledRequests)
+    }
+
+    @Test
+    fun scrollingUpShowsScrollToTopButtonAndClickMovesToFirstPhoto() {
+        setDisplayContent(uiState = scrollableLatestUiState())
+        val grid = composeRule.onNode(hasScrollAction())
+        repeat(2) { grid.performTouchInput { swipeUp() } }
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+
+        grid.performTouchInput { swipe(start = center, end = center.copy(y = center.y + 200f)) }
+        composeRule
+            .onNodeWithContentDescription("맨 위로")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+    }
+
+    @Test
+    fun scrollToTopButtonMovesToFirstPhotoFromFarDown() {
+        setDisplayContent(uiState = scrollableLatestUiState(photoCount = 40))
+        val grid = composeRule.onNode(hasScrollAction())
+        grid.performScrollToIndex(30)
+        grid.performTouchInput { swipe(start = center, end = center.copy(y = center.y + 200f)) }
+
+        composeRule
+            .onNodeWithContentDescription("맨 위로")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("8월 5일").assertIsDisplayed()
+        composeRule.onNodeWithText("최신순").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("사진 0").assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("맨 위로").assertCountEquals(0)
+    }
+
+    @Test
     fun changingSortRestoresFilterAndMovesPhotoGridToFirstItem() {
         var selectedSort: PostSort? = null
         setDisplayContent(
@@ -325,6 +395,8 @@ class DisplayScreenTest {
         onLikeClick: (String) -> Unit = {},
         onPreviousDateClick: () -> Unit = {},
         onNextDateClick: () -> Unit = {},
+        scrollToTopRequested: () -> Boolean = { false },
+        onScrollToTopHandled: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -348,6 +420,8 @@ class DisplayScreenTest {
                     onNavigateToBottomBar = {},
                     onOpenFeed = onOpenFeed,
                     onLikeClick = onLikeClick,
+                    scrollToTopRequested = scrollToTopRequested(),
+                    onScrollToTopHandled = onScrollToTopHandled,
                 )
             }
         }
@@ -370,6 +444,7 @@ private val photo = Post(
     contentDescription = "사진",
     title = "한낮의 다리",
     likeCount = 17,
+    authorId = "author",
 )
 
 private fun latestUiState() = DisplayUiState(
@@ -383,9 +458,9 @@ private fun latestUiState() = DisplayUiState(
     ),
 )
 
-private fun scrollableLatestUiState() = latestUiState().copy(
+private fun scrollableLatestUiState(photoCount: Int = 12) = latestUiState().copy(
     content = DisplayContentState.Latest(
-        photos = List(12) { index ->
+        photos = List(photoCount) { index ->
             photo.copy(
                 id = "photo-$index",
                 contentDescription = "사진 $index",
