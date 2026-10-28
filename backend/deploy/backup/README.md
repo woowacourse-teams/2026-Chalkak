@@ -11,7 +11,24 @@
 - DB 파일은 최소 7일 보존 목표다. 현재 자동 삭제는 없으므로 실제로는 더 오래 쌓인다.
 - 아직 이 문서와 스크립트만으로 자동 백업이나 운영 복구가 검증된 것은 아니다.
 
-## 준비
+## 실행 환경과 설치 범위
+
+| 환경 | 설치·실행 범위 | 실행 주기 |
+| --- | --- | --- |
+| 운영 EC2 | `db-backup.sh`와 백업 도구·설정. 이미지 도구는 #843에서 구성 | #844에서 매일 자정(Asia/Seoul) 예약 |
+| 팀 계정의 임시 검증 EC2 | `db-restore.sh`, rclone, Docker, `sha256sum`과 보관본 조회 전용 설정 | 최초 실제 보관본 검증 및 매월 1회 수동 실행 |
+
+운영 EC2에는 복구 검증용 Docker를 설치하거나 복구 스크립트를 예약 작업에 연결하지 않는다.
+스크립트는 Git 저장소에서 함께 관리하되, 서버에는 역할에 필요한 파일만 설치한다.
+현재 CodeDeploy 배포 묶음에는 `deploy/backup/`이 포함되지 않는다. 서버별 설치와 설정은 #844에서 준비한다.
+
+검증 EC2는 검증할 때만 생성한다. 생성 전에 담당자의 삭제 권한과 비용을 확인하고,
+운영 DB 자격 증명·운영 저장소 쓰기 권한 없이 필요한 보관본만 조회하도록 구성한다.
+검증 서버 자신의 Docker를 사용하며 원격 Docker 연결로 운영 서버를 대상으로 하지 않는다.
+검증 결과를 보관한 뒤 컨테이너·다운로드 파일을 정리하고 검증 EC2와 연결 저장소의 정리 여부를 확인한다.
+아직 검증 EC2를 생성했거나 해당 환경에서 검증한 것은 아니다.
+
+## 백업 실행 준비
 
 Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`, GNU coreutils의 `timeout`이 필요하다.
 DB에 직접 연결해 스키마·테이블·시퀀스를 내보낼 권한이 있어야 한다.
@@ -65,11 +82,25 @@ verify, completion이다. 외부 명령의 원문 진단은 민감 정보 노출
 
 ### 보관본 수동 복구·검증
 
-Docker와 `postgres:18.4` 이미지가 추가로 필요하다. 실행 로그에서 정확한 회차ID를 선택한다.
+아래 명령은 운영 EC2가 아닌 팀 계정의 임시 검증 EC2에서 실행한다.
+Bash, rclone, Docker, `sha256sum`, `mktemp`와 `postgres:18.4` 이미지가 필요하다.
+이미지를 미리 준비하거나 Docker가 받을 수 있어야 한다. DB 컨테이너 자체의 외부 네트워크는 차단한다.
+실행 로그에서 정확한 회차ID를 선택한다.
 최신 파일을 임의로 선택하지 않으며, 신뢰하는 팀 백업 파일만 사용한다.
 
+검증 서버에는 운영 백업 설정 전체를 복사하지 않는다. 아래 세 항목만 담은 보호된
+`/etc/chalkak-restore/restore.env`와 백업 조회·다운로드 전용 `rclone.conf`를 준비한다.
+PGHOST·PGUSER·PGPASSFILE과 운영 DB 비밀번호는 필요하지 않다.
+두 설정 파일은 실행 사용자 소유, mode 600으로 보호한다.
+
 ```bash
-bash deploy/backup/db-restore.sh /etc/chalkak-backup/backup.env <회차ID>
+RCLONE_CONFIG=/etc/chalkak-restore/rclone.conf
+DB_BACKUP_DESTINATION=backup:REPLACE_WITH_BACKUP_BUCKET/chalkak/db
+DB_BACKUP_TEMP_ROOT=/tmp
+```
+
+```bash
+bash deploy/backup/db-restore.sh /etc/chalkak-restore/restore.env <회차ID>
 ```
 
 이 도구는 COMPLETE·SHA-256·파일 크기를 검사한 뒤, 외부 네트워크·공개 포트·호스트 볼륨이
@@ -87,11 +118,14 @@ bash deploy/backup/db-restore.sh /etc/chalkak-backup/backup.env <회차ID>
 추가 SQL 검증이 필요하면 `--keep-container`를 붙인다. 성공한 경우에만 컨테이너가 남는다.
 
 ```bash
-bash deploy/backup/db-restore.sh /etc/chalkak-backup/backup.env <회차ID> --keep-container
+bash deploy/backup/db-restore.sh /etc/chalkak-restore/restore.env <회차ID> --keep-container
 docker exec -it <출력된컨테이너ID> psql -X -U restore -d restored
 # 사용자·게시글·사진 관계와 삭제·탈퇴 상태 등을 읽기 전용으로 확인한 뒤 정리한다.
 docker rm --force <출력된컨테이너ID>
 ```
+
+매월 1회 같은 절차를 수동으로 수행하고 백업 회차·검증 결과·소요 시간을 기록한다.
+검증 반복 실행의 자동화나 검증 서버 자동 생성은 초기 범위에 포함하지 않는다.
 
 위 명령은 임시 DB 복구 검증용이다. 운영 연결 전환이나 운영 RDS 복원은 수행하지 않는다.
 종료 신호에서는 정리를 시도하지만 강제 종료·Docker 접속 오류에서는 자원이 남을 수 있다.
