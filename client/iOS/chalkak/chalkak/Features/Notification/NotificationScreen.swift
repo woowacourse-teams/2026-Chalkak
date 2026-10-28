@@ -9,20 +9,19 @@ struct NotificationScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NotificationTopBar(onBackClick: onBackClick)
+            NotificationTopBar(
+                isMarkAllReadEnabled: viewModel.canMarkAllRead,
+                onBackClick: onBackClick,
+                onMarkAllRead: {
+                    Task { await viewModel.markAllRead() }
+                }
+            )
 
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let message = viewModel.message {
-                NotificationMessageBanner(message: message)
-                    .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .padding(.bottom, Metrics.messageBottomPadding)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
+        .chalkakToast(viewModel.message)
         .task {
             await viewModel.refresh()
         }
@@ -248,22 +247,6 @@ private struct NotificationPaginationView: View {
     }
 }
 
-private struct NotificationMessageBanner: View {
-    @Environment(\.chalkakTheme) private var theme
-    let message: String
-
-    var body: some View {
-        Text(message)
-            .font(theme.typography.subheadline)
-            .foregroundStyle(theme.colors.onActionPrimary)
-            .padding(.horizontal, theme.spacing.lg)
-            .padding(.vertical, theme.spacing.md)
-            .frame(maxWidth: .infinity)
-            .background(theme.colors.actionPrimary, in: Capsule())
-            .accessibilityLabel(message)
-    }
-}
-
 private enum NotificationDateFormatter {
     static func string(from date: Date) -> String {
         let calendar = Calendar.current
@@ -292,7 +275,6 @@ private enum Metrics {
     static let emptyTopPadding: CGFloat = 144
     static let retryIconSize: CGFloat = 20
     static let retryButtonSize: CGFloat = 48
-    static let messageBottomPadding: CGFloat = 24
 }
 
 #Preview("Notification") {
@@ -319,7 +301,8 @@ private enum Metrics {
                 )
             },
             loadUnread: { true },
-            markRead: { _ in }
+            markRead: { _ in },
+            markAllRead: {}
         ),
         onBackClick: {},
         onSelect: { _ in }
@@ -334,7 +317,8 @@ private enum Metrics {
                 NotificationPage(currentPage: page, pageSize: 20, hasNext: false, items: [])
             },
             loadUnread: { false },
-            markRead: { _ in }
+            markRead: { _ in },
+            markAllRead: {}
         ),
         onBackClick: {},
         onSelect: { _ in }

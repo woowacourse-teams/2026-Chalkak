@@ -9,12 +9,16 @@ val ChalkakBottomBar = Color(0xFF8C8479)
 val ChalkakAction = Color(0xFF2B2724)
 val ChalkakTextInactive = Color(0xFF9A968D)
 val ChalkakTextNeutral = Color(0xFF6B7280)
+val ChalkakPhotoActionText = Color(0xFF7D7D7D)
 val ChalkakSecondaryAction = Color(0xFF808080)
 val ChalkakStroke = Color(0x26888888)
 val ChalkakThickDivider = Color(0xFF757575)
 val ChalkakInputCursor = Color(0xFFB0563B)
 val ChalkakWhite = Color(0xFFFFFFFF)
 val ChalkakDestructive = Color(0xFFFF5A5F)
+
+// 사진 편집 화면 임시 색. 디자이너 시안이 나오면 확정한다.
+val ChalkakPhotoEditBackground = Color(0xFF141312)
 
 @Immutable
 data class ChalkakColors(
@@ -44,6 +48,10 @@ data class ChalkakColors(
     val calendarCell: Color,
     val calendarCellBorder: Color,
     val calendarSelection: Color,
+    val photoEditBackground: Color,
+    val photoEditContent: Color,
+    val photoEditContentMuted: Color,
+    val photoEditScrim: Color,
 )
 
 val LightChalkakColors = ChalkakColors(
@@ -73,4 +81,8 @@ val LightChalkakColors = ChalkakColors(
     calendarCell = Color(0xFFEAE7DE),
     calendarCellBorder = Color(0xFFDCD8CE),
     calendarSelection = ChalkakInputCursor,
+    photoEditBackground = ChalkakPhotoEditBackground,
+    photoEditContent = ChalkakWhite,
+    photoEditContentMuted = ChalkakWhite.copy(alpha = 0.56f),
+    photoEditScrim = ChalkakPhotoEditBackground.copy(alpha = 0.62f),
 )

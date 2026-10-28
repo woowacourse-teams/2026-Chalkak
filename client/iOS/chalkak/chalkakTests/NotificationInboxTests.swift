@@ -110,6 +110,140 @@ struct NotificationInboxViewModelTests {
         #expect(viewModel.items.first?.readAt == readAt)
     }
 
+    @Test("모두 읽음은 불러온 알림과 미읽음 표시를 모두 읽음으로 바꾼다")
+    func markAllReadMarksLoadedItemsAndClearsUnread() async {
+        let readAt = Date(timeIntervalSince1970: 1_790_000_000)
+        let loader = NotificationInboxPageLoader(results: [
+            .success(Self.page(1, hasNext: true, items: [
+                Self.item(id: Self.notificationID(1)),
+                Self.item(id: Self.notificationID(2), readAt: readAt),
+            ])),
+        ])
+        var markAllCount = 0
+        let viewModel = Self.viewModel(
+            pageLoader: loader,
+            unreadLoader: NotificationUnreadLoader(results: [.success(true)]),
+            readAction: NotificationReadAction(results: []),
+            markAllRead: { markAllCount += 1 }
+        )
+
+        await viewModel.refresh()
+        await viewModel.markAllRead()
+
+        #expect(markAllCount == 1)
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+        #expect(viewModel.items.last?.readAt == readAt)
+        #expect(!viewModel.hasUnread)
+        #expect(!viewModel.isMarkingAllRead)
+        #expect(loader.requestedPages == [1])
+    }
+
+    @Test("모두 읽음 실패는 미읽음 상태를 유지하고 안내한다")
+    func failedMarkAllReadPreservesUnread() async {
+        let loader = NotificationInboxPageLoader(results: [
+            .success(Self.page(1, hasNext: false, items: [Self.item(id: Self.notificationID(1))])),
+        ])
+        let viewModel = Self.viewModel(
+            pageLoader: loader,
+            unreadLoader: NotificationUnreadLoader(results: [.success(true)]),
+            readAction: NotificationReadAction(results: []),
+            markAllRead: { throw NotificationAPIError.network }
+        )
+
+        await viewModel.refresh()
+        await viewModel.markAllRead()
+
+        #expect(viewModel.items.first?.readAt == nil)
+        #expect(viewModel.hasUnread)
+        #expect(viewModel.message == "모두 읽음 처리하지 못했어요. 다시 시도해 주세요.")
+    }
+
+    @Test("미읽음 조회가 실패해도 목록에 읽지 않은 알림이 있으면 모두 읽음을 보낸다")
+    func markAllReadUsesLoadedUnreadItemsWhenUnreadStatusFails() async {
+        var markAllCount = 0
+        let viewModel = Self.viewModel(
+            pageLoader: NotificationInboxPageLoader(results: [
+                .success(Self.page(1, hasNext: false, items: [Self.item(id: Self.notificationID(1))])),
+            ]),
+            unreadLoader: NotificationUnreadLoader(results: [.failure(NotificationAPIError.network)]),
+            readAction: NotificationReadAction(results: []),
+            markAllRead: { markAllCount += 1 }
+        )
+
+        await viewModel.refresh()
+        #expect(!viewModel.hasUnread)
+        #expect(viewModel.canMarkAllRead)
+        await viewModel.markAllRead()
+
+        #expect(markAllCount == 1)
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+        #expect(!viewModel.canMarkAllRead)
+    }
+
+    @Test("모두 읽음 전에 시작한 새로고침 응답은 읽음 상태를 되돌리지 않는다")
+    func refreshStartedBeforeMarkAllReadKeepsItemsRead() async {
+        let loader = SuspendedNotificationInboxPageLoader()
+        loader.completeImmediately(
+            .success(Self.page(1, hasNext: false, items: [Self.item(id: Self.notificationID(1))]))
+        )
+        let viewModel = Self.viewModel(pageLoader: loader)
+        await viewModel.refresh()
+
+        let refresh = Task { await viewModel.refresh() }
+        await loader.waitForRequestCount(2)
+        await viewModel.markAllRead()
+        loader.completeRequest(
+            at: 0,
+            with: .success(Self.page(1, hasNext: false, items: [
+                Self.item(id: Self.notificationID(1)),
+                Self.item(id: Self.notificationID(2)),
+            ]))
+        )
+        await refresh.value
+
+        #expect(viewModel.items.count == 2)
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+        #expect(!viewModel.canMarkAllRead)
+    }
+
+    @Test("모두 읽음 전에 시작한 다음 페이지 응답은 읽음 상태를 되돌리지 않는다")
+    func nextPageStartedBeforeMarkAllReadKeepsItemsRead() async {
+        let loader = SuspendedNotificationInboxPageLoader()
+        loader.completeImmediately(
+            .success(Self.page(1, hasNext: true, items: [Self.item(id: Self.notificationID(1))]))
+        )
+        let viewModel = Self.viewModel(pageLoader: loader)
+        await viewModel.refresh()
+
+        let nextPage = Task { await viewModel.loadNextPage() }
+        await loader.waitForRequestCount(2)
+        await viewModel.markAllRead()
+        loader.completeRequest(
+            at: 0,
+            with: .success(Self.page(2, hasNext: false, items: [Self.item(id: Self.notificationID(2))]))
+        )
+        await nextPage.value
+
+        #expect(viewModel.items.map(\.id) == [Self.notificationID(1), Self.notificationID(2)])
+        #expect(viewModel.items.allSatisfy { $0.readAt != nil })
+    }
+
+    @Test("미읽음 알림이 없으면 모두 읽음 요청을 보내지 않는다")
+    func markAllReadWithoutUnreadSkipsRequest() async {
+        var markAllCount = 0
+        let viewModel = Self.viewModel(
+            pageLoader: NotificationInboxPageLoader(results: [.success(Self.page(1, hasNext: false, items: []))]),
+            unreadLoader: NotificationUnreadLoader(results: [.success(false)]),
+            readAction: NotificationReadAction(results: []),
+            markAllRead: { markAllCount += 1 }
+        )
+
+        await viewModel.refresh()
+        await viewModel.markAllRead()
+
+        #expect(markAllCount == 0)
+    }
+
     @Test("겹친 새로고침은 늦게 끝난 이전 응답을 버리고 다음 페이지 기준을 유지한다")
     func overlappingRefreshDiscardsOldCompletionAndPage() async {
         let loader = SuspendedNotificationInboxPageLoader()
@@ -154,12 +288,14 @@ struct NotificationInboxViewModelTests {
     private static func viewModel(
         pageLoader: NotificationInboxPageLoading,
         unreadLoader: NotificationUnreadLoading,
-        readAction: NotificationReading
+        readAction: NotificationReading,
+        markAllRead: @escaping NotificationInboxViewModel.ReadAllAction = {}
     ) -> NotificationInboxViewModel {
         NotificationInboxViewModel(
             loadPage: { try await pageLoader.load(page: $0) },
             loadUnread: { try await unreadLoader.load() },
-            markRead: { try await readAction.markRead(notificationID: $0) }
+            markRead: { try await readAction.markRead(notificationID: $0) },
+            markAllRead: markAllRead
         )
     }
 
@@ -295,6 +431,29 @@ struct NotificationAPIClientTests {
         await #expect(throws: NotificationAPIError.notFound) {
             try await Self.client().markRead(notificationID: "019a0010-0000-7000-8000-000000000001")
         }
+    }
+
+    @Test("공지 상세는 회원 알림 ID로 조회하며 사진과 반려 사유 없이 본문 전문을 유지한다")
+    func fetchNoticeDetail() async throws {
+        let recorder = NotificationAPIRequestRecorder()
+        let notificationID = "019a0010-0000-7000-8000-000000000009"
+        let body = String(repeating: "공지 본문입니다.\n", count: 20)
+        let data = try JSONSerialization.data(withJSONObject: [
+            "id": notificationID, "title": "서비스 점검 안내", "body": body,
+            "originalImageUrl": NSNull(), "rejectionReason": NSNull()
+        ])
+        let json = String(decoding: data, as: UTF8.self)
+        NotificationAPIMockURLProtocol.install { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: json)
+        }
+        defer { NotificationAPIMockURLProtocol.uninstall() }
+        let detail = try await Self.client().fetchDetail(notificationID: notificationID)
+        #expect(await recorder.firstRequest?.url?.path == "/api/v1/notifications/\(notificationID)")
+        #expect(detail.title == "서비스 점검 안내")
+        #expect(detail.body == body)
+        #expect(detail.originalImageURL == nil)
+        #expect(detail.rejectionReason == nil)
     }
 
     private static func client(accessToken: String = "access-token") -> NotificationAPIClient {
@@ -485,5 +644,47 @@ private extension ISO8601DateFormatter {
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
+    }
+}
+
+struct NoticeNotificationDestinationTests {
+    @Test("공지 알림함 항목은 회원별 알림 ID로 공지 상세를 연다")
+    func opensNoticeDetail() {
+        let notificationID = "019a0010-0000-7000-8000-000000000009"
+        let item = NotificationItem(
+            id: notificationID, type: "NOTICE", sourceType: "NOTICE",
+            sourceID: "019a0000-0000-7000-8000-000000000592",
+            title: "서비스 점검 안내", body: "점검 공지 본문", thumbnailURL: nil,
+            readAt: nil, createdAt: Date()
+        )
+        #expect(item.destination == .notice(notificationID: notificationID))
+        #expect(item.destination?.notificationID == notificationID)
+    }
+}
+
+struct AIReviewNotificationDestinationTests {
+    @Test("AI 결과 알림함도 같은 게시물 피드로 연결한다",
+          arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
+    func opensPostFeed(type: String) {
+        let postID = "019a0010-0000-7000-8000-000000000003"
+        let notificationID = "019a0010-0000-7000-8000-000000000002"
+        let item = NotificationItem(
+            id: notificationID, type: type, sourceType: "POST", sourceID: postID,
+            title: "AI 피드백", body: "결과 안내", thumbnailURL: nil,
+            readAt: nil, createdAt: Date()
+        )
+        #expect(item.destination == .aiReview(postID: postID, notificationID: notificationID))
+    }
+
+    @Test("AI 결과 알림의 대상이 잘못되면 피드로 이동하지 않는다")
+    func ignoresInvalidSource() {
+        for (sourceType, sourceID) in [("NOTICE", "019a0010-0000-7000-8000-000000000003"), ("POST", "bad-id")] {
+            let item = NotificationItem(
+                id: "019a0010-0000-7000-8000-000000000002", type: "AI_REVIEW_COMPLETED",
+                sourceType: sourceType, sourceID: sourceID, title: "", body: "",
+                thumbnailURL: nil, readAt: nil, createdAt: Date()
+            )
+            #expect(item.destination == nil)
+        }
     }
 }

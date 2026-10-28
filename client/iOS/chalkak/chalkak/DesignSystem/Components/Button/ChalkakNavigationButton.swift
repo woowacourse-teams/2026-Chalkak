@@ -37,6 +37,7 @@ struct ChalkakNavigationButton: View {
             .modifier(ChalkakNavigationButtonStyle())
             .buttonBorderShape(.circle)
             .frame(width: Self.diameter, height: Self.diameter)
+            .contentShape(Circle())
             .accessibilityLabel(kind.title)
     }
 }
@@ -83,5 +84,12 @@ extension ToolbarContent {
         } else {
             self
         }
+    }
+}
+
+/// 사진처럼 누르는 동안에도 이미지의 밝기와 크기를 그대로 유지하는 버튼.
+struct ChalkakUnhighlightedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }

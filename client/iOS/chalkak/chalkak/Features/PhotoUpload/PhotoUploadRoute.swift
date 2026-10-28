@@ -2,6 +2,7 @@ import Photos
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct PhotoUploadRoute: View {
     @Environment(\.openURL) private var openURL
@@ -12,26 +13,24 @@ struct PhotoUploadRoute: View {
     let onReauthenticationRequired: () -> Void
 
     @State private var isGalleryPresented = false
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var pickedPhoto: NSItemProvider?
     @State private var isCameraPresented = false
     @State private var capturedImage: UIImage?
     @State private var shouldSaveCapturedImage = false
     @State private var isPhotoPermissionAlertPresented = false
     @State private var isRequestingPhotoPermission = false
     @State private var photoSelectionLoader = PhotoUploadSelectionLoader()
+    @State private var showsDiscardDialog = false
 
     var body: some View {
         PhotoUploadScreen(
             viewState: viewModel.viewState,
             isCameraAvailable: UIImagePickerController.isSourceTypeAvailable(.camera),
-            onAction: viewModel.handle,
+            onAction: handleAction,
             onRetryTopicLoad: viewModel.retryTopicLoad
         )
         .onChange(of: viewModel.event) { _, event in
             handle(event)
-        }
-        .onChange(of: selectedPhotoItem) { _, item in
-            loadSelectedPhoto(item)
         }
         .onDisappear {
             photoSelectionLoader.cancel()
@@ -41,11 +40,21 @@ struct PhotoUploadRoute: View {
             onSubmitted(submission)
             viewModel.reset()
         }
-        .photosPicker(
-            isPresented: $isGalleryPresented,
-            selection: $selectedPhotoItem,
-            matching: .images
-        )
+        // 선택 창이 닫히는 중에 편집 화면을 띄우면 편집 화면이 Safe Area를 받지 못해 상단·하단 버튼이 시스템 영역에 겹친다.
+        // 카메라처럼 선택 창이 완전히 닫힌 뒤 `onDismiss`에서 편집을 시작한다.
+        .sheet(isPresented: $isGalleryPresented, onDismiss: completeGallerySelection) {
+            PhotoUploadGalleryPicker(
+                onPhotoPicked: { photo in
+                    pickedPhoto = photo
+                    isGalleryPresented = false
+                },
+                onCancel: {
+                    pickedPhoto = nil
+                    isGalleryPresented = false
+                }
+            )
+            .ignoresSafeArea()
+        }
         .sheet(isPresented: $isCameraPresented, onDismiss: completeCameraCapture) {
             PhotoUploadCameraPicker(
                 onImagePicked: { image in
@@ -59,7 +68,14 @@ struct PhotoUploadRoute: View {
             )
             .ignoresSafeArea()
         }
-        .alert("촬영 사진 저장 권한", isPresented: $isPhotoPermissionAlertPresented) {
+        .fullScreenCover(item: editRequest) { request in
+            PhotoEditScreen(
+                session: request.session,
+                onComplete: viewModel.completeEditing,
+                onCancel: viewModel.cancelEditing
+            )
+        }
+        .alert("촬영한 사진을 저장할까요?", isPresented: $isPhotoPermissionAlertPresented) {
             Button("설정 열기") {
                 guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
                 openURL(url)
@@ -70,8 +86,38 @@ struct PhotoUploadRoute: View {
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text("촬영한 사진을 자동으로 저장하려면 설정에서 사진 추가 권한을 허용해 주세요.")
+            Text("사진 추가 권한을 허용하면 촬영한 사진이 사진 앱에도 저장돼요. 허용하지 않아도 사진을 골라 게시물을 작성할 수 있어요.")
         }
+        .alert("작성을 그만둘까요?", isPresented: $showsDiscardDialog) {
+            Button("취소", role: .cancel) {}
+            Button("뒤로 가기", role: .destructive) {
+                viewModel.handle(.backClicked)
+            }
+        } message: {
+            Text("뒤로 가면 작성 중인 내용이 사라져요. 계속 작성하려면 취소를 눌러 주세요.")
+        }
+    }
+
+    private func handleAction(_ action: PhotoUploadAction) {
+        if case .backClicked = action {
+            guard !viewModel.viewState.isSubmitting, !showsDiscardDialog else { return }
+            if viewModel.viewState.hasUnsavedDraft {
+                showsDiscardDialog = true
+                return
+            }
+        }
+        viewModel.handle(action)
+    }
+
+    private var editRequest: Binding<PhotoUploadEditRequest?> {
+        Binding(
+            get: { viewModel.viewState.editRequest },
+            set: { request in
+                if request == nil {
+                    viewModel.cancelEditing()
+                }
+            }
+        )
     }
 
     private func openCamera() {
@@ -95,17 +141,16 @@ struct PhotoUploadRoute: View {
         shouldSaveCapturedImage = false
         guard let image = capturedImage else { return }
         capturedImage = nil
+        if shouldSave {
+            Task { @MainActor in
+                await viewModel.saveCapturedImage(image)
+            }
+        }
         guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
             viewModel.showImageSelectionFailure()
             return
         }
-        Task { @MainActor in
-            if shouldSave {
-                await viewModel.selectCapturedImage(data: data, preview: image)
-            } else {
-                viewModel.selectImage(data: data, preview: image)
-            }
-        }
+        viewModel.beginEditing(sourceData: data)
     }
 
     private func handle(_ event: PhotoUploadEvent?) {
@@ -117,7 +162,7 @@ struct PhotoUploadRoute: View {
             onBack()
         case .openGallery:
             photoSelectionLoader.cancel()
-            selectedPhotoItem = nil
+            pickedPhoto = nil
             isGalleryPresented = true
         case .openCamera:
             openCamera()
@@ -128,21 +173,13 @@ struct PhotoUploadRoute: View {
         viewModel.consumeEvent()
     }
 
-    private func loadSelectedPhoto(_ item: PhotosPickerItem?) {
-        guard let item else {
-            photoSelectionLoader.cancel()
-            return
-        }
+    private func completeGallerySelection() {
+        guard let photo = pickedPhoto else { return }
+        pickedPhoto = nil
 
         photoSelectionLoader.start(
-            load: { try await item.loadTransferable(type: Data.self) },
-            onLoaded: { data in
-                guard let image = UIImage(data: data) else {
-                    viewModel.showImageSelectionFailure()
-                    return
-                }
-                viewModel.selectImage(data: data, preview: image)
-            },
+            load: { try await PhotoUploadGalleryPicker.loadImageData(from: photo) },
+            onLoaded: viewModel.beginEditing(sourceData:),
             onFailure: viewModel.showImageSelectionFailure
         )
     }
@@ -198,6 +235,57 @@ final class PhotoUploadSelectionLoader {
         generation += 1
         task?.cancel()
         task = nil
+    }
+}
+
+/// 앨범에서 사진 한 장을 고른다. 사진 접근 권한 없이 쓸 수 있는 시스템 선택 창이다.
+struct PhotoUploadGalleryPicker: UIViewControllerRepresentable {
+    let onPhotoPicked: (NSItemProvider) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPhotoPicked: onPhotoPicked, onCancel: onCancel)
+    }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var configuration = PHPickerConfiguration()
+        configuration.filter = .images
+        configuration.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    static func loadImageData(from photo: NSItemProvider) async throws -> Data? {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = photo.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: data)
+                }
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        private let onPhotoPicked: (NSItemProvider) -> Void
+        private let onCancel: () -> Void
+
+        init(onPhotoPicked: @escaping (NSItemProvider) -> Void, onCancel: @escaping () -> Void) {
+            self.onPhotoPicked = onPhotoPicked
+            self.onCancel = onCancel
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            if let photo = results.first?.itemProvider {
+                onPhotoPicked(photo)
+            } else {
+                onCancel()
+            }
+        }
     }
 }
 

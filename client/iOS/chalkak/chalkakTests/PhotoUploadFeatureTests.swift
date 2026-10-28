@@ -39,6 +39,18 @@ struct PhotoUploadSuccessContentTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadViewStateTests {
+    @Test("사진이나 설명이 있을 때만 작성 중인 내용으로 판단한다")
+    func detectsUnsavedDraft() {
+        #expect(!PhotoUploadViewState().hasUnsavedDraft)
+        #expect(!PhotoUploadViewState(caption: " \n ").hasUnsavedDraft)
+        #expect(PhotoUploadViewState(caption: "작품 제목").hasUnsavedDraft)
+        #expect(PhotoUploadViewState(selectedImage: Self.image()).hasUnsavedDraft)
+        #expect(PhotoUploadViewState(
+            selectedImage: Self.image(),
+            imagePreparationStatus: .failed
+        ).hasUnsavedDraft)
+    }
+
     @Test("사진이 없으면 전시하기를 비활성화한다")
     func disablesSubmitWithoutPhoto() {
         #expect(!PhotoUploadViewState().canSubmit)
@@ -142,7 +154,8 @@ struct PhotoUploadViewModelTests {
         )
         let image = Self.image()
 
-        await viewModel.selectCapturedImage(data: Data([0x01]), preview: image)
+        viewModel.selectImage(data: Data([0x01]), preview: image)
+        await viewModel.saveCapturedImage(image)
         #expect(savedImages.count == 1)
         #expect(savedImages.first === image)
         #expect(viewModel.viewState.completedSubmission == nil)
@@ -183,7 +196,8 @@ struct PhotoUploadViewModelTests {
                 saveCameraImage: { _ in result }
             )
 
-            await viewModel.selectCapturedImage(data: data, preview: Self.image())
+            viewModel.selectImage(data: data, preview: Self.image())
+            await viewModel.saveCapturedImage(Self.image())
             try await waitUntil { !viewModel.viewState.isTopicLoading }
 
             #expect(viewModel.viewState.selectedImageData == data)
@@ -208,7 +222,7 @@ struct PhotoUploadViewModelTests {
             }
         )
         let task = Task {
-            await viewModel.selectCapturedImage(data: Data([0x01]), preview: Self.image())
+            await viewModel.saveCapturedImage(Self.image())
         }
         try await waitUntil { continuation != nil }
 
@@ -222,21 +236,24 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.selectedImage == nil)
     }
 
-    @Test("빈 촬영 데이터는 사진 앱에 저장하지 않는다")
-    func doesNotSaveInvalidCapture() async {
-        var saveCount = 0
+    @Test("빈 사진 데이터는 편집 화면을 띄우지 않고 실패를 안내한다")
+    func rejectsEmptyDataForEditing() async {
+        var preparedCount = 0
         let viewModel = PhotoUploadViewModel(
             topicDate: Self.topic().date,
-            saveCameraImage: { _ in
-                saveCount += 1
-                return .saved
+            prepareEditImage: { _ in
+                preparedCount += 1
+                return nil
             }
         )
 
-        await viewModel.selectCapturedImage(data: Data(), preview: Self.image())
+        viewModel.beginEditing(sourceData: Data())
+        await Task.yield()
 
-        #expect(saveCount == 0)
+        #expect(preparedCount == 0)
+        #expect(viewModel.viewState.editRequest == nil)
         #expect(viewModel.viewState.selectedImage == nil)
+        #expect(viewModel.viewState.pendingMessage?.text == PhotoUploadFailure.imagePreparationFailed.message)
     }
 
     @Test("주제 API 인증 만료는 재인증 이벤트로 변환한다")

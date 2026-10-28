@@ -286,15 +286,17 @@ struct DisplayViewModelTests {
         #expect(pageRequests.last?.randomSeed == "original-seed")
     }
 
-    @Test("이전 날짜 404만 최초 전시일 경계로 기록하고 성공 콘텐츠를 복원한다")
-    func recordsOnlyPreviousNotFoundAsBoundary() async {
+    @Test("이전 날짜 404는 성공 콘텐츠를 복원하고 최초 전시일을 바꾸지 않는다")
+    func previousNotFoundKeepsFirstTopicDate() async {
         let latestDate = Self.date(2026, 9, 2)
+        let firstTopicDate = Self.date(2026, 8, 20)
         var shouldFail = false
         let viewModel = DisplayViewModel(
             dateProvider: { latestDate },
             firstPageHandler: { date, _, _ in
                 shouldFail ? .failure(.topicNotFound) : .success(Self.content(date: date))
-            }
+            },
+            firstTopicDate: firstTopicDate
         )
         await viewModel.load()
         let previousPhotos = viewModel.viewState.photos
@@ -303,10 +305,101 @@ struct DisplayViewModelTests {
         await viewModel.moveToPreviousDate()
 
         #expect(viewModel.viewState.selectedDate == latestDate)
-        #expect(viewModel.viewState.earliestDate == latestDate)
+        #expect(viewModel.viewState.earliestDate == firstTopicDate)
         #expect(viewModel.viewState.photos == previousPhotos)
         #expect(viewModel.event == .showFailure(.topicNotFound))
+        #expect(viewModel.viewState.canGoPrevious)
+    }
+
+    @Test("첫 주제 날짜에서는 이전 날짜로 이동하지 않는다")
+    func stopsAtFirstTopicDate() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let firstTopicDate = Self.date(2026, 8, 20)
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialDate: firstTopicDate,
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort, _ in
+                recorder.firstPages.append((date, sort))
+                return .success(Self.content(date: date))
+            },
+            firstTopicDate: firstTopicDate
+        )
+        await viewModel.load()
+
+        await viewModel.moveToPreviousDate()
+
+        #expect(viewModel.viewState.selectedDate == firstTopicDate)
         #expect(!viewModel.viewState.canGoPrevious)
+        #expect(recorder.firstPages.count == 1)
+    }
+
+    @Test("고른 날짜로 이동하면 첫 주제 날짜와 오늘 사이로 맞춰 과거 전시를 불러온다")
+    func movesToPickedDateWithinRange() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let firstTopicDate = Self.date(2026, 8, 20)
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort, _ in
+                recorder.firstPages.append((date, sort))
+                return .success(Self.content(date: date))
+            },
+            firstTopicDate: firstTopicDate
+        )
+        await viewModel.load()
+
+        await viewModel.moveToDate(Self.date(2026, 8, 25))
+        #expect(viewModel.viewState.selectedDate == Self.date(2026, 8, 25))
+        #expect(viewModel.viewState.contentStatus == .archive)
+        #expect(recorder.firstPages.last?.1 == .popular)
+
+        await viewModel.moveToDate(Self.date(2026, 7, 1))
+        #expect(viewModel.viewState.selectedDate == firstTopicDate)
+
+        await viewModel.moveToDate(Self.date(2026, 9, 30))
+        #expect(viewModel.viewState.selectedDate == latestDate)
+        #expect(viewModel.viewState.contentStatus == .latest)
+    }
+
+    @Test("지금 날짜를 고르면 다시 불러오지 않는다")
+    func ignoresPickingCurrentDate() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, sort, _ in
+                recorder.firstPages.append((date, sort))
+                return .success(Self.content(date: date))
+            }
+        )
+        await viewModel.load()
+
+        await viewModel.moveToDate(latestDate)
+
+        #expect(recorder.firstPages.count == 1)
+    }
+
+    @Test("건너뛴 날짜 404는 성공 콘텐츠를 복원하고 최초 전시일을 바꾸지 않는다")
+    func pickedNotFoundKeepsFirstTopicDate() async {
+        let latestDate = Self.date(2026, 9, 2)
+        let firstTopicDate = Self.date(2026, 8, 20)
+        let missingDate = Self.date(2026, 8, 25)
+        let viewModel = DisplayViewModel(
+            dateProvider: { latestDate },
+            firstPageHandler: { date, _, _ in
+                date == missingDate ? .failure(.topicNotFound) : .success(Self.content(date: date))
+            },
+            firstTopicDate: firstTopicDate
+        )
+        await viewModel.load()
+
+        await viewModel.moveToDate(missingDate)
+
+        #expect(viewModel.viewState.selectedDate == latestDate)
+        #expect(viewModel.viewState.earliestDate == firstTopicDate)
+        #expect(viewModel.event == .showFailure(.topicNotFound))
+        #expect(viewModel.viewState.canGoPrevious)
     }
 
     @Test("네트워크 날짜 실패는 경계를 만들지 않고 성공 콘텐츠를 복원한다")
@@ -772,6 +865,39 @@ struct DisplayViewModelTests {
     }
 }
 
+struct DisplayDatePickerSheetTests {
+    private let start = DisplayPickerDay(year: 2026, month: 9, day: 17)
+
+    @Test("첫 해와 마지막 해는 범위 안의 월만 고를 수 있다")
+    func monthsWithinRange() {
+        let end = DisplayPickerDay(year: 2027, month: 2, day: 3)
+
+        #expect(DisplayDatePickerSheet.months(year: 2026, start: start, end: end) == [9, 10, 11, 12])
+        #expect(DisplayDatePickerSheet.months(year: 2027, start: start, end: end) == [1, 2])
+    }
+
+    @Test("첫 달은 첫 주제 날짜부터, 마지막 달은 오늘까지, 그 사이 달은 말일까지 고를 수 있다")
+    func daysWithinRange() {
+        let end = DisplayPickerDay(year: 2026, month: 11, day: 5)
+
+        #expect(DisplayDatePickerSheet.days(year: 2026, month: 9, start: start, end: end) == Array(17...30))
+        #expect(DisplayDatePickerSheet.days(year: 2026, month: 10, start: start, end: end) == Array(1...31))
+        #expect(DisplayDatePickerSheet.days(year: 2026, month: 11, start: start, end: end) == Array(1...5))
+    }
+
+    @Test("그 달에 없는 날은 말일로, 범위 밖 날짜는 범위 끝으로 맞춘다")
+    func clampsToValidDay() {
+        let end = DisplayPickerDay(year: 2026, month: 10, day: 22)
+
+        #expect(
+            DisplayDatePickerSheet.clamp(DisplayPickerDay(year: 2026, month: 9, day: 31), start: start, end: end)
+                == DisplayPickerDay(year: 2026, month: 9, day: 30)
+        )
+        #expect(DisplayDatePickerSheet.clamp(DisplayPickerDay(year: 2026, month: 9, day: 3), start: start, end: end) == start)
+        #expect(DisplayDatePickerSheet.clamp(DisplayPickerDay(year: 2026, month: 10, day: 30), start: start, end: end) == end)
+    }
+}
+
 @MainActor
 @Suite(.serialized)
 struct DisplayAPIClientTests {
@@ -802,6 +928,7 @@ struct DisplayAPIClientTests {
         #expect(content.page.photos.first?.isLiked == true)
         #expect(content.page.photos.first?.isOwnedByCurrentUser == true)
         #expect(content.page.photos.first?.thumbnailImageSource == .remote(URL(string: "https://example.com/thumb.webp")))
+        #expect(content.page.photos.first?.authorID == nil)
         let requests = await recorder.requests
         #expect(requests.count == 2)
         #expect(requests[0].url?.query?.contains("date=2026-09-02") == true)
@@ -809,6 +936,23 @@ struct DisplayAPIClientTests {
         #expect(requests[1].url?.query?.contains("sort=recent") == true)
         #expect(requests[1].url?.query?.contains("pageSize=20") == true)
         #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
+    }
+
+    @Test("목록 응답의 authorId를 사진 작성자 ID로 매핑한다")
+    func mapsAuthorIDFromPostPage() async throws {
+        let client = Self.makeClient { request in
+            if request.url?.path == "/api/v1/topics" {
+                return Self.response(for: request, body: #"{"title":"반짝임","topicDate":"2026-09-01"}"#)
+            }
+            return Self.response(
+                for: request,
+                body: #"{"currentPage":1,"pageSize":20,"hasNext":false,"posts":[{"id":"post-1","authorId":"author-1","originalImageUrl":"https://example.com/original.webp","thumbnailImageUrl":"https://example.com/thumb.webp","signatureOriginalImageUrl":"https://example.com/signature.png","signatureThumbnailImageUrl":"https://example.com/signature-thumb.png","title":"빛","likeCount":0,"isLiked":false}]}"#
+            )
+        }
+
+        let content = try await client.fetchDisplay(date: Self.date(2026, 9, 1), sort: .latest)
+
+        #expect(content.page.photos.first?.authorID == "author-1")
     }
 
     @Test("random 첫 페이지 재조회도 기존 시드를 posts 요청에 전달한다")

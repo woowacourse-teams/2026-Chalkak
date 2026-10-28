@@ -1,10 +1,20 @@
 package com.stonefive.chalkak.feature.home
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.domain.model.AiReview
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
+import com.stonefive.chalkak.domain.model.Banner
+import com.stonefive.chalkak.domain.model.BannerPage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.NotificationDetail
+import com.stonefive.chalkak.domain.model.NotificationFailure
+import com.stonefive.chalkak.domain.model.NotificationPage
+import com.stonefive.chalkak.domain.model.NotificationPushSettings
+import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
+import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -19,6 +29,11 @@ import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.AiReviewFailure
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
+import com.stonefive.chalkak.domain.repository.BannerRepository
+import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -102,7 +117,13 @@ class HomeViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("own-$TODAY"), repository.details)
         assertEquals(
-            HomeHeroState.Photo("original-own-$TODAY", "thumb-$TODAY", "signature", "signature-thumb"),
+            HomeHeroState.Photo(
+                "original-own-$TODAY",
+                "thumb-$TODAY",
+                "signature",
+                "signature-thumb",
+                postId = "own-$TODAY",
+            ),
             viewModel.uiState.value.hero,
         )
     }
@@ -115,7 +136,7 @@ class HomeViewModelTest {
         }
         val viewModel = createViewModel(repository)
         advanceUntilIdle()
-        assertEquals(HomeHeroState.Photo("thumb-$TODAY"), viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.Photo("thumb-$TODAY", postId = "own-$TODAY"), viewModel.uiState.value.hero)
     }
 
     @Test
@@ -423,22 +444,335 @@ class HomeViewModelTest {
         )
     }
 
+    @Test
+    fun `guest loads latest banner independently of failed rankings`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            todayFailure = HomeFailure.Network
+            bannerResult = HomeResult.Success(BannerPage(1, 1, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository, MutableStateFlow(UserSessionState.Guest))
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10), repository.bannerQueries)
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+        assertEquals(0, repository.statusCalls)
+    }
+
+    @Test
+    fun `initial banner failure does not fail other home sections`() = runTest {
+        val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Failure(HomeFailure.Network) }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertEquals(HomeSectionStatus.Error, viewModel.uiState.value.bannerStatus)
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.trending.status)
+        assertTrue(viewModel.uiState.value.isInitialLoadComplete)
+    }
+
+    @Test
+    fun `refresh preserves banner on failure and removes it on empty success`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 1, false, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+    }
+
+    @Test
+    fun `slow banner does not delay initial home readiness`() = runTest {
+        val repository = FakeHomeRepository().apply { bannerGate = CompletableDeferred() }
+        val viewModel = createViewModel(repository)
+        runCurrent()
+        assertTrue(viewModel.isReadyForInitialDisplay.value)
+        assertEquals(HomeSectionStatus.Loading, viewModel.uiState.value.bannerStatus)
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(HomeSectionStatus.Ready, viewModel.uiState.value.bannerStatus)
+    }
+
+    @Test
+    fun `cancelled banner response cannot repopulate signed out home`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerGate = CompletableDeferred()
+            bannerResult = HomeResult.Success(BannerPage(1, 1, false, listOf(banner())))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        runCurrent()
+        session.value = UserSessionState.SignedOut
+        runCurrent()
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `banner pagination appends ten items and stops after last page`() = runTest {
+        val first = List(10) { banner().copy(id = "first-$it") }
+        val second = List(10) { banner().copy(id = "second-$it") }
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, first))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(first, viewModel.uiState.value.banners)
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, second))
+        viewModel.loadMoreBanners()
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10, 2 to 10), repository.bannerQueries)
+        assertEquals(first + second, viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.bannerHasNext)
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+    }
+
+    @Test
+    fun `banner pagination failure retries same page and deduplicates overlapping items`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Failure(HomeFailure.Network)
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(banner()), viewModel.uiState.value.banners)
+        assertTrue(viewModel.uiState.value.bannerLoadMoreError)
+        assertTrue(viewModel.uiState.value.bannerHasNext)
+        val next = banner().copy(id = "next")
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, listOf(banner(), next)))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        assertEquals(listOf(1 to 10, 2 to 10, 2 to 10), repository.bannerQueries)
+        assertEquals(listOf(banner(), next), viewModel.uiState.value.banners)
+        assertFalse(viewModel.uiState.value.bannerLoadMoreError)
+    }
+
+    @Test
+    fun `banner pagination does not request after false or empty page`() = runTest {
+        for (page in listOf(
+            BannerPage(1, 10, false, listOf(banner())),
+            BannerPage(1, 10, true, emptyList()),
+        )) {
+            val repository = FakeHomeRepository().apply { bannerResult = HomeResult.Success(page) }
+            val viewModel = createViewModel(repository)
+            advanceUntilIdle()
+            viewModel.loadMoreBanners()
+            advanceUntilIdle()
+            assertEquals(listOf(1 to 10), repository.bannerQueries)
+        }
+    }
+
+    @Test
+    fun `banner refresh replaces accumulated pages and restarts pagination`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, listOf(banner().copy(id = "old"))))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        val fresh = banner().copy(id = "fresh")
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(fresh)))
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf(fresh), viewModel.uiState.value.banners)
+        repository.bannerResult = HomeResult.Success(BannerPage(2, 10, false, emptyList()))
+        viewModel.loadMoreBanners()
+        advanceUntilIdle()
+        viewModel.loadMoreBanners()
+        assertEquals(listOf(1 to 10, 2 to 10, 1 to 10, 2 to 10), repository.bannerQueries)
+        assertFalse(viewModel.uiState.value.bannerHasNext)
+    }
+
+    @Test
+    fun `refresh cancels pagination and ignores late response`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        val staleGate = CompletableDeferred<Unit>()
+        repository.bannerGate = staleGate
+        viewModel.loadMoreBanners()
+        runCurrent()
+        repository.bannerGate = null
+        val fresh = banner().copy(id = "fresh")
+        repository.bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(fresh)))
+        viewModel.refresh()
+        runCurrent()
+        staleGate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(fresh), viewModel.uiState.value.banners)
+        assertEquals(1, viewModel.uiState.value.bannerCurrentPage)
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+        assertEquals(listOf(1 to 10, 2 to 10, 1 to 10), repository.bannerQueries)
+    }
+
+    @Test
+    fun `cancelled pagination cannot repopulate signed out home`() = runTest {
+        val repository = FakeHomeRepository().apply {
+            bannerResult = HomeResult.Success(BannerPage(1, 10, true, listOf(banner())))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+        repository.bannerGate = CompletableDeferred()
+        viewModel.loadMoreBanners()
+        runCurrent()
+        session.value = UserSessionState.SignedOut
+        runCurrent()
+        repository.bannerGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.banners
+                .isEmpty(),
+        )
+        assertFalse(viewModel.uiState.value.isLoadingMoreBanners)
+    }
+
+    @Test
+    fun `unread notifications show dot and refresh on resume`() = runTest {
+        val notifications = FakeUnreadNotificationRepository(hasUnread = true)
+        val viewModel = createViewModel(FakeHomeRepository(), notificationRepository = notifications)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasUnreadNotifications)
+
+        notifications.hasUnread = false
+        viewModel.onPause()
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasUnreadNotifications)
+    }
+
+    @Test
+    fun `unread notification dot survives home reload and is cleared on sign out`() = runTest {
+        val notifications = FakeUnreadNotificationRepository(hasUnread = true)
+        var date = TODAY
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            session = session,
+            dateProvider = { date },
+            notificationRepository = notifications,
+        )
+        advanceUntilIdle()
+        notifications.failure = true
+        date = TODAY.plusDays(1)
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasUnreadNotifications)
+
+        session.value = UserSessionState.SignedOut
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasUnreadNotifications)
+    }
+
+    @Test
+    fun `guest does not request unread notifications`() = runTest {
+        val notifications = FakeUnreadNotificationRepository(hasUnread = true)
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            session = MutableStateFlow(UserSessionState.Guest),
+            notificationRepository = notifications,
+        )
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertEquals(0, notifications.unreadRequestCount)
+        assertFalse(viewModel.uiState.value.hasUnreadNotifications)
+    }
+
     private fun createViewModel(
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
-    ) = HomeViewModel(repository, repository, session, dateProvider).also {
+        notificationRepository: NotificationRepository? = null,
+    ) = HomeViewModel(
+        repository,
+        repository,
+        session,
+        repository,
+        repository,
+        dateProvider,
+        notificationRepository,
+    ).also {
         it.startPreloading()
     }
 }
 
+private class FakeUnreadNotificationRepository(var hasUnread: Boolean) : NotificationRepository {
+    var failure = false
+    var unreadRequestCount = 0
+
+    override suspend fun getUnreadStatus(): NotificationResult<Boolean> {
+        unreadRequestCount++
+        return if (failure) {
+            NotificationResult.Failure(NotificationFailure.Network)
+        } else {
+            NotificationResult.Success(hasUnread)
+        }
+    }
+
+    override suspend fun getNotifications(
+        page: Int,
+        pageSize: Int,
+    ): NotificationResult<NotificationPage> = error("Not used")
+
+    override suspend fun getNotification(notificationId: String): NotificationResult<NotificationDetail> =
+        error("Not used")
+
+    override suspend fun markAsRead(notificationId: String): NotificationResult<Unit> = error("Not used")
+
+    override suspend fun markAllAsRead(): NotificationResult<Unit> = error("Not used")
+
+    override suspend fun getPushSettings(): NotificationResult<NotificationPushSettings> = error("Not used")
+
+    override suspend fun updatePushSettings(settings: NotificationPushSettingsUpdate): NotificationResult<Unit> =
+        error("Not used")
+
+    override suspend fun registerCurrentPushDevice(fcmToken: String): NotificationResult<Unit> = error("Not used")
+}
+
 private class FakeHomeRepository :
     PostRepository,
-    PhotoUploadEntryRepository {
+    PhotoUploadEntryRepository,
+    BannerRepository,
+    AiReviewRepository {
+    override suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
     val contentQueries = mutableListOf<HomeQuery>()
     val pageQueries = mutableListOf<HomeQuery>()
     val months = mutableListOf<YearMonth>()
     val details = mutableListOf<String>()
+    val bannerQueries = mutableListOf<Pair<Int, Int>>()
+    var bannerResult: HomeResult<BannerPage> = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
+    var bannerGate: CompletableDeferred<Unit>? = null
     var statusCalls = 0
     var records = emptyList<PostCalendarItem>()
     var calendarFailure = false
@@ -447,6 +781,22 @@ private class FakeHomeRepository :
     var yesterdayFailure: HomeFailure? = null
     var calendarGate: CompletableDeferred<Unit>? = null
     var uploadStatus: TodayPostStatusResult = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+
+    override suspend fun getReview(postId: String): AiReviewResponseResult = AiReviewResponseResult.Success(
+        AiReview(AiReview.Status.NONE, null, null, null, false),
+    )
+
+    override suspend fun requestReview(postId: String): AiReviewResponseResult =
+        AiReviewResponseResult.Failure(AiReviewFailure.Network)
+
+    override suspend fun getBanners(
+        page: Int,
+        pageSize: Int,
+    ): HomeResult<BannerPage> {
+        bannerQueries += page to pageSize
+        bannerGate?.let { gate -> withContext(NonCancellable) { gate.await() } }
+        return bannerResult
+    }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         contentQueries += query
@@ -513,4 +863,14 @@ private fun photo(id: String) = Post(
     contentDescription = "사진 $id",
     title = null,
     likeCount = 10,
+    authorId = "author",
+)
+
+private fun banner() = Banner(
+    id = "banner-id",
+    title = "서버 배너 제목",
+    subtitle = "서버 배너 설명",
+    webViewUrl = "https://example.com/issue",
+    thumbnailUrl = "https://example.com/banner.jpg",
+    createdAt = "2026-10-20T08:08:11.001Z",
 )

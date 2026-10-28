@@ -8,20 +8,21 @@ import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -29,7 +30,7 @@ import androidx.compose.ui.unit.LayoutDirection
 @Composable
 fun Modifier.sharedPhotoElement(
     key: PhotoTransitionKey,
-    sourceShape: CornerBasedShape? = null,
+    sourceShape: Shape? = null,
     animateCorners: Boolean = true,
 ): Modifier {
     val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
@@ -56,23 +57,82 @@ fun Modifier.sharedPhotoElement(
             animatedVisibilityScope = animatedVisibilityScope,
             enter = EnterTransition.None,
             exit = fadeOut(tween(durationMillis = PHOTO_SOURCE_HIDE_DURATION_MILLIS)),
-            resizeMode = ResizeMode.scaleToBounds(ContentScale.FillBounds),
+            // Let each image preserve its aspect ratio as the crop bounds change.
+            resizeMode = ResizeMode.RemeasureToBounds,
             placeholderSize = SharedTransitionScope.PlaceholderSize.ContentSize,
-            clipInOverlayDuringTransition = OverlayClip(overlayShape),
+            // The overlay clip path only refreshes on redraw and can lag behind the settled bounds.
+            // Clip inside the recorded layer instead so the overlay and in-place frames match.
+            clipInOverlayDuringTransition = NoOverlayClip,
             boundsTransform = { _, _ ->
                 tween(
                     durationMillis = PHOTO_TRANSITION_DURATION_MILLIS,
                     easing = FastOutSlowInEasing,
                 )
             },
+        ).clip(overlayShape)
+    }
+}
+
+/** Shares the author's signature independently of a particular photo transition. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.sharedAuthorSignature(authorId: String?): Modifier {
+    if (authorId.isNullOrBlank()) return this
+    val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
+    return with(sharedTransitionScope) {
+        sharedBounds(
+            sharedContentState = rememberSharedContentState(AuthorSignatureKey(authorId)),
+            animatedVisibilityScope = animatedVisibilityScope,
+            // Feed strokes are white, while the header uses the current icon color.
+            enter = fadeIn(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+            exit = fadeOut(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+            resizeMode = ResizeMode.scaleToBounds(),
+            zIndexInOverlay = AUTHOR_SIGNATURE_OVERLAY_Z_INDEX,
+            boundsTransform = { _, _ ->
+                tween(PHOTO_TRANSITION_DURATION_MILLIS, easing = FastOutSlowInEasing)
+            },
         )
     }
 }
 
+private data class AuthorSignatureKey(val authorId: String)
+
+/** Keeps screen controls above the photo while both are drawn outside their parent layers. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.photoTransitionChrome(animateVisibility: Boolean = true): Modifier {
+    val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
+    val overlayModifier = with(sharedTransitionScope) {
+        renderInSharedTransitionScopeOverlay(zIndexInOverlay = PHOTO_CHROME_OVERLAY_Z_INDEX)
+    }
+    if (!animateVisibility) return overlayModifier
+    return overlayModifier.then(
+        with(animatedVisibilityScope) {
+            Modifier.animateEnterExit(
+                enter = fadeIn(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+                exit = fadeOut(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+                label = "photo-transition-chrome",
+            )
+        },
+    )
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+private object NoOverlayClip : SharedTransitionScope.OverlayClip {
+    override fun getClipPath(
+        sharedContentState: SharedTransitionScope.SharedContentState,
+        bounds: Rect,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Path? = null
+}
+
 fun PhotoTransitionKey.signatureKey() = copy(sourceId = "$sourceId:signature")
 
-private class AnimatedPhotoShape(
-    private val sourceShape: CornerBasedShape,
+internal class AnimatedPhotoShape(
+    private val sourceShape: Shape,
     private val fraction: State<Float>,
 ) : Shape {
     override fun createOutline(
@@ -87,7 +147,12 @@ private class AnimatedPhotoShape(
         fun CornerRadius.scaled() = CornerRadius(x * progress, y * progress)
         return Outline.Rounded(
             RoundRect(
-                rect = Rect(0f, 0f, size.width, size.height),
+                rect = Rect(
+                    corners.left * progress,
+                    corners.top * progress,
+                    size.width + (corners.right - size.width) * progress,
+                    size.height + (corners.bottom - size.height) * progress,
+                ),
                 topLeft = corners.topLeftCornerRadius.scaled(),
                 topRight = corners.topRightCornerRadius.scaled(),
                 bottomRight = corners.bottomRightCornerRadius.scaled(),
@@ -113,4 +178,11 @@ fun rememberPhotoTransitionEnterFinished(): Boolean {
 }
 
 private const val PHOTO_SOURCE_HIDE_DURATION_MILLIS = 0
-private const val PHOTO_TRANSITION_DURATION_MILLIS = 300
+internal const val PHOTO_TRANSITION_DURATION_MILLIS = 300
+
+private const val PHOTO_CHROME_OVERLAY_Z_INDEX = 1f
+
+// Opening keeps a gradual screen fade; returning finishes with the photo movement.
+internal const val PHOTO_CONTENT_FADE_DURATION_MILLIS = 700
+
+private const val AUTHOR_SIGNATURE_OVERLAY_Z_INDEX = 2f

@@ -7,7 +7,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,7 +39,10 @@ import androidx.navigation.toRoute
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarHostState
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
+import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_TRANSITION_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionProvider
 import com.stonefive.chalkak.core.designsystem.component.image.rememberPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.legal.LegalDocument
@@ -49,6 +55,12 @@ import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
+import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
+import com.stonefive.chalkak.feature.authorposts.AuthorPostsRoute
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
@@ -72,7 +84,10 @@ import com.stonefive.chalkak.feature.upload.PhotoUploadEntryGateViewModel
 import com.stonefive.chalkak.feature.upload.PhotoUploadRoute
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessContent
 import com.stonefive.chalkak.feature.upload.PhotoUploadSuccessScreen
+import com.stonefive.chalkak.feature.web.WebPageRoute
 import java.time.LocalDate
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -85,6 +100,7 @@ fun ChalkakNavHost(
     signUpViewModel: SignUpViewModel? = null,
 ) {
     val photoTransitionCoordinator = rememberPhotoTransitionCoordinator()
+    val bottomBarHostState = remember { ChalkakBottomBarHostState() }
     val context = LocalContext.current
     val application = context.applicationContext as ChalkakApplication
     val sessionState by application.appContainer.authRepository.sessionState
@@ -94,6 +110,7 @@ fun ChalkakNavHost(
         .collectAsStateWithLifecycle()
     var selectedLegalDocument by remember { mutableStateOf<LegalDocument?>(null) }
     var signaturePreviewPng by rememberSaveable { mutableStateOf<ByteArray?>(null) }
+    var pendingAuthorPosts by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingMessage by remember { mutableStateOf<UiMessage?>(null) }
     var nextMessageId by remember { mutableLongStateOf(0L) }
     val photoUploadEntryGateViewModel: PhotoUploadEntryGateViewModel =
@@ -151,16 +168,15 @@ fun ChalkakNavHost(
         )
     }
 
-    LaunchedEffect(currentBackStackEntry) {
-        currentBackStackEntry
-            ?.destination
-            ?.analyticsScreen()
-            ?.let { screen ->
-                analyticsTracker.trackScreenView(
-                    screenName = screen.name,
-                    screenClass = screen.screenClass,
-                )
-            }
+    LaunchedEffect(currentBackStackEntry, selectedLegalDocument) {
+        val screen = selectedLegalDocument?.analyticsScreen()
+            ?: currentBackStackEntry?.destination?.analyticsScreen()
+        screen?.let {
+            analyticsTracker.trackScreenView(
+                screenName = it.name,
+                screenClass = it.screenClass,
+            )
+        }
     }
 
     LaunchedEffect(photoUploadEntryGateViewModel) {
@@ -191,6 +207,14 @@ fun ChalkakNavHost(
         val push = pendingNotificationPush ?: return@LaunchedEffect
         if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
         if (currentBackStackEntry == null) return@LaunchedEffect
+        val destination = currentBackStackEntry?.destination
+        if (destination?.hasRoute<Login>() == true ||
+            destination?.hasRoute<Terms>() == true ||
+            destination?.hasRoute<OnboardingSignature>() == true ||
+            destination?.hasRoute<OnboardingSignaturePreview>() == true
+        ) {
+            return@LaunchedEffect
+        }
 
         if (push.type == TOPIC) {
             application.appContainer.pendingNotificationNavigation
@@ -203,8 +227,6 @@ fun ChalkakNavHost(
             )
             return@LaunchedEffect
         }
-
-        if (currentBackStackEntry?.destination?.hasRoute<Home>() != true) return@LaunchedEffect
 
         val notificationId = push.notificationId?.takeIf(String::isNotBlank)
         if (notificationId == null) {
@@ -257,12 +279,28 @@ fun ChalkakNavHost(
         )
     }
 
-    SharedTransitionLayout {
+    MainBottomBarLayout(
+        hostState = bottomBarHostState,
+        selectedItem = currentBackStackEntry?.destination?.bottomBarItem(),
+        onItemSelected = { item -> currentBackStackEntry?.let { navigateToBottomBar(it, item) } },
+        onAddClick = {
+            if (currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED) {
+                openPhotoUpload()
+            }
+        },
+        modifier = modifier,
+    ) {
         val sharedTransitionScope = this
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = modifier,
+            modifier = Modifier.fillMaxSize(),
+            popEnterTransition = {
+                fadeIn(tween(initialState.destination.popFadeDurationMillis()))
+            },
+            popExitTransition = {
+                fadeOut(tween(initialState.destination.popFadeDurationMillis()))
+            },
         ) {
             composable<Login> {
                 LoginRoute(
@@ -271,8 +309,13 @@ fun ChalkakNavHost(
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
                         }
+                        pendingAuthorPosts?.let { encoded ->
+                            navController.navigate(Json.decodeFromString<AuthorPosts>(encoded))
+                            pendingAuthorPosts = null
+                        }
                     },
                     onGuestAccessGranted = {
+                        pendingAuthorPosts = null
                         navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
@@ -341,6 +384,8 @@ fun ChalkakNavHost(
                                 launchSingleTop = true
                             }
                             signaturePreviewPng = null
+                            // 가입을 마친 사용자는 홈에서 시작한다. 남겨 두면 다음 로그인 때 상관없는 작가 화면이 열린다.
+                            pendingAuthorPosts = null
                         },
                         onReauthenticationRequired = {
                             navController.navigate(Login) {
@@ -384,6 +429,16 @@ fun ChalkakNavHost(
                         onOpenRecord = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navigateToBottomBar(backStackEntry, ChalkakBottomBarItem.RECORD)
                         },
+                        onOpenRecordDate = { date ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navigateToBottomBar(backStackEntry, ChalkakBottomBarItem.RECORD)
+                                if (sessionState is UserSessionState.Authenticated) {
+                                    navController.currentBackStackEntry
+                                        ?.savedStateHandle
+                                        ?.set(RECORD_SELECTED_DATE_KEY, date.toString())
+                                }
+                            }
+                        },
                         onOpenDisplay = { date ->
                             if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
                                 navController.navigate(
@@ -414,10 +469,27 @@ fun ChalkakNavHost(
                         onNotificationClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.navigate(Notifications) { launchSingleTop = true }
                         },
-                        onIssueClick = { showToast("콘텐츠는 준비 중이에요") },
+                        onIssueClick = { title, url ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(WebPage(title = title, url = url)) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
                         viewModel = homeViewModel,
                     )
                 }
+            }
+
+            composable<WebPage> { backStackEntry ->
+                val page = backStackEntry.toRoute<WebPage>()
+                WebPageRoute(
+                    title = page.title,
+                    url = page.url,
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
+                )
             }
 
             composable<Notifications> { backStackEntry ->
@@ -457,7 +529,15 @@ fun ChalkakNavHost(
                 ) {
                     val display = backStackEntry.toRoute<Display>()
 
+                    val scrollToTopRequested by backStackEntry.savedStateHandle
+                        .getStateFlow(DISPLAY_SCROLL_TO_TOP_KEY, false)
+                        .collectAsStateWithLifecycle()
+
                     DisplayRoute(
+                        scrollToTopRequested = scrollToTopRequested,
+                        onScrollToTopHandled = {
+                            backStackEntry.savedStateHandle[DISPLAY_SCROLL_TO_TOP_KEY] = false
+                        },
                         onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
                         onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         initialDate = display.date.toLocalDateOrNull(),
@@ -471,6 +551,7 @@ fun ChalkakNavHost(
                                 navController.navigate(
                                     Feed(
                                         postId = post.id,
+                                        authorId = post.authorId,
                                         originalImageUrl = post.originalImageUrl,
                                         thumbnailImageUrl = post.thumbnailImageUrl,
                                         signatureOriginalImageUrl = post.signatureOriginalImageUrl,
@@ -495,7 +576,9 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<Feed> { backStackEntry ->
+            composable<Feed>(
+                enterTransition = { fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)) },
+            ) { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
@@ -507,12 +590,18 @@ fun ChalkakNavHost(
                     }
 
                     FeedRoute(
+                        onAuthorClick = { authorId, signatureUrl, isMine ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.openAuthorPosts(authorId, signatureUrl, isMine, feed.sourceAuthorId)
+                            }
+                        },
                         postId = feed.postId.takeIf { feed.fetchDetail },
                         initialContent = FeedContentState.Success(
                             dateLabel = feed.dateLabel,
                             topic = feed.topic,
                             post = Post(
                                 id = feed.postId,
+                                authorId = feed.authorId,
                                 originalImageUrl = feed.originalImageUrl,
                                 thumbnailImageUrl = feed.thumbnailImageUrl,
                                 signatureOriginalImageUrl = feed.signatureOriginalImageUrl,
@@ -523,7 +612,7 @@ fun ChalkakNavHost(
                                 isLiked = feed.isLiked,
                                 isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
                             ),
-                            isLiked = false,
+                            isLiked = feed.isLiked,
                             topicDate = feed.topicDate?.toLocalDateOrNull(),
                         ),
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
@@ -541,7 +630,9 @@ fun ChalkakNavHost(
                 }
             }
 
-            composable<FeedById> { backStackEntry ->
+            composable<FeedById>(
+                enterTransition = { fadeIn(tween(PHOTO_CONTENT_FADE_DURATION_MILLIS)) },
+            ) { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
@@ -553,9 +644,15 @@ fun ChalkakNavHost(
                     }
 
                     FeedRoute(
+                        onAuthorClick = { authorId, signatureUrl, isMine ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.openAuthorPosts(authorId, signatureUrl, isMine)
+                            }
+                        },
                         postId = feed.postId,
                         entryThumbnailImageUrl = feed.thumbnailImageUrl,
                         isOwnedByCurrentUser = feed.isOwnedByCurrentUser,
+                        openAiReviewResult = feed.openAiReviewResult,
                         onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.popBackStack()
                         },
@@ -571,6 +668,56 @@ fun ChalkakNavHost(
                 }
             }
 
+            composable<AuthorPosts> { backStackEntry ->
+                PhotoTransitionProvider(
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    coordinator = photoTransitionCoordinator,
+                ) {
+                    val author = backStackEntry.toRoute<AuthorPosts>()
+                    val isMine = author.isMineFor(sessionState)
+                    val removedPostId by backStackEntry.savedStateHandle
+                        .getStateFlow<String?>(POST_DELETED_KEY, null)
+                        .collectAsStateWithLifecycle()
+                    AuthorPostsRoute(
+                        authorId = author.authorId,
+                        removedPostId = removedPostId,
+                        signatureThumbnailImageUrl = author.signatureThumbnailImageUrl,
+                        isMine = isMine,
+                        onNavigateBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                            navController.popBackStack()
+                        },
+                        onPhotoClick = { post, dateLabel, topic, topicDate ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(
+                                    Feed(
+                                        postId = post.id,
+                                        authorId = author.authorId,
+                                        sourceAuthorId = author.authorId,
+                                        originalImageUrl = post.originalImageUrl,
+                                        thumbnailImageUrl = post.thumbnailImageUrl,
+                                        signatureOriginalImageUrl = author.signatureThumbnailImageUrl.orEmpty(),
+                                        signatureThumbnailImageUrl = author.signatureThumbnailImageUrl,
+                                        contentDescription = post.contentDescription,
+                                        title = null,
+                                        likeCount = post.likeCount,
+                                        isLiked = post.isLiked,
+                                        dateLabel = dateLabel,
+                                        topic = topic,
+                                        topicDate = topicDate.toString(),
+                                        isOwnedByCurrentUser = isMine,
+                                    ),
+                                )
+                            }
+                        },
+                        onLoginRequired = {
+                            pendingAuthorPosts = Json.encodeToString(author)
+                            navigateToLogin()
+                        },
+                    )
+                }
+            }
+
             composable<Record> { backStackEntry ->
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
@@ -581,7 +728,15 @@ fun ChalkakNavHost(
                         .getStateFlow<String?>(POST_DELETED_KEY, null)
                         .collectAsStateWithLifecycle()
 
+                    val selectedDate by backStackEntry.savedStateHandle
+                        .getStateFlow<String?>(RECORD_SELECTED_DATE_KEY, null)
+                        .collectAsStateWithLifecycle()
+
                     RecordRoute(
+                        requestedDate = selectedDate?.let(LocalDate::parse),
+                        onRequestedDateConsumed = {
+                            backStackEntry.savedStateHandle[RECORD_SELECTED_DATE_KEY] = null
+                        },
                         onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
                         onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         onOpenFeed = { postId, thumbnailImageUrl ->
@@ -616,6 +771,9 @@ fun ChalkakNavHost(
 
                 SettingsRoute(
                     signatureUpdateUrl = updatedSignatureUrl,
+                    onSignatureUpdateConsumed = {
+                        backStackEntry.savedStateHandle[SETTINGS_SIGNATURE_UPDATED_KEY] = null
+                    },
                     onNavigateToSignature = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(ChangeSignature)
                     },
@@ -672,6 +830,20 @@ fun ChalkakNavHost(
                                     .toString(),
                                 topic = submission.content.topic,
                                 moderationStatus = submission.content.moderationStatus,
+                                quarterTurns = submission.edit.quarterTurns,
+                                straightenDegrees = submission.edit.straightenDegrees,
+                                cropCenterX = submission.edit.crop.centerX,
+                                cropCenterY = submission.edit.crop.centerY,
+                                cropWidth = submission.edit.crop.width,
+                                cropHeight = submission.edit.crop.height,
+                                filter = submission.edit.filter.name,
+                                exposure = submission.edit.adjustments.exposure,
+                                contrast = submission.edit.adjustments.contrast,
+                                highlights = submission.edit.adjustments.highlights,
+                                shadows = submission.edit.adjustments.shadows,
+                                blackPoint = submission.edit.adjustments.blackPoint,
+                                saturation = submission.edit.adjustments.saturation,
+                                warmth = submission.edit.adjustments.warmth,
                             ),
                         ) {
                             popUpTo<PhotoUpload> { inclusive = true }
@@ -685,6 +857,7 @@ fun ChalkakNavHost(
 
                 PhotoUploadSuccessScreen(
                     imageModel = success.imageModel,
+                    edit = success.toPhotoEdit(),
                     caption = success.caption,
                     content = PhotoUploadSuccessContent(
                         date = LocalDate.parse(success.date),
@@ -702,6 +875,30 @@ fun ChalkakNavHost(
         }
     }
 }
+
+private fun PhotoUploadSuccess.toPhotoEdit() = PhotoEdit(
+    quarterTurns = quarterTurns,
+    straightenDegrees = straightenDegrees,
+    crop = CropWindow(
+        centerX = cropCenterX,
+        centerY = cropCenterY,
+        width = cropWidth,
+        height = cropHeight,
+    ),
+    filter = PhotoFilter.entries.firstOrNull { it.name == filter } ?: PhotoFilter.Original,
+    // 성공 화면은 결과만 보여 주므로 적용한 값을 직접 정한 값으로 옮긴다.
+    adjustmentLayers = PhotoAdjustmentLayers.manualOnly(
+        PhotoAdjustments(
+            exposure = exposure,
+            contrast = contrast,
+            highlights = highlights,
+            shadows = shadows,
+            blackPoint = blackPoint,
+            saturation = saturation,
+            warmth = warmth,
+        ),
+    ),
+)
 
 private fun NavHostController.openNotificationTarget(item: NotificationItemUiState) {
     openNotificationTarget(
@@ -735,7 +932,24 @@ internal fun NavHostController.openNotificationTarget(
             ) { launchSingleTop = true }
         }
 
-        type == POST_REJECTED && !notificationId.isNullOrBlank() -> {
+        (type == AI_REVIEW_COMPLETED || type == AI_REVIEW_FAILED) &&
+            sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
+            val samePostFeedId = currentBackStackEntry
+                ?.takeIf { it.feedPostId() == sourceId }
+                ?.destination
+                ?.id
+            navigate(
+                FeedById(
+                    postId = sourceId,
+                    isOwnedByCurrentUser = true,
+                    openAiReviewResult = true,
+                ),
+            ) {
+                if (samePostFeedId != null) popUpTo(samePostFeedId) { inclusive = true }
+            }
+        }
+
+        (type == POST_REJECTED || type == NOTICE) && !notificationId.isNullOrBlank() -> {
             navigate(NotificationDetail(notificationId)) { launchSingleTop = true }
         }
 
@@ -743,16 +957,30 @@ internal fun NavHostController.openNotificationTarget(
     }
 }
 
+private fun NavBackStackEntry.feedPostId(): String? = when {
+    destination.hasRoute<Feed>() -> toRoute<Feed>().postId
+    destination.hasRoute<FeedById>() -> toRoute<FeedById>().postId
+    else -> null
+}
+
 private const val POST_APPROVED = "POST_APPROVED"
 private const val POST_REJECTED = "POST_REJECTED"
+private const val NOTICE = "NOTICE"
 private const val POST_SOURCE_TYPE = "POST"
 private const val TOPIC = "TOPIC"
+private const val AI_REVIEW_COMPLETED = "AI_REVIEW_COMPLETED"
+private const val AI_REVIEW_FAILED = "AI_REVIEW_FAILED"
 
 private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
     analyticsTracker: AnalyticsTracker,
 ) {
     if (item == ChalkakBottomBarItem.HOME && currentDestination?.hasRoute<Home>() == true) return
+
+    if (item == ChalkakBottomBarItem.DISPLAY && currentDestination?.hasRoute<Display>() == true) {
+        currentBackStackEntry?.savedStateHandle?.set(DISPLAY_SCROLL_TO_TOP_KEY, true)
+        return
+    }
 
     analyticsTracker.trackBottomNavigationSelection(item.analyticsName)
 
@@ -795,12 +1023,30 @@ private val ChalkakBottomBarItem.analyticsName: String
     }
 
 private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
+    hasRoute<Login>() -> AnalyticsScreen(name = "login", screenClass = "Login")
+    hasRoute<Terms>() -> AnalyticsScreen(name = "terms", screenClass = "Terms")
+    hasRoute<OnboardingSignature>() -> OnboardingSignatureAnalyticsScreen
+    hasRoute<ChangeSignature>() -> AnalyticsScreen(name = "change_signature", screenClass = "ChangeSignature")
+    hasRoute<OnboardingSignaturePreview>() -> OnboardingSignaturePreviewAnalyticsScreen
+    hasRoute<ChangeSignaturePreview>() -> ChangeSignaturePreviewAnalyticsScreen
     hasRoute<Home>() -> AnalyticsScreen(name = "home", screenClass = "Home")
+    hasRoute<WebPage>() -> AnalyticsScreen(name = "issue", screenClass = "IssueWeb")
+    hasRoute<Notifications>() -> AnalyticsScreen(name = "notifications", screenClass = "Notifications")
+    hasRoute<NotificationDetail>() -> AnalyticsScreen(name = "notification_detail", screenClass = "NotificationDetail")
+    hasRoute<AuthorPosts>() -> AnalyticsScreen(name = "author_posts", screenClass = "AuthorPosts")
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
+    hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
+    hasRoute<PhotoUpload>() -> AnalyticsScreen(name = "photo_upload", screenClass = "PhotoUpload")
+    hasRoute<PhotoUploadSuccess>() -> AnalyticsScreen(name = "photo_upload_success", screenClass = "PhotoUploadSuccess")
     else -> null
+}
+
+private fun LegalDocument.analyticsScreen(): AnalyticsScreen = when (this) {
+    LegalDocument.PRIVACY_POLICY -> AnalyticsScreen(name = "privacy_policy", screenClass = "PrivacyPolicy")
+    LegalDocument.TERMS_OF_SERVICE -> AnalyticsScreen(name = "terms_of_service", screenClass = "TermsOfService")
 }
 
 private data class AnalyticsScreen(
@@ -808,7 +1054,22 @@ private data class AnalyticsScreen(
     val screenClass: String,
 )
 
+private val OnboardingSignatureAnalyticsScreen = AnalyticsScreen(
+    name = "onboarding_signature",
+    screenClass = "OnboardingSignature",
+)
+private val OnboardingSignaturePreviewAnalyticsScreen = AnalyticsScreen(
+    name = "onboarding_signature_preview",
+    screenClass = "OnboardingSignaturePreview",
+)
+private val ChangeSignaturePreviewAnalyticsScreen = AnalyticsScreen(
+    name = "change_signature_preview",
+    screenClass = "ChangeSignaturePreview",
+)
+
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
+private const val DISPLAY_SCROLL_TO_TOP_KEY = "display_scroll_to_top"
+private const val RECORD_SELECTED_DATE_KEY = "record_selected_date"
 private const val POST_DELETED_KEY = "post_deleted"
 private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
@@ -846,6 +1107,34 @@ private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
     }
 }
 
+// Both sides must settle together before Navigation resumes the returning screen's input.
+private fun NavDestination.popFadeDurationMillis(): Int = if (hasRoute<Feed>() || hasRoute<FeedById>()) {
+    PHOTO_TRANSITION_DURATION_MILLIS
+} else {
+    PHOTO_CONTENT_FADE_DURATION_MILLIS
+}
+
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching {
     LocalDate.parse(this)
 }.getOrNull()
+
+private fun NavDestination.bottomBarItem(): ChalkakBottomBarItem? = when {
+    hasRoute<Home>() -> ChalkakBottomBarItem.HOME
+    hasRoute<Display>() -> ChalkakBottomBarItem.DISPLAY
+    hasRoute<Record>() -> ChalkakBottomBarItem.RECORD
+    hasRoute<Settings>() -> ChalkakBottomBarItem.SETTINGS
+    else -> null
+}
+
+internal fun NavHostController.openAuthorPosts(
+    authorId: String,
+    signatureUrl: String?,
+    isMine: Boolean,
+    sourceAuthorId: String? = null,
+) {
+    if (authorId == sourceAuthorId) {
+        popBackStack()
+    } else {
+        navigate(AuthorPosts(authorId, signatureUrl, isMine))
+    }
+}

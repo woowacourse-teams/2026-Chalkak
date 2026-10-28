@@ -8,7 +8,13 @@ struct DisplayPhotoGrid: View {
     var likingPhotoIDs: Set<String> = []
     var onLike: (DisplayPhoto) -> Void = { _ in }
     // 선택한 사진과, 이미 측정된 세로/가로 비율(없으면 nil)을 전달한다.
-    var onSelect: (DisplayPhoto, CGFloat?) -> Void = { _, _ in }
+    var onSelect: (DisplayPhoto, CGFloat?, FeedZoomRegistry.Source) -> Void = { _, _, _ in }
+    // 카드를 줌 전환 출발 뷰로 등록할 이름. 작가 사진 목록은 전시 그리드와 따로 등록한다.
+    var zoomSource: (DisplayPhoto.ID) -> FeedZoomSource = FeedZoomSource.displayGrid
+    // 작가 사진 목록은 화면 전체가 한 작가라 카드마다 사인을 다시 그리지 않는다.
+    var showsSignature = true
+    // 작가 사진 목록 응답에 좋아요가 아직 없어 배지를 숨긴다.
+    var showsLikeBadge = true
 
     // 로드되며 측정된 사진별 세로/가로 비율(height / width). 미측정 사진은 기본 비율로 배치한다.
     @State private var ratioByID: [DisplayPhoto.ID: CGFloat] = [:]
@@ -39,7 +45,10 @@ struct DisplayPhotoGrid: View {
                     photo: item.photo,
                     ratio: ratioByID[item.photo.id],
                     isLiking: likingPhotoIDs.contains(item.photo.id),
-                    onSelect: { onSelect(item.photo, ratioByID[item.photo.id]) },
+                    zoomSource: zoomSource(item.photo.id),
+                    showsSignature: showsSignature,
+                    showsLikeBadge: showsLikeBadge,
+                    onSelect: { onSelect(item.photo, ratioByID[item.photo.id], $0) },
                     onLike: { onLike(item.photo) },
                     onMeasured: { ratio in
                         guard ratioByID[item.photo.id] == nil else { return }
@@ -88,10 +97,14 @@ private struct MasonryItem: Identifiable {
 
 private struct DisplayMasonryCell: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     let photo: DisplayPhoto
     let ratio: CGFloat?
     let isLiking: Bool
-    let onSelect: () -> Void
+    let zoomSource: FeedZoomSource
+    let showsSignature: Bool
+    let showsLikeBadge: Bool
+    let onSelect: (FeedZoomRegistry.Source) -> Void
     let onLike: () -> Void
     let onMeasured: (CGFloat) -> Void
 
@@ -103,35 +116,46 @@ private struct DisplayMasonryCell: View {
         Color.black
             .aspectRatio(widthOverHeight, contentMode: .fit)
             .overlay {
-                ChalkakSignedImage(
-                    imageSource: photo.thumbnailImageSource,
-                    signatureSource: photo.signatureThumbnailImageSource,
-                    contentDescription: photo.contentDescription,
-                    contentMode: .fill,
-                    signatureSize: Metrics.signatureSize
-                )
-                // Android처럼 사진만 숨겨 검은 바탕·좋아요 수는 남긴다.
-                .feedZoomSource(
-                    .displayGrid(photo.id),
-                    cornerRadius: theme.shapes.photoCard,
-                    signatureSize: Metrics.signatureSize
-                )
+                if showsSignature {
+                    ChalkakSignedImage(
+                        imageSource: photo.thumbnailImageSource,
+                        signatureSource: photo.signatureThumbnailImageSource,
+                        contentDescription: photo.contentDescription,
+                        contentMode: .fill,
+                        signatureSize: Metrics.signatureSize
+                    )
+                } else {
+                    ChalkakImage(
+                        source: photo.thumbnailImageSource,
+                        contentDescription: photo.contentDescription,
+                        contentMode: .fill
+                    )
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
             .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
+            .feedZoomSource(
+                zoomSource,
+                cornerRadius: theme.shapes.photoCard,
+                // 사인이 없는 카드는 피드 사인이 날아올 출발 위치가 없어 제자리에서 나타난다.
+                signatureSize: showsSignature ? Metrics.signatureSize : nil,
+                onSelect: onSelect
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(photo.contentDescription)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("피드 열기")
             .overlay(alignment: .bottomLeading) {
-                DisplayLikeBadge(
-                    likeCount: photo.likeCount,
-                    isLiked: photo.isLiked,
-                    isEnabled: !isLiking,
-                    onLike: onLike
-                )
-                .padding(Metrics.badgeInset)
+                if showsLikeBadge {
+                    DisplayLikeBadge(
+                        likeCount: photo.likeCount,
+                        isLiked: photo.isLiked,
+                        isEnabled: !isLiking,
+                        onLike: onLike
+                    )
+                    .opacity(zoomRegistry?.activeSource == zoomSource ? 0 : 1)
+                    .allowsHitTesting(zoomRegistry?.activeSource != zoomSource)
+                }
             }
             .task(id: photo.id) {
                 guard ratio == nil,
@@ -142,6 +166,11 @@ private struct DisplayMasonryCell: View {
     }
 }
 
+// 사진 카드 좌하단에 올리는 좋아요 버튼(하트 + 개수).
+// 카드 모서리와 하트 사이 여백(cardInset)까지 버튼 영역에 포함해서,
+// 하트 바깥 모서리 쪽을 눌러도 사진 탭(피드 열기)이 아닌 좋아요로 처리한다.
+// 그래서 호출부는 바깥 여백 없이 카드의 .bottomLeading에 overlay로 올리기만 하면 된다.
+// 예) 숫자 한 자리일 때 버튼 영역은 약 55×44pt이고, 하트는 카드 모서리에서 10pt 안쪽에 그려진다.
 struct DisplayLikeBadge: View {
     @Environment(\.chalkakTheme) private var theme
     let likeCount: Int
@@ -161,13 +190,18 @@ struct DisplayLikeBadge: View {
                 Text("\(likeCount)")
                     .font(theme.typography.subheadline)
             }
-            // 터치 영역은 위·오른쪽으로 넓히고, 하트는 Android처럼 카드 좌하단 여백에 맞춘다.
+            // 왼쪽·아래 여백은 카드 모서리까지 닿게 하고, 위·오른쪽은 손가락이 하트를 조금 벗어나도 눌리게 넓힌다.
+            .padding(.leading, Metrics.cardInset)
+            .padding(.bottom, Metrics.cardInset)
+            .padding([.top, .trailing], Metrics.touchExpansion)
             .frame(
                 minWidth: Metrics.minimumTouchSize,
                 minHeight: Metrics.minimumTouchSize,
                 alignment: .bottomLeading
             )
-            .contentShape(Rectangle())
+            // 배지는 카드의 clipShape 바깥에 overlay로 올라가므로, 좌하단을 카드와 같은 반지름으로 깎아
+            // 카드 둥근 모서리 바깥(화면상 카드가 아닌 곳)이 좋아요로 눌리지 않게 한다.
+            .contentShape(UnevenRoundedRectangle(bottomLeadingRadius: theme.shapes.photoCard))
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -179,7 +213,11 @@ struct DisplayLikeBadge: View {
     }
 
     private enum Metrics {
-        static let minimumTouchSize: CGFloat = 36
+        static let minimumTouchSize: CGFloat = 44
+        // 카드 좌하단 모서리에서 하트까지의 거리. 이 여백도 버튼 영역에 포함된다.
+        static let cardInset: CGFloat = 10
+        // 하트·개수 위쪽과 오른쪽으로 버튼 영역을 더 넓히는 폭.
+        static let touchExpansion: CGFloat = 14
         static let spacing: CGFloat = 4
         static let heartSize: CGFloat = 18
         static let shadowOpacity: CGFloat = 0.25
@@ -193,7 +231,6 @@ private enum Metrics {
     // 카드 사이 세로 간격을 열 높이 추정에 반영하기 위한 정규화 상수.
     static let spacingRatio: CGFloat = 0.06
     static let signatureSize = CGSize(width: 40, height: 30)
-    static let badgeInset: CGFloat = 10
 }
 
 #Preview("Display Photo Grid") {

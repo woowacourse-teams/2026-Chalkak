@@ -17,7 +17,8 @@ final class SettingsViewModel {
     private let updateSignatureHandler: SignatureUpdater
     private let logout: AccountAction
     private let withdraw: AccountAction
-    private var hasLoaded = false
+    private var isLoadingSignature = false
+    private var signatureRevision = 0
 
     init(
         initialState: SettingsViewState? = nil,
@@ -38,10 +39,9 @@ final class SettingsViewModel {
     }
 
     func load() async {
+        guard !isLoadingSignature else { return }
         let authenticated = isAuthenticated()
-        guard !hasLoaded || authenticated != viewState.isLoggedIn else { return }
 
-        hasLoaded = true
         guard authenticated else {
             viewState.isLoading = false
             viewState.isLoggedIn = false
@@ -49,19 +49,25 @@ final class SettingsViewModel {
             return
         }
 
-        viewState.isLoading = true
+        let revision = signatureRevision
+        isLoadingSignature = true
+        defer { isLoadingSignature = false }
+        viewState.isLoading = !viewState.isLoggedIn
         viewState.isLoggedIn = true
         do {
-            viewState.signatureURL = try await loadSignature()
+            let signatureURL = try await loadSignature()
+            guard revision == signatureRevision else { return }
+            viewState.signatureURL = signatureURL
             viewState.isLoading = false
         } catch SettingsAPIError.unauthorized {
+            guard revision == signatureRevision else { return }
             await finishSignedOut()
         } catch is CancellationError {
-            hasLoaded = false
+            guard revision == signatureRevision else { return }
             viewState.isLoading = false
             return
         } catch {
-            hasLoaded = false
+            guard revision == signatureRevision else { return }
             viewState.isLoading = false
             publish(.showMessage("사인을 불러오지 못했어요. 다시 시도해 주세요."))
         }
@@ -73,7 +79,10 @@ final class SettingsViewModel {
 
     func updateSignature(_ pngData: Data) async throws {
         do {
-            viewState.signatureURL = try await updateSignatureHandler(pngData)
+            let signatureURL = try await updateSignatureHandler(pngData)
+            signatureRevision += 1
+            viewState.signatureURL = signatureURL
+            viewState.isLoading = false
         } catch SettingsAPIError.unauthorized {
             await finishSignedOut()
             throw SettingsAPIError.unauthorized
@@ -90,12 +99,16 @@ final class SettingsViewModel {
         viewState.accountDialog = nil
     }
 
-    func confirmAccountAction() async {
-        guard let dialog = viewState.accountDialog,
+    func confirmAccountAction(for confirmedDialog: SettingsAccountDialog? = nil) async {
+        // A native alert dismisses its presentation binding as soon as a button is tapped.
+        // Use the dialog captured by the button so that dismissal cannot erase the action first.
+        guard let dialog = confirmedDialog ?? viewState.accountDialog,
               !viewState.isAccountActionInProgress
         else { return }
 
-        viewState.accountDialog = nil
+        if viewState.accountDialog == dialog {
+            viewState.accountDialog = nil
+        }
         viewState.isAccountActionInProgress = true
 
         do {

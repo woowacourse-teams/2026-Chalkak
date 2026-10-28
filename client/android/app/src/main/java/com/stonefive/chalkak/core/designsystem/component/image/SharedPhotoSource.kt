@@ -1,6 +1,5 @@
 package com.stonefive.chalkak.core.designsystem.component.image
 
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -9,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImagePainter
 
@@ -27,7 +27,7 @@ fun rememberSharedPhotoSource(
     signatureModel: Any?,
     aspectRatio: Float? = null,
     contentScale: ContentScale = ContentScale.FillWidth,
-    sourceShape: CornerBasedShape? = null,
+    sourceShape: Shape? = null,
 ): SharedPhotoSource {
     val coordinator = LocalPhotoTransitionCoordinator.current
     val sourceModifier = Modifier.sharedPhotoElement(key, sourceShape)

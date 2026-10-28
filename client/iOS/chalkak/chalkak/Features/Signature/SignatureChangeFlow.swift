@@ -9,6 +9,7 @@ struct SignatureChangeFlow: View {
     @State private var errorMessage: String?
 
     let onUpdate: (Data) async throws -> Void
+    var onScreenChange: (AnalyticsScreen) -> Void = { _ in }
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,16 @@ struct SignatureChangeFlow: View {
             }
         }
         .interactiveDismissDisabled(isSubmitting)
+        .onAppear { reportScreen() }
+        .onChange(of: signatureData != nil) { _, _ in reportScreen() }
+    }
+
+    private func reportScreen() {
+        onScreenChange(
+            signatureData == nil
+                ? AnalyticsScreen(name: "change_signature", screenClass: "ChangeSignature")
+                : AnalyticsScreen(name: "change_signature_preview", screenClass: "ChangeSignaturePreview")
+        )
     }
 
     private func dismissIfAllowed() {

@@ -113,6 +113,11 @@ struct RecordViewState: Equatable, Sendable {
     var canGoNext: Bool {
         contentStatus != .loading && availableMonths.contains { $0 > month }
     }
+
+    /// 년/월 휠을 열 수 있는지. 휠에는 `availableMonths`만 보인다.
+    var canPickMonth: Bool {
+        contentStatus != .loading && !availableMonths.isEmpty
+    }
 }
 
 enum RecordEvent: Equatable, Sendable {

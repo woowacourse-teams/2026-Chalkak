@@ -6,6 +6,7 @@ struct HomeWeeklyRecord: View {
     let status: HomeSectionStatus
     var onOpenRecord: () -> Void
     var onRetry: () -> Void
+    var onOpenRecordDate: (Date) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
@@ -43,7 +44,14 @@ struct HomeWeeklyRecord: View {
             case .ready:
                 HStack(spacing: theme.spacing.sm) {
                     ForEach(days) { day in
-                        WeeklyRecordCell(day: day)
+                        if day.post != nil {
+                            Button { onOpenRecordDate(day.date) } label: {
+                                WeeklyRecordCell(day: day)
+                            }
+                            .buttonStyle(ChalkakUnhighlightedButtonStyle())
+                        } else {
+                            WeeklyRecordCell(day: day)
+                        }
                     }
                 }
             }

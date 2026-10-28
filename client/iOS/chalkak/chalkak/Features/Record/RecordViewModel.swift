@@ -14,18 +14,30 @@ final class RecordViewModel {
     private let monthProvider: MonthProvider
     private let calendarHandler: CalendarHandler
     private let monthListHandler: MonthListHandler
+    // 홈 주간 기록에서 연 날짜. 재검증해도 이 날짜를 다시 고르고, 사용자가 날짜나 달을 바꾸면 비운다.
+    private var initialDate: Date?
     private var generation = 0
     private var isRevalidating = false
     private var shouldRetryMonthList = false
+    // 진행 중인 load() 수. 홈 주간 기록에서 열어 이미 불러오는 중이면 화면이 나타날 때 같은 요청을 다시 보내지 않는다.
+    private var activeLoadCount = 0
+    // 한 번 받은 달의 기록. 같은 달로 돌아오면 빈 화면·로딩 없이 바로 보여주고 뒤에서 최신 값으로 교체한다.
+    // 이 뷰모델과 수명이 같아서 로그아웃 등으로 뷰모델을 새로 만들면 함께 비워진다.
+    private var calendarCache: [RecordMonth: RecordCalendar] = [:]
 
     init(
         initialState: RecordViewState? = nil,
+        initialDate: Date? = nil,
         monthProvider: @escaping MonthProvider = { .current() },
         monthListHandler: @escaping MonthListHandler = { .success([]) },
         calendarHandler: @escaping CalendarHandler = { _ in .failure(.generic) }
     ) {
         let latestMonth = monthProvider()
-        self.viewState = initialState ?? RecordViewState(month: latestMonth, latestMonth: latestMonth)
+        self.initialDate = initialDate
+        self.viewState = initialState ?? RecordViewState(
+            month: initialDate.map { RecordMonth.current(now: $0) } ?? latestMonth,
+            latestMonth: latestMonth
+        )
         self.monthProvider = monthProvider
         self.calendarHandler = calendarHandler
         self.monthListHandler = monthListHandler
@@ -62,7 +74,17 @@ final class RecordViewModel {
         )
     }
 
+    /// 화면이 나타날 때 부른다. 아직 기록을 보여주지 못했고 불러오는 중도 아니면 처음부터 불러온다.
+    func loadIfNeeded() async {
+        guard viewState.contentStatus == .loading, activeLoadCount == 0 else { return }
+        await load()
+    }
+
+    /// 월 목록과 첫 달의 기록을 불러온다. 홈 주간 기록에서 연 날짜가 있으면 그 달을 연다.
+    /// 화면을 벗어나 작업이 취소되면 실패로 바꾸지 않고 `.loading`으로 남겨, 다시 나타날 때 처음부터 불러오게 한다.
     func load() async {
+        activeLoadCount += 1
+        defer { activeLoadCount -= 1 }
         generation += 1
         let requestGeneration = generation
         switch await monthListHandler() {
@@ -70,31 +92,59 @@ final class RecordViewModel {
             guard requestGeneration == generation else { return }
             shouldRetryMonthList = false
             let availableMonths = monthsIncludingCurrent(months)
-            let initialMonth = monthProvider()
+            let initialMonth = initialDate.map { RecordMonth.current(now: $0) } ?? monthProvider()
             viewState.availableMonths = availableMonths
             await loadCalendar(month: initialMonth)
         case .failure:
-            guard requestGeneration == generation else { return }
+            guard requestGeneration == generation, !Task.isCancelled else { return }
             shouldRetryMonthList = true
             viewState.availableMonths = monthsIncludingCurrent([])
             await loadCalendar(month: viewState.month)
         }
     }
 
+    /// 홈 주간 기록에서 고른 날짜의 달을 열고 그 날짜의 사진을 선택한다.
+    /// 뷰모델을 새로 만들지 않아 이미 받은 달은 캐시로 바로 보여주고 뒤에서 최신 값으로 교체한다.
+    /// 월 목록을 아직 받지 못했으면 처음부터 불러온다.
+    /// - Parameter date: 열 날짜. 그 날짜에 사진이 없으면 다른 사진을 대신 고르지 않는다.
+    func open(date: Date) async {
+        initialDate = date
+        let month = RecordMonth.current(now: date)
+        if shouldRetryMonthList || viewState.availableMonths.isEmpty {
+            viewState.month = month
+            await load()
+        } else {
+            await loadCalendar(month: month)
+        }
+    }
+
     func moveToPreviousMonth() async {
         guard viewState.canGoPrevious else { return }
         guard let previousMonth = viewState.availableMonths.filter({ $0 < viewState.month }).max() else { return }
+        initialDate = nil
         await loadCalendar(month: previousMonth)
     }
 
     func moveToNextMonth() async {
         guard viewState.canGoNext else { return }
         guard let nextMonth = viewState.availableMonths.filter({ $0 > viewState.month }).min() else { return }
+        initialDate = nil
         await loadCalendar(month: nextMonth)
+    }
+
+    /// 년/월 휠에서 고른 달로 이동한다. 기록이 있는 달(+이번 달)만 받고, 같은 달이면 다시 불러오지 않는다.
+    func moveToMonth(_ month: RecordMonth) async {
+        guard viewState.contentStatus != .loading,
+              month != viewState.month,
+              viewState.availableMonths.contains(month)
+        else { return }
+        initialDate = nil
+        await loadCalendar(month: month)
     }
 
     func selectDate(_ date: Date) {
         guard viewState.posts.contains(where: { $0.topicDate == date }) else { return }
+        initialDate = nil
         viewState.selectedDate = date
     }
 
@@ -144,6 +194,10 @@ final class RecordViewModel {
     }
 
     func removeDeletedPost(_ postID: RecordPost.ID) {
+        // 다른 달로 갔다 돌아왔을 때 캐시에서 지운 게시물이 다시 보이지 않게 한다.
+        calendarCache = calendarCache.mapValues { calendar in
+            RecordCalendar(month: calendar.month, posts: calendar.posts.filter { $0.postId != postID })
+        }
         viewState.posts.removeAll { $0.postId == postID }
         if viewState.month != monthProvider(),
            !viewState.posts.contains(where: { viewState.month.contains($0.topicDate) }) {
@@ -151,10 +205,14 @@ final class RecordViewModel {
         }
         viewState.availableMonths = monthsIncludingCurrent(viewState.availableMonths)
         if viewState.selectedPost == nil {
+            initialDate = nil
             viewState.selectedDate = viewState.posts.max { $0.topicDate < $1.topicDate }?.topicDate
         }
     }
 
+    /// `month`의 기록을 받아 화면에 반영한다.
+    /// - Parameter previousState: 요청하는 동안 유지할 화면. nil이고 `month`를 캐시해 뒀으면 캐시로 만든 화면을 쓴다.
+    ///   유지할 화면이 있으면 실패해도 그 화면을 남기고 토스트만 띄우며, 없으면 로딩 화면에서 시작해 실패 시 오류 화면을 보여준다.
     private func loadCalendar(
         month: RecordMonth,
         preserving previousState: RecordViewState? = nil
@@ -165,7 +223,25 @@ final class RecordViewModel {
         let availableMonths = monthsIncludingCurrent(viewState.availableMonths)
         viewState.availableMonths = availableMonths
 
-        if previousState != nil {
+        let previousState = previousState ?? calendarCache[month].map { calendar in
+            if let requestedDate = initialDate {
+                return loadedState(
+                    for: calendar,
+                    latestMonth: latestMonth,
+                    availableMonths: availableMonths,
+                    opening: requestedDate
+                )
+            }
+            return loadedState(
+                for: calendar,
+                latestMonth: latestMonth,
+                availableMonths: availableMonths,
+                selectedDate: nil
+            )
+        }
+
+        if let previousState {
+            viewState = previousState
             viewState.latestMonth = latestMonth
         } else {
             viewState = RecordViewState(
@@ -178,20 +254,36 @@ final class RecordViewModel {
             )
         }
 
+        let selectedDateBeforeRequest = viewState.selectedDate
         let result = await calendarHandler(month)
+        // 그사이 다른 달로 넘어갔어도 받은 기록은 다음에 돌아올 때 쓰도록 남긴다.
+        if case let .success(calendar) = result {
+            calendarCache[month] = calendar
+        }
         guard requestGeneration == generation else { return }
 
         switch result {
         case let .success(calendar):
-            viewState = RecordViewState(
-                contentStatus: .loaded,
-                month: calendar.month,
-                latestMonth: latestMonth,
-                availableMonths: availableMonths,
-                posts: calendar.posts,
-                selectedDate: calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate
-            )
+            if let requestedDate = initialDate {
+                viewState = loadedState(
+                    for: calendar,
+                    latestMonth: latestMonth,
+                    availableMonths: availableMonths,
+                    opening: requestedDate
+                )
+            } else {
+                // 요청하는 동안 사용자가 직접 고른 날짜만 유지한다. 그대로면 새로 올라온 최근 사진을 고르게 둔다.
+                let userSelectedDate = viewState.selectedDate != selectedDateBeforeRequest ? viewState.selectedDate : nil
+                viewState = loadedState(
+                    for: calendar,
+                    latestMonth: latestMonth,
+                    availableMonths: availableMonths,
+                    selectedDate: userSelectedDate
+                )
+            }
         case let .failure(error):
+            // 화면을 벗어나 취소된 요청은 실패가 아니다. 지금 화면(로딩 또는 캐시)을 그대로 둔다.
+            guard !Task.isCancelled else { return }
             if var previousState {
                 previousState.latestMonth = latestMonth
                 previousState.availableMonths = availableMonths
@@ -210,7 +302,51 @@ final class RecordViewModel {
         }
     }
 
+    /// 받은 기록으로 화면 상태를 만든다.
+    /// - Parameter selectedDate: 이 날짜의 게시물이 남아 있으면 선택을 유지하고, nil이거나 없으면 가장 최근 날짜를 고른다.
+    private func loadedState(
+        for calendar: RecordCalendar,
+        latestMonth: RecordMonth,
+        availableMonths: [RecordMonth],
+        selectedDate: Date?
+    ) -> RecordViewState {
+        let keepsSelection = selectedDate.map { date in
+            calendar.posts.contains { $0.topicDate == date }
+        } ?? false
+        return RecordViewState(
+            contentStatus: .loaded,
+            month: calendar.month,
+            latestMonth: latestMonth,
+            availableMonths: availableMonths,
+            posts: calendar.posts,
+            selectedDate: keepsSelection
+                ? selectedDate
+                : calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate
+        )
+    }
+
+    /// 홈 주간 기록에서 고른 날짜를 선택한 화면 상태를 만든다.
+    /// - Parameter requestedDate: 선택할 날짜. 그 날짜 사진이 없으면 다른 사진을 대신 고르지 않고 선택을 비운다.
+    private func loadedState(
+        for calendar: RecordCalendar,
+        latestMonth: RecordMonth,
+        availableMonths: [RecordMonth],
+        opening requestedDate: Date
+    ) -> RecordViewState {
+        var state = loadedState(
+            for: calendar,
+            latestMonth: latestMonth,
+            availableMonths: availableMonths,
+            selectedDate: nil
+        )
+        state.selectedDate = calendar.posts.first {
+            RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: requestedDate)
+        }?.topicDate
+        return state
+    }
+
     private func monthsIncludingCurrent(_ months: [RecordMonth]) -> [RecordMonth] {
-        Array(Set(months + [monthProvider()])).sorted(by: >)
+        let requestedMonths = initialDate.map { [RecordMonth.current(now: $0)] } ?? []
+        return Array(Set(months + [monthProvider()] + requestedMonths)).sorted(by: >)
     }
 }

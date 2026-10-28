@@ -33,11 +33,13 @@ data class NotificationDetail(
 data class NotificationPushSettings(
     val topicPushEnabled: Boolean,
     val moderationPushEnabled: Boolean,
+    val aiReviewPushEnabled: Boolean = true,
 )
 
 data class NotificationPushSettingsUpdate(
     val topicPushEnabled: Boolean? = null,
     val moderationPushEnabled: Boolean? = null,
+    val aiReviewPushEnabled: Boolean? = null,
 )
 
 sealed interface NotificationResult<out T> {

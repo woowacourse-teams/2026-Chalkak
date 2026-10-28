@@ -15,12 +15,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Velocity
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.rememberScreenBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.BottomBarScrollState
-import com.stonefive.chalkak.core.designsystem.scroll.rememberBottomBarScrollState
 import com.stonefive.chalkak.core.designsystem.scroll.settleCollapsingOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+
+private const val SCROLL_TO_TOP_ANIMATED_ITEM_COUNT = 12
 
 @Stable
 class DisplayScrollBehaviorState(
@@ -181,6 +184,14 @@ class DisplayScrollBehaviorState(
         isFilterTargetHidden = false
     }
 
+    suspend fun scrollToTop() {
+        reset()
+        if (gridState.firstVisibleItemIndex > SCROLL_TO_TOP_ANIMATED_ITEM_COUNT) {
+            gridState.scrollToItem(SCROLL_TO_TOP_ANIMATED_ITEM_COUNT)
+        }
+        gridState.animateScrollToItem(0)
+    }
+
     fun updateLayout(
         gridState: LazyStaggeredGridState,
         hasFilter: Boolean,
@@ -236,7 +247,7 @@ fun rememberDisplayScrollBehaviorState(
     scrollToTopToggleThresholdPx: Float,
     hasFilter: Boolean,
 ): DisplayScrollBehaviorState {
-    val bottomBarState = rememberBottomBarScrollState()
+    val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.DISPLAY)
     val state = rememberSaveable(
         scrollToTopToggleThresholdPx,
         saver = DisplayScrollBehaviorState.saver(

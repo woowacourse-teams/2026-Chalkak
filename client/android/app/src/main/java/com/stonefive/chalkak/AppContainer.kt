@@ -16,8 +16,10 @@ import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStor
 import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.local.notification.PushNotificationManager
+import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
+import com.stonefive.chalkak.data.remote.aireview.AiReviewDataSourceImpl
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
@@ -31,14 +33,19 @@ import com.stonefive.chalkak.data.remote.signature.OkHttpSignatureUploader
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.user.UserDataSource
 import com.stonefive.chalkak.data.remote.user.UserDataSourceImpl
+import com.stonefive.chalkak.data.repository.AiReviewRepositoryImpl
 import com.stonefive.chalkak.data.repository.AuthRepositoryImpl
+import com.stonefive.chalkak.data.repository.BannerRepositoryImpl
 import com.stonefive.chalkak.data.repository.FeedbackRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
+import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AuthRepository
+import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
+import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
@@ -55,6 +62,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 
 class AppContainer(context: Context) {
     private val applicationContext = context.applicationContext
+
+    val signatureHintRepository: com.stonefive.chalkak.domain.repository.SignatureHintRepository by lazy {
+        com.stonefive.chalkak.data.local.feed
+            .SignatureHintStore(applicationContext)
+    }
 
     val analyticsTracker: AnalyticsTracker by lazy {
         FirebaseAnalyticsTracker(context)
@@ -145,9 +157,23 @@ class AppContainer(context: Context) {
         )
     }
 
+    val bannerRepository: BannerRepository by lazy {
+        BannerRepositoryImpl(networkModule.bannerApi, networkModule.apiRequestExecutor)
+    }
+
     val feedbackRepository: FeedbackRepository by lazy {
         FeedbackRepositoryImpl(
             feedbackDataSource = feedbackDataSource,
+        )
+    }
+
+    val aiReviewRepository: AiReviewRepository by lazy {
+        AiReviewRepositoryImpl(
+            AiReviewDataSourceImpl(
+                queryApi = networkModule.aiReviewQueryApi,
+                requestApi = networkModule.aiReviewRequestApi,
+                requestExecutor = networkModule.apiRequestExecutor,
+            ),
         )
     }
 
@@ -156,6 +182,10 @@ class AppContainer(context: Context) {
             topicApi = networkModule.topicApi,
             requestExecutor = networkModule.apiRequestExecutor,
         )
+    }
+
+    val photoEditImageRepository: PhotoEditImageRepository by lazy {
+        AndroidPhotoEditImageRepository(contentResolver = context.contentResolver)
     }
 
     val postCreationRepository: PostCreationRepository by lazy {

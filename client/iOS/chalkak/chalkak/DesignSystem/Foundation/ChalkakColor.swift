@@ -23,6 +23,11 @@ struct ChalkakColors {
     let calendarCellBorder: Color
     let skeletonBase: Color
     let skeletonHighlight: Color
+    let editorBackground: Color
+    let editorControl: Color
+    let editorAccent: Color
+    let textOnEditor: Color
+    let textOnEditorMuted: Color
 
     init(
         background: Color,
@@ -46,7 +51,12 @@ struct ChalkakColors {
         calendarCell: Color,
         calendarCellBorder: Color,
         skeletonBase: Color,
-        skeletonHighlight: Color
+        skeletonHighlight: Color,
+        editorBackground: Color,
+        editorControl: Color,
+        editorAccent: Color,
+        textOnEditor: Color,
+        textOnEditorMuted: Color
     ) {
         self.background = background
         self.surface = surface
@@ -70,6 +80,11 @@ struct ChalkakColors {
         self.calendarCellBorder = calendarCellBorder
         self.skeletonBase = skeletonBase
         self.skeletonHighlight = skeletonHighlight
+        self.editorBackground = editorBackground
+        self.editorControl = editorControl
+        self.editorAccent = editorAccent
+        self.textOnEditor = textOnEditor
+        self.textOnEditorMuted = textOnEditorMuted
     }
 
     init() {
@@ -98,7 +113,13 @@ struct ChalkakColors {
         calendarCell: Color(hex: 0xEAE7DE),
         calendarCellBorder: Color(hex: 0xDCD8CE),
         skeletonBase: Color(hex: 0xEAE7DE),
-        skeletonHighlight: Color(hex: 0xF7F6F3)
+        skeletonHighlight: Color(hex: 0xF7F6F3),
+        // 사진 편집 화면의 임시 색. 디자인 시안이 나오면 확정한다.
+        editorBackground: .black,
+        editorControl: Color(hex: 0x1C1C1E),
+        editorAccent: Color(hex: 0xFFD60A),
+        textOnEditor: .white,
+        textOnEditorMuted: Color.white.opacity(0.6)
     )
 }
 

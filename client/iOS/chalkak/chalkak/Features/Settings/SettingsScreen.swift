@@ -16,21 +16,15 @@ enum SettingsAccountDialog: Equatable {
 
     var message: String {
         switch self {
-        case .logout: "정말 로그아웃 하시겠습니까?"
-        case .withdraw: "정말 회원탈퇴 하시겠습니까?"
-        }
-    }
-
-    var style: ChalkakConfirmDialogStyle {
-        switch self {
-        case .logout: .primary
-        case .withdraw: .destructive
+        case .logout: "로그아웃하면 다시 로그인해야 찰칵을 이용할 수 있어요."
+        case .withdraw: "회원탈퇴하면 계정과 게시물이 삭제되며, 삭제한 내용은 복구할 수 없어요."
         }
     }
 }
 
 struct SettingsScreen: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.chalkakShowToast) private var showToast
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
@@ -43,11 +37,11 @@ struct SettingsScreen: View {
     var onSignedOut: () -> Void = {}
     var onNavigateToBottomBar: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenPhotoUpload: () -> Void = {}
+    var onSignatureScreenChange: (AnalyticsScreen?) -> Void = { _ in }
 
-    @State private var message: String?
     var bottomBarCompact: Binding<Bool> = .constant(false)
-    @State private var messageDismissTask: Task<Void, Never>?
     @State private var isSignatureChangePresented = false
+    @State private var didUpdateSignature = false
 
     var body: some View {
         ScrollView {
@@ -67,8 +61,10 @@ struct SettingsScreen: View {
                             SettingsNotificationCard(
                                 topicPushEnabled: notificationSettingsViewModel.viewState.settings?.topicPushEnabled ?? false,
                                 moderationPushEnabled: notificationSettingsViewModel.viewState.settings?.moderationPushEnabled ?? false,
+                                aiReviewPushEnabled: notificationSettingsViewModel.viewState.settings?.aiReviewPushEnabled ?? false,
                                 isTopicDisabled: notificationSettingsViewModel.viewState.isTopicDisabled,
                                 isModerationDisabled: notificationSettingsViewModel.viewState.isModerationDisabled,
+                                isAIReviewDisabled: notificationSettingsViewModel.viewState.isAIReviewDisabled,
                                 errorMessage: notificationSettingsViewModel.viewState.errorMessage,
                                 onTopicToggle: { enabled in
                                     Task {
@@ -80,6 +76,13 @@ struct SettingsScreen: View {
                                 onModerationToggle: { enabled in
                                     Task {
                                         async let save: Void = notificationSettingsViewModel.setModerationPushEnabled(enabled)
+                                        await openNotificationSettingsIfNeeded(enabled: enabled)
+                                        await save
+                                    }
+                                },
+                                onAIReviewToggle: { enabled in
+                                    Task {
+                                        async let save: Void = notificationSettingsViewModel.setAIReviewPushEnabled(enabled)
                                         await openNotificationSettingsIfNeeded(enabled: enabled)
                                         await save
                                     }
@@ -137,21 +140,21 @@ struct SettingsScreen: View {
         .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
-        .overlay {
-            if let accountDialog = viewModel.viewState.accountDialog {
-                ChalkakConfirmDialog(
-                    title: accountDialog.title,
-                    message: accountDialog.message,
-                    confirmText: accountDialog.title,
-                    confirmStyle: accountDialog.style,
-                    onConfirm: { Task { await viewModel.confirmAccountAction() } },
-                    onDismiss: viewModel.dismissAccountDialog
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        .alert(
+            viewModel.viewState.accountDialog?.title ?? "",
+            isPresented: Binding(
+                get: { viewModel.viewState.accountDialog != nil },
+                set: { if !$0 { viewModel.dismissAccountDialog() } }
+            ),
+            presenting: viewModel.viewState.accountDialog
+        ) { accountDialog in
+            Button("취소", role: .cancel, action: viewModel.dismissAccountDialog)
+            Button(accountDialog.title, role: accountDialog == .withdraw ? .destructive : nil) {
+                Task { await viewModel.confirmAccountAction(for: accountDialog) }
             }
+        } message: { accountDialog in
+            Text(accountDialog.message)
         }
-        .overlay(alignment: .bottom) { toast }
-        .animation(.easeOut(duration: 0.16), value: viewModel.viewState.accountDialog)
         .task {
             await viewModel.load()
             if viewModel.viewState.isLoggedIn {
@@ -175,26 +178,20 @@ struct SettingsScreen: View {
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
-        .onDisappear {
-            messageDismissTask?.cancel()
-        }
-        .fullScreenCover(isPresented: $isSignatureChangePresented) {
-            SignatureChangeFlow(onUpdate: viewModel.updateSignature)
-        }
-    }
-
-    @ViewBuilder
-    private var toast: some View {
-        if let message {
-            Text(message)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.onActionPrimary)
-                .padding(.horizontal, theme.spacing.lg)
-                .padding(.vertical, theme.spacing.md)
-                .background(theme.colors.actionPrimary, in: Capsule())
-                .padding(.bottom, Metrics.toastBottomPadding)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityLabel(message)
+        .fullScreenCover(isPresented: $isSignatureChangePresented, onDismiss: {
+            onSignatureScreenChange(nil)
+            if didUpdateSignature {
+                didUpdateSignature = false
+                showMessage("사인 반영까지 시간이 좀 걸릴 수 있어요!")
+            }
+        }) {
+            SignatureChangeFlow(
+                onUpdate: { data in
+                    try await viewModel.updateSignature(data)
+                    didUpdateSignature = true
+                },
+                onScreenChange: { onSignatureScreenChange($0) }
+            )
         }
     }
 
@@ -222,17 +219,7 @@ struct SettingsScreen: View {
     }
 
     private func showMessage(_ text: String) {
-        messageDismissTask?.cancel()
-        withAnimation(.snappy) {
-            message = text
-        }
-        messageDismissTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.snappy) {
-                message = nil
-            }
-        }
+        showToast(text)
     }
 
 }
@@ -241,7 +228,6 @@ private enum Metrics {
     static let topPadding: CGFloat = 48
     static let appToAccountSpacing: CGFloat = 36
     static let loadingHeight: CGFloat = 56
-    static let toastBottomPadding: CGFloat = 88
 }
 
 #Preview("Member settings") {
