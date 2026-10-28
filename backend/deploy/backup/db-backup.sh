@@ -44,7 +44,7 @@ done
   echo '백업 경로는 remote:bucket/prefix/db 형식이어야 합니다.' >&2
   exit 1
 }
-for tool in pg_dump pg_restore rclone sha256sum cmp mktemp; do
+for tool in pg_dump pg_restore rclone sha256sum cmp mktemp timeout; do
   command -v "$tool" >/dev/null || { printf '필수 도구 없음: %s\n' "$tool" >&2; exit 1; }
 done
 [[ "$(pg_dump --version)" =~ PostgreSQL\)\ 18\. ]] || {
@@ -58,7 +58,7 @@ done
 
 export PGSSLMODE=verify-full PGCONNECT_TIMEOUT=10
 export PGAPPNAME=chalkak-db-backup
-export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=300000'
+export PGOPTIONS='-c default_transaction_read_only=on'
 work_dir=$(mktemp -d "${DB_BACKUP_TEMP_ROOT:-/tmp}/chalkak-db-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")
 run_id=${work_dir##*/}
 destination="$DB_BACKUP_DESTINATION/$run_id"
@@ -68,7 +68,7 @@ printf '%s STARTED run=%s\n' "$(date -u +%FT%TZ)" "$run_id"
 
 # 외부 도구의 원문 오류에는 접속 정보가 포함될 수 있어 공개 로그에 보내지 않는다.
 stage=dump
-pg_dump --format=custom --no-owner --no-privileges --no-password --lock-wait-timeout=10s \
+timeout --kill-after=10s 5m pg_dump --format=custom --no-owner --no-privileges --no-password --lock-wait-timeout=10s \
   --file="$work_dir/database.dump" > /dev/null 2> "$work_dir/diagnostic"
 [[ -s "$work_dir/database.dump" ]] || exit 1
 stage=archive-list

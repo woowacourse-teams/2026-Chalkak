@@ -7,7 +7,8 @@ REAL_RCLONE=$(command -v rclone) || { echo '테스트에 실제 rclone이 필요
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 mkdir -p "$TEST_ROOT/bin"
-export REAL_RCLONE
+REAL_TIMEOUT=$(command -v timeout) || { echo '테스트에 GNU timeout이 필요합니다.' >&2; exit 1; }
+export REAL_RCLONE REAL_TIMEOUT
 
 cat > "$TEST_ROOT/bin/pg_dump" <<'MOCK'
 #!/usr/bin/env bash
@@ -16,6 +17,11 @@ if [[ "$1" == --version ]]; then
   exit
 fi
 [[ "$PGSSLMODE" == verify-full && "$PGOPTIONS" == *read_only=on* ]] || exit 8
+if [[ "${TEST_FAULT:-}" == timeout || "${TEST_FAULT:-}" == timeout-kill ]]; then
+  echo "$$" > "$TEST_REMOTE_ROOT/dump.pid"
+  [[ "$TEST_FAULT" != timeout-kill ]] || trap '' TERM
+  while :; do :; done
+fi
 if [[ "${TEST_FAULT:-}" == dump ]]; then echo 'SECRET_SENTINEL' >&2; exit 9; fi
 for argument in "$@"; do
   if [[ "$argument" == --file=* ]]; then
@@ -45,6 +51,14 @@ fi
 if [[ "$1" == cat && "${TEST_FAULT:-}" == marker ]]; then echo wrong-marker; exit; fi
 exec "$REAL_RCLONE" "$@"
 MOCK
+# 실제 timeout을 사용하되 시험에서는 1초 제한으로 바꿔 기다리는 시간을 줄인다.
+cat > "$TEST_ROOT/bin/timeout" <<'WRAPPER'
+#!/usr/bin/env bash
+[[ "$1" == --kill-after=10s && "$2" == 5m && "$3" == pg_dump ]] || exit 8
+shift 2
+exec "$REAL_TIMEOUT" --kill-after=1s 1s "$@"
+WRAPPER
+chmod +x "$TEST_ROOT/bin/timeout"
 chmod +x "$TEST_ROOT/bin/pg_dump" "$TEST_ROOT/bin/pg_restore" "$TEST_ROOT/bin/rclone"
 export PATH="$TEST_ROOT/bin:$PATH"
 export TEST_FAULT='' TEST_PG_VERSION=18.4
@@ -115,6 +129,18 @@ for fault in dump empty archive upload checksum corrupt completion; do
   echo "PASS: $fault 실패 시 미완료 처리·비밀값 비노출·임시 파일 정리"
 done
 
+for fault in timeout timeout-kill; do
+  prepare_case "$fault"
+  export TEST_FAULT=$fault
+  execute_backup
+  assert_failed dump
+  if [[ "$fault" == timeout ]]; then [[ $status -eq 124 ]] || exit 1
+  else [[ $status -eq 137 ]] || exit 1; fi
+  dump_pid=$(cat "$case_dir/remote/dump.pid")
+  if kill -0 "$dump_pid" 2>/dev/null; then echo 'FAIL: 덤프 프로세스 잔존'; exit 1; fi
+  echo "PASS: $fault 종료·업로드 차단·완료 기록 없음·임시 파일 정리"
+done
+
 prepare_case missing
 export TEST_FAULT=''
 printf '\nunset PGHOST\n' >> "$case_dir/backup.env"
@@ -153,4 +179,4 @@ execute_backup
 [[ $status -eq 0 && $(find "$case_dir/remote" -name COMPLETE | wc -l) -eq 1 ]] || exit 1
 echo 'PASS: 실패 후 재실행으로 정상 보관본 생성'
 
-echo '총 14개 시나리오 통과 (DB 명령은 합성 도구, 전송·내용 비교는 실제 rclone)'
+echo '총 16개 시나리오 통과 (DB 명령은 합성 도구, 전송·내용 비교는 실제 rclone)'

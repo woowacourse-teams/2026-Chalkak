@@ -13,7 +13,7 @@
 
 ## 준비
 
-Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`가 필요하다.
+Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`, GNU coreutils의 `timeout`이 필요하다.
 DB에 직접 연결해 스키마·테이블·시퀀스를 내보낼 권한이 있어야 한다.
 TLS 인증서 검증을 위해 RDS CA 번들을 준비한다. 스크립트는 `verify-full`을 강제한다.
 
@@ -104,7 +104,11 @@ docker rm --force <출력된컨테이너ID>
 DB 변경에 대한 일관성은 pg_dump가 제공하지만 S3 이미지와 같은 시점의 원자적 백업은 아니다.
 역할·권한·테이블스페이스와 RDS·네트워크 설정은 별도 재현이 필요하다.
 `--no-owner --no-privileges`를 사용하며 원래 소유권·접근 정책까지 복원한다고 간주하지 않는다.
-기본 연결 제한은 10초, 테이블 잠금 대기는 10초, SQL statement timeout은 5분이다.
+기본 연결 제한은 10초, 테이블 잠금 대기는 10초다. 덤프 프로세스 전체는 `timeout`으로
+5분으로 제한하고, 종료 요청 후 10초 안에 끝나지 않으면 강제 종료한다. SQL별 실행 제한이 아니다.
+`pg_dump`는 접속 시 `statement_timeout`을 해제하므로 해당 설정으로 덤프 시간을 제한하지 않는다.
+시간 초과도 dump 단계 실패로 처리하며 업로드·완료 기록 없이 이번 임시 파일을 정리한다.
+시간 제한은 CPU·I/O 사용량 자체를 제한하지 않으므로 운영 부하는 별도로 확인한다.
 
 ```bash
 bash deploy/backup/tests/db-backup-test.sh
