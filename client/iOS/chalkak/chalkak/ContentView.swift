@@ -509,12 +509,15 @@ struct ContentView: View {
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
                 onOpenDisplay: { openDisplay(at: $0) },
-                onOpenFeed: { post in
+                onOpenFeed: { post, heightToWidthRatio in
                     selectedFeed = FeedTarget(
                         postID: post.postId,
                         isOwnedByCurrentUser: true,
                         zoomSource: .record(post.postId),
-                        placeholder: FeedPhotoPlaceholder(imageSource: post.thumbnailImageSource)
+                        placeholder: FeedPhotoPlaceholder(
+                            imageSource: post.thumbnailImageSource,
+                            heightToWidthRatio: heightToWidthRatio
+                        )
                     )
                 },
                 onNavigateToLogin: showLogin,
@@ -1032,11 +1035,17 @@ struct ContentView: View {
     }
 
     private static func makeRecordViewModel() -> RecordViewModel {
-        RecordViewModel(
+        // 월간 책자 속표지의 사인은 설정 화면과 같은 내 사인 API로 받는다.
+        let settingsClient = SettingsAPIClient(
+            baseURL: resolvedAPIBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return RecordViewModel(
             apiClient: RecordAPIClient(
                 configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
-            )
+            ),
+            signatureHandler: { try? await settingsClient.fetchSignature() }
         )
     }
 
