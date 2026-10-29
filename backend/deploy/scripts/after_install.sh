@@ -8,6 +8,9 @@ for command_name in docker curl; do
   fi
 done
 
+# shellcheck source=blue_green.sh
+source /opt/chalkak/bin/blue_green.sh
+
 deployment_id="${DEPLOYMENT_ID:-}"
 if [[ ! "${deployment_id}" =~ ^d-[A-Z0-9]+$ ]]; then
   echo "DEPLOYMENT_ID is missing or invalid: '${deployment_id}'" >&2
@@ -15,13 +18,16 @@ if [[ ! "${deployment_id}" =~ ^d-[A-Z0-9]+$ ]]; then
 fi
 
 incoming_jar=/opt/chalkak/incoming/application.jar
-releases_dir=/opt/chalkak/releases
+releases_dir="${RELEASES_DIR}"
 release_dir="${releases_dir}/${deployment_id}"
 
 if [[ ! -f "${incoming_jar}" ]]; then
   echo "Staged jar is missing: ${incoming_jar}" >&2
   exit 1
 fi
+
+# 이미지를 미리 받아 두어 ApplicationStart의 docker run이 pull로 지연되지 않게 한다.
+docker image inspect "${IMAGE}" >/dev/null 2>&1 || docker pull "${IMAGE}"
 
 # 실행 중인 컨테이너가 쓰는 이전 release는 건드리지 않고 배포별 경로에 새로 둔다.
 install -d -m 0750 -o root -g chalkak "${releases_dir}"
