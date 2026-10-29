@@ -4,6 +4,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import com.stonefive.chalkak.core.appupdate.AppUpdateCheckResult
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
+import java.net.URI
 import kotlinx.coroutines.CancellationException
 
 class ServerAppUpdateGateway(
@@ -26,7 +27,10 @@ class ServerAppUpdateGateway(
             storeUrl = null
             AppUpdateCheckResult.NoUpdate
         } else {
-            storeUrl = policy.storeUrl?.takeIf { it.startsWith("https://") || it.startsWith("market://") }
+            val updateStoreUrl = requireNotNull(policy.storeUrl)
+            val storeUri = URI(updateStoreUrl)
+            require(storeUri.scheme in setOf("https", "market") && !storeUri.host.isNullOrBlank())
+            storeUrl = updateStoreUrl
             // Play delivery is best-effort. The server policy remains authoritative,
             // including installations outside Play and unavailable update tracks.
             try {

@@ -6,6 +6,7 @@ import com.stonefive.chalkak.core.appupdate.AppUpdateCheckResult
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -38,6 +39,37 @@ class ServerAppUpdateGatewayTest {
         val gateway = ServerAppUpdateGateway(api, "1.1.1", play)
         assertEquals(AppUpdateCheckResult.ImmediateUpdateRequired, gateway.checkForUpdate())
         assertEquals("https://play.google.com/test", gateway.storeUrl)
+        assertEquals(1, play.checks)
+    }
+
+    @Test
+    fun `최소 미달인데 스토어 주소가 없거나 잘못되면 조회 실패로 처리한다`() = runTest {
+        val play = FakePlayGateway()
+        val api = FakeVersionApi(AppVersionResponse("ANDROID", "1.1.2", null))
+        val gateway = ServerAppUpdateGateway(api, "1.1.1", play)
+
+        listOf(null, "", "https://", "https:///details", "market://", "http://play.google.com/test")
+            .forEach { url ->
+                api.response = api.response.copy(storeUrl = url)
+                assertEquals(AppUpdateCheckResult.Failed, gateway.checkForUpdate())
+                assertNull(gateway.storeUrl)
+            }
+        assertEquals(0, play.checks)
+    }
+
+    @Test
+    fun `잘못된 스토어 주소를 받으면 이전의 유효한 업데이트 주소를 유지한다`() = runTest {
+        val storeUrl = "https://play.google.com/store/apps/details?id=com.stonefive.chalkak"
+        val play = FakePlayGateway(AppUpdateCheckResult.Failed)
+        val api = FakeVersionApi(AppVersionResponse("ANDROID", "1.1.2", storeUrl))
+        val gateway = ServerAppUpdateGateway(api, "1.1.1", play)
+
+        assertEquals(AppUpdateCheckResult.ImmediateUpdateRequired, gateway.checkForUpdate())
+        listOf(null, "https://").forEach { url ->
+            api.response = api.response.copy(storeUrl = url)
+            assertEquals(AppUpdateCheckResult.Failed, gateway.checkForUpdate())
+            assertEquals(storeUrl, gateway.storeUrl)
+        }
         assertEquals(1, play.checks)
     }
 

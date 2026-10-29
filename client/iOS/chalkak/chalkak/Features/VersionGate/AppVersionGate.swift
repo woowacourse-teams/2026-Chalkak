@@ -153,8 +153,7 @@ final class AppVersionGateViewModel {
         case let .updateRequired(storeURL):
             requiredUpdateStoreURL = storeURL
         case .unavailable:
-            // 최초 조회 실패는 앱을 허용하고, 이미 확인된 강제 업데이트 상태는 유지한다.
-            break
+            requiredUpdateStoreURL = nil
         }
     }
 }

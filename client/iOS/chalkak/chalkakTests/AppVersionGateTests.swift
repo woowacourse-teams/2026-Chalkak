@@ -85,13 +85,28 @@ struct AppVersionGateTests {
     }
 
     @Test
-    func unavailableRecheckPreservesRequiredUpdateAndUnsetClearsIt() async {
+    func unavailableRecheckAllowsAccessAndSuccessfulRecheckCanRequireUpdateAgain() async {
         let storeURL = URL(string: "https://apps.apple.com/app/id123456789")!
-        var results: [AppUpdateCheckResult] = [.updateRequired(storeURL: storeURL), .unavailable, .upToDate]
+        var results: [AppUpdateCheckResult] = [
+            .updateRequired(storeURL: storeURL),
+            .unavailable,
+            .updateRequired(storeURL: storeURL),
+            .upToDate,
+        ]
         let viewModel = AppVersionGateViewModel { results.removeFirst() }
         await viewModel.checkForUpdate()
+        #expect(viewModel.requiredUpdateStoreURL == storeURL)
+        await viewModel.checkForUpdate()
+        #expect(viewModel.requiredUpdateStoreURL == nil)
         await viewModel.checkForUpdate()
         #expect(viewModel.requiredUpdateStoreURL == storeURL)
+        await viewModel.checkForUpdate()
+        #expect(viewModel.requiredUpdateStoreURL == nil)
+    }
+
+    @Test
+    func initialUnavailableCheckAllowsAccess() async {
+        let viewModel = AppVersionGateViewModel { .unavailable }
         await viewModel.checkForUpdate()
         #expect(viewModel.requiredUpdateStoreURL == nil)
     }

@@ -30,7 +30,6 @@ class VersionGateViewModel(
     private var isOnline = false
     private var hasObservedConnectivity = false
     private var isImmediateUpdateFlowActive = false
-    private var hasRequiredUpdate = false
 
     init {
         viewModelScope.launch {
@@ -102,14 +101,8 @@ class VersionGateViewModel(
 
             val status = when (result) {
                 AppUpdateCheckResult.NoUpdate -> VersionGateStatus.Accessible
-
                 AppUpdateCheckResult.ImmediateUpdateRequired -> VersionGateStatus.UpdateRequired
-
-                AppUpdateCheckResult.Failed -> if (hasRequiredUpdate) {
-                    VersionGateStatus.UpdateRequired
-                } else {
-                    VersionGateStatus.CheckFailed
-                }
+                AppUpdateCheckResult.Failed -> VersionGateStatus.Accessible
             }
             updateStatus(status)
         }
@@ -118,13 +111,11 @@ class VersionGateViewModel(
     private fun handleOffline() {
         checkJob?.cancel()
         if (!isImmediateUpdateFlowActive) {
-            updateStatus(if (hasRequiredUpdate) VersionGateStatus.UpdateRequired else VersionGateStatus.Accessible)
+            updateStatus(VersionGateStatus.Accessible)
         }
     }
 
     private fun updateStatus(status: VersionGateStatus) {
-        if (status == VersionGateStatus.UpdateRequired) hasRequiredUpdate = true
-        if (status == VersionGateStatus.Accessible) hasRequiredUpdate = false
         _uiState.update { currentState ->
             currentState.copy(
                 status = status,
