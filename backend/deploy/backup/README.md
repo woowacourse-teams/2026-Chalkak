@@ -7,7 +7,7 @@ DB 덤프에는 실제 사진 파일이 포함되지 않는다. `image-backup.sh
 ## 현재 범위
 
 - #842: 수동 DB 백업 생성·전송·검증, 보관본의 격리 PostgreSQL 복원과 합성 데이터 시험.
-- #843: 게시글·사인 이미지 백업·내용 검증과 수동 복구 도구. 현재 이미지 백업 단위부터 구현한다.
+- #843: 게시글·사인 이미지 백업·내용 검증과 별도 로컬 위치의 수동 복구·검증.
 - #844: 실제 팀 S3 권한, 운영 보관본 복구 검증, 매일 자정(Asia/Seoul) 예약 실행 적용.
 - DB 파일은 최소 7일 보존 목표다. 현재 자동 삭제는 없으므로 실제로는 더 오래 쌓인다.
 - 아직 이 문서와 스크립트만으로 자동 백업이나 운영 복구가 검증된 것은 아니다.
@@ -17,7 +17,7 @@ DB 덤프에는 실제 사진 파일이 포함되지 않는다. `image-backup.sh
 | 환경 | 설치·실행 범위 | 실행 주기 |
 | --- | --- | --- |
 | 운영 EC2 | `db-backup.sh`·`image-backup.sh`와 백업 도구·공통 설정 | #844에서 매일 자정(Asia/Seoul) 예약 |
-| 팀 계정의 임시 검증 EC2 | `db-restore.sh`, rclone, Docker, `sha256sum`과 보관본 조회 전용 설정 | 최초 실제 보관본 검증 및 매월 1회 수동 실행 |
+| 팀 계정의 임시 검증 EC2 | `db-restore.sh`·`image-restore.sh`, rclone, Docker(DB 검증용), `sha256sum`과 보관본 조회 전용 설정 | 최초 실제 보관본 검증 및 매월 1회 수동 실행 |
 
 운영 EC2에는 복구 검증용 Docker를 설치하거나 복구 스크립트를 예약 작업에 연결하지 않는다.
 스크립트는 Git 저장소에서 함께 관리하되, 서버에는 역할에 필요한 파일만 설치한다.
@@ -240,3 +240,108 @@ bash deploy/backup/tests/image-backup-test.sh
 실패와 해시 부재 상황은 명령 대역으로 주입하며 실제 AWS 네트워크·권한·버저닝 시험은 아니다.
 DB·이미지 공통 실행 `backup.sh`와 systemd 예약은 #844에서 구성한다. 둘의 결과를 구분하고
 DB 실패에도 이미지 작업을 시도하며, 하나라도 실패하면 통합 실행은 실패하도록 연결한다.
+
+## 이미지 수동 복구·검증
+
+`image-restore.sh`는 신뢰하는 팀 백업 회차의 완료 표식·대상 목록·검증 목록을 확인한 뒤
+선택한 파일만 새 로컬 폴더에 내려받는다. 운영 S3를 복구 대상으로 입력받지 않는다.
+Docker나 운영 DB 접속은 필요하지 않으며 운영 EC2가 아닌 별도 검증 환경에서 실행한다.
+복구 파일 전체를 저장할 디스크 여유가 있어야 한다.
+
+### 복구 준비와 최신 보관본 선택
+
+검증 서버에는 아래 두 설정과 보관본 읽기·이전 버전 조회 전용 `rclone.conf`만 준비한다.
+기존 DB 복구용 `restore.env`에 함께 두어도 된다. 운영 DB 비밀번호와 운영 S3 쓰기 권한은
+가져오지 않는다. 설정과 목록 파일은 신뢰하는 위치에 두고 소유권·권한을 보호한다.
+
+```bash
+RCLONE_CONFIG=/etc/chalkak-restore/rclone.conf
+IMAGE_BACKUP_DESTINATION=backup:REPLACE_WITH_BACKUP_BUCKET/chalkak/images
+```
+
+백업 실행 로그에서 완료된 실제 회차ID를 선택한다. 해당 회차의 `verified.txt`에서 필요한
+원래 S3 key를 한 줄에 하나씩 골라 로컬 목록 파일로 저장한다. 파일 이름만 적지 않는다.
+전체 검증이 목적이면 해당 회차의 `verified.txt` 전체를 목록으로 사용한다.
+DB의 사진·사인 S3 key를 기준으로 선택할 수도 있으나, 해당 회차에 없는 key는 이 도구가 거부한다.
+그 경우 다른 완료 회차·운영 버저닝·그 밖의 사본에서 찾고, 어디에도 없으면 누락으로 기록한다.
+
+```bash
+umask 077
+printf '%s\n' 'chalkak/posts/prod/original/REPLACE_WITH_IMAGE_ID.webp' > /tmp/chalkak-image-keys.txt
+RUN_ID='REPLACE_WITH_COMPLETED_RUN_ID'
+bash deploy/backup/image-restore.sh /etc/chalkak-restore/restore.env "$RUN_ID" \
+  /tmp/chalkak-image-keys.txt /tmp/chalkak-image-check-001
+```
+
+복구 위치는 아직 존재하지 않는 절대 경로여야 한다. 기존 폴더·심볼릭 링크·원격 저장소 경로는
+거부한다. 폴더를 새로 만들고 원래 key 구조를 유지하며, 복사 후 내용을 다시 비교한다.
+선택한 모든 key가 검사에서 확인돼야 성공한다. 성공한 폴더에는 `RESTORED` 기록이 남는다.
+이 기록은 전송 결과이며 이미지가 실제로 열리는지와 사용자·게시글 연결까지 자동 보장하지 않는다.
+복구 이미지 열기·원본/썸네일 대응·복구 DB와의 key 연결을 사람이 별도로 확인한다.
+
+### 변경 전 이미지 선택
+
+회차ID는 당시 대상 목록을 확인하기 위한 정보이며, 그 회차의 이미지 내용을 자동으로 고정하지
+않는다. 옵션 없이 실행하면 선택한 파일의 **현재 최신 백업본**을 복구한다. 과거 회차를 넣어도
+그 이후 같은 key가 바뀌었다면 현재 내용을 받으므로, 이전 내용이 필요할 때는 보관 시점을 지정한다.
+
+팀 S3의 객체 버전 화면이나 rclone의 아래 조회로 변경 전 버전의 보관 시각을 확인한다.
+파일 목록의 시각은 **백업 저장소에 전송된 시각**이다. 사진 촬영·운영 파일 변경 시각이나
+RDS 복구 시각을 그대로 넣어 동일한 내용이 나온다고 가정하지 않는다.
+
+```bash
+rclone lsf 'backup:REPLACE_WITH_BACKUP_BUCKET/chalkak/images/files/chalkak/posts/prod/original' \
+  --config /etc/chalkak-restore/rclone.conf --s3-versions
+# 아래 시각은 예시다. 원하는 백업 버전이 존재했던 실제 UTC 시각으로 바꾼다.
+bash deploy/backup/image-restore.sh /etc/chalkak-restore/restore.env "$RUN_ID" \
+  /tmp/chalkak-image-keys.txt /tmp/chalkak-image-check-old-001 --version-at 2026-10-28T15:00:00Z
+```
+
+`--version-at`은 rclone의 `--s3-version-at`으로 전달하며, 이미지 복사와 내용 비교 모두 같은
+백업 시각을 조회한다. 회차 기록 자체는 현재 보관된 내용을 읽는다. 날짜·시각·UTC를 모두
+명시해야 하며, 지정 시점에 선택한 파일이 없거나 필요한 버전이 삭제됐다면 실패한다.
+여러 사진이 서로 다른 보관 시점을 필요로 하면 목록·실행을 나눈다. 이 기능은 운영 DB와 이미지
+전체가 특정 순간에 함께 일치하는 상태를 자동 구성하지 않는다.
+
+S3 버저닝과 이전 버전 조회 권한, 실제 이전 내용 선택·복구는 #844에서 AWS로 확인한다.
+관련 rclone 동작은 [S3 버전 조회](https://rclone.org/s3/#versions)와
+[시점 조회 옵션](https://rclone.org/s3/#s3-version-at)을 따른다.
+
+### 원래 운영 S3 key로 반영
+
+검증한 파일을 운영에 반영할 때는 별도 승인된 운영 복구 권한을 가진 환경에서 작업한다.
+검증 서버에 운영 쓰기 권한을 추가하거나 백업 조회용 자격 증명으로 운영 업로드를 시도하지 않는다.
+복구 DB에서 사진·사용자 관계와 삭제·탈퇴 상태를 확인하고, 로컬 파일이 선택한 원래 key와
+일치하는지 검사한다. 복구를 이유로 정당하게 삭제된 사진을 임의로 다시 공개하지 않는다.
+
+아래는 한 파일을 원래 key에 복사하는 예시이며 이 스크립트가 자동 실행하는 명령이 아니다.
+`production` remote는 운영 복구용 환경의 설정이다. 대상 버킷과 key, 파일 내용을 먼저 확인한다.
+
+```bash
+KEY='chalkak/posts/prod/original/REPLACE_WITH_IMAGE_ID.webp'
+rclone copyto "/tmp/chalkak-image-check-001/$KEY" "production:REPLACE_WITH_SOURCE_BUCKET/$KEY" \
+  --config /보호된/운영복구용/rclone.conf --immutable --dry-run
+# 검토 후 --dry-run만 제거해 실행한다. --immutable은 유지한다.
+```
+
+같은 key에 다른 내용의 운영 파일이 있으면 `--immutable`로 교체를 거부한다. 덮어쓰기가 필요한
+사고라면 현재 운영 객체의 버전·내용과 선택한 복구본을 비교하고, 운영 버저닝 상태·현재 버전의
+보존 여부를 기록한 뒤 사람이 교체 여부를 결정한다. 결정 전 플래그를 제거해 재시도하지 않는다.
+반영 후 운영 파일 내용과 DB key 연결, 앱·CloudFront 경유 표시까지 확인한다.
+
+### 실패·정리와 시험
+
+실패하면 `FAILED stage=... run=...`와 0이 아닌 종료 코드로 끝나며 `RESTORED`를 쓰지 않는다.
+단계는 configuration, record, selection, download, verify다. 외부 명령의 원문 오류를 공개
+로그에 출력하지 않는다. 내부 임시 파일은 정리하지만 이미 내려받은 복구 폴더는 남을 수 있다.
+부분 다운로드를 성공으로 사용하지 말고 원인을 확인한 뒤 새로운 폴더로 재실행한다.
+검증이 끝나면 필요한 결과를 보관하고 해당 복구 폴더만 사람이 정리한다. 원격 백업은 삭제하지 않는다.
+
+```bash
+bash deploy/backup/tests/image-restore-test.sh
+```
+
+시험은 실제 이미지 백업 도구로 로컬 보관본을 만든 뒤 실제 rclone으로 선택·전체 복구와
+내용 비교를 한다. 누락·변조·불완전 회차·잘못된 목록·기존 경로 거부도 확인한다.
+과거 시점 옵션은 합성 과거 저장소로 연결해 전달·선택·비교 흐름만 시험한다.
+실제 AWS의 버전 API·계정 간 권한·복구 시간 검증 결과로 표현하지 않는다.
