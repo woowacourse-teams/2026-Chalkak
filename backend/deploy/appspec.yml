@@ -3,19 +3,17 @@ os: linux
 
 files:
   - source: application.jar
-    destination: /opt/chalkak/app
+    destination: /opt/chalkak/incoming
   - source: deploy/compose.dev.yml
     destination: /opt/chalkak/db
   - source: deploy/scripts
     destination: /opt/chalkak/bin
-  - source: deploy/systemd/chalkak-backend.service
-    destination: /etc/systemd/system
 
 file_exists_behavior: OVERWRITE
 
 hooks:
   BeforeInstall:
-    - location: deploy/scripts/stop_service.sh
+    - location: deploy/scripts/before_install.sh
       timeout: 60
       runas: root
   AfterInstall:

@@ -1,20 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command_name in java curl; do
+for command_name in docker curl; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "Required command is missing: ${command_name}" >&2
     exit 1
   fi
 done
 
-chown chalkak:chalkak /opt/chalkak/app/application.jar
-chmod 0640 /opt/chalkak/app/application.jar
-chown root:root /opt/chalkak/bin/*.sh /opt/chalkak/db/compose.dev.yml /etc/systemd/system/chalkak-backend.service
+deployment_id="${DEPLOYMENT_ID:-}"
+if [[ ! "${deployment_id}" =~ ^d-[A-Z0-9]+$ ]]; then
+  echo "DEPLOYMENT_ID is missing or invalid: '${deployment_id}'" >&2
+  exit 1
+fi
+
+incoming_jar=/opt/chalkak/incoming/application.jar
+releases_dir=/opt/chalkak/releases
+release_dir="${releases_dir}/${deployment_id}"
+
+if [[ ! -f "${incoming_jar}" ]]; then
+  echo "Staged jar is missing: ${incoming_jar}" >&2
+  exit 1
+fi
+
+# 실행 중인 컨테이너가 쓰는 이전 release는 건드리지 않고 배포별 경로에 새로 둔다.
+install -d -m 0750 -o root -g chalkak "${releases_dir}"
+install -d -m 0750 -o root -g chalkak "${release_dir}"
+mv -f "${incoming_jar}" "${release_dir}/application.jar"
+chown root:chalkak "${release_dir}/application.jar"
+chmod 0640 "${release_dir}/application.jar"
+
+chown root:root /opt/chalkak/bin/*.sh /opt/chalkak/db/compose.dev.yml
 chmod 0700 /opt/chalkak/bin/*.sh
-chmod 0644 /opt/chalkak/db/compose.dev.yml /etc/systemd/system/chalkak-backend.service
+chmod 0644 /opt/chalkak/db/compose.dev.yml
 
 systemctl disable --now chalkak-config.service 2>/dev/null || true
 rm -f /run/chalkak/application.env /run/chalkak/postgres.env
-systemctl daemon-reload
-systemctl enable chalkak-backend.service
