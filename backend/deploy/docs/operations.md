@@ -31,7 +31,50 @@ Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준
 동일한 revision을 개발·운영에 사용한다. 서버의 `/etc/chalkak/application.env`에 지정된 `SPRING_PROFILES_ACTIVE`로 환경을 구분한다.
 
 - `dev`: Docker PostgreSQL 기동 및 배포 직전 `pg_dump` 수행
-- `prod`: Docker를 사용하지 않고 RDS에 연결
+- `prod`: RDS에 연결 (PostgreSQL container는 사용하지 않는다)
+
+앱은 컨테이너 `chalkak-backend-<포트>`로 실행하고, nginx가 `/etc/nginx/snippets/chalkak-upstream.conf`로 가리키는 포트(8080 또는 8081)가 활성이다. 배포마다 nginx가 쓰지 않는 포트에 새 컨테이너를 띄우고 검증한 뒤 nginx를 전환한다. 이전 앱은 안정화가 끝날 때까지 계속 실행한다.
+
+| Hook | timeout | 동작 |
+| --- | --- | --- |
+| BeforeInstall | 60초 | 사용자·디렉터리만 준비한다. 앱은 중지하지 않는다. |
+| Install | - | JAR을 `/opt/chalkak/incoming`에 복사한다. |
+| AfterInstall | 300초 | JAR을 `/opt/chalkak/releases/<deployment-id>/application.jar`로 옮기고 이미지 `eclipse-temurin:25.0.4_7-jre`가 없으면 미리 받는다. |
+| ApplicationStart | 300초 | nginx가 쓰지 않는 포트(8080↔8081)에 컨테이너 `chalkak-backend-<유휴 포트>`를 기동하고 최대 240초 동안 health를 기다린다. |
+| ValidateService | 900초 | 스모크 검사 → nginx 전환 → 안정화 → 이전 앱 종료 → release 정리 |
+
+- 컨테이너는 `--network host`, `SERVER_ADDRESS=127.0.0.1`, `chalkak` 사용자, `--memory 768m`로 실행한다. JVM 옵션은 `start_service.sh`에 있다. 새 컨테이너의 `oom_score_adj`는 500으로 올려 메모리 압박 시 이전 앱보다 먼저 종료되게 하고, 안정화 후 0으로 되돌린다.
+- ValidateService는 `/api/v1/banners`가 200인지 확인하고 snippet을 새 포트로 바꿔 nginx를 reload한다. 이후 600초 동안 10초마다 health를 확인하며, 연속 6회 실패하면 이전 포트로 되돌린다.
+- 안정화가 끝나면 이전 앱을 종료하고, 컨테이너가 참조하는 release와 최신 2개를 제외한 `/opt/chalkak/releases/` 디렉터리를 삭제한다.
+- 진행 로그의 각 줄에는 UTC 시각이 붙는다. `/opt/codedeploy-agent/deployment-root/deployment-logs/codedeploy-agent-deployments.log`에서 확인한다.
+
+### 첫 컨테이너 배포 전환
+
+기존 systemd 서비스 `chalkak-backend.service`가 8080에서 계속 요청을 처리하는 동안 첫 컨테이너가 8081에서 기동한다.
+
+- Install 단계에서 CodeDeploy의 정리가 이전 revision의 파일인 systemd unit 파일과 `/opt/chalkak/app/application.jar`를 삭제한다. 실행 중인 프로세스는 계속 동작한다.
+- 안정화가 끝나면 ValidateService가 레거시 서비스를 중지·비활성화하고 `/opt/chalkak/app`을 삭제한다.
+- 알려진 위험: nginx 전환 전에 서버가 재부팅되면 unit 파일이 없어 8080을 제공하는 프로세스가 없다. 재배포하기 전까지 서비스가 중단된다.
+
+### 롤백
+
+- 자동: 전환 전에 실패하면 이전 앱이 계속 요청을 처리한다. 안정화 중 실패하면 nginx를 이전 포트로 되돌리고 새 컨테이너를 삭제한다.
+- 예외: 이전 앱이 비정상이거나 upstream을 되돌리지 못하면 새 컨테이너를 그대로 두고 `Rollback not possible`을 기록한 뒤 배포를 실패 처리한다. 운영자가 두 컨테이너와 snippet 상태를 직접 확인해야 한다.
+- CodeDeploy 자동 롤백은 이전 revision을 같은 blue/green hook으로 다시 배포한다. ApplicationStart가 먼저 snippet을 health가 정상인 포트로 맞춘다.
+- 수동 빠른 롤백: 이전 컨테이너가 아직 실행 중인 전환 후 10분 안에는 snippet의 포트를 이전 포트로 고치고 nginx를 reload한다.
+
+  ```bash
+  sudoedit /etc/nginx/snippets/chalkak-upstream.conf   # server 127.0.0.1:<이전 포트>;
+  sudo nginx -t && sudo nginx -s reload
+  ```
+
+- DB migration은 롤백되지 않는다. 자세한 규칙은 [Flyway 배포 규칙](#flyway-배포-규칙)을 따른다.
+
+### 두 버전 중복 실행 주의
+
+- 안정화 약 10분 동안 두 버전이 함께 실행되어 스케줄러와 worker도 둘 다 동작한다. 중복 실행 여부 검토는 후속 작업이다.
+- `application.log`와 `notification.log`는 두 JVM이 함께 쓴다.
+- memwatch는 활성 컨테이너만 기록한다. 이전 앱의 메모리는 서버 전체 `MemAvailable`과 swap에서만 보인다.
 
 ## GitHub Ruleset
 
@@ -72,9 +115,10 @@ GitHub repository
 
 ```bash
 sudo systemctl status codedeploy-agent --no-pager
-sudo systemctl status chalkak-backend.service --no-pager
+sudo docker ps --filter name=chalkak-backend
+cat /etc/nginx/snippets/chalkak-upstream.conf
 sudo docker ps --filter name=chalkak-dev-postgres
-curl --fail http://127.0.0.1:8080/actuator/health
+curl --fail http://127.0.0.1:<활성 포트>/actuator/health
 ```
 
 외부에서는 EC2 public address와 API port 또는 설정한 reverse proxy를 통해 확인한다.
@@ -130,12 +174,13 @@ PR을 만들기 전에 다음을 확인한다.
 2. `Backend CI`와 `Admin Web CI`가 통과한 뒤 Squash and merge로 병합한다. 병합 화면의 commit 제목이 `release: 백엔드 `로 시작하는지 확인한다. PR의 commit이 하나면 GitHub가 PR 제목 대신 해당 commit 메시지를 제목으로 제안하며, 이 제목이 다음 릴리스의 기준 commit 검색에 사용된다.
 3. `chalkak-prod-pipeline`의 Source와 Build가 성공했는지 확인한다.
 4. Manual approval에서 commit과 변경사항을 확인한다.
-5. 승인 후 CodeDeploy 배포 상태와 `validate_service.sh` 결과를 확인한다. 운영 EC2가 한 대라 배포 중에는 요청이 실패하므로 승인 시점을 조절한다.
+5. 승인 후 CodeDeploy 배포 상태와 `validate_service.sh` 결과를 확인한다. 배포 중에도 이전 앱이 요청을 처리하지만, 전환 후 약 10분 동안 두 버전이 함께 실행되므로 승인 시점을 조절한다.
 6. 운영 EC2 내부와 외부 endpoint를 모두 확인한다.
 
 ```bash
-sudo systemctl status chalkak-backend.service --no-pager
-curl --fail http://127.0.0.1:8080/actuator/health
+sudo docker ps --filter name=chalkak-backend
+cat /etc/nginx/snippets/chalkak-upstream.conf
+curl --fail http://127.0.0.1:<활성 포트>/actuator/health
 ```
 
 ## Flyway 배포 규칙
@@ -149,6 +194,7 @@ curl --fail http://127.0.0.1:8080/actuator/health
 - Spring Boot 시작 중 Flyway가 migration을 실행한다.
 - Migration 또는 Hibernate validation이 실패하면 health check와 CodeDeploy도 실패한다.
 - CodeDeploy가 이전 JAR을 다시 배포해도 성공한 DB migration은 자동으로 되돌아가지 않는다.
+- 전환 후 약 10분 동안 이전·새 버전이 같은 DB를 함께 사용한다. 새 migration은 이전 버전 앱과도 호환되어야 한다.
 
 Pull Request CI는 `scripts/check_flyway_migrations.sh`로 다음 계약을 검사한다.
 
@@ -206,9 +252,12 @@ sudo docker logs --tail 200 chalkak-dev-postgres
 ### Spring Boot와 Flyway
 
 ```bash
-sudo systemctl status chalkak-backend.service --no-pager
-sudo journalctl -u chalkak-backend.service -n 200 --no-pager
+sudo docker ps -a --filter name=chalkak-backend
+cat /etc/nginx/snippets/chalkak-upstream.conf
+sudo docker logs --tail 200 chalkak-backend-<포트>
 ```
+
+첫 컨테이너 배포 전에는 기존 `sudo journalctl -u chalkak-backend.service -n 200 --no-pager`를 사용한다.
 
 환경변수 문제를 확인할 때도 `/etc/chalkak/application.env` 전체 내용을 로그나 채팅에 붙이지 않는다.
 

@@ -347,12 +347,12 @@ SQS 큐와 Lambda는 dev와 prod가 함께 쓰므로 환경별로 나눌 수 없
 
 - `chalkak-{env}-5xx`: `5분 안에 5xx 응답이 1건 이상 발생했습니다. 먼저 애플리케이션 로그 그룹에서 type=error, errorCode=INTERNAL_ERROR 로그의 requestId와 stack_trace를 확인하세요.`
 - `chalkak-{env}-ec2-status-check`: `EC2 상태 검사가 2분 연속 실패했습니다. 먼저 EC2 콘솔에서 인스턴스 상태 검사(시스템/인스턴스)와 재부팅·중지 여부를 확인하세요.`
-- `chalkak-dev-disk-used`: `루트 디스크 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 df -h 로 용량을 확인하고 /opt/chalkak/logs 크기와 journalctl --disk-usage 를 점검한 뒤, docker system df 로 Docker 이미지·볼륨·로그 크기도 확인하세요.`
+- `chalkak-dev-disk-used`: `루트 디스크 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 df -h 로 용량을 확인하고 /opt/chalkak/logs 크기와 journalctl --disk-usage 를 점검한 뒤, sudo docker system df 로 Docker 이미지·볼륨·로그 크기도 확인하세요.`
 - `chalkak-prod-disk-used`: `루트 디스크 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 df -h 로 용량을 확인하고 /opt/chalkak/logs 크기와 journalctl --disk-usage 를 점검하세요.`
-- `chalkak-prod-memory-used`: `메모리 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 free -m, ps aux --sort=-%mem | head, systemctl status chalkak-backend 로 메모리를 많이 쓰는 프로세스와 서비스 상태를 확인하고, journalctl -u chalkak-backend 로 OOM 또는 재시작 여부를 점검하세요.`
+- `chalkak-prod-memory-used`: `메모리 사용률이 10분 연속 85%를 넘었습니다. 먼저 서버에서 free -m, ps aux --sort=-%mem | head, sudo docker ps --filter name=chalkak-backend 로 메모리를 많이 쓰는 프로세스와 컨테이너 상태를 확인하고, sudo docker logs --tail 200 chalkak-backend-<활성 포트> 로 OOM 또는 재시작 여부를 점검하세요. 활성 포트는 cat /etc/nginx/snippets/chalkak-upstream.conf 로 확인하세요.`
 - `chalkak-prod-rds-free-storage`: `RDS 여유 스토리지가 2GiB 미만입니다. 먼저 RDS 콘솔에서 스토리지 사용량과 자동 확장 설정을 확인하고 빠르게 늘어난 테이블이 있는지 점검하세요.`
 - `chalkak-prod-no-open-topic`: `요청한 날짜의 주제가 없다는 404(GET /api/v1/topics)가 10분 연속 5분마다 3건 이상 발생했습니다. 오늘(KST) 주제가 등록되지 않았거나 삭제됐을 가능성이 큽니다. 먼저 관리자 페이지에서 오늘(KST) 날짜의 주제가 있는지 확인하세요. 주제가 있어도 BEFORE_OPEN 상태인 경우는 이 알람이 감지하지 못합니다.`
-- `chalkak-prod-app-heartbeat`: `prod 런타임 로그(1분마다 1줄)가 10분 동안 들어오지 않았습니다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제 중 하나입니다. 먼저 서버에서 systemctl status chalkak-backend, journalctl -u chalkak-backend -n 100 으로 앱 상태를, amazon-cloudwatch-agent-ctl -m ec2 -a status 로 Agent 상태를 확인하세요. 배포 직후 잠깐의 재시작은 10분 조건으로 걸러집니다.`
+- `chalkak-prod-app-heartbeat`: `prod 런타임 로그(1분마다 1줄)가 10분 동안 들어오지 않았습니다. 앱 중단, CloudWatch Agent 중지, 로그 전송 문제 중 하나입니다. 먼저 서버에서 sudo docker ps --filter name=chalkak-backend, sudo docker logs --tail 100 chalkak-backend-<활성 포트> 로 앱 상태를, amazon-cloudwatch-agent-ctl -m ec2 -a status 로 Agent 상태를 확인하세요. 배포 직후 잠깐의 재시작은 10분 조건으로 걸러집니다.`
 - `chalkak-prod-gc-pause`: `2초 이상 GC 정지가 관측됐습니다. CloudWatch의 prod GC 로그에서 원인·단계·CPU 시간을 확인하고 같은 구간 memwatch와 API·Lambda 로그를 대조하세요. 스왑 원인으로 자동 확정하지 마세요.`
 - `chalkak-prod-user-metrics-missing`: `사용자 지표 집계 성공 로그가 26시간 동안 들어오지 않았습니다. 먼저 prod 애플리케이션 로그 그룹에서 "사용자 지표 집계 실패"(type=error) 로그의 metricDate와 원인을 확인하고, 원인을 고친 뒤 관리자 API POST /api/v1/admin/analytics/aggregations 로 빠진 날짜를 다시 집계하세요.`
 - `chalkak-shared-image-queue-age`: `이미지 처리 대기열에서 가장 오래된 메시지가 10분 넘게 처리되지 않았습니다. 먼저 이미지 처리 Lambda의 Errors·Throttles 지표와 로그 그룹을 확인하세요.`
@@ -458,12 +458,12 @@ filter type = "access"
 | --- | --- |
 | `chalkak-{env}-5xx` | Slack 메시지의 "API별 5xx 집계 보기" 링크(또는 대시보드 "API별 5xx 건수")로 실패한 API를 확인한 뒤, 로그 그룹에서 `type=error`, `errorCode=INTERNAL_ERROR` 로그의 `requestId`와 `stack_trace` |
 | `chalkak-{env}-ec2-status-check` | EC2 콘솔의 상태 검사, 재부팅·중지 여부 |
-| `chalkak-dev-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage`, `docker system df`(Docker 이미지·볼륨·로그) |
+| `chalkak-dev-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage`, `sudo docker system df`(Docker 이미지·볼륨·로그) |
 | `chalkak-prod-disk-used` | 서버 `df -h`, `/opt/chalkak/logs` 크기, `journalctl --disk-usage` |
-| `chalkak-prod-memory-used` | 서버 `free -m`, `ps aux --sort=-%mem \| head`, `systemctl status chalkak-backend`, `journalctl -u chalkak-backend`의 OOM·재시작 여부 |
+| `chalkak-prod-memory-used` | 서버 `free -m`, `ps aux --sort=-%mem \| head`, `sudo docker ps --filter name=chalkak-backend`, `sudo docker logs --tail 200 chalkak-backend-<활성 포트>`의 OOM·재시작 여부 |
 | `chalkak-prod-rds-free-storage` | RDS 콘솔의 스토리지 사용량과 자동 확장 설정, 빠르게 커진 테이블 |
 | `chalkak-prod-no-open-topic` | 관리자 페이지에 오늘(KST) 날짜의 주제가 있는지(등록 누락·삭제). BEFORE_OPEN 상태인 주제는 이 알람이 잡지 못한다 |
-| `chalkak-prod-app-heartbeat` | 서버 `systemctl status chalkak-backend`, `journalctl -u chalkak-backend -n 100`, `amazon-cloudwatch-agent-ctl -m ec2 -a status` (앱 중단, Agent 중지, 로그 전송 문제) |
+| `chalkak-prod-app-heartbeat` | 서버 `sudo docker ps --filter name=chalkak-backend`, `sudo docker logs --tail 100 chalkak-backend-<활성 포트>`, `amazon-cloudwatch-agent-ctl -m ec2 -a status` (앱 중단, Agent 중지, 로그 전송 문제) |
 | `chalkak-prod-gc-pause` | prod GC 종료 요약·단계·safepoint와 같은 구간 memwatch·API·Lambda 로그 대조. [런북](gc-monitoring.md) |
 | `chalkak-prod-user-metrics-missing` | prod 로그 그룹에서 "사용자 지표 집계 실패"(`type=error`) 로그의 `metricDate`와 원인, CloudWatch Logs 권한 오류(`logs:StartQuery` 등), DB 연결. 원인을 고친 뒤 관리자 API `POST /api/v1/admin/analytics/aggregations`(본문 `{"metricDate":"yyyy-MM-dd"}`)로 빠진 날짜를 다시 집계한다. 400 `USER_METRICS_AGGREGATION_IN_PROGRESS`는 집계가 이미 실행 중이라는 뜻이므로 끝날 때까지 기다린 뒤 다시 시도한다 |
 | `chalkak-shared-image-queue-age` | Lambda `Errors`·`Throttles` 지표와 Lambda 로그 그룹 |
