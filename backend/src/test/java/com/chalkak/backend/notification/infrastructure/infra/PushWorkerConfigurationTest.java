@@ -12,6 +12,7 @@ import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.notification.service.PushDeliveryService;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.google.firebase.FirebaseApp;
@@ -317,6 +318,7 @@ class PushWorkerConfigurationTest {
                         "https://sqs.ap-northeast-2.amazonaws.com/000000000000/test",
                         "ap-northeast-2"
                 ))
+                .withBean(PushDeliveryService.class, () -> mock(PushDeliveryService.class))
                 .withBean(NotificationRepository.class, () -> mock(NotificationRepository.class))
                 .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
                 .withBean(PostRepository.class, () -> mock(PostRepository.class))

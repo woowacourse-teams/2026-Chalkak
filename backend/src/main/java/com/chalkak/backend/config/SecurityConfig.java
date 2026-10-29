@@ -96,8 +96,12 @@ public class SecurityConfig {
                     }
                     request.requestMatchers("/api/v1/admin/**")
                             .hasAuthority(AccessTokenScope.ADMIN.toAuthority());
-                    // 배너는 회원 식별자를 해석하지 않는 공통 공개 목록이다.
-                    request.requestMatchers(HttpMethod.GET, "/api/v1/banners")
+                    // 배너와 앱 버전 설정은 회원 식별자를 해석하지 않는 공통 공개 조회다.
+                    request.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/banners",
+                            "/api/v1/app-version"
+                    )
                             .access(AuthorizationManagers.anyOf(
                                     AuthenticatedAuthorizationManager.anonymous(),
                                     AuthorityAuthorizationManager.hasAuthority(

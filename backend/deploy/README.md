@@ -9,10 +9,11 @@ Pull Request
   → CodePipeline: 대상 브랜치 변경 감지
   → CodeBuild: 테스트, JAR 빌드, CodeDeploy revision 생성
   → techcourse-project-2026-artifacts
-  → CodeDeploy: EC2 In-place 배포
-  → Spring Boot 시작
-  → Flyway migration
-  → /actuator/health 검증
+  → CodeDeploy: EC2 In-place 배포 (hook이 컨테이너 blue/green 수행)
+  → 유휴 포트(8080↔8081)에 새 컨테이너 기동
+  → Spring Boot 시작, Flyway migration, /actuator/health 검증
+  → 스모크 검사, nginx 전환, 10분 안정화
+  → 이전 앱 종료
 ```
 
 개발 파이프라인은 병합 후 자동 배포한다. 운영 파이프라인은 `main` 병합 후 빌드까지 자동으로 실행하고, Manual approval을 통과한 뒤 배포한다.
@@ -53,8 +54,8 @@ CodeBuild project는 환경 비밀값을 사용하지 않고 동일한 JAR을 �
 | `.github/workflows/backend-ci.yml` | Pull Request 검증과 최종 `Backend CI` check |
 | `buildspec.yml` | CodeBuild 테스트·JAR·배포 artifact 생성 |
 | `backend/deploy/appspec.yml` | CodeDeploy lifecycle hook 정의 |
-| `backend/deploy/scripts/` | 설정 검증, 서비스 시작·중지·검증 |
-| `backend/deploy/systemd/` | 백엔드 systemd unit |
+| `backend/deploy/scripts/` | 설정 검증, 컨테이너 blue/green 기동·전환·검증 |
+| `backend/deploy/systemd/` | 첫 컨테이너 배포 전까지 쓰는 레거시 systemd unit |
 | `backend/deploy/monitoring/` | CloudWatch Agent 설정과 대시보드 JSON (템플릿 없음, 나머지는 콘솔로 구축) |
 | `backend/deploy/examples/` | 개발·운영 서버 환경변수 계약 예시 |
 | `backend/scripts/check_flyway_migrations.sh` | PR의 Flyway migration 계약 검사 |

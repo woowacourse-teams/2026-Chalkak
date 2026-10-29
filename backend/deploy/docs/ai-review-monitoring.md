@@ -91,7 +91,7 @@ metric math 경보는 식에 들어간 지표 수(2개)만큼 과금된다.
 - `queue-wait`: `처리를 끝낸 AI 리뷰 중 처음 가져가기까지 5분 넘게 기다린 건이 있습니다(재시도 대기 제외). 대시보드 AI 리뷰 구역의 요청·처리 건수와 OpenAI 응답 시간을, 로그에서 worker_poll_failed·review_abandoned를 확인하세요. 아직 처리되지 않은 대기는 이 경보가 재지 못합니다.`
 - `lease-recovery`: `AI 리뷰 처리가 중단돼 임대 만료 뒤 다시 처리되거나 시도 상한(LEASE_EXHAUSTED)으로 실패했습니다. 저장 쿼리 "chalkak/ai-review/이상 이벤트"에서 reason과 errorCode, 같은 시각의 type=error 로그를 확인하세요.`
 - `errors`: `AI 리뷰 ERROR 로그가 발생했습니다. event가 worker_poll_failed면 DB 연결을, result_notification_failed면 알림 로그 그룹의 같은 시각 오류를 확인하세요.`
-- `worker-stalled`: `연속한 두 15분 구간(30분) 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, journalctl -u chalkak-backend 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대라면 최근 30분의 요청이 실제로 처리됐는지(처리 로그가 뒤늦게 나왔는지) 먼저 보세요.`
+- `worker-stalled`: `연속한 두 15분 구간(30분) 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, sudo docker logs --tail 500 chalkak-backend-<활성 포트> 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대라면 최근 30분의 요청이 실제로 처리됐는지(처리 로그가 뒤늦게 나왔는지) 먼저 보세요.`
 
 ### 임계값 근거와 한계
 
@@ -328,7 +328,7 @@ al errors         AiReviewErrors         Sum     300 1      'AI 리뷰 ERROR 로
 # 워커 정지 (metric math)
 aws cloudwatch put-metric-alarm --region "$REGION" \
   --alarm-name chalkak-prod-ai-review-worker-stalled \
-  --alarm-description '연속한 두 15분 구간(30분) 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, journalctl -u chalkak-backend 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대라면 최근 30분의 요청이 실제로 처리됐는지(처리 로그가 뒤늦게 나왔는지) 먼저 보세요.' \
+  --alarm-description '연속한 두 15분 구간(30분) 동안 AI 리뷰 요청은 있었지만 처리 로그(완료·실패·재시도·중단)가 없습니다. 앱은 살아 있는데 워커만 멈췄을 수 있습니다. 먼저 chalkak-prod-app-heartbeat가 OK인지 보고, sudo docker logs --tail 500 chalkak-backend-<활성 포트> 에서 ai-review-poll 스레드 오류와 worker_poll_failed를 확인하세요. 요청이 드문 시간대라면 최근 30분의 요청이 실제로 처리됐는지(처리 로그가 뒤늦게 나왔는지) 먼저 보세요.' \
   --evaluation-periods 2 --datapoints-to-alarm 2 \
   --threshold 1 --comparison-operator GreaterThanOrEqualToThreshold \
   --treat-missing-data notBreaching \
@@ -449,7 +449,7 @@ aws cloudwatch set-alarm-state --region "$REGION" \
 | `chalkak-prod-ai-review-queue-wait` | 대시보드 AI 리뷰 구역의 요청/처리 건수·처리 시간, 로그의 `worker_poll_failed`·`review_abandoned`. 동시 처리 자리가 모자란지(OpenAI 응답 시간 증가)와 배포 재시작 직후인지 확인 |
 | `chalkak-prod-ai-review-lease-recovery` | 저장 쿼리 "이상 이벤트"의 `reason`·`errorCode`, 같은 시각 `type=error` 로그. `LEASE_EXHAUSTED`면 같은 게시물이 계속 중단된 것 |
 | `chalkak-prod-ai-review-errors` | `event`가 `worker_poll_failed`면 DB 연결·Hikari, `result_notification_failed`면 알림 로그 그룹의 같은 시각 오류 |
-| `chalkak-prod-ai-review-worker-stalled` | `chalkak-prod-app-heartbeat` 상태, 서버 `journalctl -u chalkak-backend`의 `ai-review-poll` 스레드 오류, `chalkak.ai-review.worker.enabled` 설정. 이어지는 15분에도 처리 로그가 나오는지 |
+| `chalkak-prod-ai-review-worker-stalled` | `chalkak-prod-app-heartbeat` 상태, 서버 `sudo docker logs chalkak-backend-<활성 포트>`의 `ai-review-poll` 스레드 오류, `chalkak.ai-review.worker.enabled` 설정. 이어지는 15분에도 처리 로그가 나오는지 |
 
 알람이 왔는데 Slack에 메시지가 없으면 Lambda `chalkak-alarm-notifier`의 로그 그룹에서 `alarm_notification_failed`를 검색한다.
 

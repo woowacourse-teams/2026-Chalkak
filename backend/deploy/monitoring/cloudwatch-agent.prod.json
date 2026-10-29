@@ -25,6 +25,20 @@
             "timezone": "UTC"
           },
           {
+            "file_path": "/opt/chalkak/logs/gc-8080.log",
+            "log_group_name": "/chalkak/prod/gc",
+            "log_stream_name": "{instance_id}-8080",
+            "timestamp_format": "[%Y-%m-%dT%H:%M:%S.%f%z]",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/opt/chalkak/logs/gc-8081.log",
+            "log_group_name": "/chalkak/prod/gc",
+            "log_stream_name": "{instance_id}-8081",
+            "timestamp_format": "[%Y-%m-%dT%H:%M:%S.%f%z]",
+            "timezone": "UTC"
+          },
+          {
             "file_path": "/var/log/chalkak-memwatch.log",
             "log_group_name": "/chalkak/prod/memwatch",
             "log_stream_name": "{instance_id}",

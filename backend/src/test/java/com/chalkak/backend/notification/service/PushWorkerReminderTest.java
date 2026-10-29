@@ -46,6 +46,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 class PushWorkerReminderTest extends IntegrationTestSupport {
+    @Autowired
+    private PushDeliveryService deliveryService;
 
     // KST 2026-10-22 21:00
     private static final Instant OCCURRED_AT = Instant.parse("2026-10-22T12:00:00Z");
@@ -407,7 +409,8 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                manager
+                manager,
+                deliveryService
         );
     }
 }

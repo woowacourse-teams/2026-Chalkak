@@ -357,6 +357,25 @@ class NotificationTest {
     }
 
     @Test
+    @DisplayName("AI 리뷰 알림 생성은 정책으로 옮기기 전의 사건 UUID를 유지한다")
+    void aiReview_knownReviewAndRound_preservesPublishedEventKey() {
+        // When
+        Notification notification = Notification.aiReview(
+                USER_ID,
+                POST_ID,
+                new UUID(0, 1),
+                1,
+                AiReviewOutcome.COMPLETED,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(notification.getEventKey())
+                .isEqualTo(UUID.fromString("807e0c95-3d92-32cf-856b-0c218d5b5fc0"));
+    }
+
+    @Test
     @DisplayName("AI 리뷰 알림 키는 리뷰와 회차가 같으면 같고 하나라도 다르면 다르며 종류와 무관하다")
     void aiReviewEventKey_reviewAndRound_isDeterministic() {
         // When

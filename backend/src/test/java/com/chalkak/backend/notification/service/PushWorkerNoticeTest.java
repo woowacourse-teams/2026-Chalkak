@@ -48,6 +48,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class PushWorkerNoticeTest extends IntegrationTestSupport {
+    @Autowired
+    private PushDeliveryService deliveryService;
 
     private static final Instant NOW = Instant.parse("2026-10-14T00:00:00Z");
     private static final UUID USER_ID = UUID.randomUUID();
@@ -327,7 +329,8 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
                 sessions,
                 sender,
                 Clock.fixed(now, ZoneOffset.UTC),
-                manager
+                manager,
+                deliveryService
         );
     }
 }

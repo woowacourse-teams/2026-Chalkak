@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.domain.PushEventIdPolicy;
 import com.chalkak.backend.notification.domain.TopicPushSchedule;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.topic.domain.Topic;
@@ -72,7 +73,11 @@ public class TopicPushService {
         }
         // 발행 도중 중단되거나 결과가 불명이어도 같은 프로세스에서 다시 발행하지 않는다.
         attemptedSchedules.put(schedule.getId(), scheduledAt);
-        UUID eventId = UUID.randomUUID();
+        UUID eventId = PushEventIdPolicy.createForOccurrence(
+                NotificationType.TOPIC,
+                schedule.getId(),
+                scheduledAt
+        );
         try {
             PublicationTargets targets = transactionTemplate
                     .execute(status -> findTargets(schedule.getId(), scheduledAt));
