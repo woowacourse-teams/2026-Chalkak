@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.domain.AppVersion;
+import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
+import com.chalkak.backend.appversion.domain.StoreUrl;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
@@ -61,6 +63,39 @@ class AppVersionTimestampTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("기존 설정에 관리자 기능을 적용해도 값·시각을 유지하고 revision 0과 미상 메타데이터로 조회한다")
+    void migrate_existingSettings_addsManagementWithoutInventingHistory() throws IOException {
+        // Given
+        jdbcTemplate.execute(migration("V202610282310__create_app_versions.sql")
+                .replace("CREATE TABLE app_versions", "CREATE TEMPORARY TABLE app_versions"));
+        UUID id = insertWithSqlDefaults();
+        jdbcTemplate.execute(migration("V202610291030__add_app_version_timestamps.sql"));
+        Instant createdAt = readTimestamp(id, "created_at");
+        // When
+        // PostgreSQL 임시 테이블의 FK 대상도 임시 테이블이어야 한다.
+        jdbcTemplate.execute("CREATE TEMPORARY TABLE admins (id UUID PRIMARY KEY)");
+        jdbcTemplate.execute("""
+                CREATE TEMPORARY TABLE admin_audit_logs (
+                    action admin_action, target_type admin_target_type, reason TEXT,
+                    CONSTRAINT ck_admin_audit_logs_action_target CHECK (TRUE),
+                    CONSTRAINT ck_admin_audit_logs_required_reason CHECK (TRUE)
+                )
+                """);
+        jdbcTemplate.execute(migration("V202610291401__add_app_version_management.sql"));
+        entityManager.flush();
+        entityManager.clear();
+        AppVersion migrated = entityManager.find(AppVersion.class, id);
+        // Then
+        assertThat(migrated.getMinimumSupportedVersion().value()).isEqualTo("1.2.0");
+        assertThat(migrated.getStoreUrl().value())
+                .isEqualTo("https://play.google.com/store/apps/details?id=com.example.chalkak");
+        assertThat(migrated.getRevision()).isZero();
+        assertThat(migrated.getLastChangedBy()).isNull();
+        assertThat(migrated.getChangeReason()).isNull();
+        assertThat(migrated.getCreatedAt()).isEqualTo(createdAt);
+    }
+
+    @Test
     @DisplayName("시각을 지정하지 않은 SQL 입력은 두 시각의 DB 기본값을 저장한다")
     void insert_withoutExplicitTimestamps_usesDatabaseDefaults() {
         // Given
@@ -114,14 +149,14 @@ class AppVersionTimestampTest extends IntegrationTestSupport {
         ReflectionTestUtils.setField(
                 appVersion,
                 "minimumSupportedVersion",
-                "1.3.0"
+                new MinimumSupportedVersion("1.3.0")
         );
         entityManager.flush();
         entityManager.clear();
 
         // Then
         AppVersion stored = entityManager.find(AppVersion.class, id);
-        assertThat(stored.getMinimumSupportedVersion()).isEqualTo("1.3.0");
+        assertThat(stored.getMinimumSupportedVersion().value()).isEqualTo("1.3.0");
         assertThat(stored.getCreatedAt()).isEqualTo(originalTime);
         assertThat(stored.getUpdatedAt()).isAfter(originalTime);
     }
@@ -137,12 +172,12 @@ class AppVersionTimestampTest extends IntegrationTestSupport {
         ReflectionTestUtils.setField(
                 appVersion,
                 "minimumSupportedVersion",
-                "1.2.0"
+                new MinimumSupportedVersion("1.2.0")
         );
         ReflectionTestUtils.setField(
                 appVersion,
                 "storeUrl",
-                "https://play.google.com/store/apps/details?id=com.example.chalkak"
+                new StoreUrl("https://play.google.com/store/apps/details?id=com.example.chalkak")
         );
         return appVersion;
     }

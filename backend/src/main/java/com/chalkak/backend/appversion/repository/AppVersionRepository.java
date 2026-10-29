@@ -7,4 +7,8 @@ import java.util.Optional;
 public interface AppVersionRepository {
 
     Optional<AppVersion> findByPlatform(AppPlatform platform);
+
+    void lockPlatform(AppPlatform platform);
+
+    AppVersion saveAndFlush(AppVersion setting);
 }

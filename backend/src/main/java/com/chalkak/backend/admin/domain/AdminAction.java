@@ -121,6 +121,18 @@ public enum AdminAction {
             AdminTargetType.REMINDER,
             false,
             AdminAuditTransitionRules::isReminderDeleted
+    ),
+
+    APP_VERSION_CREATED(
+            AdminTargetType.APP_VERSION,
+            true,
+            AdminAuditTransitionRules::isAppVersionCreated
+    ),
+
+    APP_VERSION_UPDATED(
+            AdminTargetType.APP_VERSION,
+            true,
+            AdminAuditTransitionRules::isAppVersionUpdated
     );
 
     private final AdminTargetType targetType;

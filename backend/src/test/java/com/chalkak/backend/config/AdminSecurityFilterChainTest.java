@@ -368,6 +368,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("PUT", "/api/v1/admin/topics/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/topics/" + id),
                 Arguments.of("GET", "/api/v1/admin/audit-logs"),
+                Arguments.of("GET", "/api/v1/admin/app-versions"),
+                Arguments.of("PUT", "/api/v1/admin/app-versions/ANDROID"),
                 Arguments.of("POST", "/api/v1/admin/analytics/aggregations"),
                 Arguments.of("POST", "/api/v1/admin/notices"),
                 Arguments.of("POST", "/api/v1/admin/banners"),
@@ -395,7 +397,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                     || path.startsWith("/api/v1/admin/ai-reviews")
                     || path.startsWith("/api/v1/admin/notices")
                     || path.startsWith("/api/v1/admin/banners")
-                    || path.startsWith("/api/v1/admin/reminders")) {
+                    || path.startsWith("/api/v1/admin/reminders")
+                    || path.startsWith("/api/v1/admin/app-versions")) {
                 states = List.of(
                         "ACTIVE",
                         "BANNED",
@@ -411,6 +414,32 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
             }
         }
         return cases;
+    }
+
+    @Test
+    @DisplayName("관리자 토큰으로 앱 버전을 조회·저장하고 공개 조회에 즉시 반영한다")
+    void appVersions_adminToken_readsAndSavesSettings() throws Exception {
+        // Given
+        Admin admin = createScheduleAdmin();
+        String token = accessTokenProvider.issue(admin.getId(), AccessTokenScope.ADMIN).value();
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/app-versions").header(HttpHeaders.AUTHORIZATION,
+                "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.appVersions.length()").value(2));
+        mockMvc.perform(put("/api/v1/admin/app-versions/ANDROID")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        """
+                                {"revision":null,"minimumSupportedVersion":"1.10.0",
+                                 "storeUrl":"https://play.google.com/store/apps/details?id=com.example.chalkak",
+                                 "reason":"출시 확인"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastChangedBy").value(admin.getId().toString()));
+        mockMvc.perform(get("/api/v1/app-version").param("platform", "ANDROID"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.minimumSupportedVersion").value("1.10.0"));
     }
 
     @RestController
