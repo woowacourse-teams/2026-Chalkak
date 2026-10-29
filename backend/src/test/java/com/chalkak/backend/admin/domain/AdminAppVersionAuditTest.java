@@ -127,6 +127,36 @@ class AdminAppVersionAuditTest {
         )).isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    @DisplayName("검증된 스토어 주소라도 민감한 값이 포함되면 감사 스냅샷을 거절한다")
+    void fromAppVersion_sensitiveUrl_rejectsValue() {
+        // Given
+        StoreUrl url = new StoreUrl("https://apps.apple.com/app/token=example-secret/id123");
+        // When & Then
+        assertThatThrownBy(() -> AdminAuditSnapshot.fromAppVersion(
+                AppPlatform.IOS,
+                new MinimumSupportedVersion("1.0.0"),
+                url,
+                0
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("revision 상한 직전 변경은 허용하고 상한에서 순환하는 전이는 거절한다")
+    void create_revisionUpperBoundary_preventsOverflow() {
+        // When & Then
+        assertThat(create(
+                AdminAction.APP_VERSION_UPDATED,
+                state("1.0.0", Long.MAX_VALUE - 1),
+                state("2.0.0", Long.MAX_VALUE)
+        ).getAfterState()).containsEntry("revision", Long.MAX_VALUE);
+        assertInvalid(
+                AdminAction.APP_VERSION_UPDATED,
+                state("1.0.0", Long.MAX_VALUE),
+                state("2.0.0", 0)
+        );
+    }
+
     private AdminAuditSnapshot state(String version, long revision) {
         return AdminAuditSnapshot.fromAppVersion(
                 AppPlatform.IOS,

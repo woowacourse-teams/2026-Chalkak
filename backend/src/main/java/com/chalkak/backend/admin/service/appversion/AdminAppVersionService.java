@@ -7,6 +7,7 @@ import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.domain.AppVersion;
+import com.chalkak.backend.appversion.domain.ChangeReason;
 import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
 import com.chalkak.backend.appversion.domain.StoreUrl;
 import com.chalkak.backend.appversion.repository.AppVersionRepository;
@@ -51,9 +52,9 @@ public class AdminAppVersionService {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "관리자와 플랫폼 정보가 필요합니다.");
         }
         MinimumSupportedVersion version = new MinimumSupportedVersion(minimumSupportedVersion);
-        StoreUrl url = new StoreUrl(storeUrl);
+        StoreUrl url = StoreUrl.from(storeUrl);
         url.validatePlatform(platform);
-        String normalizedReason = AppVersion.normalizeChangeReason(reason);
+        ChangeReason changeReason = new ChangeReason(reason);
         repository.lockPlatform(platform);
         AppVersion setting = repository.findByPlatform(platform).orElse(null);
         // 재시도와 같은 값 재저장은 시각·사유·관리자·revision·감사 이력을 모두 유지한다.
@@ -66,36 +67,51 @@ public class AdminAppVersionService {
             throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED,
                     "설정이 변경되었습니다. 다시 조회한 뒤 저장해 주세요.");
         }
-        AdminAuditSnapshot before = setting == null
-                ? AdminAuditSnapshot.from(Map.of())
-                : createSnapshot(setting);
-        AdminAction action = setting == null
-                ? AdminAction.APP_VERSION_CREATED
-                : AdminAction.APP_VERSION_UPDATED;
         if (setting == null) {
-            setting = AppVersion.create(
-                    platform,
-                    version,
-                    url,
+            return saveWithAudit(
                     adminId,
-                    normalizedReason
+                    AppVersion.create(
+                            platform,
+                            version,
+                            url,
+                            adminId,
+                            changeReason
+                    ),
+                    AdminAction.APP_VERSION_CREATED,
+                    AdminAuditSnapshot.from(Map.of()),
+                    changeReason
             );
         }
-        if (action == AdminAction.APP_VERSION_UPDATED) {
-            setting.update(
-                    version,
-                    url,
-                    adminId,
-                    normalizedReason
-            );
-        }
+        AdminAuditSnapshot before = createSnapshot(setting);
+        setting.update(
+                version,
+                url,
+                adminId,
+                changeReason
+        );
+        return saveWithAudit(
+                adminId,
+                setting,
+                AdminAction.APP_VERSION_UPDATED,
+                before,
+                changeReason
+        );
+    }
+
+    private SettingResult saveWithAudit(
+            UUID adminId,
+            AppVersion setting,
+            AdminAction action,
+            AdminAuditSnapshot before,
+            ChangeReason reason
+    ) {
         AppVersion saved = repository.saveAndFlush(setting);
         auditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 action,
                 AdminTargetType.APP_VERSION,
                 saved.getId(),
-                normalizedReason,
+                reason.value(),
                 before,
                 createSnapshot(saved)
         ));

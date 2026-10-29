@@ -77,7 +77,8 @@ class AppVersionTimestampTest extends IntegrationTestSupport {
         jdbcTemplate.execute("""
                 CREATE TEMPORARY TABLE admin_audit_logs (
                     action admin_action, target_type admin_target_type, reason TEXT,
-                    CONSTRAINT ck_admin_audit_logs_action_target CHECK (TRUE)
+                    CONSTRAINT ck_admin_audit_logs_action_target CHECK (TRUE),
+                    CONSTRAINT ck_admin_audit_logs_required_reason CHECK (TRUE)
                 )
                 """);
         jdbcTemplate.execute(migration("V202610291401__add_app_version_management.sql"));

@@ -10,7 +10,9 @@ public record AdminAppVersionResponse(
         AppPlatform platform,
         @Schema(
                 types = {
-                        "string", "null"})
+                        "string",
+                        "null"
+                })
         String minimumSupportedVersion,
         @Schema(types = {"string", "null"})
         String storeUrl,

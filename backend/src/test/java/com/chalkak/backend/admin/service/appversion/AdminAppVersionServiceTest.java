@@ -204,6 +204,30 @@ class AdminAppVersionServiceTest extends IntegrationTestSupport {
         )).isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    @DisplayName("보조 문자 500자의 사유를 저장하고 같은 code point 길이로 조회한다")
+    void saveAppVersion_codePointReason_persistsBoundary() {
+        // Given
+        String reason = "😀".repeat(500);
+        // When
+        var result = service.saveAppVersion(
+                ADMIN,
+                AppPlatform.ANDROID,
+                null,
+                "1.0.0",
+                URL,
+                "  " + reason + "  "
+        );
+        em.flush();
+        em.clear();
+        // Then
+        assertThat(result.changeReason()).isEqualTo(reason);
+        assertThat(service.getAppVersions().get(0).changeReason()).isEqualTo(reason);
+        assertThat(jdbc.queryForObject("SELECT char_length(change_reason) FROM app_versions",
+                Integer.class))
+                .isEqualTo(500);
+    }
+
     private AdminAppVersionService.SettingResult save(
             Long revision,
             String version,

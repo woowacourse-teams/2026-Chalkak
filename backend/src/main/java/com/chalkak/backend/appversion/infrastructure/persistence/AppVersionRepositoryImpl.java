@@ -3,12 +3,12 @@ package com.chalkak.backend.appversion.infrastructure.persistence;
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.domain.AppVersion;
 import com.chalkak.backend.appversion.repository.AppVersionRepository;
-import java.util.Optional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor

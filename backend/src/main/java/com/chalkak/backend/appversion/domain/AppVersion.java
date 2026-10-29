@@ -1,15 +1,15 @@
 package com.chalkak.backend.appversion.domain;
 
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
 import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import com.chalkak.backend.exception.BusinessException;
-import com.chalkak.backend.exception.ErrorCode;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -25,8 +25,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AppVersion {
-
-    private static final int MAX_REASON_LENGTH = 500;
 
     @Id
     @Generated
@@ -51,7 +49,7 @@ public class AppVersion {
     @Column(name = "last_changed_by")
     private UUID lastChangedBy;
 
-    @Column(name = "change_reason", length = MAX_REASON_LENGTH)
+    @Column(name = "change_reason", length = 500)
     private String changeReason;
 
     @CreationTimestamp
@@ -67,7 +65,7 @@ public class AppVersion {
             MinimumSupportedVersion minimumSupportedVersion,
             StoreUrl storeUrl,
             UUID adminId,
-            String reason
+            ChangeReason reason
     ) {
         if (platform == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "플랫폼이 필요합니다.");
@@ -87,26 +85,17 @@ public class AppVersion {
             MinimumSupportedVersion minimumSupportedVersion,
             StoreUrl storeUrl,
             UUID adminId,
-            String reason
+            ChangeReason reason
     ) {
-        if (minimumSupportedVersion == null || storeUrl == null || adminId == null) {
+        if (minimumSupportedVersion == null || storeUrl == null || adminId == null
+                || reason == null) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "앱 버전 설정 정보가 필요합니다.");
         }
         storeUrl.validatePlatform(platform);
-        String normalizedReason = normalizeChangeReason(reason);
         this.minimumSupportedVersion = minimumSupportedVersion;
         this.storeUrl = storeUrl;
         this.lastChangedBy = adminId;
-        this.changeReason = normalizedReason;
+        this.changeReason = reason.value();
     }
 
-    public static String normalizeChangeReason(String reason) {
-        String normalized = reason == null ? "" : reason.strip();
-        if (normalized.isBlank()
-                || normalized.codePointCount(0, normalized.length()) > MAX_REASON_LENGTH) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                    "변경 사유는 앞뒤 공백을 제외하고 1~500자여야 합니다.");
-        }
-        return normalized;
-    }
 }

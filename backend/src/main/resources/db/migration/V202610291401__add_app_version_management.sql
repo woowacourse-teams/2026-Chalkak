@@ -16,7 +16,8 @@ ALTER TABLE app_versions ADD CONSTRAINT ck_app_versions_minimum_supported_versio
     ELSE FALSE END
 );
 ALTER TABLE app_versions ADD CONSTRAINT ck_app_versions_store_url CHECK (
-    char_length(store_url) <= 2000 AND (
+    char_length(store_url) <= 2000
+    AND store_url !~ '^[[:space:]]|[[:space:]]$' AND (
         (platform = 'ANDROID' AND store_url ~* '^https://play\.google\.com(:443)?/store/apps/details\?')
         OR (platform = 'IOS' AND store_url ~* '^https://apps\.apple\.com(:443)?/')
     )
@@ -35,7 +36,10 @@ ALTER TABLE admin_audit_logs ADD CONSTRAINT ck_admin_audit_logs_action_target CH
     OR (target_type = 'REMINDER' AND action IN ('REMINDER_CREATED', 'REMINDER_UPDATED', 'REMINDER_DELETED'))
     OR (target_type = 'APP_VERSION' AND action IN ('APP_VERSION_CREATED', 'APP_VERSION_UPDATED'))
 );
-ALTER TABLE admin_audit_logs ADD CONSTRAINT ck_app_version_audit_reason CHECK (
-    action NOT IN ('APP_VERSION_CREATED', 'APP_VERSION_UPDATED')
-    OR (reason IS NOT NULL AND btrim(reason) <> '')
+ALTER TABLE admin_audit_logs DROP CONSTRAINT ck_admin_audit_logs_required_reason;
+ALTER TABLE admin_audit_logs ADD CONSTRAINT ck_admin_audit_logs_required_reason CHECK (
+    action NOT IN (
+        'POST_REJECTED', 'POST_DELETED', 'USER_BANNED', 'USER_UNBANNED', 'TOPIC_DELETED',
+        'APP_VERSION_CREATED', 'APP_VERSION_UPDATED'
+    ) OR reason IS NOT NULL
 );

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.appversion.domain.AppPlatform;
+import com.chalkak.backend.appversion.domain.ChangeReason;
 import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
 import com.chalkak.backend.appversion.domain.StoreUrl;
 import com.chalkak.backend.appversion.repository.AppVersionRepository;
@@ -171,6 +172,42 @@ class AdminAppVersionTransactionTest extends IntegrationTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("감사에 기록할 수 없는 스토어 주소는 최초 입력과 기존 설정 변경을 모두 롤백한다")
+    void saveAppVersion_sensitiveStoreUrl_rollsBackCreationAndUpdate() {
+        // Given
+        String sensitiveUrl = "https://apps.apple.com/app/token=example-secret/id123";
+        // When & Then
+        assertThatThrownBy(() -> service.saveAppVersion(
+                ADMIN,
+                AppPlatform.IOS,
+                null,
+                "1.0.0",
+                sensitiveUrl,
+                "출시 확인"
+        )).isInstanceOf(BusinessException.class);
+        assertThat(count("app_versions")).isZero();
+        assertThat(countAudits()).isZero();
+        var first = service.saveAppVersion(
+                ADMIN,
+                AppPlatform.IOS,
+                null,
+                "1.0.0",
+                "https://apps.apple.com/app/id123",
+                "출시 확인"
+        );
+        assertThatThrownBy(() -> service.saveAppVersion(
+                ADMIN,
+                AppPlatform.IOS,
+                first.revision(),
+                "2.0.0",
+                sensitiveUrl,
+                "주소 변경"
+        )).isInstanceOf(BusinessException.class);
+        assertThat(service.getAppVersions().get(1)).isEqualTo(first);
+        assertThat(countAudits()).isEqualTo(1);
+    }
+
     private List<String> race(Long revision) throws Exception {
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -207,7 +244,7 @@ class AdminAppVersionTransactionTest extends IntegrationTestSupport {
                         new MinimumSupportedVersion(version),
                         new StoreUrl(URL),
                         ADMIN,
-                        "직접 수정 경쟁"
+                        new ChangeReason("직접 수정 경쟁")
                 );
                 repository.saveAndFlush(setting);
             });

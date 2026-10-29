@@ -7,4 +7,4 @@
 - 변경 이유: 초기 운영값을 개발·배포에 넣지 않고 관리자가 입력하게 한다는 요구를 반영했다. 잘못 높인 버전의 복구와 재시도 시 이력 중복 방지가 필요하며, 고정된 실제 앱 ID가 없어 앱 ID의 형식 검증과 관리자 확인을 구분하기로 사용자가 합의했다. 단순 URL 형식 확인으로 출시 가능 여부를 보장하지 않는다.
 - 영향 범위: 관리자 웹 연동, 서버 입력 검증, 감사 이력, Android·iOS 공개 조회에 반영되는 값
 - 관련 규칙: APPVERSION-002, APPVERSION-004, APPVERSION-005, APPVERSION-006, ADMIN-006, ADMIN-007
-- 관련 이슈·PR: [#848](https://github.com/woowacourse-teams/2026-Chalkak/issues/848). PR 미등록.
+- 관련 이슈·PR: [#848](https://github.com/woowacourse-teams/2026-Chalkak/issues/848). [PR #851](https://github.com/woowacourse-teams/2026-Chalkak/pull/851).

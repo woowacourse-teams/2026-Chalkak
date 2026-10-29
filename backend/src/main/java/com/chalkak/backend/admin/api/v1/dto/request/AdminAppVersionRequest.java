@@ -8,7 +8,9 @@ public record AdminAppVersionRequest(
         @Schema(
                 description = "관리자 조회에서 받은 revision. 미설정 플랫폼의 최초 저장은 null입니다.",
                 types = {
-                        "integer", "null"})
+                        "integer",
+                        "null"
+                })
         @PositiveOrZero
         Long revision,
         @Schema(description = "각 숫자 0~2147483647, 앞자리 0 금지의 major.minor.patch", example = "1.10.0")

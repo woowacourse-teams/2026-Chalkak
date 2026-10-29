@@ -19,31 +19,52 @@ public record StoreUrl(
 ) {
 
     private static final int MAX_LENGTH = 2_000;
+    private static final String ANDROID_PREFIX = "https://play.google.com";
 
     public StoreUrl {
-        value = value == null ? "" : value.strip();
-        if (value.isBlank() || value.codePointCount(0, value.length()) > MAX_LENGTH) {
+        if (value == null || value.isBlank() || !value.equals(value.strip())
+                || value.codePointCount(0, value.length()) > MAX_LENGTH) {
             throw createInvalidUrlException();
         }
         URI uri = parse(value);
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
-                || !isValidPath(uri) || uri.getUserInfo() != null
-                || uri.getFragment() != null || (uri.getPort() != -1 && uri.getPort() != 443)
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || !hasValidAuthority(uri)
+                || !isValidPath(uri) || uri.getFragment() != null
                 || !uri.normalize().getPath().equals(uri.getPath())
                 || (!isAndroid(uri) && !isIos(uri))) {
             throw createInvalidUrlException();
         }
     }
 
+    public static StoreUrl from(String input) {
+        return new StoreUrl(input == null ? null : input.strip());
+    }
+
+    public AppPlatform getPlatform() {
+        if (value.regionMatches(
+                true,
+                0,
+                ANDROID_PREFIX,
+                0,
+                ANDROID_PREFIX.length()
+        )) {
+            return AppPlatform.ANDROID;
+        }
+        return AppPlatform.IOS;
+    }
+
     public void validatePlatform(AppPlatform platform) {
-        URI uri = parse(value);
-        if (platform == AppPlatform.ANDROID && isAndroid(uri)) {
-            return;
+        if (getPlatform() != platform) {
+            throw createInvalidUrlException();
         }
-        if (platform == AppPlatform.IOS && isIos(uri)) {
-            return;
+    }
+
+    private static boolean hasValidAuthority(URI uri) {
+        if (uri.getHost() == null || uri.getUserInfo() != null
+                || (uri.getPort() != -1 && uri.getPort() != 443)) {
+            return false;
         }
-        throw createInvalidUrlException();
+        String expected = uri.getHost() + (uri.getPort() == 443 ? ":443" : "");
+        return expected.equalsIgnoreCase(uri.getRawAuthority());
     }
 
     private static boolean isValidPath(URI uri) {
@@ -58,7 +79,7 @@ public record StoreUrl(
         Map<String, String> query = parseQuery(uri);
         String id = query.get("id");
         return "play.google.com".equalsIgnoreCase(uri.getHost())
-                && "/store/apps/details".equals(uri.getPath())
+                && "/store/apps/details".equals(uri.getRawPath())
                 && id != null && id.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
                 && Set.of(
                         "id",
@@ -71,7 +92,7 @@ public record StoreUrl(
     private static boolean isIos(URI uri) {
         Map<String, String> query = parseQuery(uri);
         return "apps.apple.com".equalsIgnoreCase(uri.getHost())
-                && uri.getPath().matches("/(?:[a-zA-Z]{2}/)?app/(?:[^/]+/)?id[1-9][0-9]*")
+                && uri.getRawPath().matches("/(?:[a-zA-Z]{2}/)?app/(?:[^/]+/)?id[1-9][0-9]*")
                 && Set.of("l", "mt").containsAll(query.keySet())
                 && hasLanguage(query, "l")
                 && (!query.containsKey("mt") || "8".equals(query.get("mt")));

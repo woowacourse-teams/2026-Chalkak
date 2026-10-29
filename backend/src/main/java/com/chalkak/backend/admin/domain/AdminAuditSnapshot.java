@@ -73,15 +73,12 @@ public final class AdminAuditSnapshot {
             throw invalidStateException();
         }
         storeUrl.validatePlatform(platform);
-        Map<String, Object> state = new LinkedHashMap<>(from(Map.of(
-                "platform",
-                platform,
-                "minimumSupportedVersion",
-                version.value(),
-                "revision",
-                revision
-        )).values());
-        state.put("storeUrl", storeUrl.value());
+        Map<String, Object> source = new LinkedHashMap<>();
+        source.put("platform", platform);
+        source.put("minimumSupportedVersion", version.value());
+        source.put("revision", revision);
+        Map<String, Object> state = new LinkedHashMap<>(from(source).values());
+        state.put("storeUrl", normalizeScalar(storeUrl.value()));
         return new AdminAuditSnapshot(Collections.unmodifiableMap(state));
     }
 
