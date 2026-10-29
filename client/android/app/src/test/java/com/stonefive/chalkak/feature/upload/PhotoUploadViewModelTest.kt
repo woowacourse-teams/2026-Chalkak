@@ -39,6 +39,80 @@ class PhotoUploadViewModelTest {
     private val viewModel by lazy { PhotoUploadViewModel(postCreationRepository, uploadTopicDate) }
 
     @Test
+    fun `원격 설정으로 사진 편집이 꺼져 있으면 편집 화면 없이 원본을 고른다`() = runTest {
+        val viewModel = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+        )
+        val image = "content://media/photo/1"
+
+        viewModel.onImageSelected(image)
+
+        assertEquals(null, viewModel.uiState.value.editingPhoto)
+        assertEquals(image, viewModel.uiState.value.selectedImage)
+        assertEquals(PhotoEdit(), viewModel.uiState.value.selectedEdit)
+
+        viewModel.onPhotoClick()
+
+        assertEquals(null, viewModel.uiState.value.editingPhoto)
+    }
+
+    @Test
+    fun `사진 편집이 꺼져 있어도 선택한 원본과 제목을 복원하고 자동 제출하지 않는다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+            savedStateHandle = handle,
+        )
+        original.onImageSelected("content://original")
+        original.onAction(PhotoUploadUiAction.CaptionChanged("바다"))
+
+        val snapshot = SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) })
+        val restored = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+            savedStateHandle = snapshot,
+        )
+
+        assertEquals("content://original", restored.uiState.value.selectedImage)
+        assertEquals("바다", restored.uiState.value.caption)
+        assertEquals(PhotoEdit(), restored.uiState.value.selectedEdit)
+        assertEquals(PhotoEdit(), postCreationRepository.preparedEdits.last())
+        assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
+        assertEquals(null, restored.uiState.value.editingPhoto)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `사진 편집을 끈 뒤 복원해도 확정한 편집은 유지하고 편집기를 다시 열지 않는다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        original.selectPhoto("content://edited", croppedMonoEdit)
+
+        val snapshot = SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) })
+        val restored = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+            savedStateHandle = snapshot,
+        )
+        restored.onPhotoClick()
+
+        assertEquals("content://edited", restored.uiState.value.selectedImage)
+        assertEquals(croppedMonoEdit, restored.uiState.value.selectedEdit)
+        assertEquals(croppedMonoEdit, postCreationRepository.preparedEdits.last())
+        assertEquals(null, restored.uiState.value.editingPhoto)
+        assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
     fun `저장된 사진을 다시 준비하되 자동 제출하지 않는다`() {
         val image = "content://media/photo/restored"
         val handle = SavedStateHandle(mapOf("upload_selected_image" to image, "upload_caption" to "제목"))

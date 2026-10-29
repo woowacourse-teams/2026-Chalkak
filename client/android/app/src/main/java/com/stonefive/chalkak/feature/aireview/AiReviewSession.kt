@@ -22,6 +22,7 @@ class AiReviewSession(
     private val currentUserId: () -> String?,
     private val onStateChanged: (AiReviewUiState) -> Unit = {},
     private val canRequestReview: () -> Boolean = { true },
+    private val isEnabled: () -> Boolean = { true },
 ) {
     private val _state = MutableStateFlow(AiReviewUiState())
     val state: StateFlow<AiReviewUiState> = _state.asStateFlow()
@@ -45,6 +46,7 @@ class AiReviewSession(
     fun onResume() {
         visible = true
         resetIfUserChanged()
+        if (hideIfDisabled()) return
         if (_state.value.phase == AiReviewPhase.Completed) return
         refresh()
     }
@@ -57,12 +59,14 @@ class AiReviewSession(
 
     fun refresh() {
         resetIfUserChanged()
+        if (hideIfDisabled()) return
         if (!visible || submitting || job?.isActive == true || targetPostId == null) return
         launchReview(requestReview = false)
     }
 
     fun startReview() {
         resetIfUserChanged()
+        if (hideIfDisabled()) return
         if (!visible || submitting || job?.isActive == true || !_state.value.canStartReview()) return
         if (!canRequestReview()) {
             updateState(_state.value.copy(phase = AiReviewPhase.Hidden))
@@ -190,6 +194,14 @@ class AiReviewSession(
         if (!visible || requestGeneration != generation || targetPostId != postId || currentUserId() != userId) {
             throw CancellationException("AI review target changed")
         }
+    }
+
+    /** 원격 설정으로 AI 리뷰가 꺼져 있으면 진행 중인 요청을 멈추고 리뷰 영역을 숨긴다. */
+    private fun hideIfDisabled(): Boolean {
+        if (isEnabled()) return false
+        cancelWork()
+        if (_state.value != AiReviewUiState()) updateState(AiReviewUiState())
+        return true
     }
 
     private fun resetIfUserChanged() {

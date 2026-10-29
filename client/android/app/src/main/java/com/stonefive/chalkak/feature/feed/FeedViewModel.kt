@@ -38,6 +38,7 @@ class FeedViewModel(
     private val isOwnedByCurrentUser: Boolean = initialContent?.post?.isOwnedByCurrentUser == true,
     private val signatureHintRepository: SignatureHintRepository? = null,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
+    private val isAiReviewEnabled: () -> Boolean = { true },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         FeedUiState(
@@ -119,6 +120,7 @@ class FeedViewModel(
         currentUserId = ::currentUserId,
         onStateChanged = { review -> _uiState.update { it.copy(aiReview = review) } },
         canRequestReview = { isTodayTopic(_uiState.value.content) },
+        isEnabled = isAiReviewEnabled,
     )
 
     init {
@@ -599,6 +601,7 @@ class FeedViewModel(
                     initialContent = initialContent,
                     postId = postId,
                     isOwnedByCurrentUser = isOwnedByCurrentUser,
+                    isAiReviewEnabled = { application.appContainer.appConfigRepository.config.value.isAiReviewEnabled },
                 )
             }
         }
