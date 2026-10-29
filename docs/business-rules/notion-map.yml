@@ -74,6 +74,8 @@ rule_pages:
     pages:
       공개 조회와 최초 설정 전 이용: [APPVERSION-001, APPVERSION-002]
       설정 반영과 앱 비교: [APPVERSION-003]
+      관리자 조회·저장과 입력 조건: [APPVERSION-004, APPVERSION-005]
+      중복 저장·충돌·감사: [APPVERSION-006]
   docs/business-rules/rules/notification.md:
     domain: 알림함
     pages:
