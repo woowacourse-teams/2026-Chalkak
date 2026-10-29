@@ -1,0 +1,12 @@
+[Unit]
+Description=Chalkak backup at midnight Korea time
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 Asia/Seoul
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=true
+Unit=chalkak-backup.service
+
+[Install]
+WantedBy=timers.target

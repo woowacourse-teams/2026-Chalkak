@@ -55,7 +55,7 @@ CodeBuild project는 환경 비밀값을 사용하지 않고 동일한 JAR을 �
 | `buildspec.yml` | CodeBuild 테스트·JAR·배포 artifact 생성 |
 | `backend/deploy/appspec.yml` | CodeDeploy lifecycle hook 정의 |
 | `backend/deploy/scripts/` | 설정 검증, 컨테이너 blue/green 기동·전환·검증 |
-| `backend/deploy/systemd/` | 첫 컨테이너 배포 전까지 쓰는 레거시 systemd unit |
+| `backend/deploy/systemd/` | 레거시 앱 unit 및 별도로 설치하는 백업 서비스·타이머 |
 | `backend/deploy/monitoring/` | CloudWatch Agent 설정과 대시보드 JSON (템플릿 없음, 나머지는 콘솔로 구축) |
 | `backend/deploy/examples/` | 개발·운영 서버 환경변수 계약 예시 |
 | `backend/scripts/check_flyway_migrations.sh` | PR의 Flyway migration 계약 검사 |
