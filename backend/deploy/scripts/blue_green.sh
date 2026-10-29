@@ -6,24 +6,40 @@ RELEASES_DIR="${RELEASES_DIR:-/opt/chalkak/releases}"
 IMAGE=eclipse-temurin:25.0.4_7-jre
 LEGACY_SERVICE=chalkak-backend.service
 LEGACY_APP_DIR=/opt/chalkak/app
-# Spring graceful shutdown이 설정돼 있지 않아 종료 대기는 기존 systemd TimeoutStopSec과 맞춘다.
-STOP_TIMEOUT_SECONDS=30
+# Spring Boot의 graceful shutdown은 기본 켜져 있고 단계별 대기가 30초(spring.lifecycle.timeout-per-shutdown-phase)다.
+# docker stop이 같은 시점에 SIGKILL하지 않도록 그보다 길게 둔다.
+STOP_TIMEOUT_SECONDS=40
 
 bg_log() {
   echo "$(date -u +%FT%TZ) $*"
 }
 
+# snippet은 primary 한 줄이거나, 전환 중에는 primary + 다른 포트의 backup 한 줄이다. primary 포트를 반환한다.
 bg_active_port() {
-  local line
-  line="$(cat "${UPSTREAM_SNIPPET}" 2>/dev/null)" || {
+  local content line primary="" backup="" primaries=0 backups=0
+  content="$(cat "${UPSTREAM_SNIPPET}" 2>/dev/null)" || {
     echo "Cannot read upstream snippet: ${UPSTREAM_SNIPPET}" >&2
     return 1
   }
-  if [[ "${line}" =~ ^[[:space:]]*server[[:space:]]+127\.0\.0\.1:(8080|8081)\;[[:space:]]*$ ]]; then
-    echo "${BASH_REMATCH[1]}"
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^[[:space:]]*$ ]]; then
+      continue
+    elif [[ "${line}" =~ ^[[:space:]]*server[[:space:]]+127\.0\.0\.1:(8080|8081)\;[[:space:]]*$ ]]; then
+      primary="${BASH_REMATCH[1]}"
+      primaries=$((primaries + 1))
+    elif [[ "${line}" =~ ^[[:space:]]*server[[:space:]]+127\.0\.0\.1:(8080|8081)[[:space:]]+backup\;[[:space:]]*$ ]]; then
+      backup="${BASH_REMATCH[1]}"
+      backups=$((backups + 1))
+    else
+      primaries=-1
+      break
+    fi
+  done <<<"${content}"
+  if (( primaries == 1 && backups <= 1 )) && [[ "${backup}" != "${primary}" ]]; then
+    echo "${primary}"
     return 0
   fi
-  echo "Unexpected upstream snippet content: '${line}'" >&2
+  echo "Unexpected upstream snippet content: '${content}'" >&2
   return 1
 }
 
@@ -51,15 +67,24 @@ bg_container_running() {
 }
 
 # 백업과 임시 파일을 먼저 만들어 검증한 뒤에만 mv로 교체한다. 호출부의 errexit가 꺼져 있어도 안전하도록 단계마다 return 1 한다.
+# bg_switch_upstream <port> [backup_port]: backup_port가 있으면 backup 서버로 함께 쓴다.
 bg_switch_upstream() {
-  local port="$1"
+  local port="$1" backup_port="${2:-}"
   local tmp="${UPSTREAM_SNIPPET}.new"
   local backup="${UPSTREAM_SNIPPET}.prev"
+  local expected="server 127.0.0.1:${port};"
+  if [[ -n "${backup_port}" ]]; then
+    if [[ "${backup_port}" == "${port}" ]]; then
+      echo "Backup port must differ from primary: ${port}" >&2
+      return 1
+    fi
+    expected+=$'\n'"server 127.0.0.1:${backup_port} backup;"
+  fi
 
   cp -p "${UPSTREAM_SNIPPET}" "${backup}" || { echo "Cannot back up upstream snippet." >&2; return 1; }
   if ! cp -p "${UPSTREAM_SNIPPET}" "${tmp}" \
-    || ! printf 'server 127.0.0.1:%s;\n' "${port}" >"${tmp}" \
-    || [[ "$(cat "${tmp}" 2>/dev/null)" != "server 127.0.0.1:${port};" ]]; then
+    || ! printf '%s\n' "${expected}" >"${tmp}" \
+    || [[ "$(cat "${tmp}" 2>/dev/null)" != "${expected}" ]]; then
     echo "Cannot prepare new upstream snippet." >&2
     rm -f "${tmp}" "${backup}"
     return 1
@@ -90,7 +115,11 @@ bg_reconcile() {
   other="$(bg_idle_port "${active}")"
   if ! bg_health_ok "${active}" && bg_health_ok "${other}"; then
     echo "Active port ${active} is unhealthy but ${other} is healthy; switching upstream to ${other}." >&2
-    bg_switch_upstream "${other}"
+    bg_switch_upstream "${other}" || return 1
+  elif bg_health_ok "${active}" && grep -q ' backup;' "${UPSTREAM_SNIPPET}"; then
+    # 중단된 배포가 남긴 backup 줄을 정리한다.
+    echo "Removing leftover backup line; keeping upstream on ${active}." >&2
+    bg_switch_upstream "${active}" || return 1
   fi
 }
 

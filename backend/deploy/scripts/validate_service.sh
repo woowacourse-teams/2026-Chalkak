@@ -30,10 +30,11 @@ if [[ "${status}" != 200 ]]; then
 fi
 bg_log "smoke check OK on port ${new_port}"
 
-if ! bg_switch_upstream "${new_port}"; then
+# 안정화 동안 이전 앱을 backup으로 둬서 새 앱이 연결을 받지 못하면 곧바로 이전 앱이 처리한다.
+if ! bg_switch_upstream "${new_port}" "${old_port}"; then
   fail_new_container
 fi
-bg_log "traffic switched ${old_port} -> ${new_port}"
+bg_log "traffic switched ${old_port} -> ${new_port} (backup ${old_port})"
 
 failures=0
 stabilize_deadline=$((SECONDS + STABILIZE_SECONDS))
@@ -56,6 +57,13 @@ while (( SECONDS < stabilize_deadline )); do
   fi
 done
 bg_log "stabilization finished (${STABILIZE_SECONDS}s)"
+
+# 이전 앱을 종료하기 전에 backup 줄을 제거한다. 실패해도 backup은 무해하므로 배포는 유지한다.
+if bg_switch_upstream "${new_port}"; then
+  bg_log "backup removed (primary ${new_port})"
+else
+  bg_log "Warning: failed to remove backup ${old_port}; keeping backup line" >&2
+fi
 
 bg_set_oom_score "${new_container}" 0 || echo "Warning: oom_score_adj was not reset for ${new_container}" >&2
 # 승격된 정상 릴리스를 정리 실패 때문에 롤백시키지 않는다.

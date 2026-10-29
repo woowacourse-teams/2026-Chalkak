@@ -41,10 +41,12 @@ Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준
 | Install | - | JAR을 `/opt/chalkak/incoming`에 복사한다. |
 | AfterInstall | 300초 | JAR을 `/opt/chalkak/releases/<deployment-id>/application.jar`로 옮기고 이미지 `eclipse-temurin:25.0.4_7-jre`가 없으면 미리 받는다. |
 | ApplicationStart | 300초 | nginx가 쓰지 않는 포트(8080↔8081)에 컨테이너 `chalkak-backend-<유휴 포트>`를 기동하고 최대 240초 동안 health를 기다린다. |
-| ValidateService | 900초 | 스모크 검사 → nginx 전환 → 안정화 → 이전 앱 종료 → release 정리 |
+| ValidateService | 900초 | 스모크 검사 → nginx 전환(이전 앱은 backup) → 안정화 → backup 제거 → 이전 앱 종료 → release 정리 |
 
 - 컨테이너는 `--network host`, `SERVER_ADDRESS=127.0.0.1`, `chalkak` 사용자, `--memory 768m`로 실행한다. JVM 옵션은 `start_service.sh`에 있다. 새 컨테이너의 `oom_score_adj`는 500으로 올려 메모리 압박 시 이전 앱보다 먼저 종료되게 하고, 안정화 후 0으로 되돌린다.
-- ValidateService는 `/api/v1/banners`가 200인지 확인하고 snippet을 새 포트로 바꿔 nginx를 reload한다. 이후 600초 동안 10초마다 health를 확인하며, 연속 6회 실패하면 이전 포트로 되돌린다.
+- ValidateService는 `/api/v1/banners`가 200인지 확인하고 snippet을 새 포트로 바꿔 nginx를 reload한다. 이때 이전 앱을 nginx `backup` 서버로 남겨, 안정화 중 새 앱이 연결을 거부하거나 끊으면(예: 프로세스가 죽은 경우) 요청이 즉시 이전 앱으로 넘어간다(`proxy_next_upstream`). 응답 없이 멈춘 앱은 proxy read timeout까지 기다리고, 이미 새 앱에 전달된 POST 같은 비멱등 요청은 nginx 기본 동작대로 재시도되지 않는다. 이후 600초 동안 10초마다 health를 확인하며, 연속 6회 실패하면 이전 포트로 되돌려 전환을 확정한다.
+- 안정화가 끝나면 이전 앱을 종료하기 전에 backup 줄을 제거한다. 제거에 실패하면 경고만 남기고 배포는 유지한다(backup 줄은 무해하다).
+- 컨테이너 종료는 Spring Boot의 graceful shutdown(기본 켜짐, 단계별 대기 30초)이 끝나도록 `docker stop --time 40`으로 기다린다.
 - 안정화가 끝나면 이전 앱을 종료하고, 컨테이너가 참조하는 release와 최신 2개를 제외한 `/opt/chalkak/releases/` 디렉터리를 삭제한다.
 - 진행 로그의 각 줄에는 UTC 시각이 붙는다. `/opt/codedeploy-agent/deployment-root/deployment-logs/codedeploy-agent-deployments.log`에서 확인한다.
 
@@ -58,7 +60,7 @@ Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준
 
 ### 롤백
 
-- 자동: 전환 전에 실패하면 이전 앱이 계속 요청을 처리한다. 안정화 중 실패하면 nginx를 이전 포트로 되돌리고 새 컨테이너를 삭제한다.
+- 자동: 전환 전에 실패하면 이전 앱이 계속 요청을 처리한다. 안정화 중 새 앱이 연결을 받지 못하면 backup인 이전 앱이 즉시 요청을 처리하고, health 연속 실패(6회×10초)가 확인되면 nginx를 이전 포트 한 줄로 되돌리고 새 컨테이너를 삭제한다.
 - 예외: 이전 앱이 비정상이거나 upstream을 되돌리지 못하면 새 컨테이너를 그대로 두고 `Rollback not possible`을 기록한 뒤 배포를 실패 처리한다. 운영자가 두 컨테이너와 snippet 상태를 직접 확인해야 한다.
 - CodeDeploy 자동 롤백은 이전 revision을 같은 blue/green hook으로 다시 배포한다. ApplicationStart가 먼저 snippet을 health가 정상인 포트로 맞춘다.
 - 수동 빠른 롤백: 이전 컨테이너가 아직 실행 중인 전환 후 10분 안에는 snippet의 포트를 이전 포트로 고치고 nginx를 reload한다.
