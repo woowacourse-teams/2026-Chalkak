@@ -509,12 +509,15 @@ struct ContentView: View {
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
                 onOpenDisplay: { openDisplay(at: $0) },
-                onOpenFeed: { post in
+                onOpenFeed: { post, heightToWidthRatio in
                     selectedFeed = FeedTarget(
                         postID: post.postId,
                         isOwnedByCurrentUser: true,
                         zoomSource: .record(post.postId),
-                        placeholder: FeedPhotoPlaceholder(imageSource: post.thumbnailImageSource)
+                        placeholder: FeedPhotoPlaceholder(
+                            imageSource: post.thumbnailImageSource,
+                            heightToWidthRatio: heightToWidthRatio
+                        )
                     )
                 },
                 onNavigateToLogin: showLogin,

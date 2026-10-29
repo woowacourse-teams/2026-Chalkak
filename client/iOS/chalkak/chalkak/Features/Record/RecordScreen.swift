@@ -13,8 +13,9 @@ struct RecordScreen: View {
     var onOpenPhotoUpload: () -> Void = {}
     var onSelectBottomBarItem: (ChalkakBottomBarItem) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
-    // 선택한 사진의 피드로 이동한다.
-    var onOpenFeed: (RecordPost) -> Void = { _ in }
+    // 선택한 사진의 피드로 이동한다. 두 번째 값은 묶음에 그려 둔 사진의 세로/가로 비율(모르면 nil)이다.
+    // 피드가 캐시에서 사진을 못 찾아도 처음부터 이 비율로 사진 칸을 잡는다.
+    var onOpenFeed: (RecordPost, CGFloat?) -> Void = { _, _ in }
     var onNavigateToLogin: () -> Void = {}
     var bottomBarCompact: Binding<Bool> = .constant(false)
 
@@ -176,7 +177,10 @@ struct RecordScreen: View {
             showToast("승인 전 사진은 아직 피드에서 볼 수 없어요")
             return
         }
-        onOpenFeed(post)
+        let ratio = images[post.id].flatMap { image in
+            image.size.width > 0 ? image.size.height / image.size.width : nil
+        }
+        onOpenFeed(post, ratio)
     }
 
     /// 달력에서 고른 사진을 묶음에서 펼친다. 피드로 넘어가지는 않는다.
