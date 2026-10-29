@@ -12,8 +12,8 @@ public record AppVersionResult(
     public static AppVersionResult from(AppVersion appVersion) {
         return new AppVersionResult(
                 appVersion.getPlatform(),
-                appVersion.getMinimumSupportedVersion(),
-                appVersion.getStoreUrl()
+                appVersion.getMinimumSupportedVersion().value(),
+                appVersion.getStoreUrl().value()
         );
     }
 

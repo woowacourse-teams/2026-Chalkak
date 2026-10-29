@@ -20,6 +20,12 @@ import java.util.regex.Pattern;
 final class AdminAuditTransitionRules {
 
     private static final int MAX_TOPIC_TITLE_LENGTH = 255;
+    private static final Set<String> APP_VERSION_FIELDS = Set.of(
+            "platform",
+            "minimumSupportedVersion",
+            "storeUrl",
+            "revision"
+    );
     private static final Set<String> POST_MODERATION_BEFORE_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt");
@@ -82,6 +88,33 @@ final class AdminAuditTransitionRules {
     );
 
     private AdminAuditTransitionRules() {
+    }
+
+    static boolean isAppVersionCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && afterState.hasExactlyFields(APP_VERSION_FIELDS)
+                && Long.valueOf(0).equals(afterState.value("revision"));
+    }
+
+    static boolean isAppVersionUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(APP_VERSION_FIELDS)
+                && afterState.hasExactlyFields(APP_VERSION_FIELDS)
+                && Objects.equals(beforeState.value("platform"), afterState.value("platform"))
+                && beforeState.value("revision") instanceof Long beforeRevision
+                && afterState.value("revision") instanceof Long afterRevision
+                && beforeRevision >= 0 && beforeRevision < Long.MAX_VALUE
+                && afterRevision == beforeRevision + 1
+                && (!Objects.equals(beforeState.value("minimumSupportedVersion"),
+                        afterState.value("minimumSupportedVersion"))
+                        || !Objects.equals(beforeState.value("storeUrl"),
+                                afterState.value("storeUrl")));
     }
 
     static boolean isPostApproved(
