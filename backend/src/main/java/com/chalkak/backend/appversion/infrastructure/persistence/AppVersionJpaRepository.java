@@ -5,8 +5,14 @@ import com.chalkak.backend.appversion.domain.AppVersion;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface AppVersionJpaRepository extends JpaRepository<AppVersion, UUID> {
 
     Optional<AppVersion> findByPlatform(AppPlatform platform);
+
+    // 행이 없는 최초 저장도 플랫폼 단위로 직렬화한다. 네임스페이스 3은 앱 버전 설정에 사용한다.
+    @Query(value = "SELECT pg_advisory_xact_lock(3, hashtext(:platform))", nativeQuery = true)
+    void lockPlatform(@Param("platform") String platform);
 }
