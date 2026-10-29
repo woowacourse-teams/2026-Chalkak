@@ -48,6 +48,20 @@ struct RecordAPIClient: Sendable {
         return try response.toDomain()
     }
 
+    /// 주간 보기에서 날짜마다 보여줄 주제 제목을 조회한다(TOPIC-005: 오늘·과거 날짜만 조회 가능).
+    func fetchTopicTitle(date: Date) async throws -> String {
+        let response: RecordTopicResponse = try await request(
+            path: "topics",
+            queryItems: [
+                URLQueryItem(
+                    name: "date",
+                    value: RecordCalendarItemResponse.dateFormatter.string(from: date)
+                )
+            ]
+        )
+        return response.title
+    }
+
     private func request<Response: Decodable>(
         path: String,
         queryItems: [URLQueryItem]

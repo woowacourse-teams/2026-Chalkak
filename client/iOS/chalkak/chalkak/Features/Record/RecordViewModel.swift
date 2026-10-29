@@ -7,6 +7,10 @@ final class RecordViewModel {
     typealias MonthProvider = @MainActor @Sendable () -> RecordMonth
     typealias CalendarHandler = @MainActor @Sendable (RecordMonth) async -> Result<RecordCalendar, RecordError>
     typealias MonthListHandler = @MainActor @Sendable () async -> Result<[RecordMonth], RecordError>
+    typealias TopicHandler = @MainActor @Sendable (Date) async -> String?
+    typealias PhotoColorHandler = @MainActor @Sendable (RecordPost) async -> RecordPhotoColor?
+    /// 내 사인 주소. 받지 못하면 nil.
+    typealias SignatureHandler = @MainActor @Sendable () async -> URL?
 
     private(set) var viewState: RecordViewState
     private(set) var event: RecordEvent?
@@ -14,6 +18,10 @@ final class RecordViewModel {
     private let monthProvider: MonthProvider
     private let calendarHandler: CalendarHandler
     private let monthListHandler: MonthListHandler
+    private let topicHandler: TopicHandler
+    private let photoColorHandler: PhotoColorHandler
+    private let signatureHandler: SignatureHandler
+    private var loadingYears: Set<Int> = []
     // 홈 주간 기록에서 연 날짜. 재검증해도 이 날짜를 다시 고르고, 사용자가 날짜나 달을 바꾸면 비운다.
     private var initialDate: Date?
     private var generation = 0
@@ -30,7 +38,10 @@ final class RecordViewModel {
         initialDate: Date? = nil,
         monthProvider: @escaping MonthProvider = { .current() },
         monthListHandler: @escaping MonthListHandler = { .success([]) },
-        calendarHandler: @escaping CalendarHandler = { _ in .failure(.generic) }
+        calendarHandler: @escaping CalendarHandler = { _ in .failure(.generic) },
+        topicHandler: @escaping TopicHandler = { _ in nil },
+        photoColorHandler: @escaping PhotoColorHandler = { _ in nil },
+        signatureHandler: @escaping SignatureHandler = { nil }
     ) {
         let latestMonth = monthProvider()
         self.initialDate = initialDate
@@ -41,11 +52,15 @@ final class RecordViewModel {
         self.monthProvider = monthProvider
         self.calendarHandler = calendarHandler
         self.monthListHandler = monthListHandler
+        self.topicHandler = topicHandler
+        self.photoColorHandler = photoColorHandler
+        self.signatureHandler = signatureHandler
     }
 
     convenience init(
         monthProvider: @escaping MonthProvider = { .current() },
-        apiClient: RecordAPIClient
+        apiClient: RecordAPIClient,
+        signatureHandler: @escaping SignatureHandler = { nil }
     ) {
         self.init(
             monthProvider: monthProvider,
@@ -70,8 +85,21 @@ final class RecordViewModel {
                 } catch {
                     return .failure(.generic)
                 }
-            }
+            },
+            topicHandler: { date in
+                try? await apiClient.fetchTopicTitle(date: date)
+            },
+            photoColorHandler: { post in
+                await RecordPhotoColorLoader.color(for: post)
+            },
+            signatureHandler: signatureHandler
         )
+    }
+
+    /// 월간 책자 속표지에 넣을 내 사인을 받는다. 받지 못하면 전에 받은 사인을 그대로 둔다.
+    func loadSignature() async {
+        guard let url = await signatureHandler(), url != viewState.signatureURL else { return }
+        viewState.signatureURL = url
     }
 
     /// 화면이 나타날 때 부른다. 아직 기록을 보여주지 못했고 불러오는 중도 아니면 처음부터 불러온다.
@@ -148,6 +176,102 @@ final class RecordViewModel {
         viewState.selectedDate = date
     }
 
+    // MARK: - 주간 보기
+
+    /// 주간 보기에 들어갈 때 아직 모르는 날짜의 주제 제목을 함께 불러온다.
+    /// 실패한 날짜는 비워 두고 다음에 주간을 다시 열 때 재시도한다.
+    func loadTopicTitles(for dates: [Date]) async {
+        let missingDates = Set(dates).subtracting(viewState.topicTitles.keys)
+        guard !missingDates.isEmpty else { return }
+
+        let handler = topicHandler
+        let titles = await withTaskGroup(of: (Date, String?).self) { group in
+            for date in missingDates {
+                group.addTask { (date, await handler(date)) }
+            }
+            var titles: [Date: String] = [:]
+            for await (date, title) in group {
+                if let title { titles[date] = title }
+            }
+            return titles
+        }
+        viewState.topicTitles.merge(titles) { _, new in new }
+    }
+
+    // MARK: - 연간 달력
+
+    /// 연간 달력에서 고른 달을 바로 보여준다. 이미 불러온 달이면 그 게시물로 먼저 그리고, 이어서 최신화한다.
+    func showMonth(_ month: RecordMonth) {
+        let month = min(month, viewState.latestMonth)
+        generation += 1
+        let cached = viewState.yearPosts[month]
+        viewState.contentStatus = cached == nil ? .loading : .loaded
+        viewState.month = month
+        viewState.posts = cached ?? []
+        viewState.selectedDate = cached?.max { $0.topicDate < $1.topicDate }?.topicDate
+    }
+
+    /// `showMonth` 뒤에 호출해 고른 달을 서버 값으로 맞춘다.
+    func refreshShownMonth() async {
+        let previous = viewState.contentStatus == .loaded ? viewState : nil
+        await loadCalendar(month: viewState.month, preserving: previous)
+    }
+
+    /// 해당 연도의 기록이 있는 지난 달을 불러오고, 사진 색을 채운다.
+    func loadYear(_ year: Int) async {
+        guard !loadingYears.contains(year) else { return }
+        loadingYears.insert(year)
+        defer { loadingYears.remove(year) }
+
+        let latestMonth = viewState.latestMonth
+        let months = viewState.availableMonths.filter {
+            $0.year == year && $0 <= latestMonth && viewState.yearPosts[$0] == nil
+        }
+
+        let handler = calendarHandler
+        let loaded = await withTaskGroup(of: (RecordMonth, [RecordPost]?).self) { group in
+            for month in months {
+                group.addTask {
+                    guard case let .success(calendar) = await handler(month) else { return (month, nil) }
+                    return (month, calendar.posts)
+                }
+            }
+            var loaded: [RecordMonth: [RecordPost]] = [:]
+            for await (month, posts) in group {
+                if let posts { loaded[month] = posts }
+            }
+            return loaded
+        }
+        viewState.yearPosts.merge(loaded) { _, new in new }
+
+        let posts = viewState.yearPosts
+            .filter { $0.key.year == year }
+            .flatMap(\.value)
+        await loadPhotoColors(for: posts)
+    }
+
+    /// 아직 색을 모르는 사진만 몇 장씩 나눠 구하고, 묶음마다 화면에 반영해 색이 차례로 채워지게 한다.
+    func loadPhotoColors(for posts: [RecordPost]) async {
+        let missing = posts.filter { viewState.photoColors[$0.postId] == nil }
+        let handler = photoColorHandler
+        for start in stride(from: 0, to: missing.count, by: Self.photoColorBatchSize) {
+            let chunk = Array(missing[start..<min(start + Self.photoColorBatchSize, missing.count)])
+            let colors = await withTaskGroup(of: (RecordPost.ID, RecordPhotoColor?).self) { group in
+                for post in chunk {
+                    group.addTask { (post.postId, await handler(post)) }
+                }
+                var colors: [RecordPost.ID: RecordPhotoColor] = [:]
+                for await (id, color) in group {
+                    if let color { colors[id] = color }
+                }
+                return colors
+            }
+            viewState.photoColors.merge(colors) { _, new in new }
+        }
+    }
+
+    private static let photoColorBatchSize = 8
+
     func retry() async {
         if shouldRetryMonthList || viewState.availableMonths.isEmpty {
             await load()
@@ -162,6 +286,8 @@ final class RecordViewModel {
 
         isRevalidating = true
         defer { isRevalidating = false }
+        // 탭에 다시 들어올 때 설정에서 바꾼 사인도 함께 새로 받는다. 기록 재검증을 기다리게 하지 않는다.
+        Task { await loadSignature() }
 
         generation += 1
         let requestGeneration = generation
@@ -199,6 +325,9 @@ final class RecordViewModel {
             RecordCalendar(month: calendar.month, posts: calendar.posts.filter { $0.postId != postID })
         }
         viewState.posts.removeAll { $0.postId == postID }
+        for month in viewState.yearPosts.keys {
+            viewState.yearPosts[month]?.removeAll { $0.postId == postID }
+        }
         if viewState.month != monthProvider(),
            !viewState.posts.contains(where: { viewState.month.contains($0.topicDate) }) {
             viewState.availableMonths.removeAll { $0 == viewState.month }
@@ -250,7 +379,10 @@ final class RecordViewModel {
                 latestMonth: latestMonth,
                 availableMonths: availableMonths,
                 posts: [],
-                selectedDate: nil
+                selectedDate: nil,
+                topicTitles: viewState.topicTitles,
+                yearPosts: viewState.yearPosts,
+                photoColors: viewState.photoColors
             )
         }
 
@@ -296,7 +428,10 @@ final class RecordViewModel {
                     latestMonth: latestMonth,
                     availableMonths: availableMonths,
                     posts: [],
-                    selectedDate: nil
+                    selectedDate: nil,
+                    topicTitles: viewState.topicTitles,
+                    yearPosts: viewState.yearPosts,
+                    photoColors: viewState.photoColors
                 )
             }
         }
@@ -313,6 +448,9 @@ final class RecordViewModel {
         let keepsSelection = selectedDate.map { date in
             calendar.posts.contains { $0.topicDate == date }
         } ?? false
+        // 연간 달력·주제·사진 색은 달을 옮겨도 남기고, 받은 달은 연간 달력에도 채운다.
+        var yearPosts = viewState.yearPosts
+        yearPosts[calendar.month] = calendar.posts
         return RecordViewState(
             contentStatus: .loaded,
             month: calendar.month,
@@ -321,7 +459,10 @@ final class RecordViewModel {
             posts: calendar.posts,
             selectedDate: keepsSelection
                 ? selectedDate
-                : calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate
+                : calendar.posts.max { $0.topicDate < $1.topicDate }?.topicDate,
+            topicTitles: viewState.topicTitles,
+            yearPosts: yearPosts,
+            photoColors: viewState.photoColors
         )
     }
 

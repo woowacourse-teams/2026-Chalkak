@@ -1032,11 +1032,17 @@ struct ContentView: View {
     }
 
     private static func makeRecordViewModel() -> RecordViewModel {
-        RecordViewModel(
+        // 월간 책자 속표지의 사인은 설정 화면과 같은 내 사인 API로 받는다.
+        let settingsClient = SettingsAPIClient(
+            baseURL: resolvedAPIBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return RecordViewModel(
             apiClient: RecordAPIClient(
                 configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
-            )
+            ),
+            signatureHandler: { try? await settingsClient.fetchSignature() }
         )
     }
 
