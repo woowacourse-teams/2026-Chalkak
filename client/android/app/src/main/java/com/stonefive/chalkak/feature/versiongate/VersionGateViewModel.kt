@@ -30,6 +30,7 @@ class VersionGateViewModel(
     private var isOnline = false
     private var hasObservedConnectivity = false
     private var isImmediateUpdateFlowActive = false
+    private var hasRequiredUpdate = false
 
     init {
         viewModelScope.launch {
@@ -74,13 +75,11 @@ class VersionGateViewModel(
     }
 
     fun onResume() {
-        if (_uiState.value.status == VersionGateStatus.UpdateInProgress) {
-            isImmediateUpdateFlowActive = false
-            if (isOnline) {
-                checkForUpdate(force = true)
-            } else {
-                handleOffline()
-            }
+        isImmediateUpdateFlowActive = false
+        if (isOnline) {
+            checkForUpdate(force = true)
+        } else {
+            handleOffline()
         }
     }
 
@@ -103,8 +102,14 @@ class VersionGateViewModel(
 
             val status = when (result) {
                 AppUpdateCheckResult.NoUpdate -> VersionGateStatus.Accessible
+
                 AppUpdateCheckResult.ImmediateUpdateRequired -> VersionGateStatus.UpdateRequired
-                AppUpdateCheckResult.Failed -> VersionGateStatus.CheckFailed
+
+                AppUpdateCheckResult.Failed -> if (hasRequiredUpdate) {
+                    VersionGateStatus.UpdateRequired
+                } else {
+                    VersionGateStatus.CheckFailed
+                }
             }
             updateStatus(status)
         }
@@ -112,12 +117,14 @@ class VersionGateViewModel(
 
     private fun handleOffline() {
         checkJob?.cancel()
-        if (!isImmediateUpdateFlowActive && _uiState.value.status != VersionGateStatus.UpdateRequired) {
-            updateStatus(VersionGateStatus.Accessible)
+        if (!isImmediateUpdateFlowActive) {
+            updateStatus(if (hasRequiredUpdate) VersionGateStatus.UpdateRequired else VersionGateStatus.Accessible)
         }
     }
 
     private fun updateStatus(status: VersionGateStatus) {
+        if (status == VersionGateStatus.UpdateRequired) hasRequiredUpdate = true
+        if (status == VersionGateStatus.Accessible) hasRequiredUpdate = false
         _uiState.update { currentState ->
             currentState.copy(
                 status = status,
