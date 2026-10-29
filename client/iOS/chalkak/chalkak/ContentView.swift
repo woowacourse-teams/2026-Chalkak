@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var selectedIssueURL: URL?
     @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
+    @AppStorage("record.photoStackStyle") private var recordStackStyle: RecordPhotoStackStyle = .pillars
     @State private var notificationPath: [NotificationRoute] = []
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
@@ -1237,7 +1238,7 @@ struct ContentView: View {
             return onboardingAnalyticsScreen
         case .photoUploadSuccess:
             return successSubmission == nil
-                ? selectedTab.analyticsScreen
+                ? selectedTabAnalyticsScreen
                 : AnalyticsScreen(name: "photo_upload_success", screenClass: "PhotoUploadSuccess")
         case .main:
             break
@@ -1267,7 +1268,11 @@ struct ContentView: View {
         if selectedIssueURL != nil {
             return AnalyticsScreen(name: "issue", screenClass: "IssueWeb")
         }
-        return selectedTab.analyticsScreen
+        return selectedTabAnalyticsScreen
+    }
+
+    private var selectedTabAnalyticsScreen: AnalyticsScreen {
+        selectedTab == .record ? recordStackStyle.analyticsScreen : selectedTab.analyticsScreen
     }
 
     private func trackCurrentScreen() {
