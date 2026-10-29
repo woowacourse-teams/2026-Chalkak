@@ -41,7 +41,7 @@ trap 'exit 143' TERM
 [[ -n "${RCLONE_CONFIG:-}" && -r "$RCLONE_CONFIG" && -n "${IMAGE_BACKUP_DESTINATION:-}" ]] || exit 1
 [[ "$IMAGE_BACKUP_DESTINATION" =~ ^[[:alnum:]_-]+:[[:alnum:]._-]+/[[:alnum:]_/-]+/images$ ]] || exit 1
 [[ "/${IMAGE_BACKUP_DESTINATION#*:}/" != *'/../'* && "/${IMAGE_BACKUP_DESTINATION#*:}/" != *'/./'* ]] || exit 1
-for tool in rclone sort cmp grep mktemp; do
+for tool in rclone jq sort cmp grep mktemp; do
   command -v "$tool" >/dev/null || { printf '필수 도구 없음: %s\n' "$tool" >&2; exit 1; }
 done
 work_dir=$(mktemp -d "${IMAGE_BACKUP_TEMP_ROOT:-/tmp}/chalkak-image-restore-XXXXXXXX")
@@ -65,11 +65,16 @@ grep -Fxq "files=$count" "$work_dir/COMPLETE"
 
 stage=selection
 [[ -s "$selection" ]] || exit 1
-while IFS= read -r key || [[ -n "$key" ]]; do
-  [[ "$key" =~ ^chalkak/(posts|signatures)/prod/(original|thumbnail)/[[:alnum:]_-]+\.webp$ ]] || exit 1
+jq -Rr '
+  if (test("^chalkak/(posts|signatures)/prod/(original|thumbnail)/.+$") | not) or
+    test("[\u0000-\u001f\u007f\u2400-\u241f\u2421\uff0f\u201b\\\\]") or
+    (split("/") | any(. == "" or . == "." or . == ".." or . == "．" or . == "．．"))
+  then error("unsafe key") else . end
+' "$selection" > "$work_dir/validated.txt" 2> "$work_dir/diagnostic"
+while IFS= read -r key; do
   grep -Fxq "$key" "$work_dir/verified.txt" || exit 1
   printf '%s\n' "$key"
-done < "$selection" > "$work_dir/selection.txt"
+done < "$work_dir/validated.txt" > "$work_dir/selection.txt"
 sort -u "$work_dir/selection.txt" -o "$work_dir/selection.txt"
 [[ -s "$work_dir/selection.txt" ]] || exit 1
 

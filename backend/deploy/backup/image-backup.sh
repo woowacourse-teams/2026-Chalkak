@@ -34,7 +34,7 @@ done
 [[ "$IMAGE_BACKUP_DESTINATION" =~ ^[[:alnum:]_-]+:[[:alnum:]._-]+/[[:alnum:]_/-]+/images$ ]] || exit 1
 [[ "$IMAGE_BACKUP_DESTINATION" != "$IMAGE_BACKUP_SOURCE/"* ]] || exit 1
 [[ "/${IMAGE_BACKUP_DESTINATION#*:}/" != *'/../'* && "/${IMAGE_BACKUP_DESTINATION#*:}/" != *'/./'* ]] || exit 1
-for tool in rclone sort cmp mktemp; do
+for tool in rclone jq sort cmp mktemp; do
   command -v "$tool" >/dev/null || { printf '필수 도구 없음: %s\n' "$tool" >&2; exit 1; }
 done
 work_dir=$(mktemp -d "${IMAGE_BACKUP_TEMP_ROOT:-/tmp}/chalkak-images-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")
@@ -53,11 +53,16 @@ touch "$work_dir/inventory.txt" "$work_dir/verified.txt"
 stage=inventory
 for index in "${!prefixes[@]}"; do
   prefix=${prefixes[$index]}
-  rclone lsf "$IMAGE_BACKUP_SOURCE/$prefix" "${rclone_options[@]}" --recursive --files-only --format p \
-    > "$work_dir/$index.list" 2> "$work_dir/diagnostic"
+  # 줄 단위로 바꾸기 전에 JSON에서 검사해 key 내부의 줄바꿈을 놓치지 않는다.
+  rclone lsjson "$IMAGE_BACKUP_SOURCE/$prefix" "${rclone_options[@]}" --recursive --files-only \
+    --no-modtime --no-mimetype > "$work_dir/$index.json" 2> "$work_dir/diagnostic"
+  jq -r '
+    .[].Path | if type != "string" then error("invalid path")
+    elif test("[\u0000-\u001f\u007f\u2400-\u241f\u2421\uff0f\u201b\\\\]") or
+      (split("/") | any(. == "" or . == "." or . == ".." or . == "．" or . == "．．"))
+    then error("unsafe path") else . end
+  ' "$work_dir/$index.json" > "$work_dir/$index.list" 2> "$work_dir/diagnostic"
   while IFS= read -r path; do
-    # 서비스가 만드는 단일 파일 이름만 허용해 줄 단위 목록의 경로 해석을 모호하게 하지 않는다.
-    [[ "$path" =~ ^[[:alnum:]_-]+\.webp$ ]] || exit 1
     printf '%s/%s\n' "$prefix" "$path" >> "$work_dir/inventory.txt"
   done < "$work_dir/$index.list"
   sort -u "$work_dir/$index.list" -o "$work_dir/$index.list"

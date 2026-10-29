@@ -12,12 +12,12 @@ mkdir -p "$TEST_ROOT/bin"
 cat > "$TEST_ROOT/bin/rclone" <<'WRAPPER'
 #!/usr/bin/env bash
 set -euo pipefail
-case "$1" in lsf|copy|copyto|check|cat) ;; *) echo '허용하지 않은 명령' >&2; exit 8 ;; esac
+case "$1" in lsjson|copy|copyto|check|cat) ;; *) echo '허용하지 않은 명령' >&2; exit 8 ;; esac
 if [[ "$1" == copy || "$1" == copyto ]]; then
   [[ "$3" == backup:* ]] || { echo '원본 쓰기 금지' >&2; exit 8; }
 fi
 case "${TEST_FAULT:-}:$1" in
-  inventory:lsf|copy:copy|inventory-upload:copyto)
+  inventory:lsjson|copy:copy|inventory-upload:copyto)
     echo SECRET_SENTINEL >&2; exit 9 ;;
   partial:copy)
     [[ "$3" != */posts/prod/thumbnail ]] || { echo SECRET_SENTINEL >&2; exit 9; } ;;
@@ -41,6 +41,10 @@ if [[ "$1" == check && "$2" == production:* ]]; then
     verify) echo SECRET_SENTINEL >&2; exit 9 ;;
   esac
 fi
+if [[ "$1" == lsjson && "${TEST_FAULT:-}" == unsafe-path ]]; then
+  jq -n --arg path "$TEST_UNSAFE_PATH" '[{Path:$path}]'
+  exit
+fi
 exec "$REAL_RCLONE" "$@"
 WRAPPER
 chmod +x "$TEST_ROOT/bin/rclone"
@@ -52,7 +56,9 @@ prepare_case() {
   mkdir -p "$case_dir/source/bucket" "$case_dir/target" "$case_dir/work"
   for prefix in "${prefixes[@]}"; do
     mkdir -p "$case_dir/source/bucket/$prefix"
-    printf 'safe' > "$case_dir/source/bucket/$prefix/a.webp"
+    extension=webp
+    [[ "$prefix" != chalkak/signatures/* ]] || extension=png
+    printf 'safe' > "$case_dir/source/bucket/$prefix/a.$extension"
   done
   for prefix in chalkak/posts/dev/original chalkak/staging/prod other-team/posts/prod/original; do
     mkdir -p "$case_dir/source/bucket/$prefix"
@@ -88,12 +94,16 @@ prepare_case initial
 execute_backup
 [[ $status -eq 0 ]]
 grep -q ' COMPLETE .* files=4$' "$case_dir/output"
-for prefix in "${prefixes[@]}"; do cmp "$case_dir/source/bucket/$prefix/a.webp" "$files/$prefix/a.webp"; done
+for prefix in "${prefixes[@]}"; do
+  extension=webp
+  [[ "$prefix" != chalkak/signatures/* ]] || extension=png
+  cmp "$case_dir/source/bucket/$prefix/a.$extension" "$files/$prefix/a.$extension"
+done
 [[ $(find "$files" -type f | wc -l) -eq 4 ]]
 record=$(find "$runs" -name COMPLETE -print); record=${record%/*}
 cmp "$record/inventory.txt" "$record/verified.txt"
 [[ $(wc -l < "$record/inventory.txt") -eq 4 ]]
-echo 'PASS: 네 운영 경로만 실제 복사·내용 검증·대상 목록·완료 기록'
+echo 'PASS: 게시글 WebP·사인 PNG 네 운영 경로의 실제 복사·내용 검증·완료 기록'
 
 before=$(stat -c '%Y' "$files/chalkak/posts/prod/original/a.webp" 2>/dev/null) || before=$(stat -f '%m' "$files/chalkak/posts/prod/original/a.webp")
 execute_backup
@@ -165,11 +175,37 @@ execute_backup
 assert_failed configuration
 echo 'PASS: 같은 원본 remote·버킷을 대상으로 지정하면 거부'
 
-prepare_case unsupported
-printf 'unsupported' > "$case_dir/source/bucket/chalkak/posts/prod/original/unexpected name.webp"
+prepare_case flexible
+relative='2026/10/새 사진 #1.JPG'
+mkdir -p "$case_dir/source/bucket/chalkak/posts/prod/original/2026/10"
+printf 'flexible' > "$case_dir/source/bucket/chalkak/posts/prod/original/$relative"
+printf 'no-extension' > "$case_dir/source/bucket/chalkak/signatures/prod/original/no extension"
+execute_backup
+[[ $status -eq 0 ]]
+cmp "$case_dir/source/bucket/chalkak/posts/prod/original/$relative" "$files/chalkak/posts/prod/original/$relative"
+[[ -f "$files/chalkak/signatures/prod/original/no extension" ]]
+echo 'PASS: 다른 확장자·확장자 없음·한글·공백·특수 문자·하위 경로 허용'
+
+prepare_case newline
+# lsf였다면 정상 파일 둘로 오인할 수 있는 이름을 실제 파일로 만든다.
+printf 'ambiguous' > "$case_dir/source/bucket/chalkak/posts/prod/original/"$'a.webp\nb.webp'
 execute_backup
 assert_failed inventory
-echo 'PASS: 현재 서비스 파일 이름 규칙 밖의 파일은 조용히 누락하지 않고 거부'
+[[ ! -d "$files" ]]
+echo 'PASS: JSON 조회 후 실제 줄바꿈 key 거부, 파일 전송 시작 안 함'
+
+unsafe_index=0
+for unsafe_path in '/absolute.webp' 'nested//a.webp' 'nested/./a.webp' 'nested/../a.webp' 'nested/a.webp/' $'tab\t.webp' $'null\x7f.webp' 'nested\a.webp' 'nested/．．/a.webp' 'a␊b.webp'; do
+  unsafe_index=$((unsafe_index + 1))
+  prepare_case "unsafe-path-$unsafe_index"
+  # 로컬 파일시스템이 정규화하는 S3 key는 조회 응답에만 주입한다.
+  export TEST_UNSAFE_PATH="$unsafe_path" TEST_FAULT=unsafe-path
+  execute_backup
+  assert_failed inventory
+  [[ ! -d "$files" ]]
+  echo 'PASS: 위험 경로 구간·제어 문자·역슬래시 key 거부'
+done
+unset TEST_UNSAFE_PATH
 
 prepare_case marker
 export TEST_FAULT=marker
@@ -179,4 +215,4 @@ grep -q 'FAILED stage=completion ' "$case_dir/output"
 ! grep -q ' COMPLETE ' "$case_dir/output"
 echo 'PASS: 완료 표식 재조회 불일치 실패, 이미 전송된 표식은 자동 삭제하지 않음'
 
-echo '총 20개 시나리오 통과 (실제 rclone 로컬 저장소, 실패·해시 부재 상황 주입; AWS 버저닝은 별도 검증)'
+echo '총 31개 시나리오 통과 (실제 rclone 로컬 저장소, 실패·해시 부재 상황 주입; AWS 버저닝은 별도 검증)'

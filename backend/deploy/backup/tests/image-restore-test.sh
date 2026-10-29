@@ -14,8 +14,13 @@ prefixes=(chalkak/posts/prod/original chalkak/posts/prod/thumbnail
   chalkak/signatures/prod/original chalkak/signatures/prod/thumbnail)
 for prefix in "${prefixes[@]}"; do
   mkdir -p "$fixture/source/bucket/$prefix"
-  printf 'safe' > "$fixture/source/bucket/$prefix/a.webp"
+  extension=webp
+  [[ "$prefix" != chalkak/signatures/* ]] || extension=png
+  printf 'safe' > "$fixture/source/bucket/$prefix/a.$extension"
 done
+flexible_key='chalkak/posts/prod/original/2026/10/새 사진 #1.JPG'
+mkdir -p "$fixture/source/bucket/${flexible_key%/*}"
+printf 'flexible' > "$fixture/source/bucket/$flexible_key"
 printf '[production]\ntype = alias\nremote = %s/source\n[backup]\ntype = alias\nremote = %s/target\n' \
   "$fixture" "$fixture" > "$fixture/rclone.conf"
 cat > "$fixture/backup.env" <<EOF
@@ -111,8 +116,13 @@ echo 'PASS: 과거 조회 옵션이 이미지 복사·내용 비교에 동일 �
 prepare_case all
 cp "$record/verified.txt" "$case_dir/keys.txt"
 execute_restore
-[[ $status -eq 0 && $(find "$output" -name '*.webp' | wc -l) -eq 4 ]]
-echo 'PASS: 검증 목록 전체로 게시글·사인 원본/썸네일 복구'
+[[ $status -eq 0 ]]
+grep -Fxq files=5 "$output/RESTORED"
+for variant in original thumbnail; do
+  cmp "$fixture/source/bucket/chalkak/signatures/prod/$variant/a.png" "$output/chalkak/signatures/prod/$variant/a.png"
+done
+cmp "$fixture/source/bucket/$flexible_key" "$output/$flexible_key"
+echo 'PASS: 게시글 WebP·사인 PNG·한글 공백 하위 경로의 혼합 백업→전체 복구'
 
 prepare_case duplicate
 printf '%s\n%s' "$key" "$key" > "$case_dir/keys.txt"
@@ -157,6 +167,21 @@ for scenario in unknown traversal empty; do
   echo "PASS: $scenario 선택 목록 거부"
 done
 
+unsafe_index=0
+for unsafe_key in 'chalkak/posts/prod/original/nested/../a.webp' 'chalkak/posts/prod/original/./a.webp' 'chalkak/posts/prod/original//a.webp' '/chalkak/posts/prod/original/a.webp' 'chalkak/posts/prod/original/a.webp/' $'chalkak/posts/prod/original/a\t.webp' 'chalkak/posts/prod/original/a\b.webp' 'other-team/original/a.webp' 'chalkak/posts/prod/original/．．/a.webp' 'chalkak/posts/prod/original/a␊b.webp'; do
+  unsafe_index=$((unsafe_index + 1))
+  prepare_case "unsafe-selection-$unsafe_index"
+  printf '%s\n' "$unsafe_key" > "$case_dir/keys.txt"
+  # 기록에 있어도 위험한 경로·대상 밖 prefix는 거부한다.
+  printf '%s\n' "$unsafe_key" >> "$record/inventory.txt"
+  cp "$record/inventory.txt" "$record/verified.txt"
+  printf 'format=chalkak-images-v1\nrun=%s\nfiles=6\n' "$run_id" > "$record/COMPLETE"
+  execute_restore
+  assert_failed selection
+  [[ ! -e "$output" ]]
+  echo 'PASS: 기록 속 위험 경로·대상 밖 prefix를 복구 전에 거부'
+done
+
 prepare_case missing-file
 rm "$case_dir/target/bucket/chalkak/images/files/$key"
 execute_restore
@@ -190,4 +215,4 @@ execute_restore --version-at yesterday
 assert_failed
 echo 'PASS: 시간대 없는 모호한 과거 시각 거부'
 
-echo '총 18개 시나리오 통과 (실제 rclone 로컬 복구·비교; S3 버전 선택은 합성 경로, 실제 AWS 검증은 #844)'
+echo '총 28개 시나리오 통과 (실제 rclone 로컬 복구·비교; S3 버전 선택은 합성 경로, 실제 AWS 검증은 #844)'
