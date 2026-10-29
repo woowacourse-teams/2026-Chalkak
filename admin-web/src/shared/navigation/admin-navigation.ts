@@ -4,6 +4,7 @@ export interface AdminNavigationItem {
   href: string;
   label: string;
   icon: AdminIconName;
+  desktopOnly?: boolean;
 }
 
 export const adminNavigation: AdminNavigationItem[] = [
@@ -11,10 +12,11 @@ export const adminNavigation: AdminNavigationItem[] = [
   { href: "/users", label: "사용자", icon: "users" },
   { href: "/topics", label: "주제", icon: "topic" },
   { href: "/banners", label: "배너", icon: "image" },
-  { href: "/audit-logs", label: "처리 이력", icon: "shield" },
+  { href: "/audit-logs", label: "처리 이력", icon: "shield", desktopOnly: true },
   { href: "/feedbacks", label: "피드백", icon: "message" },
   { href: "/ai-prompts", label: "AI", icon: "sparkle" },
   { href: "/pushes", label: "알림", icon: "clock" },
+  { href: "/app-versions", label: "앱 버전", icon: "phone" },
 ];
 
 export function getCurrentNavigation(pathname: string): AdminNavigationItem {

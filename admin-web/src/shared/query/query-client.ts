@@ -48,6 +48,7 @@ export const queryKeys = {
   },
   dashboard: ["admin", "dashboard"] as const,
   auditLogs: ["admin", "audit-logs"] as const,
+  appVersions: ["admin", "app-versions"] as const,
   pushes: ["admin", "pushes"] as const,
   notices: ["admin", "notices"] as const,
   reminders: ["admin", "reminders"] as const,

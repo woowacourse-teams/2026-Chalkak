@@ -8,6 +8,7 @@
 .navLink:hover { background: #f4f5f7; color: #20242b; }
 .activeLink { background: #eeeffb; color: #4d4fb4; font-weight: 600; }
 .account { display: flex; min-width: 0; align-items: center; gap: 12px; margin-left: auto; }
+@media (min-width: 801px) and (max-width: 1200px) { .username { display: none; } .header { flex-wrap: wrap; } .navigation { flex-wrap: wrap; } }
 .username { max-width: 140px; overflow: hidden; color: #717784; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .logoutButton { min-height: 44px; flex: 0 0 auto; border: 1px solid #dce0e6; border-radius: 6px; background: #fff; padding: 8px 12px; color: #434a56; cursor: pointer; font-size: 12px; white-space: nowrap; }
 .logoutButton:hover { background: #f4f5f7; }
@@ -27,8 +28,10 @@
   .header { min-height: 64px; gap: 12px; padding: 10px 20px; }
   .brand { font-size: 17px; }
   .navigation { position: fixed; inset: auto 0 0; z-index: 30; display: grid; min-height: var(--admin-bottom-nav-height); grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0; border-top: 1px solid #dde1e7; background: #fff; padding: 5px 6px calc(5px + env(safe-area-inset-bottom)); }
+  .desktopOnly { display: none; }
   .navLink, .activeLink { min-height: 58px; flex-direction: column; gap: 5px; border-radius: 6px; padding: 7px 4px; font-size: 10px; line-height: 1.2; text-align: center; white-space: normal; word-break: keep-all; }
-  .navigation svg { display: block; width: 20px; height: 20px; }
+  .navigation svg { display: block; width: 20px; height: 20px; flex-shrink: 0; }
+  .navigation span { display: flex; min-height: 24px; align-items: center; justify-content: center; }
   .activeLink { background: #f2f2fb; }
   .mainContent { padding: 24px 20px 32px; }
   .demoNotice { padding-inline: 20px; }

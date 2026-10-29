@@ -42,7 +42,7 @@ export function AdminShell({ children }: PropsWithChildren) {
           {adminNavigation.map((item) => {
             const active = current.href === item.href;
             return (
-              <Link aria-current={active ? "page" : undefined} className={active ? styles.activeLink : styles.navLink} href={item.href} key={item.href}>
+              <Link aria-current={active ? "page" : undefined} className={[active ? styles.activeLink : styles.navLink, item.desktopOnly ? styles.desktopOnly : ""].filter(Boolean).join(" ")} href={item.href} key={item.href}>
                 <AdminIcon name={item.icon} />
                 <span>{item.label}</span>
               </Link>
