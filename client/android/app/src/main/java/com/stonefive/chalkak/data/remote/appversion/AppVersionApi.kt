@@ -14,6 +14,6 @@ interface AppVersionApi {
 @Serializable
 data class AppVersionResponse(
     val platform: String,
-    val minimumSupportedVersion: String?,
-    val storeUrl: String?,
+    val minimumSupportedVersion: String? = null,
+    val storeUrl: String? = null,
 )
