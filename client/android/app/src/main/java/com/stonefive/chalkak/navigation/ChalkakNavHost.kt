@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
@@ -72,6 +73,8 @@ import com.stonefive.chalkak.feature.notification.NotificationDetailRoute
 import com.stonefive.chalkak.feature.notification.NotificationItemUiState
 import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
+import com.stonefive.chalkak.feature.record.RecordViewModel
+import com.stonefive.chalkak.feature.record.component.RecordPhotoStackStyle
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
@@ -719,6 +722,22 @@ fun ChalkakNavHost(
             }
 
             composable<Record> { backStackEntry ->
+                val recordViewModel: RecordViewModel = viewModel(factory = RecordViewModel.Factory)
+                val recordUiState by recordViewModel.uiState.collectAsStateWithLifecycle()
+                val recordLifecycleState by backStackEntry.lifecycle.currentStateAsState()
+
+                // 모드 전환과 피드에서 돌아오는 시점에 현재 모드의 참여 시간을 구분한다.
+                LaunchedEffect(recordUiState.photoStackStyle, recordLifecycleState) {
+                    if (recordLifecycleState != Lifecycle.State.RESUMED) return@LaunchedEffect
+                    analyticsTracker.trackScreenView(
+                        screenName = when (recordUiState.photoStackStyle) {
+                            RecordPhotoStackStyle.PILLARS -> "record_scroll"
+                            RecordPhotoStackStyle.BOOK -> "record_book"
+                        },
+                        screenClass = "Record",
+                    )
+                }
+
                 PhotoTransitionProvider(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = this,
@@ -733,6 +752,7 @@ fun ChalkakNavHost(
                         .collectAsStateWithLifecycle()
 
                     RecordRoute(
+                        viewModel = recordViewModel,
                         requestedDate = selectedDate?.let(LocalDate::parse),
                         onRequestedDateConsumed = {
                             backStackEntry.savedStateHandle[RECORD_SELECTED_DATE_KEY] = null
@@ -1031,7 +1051,6 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<AuthorPosts>() -> AnalyticsScreen(name = "author_posts", screenClass = "AuthorPosts")
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
-    hasRoute<Record>() -> AnalyticsScreen(name = "record", screenClass = "Record")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
     hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
     hasRoute<PhotoUpload>() -> AnalyticsScreen(name = "photo_upload", screenClass = "PhotoUpload")
