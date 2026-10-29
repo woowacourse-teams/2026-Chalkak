@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.record
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -27,17 +29,23 @@ class RecordViewModel(
     private val currentMonthProvider: () -> YearMonth = {
         YearMonth.now(ZoneId.of("Asia/Seoul"))
     },
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         RecordUiState(
-            month = initialMonth,
+            month = savedStateHandle
+                .get<String>(KEY_MONTH)
+                ?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+                ?: initialMonth,
             latestMonth = latestMonth,
+            selectedDate = savedSelectedDate(),
         ),
     )
     val uiState: StateFlow<RecordUiState> = _uiState.asStateFlow()
 
     // 홈 주간 기록에서 연 날짜. 재검증해도 이 날짜를 다시 고르고, 사용자가 날짜나 달을 바꾸면 비운다.
     private var requestedDate: LocalDate? = null
+    private var restoredDate: LocalDate? = savedSelectedDate()
     private val calendarCache = mutableMapOf<YearMonth, PostCalendar>()
     private val monthLoadGenerations = mutableMapOf<YearMonth, Int>()
     private val deletedPostIds = mutableSetOf<String>()
@@ -48,7 +56,7 @@ class RecordViewModel(
     private var nextMessageId = 0L
 
     init {
-        loadAvailableMonths(initialMonth)
+        loadAvailableMonths(_uiState.value.month)
     }
 
     fun moveToPreviousMonth() {
@@ -60,6 +68,7 @@ class RecordViewModel(
             .maxOrNull()
             ?: return
         requestedDate = null
+        restoredDate = null
         loadRecord(previousMonth)
     }
 
@@ -72,17 +81,22 @@ class RecordViewModel(
             .minOrNull()
             ?: return
         requestedDate = null
+        restoredDate = null
         loadRecord(nextMonth)
     }
 
     fun openDate(date: LocalDate) {
         requestedDate = date
+        restoredDate = null
+        savedStateHandle[KEY_MONTH] = YearMonth.from(date).toString()
+        savedStateHandle[KEY_SELECTED_DATE] = date.toString()
         val state = _uiState.value
         val month = YearMonth.from(date)
         if (!state.isLoading && !isRevalidating && state.month == month &&
             state.posts.any { it.topicDate == date }
         ) {
             _uiState.update { it.copy(selectedDate = date) }
+            saveSelectedDate()
         } else {
             loadAvailableMonths(month)
         }
@@ -95,6 +109,7 @@ class RecordViewModel(
         if (month == state.month || month !in state.availableMonths) return
 
         requestedDate = null
+        restoredDate = null
         loadRecord(month)
     }
 
@@ -103,7 +118,9 @@ class RecordViewModel(
         if (date !in state.posts.map { it.topicDate }) return
 
         requestedDate = null
+        restoredDate = null
         _uiState.update { it.copy(selectedDate = date) }
+        saveSelectedDate()
     }
 
     fun retryCurrentMonth() {
@@ -199,6 +216,7 @@ class RecordViewModel(
         val hasRequestedPost = _uiState.value.posts
             .any { it.topicDate == requestedDate }
         if (!hasRequestedPost) requestedDate = null
+        saveSelectedDate()
     }
 
     fun onMessageShown(messageId: Long) {
@@ -230,6 +248,10 @@ class RecordViewModel(
         month: YearMonth,
         keepsContentVisible: Boolean = false,
     ) {
+        savedStateHandle[KEY_MONTH] = month.toString()
+        if (month != _uiState.value.month && requestedDate?.let(YearMonth::from) != month) {
+            savedStateHandle[KEY_SELECTED_DATE] = null
+        }
         val generation = ++latestLoadGeneration
         monthLoadGenerations[month] = generation
         val cachedCalendar = calendarCache[month]
@@ -244,6 +266,7 @@ class RecordViewModel(
                 }
                 it.withCalendar(cachedCalendar, selectedDate)
             }
+            saveSelectedDate()
         } else if (!hasVisibleContent) {
             _uiState.update {
                 it.copy(
@@ -288,10 +311,17 @@ class RecordViewModel(
                                         date != selectedDateBeforeLoad &&
                                             content.value.posts
                                                 .any { post -> post.topicDate == date }
+                                    } ?: restoredDate?.takeIf { date ->
+                                        content.value.posts
+                                            .any { post -> post.topicDate == date }
                                     } ?: content.value.latestTopicDate()
                                 }
                                 it.withCalendar(content.value, selectedDate)
                             }
+                            restoredDate = null
+                            savedStateHandle[KEY_MONTH] = content.value.month
+                                .toString()
+                            saveSelectedDate()
                         }
 
                         // 로그인이 풀렸으면 이전에 보던 기록 대신 로그인 화면을 보여준다.
@@ -308,6 +338,10 @@ class RecordViewModel(
                                     errorMessage = content.reason.toRecordMessage(),
                                     isLoginRequired = content.reason == HomeFailure.Unauthorized,
                                 )
+                            }
+                            if (content.reason == HomeFailure.Unauthorized) {
+                                restoredDate = null
+                                saveSelectedDate()
                             }
                         }
                     }
@@ -373,6 +407,15 @@ class RecordViewModel(
         }
     }
 
+    private fun savedSelectedDate(): LocalDate? = savedStateHandle
+        .get<String>(KEY_SELECTED_DATE)
+        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
+    private fun saveSelectedDate() {
+        savedStateHandle[KEY_SELECTED_DATE] = _uiState.value.selectedDate
+            ?.toString()
+    }
+
     private fun RecordUiState.withCalendar(
         calendar: PostCalendar,
         selectedDate: LocalDate?,
@@ -401,11 +444,15 @@ class RecordViewModel(
         .sortedDescending()
 
     companion object {
+        private const val KEY_MONTH = "record_month"
+        private const val KEY_SELECTED_DATE = "record_selected_date"
+
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 RecordViewModel(
                     repository = application.appContainer.postRepository,
+                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }
