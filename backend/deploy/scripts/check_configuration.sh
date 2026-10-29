@@ -92,7 +92,7 @@ admin_slack_webhook_url="$(read_value ADMIN_SLACK_WEBHOOK_URL)"
 admin_web_base_url="$(read_value ADMIN_WEB_BASE_URL)"
 
 if [[ "${server_port}" != 8080 ]]; then
-  echo "SERVER_PORT must be 8080 for the configured health check." >&2
+  echo "SERVER_PORT must be 8080: it is the base port, and blue/green deploys override it per container (8080/8081)." >&2
   exit 1
 fi
 
@@ -252,4 +252,9 @@ if [[ "${notification_worker_enabled}" == true ]]; then
       exit 1
     fi
   done
+  fcm_credentials_path="$(read_value NOTIFICATION_FCM_CREDENTIALS_PATH)"
+  if [[ "${fcm_credentials_path}" != /* || ! -f "${fcm_credentials_path}" ]]; then
+    echo "NOTIFICATION_FCM_CREDENTIALS_PATH must be an absolute path to an existing regular file when PushWorker is enabled." >&2
+    exit 1
+  fi
 fi

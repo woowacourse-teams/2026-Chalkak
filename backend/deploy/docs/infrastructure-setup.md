@@ -74,9 +74,9 @@ Agent는 outbound HTTPS 443으로 AWS에 연결한다. CodeDeploy를 위해 별�
 
 운영 EC2가 private subnet에 있다면 NAT 또는 회사가 제공한 CodeDeploy·S3 접근 경로가 있어야 한다. outbound 443이나 S3 다운로드가 막히면 Agent가 배포를 받을 수 없다.
 
-### 개발 EC2의 Docker
+### Docker
 
-운영 EC2는 RDS를 사용하므로 Docker가 필요하지 않다. 개발 EC2에서만 설치한다.
+앱을 컨테이너로 실행하므로 개발·운영 EC2 모두 설치한다. 개발 EC2는 PostgreSQL container에도 사용한다.
 
 ```bash
 sudo apt update
@@ -153,7 +153,9 @@ SSM console 권한이 없다면 개발 EC2는 허용된 SSH 경로로 접속해 
 - Lambda의 `DEV_BACKEND_IMAGE_PROCESSING_API_BASE_URL`과
   `PROD_BACKEND_IMAGE_PROCESSING_API_BASE_URL`에는 `/internal/v1`까지 포함한다.
 
-환경변수를 변경한 뒤에는 다음 명령으로 적용한다.
+컨테이너는 `--env-file`을 생성 시점에만 읽는다. `docker restart`는 환경변수를 다시 읽지 않으므로 파일을 고친 뒤에는 CodeDeploy에서 해당 deployment group의 마지막 성공 revision을 재배포한다. blue/green으로 중단 없이 새 값이 적용된다.
+
+첫 컨테이너 배포 전에는 기존대로 다음 명령으로 적용한다.
 
 ```bash
 sudo systemctl restart chalkak-backend.service
@@ -208,6 +210,36 @@ aws sts get-caller-identity
 ```
 
 첫 pipeline artifact가 만들어진 뒤 다운로드가 `AccessDenied`로 실패하면 `ec2-project`의 해당 bucket `s3:GetObject` 권한 문제다. 직접 IAM을 변경하지 않고 `#8기-기술-검토`에 문의한다.
+
+## 컨테이너 blue/green 배포 서버 준비
+
+두 서버에는 다음이 이미 적용돼 있다(운영은 swap이 기존에 있었고 개발은 아래 명령으로 만들었다). 새 서버는 같은 상태로 맞춘다.
+
+```bash
+# 사용하지 않는 서비스 정리 (snapd는 amazon-ssm-agent와 certbot이 snap이라 유지한다)
+sudo systemctl disable --now udisks2 ModemManager unattended-upgrades fwupd-refresh.timer
+sudo systemctl stop fwupd multipathd multipathd.socket
+sudo systemctl mask fwupd multipathd multipathd.socket
+# apt-daily-upgrade.timer는 유지되어 보안 패치를 계속 적용한다.
+
+# Docker 29.7.2는 위 Docker apt repository에서 설치했고 앱 이미지를 미리 받아 두었다.
+sudo docker pull eclipse-temurin:25.0.4_7-jre
+
+# 1GiB swap, swappiness 10 (새 서버 전용: 재실행하면 fstab에 중복 등록된다)
+sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf && sudo sysctl --system
+swapon --show
+```
+
+nginx의 upstream은 `/etc/nginx/snippets/chalkak-upstream.conf`로 분리했다. 파일에는 `server 127.0.0.1:<포트>;` 한 줄만 있으며 배포가 포트를 바꿔 reload한다. 첫 컨테이너 배포 전에는 정확히 `server 127.0.0.1:8080;` 한 줄이어야 한다. 다른 내용, 주석 또는 파일 누락이면 ApplicationStart가 실패한다. 사이트 설정의 upstream 블록은 다음과 같다.
+
+```text
+upstream chalkak_backend {
+    include /etc/nginx/snippets/chalkak-upstream.conf;
+    keepalive 32;
+}
+```
 
 서버 준비가 끝나면 [CI/CD 파이프라인 구축](pipeline-setup.md)을 진행한다.
 
