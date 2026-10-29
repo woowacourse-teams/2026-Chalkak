@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
+import com.stonefive.chalkak.core.designsystem.component.image.aspectRatioForSize
 import com.stonefive.chalkak.core.designsystem.component.image.rememberSharedPhotoSource
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -292,11 +294,14 @@ private fun RecordPillar(
 
     if (post != null) {
         // 피드가 이 사진에서 확대되어 열리고, 닫히면 이 사진으로 돌아온다. 고른 날만 출발 자리로 둔다.
+        // 기둥은 가로로 긴 사진의 양옆을 잘라 보이므로, 전환도 같은 자르기와 사진 비율로 시작해야 모양이 튀지 않는다.
         val photoSource = if (isFocused) {
             rememberSharedPhotoSource(
                 key = PhotoTransitionKey(post.postId, recordTransitionSourceId(post.postId)),
                 imageModel = post.thumbnailImageUrl,
                 signatureModel = null,
+                aspectRatio = image?.let { aspectRatioForSize(it.width, it.height) },
+                contentScale = ContentScale.Crop,
                 sourceShape = FocusedPillarShape,
             )
         } else {
