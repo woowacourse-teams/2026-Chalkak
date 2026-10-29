@@ -24,6 +24,8 @@ struct DisplayPostResponse: Decodable {
     let likeCount: Int
     let isLiked: Bool
     let isMine: Bool?
+    // 사인을 눌러 작가 사진 목록으로 갈 때 쓴다. 서버에 아직 없으면 nil이고 사인 탭만 동작하지 않는다.
+    let authorID: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -36,6 +38,7 @@ struct DisplayPostResponse: Decodable {
         case likeCount
         case isLiked
         case isMine
+        case authorID = "authorId"
     }
 
     func toDisplayPhoto() throws -> DisplayPhoto {
@@ -65,7 +68,8 @@ struct DisplayPostResponse: Decodable {
             title: title,
             likeCount: likeCount,
             isLiked: isLiked,
-            isOwnedByCurrentUser: isMine ?? false
+            isOwnedByCurrentUser: isMine ?? false,
+            authorID: authorID
         )
     }
 }

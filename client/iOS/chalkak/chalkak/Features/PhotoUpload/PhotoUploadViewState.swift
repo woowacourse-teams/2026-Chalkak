@@ -151,6 +151,10 @@ struct PhotoUploadViewState {
     var completedSubmission: PhotoUploadSubmission?
     var pendingMessage: PhotoUploadMessage?
 
+    var hasUnsavedDraft: Bool {
+        selectedImage != nil || !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var canSubmit: Bool {
         selectedImage != nil
             && !isTopicLoading

@@ -40,6 +40,12 @@ data class HomeLike(
     val isLiked: Boolean,
 )
 
+data class PostLikeUpdate(
+    val postId: String,
+    val likeCount: Int,
+    val isLiked: Boolean,
+)
+
 sealed interface HomeResult<out T> {
     data class Success<T>(val value: T) : HomeResult<T>
 

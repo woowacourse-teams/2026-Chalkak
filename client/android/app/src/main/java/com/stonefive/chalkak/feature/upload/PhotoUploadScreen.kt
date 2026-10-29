@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.upload
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -51,8 +52,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
+import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
+import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -128,6 +132,8 @@ fun PhotoUploadRoute(
         onAction = viewModel::onAction,
         onRetryTopicLoad = viewModel::retryTopicLoad,
         onPhotoClick = viewModel::onPhotoClick,
+        onDiscardConfirmed = viewModel::onDiscardConfirmed,
+        onDiscardDismissed = viewModel::onDiscardDismissed,
         modifier = modifier,
     )
 }
@@ -155,6 +161,8 @@ fun PhotoUploadScreen(
     modifier: Modifier = Modifier,
     onRetryTopicLoad: () -> Unit = {},
     onPhotoClick: () -> Unit = {},
+    onDiscardConfirmed: () -> Unit = {},
+    onDiscardDismissed: () -> Unit = {},
 ) {
     val captionScrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
@@ -181,7 +189,7 @@ fun PhotoUploadScreen(
     }
 
     fun requestBack() {
-        if (isBackPending) return
+        if (isBackPending || uiState.isSubmitting) return
 
         if (isCaptionFocused || imeBottom > 0) {
             isBackPending = true
@@ -190,6 +198,20 @@ fun PhotoUploadScreen(
         } else {
             onAction(PhotoUploadUiAction.BackClicked)
         }
+    }
+
+    BackHandler(onBack = ::requestBack)
+
+    if (uiState.showsDiscardConfirmation) {
+        ChalkakConfirmDialog(
+            title = "작성을 그만둘까요?",
+            message = "뒤로 가면 작성 중인 내용이 사라져요.\n그래도 뒤로 가시겠어요?",
+            confirmText = "뒤로 가기",
+            onConfirm = onDiscardConfirmed,
+            onDismiss = onDiscardDismissed,
+            modifier = Modifier.fillMaxWidth(0.81f),
+            confirmStyle = ChalkakConfirmDialogStyle.DESTRUCTIVE,
+        )
     }
 
     Scaffold(
@@ -406,7 +428,7 @@ const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
 private const val CAPTION_MAX_LENGTH = 10
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
-    "android.resource://com.stonefive.chalkak/$resourceId"
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 @Preview(
     showBackground = true,

@@ -4,6 +4,136 @@ import XCTest
 
 @MainActor
 final class FeedZoomRenderingTests: XCTestCase {
+    func testFeedKeepsSourcePhotoHiddenUntilItDisappears() async throws {
+        let registry = FeedZoomRegistry()
+        let source = FeedZoomSource.displayGrid(FeedPreviewData.content.post.id)
+        registry.update(.init(frame: CGRect(x: 20, y: 200, width: 160, height: 210), cornerRadius: 12), for: source)
+        let model = FeedViewModel(
+            postID: FeedPreviewData.content.post.id,
+            initialState: FeedPreviewData.loadedState,
+            detailHandler: { _ in .success(FeedPreviewData.content) }
+        )
+        let host = UIHostingController(rootView: AnyView(
+            FeedScreen(viewModel: model, zoomSource: source)
+                .environment(\.feedZoomRegistry, registry)
+                .chalkakTheme(.light)
+        ))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        host.view.layoutIfNeeded()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(3))
+        while registry.activeSource != source, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(registry.activeSource, source, "The moving feed photo must replace its source card")
+        XCTAssertTrue(registry.hidesWholeSource, "Do not leave a stationary fragment below the bar during opening")
+        try await Task.sleep(for: .seconds(1))
+        XCTAssertEqual(registry.activeSource, source, "Keep the source hidden after opening so a return swipe cannot expose a duplicate")
+        XCTAssertTrue(registry.hidesWholeSource)
+        XCTAssertEqual(registry.sourceBarOpacity, 0, "The bar must disappear when the feed has opened")
+        host.rootView = AnyView(Color.clear)
+        host.view.layoutIfNeeded()
+        let disappearanceDeadline = clock.now.advanced(by: .seconds(3))
+        while registry.activeSource != nil, clock.now < disappearanceDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNil(registry.activeSource, "Restore the source when the feed disappears")
+        XCTAssertFalse(registry.hidesWholeSource)
+        XCTAssertEqual(registry.sourceBarOpacity, 0)
+    }
+
+    func testOpeningWaitsForUncachedPhotoAfterLayoutIsMeasured() async throws {
+        try await assertOpeningWaitsForPhoto(fails: false)
+    }
+
+    func testFailedOpeningPhotoDoesNotLeaveTransitionWaitingForever() async throws {
+        try await assertOpeningWaitsForPhoto(fails: true)
+    }
+
+    func testOriginalPhotoReleasesOpeningWhileThumbnailIsStillLoading() async throws {
+        try await assertOpeningWaitsForPhoto(fails: false, originalArrives: true)
+    }
+
+    private func assertOpeningWaitsForPhoto(fails: Bool, originalArrives: Bool = false) async throws {
+        XCTAssertTrue(URLProtocol.registerClass(FeedOpeningImageProtocol.self))
+        defer { URLProtocol.unregisterClass(FeedOpeningImageProtocol.self) }
+        let url = try XCTUnwrap(URL(string: "https://feed-opening-test.invalid/\(UUID().uuidString).png"))
+        let placeholder = FeedPhotoPlaceholder(imageSource: .remote(url), heightToWidthRatio: 1)
+        XCTAssertNil(placeholder.preloadedImage)
+        var measured = false
+        var readyCount = 0
+        func photo(post: FeedPost?) -> some View {
+            FeedPhoto(
+                post: post,
+                placeholder: placeholder,
+                zoom: FeedPhotoZoom(isSettled: false),
+                onTransitionReady: { readyCount += 1 },
+                onPhotoFrameChanged: { measured = $0.width > 0 && $0.height > 0 },
+                onLike: {}
+            )
+            .frame(width: 300)
+        }
+        let host = UIHostingController(rootView: photo(post: nil))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 300, height: 500)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+            FeedOpeningImageProtocol.pending.remove(url)?.fail()
+        }
+        host.view.layoutIfNeeded()
+        let clock = ContinuousClock()
+        let layoutDeadline = clock.now.advanced(by: .seconds(10))
+        while (!measured || !FeedOpeningImageProtocol.pending.contains(url)), clock.now < layoutDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(measured, "The layout must be ready before testing image readiness")
+        let request = try XCTUnwrap(FeedOpeningImageProtocol.pending.remove(url))
+        XCTAssertEqual(readyCount, 0, "A measured but empty photo must not expose the opaque feed screen")
+        defer { if originalArrives { request.fail() } }
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 30, height: 30))
+        let data = try XCTUnwrap(renderer.image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 30, height: 30))
+        }.pngData())
+        func resolve(_ request: FeedOpeningImageProtocol) {
+            if fails { request.fail() } else { request.succeed(data) }
+        }
+        if originalArrives {
+            // Detail data arrives after the uncached thumbnail request has started.
+            // Keep that request blocked; the available original must release opening.
+            host.rootView = photo(post: FeedPreviewData.content.post)
+            host.view.layoutIfNeeded()
+        } else {
+            resolve(request)
+        }
+        let readyDeadline = clock.now.advanced(by: .seconds(10))
+        while readyCount == 0, clock.now < readyDeadline {
+            // The displayed image and the transition task load the same URL separately.
+            // On a slow runner the second load can start after the first request resolved.
+            if !originalArrives, let late = FeedOpeningImageProtocol.pending.remove(url) {
+                resolve(late)
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(readyCount, 1, "A resolved photo must release opening exactly once, including failures")
+    }
+
     func testAspectRatioTransitionKeepsPhotoLayoutSizeFixed() async throws {
         let destination = CGRect(x: 0, y: 0, width: 400, height: 400)
         let source = FeedZoomRegistry.Source(frame: CGRect(x: 20, y: 100, width: 150, height: 250), cornerRadius: 12)
@@ -273,6 +403,73 @@ final class FeedZoomRenderingTests: XCTestCase {
         }
     }
 
+    func testScreenReturnDoesNotRoundOcclusionEdges() async throws {
+        let canvas = CGRect(x: 0, y: 0, width: 402, height: 874)
+        for sourceY: CGFloat in [100, 700] {
+            for usesFitCard in [false, true] {
+                let card = CGRect(x: 20, y: sourceY, width: 160, height: 210)
+                let source = FeedZoomRegistry.Source(
+                    frame: usesFitCard ? card.insetBy(dx: 0, dy: 20) : card,
+                    cornerRadius: 12,
+                    clipFrame: usesFitCard ? card : nil,
+                    visibleBounds: CGRect(x: 0, y: 220, width: 402, height: 560)
+                )
+                let scene = ZStack {
+                    Color.white
+                    Color(.sRGB, red: 1, green: 0, blue: 0, opacity: 1).modifier(FeedScreenReturnEffect(
+                        progress: 0, dragOffset: 0, source: source,
+                        photo: CGRect(x: 0, y: 160, width: 402, height: 400),
+                        canvas: canvas, safeAreaInsets: EdgeInsets()
+                    ))
+                }.frame(width: canvas.width, height: canvas.height)
+                let renderer = ImageRenderer(content: scene)
+                renderer.scale = 1
+                let image = try XCTUnwrap(renderer.uiImage)
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "Return straight occlusion y=\(sourceY) fit=\(usesFitCard)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let edgeY = sourceY == 100 ? 221 : 778
+                XCTAssertEqual(try pixel(image, x: 22, y: edgeY), [255, 0, 0, 255], "Occlusion must not create a rounded corner")
+                XCTAssertEqual(try pixel(image, x: 177, y: edgeY), [255, 0, 0, 255])
+                XCTAssertEqual(try pixel(image, x: 100, y: sourceY == 100 ? 210 : 790), [255, 255, 255, 255])
+                XCTAssertEqual(try pixel(image, x: 20, y: sourceY == 100 ? 309 : 700), [255, 255, 255, 255], "Actual card corners stay rounded")
+            }
+        }
+    }
+
+    func testClosingScreenCarriesPhotoBelowBottomBarUntilArrival() async throws {
+        let canvas = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let card = CGRect(x: 220, y: 700, width: 160, height: 150)
+        let source = FeedZoomRegistry.Source(
+            frame: card, cornerRadius: 12,
+            visibleBounds: CGRect(x: 0, y: 220, width: 402, height: 560)
+        )
+        for progress: CGFloat in [1, 0.5, 0.1, 0.01, 0] {
+            let scene = ZStack(alignment: .topLeading) {
+                Color.white
+                // Only the moving photo is drawn; the original card stays hidden.
+                Color(.sRGB, red: 1, green: 0, blue: 0, opacity: 1)
+                    .modifier(FeedScreenReturnEffect(
+                        progress: progress, dragOffset: 0, source: source,
+                        photo: CGRect(x: 0, y: 160, width: 402, height: 400),
+                        canvas: canvas, safeAreaInsets: EdgeInsets(), revealsCoveredSource: true
+                    ))
+                Color.blue.frame(width: 362, height: 40).offset(x: 20, y: 780)
+            }.frame(width: canvas.width, height: canvas.height)
+            let renderer = ImageRenderer(content: scene)
+            renderer.scale = 1
+            let image = try XCTUnwrap(renderer.uiImage)
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "Single moving photo return progress=\(progress)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if progress <= 0.01 {
+                XCTAssertEqual(try pixel(image, x: 300, y: 830), [255, 0, 0, 255], "Moving photo must arrive below the bar before source restoration")
+            }
+        }
+    }
+
     func testSourceViewportExcludesBarsWithoutChangingPhotoBounds() async {
         let registry = FeedZoomRegistry()
         let photo = CGRect(x: 25, y: 100, width: 82, height: 250)
@@ -282,6 +479,71 @@ final class FeedZoomRenderingTests: XCTestCase {
         let source = registry.source(for: .displayGrid("photo"))
         XCTAssertEqual(source?.frame, photo)
         XCTAssertEqual(source?.visibleBounds, CGRect(x: 0, y: 220, width: 402, height: 560))
+    }
+
+    func testHomeRankingCardIsClippedToPaddedScrollContainer() {
+        let registry = FeedZoomRegistry()
+        // The last visible card hangs past the 20pt screen padding.
+        let photo = CGRect(x: 340, y: 500, width: 82, height: 82)
+        let row = CGRect(x: 20, y: 500, width: 362, height: 82)
+        registry.update(.init(frame: photo, cornerRadius: 8, containerBounds: row), for: .homeTrending("photo"))
+        registry.updateViewport(CGRect(x: 0, y: 100, width: 402, height: 774), for: .home)
+        registry.bottomBarFrame = CGRect(x: 20, y: 780, width: 362, height: 74)
+        let source = registry.source(for: .homeTrending("photo"))
+        XCTAssertEqual(source?.frame, photo)
+        XCTAssertEqual(source?.visibleBounds, row)
+    }
+
+    func testSourceCardKeepsOnlyThePartCoveredByBottomBar() {
+        // A 160x210 card whose lower 80pt sits under the bottom bar.
+        let card = CGRect(x: 0, y: 0, width: 160, height: 210)
+        let remainder = FeedZoomSourceRemainder(hidden: CGRect(x: -20, y: -700, width: 402, height: 830)).path(in: card)
+        XCTAssertFalse(remainder.contains(CGPoint(x: 80, y: 60), eoFill: true), "The moving photo replaces the visible part")
+        XCTAssertTrue(remainder.contains(CGPoint(x: 80, y: 180), eoFill: true), "Keep the part the moving photo does not draw")
+        XCTAssertTrue(FeedZoomSourceRemainder(hidden: nil).path(in: card).isEmpty, "Without a viewport the whole card is replaced")
+    }
+
+    func testBackSwipeHidesSourceCardUnderBottomBar() async throws {
+        let registry = FeedZoomRegistry()
+        let source = FeedZoomSource.displayGrid("swipe")
+        let host = UIHostingController(rootView: AnyView(
+            ZStack(alignment: .topLeading) {
+                Color.white
+                Color.red
+                    .frame(width: 160, height: 210)
+                    .feedZoomSource(source)
+                    .offset(x: 20, y: 300)
+            }
+            .ignoresSafeArea()
+            .environment(\.feedZoomRegistry, registry)
+        ))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        // The lower part of the card (y 450...510) sits under the bottom bar.
+        registry.updateViewport(CGRect(x: 0, y: 0, width: 402, height: 874), for: .display)
+        registry.bottomBarFrame = CGRect(x: 0, y: 450, width: 402, height: 74)
+        registry.activeSource = source
+        func underBar() async throws -> [UInt8] {
+            try await Task.sleep(for: .milliseconds(100))
+            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+            }
+            return try pixel(image, x: Int(100 * image.scale), y: Int(480 * image.scale))
+        }
+        let opening = try await underBar()
+        XCTAssertGreaterThan(Int(opening[0]) - Int(opening[1]), 100, "Opening keeps the part the moving photo does not draw")
+        registry.hidesWholeSource = true
+        let swiping = try await underBar()
+        XCTAssertLessThan(abs(Int(swiping[0]) - Int(swiping[1])), 20, "A back swipe must not leave the card under the bar")
     }
 
     func testFeaturedPhotoUsesFittedImageBounds() {
@@ -348,5 +610,59 @@ private struct HeldSwipePhoto: View {
         // Fixtures and measurements use the same container-relative coordinates.
         .coordinateSpace(name: coordinateSpaceName)
         .ignoresSafeArea()
+    }
+}
+
+/// Holds only this test host's requests, so unrelated app traffic remains untouched.
+private final class FeedOpeningImageProtocol: URLProtocol, @unchecked Sendable {
+    static let pending = PendingRequests()
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "feed-opening-test.invalid"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        if let url = request.url { Self.pending.insert(self, for: url) }
+    }
+
+    override func stopLoading() {
+        if let url = request.url { _ = Self.pending.remove(url) }
+    }
+
+    func succeed(_ data: Data) {
+        guard let url = request.url else { return }
+        let response = URLResponse(url: url, mimeType: "image/png", expectedContentLength: data.count, textEncodingName: nil)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    func fail() {
+        client?.urlProtocol(self, didFailWithError: URLError(.cannotLoadFromNetwork))
+    }
+
+    final class PendingRequests: @unchecked Sendable {
+        private let lock = NSLock()
+        private var requests: [URL: FeedOpeningImageProtocol] = [:]
+
+        func insert(_ request: FeedOpeningImageProtocol, for url: URL) {
+            lock.lock()
+            defer { lock.unlock() }
+            requests[url] = request
+        }
+
+        func contains(_ url: URL) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests[url] != nil
+        }
+
+        func remove(_ url: URL) -> FeedOpeningImageProtocol? {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests.removeValue(forKey: url)
+        }
     }
 }

@@ -11,8 +11,10 @@ import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
 import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -243,6 +245,100 @@ class NotificationViewModelTest {
         }
     }
 
+    @Test
+    fun `모두 읽음은 불러온 알림과 미읽음 표시를 모두 읽음으로 바꾼다`() = runTest {
+        val repository = FakeNotificationRepository()
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasUnread)
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, repository.markAllRequestCount)
+        assertTrue(state.notifications.none { it.isUnread })
+        assertFalse(state.hasUnread)
+        assertFalse(state.isMarkingAllRead)
+    }
+
+    @Test
+    fun `모두 읽음 실패는 미읽음 상태를 유지하고 토스트를 표시한다`() = runTest {
+        val repository = FakeNotificationRepository().apply {
+            markAllResult = NotificationResult.Failure(NotificationFailure.Network)
+        }
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(
+            state.notifications
+                .single()
+                .isUnread,
+        )
+        assertTrue(state.hasUnread)
+        assertFalse(state.isMarkingAllRead)
+        assertEquals(
+            "모두 읽음 처리하지 못했어요. 다시 시도해 주세요.",
+            (state.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `모두 읽음 전에 시작한 조회 응답은 읽음 상태를 되돌리지 않는다`() = runTest {
+        val repository = FakeNotificationRepository()
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+        repository.listGate = CompletableDeferred()
+        repository.unreadGate = CompletableDeferred()
+        viewModel.refresh()
+        runCurrent()
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+        repository.listGate!!.complete(Unit)
+        repository.unreadGate!!.complete(Unit)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.notifications.isNotEmpty())
+        assertTrue(state.notifications.none { it.isUnread })
+        assertFalse(state.hasUnread)
+    }
+
+    @Test
+    fun `미읽음 조회가 실패해도 목록에 읽지 않은 알림이 있으면 모두 읽음을 보낸다`() = runTest {
+        val repository = FakeNotificationRepository().apply { unreadFailure = true }
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasUnread)
+        assertTrue(viewModel.uiState.value.canMarkAllRead)
+
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, repository.markAllRequestCount)
+        assertTrue(state.notifications.none { it.isUnread })
+        assertFalse(state.canMarkAllRead)
+    }
+
+    @Test
+    fun `모두 읽음 진행 중 반복 요청은 무시한다`() = runTest {
+        val repository = FakeNotificationRepository()
+        val viewModel = NotificationViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.markAllAsRead()
+        viewModel.markAllAsRead()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.markAllRequestCount)
+    }
+
     private class FakeNotificationRepository : NotificationRepository {
         var items = listOf(notification)
         val readIds = mutableListOf<String>()
@@ -250,12 +346,18 @@ class NotificationViewModelTest {
         var readException: Exception? = null
         var listRequestCount = 0
         var unreadRequestCount = 0
+        var markAllResult: NotificationResult<Unit> = NotificationResult.Success(Unit)
+        var markAllRequestCount = 0
+        var listGate: CompletableDeferred<Unit>? = null
+        var unreadGate: CompletableDeferred<Unit>? = null
+        var unreadFailure = false
 
         override suspend fun getNotifications(
             page: Int,
             pageSize: Int,
         ): NotificationResult<NotificationPage> {
             listRequestCount++
+            listGate?.await()
             return NotificationResult.Success(
                 NotificationPage(page, pageSize, false, items),
             )
@@ -263,6 +365,8 @@ class NotificationViewModelTest {
 
         override suspend fun getUnreadStatus(): NotificationResult<Boolean> {
             unreadRequestCount++
+            unreadGate?.await()
+            if (unreadFailure) return NotificationResult.Failure(NotificationFailure.Network)
             return NotificationResult.Success(true)
         }
 
@@ -275,7 +379,10 @@ class NotificationViewModelTest {
         override suspend fun getNotification(notificationId: String): NotificationResult<NotificationDetail> =
             error("Unexpected detail request")
 
-        override suspend fun markAllAsRead(): NotificationResult<Unit> = error("Unexpected mark-all request")
+        override suspend fun markAllAsRead(): NotificationResult<Unit> {
+            markAllRequestCount++
+            return markAllResult
+        }
 
         override suspend fun getPushSettings(): NotificationResult<NotificationPushSettings> =
             error("Unexpected settings request")

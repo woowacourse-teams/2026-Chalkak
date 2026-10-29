@@ -27,6 +27,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import coil3.request.ImageRequest
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Assert.assertEquals
@@ -130,7 +131,7 @@ class PhotoTransitionUiTest {
         val failed = AtomicBoolean(false)
         val request = ImageRequest
             .Builder(InstrumentationRegistry.getInstrumentation().targetContext)
-            .data("android.resource://com.stonefive.chalkak/0")
+            .data("android.resource://${BuildConfig.APPLICATION_ID}/0")
             .listener(onError = { _, _ -> failed.set(true) })
             .build()
 
@@ -164,7 +165,7 @@ class PhotoTransitionUiTest {
         val key = PhotoTransitionKey("post", "record:post")
         var transitionActive = false
         var showFeed by mutableStateOf(false)
-        val imageModel = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}"
+        val imageModel = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}"
 
         composeRule.setContent {
             SharedTransitionLayout {

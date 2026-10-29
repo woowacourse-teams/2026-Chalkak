@@ -162,8 +162,10 @@ struct APIAuthRepositoryTests {
             refreshToken: "refresh-token",
             refreshTokenExpiresIn: 2_592_000
         )
+        let (requests, continuation) = AsyncStream<URLRequest>.makeStream()
         MockAuthURLProtocol.install { request in
             #expect(!KeychainSessionStore.hasAuthenticatedSession())
+            continuation.yield(request)
             return .response(statusCode: 204, body: Data())
         }
         defer {
@@ -178,11 +180,59 @@ struct APIAuthRepositoryTests {
 
         await repository.logout()
 
-        let request = try #require(MockAuthURLProtocol.allRequests().first)
+        var iterator = requests.makeAsyncIterator()
+        let request = try #require(await iterator.next())
         #expect(request.httpMethod == "POST")
         #expect(request.url?.path == "/api/v1/auth/logout")
         #expect(jsonBody(request) == ["refreshToken": "refresh-token"])
         #expect(!KeychainSessionStore.hasAuthenticatedSession())
+    }
+
+    @Test("서버 로그아웃 응답이 없어도 설정에서 즉시 로그아웃된다")
+    func signsOutSettingsWithoutWaitingForServer() async throws {
+        try KeychainSessionStore.save(
+            userID: "user-1",
+            accessToken: "access-token",
+            expiresIn: 900,
+            refreshToken: "refresh-token",
+            refreshTokenExpiresIn: 2_592_000
+        )
+        let (requests, continuation) = AsyncStream<URLRequest>.makeStream()
+        MockAuthURLProtocol.install { request in
+            continuation.yield(request)
+            return .pending
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockAuthURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer {
+            session.invalidateAndCancel()
+            continuation.finish()
+            KeychainSessionStore.delete()
+            MockAuthURLProtocol.uninstall()
+        }
+        let repository = APIAuthRepository(
+            baseURL: URL(string: "https://api.example.com/api/v1/")!,
+            session: session
+        )
+        let viewModel = SettingsViewModel(
+            initialState: SettingsViewState(isLoading: false, isLoggedIn: true),
+            isAuthenticated: { KeychainSessionStore.hasAuthenticatedSession() },
+            logout: { await repository.logout() }
+        )
+        viewModel.showLogoutDialog()
+        let logout = Task { await viewModel.confirmAccountAction() }
+        var iterator = requests.makeAsyncIterator()
+        let request = try #require(await iterator.next())
+
+        #expect(!KeychainSessionStore.hasAuthenticatedSession())
+        #expect(!viewModel.viewState.isLoggedIn)
+        #expect(!viewModel.viewState.isAccountActionInProgress)
+        #expect(viewModel.event == .signedOut)
+        #expect(jsonBody(request) == ["refreshToken": "refresh-token"])
+
+        session.invalidateAndCancel()
+        await logout.value
     }
 
     private func jsonBody(_ request: URLRequest) -> [String: String] {
@@ -195,6 +245,9 @@ private final class MockAuthURLProtocol: URLProtocol {
     struct Response {
         let statusCode: Int
         let body: Data
+        var isPending = false
+
+        static var pending: Response { Response(statusCode: 204, body: Data(), isPending: true) }
 
         static var empty: Response { Response(statusCode: 200, body: Data()) }
 
@@ -256,6 +309,7 @@ private final class MockAuthURLProtocol: URLProtocol {
         let handler = Self.requestHandler
         Self.lock.unlock()
         let response = handler?(request) ?? .response(statusCode: 500, body: Data())
+        guard !response.isPending else { return }
 
         guard let url = request.url,
               let httpResponse = HTTPURLResponse(

@@ -34,7 +34,8 @@ struct DisplayScreen: View {
                     title: photo.title,
                     likeCount: photo.likeCount,
                     isLiked: photo.isLiked,
-                    isOwnedByCurrentUser: photo.isOwnedByCurrentUser
+                    isOwnedByCurrentUser: photo.isOwnedByCurrentUser,
+                    authorID: photo.authorID
                 )
             ),
             isLikeConfirmed: true,

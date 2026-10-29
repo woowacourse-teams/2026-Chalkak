@@ -9,7 +9,13 @@ struct NotificationScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NotificationTopBar(onBackClick: onBackClick)
+            NotificationTopBar(
+                isMarkAllReadEnabled: viewModel.canMarkAllRead,
+                onBackClick: onBackClick,
+                onMarkAllRead: {
+                    Task { await viewModel.markAllRead() }
+                }
+            )
 
             content
         }
@@ -295,7 +301,8 @@ private enum Metrics {
                 )
             },
             loadUnread: { true },
-            markRead: { _ in }
+            markRead: { _ in },
+            markAllRead: {}
         ),
         onBackClick: {},
         onSelect: { _ in }
@@ -310,7 +317,8 @@ private enum Metrics {
                 NotificationPage(currentPage: page, pageSize: 20, hasNext: false, items: [])
             },
             loadUnread: { false },
-            markRead: { _ in }
+            markRead: { _ in },
+            markAllRead: {}
         ),
         onBackClick: {},
         onSelect: { _ in }

@@ -99,12 +99,16 @@ final class SettingsViewModel {
         viewState.accountDialog = nil
     }
 
-    func confirmAccountAction() async {
-        guard let dialog = viewState.accountDialog,
+    func confirmAccountAction(for confirmedDialog: SettingsAccountDialog? = nil) async {
+        // A native alert dismisses its presentation binding as soon as a button is tapped.
+        // Use the dialog captured by the button so that dismissal cannot erase the action first.
+        guard let dialog = confirmedDialog ?? viewState.accountDialog,
               !viewState.isAccountActionInProgress
         else { return }
 
-        viewState.accountDialog = nil
+        if viewState.accountDialog == dialog {
+            viewState.accountDialog = nil
+        }
         viewState.isAccountActionInProgress = true
 
         do {

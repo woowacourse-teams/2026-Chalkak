@@ -32,6 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakPhotoActionText
@@ -162,6 +163,7 @@ private fun TodayPhotoCardPreview() {
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 찰캌입니다.",
                 likeCount = 24,
+                authorId = "preview-author",
             ),
             isLiked = true,
             isLikeEnabled = true,
@@ -171,7 +173,8 @@ private fun TodayPhotoCardPreview() {
     }
 }
 
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 fun imageAspectRatio(
     width: Int,

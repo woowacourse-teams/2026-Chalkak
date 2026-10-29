@@ -51,6 +51,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
@@ -157,6 +158,7 @@ fun HomeScreen(
             ) {
                 HomeTopBar(
                     onNotificationClick = onNotificationClick,
+                    hasUnreadNotifications = uiState.hasUnreadNotifications,
                     modifier = Modifier
                         .fillMaxWidth()
                         .photoTransitionChrome()
@@ -617,6 +619,8 @@ private fun previewHomePost(
     contentDescription = "$title 사진",
     title = title,
     likeCount = id.toInt(),
+    authorId = "preview-author",
 )
 
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"

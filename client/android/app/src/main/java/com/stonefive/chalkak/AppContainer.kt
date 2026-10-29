@@ -63,12 +63,17 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 class AppContainer(context: Context) {
     private val applicationContext = context.applicationContext
 
+    val signatureHintRepository: com.stonefive.chalkak.domain.repository.SignatureHintRepository by lazy {
+        com.stonefive.chalkak.data.local.feed
+            .SignatureHintStore(applicationContext)
+    }
+
     val analyticsTracker: AnalyticsTracker by lazy {
         FirebaseAnalyticsTracker(context)
     }
 
     val appUpdateGateway: AppUpdateGateway by lazy {
-        if (BuildConfig.DEBUG) {
+        if (!BuildConfig.ENABLE_PLAY_APP_UPDATES) {
             DisabledAppUpdateGateway()
         } else {
             PlayAppUpdateGateway(context)

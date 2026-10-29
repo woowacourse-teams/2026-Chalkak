@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
@@ -197,11 +198,12 @@ private fun previewRankingPost(
     image: Int,
 ): Post = Post(
     id = "preview-$id",
-    originalImageUrl = "android.resource://com.stonefive.chalkak/$image",
-    thumbnailImageUrl = "android.resource://com.stonefive.chalkak/$image",
-    signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-    signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+    originalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/$image",
+    thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/$image",
+    signatureOriginalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
+    signatureThumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
     contentDescription = "랭킹 사진 $id",
     title = "사진 $id",
     likeCount = id.toInt(),
+    authorId = "preview-author",
 )

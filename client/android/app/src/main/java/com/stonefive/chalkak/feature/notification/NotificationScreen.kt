@@ -58,6 +58,7 @@ fun NotificationRoute(
         onBackClick = onBackClick,
         onRefresh = viewModel::refresh,
         onLoadNextPage = viewModel::loadNextPage,
+        onMarkAllReadClick = viewModel::markAllAsRead,
         onNotificationClick = { item ->
             coroutineScope.launch {
                 val previousMessageId = viewModel.uiState.value.pendingMessage
@@ -84,6 +85,7 @@ fun NotificationScreen(
     modifier: Modifier = Modifier,
     onRefresh: () -> Unit = {},
     onLoadNextPage: () -> Unit = {},
+    onMarkAllReadClick: () -> Unit = {},
     onNotificationClick: (NotificationItemUiState) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
@@ -129,6 +131,8 @@ fun NotificationScreen(
         NotificationTopBar(
             onBackClick = onBackClick,
             modifier = Modifier.fillMaxWidth(),
+            onMarkAllReadClick = onMarkAllReadClick,
+            isMarkAllReadEnabled = uiState.canMarkAllRead,
         )
 
         when {

@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.data.remote.post
 
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
@@ -12,6 +13,12 @@ import com.stonefive.chalkak.domain.model.HomeQuery
 import java.time.YearMonth
 
 interface PostRemoteDataSource {
+    suspend fun getAuthorPosts(
+        authorId: String,
+        page: Int,
+        pageSize: Int,
+    ): ApiResult<AuthorPostsResponse>
+
     suspend fun getTodayPostStatus(): ApiResult<TodayPostResponse>
 
     suspend fun getPostCalendar(month: YearMonth): ApiResult<PostCalendarResponse>

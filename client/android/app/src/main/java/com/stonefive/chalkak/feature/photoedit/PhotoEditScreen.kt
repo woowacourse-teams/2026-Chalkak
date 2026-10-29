@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.photoedit.CropWindow
@@ -287,7 +288,8 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 
 private val PhotoEditControlsHeight = 156.dp
 
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 @Preview(widthDp = 402, heightDp = 874)
 @Composable

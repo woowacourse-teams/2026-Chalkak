@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ fun SharedPhotoImage(
     thumbnailSignatureModel: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    onSignatureLoaded: () -> Unit = {},
     contentScale: ContentScale = ContentScale.FillWidth,
     fallbackAspectRatio: Float? = null,
     signatureModifier: Modifier = Modifier.size(
@@ -40,6 +42,9 @@ fun SharedPhotoImage(
 ) {
     val coordinator = LocalPhotoTransitionCoordinator.current
     val selectedSnapshot = coordinator.selectedSnapshot(key.postId)
+    LaunchedEffect(selectedSnapshot?.signaturePainter) {
+        if (selectedSnapshot?.signaturePainter != null) onSignatureLoaded()
+    }
     val sourceImageModel = selectedSnapshot?.imageModel ?: thumbnailImageModel
     val sourceSignatureModel = selectedSnapshot?.signatureModel ?: thumbnailSignatureModel
     var loadedAspectRatio by remember(key, thumbnailImageModel) { mutableStateOf<Float?>(null) }
@@ -112,6 +117,7 @@ fun SharedPhotoImage(
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         loadedPainter = selectedSnapshot?.signaturePainter,
+                        onSuccess = { onSignatureLoaded() },
                         modifier = Modifier
                             .fillMaxSize()
                             // Transparent signature strokes must not be drawn twice.
@@ -124,7 +130,11 @@ fun SharedPhotoImage(
                         contentDescription = null,
                         thumbnailModel = sourceSignatureModel,
                         contentScale = ContentScale.Fit,
-                        onSuccess = { originalSignatureLoaded = true },
+                        onSuccess = {
+                            originalSignatureLoaded = true
+                            onSignatureLoaded()
+                        },
+                        onThumbnailSuccess = { onSignatureLoaded() },
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer { alpha = signatureAlpha },

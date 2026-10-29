@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,12 +45,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
 import com.stonefive.chalkak.core.designsystem.component.image.LocalSharedTransitionScope
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.component.image.SharedPhotoImage
+import com.stonefive.chalkak.core.designsystem.component.image.sharedAuthorSignature
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakPhotoActionText
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -63,40 +66,64 @@ fun FeedPhoto(
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
     onPhotoBoundsChanged: (Rect) -> Unit = {},
+    onSignatureClick: () -> Unit = {},
+    onSignatureVisible: () -> Unit = {},
 ) {
     val postId = post?.id ?: entryPostId ?: return
+    var isSignatureLoaded by remember(postId, post?.signatureOriginalImageUrl) { mutableStateOf(false) }
+    var isSignatureVisible by remember(postId) { mutableStateOf(false) }
+    LaunchedEffect(isSignatureVisible, isSignatureLoaded, post?.authorId) {
+        if (isSignatureVisible && isSignatureLoaded && post != null) onSignatureVisible()
+    }
+    val signatureModifier = Modifier
+        .sharedAuthorSignature(post?.authorId)
+        .size(width = FeedSignatureWidth, height = FeedSignatureHeight)
+        .onGloballyPositioned { coordinates ->
+            val bounds = coordinates.boundsInWindow()
+            isSignatureVisible = bounds.width > 0 && bounds.height > 0
+        }.semantics {
+            contentDescription = if (post?.isOwnedByCurrentUser == true) "내 사인" else "작성자 사인"
+        }.clickable(
+            enabled = post != null,
+            role = Role.Button,
+            onClickLabel = "사진 모아보기",
+            onClick = onSignatureClick,
+        )
     val entrySnapshot = LocalPhotoTransitionCoordinator.current.selectedSnapshot(postId)
     Column(modifier = modifier) {
-        ZoomableFeedPhotoSurface(
-            modifier = Modifier.fillMaxWidth().onGloballyPositioned {
-                onPhotoBoundsChanged(it.boundsInWindow())
-            },
-            resetKey = postId,
-        ) {
-            if (entrySnapshot != null || entryThumbnailImageUrl != null) {
-                SharedPhotoImage(
-                    key = entrySnapshot?.key ?: PhotoTransitionKey(postId, "record:$postId"),
-                    originalImageModel = post?.originalImageUrl,
-                    thumbnailImageModel = post?.thumbnailImageUrl ?: entryThumbnailImageUrl,
-                    signatureModel = post?.signatureOriginalImageUrl,
-                    thumbnailSignatureModel = post?.signatureThumbnailImageUrl,
-                    contentDescription = post?.contentDescription ?: "기록 사진",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else if (post != null) {
-                ChalkakSignedImage(
-                    imageModel = post.originalImageUrl,
-                    signatureModel = post.signatureOriginalImageUrl,
-                    contentDescription = post.contentDescription,
-                    thumbnailImageModel = post.thumbnailImageUrl,
-                    thumbnailSignatureModel = post.signatureThumbnailImageUrl,
-                    contentScale = ContentScale.FillWidth,
-                    signatureModifier = Modifier.size(
-                        width = 70.dp,
-                        height = 52.dp,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+        Box {
+            ZoomableFeedPhotoSurface(
+                modifier = Modifier.fillMaxWidth().onGloballyPositioned {
+                    onPhotoBoundsChanged(it.boundsInWindow())
+                },
+                resetKey = postId,
+            ) {
+                if (entrySnapshot != null || entryThumbnailImageUrl != null) {
+                    SharedPhotoImage(
+                        key = entrySnapshot?.key ?: PhotoTransitionKey(postId, "record:$postId"),
+                        originalImageModel = post?.originalImageUrl,
+                        thumbnailImageModel = post?.thumbnailImageUrl ?: entryThumbnailImageUrl,
+                        signatureModel = post?.signatureOriginalImageUrl,
+                        thumbnailSignatureModel = post?.signatureThumbnailImageUrl,
+                        contentDescription = post?.contentDescription ?: "기록 사진",
+                        modifier = Modifier.fillMaxWidth(),
+                        signatureModifier = signatureModifier,
+                        onSignatureLoaded = { isSignatureLoaded = true },
+                    )
+                } else if (post != null) {
+                    ChalkakSignedImage(
+                        imageModel = post.originalImageUrl,
+                        signatureModel = post.signatureOriginalImageUrl,
+                        contentDescription = post.contentDescription,
+                        thumbnailImageModel = post.thumbnailImageUrl,
+                        thumbnailSignatureModel = post.signatureThumbnailImageUrl,
+                        contentScale = ContentScale.FillWidth,
+                        signatureModifier = signatureModifier,
+                        onSignatureSuccess = { isSignatureLoaded = true },
+                        onThumbnailSignatureSuccess = { isSignatureLoaded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
         if (post != null) {
@@ -238,13 +265,16 @@ private fun FeedPhotoPreview() {
         FeedPhoto(
             post = Post(
                 id = "preview",
-                originalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                thumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.home_feed_photo}",
-                signatureOriginalImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
-                signatureThumbnailImageUrl = "android.resource://com.stonefive.chalkak/${R.drawable.preview_signature}",
+                originalImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+                thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.home_feed_photo}",
+                signatureOriginalImageUrl =
+                    "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
+                signatureThumbnailImageUrl =
+                    "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 감사합니다.",
                 likeCount = 24,
+                authorId = "preview-author",
             ),
             isLiked = false,
             onLikeClick = {},
@@ -314,3 +344,6 @@ private fun FeedActionRow(
         FeedCaption(title = title, modifier = Modifier.weight(1f))
     }
 }
+
+private val FeedSignatureWidth = 70.dp
+private val FeedSignatureHeight = 52.dp

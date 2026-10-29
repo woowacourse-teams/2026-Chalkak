@@ -31,3 +31,6 @@ upload_certificate.pem
 *.dex
 *.hprof
 *.log
+
+# Local Firebase configuration for each build type
+**/google-services.json

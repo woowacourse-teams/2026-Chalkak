@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.Post
@@ -115,6 +116,7 @@ private fun TodayPhotoListPreview() {
                     contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 찰캌입니다.",
                     likeCount = 24,
+                    authorId = "preview-author",
                 ),
                 Post(
                     id = "preview-2",
@@ -125,6 +127,7 @@ private fun TodayPhotoListPreview() {
                     contentDescription = "두 번째 사진",
                     title = null,
                     likeCount = 12,
+                    authorId = "preview-author",
                 ),
             ),
             contentRevision = 1,
@@ -140,7 +143,8 @@ private fun TodayPhotoListPreview() {
     }
 }
 
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 private const val END_THRESHOLD = 2
 private const val NEXT_PAGE_LOADING_KEY = "next-page-loading"
