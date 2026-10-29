@@ -63,7 +63,7 @@ DLQ 소비·메시지 이동 권한은 일반 애플리케이션에 추가하지
 - `NOTIFICATION_SQS_QUEUE_URL`: 해당 환경 원본 Standard 큐 URL.
 - `NOTIFICATION_WORKER_ENABLED`: Firebase 서버 인증·앱 등록 준비 전 `false`, 개발 전체 연동 시험 시 `true`.
 - `NOTIFICATION_FCM_PROJECT_ID`: 기기 토큰을 발급한 Firebase 프로젝트 ID.
-- `NOTIFICATION_FCM_CREDENTIALS_PATH`: 서버에 별도로 배치한 서비스 계정 JSON의 절대 경로. 서비스 실행 계정에만 읽기 권한을 주고 Git에 넣지 않는다.
+- `NOTIFICATION_FCM_CREDENTIALS_PATH`: 서버에 별도로 배치한 서비스 계정 JSON의 절대 경로. 이 경로의 파일이 컨테이너의 같은 경로에 읽기 전용으로 bind mount된다(파일이 없으면 마운트하지 않으며 Worker를 켠 상태에서는 배포 설정 검사가 실패한다). 서비스 실행 계정에만 읽기 권한을 주고 Git에 넣지 않는다.
 - `NOTIFICATION_NOTICE_DISTRIBUTION_ENABLED`: 예약 시각이 된 관리자 공지를 회원 알림함에 배포하는 작업(KST 매 분 0초). 기본 `false`. 개발 연동 시험에서 `true`. 공지 푸시까지 보내려면 Relay·Worker도 켜야 한다. 잘못 예약한 공지는 `false`로 바꾸고 재시작해 배포를 멈출 수 있다.
 - 기존 `AWS_REGION`: `ap-northeast-2` 유지.
 

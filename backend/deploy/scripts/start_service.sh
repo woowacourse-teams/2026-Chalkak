@@ -74,6 +74,13 @@ if [[ -n "$(ss -ltnH "sport = :${target_port}")" ]]; then
   exit 1
 fi
 
+# FCM 서비스 계정 파일은 같은 경로에 읽기 전용으로 마운트한다. 파일이 없으면 Docker가 호스트에 빈 디렉터리를 만들므로 마운트하지 않는다.
+fcm_credentials_path="$(awk -F= '$1 == "NOTIFICATION_FCM_CREDENTIALS_PATH" {print substr($0, index($0, "=") + 1); exit}' "${CONFIG_FILE}")"
+fcm_mount=()
+if [[ "${fcm_credentials_path}" == /* && -f "${fcm_credentials_path}" ]]; then
+  fcm_mount=(-v "${fcm_credentials_path}:${fcm_credentials_path}:ro")
+fi
+
 chalkak_uid="$(id -u chalkak)"
 chalkak_gid="$(id -g chalkak)"
 
@@ -102,7 +109,7 @@ docker run -d \
   --label "chalkak.release=${deployment_id}" \
   -v "${release_dir}:/opt/chalkak/app:ro" \
   -v /opt/chalkak/logs:/opt/chalkak/logs \
-  -v /etc/chalkak/firebase-service-account.json:/etc/chalkak/firebase-service-account.json:ro \
+  ${fcm_mount[@]+"${fcm_mount[@]}"} \
   "${IMAGE}" \
   java -Xmx320m -XX:MarkStackSize=524288 -XX:ReservedCodeCacheSize=64m \
   -Xlog:async \

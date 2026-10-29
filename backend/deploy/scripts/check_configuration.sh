@@ -252,4 +252,9 @@ if [[ "${notification_worker_enabled}" == true ]]; then
       exit 1
     fi
   done
+  fcm_credentials_path="$(read_value NOTIFICATION_FCM_CREDENTIALS_PATH)"
+  if [[ "${fcm_credentials_path}" != /* || ! -f "${fcm_credentials_path}" ]]; then
+    echo "NOTIFICATION_FCM_CREDENTIALS_PATH must be an absolute path to an existing regular file when PushWorker is enabled." >&2
+    exit 1
+  fi
 fi

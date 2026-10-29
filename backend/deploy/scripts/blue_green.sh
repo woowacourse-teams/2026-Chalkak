@@ -5,7 +5,8 @@ UPSTREAM_SNIPPET="${UPSTREAM_SNIPPET:-/etc/nginx/snippets/chalkak-upstream.conf}
 RELEASES_DIR="${RELEASES_DIR:-/opt/chalkak/releases}"
 IMAGE=eclipse-temurin:25.0.4_7-jre
 LEGACY_SERVICE=chalkak-backend.service
-LEGACY_APP_DIR=/opt/chalkak/app
+LEGACY_APP_DIR="${LEGACY_APP_DIR:-/opt/chalkak/app}"
+LEGACY_WANTS_LINK="${LEGACY_WANTS_LINK:-/etc/systemd/system/multi-user.target.wants/${LEGACY_SERVICE}}"
 # Spring Boot의 graceful shutdown은 기본 켜져 있고 단계별 대기가 30초(spring.lifecycle.timeout-per-shutdown-phase)다.
 # docker stop이 같은 시점에 SIGKILL하지 않도록 그보다 길게 둔다.
 STOP_TIMEOUT_SECONDS=40
@@ -22,7 +23,7 @@ bg_active_port() {
     return 1
   }
   while IFS= read -r line; do
-    if [[ "${line}" =~ ^[[:space:]]*$ ]]; then
+    if [[ "${line}" =~ ^[[:space:]]*$ || "${line}" =~ ^[[:space:]]*# ]]; then
       continue
     elif [[ "${line}" =~ ^[[:space:]]*server[[:space:]]+127\.0\.0\.1:(8080|8081)\;[[:space:]]*$ ]]; then
       primary="${BASH_REMATCH[1]}"
@@ -137,29 +138,85 @@ bg_legacy_active() {
   systemctl is-active --quiet "${LEGACY_SERVICE}"
 }
 
+# 레거시가 남긴 흔적(wants 링크, enable 상태, 앱 디렉터리)이 있을 때만 정리한다. 없으면 아무것도 하지 않는다.
+bg_cleanup_legacy() {
+  if [[ -e "${LEGACY_WANTS_LINK}" || -L "${LEGACY_WANTS_LINK}" || -d "${LEGACY_APP_DIR}" ]] \
+    || systemctl is-enabled --quiet "${LEGACY_SERVICE}" 2>/dev/null; then
+    systemctl disable "${LEGACY_SERVICE}" || true
+    rm -f "${LEGACY_WANTS_LINK}"
+    systemctl daemon-reload
+    rm -rf "${LEGACY_APP_DIR}"
+  fi
+}
+
 bg_stop_legacy() {
   systemctl stop "${LEGACY_SERVICE}"
-  systemctl disable "${LEGACY_SERVICE}" || true
-  rm -f "/etc/systemd/system/multi-user.target.wants/${LEGACY_SERVICE}"
-  systemctl daemon-reload
-  rm -rf "${LEGACY_APP_DIR}"
+  bg_cleanup_legacy
 }
 
-# 기존 앱 종료: 최초 전환 시에는 8080의 레거시 systemd 프로세스, 이후에는 컨테이너.
+# 포트를 점유한 프로세스의 PID 목록 (root 권한이어야 보인다).
+bg_listen_pids() {
+  ss -ltnpH "sport = :$1" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true
+}
+
+bg_port_busy() {
+  [[ -n "$(ss -ltnH "sport = :$1" 2>/dev/null)" ]]
+}
+
+# 이전 앱을 종료하고 포트가 비었는지 확인한다.
+# 컨테이너 종료가 실패했거나, 첫 배포에서 CodeDeploy가 unit 파일을 지워 systemctl이 레거시를 못 찾는 경우에도
+# 포트를 점유한 프로세스를 직접 종료한다.
 bg_stop_old() {
-  local port="$1" container
-  if [[ "${port}" == 8080 ]] && bg_legacy_active; then
-    bg_stop_legacy
-    return 0
-  fi
+  local port="$1" container pids pid waited settle=0
   container="$(bg_container_name "${port}")"
-  if docker inspect "${container}" >/dev/null 2>&1; then
-    docker stop --time "${STOP_TIMEOUT_SECONDS}" "${container}" >/dev/null
-    docker rm "${container}" >/dev/null
+  if [[ "${port}" == 8080 ]] && bg_legacy_active; then
+    bg_stop_legacy || true
+  elif docker inspect "${container}" >/dev/null 2>&1; then
+    if docker stop --time "${STOP_TIMEOUT_SECONDS}" "${container}" >/dev/null; then
+      docker rm "${container}" >/dev/null || true
+    else
+      # --restart unless-stopped 때문에 PID만 죽이면 컨테이너가 되살아난다. 재시작 정책을 끄고 컨테이너부터 제거한다.
+      settle=1
+      docker update --restart=no "${container}" >/dev/null 2>&1 || true
+      docker rm -f "${container}" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if bg_port_busy "${port}"; then
+    settle=1
+    echo "Port ${port} is still in use after stopping the old app; treating it as the legacy process." >&2
+    if [[ "${port}" == 8080 ]]; then
+      systemctl stop "${LEGACY_SERVICE}" >/dev/null 2>&1 || true
+    fi
+    pids="$(bg_listen_pids "${port}")"
+    for pid in ${pids}; do
+      kill -TERM "${pid}" 2>/dev/null || true
+    done
+    for (( waited = 0; waited < STOP_TIMEOUT_SECONDS; waited++ )); do
+      bg_port_busy "${port}" || break
+      sleep 1
+    done
+    if bg_port_busy "${port}"; then
+      for pid in $(bg_listen_pids "${port}"); do
+        kill -KILL "${pid}" 2>/dev/null || true
+      done
+      sleep 1
+    fi
+  fi
+
+  # 되살아나는 프로세스(재시작 정책 등)를 잡기 위해 조치를 했다면 잠시 뒤 다시 확인한다.
+  if (( settle )); then
+    sleep 3
+  fi
+  if bg_port_busy "${port}"; then
+    echo "Port ${port} is still in use after stop attempts." >&2
+    return 1
+  fi
+  if [[ "${port}" == 8080 ]]; then
+    bg_cleanup_legacy || true
   fi
 }
 
-# 활성 컨테이너, 존재하는 모든 컨테이너가 참조하는 release, 그 외 최근 2개를 남긴다.
 bg_prune_releases() {
   local active_container="$1"
   local keep_others=2
