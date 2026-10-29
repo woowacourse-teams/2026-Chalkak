@@ -5,7 +5,9 @@ import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.AiReviewContent
 import com.stonefive.chalkak.domain.model.AiReviewCriterion
 import com.stonefive.chalkak.domain.model.AiReviewFeedback
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.BannerPage
+import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -47,6 +49,102 @@ import org.junit.Test
 class HomeAiReviewTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun `completed review survives home reentry without another GET`() = runTest {
+        val ai = FakeAiReviewRepository().apply {
+            getResults += success(AiReview.Status.COMPLETED, content = content())
+        }
+        val viewModel = createViewModel(ai)
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+
+        repeat(2) {
+            viewModel.onPause()
+            viewModel.onResume()
+            runCurrent()
+            assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
+            assertEquals(content(), viewModel.uiState.value.feedbackResult)
+        }
+        assertEquals(listOf(POST_ID), ai.getPostIds)
+    }
+
+    @Test
+    fun `processing review stays visible while home reentry GET is pending`() = runTest {
+        val ai = FakeAiReviewRepository().apply {
+            getResults += success(AiReview.Status.PROCESSING)
+            getResults += success(AiReview.Status.COMPLETED, content = content())
+        }
+        val viewModel = createViewModel(ai)
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        viewModel.onPause()
+        ai.getGate = CompletableDeferred()
+
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Processing, viewModel.uiState.value.feedbackPhase)
+        assertEquals(listOf(POST_ID, POST_ID), ai.getPostIds)
+        ai.getGate!!.complete(Unit)
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Completed, viewModel.uiState.value.feedbackPhase)
+    }
+
+    @Test
+    fun `ready review stays visible while home reentry GET is pending`() = runTest {
+        val ai = FakeAiReviewRepository().apply {
+            getResults += success(AiReview.Status.NONE)
+            getResults += success(AiReview.Status.NONE)
+        }
+        val viewModel = createViewModel(ai)
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        viewModel.onPause()
+        ai.getGate = CompletableDeferred()
+
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
+        ai.getGate!!.complete(Unit)
+        runCurrent()
+        assertEquals(listOf(POST_ID, POST_ID), ai.getPostIds)
+    }
+
+    @Test
+    fun `completed review is cleared when post or account changes`() = runTest {
+        val ai = FakeAiReviewRepository().apply {
+            getResults += success(AiReview.Status.COMPLETED, content = content())
+            getResults += success(AiReview.Status.NONE)
+            getResults += success(AiReview.Status.NONE)
+        }
+        val repository = FakeHomeRepository(approved = true)
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = HomeViewModel(
+            repository = repository,
+            uploadEntryRepository = repository,
+            sessionState = session,
+            bannerRepository = repository,
+            aiReviewRepository = ai,
+            dateProvider = { TODAY },
+        ).also { it.startPreloading() }
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+
+        repository.postId = "new-post"
+        viewModel.refresh()
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
+        assertNull(viewModel.uiState.value.feedbackResult)
+        session.value = UserSessionState.Authenticated("other-user")
+        runCurrent()
+        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
+        assertNull(viewModel.uiState.value.feedbackResult)
+        assertEquals(listOf(POST_ID, "new-post", "new-post"), ai.getPostIds)
+    }
 
     @Test
     fun `preload does not request AI and NONE does not start POST`() = runTest {
@@ -377,10 +475,18 @@ class HomeAiReviewTest {
         PostRepository,
         PhotoUploadEntryRepository,
         BannerRepository {
+        override suspend fun getAuthorPosts(
+            authorId: String,
+            page: Int,
+            pageSize: Int,
+        ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
+        var postId = POST_ID
+
         override suspend fun getPostCalendar(month: YearMonth) = HomeResult.Success(
             PostCalendar(
                 month,
-                if (approved) listOf(PostCalendarItem(POST_ID, TODAY, "thumb", PostStatus.APPROVED)) else emptyList(),
+                if (approved) listOf(PostCalendarItem(postId, TODAY, "thumb", PostStatus.APPROVED)) else emptyList(),
             ),
         )
 
@@ -441,6 +547,7 @@ class HomeAiReviewTest {
             contentDescription = "사진",
             title = null,
             likeCount = 0,
+            authorId = "author",
         )
     }
 }

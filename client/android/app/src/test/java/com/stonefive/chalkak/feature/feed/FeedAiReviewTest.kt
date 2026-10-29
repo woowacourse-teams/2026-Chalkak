@@ -5,6 +5,8 @@ import com.stonefive.chalkak.domain.model.AiReview
 import com.stonefive.chalkak.domain.model.AiReviewContent
 import com.stonefive.chalkak.domain.model.AiReviewCriterion
 import com.stonefive.chalkak.domain.model.AiReviewFeedback
+import com.stonefive.chalkak.domain.model.AuthorPostsPage
+import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
@@ -414,6 +416,12 @@ class FeedAiReviewTest {
     }
 
     private class FeedAiPostRepository : PostRepository {
+        override suspend fun getAuthorPosts(
+            authorId: String,
+            page: Int,
+            pageSize: Int,
+        ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
+
         override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
         override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
@@ -449,6 +457,7 @@ class FeedAiReviewTest {
                 title = null,
                 likeCount = 0,
                 isOwnedByCurrentUser = isOwned,
+                authorId = "author",
             ),
             isLiked = false,
             topicDate = topicDate,

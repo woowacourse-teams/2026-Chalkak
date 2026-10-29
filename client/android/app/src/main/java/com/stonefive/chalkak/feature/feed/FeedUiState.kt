@@ -5,6 +5,7 @@ import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.feature.aireview.AiReviewUiState
 
 data class FeedUiState(
+    val showSignatureHint: Boolean = false,
     val content: FeedContentState.Success? = null,
     val isTitleEditable: Boolean = false,
     val isLoading: Boolean = false,

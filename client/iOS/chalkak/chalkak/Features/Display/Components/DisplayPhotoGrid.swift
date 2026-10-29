@@ -9,6 +9,12 @@ struct DisplayPhotoGrid: View {
     var onLike: (DisplayPhoto) -> Void = { _ in }
     // 선택한 사진과, 이미 측정된 세로/가로 비율(없으면 nil)을 전달한다.
     var onSelect: (DisplayPhoto, CGFloat?, FeedZoomRegistry.Source) -> Void = { _, _, _ in }
+    // 카드를 줌 전환 출발 뷰로 등록할 이름. 작가 사진 목록은 전시 그리드와 따로 등록한다.
+    var zoomSource: (DisplayPhoto.ID) -> FeedZoomSource = FeedZoomSource.displayGrid
+    // 작가 사진 목록은 화면 전체가 한 작가라 카드마다 사인을 다시 그리지 않는다.
+    var showsSignature = true
+    // 작가 사진 목록 응답에 좋아요가 아직 없어 배지를 숨긴다.
+    var showsLikeBadge = true
 
     // 로드되며 측정된 사진별 세로/가로 비율(height / width). 미측정 사진은 기본 비율로 배치한다.
     @State private var ratioByID: [DisplayPhoto.ID: CGFloat] = [:]
@@ -39,6 +45,9 @@ struct DisplayPhotoGrid: View {
                     photo: item.photo,
                     ratio: ratioByID[item.photo.id],
                     isLiking: likingPhotoIDs.contains(item.photo.id),
+                    zoomSource: zoomSource(item.photo.id),
+                    showsSignature: showsSignature,
+                    showsLikeBadge: showsLikeBadge,
                     onSelect: { onSelect(item.photo, ratioByID[item.photo.id], $0) },
                     onLike: { onLike(item.photo) },
                     onMeasured: { ratio in
@@ -88,9 +97,13 @@ private struct MasonryItem: Identifiable {
 
 private struct DisplayMasonryCell: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     let photo: DisplayPhoto
     let ratio: CGFloat?
     let isLiking: Bool
+    let zoomSource: FeedZoomSource
+    let showsSignature: Bool
+    let showsLikeBadge: Bool
     let onSelect: (FeedZoomRegistry.Source) -> Void
     let onLike: () -> Void
     let onMeasured: (CGFloat) -> Void
@@ -103,20 +116,29 @@ private struct DisplayMasonryCell: View {
         Color.black
             .aspectRatio(widthOverHeight, contentMode: .fit)
             .overlay {
-                ChalkakSignedImage(
-                    imageSource: photo.thumbnailImageSource,
-                    signatureSource: photo.signatureThumbnailImageSource,
-                    contentDescription: photo.contentDescription,
-                    contentMode: .fill,
-                    signatureSize: Metrics.signatureSize
-                )
+                if showsSignature {
+                    ChalkakSignedImage(
+                        imageSource: photo.thumbnailImageSource,
+                        signatureSource: photo.signatureThumbnailImageSource,
+                        contentDescription: photo.contentDescription,
+                        contentMode: .fill,
+                        signatureSize: Metrics.signatureSize
+                    )
+                } else {
+                    ChalkakImage(
+                        source: photo.thumbnailImageSource,
+                        contentDescription: photo.contentDescription,
+                        contentMode: .fill
+                    )
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
             .contentShape(Rectangle())
             .feedZoomSource(
-                .displayGrid(photo.id),
+                zoomSource,
                 cornerRadius: theme.shapes.photoCard,
-                signatureSize: Metrics.signatureSize,
+                // 사인이 없는 카드는 피드 사인이 날아올 출발 위치가 없어 제자리에서 나타난다.
+                signatureSize: showsSignature ? Metrics.signatureSize : nil,
                 onSelect: onSelect
             )
             .accessibilityElement(children: .ignore)
@@ -124,12 +146,16 @@ private struct DisplayMasonryCell: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("피드 열기")
             .overlay(alignment: .bottomLeading) {
-                DisplayLikeBadge(
-                    likeCount: photo.likeCount,
-                    isLiked: photo.isLiked,
-                    isEnabled: !isLiking,
-                    onLike: onLike
-                )
+                if showsLikeBadge {
+                    DisplayLikeBadge(
+                        likeCount: photo.likeCount,
+                        isLiked: photo.isLiked,
+                        isEnabled: !isLiking,
+                        onLike: onLike
+                    )
+                    .opacity(zoomRegistry?.activeSource == zoomSource ? 0 : 1)
+                    .allowsHitTesting(zoomRegistry?.activeSource != zoomSource)
+                }
             }
             .task(id: photo.id) {
                 guard ratio == nil,

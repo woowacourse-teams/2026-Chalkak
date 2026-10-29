@@ -20,12 +20,13 @@ struct PhotoUploadRoute: View {
     @State private var isPhotoPermissionAlertPresented = false
     @State private var isRequestingPhotoPermission = false
     @State private var photoSelectionLoader = PhotoUploadSelectionLoader()
+    @State private var showsDiscardDialog = false
 
     var body: some View {
         PhotoUploadScreen(
             viewState: viewModel.viewState,
             isCameraAvailable: UIImagePickerController.isSourceTypeAvailable(.camera),
-            onAction: viewModel.handle,
+            onAction: handleAction,
             onRetryTopicLoad: viewModel.retryTopicLoad
         )
         .onChange(of: viewModel.event) { _, event in
@@ -74,7 +75,7 @@ struct PhotoUploadRoute: View {
                 onCancel: viewModel.cancelEditing
             )
         }
-        .alert("촬영 사진 저장 권한", isPresented: $isPhotoPermissionAlertPresented) {
+        .alert("촬영한 사진을 저장할까요?", isPresented: $isPhotoPermissionAlertPresented) {
             Button("설정 열기") {
                 guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
                 openURL(url)
@@ -85,8 +86,27 @@ struct PhotoUploadRoute: View {
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text("촬영한 사진을 자동으로 저장하려면 설정에서 사진 추가 권한을 허용해 주세요.")
+            Text("사진 추가 권한을 허용하면 촬영한 사진이 사진 앱에도 저장돼요. 허용하지 않아도 사진을 골라 게시물을 작성할 수 있어요.")
         }
+        .alert("작성을 그만둘까요?", isPresented: $showsDiscardDialog) {
+            Button("취소", role: .cancel) {}
+            Button("뒤로 가기", role: .destructive) {
+                viewModel.handle(.backClicked)
+            }
+        } message: {
+            Text("뒤로 가면 작성 중인 내용이 사라져요. 계속 작성하려면 취소를 눌러 주세요.")
+        }
+    }
+
+    private func handleAction(_ action: PhotoUploadAction) {
+        if case .backClicked = action {
+            guard !viewModel.viewState.isSubmitting, !showsDiscardDialog else { return }
+            if viewModel.viewState.hasUnsavedDraft {
+                showsDiscardDialog = true
+                return
+            }
+        }
+        viewModel.handle(action)
     }
 
     private var editRequest: Binding<PhotoUploadEditRequest?> {

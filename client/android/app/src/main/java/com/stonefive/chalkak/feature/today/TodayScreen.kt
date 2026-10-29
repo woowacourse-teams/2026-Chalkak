@@ -42,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
@@ -396,6 +397,7 @@ private fun TodayScreenPreview() {
                         contentDescription = "노을이 진 하늘과 전신주",
                         title = "안녕하세요 찰캌입니다.",
                         likeCount = 24,
+                        authorId = "preview-author",
                     ),
                     Post(
                         id = "preview-2",
@@ -406,6 +408,7 @@ private fun TodayScreenPreview() {
                         contentDescription = "두 번째 사진",
                         title = null,
                         likeCount = 12,
+                        authorId = "preview-author",
                     ),
                 ),
             ),
@@ -414,7 +417,8 @@ private fun TodayScreenPreview() {
     }
 }
 
-private fun drawableResourceUrl(resourceId: Int): String = "android.resource://com.stonefive.chalkak/$resourceId"
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
 
 val TodayInitialError.message: String
     get() = when (this) {

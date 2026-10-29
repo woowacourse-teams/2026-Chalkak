@@ -29,6 +29,8 @@ fun FeedContent(
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
     onPhotoBoundsChanged: (Rect) -> Unit = {},
+    onSignatureClick: () -> Unit = {},
+    onSignatureVisible: () -> Unit = {},
 ) {
     if (content == null && (entryPostId == null || entryThumbnailImageUrl == null)) return
 
@@ -39,6 +41,8 @@ fun FeedContent(
         entryPostId = entryPostId,
         entryThumbnailImageUrl = entryThumbnailImageUrl,
         onPhotoBoundsChanged = onPhotoBoundsChanged,
+        onSignatureClick = onSignatureClick,
+        onSignatureVisible = onSignatureVisible,
     )
 }
 
@@ -61,6 +65,7 @@ private fun FeedContentPreview() {
                     contentDescription = "노을이 진 하늘과 전신주",
                     title = "안녕하세요 감사합니다.",
                     likeCount = 24,
+                    authorId = "preview-author",
                 ),
                 isLiked = false,
                 topicDate = LocalDate
@@ -80,10 +85,13 @@ private fun FeedPostContent(
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
     onPhotoBoundsChanged: (Rect) -> Unit = {},
+    onSignatureClick: () -> Unit = {},
+    onSignatureVisible: () -> Unit = {},
 ) {
+    val scrollState = rememberScrollState()
     Column(
         modifier = modifier
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(bottom = 40.dp),
     ) {
         FeedTopic(
@@ -101,6 +109,8 @@ private fun FeedPostContent(
             entryPostId = entryPostId,
             entryThumbnailImageUrl = entryThumbnailImageUrl,
             onPhotoBoundsChanged = onPhotoBoundsChanged,
+            onSignatureClick = onSignatureClick,
+            onSignatureVisible = onSignatureVisible,
         )
     }
 }

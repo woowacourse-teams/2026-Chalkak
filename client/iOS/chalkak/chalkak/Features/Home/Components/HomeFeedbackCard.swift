@@ -39,8 +39,10 @@ struct HomeFeedbackCard: View {
                                 .font(theme.typography.footnote)
                                 .foregroundStyle(theme.colors.textSecondary)
                         }
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        // 심볼을 위·아래로 바꿔 끼우면 애니메이션 중 두 화살표가 겹쳐 보여서, 하나를 회전시킨다.
+                        Image(systemName: "chevron.down")
                             .font(.system(size: Metrics.chevronSize, weight: .semibold))
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
                             .foregroundStyle(theme.colors.iconSecondary)
                             .frame(width: Metrics.iconSize, height: Metrics.iconSize)
                             .accessibilityHidden(true)
@@ -86,6 +88,9 @@ struct HomeFeedbackCard: View {
             }
         }
         .background(theme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: theme.shapes.xlarge))
+        // 펼침·접힘 중에는 카드 높이가 조금씩 변하는데, 상세 내용은 최종 위치에 바로 그려진다.
+        // 카드 모양으로 잘라야 카드 밖으로 비친 상세 내용이 아래 섹션과 겹쳐 보이지 않는다.
+        .clipShape(RoundedRectangle(cornerRadius: theme.shapes.xlarge))
         .contentShape(Rectangle())
         .gesture(
             TapGesture().onEnded { isInterpretationTipPresented = false },

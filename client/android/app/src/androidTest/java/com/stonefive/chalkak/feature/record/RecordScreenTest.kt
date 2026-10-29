@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -308,6 +309,6 @@ private val RecordTestMonth = YearMonth.of(2026, 8)
 private fun recordPhoto(day: Int): PostCalendarItem = PostCalendarItem(
     postId = "post-$day",
     topicDate = RecordTestMonth.atDay(day),
-    thumbnailImageUrl = "android.resource://com.stonefive.chalkak/drawable/home_feed_photo",
+    thumbnailImageUrl = "android.resource://${BuildConfig.APPLICATION_ID}/drawable/home_feed_photo",
     status = PostStatus.APPROVED,
 )

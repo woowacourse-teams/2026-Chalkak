@@ -73,6 +73,31 @@ fun Modifier.sharedPhotoElement(
     }
 }
 
+/** Shares the author's signature independently of a particular photo transition. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun Modifier.sharedAuthorSignature(authorId: String?): Modifier {
+    if (authorId.isNullOrBlank()) return this
+    val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
+    return with(sharedTransitionScope) {
+        sharedBounds(
+            sharedContentState = rememberSharedContentState(AuthorSignatureKey(authorId)),
+            animatedVisibilityScope = animatedVisibilityScope,
+            // Feed strokes are white, while the header uses the current icon color.
+            enter = fadeIn(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+            exit = fadeOut(tween(PHOTO_TRANSITION_DURATION_MILLIS)),
+            resizeMode = ResizeMode.scaleToBounds(),
+            zIndexInOverlay = AUTHOR_SIGNATURE_OVERLAY_Z_INDEX,
+            boundsTransform = { _, _ ->
+                tween(PHOTO_TRANSITION_DURATION_MILLIS, easing = FastOutSlowInEasing)
+            },
+        )
+    }
+}
+
+private data class AuthorSignatureKey(val authorId: String)
+
 /** Keeps screen controls above the photo while both are drawn outside their parent layers. */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -159,3 +184,5 @@ private const val PHOTO_CHROME_OVERLAY_Z_INDEX = 1f
 
 // Opening keeps a gradual screen fade; returning finishes with the photo movement.
 internal const val PHOTO_CONTENT_FADE_DURATION_MILLIS = 700
+
+private const val AUTHOR_SIGNATURE_OVERLAY_Z_INDEX = 2f

@@ -44,6 +44,8 @@ struct DisplayPhoto: Identifiable, Equatable, Sendable {
     var likeCount: Int
     var isLiked: Bool
     let isOwnedByCurrentUser: Bool
+    // 사진 작성자의 회원 ID. 응답에 없으면 nil이다.
+    var authorID: String? = nil
 }
 
 struct DisplayPage: Equatable, Sendable {

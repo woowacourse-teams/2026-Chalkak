@@ -59,6 +59,7 @@ struct DisplayFeaturedCarousel: View {
 
 private struct DisplayFeaturedCard: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.feedZoomRegistry) private var zoomRegistry
     let photo: DisplayPhoto
     let isLiking: Bool
     let onLike: () -> Void
@@ -86,7 +87,7 @@ private struct DisplayFeaturedCard: View {
                 thumbnailImageSource: photo.thumbnailImageSource,
                 thumbnailSignatureSource: photo.signatureThumbnailImageSource
             )
-            // 사진만 숨겨 검은 카드·좋아요 수·제목은 남긴다. 출발 위치는 카드 안에 맞춘 사진 영역이고,
+            // 사진과 좋아요 배지는 전환 중 숨긴다. 출발 위치는 카드 안에 맞춘 사진 영역이고,
             // 카드 마스크를 함께 전달해 비율이 다른 사진도 출발 때 보이던 모서리를 유지한다.
             .feedZoomSource(
                 .displayFeatured(photo.id),
@@ -112,7 +113,12 @@ private struct DisplayFeaturedCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(photo.contentDescription), 좋아요 \(photo.likeCount)")
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .onTapGesture(coordinateSpace: .global) { location in
+            if let source = zoomRegistry?.source(for: .displayFeatured(photo.id)),
+               !source.acceptsTap(at: location) { return }
+            onSelect()
+        }
+        .accessibilityAction { onSelect() }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("피드 열기")
         .overlay(alignment: .bottomLeading) {
@@ -122,6 +128,8 @@ private struct DisplayFeaturedCard: View {
                 isEnabled: !isLiking,
                 onLike: onLike
             )
+            .opacity(zoomRegistry?.activeSource == .displayFeatured(photo.id) ? 0 : 1)
+            .allowsHitTesting(zoomRegistry?.activeSource != .displayFeatured(photo.id))
         }
         .task(id: photo.id) {
             // 썸네일이 먼저 보이는 동안에도 실제 fit 영역을 출발 프레임으로 사용한다.

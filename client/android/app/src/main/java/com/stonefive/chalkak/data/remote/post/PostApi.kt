@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.remote.post
 
+import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCreateRequest
@@ -21,6 +22,13 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface PostApi {
+    @GET("users/{userId}/posts")
+    suspend fun getAuthorPosts(
+        @Path("userId") authorId: String,
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int,
+    ): Response<AuthorPostsResponse>
+
     @GET("posts/today")
     suspend fun getTodayPostStatus(): Response<TodayPostResponse>
 
