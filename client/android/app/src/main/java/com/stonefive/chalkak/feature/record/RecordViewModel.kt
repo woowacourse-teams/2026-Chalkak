@@ -159,6 +159,23 @@ class RecordViewModel(
         saveSelectedDate()
     }
 
+    /**
+     * 묶음에서 피드로 여는 사진의 날짜를 기억한다.
+     * 피드에서 돌아오면 재검증이 최신 날짜를 고르는데, 이때만은 보던 날을 다시 펼치게 한다.
+     */
+    fun keepDateOnReturn(date: LocalDate) {
+        if (_uiState.value.posts
+                .none { it.topicDate == date }
+        ) {
+            return
+        }
+
+        requestedDate = null
+        restoredDate = date
+        _uiState.update { it.copy(selectedDate = date) }
+        saveSelectedDate()
+    }
+
     /** 연간 달력에서 고른 달을 연다. 기록이 없어도 지금 보던 달이면 다시 연다. 이미 받은 달이면 바로 그리고 뒤에서 최신화한다. */
     fun showMonth(month: YearMonth) {
         val state = _uiState.value

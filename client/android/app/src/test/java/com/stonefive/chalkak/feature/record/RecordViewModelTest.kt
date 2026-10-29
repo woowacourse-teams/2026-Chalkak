@@ -97,6 +97,23 @@ class RecordViewModelTest {
     }
 
     @Test
+    fun `피드로 연 날짜는 돌아와 재검증해도 다시 펼치고 그다음 재검증부터는 최신 날짜를 고른다`() = runTest {
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
+
+        viewModel.keepDateOnReturn(RecordTestMonth.atDay(2))
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+
+        viewModel.revalidate()
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+
+        viewModel.revalidate()
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
     fun `복원한 선택 날짜가 게시물에 있으면 최신 날짜보다 우선한다`() = runTest {
         val handle = SavedStateHandle(
             mapOf(

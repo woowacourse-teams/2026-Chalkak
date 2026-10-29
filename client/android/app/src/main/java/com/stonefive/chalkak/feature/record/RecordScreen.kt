@@ -148,6 +148,7 @@ fun RecordRoute(
         onNavigateToLogin = onNavigateToLogin,
         onRetryClick = viewModel::retryCurrentMonth,
         onOpenFeed = onOpenFeed,
+        onFeedOpened = viewModel::keepDateOnReturn,
         onPendingPhotoClick = viewModel::onPendingPhotoSelected,
         onToggleStackStyle = viewModel::togglePhotoStackStyle,
         onShowMonth = viewModel::showMonth,
@@ -165,6 +166,7 @@ fun RecordRoute(
  * - 연간: 월간 왼쪽 위의 연월을 눌러 나가 다른 달을 고른다.
  *
  * @param images 묶음에 그릴 게시물별 썸네일. 사진 원래 비율로 자리를 잡는 데도 쓴다.
+ * @param onFeedOpened 피드로 연 사진의 날짜. 돌아왔을 때 묶음이 그날을 다시 펼치도록 기억한다.
  */
 @Composable
 fun RecordScreen(
@@ -176,6 +178,7 @@ fun RecordScreen(
     onNavigateToLogin: () -> Unit = {},
     onRetryClick: () -> Unit = {},
     onOpenFeed: (String, String) -> Unit = { _, _ -> },
+    onFeedOpened: (LocalDate) -> Unit = {},
     onPendingPhotoClick: () -> Unit = {},
     onToggleStackStyle: () -> Unit = {},
     onShowMonth: (YearMonth) -> Unit = {},
@@ -246,6 +249,7 @@ fun RecordScreen(
                     onNavigateToLogin = onNavigateToLogin,
                     onRetryClick = onRetryClick,
                     onOpenFeed = onOpenFeed,
+                    onFeedOpened = onFeedOpened,
                     onPendingPhotoClick = onPendingPhotoClick,
                     onToggleStackStyle = onToggleStackStyle,
                     onLoadTopicTitles = onLoadTopicTitles,
@@ -265,6 +269,7 @@ private fun RecordMonthContent(
     onNavigateToLogin: () -> Unit,
     onRetryClick: () -> Unit,
     onOpenFeed: (String, String) -> Unit,
+    onFeedOpened: (LocalDate) -> Unit,
     onPendingPhotoClick: () -> Unit,
     onToggleStackStyle: () -> Unit,
     onLoadTopicTitles: (List<LocalDate>) -> Unit,
@@ -277,8 +282,16 @@ private fun RecordMonthContent(
     val scrollState = rememberScrollState()
     val collapsePx = with(density) { StackExpansion.roundToPx() }
     var viewportHeight by remember { mutableIntStateOf(0) }
-    val stackPosition = remember { Animatable(0f) }
     val order = remember(uiState.month, uiState.posts) { RecordPhotoStackOrder(uiState.month, uiState.posts) }
+    // 피드에서 돌아와 다시 그릴 때 첫 프레임부터 고른 날을 펼친다.
+    // 그래야 돌아오는 사진이 내려앉을 자리가 처음부터 있어 공유 전환이 이어진다.
+    val stackPosition = remember {
+        Animatable(
+            uiState.selectedDate
+                ?.let(order::indexOf)
+                ?.let(order::position) ?: 0f,
+        )
+    }
     val stackStyle = uiState.photoStackStyle
 
     // 홈 주간 기록에서 날짜를 골라 들어오거나 달을 옮기면 묶음도 그날(없으면 가장 최근 날)을 보여준다.
@@ -327,9 +340,11 @@ private fun RecordMonthContent(
     }
 
     // 묶음의 사진을 누르면 그 사진의 피드로 간다. 승인 전 사진은 피드에 보이지 않으므로(POST-007) 이동하지 않는다.
+    // 돌아왔을 때 같은 날을 다시 펼치도록 그 날짜를 기억해 둔다.
     val openFeed: (PostCalendarItem) -> Unit = { post ->
         if (post.status == PostStatus.APPROVED) {
             photoTransitionCoordinator.select(PhotoTransitionKey(post.postId, recordTransitionSourceId(post.postId)))
+            onFeedOpened(post.topicDate)
             onOpenFeed(post.postId, post.thumbnailImageUrl)
         } else {
             onPendingPhotoClick()
