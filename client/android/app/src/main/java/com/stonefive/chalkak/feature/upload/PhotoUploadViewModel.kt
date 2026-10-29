@@ -33,6 +33,7 @@ class PhotoUploadViewModel(
     private val postCreationRepository: PostCreationRepository,
     private val topicDate: LocalDate,
     private val saveCaptureToGallery: (File) -> Boolean = { false },
+    private val isPhotoEditEnabled: () -> Boolean = { true },
 ) : ViewModel() {
     private var creationTopic: Topic? = null
     private var preparedImage: PostImagePreparation? = null
@@ -90,15 +91,22 @@ class PhotoUploadViewModel(
         _uiState.update { it.copy(showsDiscardConfirmation = false) }
     }
 
-    /** 사진을 고르거나 찍으면 편집 화면을 먼저 띄운다. 업로드 준비는 편집을 완료한 뒤 시작한다. */
+    /**
+     * 사진을 고르거나 찍으면 편집 화면을 먼저 띄운다. 업로드 준비는 편집을 완료한 뒤 시작한다.
+     * 원격 설정으로 사진 편집이 꺼져 있으면 편집 없이 원본을 바로 고른다.
+     */
     fun onImageSelected(image: String) {
         if (_uiState.value.isSubmitting) return
-        openEditor(image, PhotoEdit())
+        if (isPhotoEditEnabled()) {
+            openEditor(image, PhotoEdit())
+        } else {
+            replaceSelectedImage(image, PhotoEdit())
+        }
     }
 
     fun onPhotoClick() {
         val state = _uiState.value
-        if (state.isSubmitting) return
+        if (state.isSubmitting || !isPhotoEditEnabled()) return
         val image = state.selectedImage ?: return
         openEditor(image, state.selectedEdit)
     }
@@ -448,6 +456,9 @@ class PhotoUploadViewModel(
                     postCreationRepository = application.appContainer.postCreationRepository,
                     topicDate = topicDate,
                     saveCaptureToGallery = { file -> saveCameraCaptureToGallery(application, file) },
+                    isPhotoEditEnabled = {
+                        application.appContainer.appConfigRepository.config.value.isPhotoEditEnabled
+                    },
                 )
             }
         }

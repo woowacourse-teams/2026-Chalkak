@@ -140,6 +140,7 @@ dependencies {
     implementation(libs.play.app.update.ktx)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.config)
     implementation(libs.googleid)
     implementation(libs.kakao.user)
     implementation(libs.retrofit)

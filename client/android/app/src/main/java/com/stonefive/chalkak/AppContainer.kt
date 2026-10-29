@@ -21,6 +21,7 @@ import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.aireview.AiReviewDataSourceImpl
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
+import com.stonefive.chalkak.data.remote.config.FirebaseAppConfigRepository
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
 import com.stonefive.chalkak.data.remote.notification.NotificationRemoteDataSourceImpl
@@ -41,6 +42,7 @@ import com.stonefive.chalkak.data.repository.PostCreationRepositoryImpl
 import com.stonefive.chalkak.data.repository.PostRepositoryImpl
 import com.stonefive.chalkak.data.repository.UserRepositoryImpl
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.AppConfigRepository
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
@@ -85,6 +87,15 @@ class AppContainer(context: Context) {
     }
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val firebaseAppConfigRepository by lazy {
+        FirebaseAppConfigRepository(
+            scope = applicationScope,
+            minimumFetchIntervalSeconds = if (BuildConfig.DEBUG) 0L else REMOTE_CONFIG_FETCH_INTERVAL_SECONDS,
+        )
+    }
+
+    val appConfigRepository: AppConfigRepository by lazy { firebaseAppConfigRepository }
     private val sessionStore = UserSessionStore(context, applicationScope)
     private val networkModule = NetworkModule(
         baseUrl = BuildConfig.API_BASE_URL,
@@ -221,6 +232,10 @@ class AppContainer(context: Context) {
         postRepositoryImpl
     }
 
+    fun initializeRemoteConfig() {
+        firebaseAppConfigRepository.start()
+    }
+
     fun initializePush() {
         PushNotificationManager.createChannel(applicationContext)
         applicationScope.launch {
@@ -275,6 +290,9 @@ class AppContainer(context: Context) {
         }
     }
 }
+
+// 운영 앱이 원격 설정을 다시 받는 최소 간격. 근거는 docs/architecture/remote-config.md 참고.
+private const val REMOTE_CONFIG_FETCH_INTERVAL_SECONDS = 60L * 60L
 
 private suspend fun com.google.android.gms.tasks.Task<String>.awaitResult(): String? =
     suspendCancellableCoroutine { continuation ->

@@ -35,6 +35,26 @@ class PhotoUploadViewModelTest {
     private val viewModel by lazy { PhotoUploadViewModel(postCreationRepository, uploadTopicDate) }
 
     @Test
+    fun `원격 설정으로 사진 편집이 꺼져 있으면 편집 화면 없이 원본을 고른다`() = runTest {
+        val viewModel = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+        )
+        val image = "content://media/photo/1"
+
+        viewModel.onImageSelected(image)
+
+        assertEquals(null, viewModel.uiState.value.editingPhoto)
+        assertEquals(image, viewModel.uiState.value.selectedImage)
+        assertEquals(PhotoEdit(), viewModel.uiState.value.selectedEdit)
+
+        viewModel.onPhotoClick()
+
+        assertEquals(null, viewModel.uiState.value.editingPhoto)
+    }
+
+    @Test
     fun `입력 내용이 없거나 공백뿐이면 확인 없이 뒤로 간다`() = runTest {
         viewModel.onAction(PhotoUploadUiAction.BackClicked)
         assertEquals(PhotoUploadUiEvent.NavigateBack, viewModel.uiEvent.first())
