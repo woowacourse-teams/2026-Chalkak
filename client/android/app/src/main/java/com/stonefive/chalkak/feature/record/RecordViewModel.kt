@@ -12,10 +12,18 @@ import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.PostCalendar
+import com.stonefive.chalkak.domain.model.PostCalendarItem
+import com.stonefive.chalkak.domain.repository.PhotoColorRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.RecordPreferenceRepository
+import com.stonefive.chalkak.feature.record.component.RecordPhotoStackStyle
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +38,10 @@ class RecordViewModel(
         YearMonth.now(ZoneId.of("Asia/Seoul"))
     },
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val photoColorRepository: PhotoColorRepository? = null,
+    private val preferenceRepository: RecordPreferenceRepository? = null,
+    // 책자 속표지의 내 사인 주소. 받지 못하면 null.
+    private val signatureLoader: suspend () -> String? = { null },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         RecordUiState(
@@ -54,9 +66,33 @@ class RecordViewModel(
     private var hasBeenPresented = false
     private var shouldRetryMonthList = false
     private var nextMessageId = 0L
+    private val loadingYears = mutableSetOf<Int>()
+    private val loadingTopicDates = mutableSetOf<LocalDate>()
 
     init {
         loadAvailableMonths(_uiState.value.month)
+        preferenceRepository?.let { preferences ->
+            viewModelScope.launch {
+                val saved = runCatchingUnlessCancelled { preferences.getPhotoStackStyle() }
+                    ?.let { name -> RecordPhotoStackStyle.entries.firstOrNull { it.name == name } }
+                    ?: return@launch
+                _uiState.update { it.copy(photoStackStyle = saved) }
+            }
+        }
+    }
+
+    /** 월간 사진 묶음 모양을 바꾸고, 다음에 열 때도 그 모양으로 보이게 저장한다. */
+    fun togglePhotoStackStyle() {
+        val style = _uiState.value.photoStackStyle.toggled
+        _uiState.update { it.copy(photoStackStyle = style) }
+        preferenceRepository?.let { preferences ->
+            viewModelScope.launch { runCatchingUnlessCancelled { preferences.setPhotoStackStyle(style.name) } }
+        }
+    }
+
+    /** 승인 전 사진은 피드에 보이지 않으므로(POST-007) 이동하지 않고 알려 준다. */
+    fun onPendingPhotoSelected() {
+        _uiState.update { it.copy(pendingMessage = nextToast("승인 전 사진은 아직 피드에서 볼 수 없어요")) }
     }
 
     fun moveToPreviousMonth() {
@@ -123,6 +159,98 @@ class RecordViewModel(
         saveSelectedDate()
     }
 
+    /** 연간 달력에서 고른 달을 연다. 기록이 없어도 지금 보던 달이면 다시 연다. 이미 받은 달이면 바로 그리고 뒤에서 최신화한다. */
+    fun showMonth(month: YearMonth) {
+        val state = _uiState.value
+        requestedDate = null
+        restoredDate = null
+        loadRecord(minOf(month, state.latestMonth))
+    }
+
+    /** 해당 연도의 기록이 있는 지난 달을 불러오고, 사진 색을 채운다. */
+    fun loadYear(year: Int) {
+        if (!loadingYears.add(year)) return
+        viewModelScope.launch {
+            try {
+                val state = _uiState.value
+                val months = state.availableMonths.filter {
+                    it.year == year && it <= state.latestMonth && it !in state.yearPosts
+                }
+                val loaded = months
+                    .map { month ->
+                        async {
+                            val result = runCatching { repository.getPostCalendar(month) }.getOrNull()
+                            (result as? HomeResult.Success)?.let { success ->
+                                month to success.value.posts
+                                    .filterNot { it.postId in deletedPostIds }
+                            }
+                        }
+                    }.awaitAll()
+                    .filterNotNull()
+                    .toMap()
+                _uiState.update { it.copy(yearPosts = it.yearPosts + loaded) }
+
+                val posts = _uiState.value.yearPosts
+                    .filterKeys { it.year == year }
+                    .values
+                    .flatten()
+                loadPhotoColors(posts)
+            } finally {
+                loadingYears.remove(year)
+            }
+        }
+    }
+
+    /** 아직 색을 모르는 사진만 몇 장씩 나눠 구하고, 묶음마다 화면에 반영해 색이 차례로 채워지게 한다. */
+    private suspend fun loadPhotoColors(posts: List<PostCalendarItem>) {
+        val colorRepository = photoColorRepository ?: return
+        val missing = posts.filter { it.postId !in _uiState.value.photoColors }
+        missing.chunked(PHOTO_COLOR_BATCH_SIZE).forEach { chunk ->
+            val colors = coroutineScope {
+                chunk
+                    .map { post ->
+                        async {
+                            runCatchingUnlessCancelled {
+                                colorRepository.getPhotoColor(post.postId, post.thumbnailImageUrl)
+                            }?.let { post.postId to it }
+                        }
+                    }.awaitAll()
+                    .filterNotNull()
+                    .toMap()
+            }
+            _uiState.update { it.copy(photoColors = it.photoColors + colors) }
+        }
+    }
+
+    /** 월간 책자에서 펼친 날 앞뒤의 주제를 불러온다. 실패한 날짜는 비워 두고 다음에 다시 펼칠 때 재시도한다. */
+    fun loadTopicTitles(dates: List<LocalDate>) {
+        val missing = dates.filter { it !in _uiState.value.topicTitles && loadingTopicDates.add(it) }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val titles = missing
+                    .map { date ->
+                        async {
+                            runCatchingUnlessCancelled { repository.getTopicTitle(date) }?.let { date to it }
+                        }
+                    }.awaitAll()
+                    .filterNotNull()
+                    .toMap()
+                _uiState.update { it.copy(topicTitles = it.topicTitles + titles) }
+            } finally {
+                loadingTopicDates.removeAll(missing.toSet())
+            }
+        }
+    }
+
+    /** 월간 책자 속표지에 넣을 내 사인을 받는다. 받지 못하면 전에 받은 사인을 그대로 둔다. */
+    fun loadSignature() {
+        viewModelScope.launch {
+            val url = runCatchingUnlessCancelled { signatureLoader() } ?: return@launch
+            _uiState.update { if (it.signatureUrl == url) it else it.copy(signatureUrl = url) }
+        }
+    }
+
     fun retryCurrentMonth() {
         val state = _uiState.value
         if (shouldRetryMonthList || (state.availableMonths.isEmpty() && state.errorMessage != null)) {
@@ -146,6 +274,8 @@ class RecordViewModel(
 
         val keepsContentVisible = state.errorMessage == null
         isRevalidating = true
+        // 탭에 다시 들어올 때 설정에서 바꾼 사인도 함께 새로 받는다.
+        loadSignature()
         val generation = ++latestLoadGeneration
         viewModelScope.launch {
             val monthsResult = runCatching { repository.getPostCalendarMonths() }
@@ -207,6 +337,7 @@ class RecordViewModel(
             }
             state.copy(
                 posts = updatedPosts,
+                yearPosts = state.yearPosts.mapValues { (_, posts) -> posts.filterNot { it.postId == postId } },
                 availableMonths = includeCurrentMonth(remainingMonths),
                 selectedDate = state.selectedDate
                     ?.takeIf { selectedDate -> updatedPosts.any { it.topicDate == selectedDate } }
@@ -254,7 +385,10 @@ class RecordViewModel(
         }
         val generation = ++latestLoadGeneration
         monthLoadGenerations[month] = generation
+        // 연간 달력에서 이미 받은 달이면 그 기록으로 먼저 그린다.
         val cachedCalendar = calendarCache[month]
+            ?: _uiState.value.yearPosts[month]
+                ?.let { PostCalendar(month = month, posts = it) }
         val hasVisibleContent = keepsContentVisible || cachedCalendar != null
         isRevalidating = hasVisibleContent
         if (cachedCalendar != null && !keepsContentVisible) {
@@ -422,6 +556,8 @@ class RecordViewModel(
     ): RecordUiState = copy(
         month = calendar.month,
         posts = calendar.posts,
+        // 받은 달은 연간 달력에도 채운다.
+        yearPosts = yearPosts + (calendar.month to calendar.posts),
         selectedDate = selectedDate,
         isLoading = false,
         errorMessage = null,
@@ -444,19 +580,38 @@ class RecordViewModel(
         .sortedDescending()
 
     companion object {
+        private const val PHOTO_COLOR_BATCH_SIZE = 8
         private const val KEY_MONTH = "record_month"
         private const val KEY_SELECTED_DATE = "record_selected_date"
 
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
+                val container = application.appContainer
                 RecordViewModel(
-                    repository = application.appContainer.postRepository,
+                    repository = container.postRepository,
                     savedStateHandle = createSavedStateHandle(),
+                    photoColorRepository = container.photoColorRepository,
+                    preferenceRepository = container.recordPreferenceRepository,
+                    // 책자 속표지의 사인은 설정 화면과 같은 내 사인 API로 받는다.
+                    signatureLoader = {
+                        container.userRepository
+                            .getMySignature()
+                            .signatureUrl
+                    },
                 )
             }
         }
     }
+}
+
+/** 실패하면 null을 돌려준다. 취소는 삼키지 않고 그대로 전한다. */
+private suspend fun <T> runCatchingUnlessCancelled(block: suspend () -> T?): T? = try {
+    block()
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (_: Exception) {
+    null
 }
 
 private fun HomeFailure.toRecordMessage(): String = when (this) {

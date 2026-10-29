@@ -163,6 +163,16 @@ class AppContainer(context: Context) {
         )
     }
 
+    val recordPreferenceRepository: com.stonefive.chalkak.domain.repository.RecordPreferenceRepository by lazy {
+        com.stonefive.chalkak.data.local.record
+            .RecordPreferenceStore(applicationContext)
+    }
+
+    val photoColorRepository: com.stonefive.chalkak.domain.repository.PhotoColorRepository by lazy {
+        com.stonefive.chalkak.data.local.record
+            .PhotoColorStore(applicationContext)
+    }
+
     val bannerRepository: BannerRepository by lazy {
         BannerRepositoryImpl(networkModule.bannerApi, networkModule.apiRequestExecutor)
     }

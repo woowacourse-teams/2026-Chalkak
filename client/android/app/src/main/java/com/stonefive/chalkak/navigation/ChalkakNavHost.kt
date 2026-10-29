@@ -750,11 +750,6 @@ fun ChalkakNavHost(
                                 )
                             }
                         },
-                        onOpenDisplay = { date ->
-                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
-                                navController.navigateToDisplay(date)
-                            }
-                        },
                         onNavigateToLogin = dropUnlessResumed(lifecycleOwner = backStackEntry, block = navigateToLogin),
                         deletedPostId = deletedPostId,
                         onDeletedPostConsumed = {
@@ -1093,12 +1088,6 @@ private fun Context.markPushNotificationPermissionRequested() {
         .edit()
         .putBoolean(PUSH_PERMISSION_REQUESTED_KEY, true)
         .apply()
-}
-
-private fun NavHostController.navigateToDisplay(date: LocalDate) {
-    navigate(Display(date = date.toString())) {
-        launchSingleTop = true
-    }
 }
 
 private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {
