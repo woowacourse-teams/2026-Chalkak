@@ -25,6 +25,14 @@ enum RecordPhotoStackStyle: String, CaseIterable, Identifiable {
     }
 
     var toggled: RecordPhotoStackStyle { self == .pillars ? .book : .pillars }
+
+    // Firebase가 모드별 조회 수와 포그라운드 참여 시간을 구분하도록 화면 이름을 나눈다.
+    var analyticsScreen: AnalyticsScreen {
+        switch self {
+        case .pillars: AnalyticsScreen(name: "record_scroll", screenClass: "Record")
+        case .book: AnalyticsScreen(name: "record_book", screenClass: "Record")
+        }
+    }
 }
 
 /// 묶음 위 한 장. 기록이 있는 날은 사진, 없는 날은 빈 프레임이다.
