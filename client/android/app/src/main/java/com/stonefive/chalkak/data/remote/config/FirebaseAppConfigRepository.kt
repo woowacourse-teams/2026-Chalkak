@@ -16,11 +16,13 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 /**
  * Firebase Remote Config로 [AppConfig]를 받아 온다.
@@ -47,16 +49,18 @@ class FirebaseAppConfigRepository(
                 .setMinimumFetchIntervalInSeconds(minimumFetchIntervalSeconds)
                 .build(),
         )
-        publish()
-        scope.launch { fetchAndActivate(minimumFetchIntervalSeconds) }
+        scope.launch {
+            publish()
+            fetchAndActivate(minimumFetchIntervalSeconds)
+        }
         remoteConfig.addOnConfigUpdateListener(
             object : ConfigUpdateListener {
                 override fun onUpdate(configUpdate: ConfigUpdate) {
-                    remoteConfig.activate().addOnCompleteListener { publish() }
+                    remoteConfig.activate().addOnCompleteListener { scope.launch { publish() } }
                 }
 
                 override fun onError(error: FirebaseRemoteConfigException) {
-                    publish()
+                    scope.launch { publish() }
                 }
             },
         )
@@ -78,7 +82,8 @@ class FirebaseAppConfigRepository(
         publish()
     }
 
-    private fun publish() {
+    // Firebase 캐시가 준비되지 않았으면 읽기가 대기할 수 있으므로 메인 스레드에서 실행하지 않는다.
+    private suspend fun publish() = withContext(Dispatchers.IO) {
         val defaults = AppConfig()
         _config.value = AppConfig(
             isAiReviewEnabled = remoteBoolean(KEY_AI_REVIEW_ENABLED) ?: defaults.isAiReviewEnabled,
