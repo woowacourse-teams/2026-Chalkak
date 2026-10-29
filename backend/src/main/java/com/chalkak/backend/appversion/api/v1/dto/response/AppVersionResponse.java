@@ -7,11 +7,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record AppVersionResponse(
         AppPlatform platform,
         @Schema(
+                description = "미설정이면 null이며 업데이트 제한을 적용하지 않습니다.",
                 types = {
-                        "string", "null"},
-                description = "미설정이면 null이며 업데이트 제한을 적용하지 않습니다.")
+                        "string",
+                        "null"
+                })
         String minimumSupportedVersion,
-        @Schema(types = {"string", "null"}, description = "미설정이면 null입니다.")
+        @Schema(
+                description = "미설정이면 null입니다.",
+                types = {
+                        "string",
+                        "null"
+                })
         String storeUrl
 ) {
 
