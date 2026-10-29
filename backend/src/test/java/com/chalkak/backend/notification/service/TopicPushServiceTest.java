@@ -500,7 +500,22 @@ class TopicPushServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("실행 중단 후 같은 인스턴스는 재발행하지 않고 재시작하면 중복 가능성이 남는다")
+    @DisplayName("서비스를 다시 만들어 발행해도 같은 회차는 원래 사건 ID와 기한을 유지한다")
+    void publishDueTopics_restartedService_preservesEventIdAndDeadline() {
+        // Given
+        service.publishDueTopics();
+        clock.set(NOW.plusSeconds(60));
+
+        // When
+        newService().publishDueTopics();
+
+        // Then
+        List<PushMessage> messages = captureMessages(2);
+        assertThat(messages.get(1)).isEqualTo(messages.getFirst());
+    }
+
+    @Test
+    @DisplayName("실행 중단 후 같은 인스턴스는 재발행하지 않고 재시작하면 같은 사건 ID로 다시 발행한다")
     void publishDueTopics_interruptedOccurrence_preservesBestEffortLimit() {
         // Given
         insertUser(new UUID(0, 2));
@@ -516,7 +531,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         List<PushMessage> messages = captureMessages(5);
         assertThat(messages.get(2).userId()).isEqualTo(messages.getFirst().userId());
         assertThat(messages.get(2).occurredAt()).isEqualTo(messages.getFirst().occurredAt());
-        assertThat(messages.get(2).eventId()).isNotEqualTo(messages.getFirst().eventId());
+        assertThat(messages.get(2).eventId()).isEqualTo(messages.getFirst().eventId());
     }
 
     private TopicPushService newService() {

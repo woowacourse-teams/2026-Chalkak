@@ -162,6 +162,121 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
         assertThat(exists(notificationId)).isTrue();
     }
 
+    @ParameterizedTest
+    @CsvSource({"ACTIVE,-1,false", "ACTIVE,0,true", "ACTIVE,1,true",
+            "BANNED,-1,false", "BANNED,0,true", "BANNED,1,true"})
+    @DisplayName("일반·정지 회원의 발송 이력도 생성 후 30일 경계가 지나면 삭제한다")
+    void deleteExpiredNotifications_deliveryRetention_matchesNotificationBoundary(
+            String status,
+            long secondsFromBoundary,
+            boolean retained
+    ) {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE users SET status = CAST(? AS user_status) WHERE id = ?",
+                status,
+                activeUserId
+        );
+        UUID deliveryId = insertDelivery(activeUserId,
+                NORMAL_THRESHOLD.plusSeconds(secondsFromBoundary));
+
+        // When
+        notificationCleanupScheduler.deleteExpiredNotifications();
+
+        // Then
+        assertThat(deliveryExists(deliveryId)).isEqualTo(retained);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-1,false", "0,true", "1,true"})
+    @DisplayName("탈퇴 회원 발송 이력은 생성일 대신 탈퇴 후 30일 경계로 정리한다")
+    void deleteExpiredNotifications_withdrawnDeliveries_followWithdrawalBoundary(
+            long secondsFromBoundary,
+            boolean retained
+    ) {
+        // Given
+        withdrawAt(WITHDRAWN_THRESHOLD.plusSeconds(secondsFromBoundary));
+        UUID oldDelivery = insertDelivery(withdrawnUserId, NORMAL_THRESHOLD.minusSeconds(1));
+        UUID recentDelivery = insertDelivery(withdrawnUserId, NOW.minusSeconds(1));
+
+        // When
+        notificationCleanupScheduler.deleteExpiredNotifications();
+
+        // Then
+        assertThat(deliveryExists(oldDelivery)).isEqualTo(retained);
+        assertThat(deliveryExists(recentDelivery)).isEqualTo(retained);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,PENDING", "false,COMPLETED", "true,PENDING", "true,COMPLETED"})
+    @DisplayName("발송 이력은 처리 상태와 무관하게 해당 회원의 30일 보관 기한이 지나면 삭제한다")
+    void deleteExpiredNotifications_pendingOrCompletedDelivery_usesRetentionPeriod(
+            boolean withdrawn,
+            String status
+    ) {
+        // Given
+        UUID userId = activeUserId;
+        if (withdrawn) {
+            withdrawAt(WITHDRAWN_THRESHOLD.minusSeconds(1));
+            userId = withdrawnUserId;
+        }
+        UUID deliveryId = insertDelivery(userId, NORMAL_THRESHOLD.minusSeconds(1));
+        if (status.equals("COMPLETED")) {
+            jdbcTemplate.update(
+                    """
+                            UPDATE push_deliveries SET status = 'COMPLETED', completed_at = clock_timestamp()
+                            WHERE id = ?
+                            """,
+                    deliveryId);
+        }
+
+        // When
+        notificationCleanupScheduler.deleteExpiredNotifications();
+
+        // Then
+        assertThat(deliveryExists(deliveryId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("완료된 발송 이력과 기기 결과 JSON도 보관 기간이 지나면 함께 삭제한다")
+    void deleteExpiredNotifications_completedDelivery_deletesDeviceResultsTogether() {
+        // Given
+        UUID deliveryId = insertDelivery(activeUserId, NORMAL_THRESHOLD.minusSeconds(1));
+        jdbcTemplate.update(
+                """
+                        UPDATE push_deliveries SET status = 'COMPLETED', completed_at = clock_timestamp(),
+                            device_results = jsonb_build_object('test-device', jsonb_build_object('status', 'ACCEPTED'))
+                        WHERE id = ?
+                        """,
+                deliveryId);
+
+        // When
+        notificationCleanupScheduler.deleteExpiredNotifications();
+
+        // Then
+        assertThat(deliveryExists(deliveryId)).isFalse();
+    }
+
+    private UUID insertDelivery(UUID userId, Instant createdAt) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO push_deliveries (id, event_id, user_id, created_at) VALUES (?, ?, ?, ?)",
+                id,
+                UUID.randomUUID(),
+                userId,
+                Timestamp.from(createdAt)
+        );
+        return id;
+    }
+
+    private boolean deliveryExists(UUID id) {
+        return jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM push_deliveries WHERE id = ?)",
+                Boolean.class,
+                id
+        );
+    }
+
     private void withdrawAt(Instant withdrawnAt) {
         jdbcTemplate.update(
                 "UPDATE users SET deleted_at = ? WHERE id = ?",

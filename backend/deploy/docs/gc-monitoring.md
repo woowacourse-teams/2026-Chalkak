@@ -35,15 +35,18 @@ GC 로그는 dev/prod 앱 시작 옵션으로 활성화하고 조사 후에도 �
 
    `sudo logrotate --debug /etc/logrotate.d/chalkak-memwatch`로 문법·파일 권한을 확인한다. `su root root`는 부모 디렉터리의 그룹 쓰기 권한이 있는 환경에서도 회전 계정을 명시한다. `maxsize`는 일 단위 회전과 함께 적용되며 logrotate 실행 시 검사하므로 실시간 용량 상한은 아니다. debug 검사는 상태 파일을 갱신하거나 실제로 회전하지 않는다.
 5. dev/prod Agent의 기존 설정을 백업하고 해당 환경의 `cloudwatch-agent.*.json`을 서버 `/opt/aws/amazon-cloudwatch-agent/etc/chalkak.json`에 적용한다. 기존 수집 항목과 서버별 추가 설정이 있다면 보존한다. [기존 Agent 적용 절차](monitoring.md#5-cloudwatch-agent-설치-dev-prod-ec2-각각)의 fetch-config·상태 확인을 따른다. 앱 배포는 Agent 설정을 자동 적용하지 않는다.
-6. GC 옵션은 다음 일반 앱 배포·서비스 재시작부터 적용된다. EC2 재부팅은 필요 없다. 기존 `jcmd` 로그 파일이 있다면 chalkak이 쓸 수 있는지 확인한다. JVM은 `/opt/chalkak/logs/gc.log` 및 회전 이력 최대 5개를 10MB 기준으로 관리한다. GC와 safepoint는 서로 별도 행으로 수집하며 줄을 합치지 않는다.
+6. GC 옵션은 다음 일반 앱 배포·서비스 재시작부터 적용된다. EC2 재부팅은 필요 없다. 기존 `jcmd` 로그 파일이 있다면 chalkak이 쓸 수 있는지 확인한다. 컨테이너 JVM은 포트별 `/opt/chalkak/logs/gc-<포트>.log`(`gc-8080.log`, `gc-8081.log`) 및 회전 이력 최대 5개를 10MB 기준으로 관리한다. 첫 컨테이너 배포 전의 기존 서비스만 `gc.log`를 쓴다. GC와 safepoint는 서로 별도 행으로 수집하며 줄을 합치지 않는다.
 7. 배포 후 아래와 CloudWatch 실제 유입·UTC 시각을 확인한다. 일반·알림 로그도 계속 들어와야 한다. GC를 강제로 실행하거나 테스트 문구를 운영 파일에 쓰지 않는다.
 
    ```bash
-   sudo systemctl status chalkak-backend.service --no-pager
-   sudo -u cwagent head -n 2 /opt/chalkak/logs/gc.log
+   sudo docker ps --filter name=chalkak-backend
+   cat /etc/nginx/snippets/chalkak-upstream.conf
+   sudo -u cwagent head -n 2 /opt/chalkak/logs/gc-<활성 포트>.log
    sudo systemctl list-timers chalkak-memwatch.timer --all
    sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
    ```
+
+CloudWatch 로그 스트림은 기존 `{instance_id}`(첫 컨테이너 배포 전), `{instance_id}-8080`, `{instance_id}-8081`이며 모두 같은 로그 그룹에 들어간다. `file_path`에 와일드카드를 쓰면 가장 최근 파일만 전송되므로 Agent 설정에 포트별 항목을 따로 둔다. `GcPauseOver2s` 필터는 그룹의 모든 스트림에 적용된다.
 
 GC 비동기 로깅은 쓰기 대기를 줄이는 목적이며 무손실을 보장하지 않는다. 버퍼 포화 등의 로그 경고가 있는지도 확인한다. 재시작할 때 GC 번호·uptime은 초기화되므로 실행 경계를 넘어 같은 GC 번호를 묶지 않는다.
 
@@ -84,6 +87,8 @@ fields @timestamp, @message
 | limit 1000
 ```
 
+`port=`는 활성 포트를 나타내는 필드다. PID는 docker 데몬을 거치지 않고 JVM의 GC 로그 경로(`gc-<포트>.log`)를 `pgrep`으로 찾으므로 데몬이 멈춰도 비지 않는다. 컨테이너 JVM이 없으면 systemd MainPID로 대체한다. 활성 컨테이너만 기록하므로 전환 후 약 10분 동안의 이전 앱 메모리는 서버 전체 `memavail_kb`·swap 필드에서만 보인다.
+
 같은 boot_id의 연속 두 행에서 `uptime_s` 차이가 실제 간격이며, `pswpin/pswpout/pgmajfault/cpu_steal_ticks/psi_*_us` 차이가 그 구간 증가량이다. Java major fault 차이는 PID와 java_start_ticks도 같을 때만 계산한다. 첫 측정·누락·식별자 변경·감소한 카운터는 비교하지 않는다. `-`는 수집 불가이며 0이 아니다. 이전 스크립트 형식의 행은 새 식별 필드가 없어 같은 방식으로 비교하지 않는다.
 
 PSI total 단위는 마이크로초, steal·Java 시작 시점은 커널 clock tick이다. 메모리 필드의 `_kb`는 Linux의 KiB 단위이고, swap-in/out은 페이지 수다. 페이지 크기를 확인하지 않고 바이트로 단정하지 않는다. PSI는 서버 전체의 압박이며 시스템 전체 CPU full은 수집하지 않는다. swap-in/major fault만으로 스왑 원인을 확정하지 않고 GC와 함께 대조한다. 1분 기록으로 초 단위 발생 순서까지 확정할 수 없다.
@@ -97,7 +102,7 @@ PSI total 단위는 마이크로초, steal·Java 시작 시점은 커널 clock t
   ```
 
 - 수집 이상이면 Agent 로그와 읽기 권한을 확인하고 필요 시 백업 설정을 fetch-config로 되돌린다. memwatch는 백업 스크립트로 복구한다. 로그·타이머를 이번 작업에서 삭제하지 않는다.
-- JVM 옵션으로 기동이 실패하면 이전 서비스 파일로 복구하고 daemon-reload 후 서비스 재시작한다. 이 복구는 앱 중단을 동반할 수 있으므로 운영자가 수행한다.
+- JVM 옵션으로 새 컨테이너 기동이 실패하면 배포가 실패하고 이전 앱이 계속 요청을 처리한다. 옵션을 고쳐 다시 배포한다. 첫 컨테이너 배포 전의 기존 서비스는 이전 서비스 파일로 복구하고 daemon-reload 후 재시작하며, 이 경우 앱 중단을 동반할 수 있으므로 운영자가 수행한다.
 - 환경변수 변경은 없다. 힙·GC 종류·swappiness·Lambda/SQS 설정도 변경하지 않는다.
 
 ## 조사·개선 검증 후 정리

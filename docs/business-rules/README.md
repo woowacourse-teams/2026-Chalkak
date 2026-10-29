@@ -34,6 +34,7 @@
 | 피드백 | [feedback.md](rules/feedback.md) | 활성 |
 | 관리자 | [admin.md](rules/admin.md) | 활성 |
 | 배너 | [banner.md](rules/banner.md) | 활성 |
+| 앱 최소 지원 버전 | [app-version.md](rules/app-version.md) | 활성 |
 | 알림함 | [notification.md](rules/notification.md) | 활성 |
 | AI 리뷰 | [ai-review.md](rules/ai-review.md) | 활성 |
 
@@ -45,6 +46,8 @@
 
 | 작업 | 문서 |
 | --- | --- |
+| 관리자 앱 버전 조회·저장·충돌 복구·운영 확인 | [관리자 앱 버전 관리 연동 안내](guides/admin-app-versions.md) |
+| 앱 최소 지원 버전 조회·미설정 처리·업데이트 판단 | [앱 최소 지원 버전 연동 안내](guides/app-version.md) |
 | 피드·상세의 사인 선택과 작성자 공개 사진 페이지 조회·상세 연결 | [작성자 공개 사진 연동 안내](guides/author-public-posts.md) |
 | 알림함 조회·읽음, 30일 보관과 만료된 알림 처리 | [알림함 연동 안내](guides/notification-inbox.md) |
 | 푸시 기기 등록·갱신, 이전 JWT의 자동 토큰 갱신 | [푸시 기기 등록 연동 안내](guides/push-device-registration.md) |

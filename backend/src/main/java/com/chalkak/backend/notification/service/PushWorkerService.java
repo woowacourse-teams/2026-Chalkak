@@ -8,6 +8,7 @@ import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
+import com.chalkak.backend.exception.PushDeliveryRecordException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
@@ -45,6 +46,7 @@ public class PushWorkerService {
     private final DevicePushSender sender;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
+    private final PushDeliveryService deliveryService;
 
     public PushWorkerService(
             NotificationRepository notificationRepository,
@@ -55,7 +57,8 @@ public class PushWorkerService {
             LoginSessionService loginSessionService,
             DevicePushSender sender,
             Clock clock,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            PushDeliveryService deliveryService
     ) {
         this.notificationRepository = notificationRepository;
         this.topicRepository = topicRepository;
@@ -66,6 +69,7 @@ public class PushWorkerService {
         this.sender = sender;
         this.clock = clock;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.deliveryService = deliveryService;
     }
 
     public PushProcessingResult process(PushMessage message) {
@@ -87,7 +91,11 @@ public class PushWorkerService {
         }
         PushWorkerDbTiming dbTiming = new PushWorkerDbTiming();
         try {
-            return processDevices(message, dbTiming);
+            return deliveryService.process(message, attempt -> processDevices(
+                    message,
+                    dbTiming,
+                    attempt
+            ));
         } catch (RuntimeException exception) {
             PushWorkerTimingLog.logSummaryFailed(
                     message,
@@ -98,7 +106,11 @@ public class PushWorkerService {
         }
     }
 
-    private PushProcessingResult processDevices(PushMessage message, PushWorkerDbTiming dbTiming) {
+    private PushProcessingResult processDevices(
+            PushMessage message,
+            PushWorkerDbTiming dbTiming,
+            PushDeliveryAttempt attempt
+    ) {
         List<UUID> deviceIds = findDeviceIds(message, dbTiming);
         if (deviceIds.isEmpty()) {
             logSkipped(
@@ -108,21 +120,20 @@ public class PushWorkerService {
             );
         }
         Map<DevicePushResult.Status, Integer> counts = new EnumMap<>(DevicePushResult.Status.class);
-        boolean accepted = false;
         boolean retryable = false;
         Duration retryAfter = Duration.ZERO;
         for (UUID deviceId : deviceIds) {
             DevicePushResult result = sendToDevice(
                     message,
                     deviceId,
-                    dbTiming
+                    dbTiming,
+                    attempt
             );
             counts.merge(
                     result.status(),
                     1,
                     Integer::sum
             );
-            accepted = accepted || result.isAccepted();
             retryable = retryable || result.isRetryable();
             retryAfter = findLongestRetryAfter(retryAfter, result);
         }
@@ -130,12 +141,9 @@ public class PushWorkerService {
                 message,
                 deviceIds.size(),
                 counts,
-                !accepted && retryable,
+                retryable,
                 dbTiming
         );
-        if (accepted) {
-            return PushProcessingResult.completed();
-        }
         return new PushProcessingResult(retryable, retryAfter);
     }
 
@@ -162,7 +170,8 @@ public class PushWorkerService {
     private DevicePushResult sendToDevice(
             PushMessage message,
             UUID deviceId,
-            PushWorkerDbTiming dbTiming
+            PushWorkerDbTiming dbTiming,
+            PushDeliveryAttempt attempt
     ) {
         DevicePushTiming timing = new DevicePushTiming();
         try {
@@ -170,8 +179,11 @@ public class PushWorkerService {
                     message,
                     deviceId,
                     timing,
-                    dbTiming
+                    dbTiming,
+                    attempt
             );
+        } catch (PushDeliveryRecordException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
             logDeviceFailure(
                     message,
@@ -188,7 +200,8 @@ public class PushWorkerService {
             PushMessage message,
             UUID deviceId,
             DevicePushTiming timing,
-            PushWorkerDbTiming dbTiming
+            PushWorkerDbTiming dbTiming,
+            PushDeliveryAttempt attempt
     ) {
         DevicePushRequest request = findCurrentRequest(
                 message,
@@ -198,7 +211,16 @@ public class PushWorkerService {
         if (request == null) {
             return DevicePushResult.skipped("LATEST_CONDITIONS");
         }
-        DevicePushResult result = sender.send(request, timing);
+        DevicePushResult result = attempt.send(
+                deviceId,
+                clock,
+                () -> sendToFcm(
+                        message,
+                        deviceId,
+                        request,
+                        timing
+                )
+        );
         if (result.status() == DevicePushResult.Status.SKIPPED) {
             logSkipped(
                     message,
@@ -208,18 +230,42 @@ public class PushWorkerService {
             );
             return result;
         }
-        logResult(
-                message,
-                deviceId,
-                result,
-                timing
-        );
         if (result.isInvalidToken()) {
             deleteInvalidToken(
                     message,
                     deviceId,
                     request,
                     dbTiming
+            );
+        }
+        return result;
+    }
+
+    private DevicePushResult sendToFcm(
+            PushMessage message,
+            UUID deviceId,
+            DevicePushRequest request,
+            DevicePushTiming timing
+    ) {
+        DevicePushResult result;
+        try {
+            result = sender.send(request, timing);
+        } catch (RuntimeException exception) {
+            logDeviceFailure(
+                    message,
+                    deviceId,
+                    "worker_device_failed",
+                    exception,
+                    timing
+            );
+            throw exception;
+        }
+        if (result.status() != DevicePushResult.Status.SKIPPED) {
+            logResult(
+                    message,
+                    deviceId,
+                    result,
+                    timing
             );
         }
         return result;

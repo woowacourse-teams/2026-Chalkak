@@ -71,5 +71,5 @@ Java 코드의 구현·리팩터링·버그 수정은 요청 방식이나 개발
 - `.env`, `.env.example`, `src/main/resources`의 환경변수 참조, `deploy/examples/*.env.example` 또는 환경변수를 처리하는 `deploy/scripts/**`를 변경할 때는 `$env-synchronization`을 사용한다.
 - 배포 환경변수의 계약 또는 서버 값 변경이 필요한 작업은 최종 응답의 맨 마지막에 `🚨 배포 전 필수 수동 작업` 제목으로 안내한다.
 
-  - 사람이 대상 서버의 `/etc/chalkak/application.env`를 직접 업데이트하고 `sudo systemctl restart chalkak-backend.service`를 실행해야 한다고 명시한다.
+  - 사람이 대상 서버의 `/etc/chalkak/application.env`를 직접 업데이트한 뒤 CodeDeploy에서 마지막 성공 revision을 재배포해야 한다고 명시한다. 컨테이너는 생성할 때만 환경변수를 읽으므로 `docker restart`로는 반영되지 않는다.
   - 실제 값은 쓰지 않고 변경할 키 이름과 대상 환경만 적는다. 이 경고 뒤에는 다른 내용을 작성하지 않는다.

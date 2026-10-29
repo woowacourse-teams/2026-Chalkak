@@ -40,4 +40,98 @@ if [[ "${profile}" == dev ]]; then
   find "${BACKUP_DIR}" -type f -name 'pre-deploy-*.sql.gz' -mtime +7 -delete
 fi
 
-systemctl restart chalkak-backend.service
+# shellcheck source=blue_green.sh
+source /opt/chalkak/bin/blue_green.sh
+
+HEALTH_TIMEOUT_SECONDS=240
+
+deployment_id="${DEPLOYMENT_ID:-}"
+if [[ ! "${deployment_id}" =~ ^d-[A-Z0-9]+$ ]]; then
+  echo "DEPLOYMENT_ID is missing or invalid: '${deployment_id}'" >&2
+  exit 1
+fi
+
+release_dir="${RELEASES_DIR}/${deployment_id}"
+if [[ ! -f "${release_dir}/application.jar" ]]; then
+  echo "Release jar is missing: ${release_dir}/application.jar" >&2
+  exit 1
+fi
+
+# 이전 배포의 롤백 실패로 nginx가 죽은 포트를 가리키면, 살아 있는 쪽으로 먼저 돌린 뒤 target을 정한다.
+bg_reconcile
+active_port="$(bg_active_port)"
+target_port="$(bg_idle_port "${active_port}")"
+container="$(bg_container_name "${target_port}")"
+
+# 대상은 항상 유휴 포트이므로 활성 컨테이너는 지우지 않는다.
+docker rm -f "${container}" >/dev/null 2>&1 || true
+# 대상이 8080이면 nginx는 8080을 쓰지 않으므로, 남은 레거시 서비스는 정리해도 된다.
+if [[ "${target_port}" == 8080 ]] && bg_legacy_active; then
+  bg_stop_legacy
+fi
+if [[ -n "$(ss -ltnH "sport = :${target_port}")" ]]; then
+  echo "Port ${target_port} is already in use by another process." >&2
+  exit 1
+fi
+
+# FCM 서비스 계정 파일은 같은 경로에 읽기 전용으로 마운트한다. 파일이 없으면 Docker가 호스트에 빈 디렉터리를 만들므로 마운트하지 않는다.
+fcm_credentials_path="$(awk -F= '$1 == "NOTIFICATION_FCM_CREDENTIALS_PATH" {print substr($0, index($0, "=") + 1); exit}' "${CONFIG_FILE}")"
+fcm_mount=()
+if [[ "${fcm_credentials_path}" == /* && -f "${fcm_credentials_path}" ]]; then
+  fcm_mount=(-v "${fcm_credentials_path}:${fcm_credentials_path}:ro")
+fi
+
+chalkak_uid="$(id -u chalkak)"
+chalkak_gid="$(id -g chalkak)"
+
+cleanup_on_failure() {
+  local rc=$?
+  if (( rc != 0 )); then
+    docker logs --tail 200 "${container}" >&2 || true
+    docker rm -f "${container}" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_on_failure EXIT
+trap 'exit 143' TERM
+
+docker run -d \
+  --name "${container}" \
+  --network host \
+  --user "${chalkak_uid}:${chalkak_gid}" \
+  --env-file "${CONFIG_FILE}" \
+  -e "SERVER_PORT=${target_port}" \
+  -e SERVER_ADDRESS=127.0.0.1 \
+  -e MALLOC_ARENA_MAX=2 \
+  --memory 768m \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --restart unless-stopped \
+  --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+  --label "chalkak.release=${deployment_id}" \
+  -v "${release_dir}:/opt/chalkak/app:ro" \
+  -v /opt/chalkak/logs:/opt/chalkak/logs \
+  ${fcm_mount[@]+"${fcm_mount[@]}"} \
+  "${IMAGE}" \
+  java -Xmx320m -XX:MarkStackSize=524288 -XX:ReservedCodeCacheSize=64m \
+  -Xlog:async \
+  "-Xlog:gc*=info,safepoint*=info:file=/opt/chalkak/logs/gc-${target_port}.log:utctime,uptime,level,tags:filecount=5,filesize=10M" \
+  -jar /opt/chalkak/app/application.jar >/dev/null
+bg_log "container ${container} started (release ${deployment_id})"
+
+# 메모리 압박 시 기존 앱 대신 새 컨테이너가 먼저 종료되도록 oom 점수를 올린다(500). 승격 시 0으로 돌린다.
+bg_set_oom_score "${container}" 500 || echo "Warning: could not raise oom_score_adj (kill-first priority) for ${container}" >&2
+
+deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))
+while (( SECONDS < deadline )); do
+  if bg_health_ok "${target_port}"; then
+    bg_log "container ${container} healthy"
+    exit 0
+  fi
+  if ! bg_container_running "${target_port}"; then
+    echo "Container ${container} stopped before becoming healthy." >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+echo "Container ${container} did not become healthy within ${HEALTH_TIMEOUT_SECONDS}s." >&2
+exit 1

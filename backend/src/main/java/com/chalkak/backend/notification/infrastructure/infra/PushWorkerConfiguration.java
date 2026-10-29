@@ -6,6 +6,7 @@ import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.notification.service.PushDeliveryService;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.google.auth.oauth2.ServiceAccountCredentials;
@@ -93,7 +94,8 @@ public class PushWorkerConfiguration {
             LoginSessionService loginSessionService,
             DevicePushSender sender,
             Clock clock,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            PushDeliveryService deliveryService
     ) {
         return new PushWorkerService(
                 notificationRepository,
@@ -104,7 +106,8 @@ public class PushWorkerConfiguration {
                 loginSessionService,
                 sender,
                 clock,
-                transactionManager
+                transactionManager,
+                deliveryService
         );
     }
 

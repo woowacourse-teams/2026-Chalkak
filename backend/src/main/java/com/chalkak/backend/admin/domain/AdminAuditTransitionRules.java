@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.domain;
 
 import com.chalkak.backend.aireview.domain.AiPromptType;
+import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
@@ -20,6 +21,12 @@ import java.util.regex.Pattern;
 final class AdminAuditTransitionRules {
 
     private static final int MAX_TOPIC_TITLE_LENGTH = 255;
+    private static final Set<String> APP_VERSION_FIELDS = Set.of(
+            "platform",
+            "minimumSupportedVersion",
+            "storeUrl",
+            "revision"
+    );
     private static final Set<String> POST_MODERATION_BEFORE_FIELDS = Set.of(
             "moderationStatus",
             "moderatedAt");
@@ -304,6 +311,52 @@ final class AdminAuditTransitionRules {
                 && isInstant(afterState.value("deletedAt"))
                 && REMINDER_STATE_FIELDS.stream().allMatch(field -> Objects.equals(
                         beforeState.value(field), afterState.value(field)));
+    }
+
+    static boolean isAppVersionCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty() && isValidAppVersionState(afterState)
+                && Long.valueOf(0).equals(afterState.value("revision"));
+    }
+
+    static boolean isAppVersionUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return isValidAppVersionState(beforeState) && isValidAppVersionState(afterState)
+                && Objects.equals(beforeState.value("platform"), afterState.value("platform"))
+                && hasNextAppVersionRevision(beforeState, afterState)
+                && hasAppVersionChanged(beforeState, afterState);
+    }
+
+    private static boolean isValidAppVersionState(AdminAuditSnapshot state) {
+        return state.hasExactlyFields(APP_VERSION_FIELDS)
+                && isEnumName(state.value("platform"), AppPlatform.values())
+                && state.value("minimumSupportedVersion") instanceof String
+                && state.value("storeUrl") instanceof String
+                && state.value("revision") instanceof Long revision && revision >= 0;
+    }
+
+    private static boolean hasNextAppVersionRevision(
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        long beforeRevision = (Long) beforeState.value("revision");
+        long afterRevision = (Long) afterState.value("revision");
+        return beforeRevision < Long.MAX_VALUE && afterRevision == beforeRevision + 1;
+    }
+
+    private static boolean hasAppVersionChanged(
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return !Objects.equals(beforeState.value("minimumSupportedVersion"),
+                afterState.value("minimumSupportedVersion"))
+                || !Objects.equals(beforeState.value("storeUrl"), afterState.value("storeUrl"));
     }
 
     private static boolean isValidReminderState(AdminAuditSnapshot state) {
