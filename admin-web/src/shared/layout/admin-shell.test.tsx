@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminShell } from "./admin-shell";
+import { adminNavigation } from "@/shared/navigation/admin-navigation";
 
 const { state, navigation, logout } = vi.hoisted(() => ({
   state: { admin: { adminId: 1, username: "operator" }, isMock: false },
@@ -28,11 +29,11 @@ describe("AdminShell", () => {
     logout.mockReset().mockResolvedValue(undefined);
   });
 
-  it("shows only the eight working sections and the authenticated account", () => {
+  it("shows only the nine working sections and the authenticated account", () => {
     render(<AdminShell><p>게시물 콘텐츠</p></AdminShell>);
 
     const nav = screen.getByRole("navigation", { name: "관리자 메뉴" });
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["게시물", "사용자", "주제", "배너", "처리 이력", "피드백", "AI", "알림"]);
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["게시물", "사용자", "주제", "배너", "처리 이력", "피드백", "AI", "알림", "앱 버전"]);
     expect(within(nav).getByRole("link", { name: "게시물" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("operator")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
@@ -48,7 +49,7 @@ describe("AdminShell", () => {
     expect(screen.getByRole("link", { name: "게시물" })).not.toHaveAttribute("aria-current");
   });
 
-  it("uses the same eight keyboard-accessible mobile links without a drawer", async () => {
+  it("keeps eight mobile menu entries and keyboard navigation without a drawer", async () => {
     const previousWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
     const user = userEvent.setup();
@@ -56,6 +57,9 @@ describe("AdminShell", () => {
 
     expect(screen.getAllByRole("navigation", { name: "관리자 메뉴" })).toHaveLength(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const mobileMenus = adminNavigation.filter((item) => !item.desktopOnly);
+    expect(mobileMenus).toHaveLength(8);
+    expect(mobileMenus.some((item) => item.href === "/audit-logs")).toBe(false);
     await user.tab();
     expect(screen.getByRole("link", { name: "본문으로 바로가기" })).toHaveFocus();
     await user.tab();
@@ -110,4 +114,13 @@ describe("AdminShell", () => {
 
     expect(navigation.replace).toHaveBeenCalledWith("/login?logout=failed");
   });
+});
+
+it("places app version settings immediately after notifications in the common menu", () => {
+  navigation.pathname = "/app-versions";
+  render(<AdminShell><p>설정 화면</p></AdminShell>);
+  expect(screen.getByRole("link", { name: "앱 버전" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "앱 버전" })).toHaveAttribute("href", "/app-versions");
+  expect(within(screen.getByRole("navigation", { name: "관리자 메뉴" })).getAllByRole("link").map((link) => link.textContent).slice(-2)).toEqual(["알림", "앱 버전"]);
+  expect(screen.getByRole("heading", { name: "앱 버전 관리" })).toBeInTheDocument();
 });

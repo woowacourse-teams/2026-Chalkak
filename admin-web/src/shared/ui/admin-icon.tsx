@@ -3,7 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type AdminIconName =
   | "overview" | "image" | "users" | "topic" | "arrow-right"
   | "arrow-up-right" | "shield" | "lock" | "logout" | "menu"
-  | "close" | "eye" | "eye-off" | "check" | "clock" | "plus" | "message" | "sparkle";
+  | "close" | "eye" | "eye-off" | "check" | "clock" | "plus" | "message" | "sparkle" | "phone";
 
 const paths: Record<AdminIconName, ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
@@ -20,6 +20,7 @@ const paths: Record<AdminIconName, ReactNode> = {
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
   "eye-off": <><path d="m3 3 18 18M10 5.2c.7-.1 1.3-.2 2-.2 6.5 0 10 7 10 7a18 18 0 0 1-3.1 3.9M6.4 6.4A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5-1.2M10 10a3 3 0 0 0 4 4" /></>,
   check: <path d="m5 12 4 4L19 6" />,
+  phone: <><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M10 5h4M11 19h2" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   message: <><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-4 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /><path d="M7 9h10M7 13h6" /></>,

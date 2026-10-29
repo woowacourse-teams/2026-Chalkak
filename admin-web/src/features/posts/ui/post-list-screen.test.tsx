@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -59,6 +59,8 @@ describe("PostListScreen", () => {
     expect(statuses.querySelector('[aria-current="page"]')).toHaveTextContent("검수 대기");
     expect(screen.getByRole("link", { name: "승인" })).toHaveAttribute("href", "/posts?status=APPROVED&page=1");
     expect(screen.getByRole("link", { name: "거절" })).toHaveAttribute("href", "/posts?status=REJECTED&page=1");
+    expect(within(statuses).getByRole("link", { name: "전체 처리 이력 ↗" })).toHaveAttribute("href", "/audit-logs");
+    expect(within(statuses).getAllByRole("link").slice(-2).map((link) => link.textContent)).toEqual(["거절", "전체 처리 이력 ↗"]);
     expect(
       screen.queryByRole("option", { name: "이미지 처리 중" }),
     ).not.toBeInTheDocument();
