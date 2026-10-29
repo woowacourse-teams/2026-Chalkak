@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.record.component
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.spring
@@ -78,13 +79,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
+import com.stonefive.chalkak.core.designsystem.component.image.LocalPhotoTransitionCoordinator
+import com.stonefive.chalkak.core.designsystem.component.image.LocalSharedTransitionScope
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
+import com.stonefive.chalkak.core.designsystem.component.image.aspectRatioForSize
 import com.stonefive.chalkak.core.designsystem.component.image.rememberSharedPhotoSource
 import com.stonefive.chalkak.core.designsystem.component.logo.ChalkakLogo
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -115,6 +120,7 @@ import kotlinx.coroutines.launch
  * @param clothColor 표지 천 색. 그 달 첫 사진의 대표색이며, 모르면 null이다.
  * @param signatureUrl 속표지에 넣을 내 사인. 아직 받지 못했거나 없으면 비워 둔다.
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun RecordPhotoBook(
     month: YearMonth,
@@ -179,6 +185,19 @@ fun RecordPhotoBook(
         val cover = clothColor?.let(::clothOf) ?: ChalkakTheme.colors.calendarCellBorder
         val dragStep = DRAG_STEP * scale
         val maxSpread = model.maxSpread
+        val settledPost = model.post(settled)?.takeIf { isSettled }
+        // 피드로 오가는 동안에는 책에 그린 사진을 숨긴다. 움직이는 사진과 제자리 사진이 겹쳐 두 장으로 보이지 않게 한다.
+        // 그리기 단계에서만 읽어, 전환이 시작될 때 책 전체를 다시 구성하느라 첫 프레임이 멈추지 않게 한다.
+        val sharedTransitionScope = LocalSharedTransitionScope.current
+        val photoTransitionCoordinator = LocalPhotoTransitionCoordinator.current
+        val hiddenPostId = remember(model, position, sharedTransitionScope, photoTransitionCoordinator) {
+            derivedStateOf {
+                model.post(model.spread(position.value).roundToInt())?.postId?.takeIf {
+                    sharedTransitionScope?.isTransitionActive == true &&
+                        photoTransitionCoordinator.selectedSnapshot(it) != null
+                }
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -245,15 +264,30 @@ fun RecordPhotoBook(
                     topicTitles = topicTitles,
                     signatureUrl = signatureUrl,
                     coverColor = cover,
+                    hiddenPostId = { hiddenPostId.value },
                     bendDirection = { bend.direction.value },
                 )
                 RecordBookTouchLayer(
                     model = model,
                     settled = settled,
-                    isSettled = isSettled,
-                    images = images,
                     onTurn = { currentTurn(it) },
-                    onSelectPost = onSelectPost,
+                )
+            }
+
+            // 펼친 날의 사진 자리. 배율이 걸린 무대 밖 화면 좌표에 두어, 피드가 보이는 크기 그대로의 자리에서 열리고 돌아온다.
+            settledPost?.let { post ->
+                val frame = geometry.photoFrame(RecordPhotoAspect.widthRatio(images[post.postId]))
+                RecordBookPhotoSource(
+                    post = post,
+                    image = images[post.postId],
+                    edgeWidth = (PHOTO_EDGE_WIDTH * scale).dp,
+                    onClick = { onSelectPost(post) },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(
+                            x = (screenWidth / 2 + (frame.left - STAGE_WIDTH / 2) * scale).dp,
+                            y = (frame.top * scale + topOffset).dp,
+                        ).size((frame.width * scale).dp, (frame.height * scale).dp),
                 )
             }
 
@@ -294,10 +328,7 @@ fun RecordPhotoBook(
 private fun BoxScope.RecordBookTouchLayer(
     model: RecordBookModel,
     settled: Int,
-    isSettled: Boolean,
-    images: Map<String, ImageBitmap>,
     onTurn: (Int) -> Unit,
-    onSelectPost: (PostCalendarItem) -> Unit,
 ) {
     // 화면 왼쪽 절반은 전날, 오른쪽 절반은 다음 날로 넘어간다.
     Box(
@@ -321,33 +352,46 @@ private fun BoxScope.RecordBookTouchLayer(
                 }
             },
     )
+}
 
-    val post = model.post(settled)
-    if (post != null && isSettled) {
-        val frame = RecordBookGeometry.photoFrame(RecordPhotoAspect.widthRatio(images[post.postId]))
-        // 피드가 이 사진 자리에서 확대되어 열리고, 닫히면 이 자리로 돌아온다.
-        val photoSource = rememberSharedPhotoSource(
-            key = PhotoTransitionKey(post.postId, recordTransitionSourceId(post.postId)),
-            imageModel = post.thumbnailImageUrl,
-            signatureModel = null,
-            sourceShape = RectangleShape,
-        )
-        Box(
-            modifier = Modifier
-                .offset(x = frame.left.dp, y = frame.top.dp)
-                .size(frame.width.dp, frame.height.dp)
-                .then(photoSource.modifier)
-                .semantics {
-                    contentDescription = "${post.topicDate.format(RecordStackFormat.monthDay)} 사진"
-                }.clickable(
-                    interactionSource = null,
-                    indication = null,
-                    role = Role.Button,
-                    onClickLabel = "피드에서 보기",
-                    onClick = { onSelectPost(post) },
-                ),
-        )
-    }
+/**
+ * 펼친 날 오른쪽 면의 사진. 책에 그린 사진과 같은 자리·크기로 위에 겹쳐 그린다.
+ * 피드가 이 사진에서 확대되어 열리고, 닫히면 이 사진으로 줄어들며 돌아온다.
+ * 돌아올 때 움직이는 것이 이 사진이라, 사진을 직접 그려야 전환이 보인다.
+ *
+ * @param edgeWidth 책에 그린 사진과 같은 두께로 두르는 가장자리 선. 화면에 보이는 두께다.
+ */
+@Composable
+private fun RecordBookPhotoSource(
+    post: PostCalendarItem,
+    image: ImageBitmap?,
+    edgeWidth: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 피드가 처음부터 사진 비율로 자리를 잡아, 전환 도중 도착 자리가 바뀌지 않게 한다.
+    val photoSource = rememberSharedPhotoSource(
+        key = PhotoTransitionKey(post.postId, recordTransitionSourceId(post.postId)),
+        imageModel = post.thumbnailImageUrl,
+        signatureModel = null,
+        aspectRatio = image?.let { aspectRatioForSize(it.width, it.height) },
+        sourceShape = RectangleShape,
+    )
+    RecordPhotoImage(
+        image = image,
+        modifier = modifier
+            .then(photoSource.modifier)
+            .border(edgeWidth, Ink.copy(alpha = PHOTO_EDGE_ALPHA))
+            .semantics {
+                contentDescription = "${post.topicDate.format(RecordStackFormat.monthDay)} 사진"
+            }.clickable(
+                interactionSource = null,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = "피드에서 보기",
+                onClick = onClick,
+            ),
+    )
 }
 
 /**
@@ -363,11 +407,12 @@ private fun RecordBookStage(
     topicTitles: Map<LocalDate, String>,
     signatureUrl: String?,
     coverColor: Color,
+    hiddenPostId: () -> String?,
     bendDirection: () -> Float,
 ) {
     val maxSpread = model.maxSpread.toFloat()
     val settled = { spread().coerceIn(0f, maxSpread) }
-    val faces = RecordBookFaces(model, images, topicTitles, signatureUrl, coverColor)
+    val faces = RecordBookFaces(model, images, topicTitles, signatureUrl, coverColor, hiddenPostId)
 
     Box(
         modifier = Modifier
@@ -626,6 +671,8 @@ private class RecordBookFaces(
     val topicTitles: Map<LocalDate, String>,
     val signatureUrl: String?,
     val coverColor: Color,
+    /** 피드로 오가는 동안 비워 둘 사진. 그동안은 위에 겹친 사진 자리가 대신 움직인다. 그리기 단계에서만 읽는다. */
+    val hiddenPostId: () -> String?,
 ) {
     @Composable
     fun Front(index: Int) {
@@ -633,7 +680,7 @@ private class RecordBookFaces(
         when {
             index == 0 -> CoverFront(model, images, coverColor)
             index == 1 -> TitlePage(model, signatureUrl)
-            day != null -> PhotoPage(day, images)
+            day != null -> PhotoPage(day, images, hiddenPostId)
             else -> Paper(isRight = true)
         }
     }
@@ -764,6 +811,7 @@ private fun TitlePage(
 private fun PhotoPage(
     day: RecordPhotoStackEntry,
     images: Map<String, ImageBitmap>,
+    hiddenPostId: () -> String?,
 ) {
     Paper(isRight = true) {
         val post = day.post
@@ -775,7 +823,9 @@ private fun PhotoPage(
                 modifier = Modifier
                     .offset(x = (frame.left - SPINE_X).dp, y = (frame.top - PAGE_TOP).dp)
                     .size(frame.width.dp, frame.height.dp)
-                    .border(PHOTO_EDGE_WIDTH.dp, Ink.copy(alpha = 0.08f)),
+                    // 피드로 오가는 동안에는 사진을 그리지 않는다. 이 면만 다시 녹화된다.
+                    .drawWithContent { if (hiddenPostId() != post.postId) drawContent() }
+                    .border(PHOTO_EDGE_WIDTH.dp, Ink.copy(alpha = PHOTO_EDGE_ALPHA)),
             )
         } else {
             // 기록이 없는 날 사진 자리에 적는 말.
@@ -1116,6 +1166,7 @@ private const val SIGNATURE_WIDTH = 72f
 private const val SIGNATURE_HEIGHT = 40f
 private const val ENDPAPER_LIGHTEN = 0.78f
 private const val PHOTO_EDGE_WIDTH = 0.5f
+private const val PHOTO_EDGE_ALPHA = 0.08f
 private const val RULE_WIDTH = 22f
 private const val RULE_HEIGHT = 1f
 private const val TOPIC_LINE_LIMIT = 3
