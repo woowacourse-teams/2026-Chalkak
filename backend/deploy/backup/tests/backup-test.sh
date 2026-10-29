@@ -96,7 +96,9 @@ EOF
 execute() {
   status=0
   bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" "$@" > "$case_dir/output" 2>&1 || status=$?
-  ! grep -q SECRET_SENTINEL "$case_dir/output"
+  if grep -q SECRET_SENTINEL "$case_dir/output"; then
+    echo 'FAIL: 비밀값 노출' >&2; exit 1
+  fi
   [[ -z "$(ls -A "$case_dir/work")" ]]
   result=''
   if [[ -d "$case_dir/state" ]]; then result=$(find "$case_dir/state" -name RESULT -print | head -1); fi
@@ -125,7 +127,9 @@ for fault in db image both; do
   [[ $status -ne 0 ]]
   grep -q '^db$' "$case_dir/calls"
   grep -q '^images$' "$case_dir/calls"
-  ! grep -q ' COMPLETE run=chalkak-backup-' "$case_dir/output"
+  if grep -q ' COMPLETE run=chalkak-backup-' "$case_dir/output"; then
+    echo 'FAIL: 실패한 백업을 성공으로 기록' >&2; exit 1
+  fi
   case "$fault" in
     db) grep -q '^db_exit=9$' "$result"; grep -q '^images_exit=0$' "$result" ;;
     image) grep -q '^db_exit=0$' "$result"; grep -q '^images_exit=9$' "$result" ;;
@@ -151,10 +155,14 @@ for selection in db images; do
   [[ $status -eq 0 ]]
   assert_recorded
   if [[ "$selection" == db ]]; then
-    ! grep -q images "$case_dir/calls"
+    if grep -q images "$case_dir/calls"; then
+      echo 'FAIL: 선택하지 않은 이미지 백업 실행' >&2; exit 1
+    fi
     grep -q '^images_exit=not-selected$' "$result"
   else
-    ! grep -q '^db$' "$case_dir/calls"
+    if grep -q '^db$' "$case_dir/calls"; then
+      echo 'FAIL: 선택하지 않은 DB 백업 실행' >&2; exit 1
+    fi
     grep -q '^db_exit=not-selected$' "$result"
   fi
   echo "PASS: $selection 개별 재시도와 제외 대상 기록"
@@ -177,7 +185,9 @@ for fault in completion marker; do
   execute
   [[ $status -ne 0 ]]
   grep -q 'FAILED stage=completion ' "$case_dir/output"
-  ! grep -q ' COMPLETE run=chalkak-backup-' "$case_dir/output"
+  if grep -q ' COMPLETE run=chalkak-backup-' "$case_dir/output"; then
+    echo 'FAIL: 완료 검증 실패 후 성공 기록' >&2; exit 1
+  fi
   echo "PASS: $fault 전체 완료 표식 전송·재조회 실패 미완료 처리"
 done
 
@@ -209,7 +219,9 @@ status=0
 wait "$background_pid" || status=$?
 background_pid=''
 [[ $status -eq 143 ]]
-! grep -q images "$case_dir/calls"
+if grep -q images "$case_dir/calls"; then
+  echo 'FAIL: 중단 요청 후 이미지 백업 실행' >&2; exit 1
+fi
 grep -q 'FAILED stage=interrupted ' "$case_dir/output"
 [[ $(find "$case_dir/state" -name RESULT | wc -l) -eq 1 ]]
 grep -q '^interrupted=true$' "$(find "$case_dir/state" -name RESULT -print)"
