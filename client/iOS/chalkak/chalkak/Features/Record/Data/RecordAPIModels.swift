@@ -6,6 +6,11 @@ struct RecordCalendarResponse: Decodable {
     let posts: [RecordCalendarItemResponse]
 }
 
+struct RecordTopicResponse: Decodable {
+    let title: String
+    let topicDate: String
+}
+
 struct RecordCalendarMonthsResponse: Decodable {
     let months: [RecordCalendarMonthResponse]
 }

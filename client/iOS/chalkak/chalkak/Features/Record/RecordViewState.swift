@@ -74,6 +74,14 @@ struct RecordViewState: Equatable, Sendable {
     var availableMonths: [RecordMonth]
     var posts: [RecordPost] = []
     var selectedDate: Date?
+    /// 주간 보기에 표시할 날짜별 주제 제목. 날짜가 바뀌지 않는 값이라 월을 옮겨도 유지한다.
+    var topicTitles: [Date: String] = [:]
+    /// 연간 달력에 쓰는 월별 게시물. 한 번 불러온 달은 다시 부르지 않는다.
+    var yearPosts: [RecordMonth: [RecordPost]] = [:]
+    /// 연간 달력 칸에 칠할 사진별 대표색.
+    var photoColors: [RecordPost.ID: RecordPhotoColor] = [:]
+    /// 월간 책자 속표지에 넣을 내 사인. 아직 받지 못했거나 사인이 없으면 nil.
+    var signatureURL: URL?
 
     init(
         contentStatus: RecordContentStatus = .loading,
@@ -81,7 +89,11 @@ struct RecordViewState: Equatable, Sendable {
         latestMonth: RecordMonth = .current(),
         availableMonths: [RecordMonth] = [],
         posts: [RecordPost] = [],
-        selectedDate: Date? = nil
+        selectedDate: Date? = nil,
+        topicTitles: [Date: String] = [:],
+        yearPosts: [RecordMonth: [RecordPost]] = [:],
+        photoColors: [RecordPost.ID: RecordPhotoColor] = [:],
+        signatureURL: URL? = nil
     ) {
         self.contentStatus = contentStatus
         self.month = month
@@ -89,6 +101,15 @@ struct RecordViewState: Equatable, Sendable {
         self.availableMonths = availableMonths
         self.posts = posts
         self.selectedDate = selectedDate
+        self.topicTitles = topicTitles
+        self.yearPosts = yearPosts
+        self.photoColors = photoColors
+        self.signatureURL = signatureURL
+    }
+
+    /// 연간 달력에서 이동할 수 있는 가장 이른 해. 기록이 없으면 최신 연도다.
+    var earliestYear: Int {
+        min(availableMonths.map(\.year).min() ?? latestMonth.year, latestMonth.year)
     }
 
     var selectedPost: RecordPost? {

@@ -336,6 +336,7 @@ struct FeedScreen: View {
         }
         // 화면 전환과 사진 확대 중에는 사진이 스크롤 영역 밖에서도 보여야 한다.
         .scrollClipDisabled(isPhotoMoving || isPhotoInteracting)
+        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         .scrollDisabled(isPhotoMoving || isPhotoInteracting)
     }
 

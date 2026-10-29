@@ -2,7 +2,7 @@ import Foundation
 
 /// 연월을 표현하는 값 타입. Java `YearMonth`(Android)에 대응한다.
 /// 모든 날짜 계산은 Android와 동일하게 Asia/Seoul 그레고리력을 기준으로 한다.
-struct RecordMonth: Equatable, Hashable, Comparable, Sendable {
+nonisolated struct RecordMonth: Equatable, Hashable, Comparable, Sendable {
     let year: Int
     let month: Int
 
@@ -53,6 +53,30 @@ struct RecordMonth: Equatable, Hashable, Comparable, Sendable {
     func contains(_ date: Date) -> Bool {
         let components = Self.calendar.dateComponents([.year, .month], from: date)
         return components.year == year && components.month == month
+    }
+
+    /// 이미 지난(오늘 포함) 날짜 수. 지난 달은 말일까지, 이번 달은 오늘까지, 아직 오지 않은 달은 0이다.
+    func elapsedDayCount(now: Date = Date()) -> Int {
+        let current = Self.current(now: now)
+        if self < current { return lengthOfMonth }
+        if current < self { return 0 }
+        return Self.calendar.component(.day, from: now)
+    }
+
+    /// 일요일 시작 달력에서 날짜가 속한 주의 순서(0부터).
+    func weekIndex(of date: Date) -> Int {
+        let day = Self.calendar.component(.day, from: date)
+        return (day + leadingEmptyDayCount - 1) / 7
+    }
+
+    /// 주간 보기 제목. 예: "9월 넷째 주"
+    func weekTitle(_ weekIndex: Int) -> String {
+        "\(month)월 \(Self.weekOrdinal(weekIndex)) 주"
+    }
+
+    static func weekOrdinal(_ weekIndex: Int) -> String {
+        let ordinals = ["첫째", "둘째", "셋째", "넷째", "다섯째", "여섯째"]
+        return ordinals.indices.contains(weekIndex) ? ordinals[weekIndex] : "\(weekIndex + 1)번째"
     }
 
     var formatted: String {

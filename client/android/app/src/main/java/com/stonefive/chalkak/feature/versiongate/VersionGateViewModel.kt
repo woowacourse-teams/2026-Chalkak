@@ -74,13 +74,11 @@ class VersionGateViewModel(
     }
 
     fun onResume() {
-        if (_uiState.value.status == VersionGateStatus.UpdateInProgress) {
-            isImmediateUpdateFlowActive = false
-            if (isOnline) {
-                checkForUpdate(force = true)
-            } else {
-                handleOffline()
-            }
+        isImmediateUpdateFlowActive = false
+        if (isOnline) {
+            checkForUpdate(force = true)
+        } else {
+            handleOffline()
         }
     }
 
@@ -104,7 +102,7 @@ class VersionGateViewModel(
             val status = when (result) {
                 AppUpdateCheckResult.NoUpdate -> VersionGateStatus.Accessible
                 AppUpdateCheckResult.ImmediateUpdateRequired -> VersionGateStatus.UpdateRequired
-                AppUpdateCheckResult.Failed -> VersionGateStatus.CheckFailed
+                AppUpdateCheckResult.Failed -> VersionGateStatus.Accessible
             }
             updateStatus(status)
         }
@@ -112,7 +110,7 @@ class VersionGateViewModel(
 
     private fun handleOffline() {
         checkJob?.cancel()
-        if (!isImmediateUpdateFlowActive && _uiState.value.status != VersionGateStatus.UpdateRequired) {
+        if (!isImmediateUpdateFlowActive) {
             updateStatus(VersionGateStatus.Accessible)
         }
     }

@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.upload
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -34,6 +36,7 @@ class PhotoUploadViewModel(
     private val topicDate: LocalDate,
     private val saveCaptureToGallery: (File) -> Boolean = { false },
     private val isPhotoEditEnabled: () -> Boolean = { true },
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private var creationTopic: Topic? = null
     private var preparedImage: PostImagePreparation? = null
@@ -42,11 +45,7 @@ class PhotoUploadViewModel(
     private var preparationJob: Job? = null
     private var submissionJob: Job? = null
     private var nextMessageId = 0L
-    private val _uiState = MutableStateFlow(
-        PhotoUploadUiState(
-            topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
-        ),
-    )
+    private val _uiState = MutableStateFlow(restoreUiState())
     val uiState: StateFlow<PhotoUploadUiState> = _uiState.asStateFlow()
 
     private val _uiEvent = Channel<PhotoUploadUiEvent>(Channel.BUFFERED)
@@ -54,6 +53,8 @@ class PhotoUploadViewModel(
 
     init {
         loadCreationTopic()
+        _uiState.value.selectedImage
+            ?.let { replaceSelectedImage(it, _uiState.value.selectedEdit) }
     }
 
     fun onAction(action: PhotoUploadUiAction) {
@@ -73,6 +74,7 @@ class PhotoUploadViewModel(
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
+                savedStateHandle[KEY_CAPTION] = action.caption
                 _uiState.update { it.copy(caption = action.caption) }
             }
 
@@ -170,12 +172,36 @@ class PhotoUploadViewModel(
     fun reset() {
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
+        savedStateHandle.remove<String>(KEY_CAPTION)
+        savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
+        savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
     }
 
     override fun onCleared() {
         clearImageWork()
         super.onCleared()
+    }
+
+    private fun restoreUiState(): PhotoUploadUiState {
+        val edit = if (savedStateHandle.contains(KEY_SELECTED_EDIT)) {
+            runCatching {
+                savedStateHandle.get<HashMap<String, String>>(KEY_SELECTED_EDIT)?.toPhotoEdit()
+            }.getOrNull()
+        } else {
+            PhotoEdit()
+        }
+        if (edit == null) {
+            savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
+            savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
+        }
+        return PhotoUploadUiState(
+            caption = savedStateHandle[KEY_CAPTION] ?: "",
+            selectedImage = savedStateHandle[KEY_SELECTED_IMAGE],
+            selectedEdit = edit ?: PhotoEdit(),
+            topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
+            pendingMessage = if (edit == null) nextToast(RESTORED_EDIT_FAILED_MESSAGE) else null,
+        )
     }
 
     private fun sendUiEvent(event: PhotoUploadUiEvent) {
@@ -227,6 +253,8 @@ class PhotoUploadViewModel(
         image: String,
         edit: PhotoEdit,
     ) {
+        savedStateHandle[KEY_SELECTED_IMAGE] = image
+        savedStateHandle[KEY_SELECTED_EDIT] = edit.toSavedState()
         imageGeneration++
         preparationJob?.cancel()
         discardPreparedImage()
@@ -449,12 +477,18 @@ class PhotoUploadViewModel(
     }
 
     companion object {
+        private const val KEY_CAPTION = "upload_caption"
+        private const val KEY_SELECTED_IMAGE = "upload_selected_image"
+        private const val KEY_SELECTED_EDIT = "upload_selected_edit"
+        private const val RESTORED_EDIT_FAILED_MESSAGE = "사진 편집 정보를 복원하지 못했어요. 사진을 다시 선택해 주세요."
+
         fun factory(topicDate: LocalDate) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 PhotoUploadViewModel(
                     postCreationRepository = application.appContainer.postCreationRepository,
                     topicDate = topicDate,
+                    savedStateHandle = createSavedStateHandle(),
                     saveCaptureToGallery = { file -> saveCameraCaptureToGallery(application, file) },
                     isPhotoEditEnabled = {
                         application.appContainer.appConfigRepository.config.value.isPhotoEditEnabled

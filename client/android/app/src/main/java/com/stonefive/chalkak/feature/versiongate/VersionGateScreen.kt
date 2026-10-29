@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,14 +44,17 @@ fun VersionGateRoute(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(uiState.status) {
-        if (uiState.status == VersionGateStatus.UpdateRequired) {
-            if (onStartImmediateUpdate()) {
-                viewModel.onImmediateUpdateStarted()
-            } else {
-                onImmediateUpdateStartFailed()
-            }
+    val startUpdate = {
+        if (onStartImmediateUpdate()) {
+            viewModel.onImmediateUpdateStarted()
+        } else {
+            onImmediateUpdateStartFailed()
         }
+    }
+
+    if (uiState.status == VersionGateStatus.UpdateRequired || uiState.status == VersionGateStatus.UpdateInProgress) {
+        RequiredAppUpdateScreen(onUpdateClick = startUpdate, modifier = modifier)
+        return
     }
 
     if (uiState.hasPassedVersionGate) {
@@ -127,6 +129,48 @@ fun VersionCheckFailureScreen(
                 .fillMaxWidth()
                 .padding(top = ChalkakTheme.spacing.xl),
         )
+    }
+}
+
+@Composable
+fun RequiredAppUpdateScreen(
+    onUpdateClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ChalkakTheme.colors.background)
+            .safeDrawingPadding()
+            .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "업데이트가 필요해요",
+            color = ChalkakTheme.colors.textPrimary,
+            style = ChalkakTheme.typography.title3,
+        )
+        Text(
+            text = "안정적인 서비스 이용을 위해 최신 버전으로 업데이트해 주세요.",
+            modifier = Modifier.padding(top = ChalkakTheme.spacing.sm),
+            color = ChalkakTheme.colors.textSecondary,
+            style = ChalkakTheme.typography.callout,
+            textAlign = TextAlign.Center,
+        )
+        ChalkakButton(
+            text = "업데이트",
+            onClick = onUpdateClick,
+            modifier = Modifier.fillMaxWidth().padding(top = ChalkakTheme.spacing.xl),
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun RequiredAppUpdateScreenPreview() {
+    ChalkakTheme {
+        RequiredAppUpdateScreen(onUpdateClick = {})
     }
 }
 
