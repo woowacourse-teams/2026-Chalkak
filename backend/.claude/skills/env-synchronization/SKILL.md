@@ -62,9 +62,7 @@ bash deploy/scripts/check_env_contract.sh
 - 대상 환경: `dev`, `prod` 중 실제 대상
 - 변경할 키: 키 이름만 나열
 
-반영 후 서버에서 다음 명령을 실행해야 합니다.
-
-`sudo systemctl restart chalkak-backend.service`
+반영 후 CodeDeploy에서 해당 deployment group의 마지막 성공 revision을 재배포해야 합니다. 컨테이너는 생성할 때만 환경변수를 읽으므로 `docker restart`로는 반영되지 않습니다.
 
 이 작업은 하네스와 CD가 자동으로 수행하지 않습니다.
 ```
