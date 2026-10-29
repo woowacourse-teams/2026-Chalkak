@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -36,15 +37,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
@@ -110,17 +115,19 @@ fun RecordPhotoPillars(
         val openSizes = order.entries.map { entry ->
             RecordPillarLayout.openSize(ratio = ratioOf(entry, images), pillarHeight = pillarHeight, width = width)
         }
-        val currentPosition = position.value
-        val layout = RecordPillarLayout(
-            entryCount = count,
-            position = currentPosition,
-            width = width,
-            previousShift = motion.rowShift,
-            openSizes = openSizes,
-            pillarHeight = pillarHeight,
-        )
-        // 줄이 화면보다 길 때 지금 밀려 있는 거리. 펼친 기둥이 가장자리에 닿을 때만 바뀐다.
-        SideEffect { motion.rowShift = layout.shift }
+        // 위치는 배치와 그리기 단계에서만 읽는다. 끄는 동안 기둥을 다시 구성하지 않고 자리와 폭만 다시 잡는다.
+        val layouts = remember(count, width, openSizes, pillarHeight) {
+            RecordPillarLayoutCache(count, width, openSizes, pillarHeight, motion)
+        }
+        val layout = { layouts.at(position.value) }
+        // 고른 날. 날이 바뀔 때만 구성을 다시 한다.
+        val focusedIndex by remember(range) {
+            derivedStateOf {
+                position.value
+                    .coerceIn(range)
+                    .roundToInt()
+            }
+        }
 
         val settle: (Float) -> Unit = { target ->
             motion.stop()
@@ -190,28 +197,24 @@ fun RecordPhotoPillars(
                     }
                 },
         ) {
-            val clamped = currentPosition.coerceIn(range)
             order.entries.forEachIndexed { index, entry ->
-                val x = layout.centers[index]
-                if (x < -CULL_MARGIN || x > width + CULL_MARGIN) return@forEachIndexed
-                val distance = abs(index - clamped)
                 key(entry.key) {
+                    val isFocused = index == focusedIndex
                     RecordPillar(
                         entry = entry,
+                        index = index,
                         image = entry.post?.let { images[it.postId] },
-                        centerX = x,
-                        pillarWidth = layout.widths[index],
-                        pillarHeight = layout.pillarHeight,
-                        distance = distance,
+                        isFocused = isFocused,
+                        layout = layout,
+                        distance = { abs(index - position.value.coerceIn(range)) },
                         onClick = {
                             val post = entry.post
-                            if (distance < 0.5f && post != null) {
+                            if (isFocused && post != null) {
                                 onSelectPost(post)
                             } else {
                                 settle(index.toFloat())
                             }
                         },
-                        modifier = Modifier.zIndex(count - distance),
                     )
                 }
             }
@@ -219,8 +222,9 @@ fun RecordPhotoPillars(
             val markerColor = ChalkakTheme.colors.inputCursor
             Canvas(
                 modifier = Modifier
-                    .offset(x = (layout.focusX - MARKER_WIDTH / 2).dp, y = MARKER_TOP.dp)
-                    .size(MARKER_WIDTH.dp, MARKER_HEIGHT.dp),
+                    .offset {
+                        IntOffset((layout().focusX - MARKER_WIDTH / 2).dp.roundToPx(), MARKER_TOP.dp.roundToPx())
+                    }.size(MARKER_WIDTH.dp, MARKER_HEIGHT.dp),
             ) {
                 val path = Path().apply {
                     moveTo(0f, 0f)
@@ -234,76 +238,128 @@ fun RecordPhotoPillars(
     }
 }
 
+/**
+ * 기둥 하나와 그 아래 눈금. 자리·폭·모서리는 [layout]과 [distance]를 배치·그리기 단계에서 읽어,
+ * 끄는 동안 다시 구성하지 않는다.
+ */
 @Composable
 private fun RecordPillar(
     entry: RecordPhotoStackEntry,
+    index: Int,
     image: ImageBitmap?,
-    centerX: Float,
-    pillarWidth: Float,
-    pillarHeight: Float,
-    distance: Float,
+    isFocused: Boolean,
+    layout: () -> RecordPillarLayout,
+    distance: () -> Float,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val isFocused = distance < 0.5f
-    val radius = if (distance < 1f) {
-        FOCUS_RADIUS + (PILLAR_RADIUS - FOCUS_RADIUS) * distance
-    } else {
-        PILLAR_RADIUS
-    }
-    val shape = RoundedCornerShape(radius.dp)
     val post = entry.post
     val date = entry.date.format(RecordStackFormat.monthDay)
+    val showsEmptyLabel by remember(index) {
+        derivedStateOf { layout().widths.getOrElse(index) { 0f } > EMPTY_LABEL_MINIMUM_WIDTH }
+    }
 
-    Box(modifier = modifier.offset(x = (centerX - pillarWidth / 2).dp, y = PILLAR_TOP.dp)) {
-        val pillarModifier = Modifier
-            .size(pillarWidth.dp, pillarHeight.dp)
-            .semantics(mergeDescendants = true) {
-                contentDescription = if (post == null) "$date, 기록 없음" else "$date 사진"
-                selected = isFocused
-            }.clickable(
-                interactionSource = null,
-                indication = null,
-                role = Role.Button,
-                onClickLabel = if (isFocused && post != null) "피드에서 보기" else null,
-                onClick = onClick,
+    val pillarModifier = Modifier
+        .offset {
+            val current = layout()
+            IntOffset((current.centers[index] - current.widths[index] / 2).dp.roundToPx(), PILLAR_TOP.dp.roundToPx())
+        }.layout { measurable, _ ->
+            val current = layout()
+            val placeable = measurable.measure(
+                Constraints.fixed(
+                    current.widths[index]
+                        .dp
+                        .roundToPx(),
+                    current.pillarHeight.dp
+                        .roundToPx(),
+                ),
             )
-        if (post != null) {
-            // 피드가 이 사진에서 확대되어 열리고, 닫히면 이 사진으로 돌아온다.
-            val photoSource = if (distance < 1f) {
-                rememberSharedPhotoSource(
-                    key = PhotoTransitionKey(post.postId, recordTransitionSourceId(post.postId)),
-                    imageModel = post.thumbnailImageUrl,
-                    signatureModel = null,
-                    sourceShape = shape,
-                )
-            } else {
-                null
-            }
-            RecordPhotoImage(
-                image = image,
-                modifier = pillarModifier
-                    .then(photoSource?.modifier ?: Modifier)
-                    .clip(shape),
+            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }.graphicsLayer {
+            val d = distance()
+            val radius = if (d < 1f) FOCUS_RADIUS + (PILLAR_RADIUS - FOCUS_RADIUS) * d else PILLAR_RADIUS
+            shape = RoundedCornerShape(radius.dp)
+            clip = true
+        }.semantics(mergeDescendants = true) {
+            contentDescription = if (post == null) "$date, 기록 없음" else "$date 사진"
+            selected = isFocused
+        }.clickable(
+            interactionSource = null,
+            indication = null,
+            role = Role.Button,
+            onClickLabel = if (isFocused && post != null) "피드에서 보기" else null,
+            onClick = onClick,
+        )
+
+    if (post != null) {
+        // 피드가 이 사진에서 확대되어 열리고, 닫히면 이 사진으로 돌아온다. 고른 날만 출발 자리로 둔다.
+        val photoSource = if (isFocused) {
+            rememberSharedPhotoSource(
+                key = PhotoTransitionKey(post.postId, recordTransitionSourceId(post.postId)),
+                imageModel = post.thumbnailImageUrl,
+                signatureModel = null,
+                sourceShape = FocusedPillarShape,
             )
         } else {
-            RecordEmptyFrame(
-                day = entry.day.takeIf { pillarWidth > EMPTY_LABEL_MINIMUM_WIDTH },
-                modifier = pillarModifier.clip(shape),
-            )
+            null
         }
+        RecordPhotoImage(
+            image = image,
+            modifier = pillarModifier.then(photoSource?.modifier ?: Modifier),
+        )
+    } else {
+        RecordEmptyFrame(
+            day = entry.day.takeIf { showsEmptyLabel },
+            modifier = pillarModifier,
+        )
     }
 
     RecordPillarTick(
         entry = entry,
         isFocused = isFocused,
         modifier = Modifier
-            .offset(
-                x = (centerX - TICK_SLOT_WIDTH / 2).dp,
-                y = (PILLAR_TOP + pillarHeight + TICK_TOP_SPACING).dp,
-            ).width(TICK_SLOT_WIDTH.dp),
+            .offset {
+                val current = layout()
+                IntOffset(
+                    (current.centers[index] - TICK_SLOT_WIDTH / 2).dp.roundToPx(),
+                    (PILLAR_TOP + current.pillarHeight + TICK_TOP_SPACING).dp.roundToPx(),
+                )
+            }.width(TICK_SLOT_WIDTH.dp),
     )
 }
+
+/**
+ * 위치마다 기둥 줄을 한 번만 계산한다. 같은 프레임에 기둥마다 줄을 다시 묻기 때문이다.
+ * 줄을 민 거리는 다음 계산에 이어 쓰도록 [motion]에 남긴다.
+ */
+private class RecordPillarLayoutCache(
+    private val count: Int,
+    private val width: Float,
+    private val openSizes: List<Float>,
+    private val pillarHeight: Float,
+    private val motion: RecordPillarMotion,
+) {
+    private var lastPosition = Float.NaN
+    private var last: RecordPillarLayout? = null
+
+    fun at(position: Float): RecordPillarLayout {
+        last?.takeIf { position == lastPosition }?.let { return it }
+        val layout = RecordPillarLayout(
+            entryCount = count,
+            position = position,
+            width = width,
+            previousShift = motion.rowShift,
+            openSizes = openSizes,
+            pillarHeight = pillarHeight,
+        )
+        // 줄이 화면보다 길 때 지금 밀려 있는 거리. 펼친 기둥이 가장자리에 닿을 때만 바뀐다.
+        motion.rowShift = layout.shift
+        lastPosition = position
+        last = layout
+        return layout
+    }
+}
+
+private val FocusedPillarShape = RoundedCornerShape(FOCUS_RADIUS.dp)
 
 /** 날마다 눈금 하나. 일요일은 길게, 5일마다(그리고 1일) 숫자를 붙인다. 고른 날은 늘 숫자를 진하게 적는다. */
 @Composable
@@ -583,7 +639,6 @@ private const val TICK_SLOT_WIDTH = 24f
 private const val MARKER_HEIGHT = 8f
 private const val MARKER_WIDTH = 12f
 private const val MARKER_TOP = PILLAR_TOP - 9f - MARKER_HEIGHT / 2
-private const val CULL_MARGIN = 60f
 
 /** 하루를 넘기는 데 필요한 손가락 거리. 가는 기둥 한 칸보다 넉넉히 두어 천천히 넘어간다. */
 private const val DRAG_STEP = 32f

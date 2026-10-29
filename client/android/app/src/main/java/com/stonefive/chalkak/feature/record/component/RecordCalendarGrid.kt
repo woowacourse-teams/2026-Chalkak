@@ -22,20 +22,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.stonefive.chalkak.BuildConfig
@@ -48,6 +48,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private const val CALENDAR_PHOTO_ASPECT_RATIO = 1f
 private val CalendarGridItemPadding = 6.dp
@@ -166,58 +167,47 @@ private fun Modifier.liftedWeek(
         label = "record-week-lift",
     )
     val cardColor = ChalkakTheme.colors.surfaceElevated
+    // 카드는 줄과 따로 그린다. 카드만 옅어져야 그림자도 함께 옅어지고, 줄의 사진·숫자는 그대로 보인다.
+    val card = rememberGraphicsLayer()
     return this
         .graphicsLayer {
             scaleX = 1f + (WEEK_LIFT_SCALE - 1f) * lift
             scaleY = scaleX
             translationY = -WeekLiftRise.toPx() * lift
-            shadowElevation = WeekCardShadow.toPx() * lift
-            shape = WeekCardShape
-            clip = false
         }.drawBehind {
             if (lift <= 0f) return@drawBehind
             val outsetX = WeekCardOutsetX.toPx()
             val outsetY = WeekCardOutsetY.toPx()
-            drawRoundRect(
-                color = cardColor.copy(alpha = cardColor.alpha * lift),
-                topLeft = Offset(-outsetX, -outsetY),
-                size = Size(size.width + outsetX * 2, size.height + outsetY * 2),
-                cornerRadius = CornerRadius(WeekCardRadius.toPx()),
-            )
+            val cardSize = Size(size.width + outsetX * 2, size.height + outsetY * 2)
+            val radius = WeekCardRadius.toPx()
             val gap = CalendarGridItemPadding.toPx()
             val itemWidth = (size.width - gap * 6) / 7
-            for (column in 1 until 7) {
-                val x = itemWidth * column + gap * (column - 0.5f)
-                drawLine(
-                    color = dividerColor.copy(alpha = dividerColor.alpha * lift),
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = CalendarDividerWidth.toPx(),
-                    cap = StrokeCap.Square,
-                )
+            val rowHeight = size.height
+            val dividerWidth = CalendarDividerWidth.toPx()
+            // 녹화 안에서는 밀도를 다시 묻지 않도록 필요한 값을 미리 px로 바꿔 두고, 밀도를 직접 넘긴다.
+            card.record(
+                density = Density(density, fontScale),
+                layoutDirection = layoutDirection,
+                size = IntSize(cardSize.width.roundToInt(), cardSize.height.roundToInt()),
+            ) {
+                drawRoundRect(color = cardColor, cornerRadius = CornerRadius(radius))
+                for (column in 1 until 7) {
+                    val x = outsetX + itemWidth * column + gap * (column - 0.5f)
+                    drawLine(
+                        color = dividerColor,
+                        start = Offset(x, outsetY),
+                        end = Offset(x, outsetY + rowHeight),
+                        strokeWidth = dividerWidth,
+                        cap = StrokeCap.Square,
+                    )
+                }
             }
+            card.topLeft = IntOffset(-outsetX.roundToInt(), -outsetY.roundToInt())
+            card.setRoundRectOutline(Offset.Zero, cardSize, radius)
+            card.shadowElevation = WeekCardShadow.toPx()
+            card.alpha = lift.coerceIn(0f, 1f)
+            drawLayer(card)
         }
-}
-
-/** 카드 둘레를 줄보다 조금 넓게 잡은 모양. 그림자가 카드 모양을 따른다. */
-private val WeekCardShape = object : Shape {
-    override fun createOutline(
-        size: Size,
-        layoutDirection: LayoutDirection,
-        density: Density,
-    ): Outline = with(density) {
-        val outsetX = WeekCardOutsetX.toPx()
-        val outsetY = WeekCardOutsetY.toPx()
-        Outline.Rounded(
-            RoundRect(
-                left = -outsetX,
-                top = -outsetY,
-                right = size.width + outsetX,
-                bottom = size.height + outsetY,
-                cornerRadius = CornerRadius(WeekCardRadius.toPx()),
-            ),
-        )
-    }
 }
 
 private const val WEEK_LIFT_SCALE = 1.03f

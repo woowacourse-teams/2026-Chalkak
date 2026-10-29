@@ -28,7 +28,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -37,24 +39,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -63,6 +77,8 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -154,8 +170,12 @@ fun RecordPhotoBook(
         val scale = fitScale * growth
         // 책이 커지거나 줄어도 표지 위쪽이 늘 묶음 공통 높이(CONTENT_TOP)에 오게 옮긴다.
         val topOffset = RecordStackMetrics.CONTENT_TOP - (PAGE_TOP - COVER_MARGIN) * scale
-        val spread = model.spread(position.value)
-        val settled = spread.roundToInt()
+        // 넘긴 장 수는 그리기 단계에서만 읽는다. 구성은 펼친 자리나 멈춤 여부가 바뀔 때만 다시 한다.
+        val spread = { model.spread(position.value) }
+        val settled by remember(model) { derivedStateOf { spread().roundToInt() } }
+        val isSettled by remember(
+            model,
+        ) { derivedStateOf { abs(spread() - spread().roundToInt()) < SETTLED_TOLERANCE } }
         val cover = clothColor?.let(::clothOf) ?: ChalkakTheme.colors.calendarCellBorder
         val dragStep = DRAG_STEP * scale
         val maxSpread = model.maxSpread
@@ -225,11 +245,12 @@ fun RecordPhotoBook(
                     topicTitles = topicTitles,
                     signatureUrl = signatureUrl,
                     coverColor = cover,
-                    bendDirection = bend.direction.value,
+                    bendDirection = { bend.direction.value },
                 )
                 RecordBookTouchLayer(
                     model = model,
-                    spread = spread,
+                    settled = settled,
+                    isSettled = isSettled,
                     images = images,
                     onTurn = { currentTurn(it) },
                     onSelectPost = onSelectPost,
@@ -272,12 +293,12 @@ fun RecordPhotoBook(
 @Composable
 private fun BoxScope.RecordBookTouchLayer(
     model: RecordBookModel,
-    spread: Float,
+    settled: Int,
+    isSettled: Boolean,
     images: Map<String, ImageBitmap>,
     onTurn: (Int) -> Unit,
     onSelectPost: (PostCalendarItem) -> Unit,
 ) {
-    val settled = spread.roundToInt()
     // 화면 왼쪽 절반은 전날, 오른쪽 절반은 다음 날로 넘어간다.
     Box(
         modifier = Modifier
@@ -302,7 +323,7 @@ private fun BoxScope.RecordBookTouchLayer(
     )
 
     val post = model.post(settled)
-    if (post != null && abs(spread - settled) < SETTLED_TOLERANCE) {
+    if (post != null && isSettled) {
         val frame = RecordBookGeometry.photoFrame(RecordPhotoAspect.widthRatio(images[post.postId]))
         // 피드가 이 사진 자리에서 확대되어 열리고, 닫히면 이 자리로 돌아온다.
         val photoSource = rememberSharedPhotoSource(
@@ -329,68 +350,80 @@ private fun BoxScope.RecordBookTouchLayer(
     }
 }
 
-/** 책 무대. 넘긴 장 수를 받아 넘기는 중간 모습을 그린다. */
+/**
+ * 책 무대. 넘기는 동안에는 다시 구성하지 않고 그리기만 다시 한다.
+ * 그 달의 낱장은 처음에 한 번 다 구성해 두고, 넘긴 장 수([spread])는 그리기와 배치 단계에서만 읽어 보이는 장만 그린다.
+ * 그래서 달력에서 먼 날을 골라 여러 장을 한꺼번에 넘겨도 프레임마다 낱장을 새로 만들지 않는다.
+ */
 @Composable
 private fun RecordBookStage(
-    spread: Float,
+    spread: () -> Float,
     model: RecordBookModel,
     images: Map<String, ImageBitmap>,
     topicTitles: Map<LocalDate, String>,
     signatureUrl: String?,
     coverColor: Color,
-    bendDirection: Float,
+    bendDirection: () -> Float,
 ) {
     val maxSpread = model.maxSpread.toFloat()
-    val settled = spread.coerceIn(0f, maxSpread)
-    val overscroll = spread - settled
-    val open = minOf(1f, settled)
-    val top = floor(settled).toInt()
-    // 덮였을 때는 표지 가운데가 책등 자리에 오게 옮긴다. 끝을 넘겨 끌면 책 전체가 조금 밀린다.
-    val shiftX = -(1 - open) * COVER_WIDTH / 2 - overscroll * OVERSCROLL_SHIFT
+    val settled = { spread().coerceIn(0f, maxSpread) }
     val faces = RecordBookFaces(model, images, topicTitles, signatureUrl, coverColor)
 
     Box(
         modifier = Modifier
             .size(STAGE_WIDTH.dp, STAGE_HEIGHT.dp)
-            .offset(x = shiftX.dp),
+            .graphicsLayer {
+                // 덮였을 때는 표지 가운데가 책등 자리에 오게 옮긴다. 끝을 넘겨 끌면 책 전체가 조금 밀린다.
+                val current = spread()
+                val clamped = current.coerceIn(0f, maxSpread)
+                val open = minOf(1f, clamped)
+                translationX = (-(1 - open) * COVER_WIDTH / 2 - (current - clamped) * OVERSCROLL_SHIFT).dp.toPx()
+            },
     ) {
-        RecordBookBase(open = open, coverColor = coverColor)
+        RecordBookBase(open = { minOf(1f, settled()) }, coverColor = coverColor)
 
         for (leafIndex in 0..model.maxSpread) {
-            if (leafIndex == 0 || abs(leafIndex - top) <= 2) {
-                val turn = (settled - leafIndex).coerceIn(0f, 1f)
-                if (leafIndex != 0 && turn > 0f && turn < 1f) {
-                    RecordBentLeaf(index = leafIndex, turn = turn, direction = bendDirection, faces = faces)
-                } else {
-                    RecordRigidLeaf(index = leafIndex, turn = turn, faces = faces)
-                }
+            key(leafIndex) {
+                RecordLeaf(
+                    index = leafIndex,
+                    turn = { (settled() - leafIndex).coerceIn(0f, 1f) },
+                    // 표지와 펼친 자리 앞뒤 두 장만 보인다. 나머지는 위에 쌓인 장에 가려진다.
+                    isVisible = { leafIndex == 0 || abs(leafIndex - floor(settled()).toInt()) <= 2 },
+                    direction = bendDirection,
+                    faces = faces,
+                )
             }
         }
 
-        RecordTurnShadow(settled = settled, top = top)
+        RecordTurnShadow(settled = settled)
     }
 }
 
 /** 책 그림자, 책등, 뒤표지. 정면에서 보는 책이라 종이 다발의 두께 면은 그리지 않는다. */
 @Composable
 private fun RecordBookBase(
-    open: Float,
+    open: () -> Float,
     coverColor: Color,
 ) {
-    // 펼칠수록 왼쪽으로 그림자가 넓어진다.
-    val shadowWidth = COVER_WIDTH * (1 + open)
-    val shadowX = SPINE_X - COVER_WIDTH * open
     val coverShape = RoundedCornerShape(
         topStart = COVER_INNER_RADIUS.dp,
         bottomStart = COVER_INNER_RADIUS.dp,
         topEnd = COVER_RADIUS.dp,
         bottomEnd = COVER_RADIUS.dp,
     )
+    // 펼칠수록 왼쪽으로 그림자가 넓어진다.
     Box(
         modifier = Modifier
-            .offset(x = shadowX.dp, y = (PAGE_TOP - COVER_MARGIN).dp)
-            .size(shadowWidth.dp, COVER_HEIGHT.dp)
-            .shadow(DESK_SHADOW_ELEVATION.dp, RoundedCornerShape(SHADOW_RADIUS.dp), clip = false)
+            .offset {
+                IntOffset(
+                    (SPINE_X - COVER_WIDTH * open()).dp.roundToPx(),
+                    (PAGE_TOP - COVER_MARGIN).dp.roundToPx(),
+                )
+            }.layout { measurable, _ ->
+                val width = (COVER_WIDTH * (1 + open())).dp.roundToPx()
+                val placeable = measurable.measure(Constraints.fixed(width, COVER_HEIGHT.dp.roundToPx()))
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }.shadow(DESK_SHADOW_ELEVATION.dp, RoundedCornerShape(SHADOW_RADIUS.dp), clip = false)
             .background(coverColor, RoundedCornerShape(SHADOW_RADIUS.dp)),
     )
     Box(
@@ -409,63 +442,104 @@ private fun RecordBookBase(
 
 /**
  * 책등에 붙은 낱장 한 장. 펼침면 번호보다 앞선 장은 왼쪽으로 넘어가 있고, 그 사이에서는 책등을 축으로 넘어간다.
- * 하드커버 표지와 다 넘어간 장은 휘지 않는다.
+ * - 앞뒷면은 한 번만 그려 녹화해 두고, 넘기는 동안에는 녹화본을 돌리거나 휘어 그리기만 한다.
+ * - 넘어가는 중인 종이는 세로 띠로 나눠 띠마다 기울기를 달리 주어 휜 종이처럼 그린다.
+ *   띠마다 앞면이 보이는지 뒷면이 보이는지 따로 정하므로, 휜 종이의 한쪽은 앞면, 다른 쪽은 뒷면이 보일 수 있다.
+ * - 하드커버 표지와 다 넘어간 장은 휘지 않는다.
  */
 @Composable
-private fun RecordRigidLeaf(
+private fun RecordLeaf(
     index: Int,
-    turn: Float,
+    turn: () -> Float,
+    isVisible: () -> Boolean,
+    direction: () -> Float,
     faces: RecordBookFaces,
 ) {
     val isCover = index == 0
     val width = if (isCover) COVER_WIDTH else PAGE_WIDTH
     val height = if (isCover) COVER_HEIGHT else PAGE_HEIGHT
     val top = if (isCover) PAGE_TOP - COVER_MARGIN else PAGE_TOP
-    val showsFront = turn < 0.5f
     val shape = leafShape(isCover)
-    val zIndex = when {
-        turn > 0f && turn < 1f -> TURNING_Z_INDEX
-        showsFront -> LEAF_Z_INDEX - index
-        else -> LEAF_Z_INDEX + index
+    val front = rememberGraphicsLayer()
+    val back = rememberGraphicsLayer()
+    // 넘어가는 장은 맨 위, 오른쪽에 누운 장은 앞 장이 위, 왼쪽에 누운 장은 뒤 장이 위에 온다.
+    val zIndex by remember(index) {
+        derivedStateOf {
+            val current = turn()
+            when {
+                current > 0f && current < 1f -> TURNING_Z_INDEX
+                current < 0.5f -> LEAF_Z_INDEX - index
+                else -> LEAF_Z_INDEX + index
+            }
+        }
     }
-    // 넘어가는 동안에는 빛을 덜 받아 어두워진다.
-    val shade = Ink.copy(alpha = TURN_SHADE_ALPHA * sin(turn * PI.toFloat()))
 
     Box(
         modifier = Modifier
             .zIndex(zIndex)
             .offset(x = SPINE_X.dp, y = top.dp)
-            .size(width.dp, height.dp)
-            .graphicsLayer {
-                rotationY = -180f * turn
-                transformOrigin = TransformOrigin(0f, 0.5f)
-                cameraDistance = LEAF_CAMERA_DISTANCE * density
-                this.shape = shape
-                clip = true
-            }.drawWithContent {
-                drawContent()
-                drawRect(shade)
-            },
+            .size(width.dp, height.dp),
     ) {
-        if (showsFront) {
-            faces.Front(index)
-        } else {
-            // 뒤집힌 면은 거울상이 되므로 미리 좌우를 바꿔 둔다.
-            Box(modifier = Modifier.graphicsLayer { scaleX = -1f }) { faces.Back(index) }
-        }
+        // 앞뒷면은 화면에 바로 그리지 않고 녹화만 한다. 내용이 바뀔 때만 다시 녹화된다.
+        Box(
+            modifier = Modifier.drawWithContent {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                front.record {
+                    clipPath(Path().apply { addOutline(outline) }) { this@drawWithContent.drawContent() }
+                }
+            },
+        ) { faces.Front(index) }
+        Box(
+            modifier = Modifier.drawWithContent {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                back.record {
+                    // 뒤집힌 면은 거울상이 되므로 미리 좌우를 바꿔 둔다.
+                    scale(scaleX = -1f, scaleY = 1f) {
+                        clipPath(Path().apply { addOutline(outline) }) { this@drawWithContent.drawContent() }
+                    }
+                }
+            },
+        ) { faces.Back(index) }
+
+        // 넘기는 모습만 따로 다시 그린다. 자기 레이어를 두어 넘기는 동안 면을 다시 녹화하지 않는다.
+        Spacer(
+            modifier = Modifier
+                .size(width.dp, height.dp)
+                .graphicsLayer()
+                .drawBehind {
+                    if (!isVisible()) return@drawBehind
+                    val current = turn()
+                    if (!isCover && current > 0f && current < 1f) {
+                        drawBentLeaf(front, back, current, direction())
+                    } else {
+                        drawRigidLeaf(front, back, current)
+                    }
+                },
+        )
     }
 }
 
-/**
- * 넘어가는 중인 종이. 세로 띠로 나눠 띠마다 기울기를 달리 주어 휜 종이처럼 그린다.
- * 띠마다 앞면이 보이는지 뒷면이 보이는지 따로 정하므로, 휜 종이의 한쪽은 앞면, 다른 쪽은 뒷면이 보일 수 있다.
- */
-@Composable
-private fun RecordBentLeaf(
-    index: Int,
+/** 책등을 축으로 돌아가는 판판한 장. 넘어가는 동안에는 빛을 덜 받아 어두워진다. */
+private fun DrawScope.drawRigidLeaf(
+    front: GraphicsLayer,
+    back: GraphicsLayer,
+    turn: Float,
+) {
+    val layer = if (turn < 0.5f) front else back
+    val shade = TURN_SHADE_ALPHA * sin(turn * PI.toFloat())
+    layer.pivotOffset = Offset(0f, size.height / 2)
+    layer.rotationY = -180f * turn
+    layer.cameraDistance = LEAF_CAMERA_DISTANCE * density
+    layer.colorFilter = if (shade > 0f) ColorFilter.tint(Ink.copy(alpha = shade), BlendMode.SrcAtop) else null
+    drawLayer(layer)
+}
+
+/** 넘어가는 중인 종이. 녹화한 면을 띠마다 원근을 넣은 사영 변환으로 그린다. */
+private fun DrawScope.drawBentLeaf(
+    front: GraphicsLayer,
+    back: GraphicsLayer,
     turn: Float,
     direction: Float,
-    faces: RecordBookFaces,
 ) {
     val segments = RecordPaperCurl.segments(turn, direction, PAGE_WIDTH, PAGE_HEIGHT, PAPER_STRIPS)
     val stripWidth = PAGE_WIDTH / PAPER_STRIPS
@@ -474,73 +548,67 @@ private fun RecordBentLeaf(
     val shadeStops = segments.mapIndexed { strip, segment ->
         strip.toFloat() / segments.size to Ink.copy(alpha = TURN_SHADE_ALPHA * sin(segment.startAngle))
     } + (1f to Ink.copy(alpha = TURN_SHADE_ALPHA * sin(segments.lastOrNull()?.endAngle ?: 0f)))
-    val shade = Brush.horizontalGradient(*shadeStops.toTypedArray())
-
-    Box(
-        modifier = Modifier
-            .zIndex(TURNING_Z_INDEX)
-            .offset(x = SPINE_X.dp, y = PAGE_TOP.dp)
-            .size(PAGE_WIDTH.dp, PAGE_HEIGHT.dp),
-    ) {
-        segments.forEachIndexed { strip, segment ->
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .drawWithContent {
-                        val pxPerDp = density
-                        val matrix = android.graphics
-                            .Matrix()
-                            .apply { setValues(segment.matrixValues) }
-                        drawIntoCanvas { canvas ->
-                            canvas.nativeCanvas.save()
-                            canvas.nativeCanvas.scale(pxPerDp, pxPerDp)
-                            canvas.nativeCanvas.concat(matrix)
-                            canvas.nativeCanvas.scale(1 / pxPerDp, 1 / pxPerDp)
-                        }
-                        // 띠 사이에 틈이 보이지 않도록 조금씩 겹친다.
-                        clipRect(right = (stripWidth + PAPER_STRIP_OVERLAP) * pxPerDp) {
-                            translate(left = -strip * stripWidth * pxPerDp) {
-                                this@drawWithContent.drawContent()
-                                drawRect(shade)
-                            }
-                        }
-                        drawIntoCanvas { it.nativeCanvas.restore() }
-                    },
-            ) {
-                if (segment.showsFront) {
-                    faces.Front(index)
-                } else {
-                    // 뒤집힌 면은 띠의 좌우가 뒤바뀌어 그려지므로 미리 좌우를 바꿔 둔다.
-                    Box(modifier = Modifier.graphicsLayer { scaleX = -1f }) { faces.Back(index) }
-                }
+    val shade = Brush.horizontalGradient(*shadeStops.toTypedArray(), endX = size.width)
+    listOf(front, back).forEach { layer ->
+        layer.rotationY = 0f
+        layer.colorFilter = null
+    }
+    val pxPerDp = density
+    val matrix = android.graphics.Matrix()
+    segments.forEachIndexed { strip, segment ->
+        matrix.setValues(segment.matrixValues)
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.save()
+            canvas.nativeCanvas.scale(pxPerDp, pxPerDp)
+            canvas.nativeCanvas.concat(matrix)
+            canvas.nativeCanvas.scale(1 / pxPerDp, 1 / pxPerDp)
+        }
+        // 띠 사이에 틈이 보이지 않도록 조금씩 겹친다.
+        clipRect(right = (stripWidth + PAPER_STRIP_OVERLAP) * pxPerDp) {
+            translate(left = -strip * stripWidth * pxPerDp) {
+                drawLayer(if (segment.showsFront) front else back)
+                drawRect(shade)
             }
         }
+        drawIntoCanvas { it.nativeCanvas.restore() }
     }
 }
 
 /** 넘어가는 장이 아래 면에 드리우는 그림자. 장 끝이 바닥에 비치는 자리까지 짙어진다. */
 @Composable
-private fun RecordTurnShadow(
-    settled: Float,
-    top: Int,
-) {
-    val fraction = settled - top
-    if (fraction <= 0f || top < 1) return
-    val isRight = fraction < 0.5f
-    val strength = sin(fraction * PI.toFloat()) * CAST_SHADOW_ALPHA
-    val edge = abs(cos(fraction * PI.toFloat())) * PAGE_WIDTH
-    val stops = arrayOf(
-        0f to Ink.copy(alpha = 0f),
-        maxOf(0f, (edge - 6) / PAGE_WIDTH) to Ink.copy(alpha = strength),
-        minOf(1f, (edge + 26) / PAGE_WIDTH) to Ink.copy(alpha = 0f),
-    )
-    Box(
+private fun RecordTurnShadow(settled: () -> Float) {
+    Spacer(
         modifier = Modifier
             .zIndex(TURNING_Z_INDEX - 1)
-            .offset(x = (if (isRight) SPINE_X else SPINE_X - PAGE_WIDTH).dp, y = PAGE_TOP.dp)
-            .size(PAGE_WIDTH.dp, PAGE_HEIGHT.dp)
-            .graphicsLayer { if (!isRight) scaleX = -1f }
-            .background(Brush.horizontalGradient(*stops)),
+            .size(STAGE_WIDTH.dp, STAGE_HEIGHT.dp)
+            .graphicsLayer()
+            .drawBehind {
+                val current = settled()
+                val top = floor(current).toInt()
+                val fraction = current - top
+                if (fraction <= 0f || top < 1) return@drawBehind
+                val isRight = fraction < 0.5f
+                val strength = sin(fraction * PI.toFloat()) * CAST_SHADOW_ALPHA
+                val edge = abs(cos(fraction * PI.toFloat())) * PAGE_WIDTH
+                val pageWidth = PAGE_WIDTH.dp.toPx()
+                val left = (if (isRight) SPINE_X else SPINE_X - PAGE_WIDTH).dp.toPx()
+                val stops = arrayOf(
+                    0f to Ink.copy(alpha = 0f),
+                    maxOf(0f, (edge - 6) / PAGE_WIDTH) to Ink.copy(alpha = strength),
+                    minOf(1f, (edge + 26) / PAGE_WIDTH) to Ink.copy(alpha = 0f),
+                )
+                // 왼쪽 면에서는 책등에서 바깥쪽으로 짙어지도록 그러데이션 방향을 뒤집는다.
+                val brush = if (isRight) {
+                    Brush.horizontalGradient(*stops, startX = left, endX = left + pageWidth)
+                } else {
+                    Brush.horizontalGradient(*stops, startX = left + pageWidth, endX = left)
+                }
+                drawRect(
+                    brush = brush,
+                    topLeft = Offset(left, PAGE_TOP.dp.toPx()),
+                    size = Size(pageWidth, PAGE_HEIGHT.dp.toPx()),
+                )
+            },
     )
 }
 
