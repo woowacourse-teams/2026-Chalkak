@@ -25,6 +25,7 @@ printf '[production]\ntype = alias\nremote = %s/source\n[backup]\ntype = alias\n
   "$fixture" "$fixture" > "$fixture/rclone.conf"
 cat > "$fixture/backup.env" <<EOF
 RCLONE_CONFIG=$fixture/rclone.conf
+BACKUP_LOCK_FILE=$fixture/backup.lock
 IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 IMAGE_BACKUP_TEMP_ROOT=$fixture/work

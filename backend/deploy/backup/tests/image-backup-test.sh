@@ -68,6 +68,7 @@ prepare_case() {
     "$case_dir" "$case_dir" > "$case_dir/rclone.conf"
   cat > "$case_dir/backup.env" <<EOF
 RCLONE_CONFIG=$case_dir/rclone.conf
+BACKUP_LOCK_FILE=$case_dir/backup.lock
 IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 IMAGE_BACKUP_TEMP_ROOT=$case_dir/work

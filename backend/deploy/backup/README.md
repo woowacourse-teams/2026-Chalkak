@@ -31,7 +31,7 @@ DB 덤프에는 실제 사진 파일이 포함되지 않는다. `image-backup.sh
 
 ## 백업 실행 준비
 
-Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`, GNU coreutils의 `timeout`이 필요하다.
+Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`, GNU coreutils의 `timeout`, util-linux의 `flock`이 필요하다.
 DB에 직접 연결해 스키마·테이블·시퀀스를 내보낼 권한이 있어야 한다.
 TLS 인증서 검증을 위해 RDS CA 번들을 준비한다. 스크립트는 `verify-full`을 강제한다.
 
@@ -46,6 +46,72 @@ PGPASSWORD나 명령 인자로 비밀번호를 전달하지 않는다. 소스·�
 삭제·설정 변경 권한은 주지 않는다. 업로드와 전체 내용 검증이 가능해야 한다.
 
 ## 수동 실행
+
+### DB·이미지 통합 실행
+
+`backup.sh`가 공통 잠금을 잡은 뒤 DB → 이미지를 순서대로 시도한다. DB 설정이나 덤프가
+실패해도 이미지는 시도하며, 선택한 작업 중 하나라도 실패하면 0이 아닌 종료 코드를 반환한다.
+기존 백업·복구·전송 기능은 각 도구를 그대로 호출해 재사용한다. 복구 도구는 호출하지 않는다.
+
+운영 설치 시 실행 사용자 소유의 `/var/lib/chalkak-backup`을 mode 700으로 미리 준비한다.
+`BACKUP_STATE_DIRECTORY`는 이 로컬 결과 보관 위치다. `BACKUP_LOCK_FILE`은 같은 보호 경로
+안의 고정 파일이며, 예약·수동·개별 실행에서 모두 같은 경로를 사용한다.
+`BACKUP_RUN_DESTINATION`은 팀 버킷의 `remote:bucket/prefix/runs` 형식 결과 보관 경로다.
+이 세 항목은 백업 전용 설정이며 앱 `application.env`나 CD 필수 키에 추가하지 않는다.
+
+```bash
+# 일별 실행과 수동 전체 실행
+bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env
+# 실패한 대상만 새 회차로 재시도 (전체 실행 성공을 대신하지 않는다)
+bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env db
+bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env images
+```
+
+실행마다 고유한 `chalkak-backup-...` 디렉터리에 `RESULT`, `db.log`, `image.log`를 남긴다.
+최종 종료 코드·단계는 로컬 `OUTCOME`에도 기록한다. 원격 기록 실패를 진단할 수 있도록
+OUTCOME은 원격 기록 시도까지 끝난 후 로컬에 작성하며 원격에는 업로드하지 않는다.
+`RESULT`에는 시작·종료 UTC 시각, 선택 대상, 개별 종료 코드, 중단 여부를 기록한다.
+제외 대상은 `not-selected`, 선택했지만 아직 시작하지 않은 대상은 `not-started`다.
+도구 로그의 개별 `run` 값으로 실제 DB·이미지 보관 회차를 찾는다. 선택한 작업과 결과 파일의
+업로드·내용 비교가 모두 성공한 뒤 통합 `COMPLETE`를 업로드·재조회한다.
+`selection=db` 또는 `images`의 COMPLETE는 그 대상만 성공했다는 의미다.
+
+```text
+팀 버킷/chalkak/runs/chalkak-backup-실행UTC시각-고유문자열/
+├── RESULT
+├── db.log       # DB를 선택한 회차만
+├── image.log    # 이미지를 선택한 회차만
+└── COMPLETE     # 선택한 백업 및 결과 기록 검증 성공 시에만
+```
+
+DB·이미지 실패도 가능한 경우 `RESULT`와 도구 로그를 원격에 보관하지만 COMPLETE를 만들지
+않는다. 원격 결과 전송·검증이 실패하면 `FAILED stage=record`, 완료 표식 실패는
+`stage=completion`으로 종료하고 로컬 기록은 유지한다. 원격 COMPLETE 업로드 후 재조회만
+실패하는 경우 표식이 남을 수 있으므로 실패 로그도 함께 확인한다. 로컬 COMPLETE만으로
+원격 전송 성공을 판단하지 않는다. 설정 오류·잠금 충돌처럼 작업 시작 전의 오류는 표준 오류에
+남기며, 예약 설치 시 systemd 저널로 수집할 예정이다. 이 커밋은 예약을 활성화하지 않는다.
+
+잠금이 이미 잡혀 있으면 기다리거나 겹쳐 실행하지 않고 `SKIPPED reason=already-running`과
+종료 코드 75를 남긴다. `db-backup.sh`·`image-backup.sh` 직접 실행에도 같은 잠금을 적용한다.
+통합 실행의 자식은 같은 열린 파일 디스크립터를 상속하며 `/proc`로 파일을 대조한 뒤 실제
+flock을 확인한다. 환경변수 플래그만으로 잠금을 생략하지 않는다. 잠금 파일은 계속 남아도
+정상이고, 프로세스가 사용한 파일을 모두 닫으면 커널 잠금이 해제된다. 실행 중 잠금 파일을
+삭제·교체하거나 다른 설정에서 다른 잠금 경로를 지정하면 중복 방지가 깨지므로 하지 않는다.
+이 잠금은 같은 Linux 호스트·동일 파일에만 적용되며 여러 서버의 중복 실행은 막지 못한다.
+
+INT·TERM을 받으면 진행 중인 자식에 종료를 전달하고 종료를 기다린 뒤 다음 대상은 시작하지
+않는다. 중단 결과는 로컬에 남기고 원격 업로드를 시도해 종료를 지연하지 않는다. Bash는 자식의
+외부 명령이 끝날 때까지 신호 처리가 늦을 수 있다. SIGKILL·호스트 장애에서는 결과 기록이
+남지 않거나 자식이 잠금을 유지할 수 있으므로 프로세스·기록을 확인한다. 프로세스 그룹 종료와
+전체 실행 시간 상한은 후속 systemd 설정 및 실제 운영 실측으로 확인한다.
+로컬 결과·원격 회차는 초기 정책대로 자동 삭제하지 않는다.
+
+```bash
+# Linux에서 실행. DB 명령은 합성 도구, flock·rclone 전송·내용 비교는 실제 도구다.
+bash deploy/backup/tests/backup-test.sh
+```
+
+### 개별 DB 실행
 
 ```bash
 bash deploy/backup/db-backup.sh /etc/chalkak-backup/backup.env

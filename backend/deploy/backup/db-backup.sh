@@ -11,6 +11,8 @@ fi
 set -a
 source "$1"
 set +a
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/backup-lock.sh"
+backup_lock
 
 stage=configuration
 work_dir=''
