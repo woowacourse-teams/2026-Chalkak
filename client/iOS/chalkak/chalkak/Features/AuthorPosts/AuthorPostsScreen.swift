@@ -47,6 +47,8 @@ struct AuthorPostsScreen: View {
         .background(theme.colors.background)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         // 움직이는 동안 아래 피드와 경계가 보이도록 왼쪽 끝에 그림자를 둔다.
+        // 화면을 한 장으로 합친 뒤 그림자를 그린다. 합치지 않으면 탑바·사진 카드마다 그림자가 따로 생겨 화면 안쪽에 줄이 보인다.
+        .compositingGroup()
         .shadow(color: .black.opacity(progress < 1 ? Metrics.shadowOpacity : 0), radius: Metrics.shadowRadius)
         // 동작 줄이기에서는 밀지 않고 페이드한다.
         .modifier(AuthorPostsSlideEffect(progress: reduceMotion ? 1 : progress))
