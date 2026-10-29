@@ -18,13 +18,14 @@ describe("mobile fixed-control spacing", () => {
 
   it("shares the safe-area-aware navigation height with the shell reserve", () => {
     expect(globalCss).toMatch(/--admin-bottom-nav-height:\s*0px/);
-    expect(globalCss).toMatch(/@media\s*\(max-width:\s*800px\)\s*\{\s*:root\s*\{\s*--admin-bottom-nav-height:\s*calc\(69px \+ env\(safe-area-inset-bottom\)\)/);
+    expect(globalCss).toMatch(/@media\s*\(max-width:\s*800px\)\s*\{\s*:root\s*\{\s*--admin-bottom-nav-height:\s*calc\(74px \+ env\(safe-area-inset-bottom\)\)/);
     expect(shellCss).toMatch(/\.shell\s*\{[^}]*padding-bottom:\s*var\(--admin-bottom-nav-height\)/);
     expect(shellCss).toMatch(/\.navigation\s*\{[^}]*min-height:\s*var\(--admin-bottom-nav-height\)/);
   });
 
-  it("fits all eight bottom menus on the narrowest phones", () => {
+  it("fits eight bottom menus and keeps audit history outside the mobile bar", () => {
     expect(shellCss).toMatch(/\.navigation\s*\{[^}]*grid-template-columns:\s*repeat\(8,\s*minmax\(0,\s*1fr\)\)/);
+    expect(shellCss).toMatch(/@media\s*\(max-width:\s*800px\)\s*\{[^]*?\.desktopOnly\s*\{\s*display:\s*none/);
     expect(shellCss).toMatch(/@media\s*\(max-width:\s*360px\)\s*\{[^}]*\.navigation\s*\{\s*padding-inline:\s*2px/);
   });
 

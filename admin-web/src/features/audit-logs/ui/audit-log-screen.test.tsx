@@ -123,3 +123,17 @@ it("does not link an AI prompt audit entry whose target id is not a UUID", async
   expect(await screen.findByText("AI 프롬프트 버전 생성", { selector: "strong" })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: /보기/ })).not.toBeInTheDocument();
 });
+
+it("filters app version changes and links to settings with platform snapshots", async () => {
+  navigation.params = new URLSearchParams("targetType=APP_VERSION");
+  await getApiClient().request("/app-versions/IOS", { method: "PUT", body: { revision: null, minimumSupportedVersion: "1.10.0", storeUrl: "https://apps.apple.com/app/id123456789", reason: "iOS 출시 확인" } });
+  mount();
+  await screen.findByText("처리자 demo-admin");
+  expect(screen.getByRole("combobox", { name: "대상" })).toHaveValue("APP_VERSION");
+  expect(screen.getByRole("link", { name: "앱 버전 설정 보기 →" })).toHaveAttribute("href", "/app-versions");
+  fireEvent.click(screen.getByText("변경 내용"));
+  expect(screen.getByText(/"platform": "IOS"/)).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("combobox", { name: "작업" }), { target: { value: "APP_VERSION_UPDATED" } });
+  fireEvent.click(screen.getByRole("button", { name: "조회" }));
+  expect(navigation.push).toHaveBeenCalledWith("/audit-logs?page=1&action=APP_VERSION_UPDATED&targetType=APP_VERSION");
+});
