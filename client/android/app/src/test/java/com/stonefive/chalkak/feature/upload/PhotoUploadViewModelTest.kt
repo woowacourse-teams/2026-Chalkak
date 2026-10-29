@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.feature.upload
 
+import androidx.lifecycle.SavedStateHandle
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.PostCreation
@@ -11,6 +12,9 @@ import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.model.photoedit.CropWindow
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustment
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
+import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
@@ -33,6 +37,216 @@ class PhotoUploadViewModelTest {
     private val postCreationRepository = FakePostCreationRepository()
     private val uploadTopicDate = LocalDate.of(2026, 8, 29)
     private val viewModel by lazy { PhotoUploadViewModel(postCreationRepository, uploadTopicDate) }
+
+    @Test
+    fun `저장된 사진을 다시 준비하되 자동 제출하지 않는다`() {
+        val image = "content://media/photo/restored"
+        val handle = SavedStateHandle(mapOf("upload_selected_image" to image, "upload_caption" to "제목"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        assertEquals(image, restored.uiState.value.selectedImage)
+        assertEquals("제목", restored.uiState.value.caption)
+        assertEquals(listOf(image), postCreationRepository.preparedImageUris)
+        assertEquals(listOf(PhotoEdit()), postCreationRepository.preparedEdits)
+        assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `저장된 편집의 필터를 알 수 없으면 사진 재선택을 안내한다`() {
+        assertInvalidRestoredEdit(croppedMonoEdit.toSavedState().apply { put("filter", "Unknown") })
+    }
+
+    @Test
+    fun `저장된 편집에 필수 값이 없으면 사진 재선택을 안내한다`() {
+        assertInvalidRestoredEdit(croppedMonoEdit.toSavedState().apply { remove("cropWidth") })
+    }
+
+    private fun assertInvalidRestoredEdit(edit: HashMap<String, String>) {
+        val handle = SavedStateHandle(
+            mapOf(
+                "upload_selected_image" to "content://edited",
+                "upload_selected_edit" to edit,
+                "upload_caption" to "작성 중",
+            ),
+        )
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        assertEquals("작성 중", restored.uiState.value.caption)
+        assertEquals("작성 중", handle.get<String>("upload_caption"))
+        assertEquals(null, restored.uiState.value.selectedImage)
+        assertFalse(handle.contains("upload_selected_image"))
+        assertFalse(handle.contains("upload_selected_edit"))
+        assertEquals(0, postCreationRepository.prepareCount)
+        assertEquals(0, postCreationRepository.callCount)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertFalse(restored.uiState.value.canSubmit)
+        assertEquals(
+            "사진 편집 정보를 복원하지 못했어요. 사진을 다시 선택해 주세요.",
+            (restored.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `선택한 사진을 저장하고 초기화하면 복원하지 않는다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        original.selectPhoto("content://media/photo/1")
+        original.selectPhoto("content://media/photo/2")
+
+        val snapshot = mapOf("upload_selected_image" to handle.get<String>("upload_selected_image"))
+        val restored = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            savedStateHandle = SavedStateHandle(snapshot),
+        )
+        assertEquals("content://media/photo/2", restored.uiState.value.selectedImage)
+
+        original.reset()
+        assertFalse(handle.contains("upload_selected_image"))
+        assertFalse(handle.contains("upload_selected_edit"))
+        val prepareCount = postCreationRepository.prepareCount
+        val reopened = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        assertEquals(null, reopened.uiState.value.selectedImage)
+        assertEquals(prepareCount, postCreationRepository.prepareCount)
+    }
+
+    @Test
+    fun `복원한 사진을 읽지 못해도 제목을 유지하고 실패를 표시한다`() {
+        postCreationRepository.prepareResults += PostImagePreparationResult.Failure(
+            PostCreationFailure.ImagePreparationFailed,
+        )
+        val handle = SavedStateHandle(mapOf("upload_selected_image" to "content://missing", "upload_caption" to "제목"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        assertEquals("제목", restored.uiState.value.caption)
+        assertEquals(ImagePreparationStatus.Failed, restored.uiState.value.imagePreparationStatus)
+        assertEquals(
+            "사진을 준비하지 못했어요. 다시 시도해 주세요.",
+            (restored.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `복원 중 새 사진을 선택하면 이전 준비 결과가 덮어쓰지 않는다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        postCreationRepository.prepareAwait = gate
+        val handle = SavedStateHandle(mapOf("upload_selected_image" to "content://old"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        restored.selectPhoto("content://new", croppedMonoEdit)
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("content://new", restored.uiState.value.selectedImage)
+        assertEquals("content://new", handle.get<String>("upload_selected_image"))
+        assertEquals(croppedMonoEdit, restored.uiState.value.selectedEdit)
+        assertEquals(croppedMonoEdit, postCreationRepository.preparedEdits.last())
+        assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `확정한 사진과 전체 편집 값을 복원해 다시 준비한다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        val edit = croppedMonoEdit.copy(
+            straightenDegrees = 2.5f,
+            adjustmentLayers = PhotoAdjustmentLayers(
+                automatic = PhotoAdjustments(exposure = 0.4f, warmth = -0.2f),
+                intensity = 0.7f,
+                manual = mapOf(PhotoAdjustment.Contrast to 0.3f, PhotoAdjustment.Shadows to -0.1f),
+            ),
+        )
+        original.onAction(PhotoUploadUiAction.CaptionChanged("바다"))
+        original.selectPhoto("content://edited", edit)
+
+        val snapshot = SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) })
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = snapshot)
+
+        assertEquals("content://edited", restored.uiState.value.selectedImage)
+        assertEquals("바다", restored.uiState.value.caption)
+        assertEquals(edit, restored.uiState.value.selectedEdit)
+        assertEquals(edit, postCreationRepository.preparedEdits.last())
+        assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
+        assertEquals(null, restored.uiState.value.editingPhoto)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+
+        original.reset()
+        assertFalse(handle.contains("upload_selected_edit"))
+        assertFalse(handle.contains("upload_selected_image"))
+        assertFalse(handle.contains("upload_caption"))
+        val reopened = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        assertEquals(PhotoEdit(), reopened.uiState.value.selectedEdit)
+        assertEquals(null, reopened.uiState.value.selectedImage)
+        assertEquals("", reopened.uiState.value.caption)
+    }
+
+    @Test
+    fun `복원 중 새 사진 편집을 취소하면 기존 사진과 편집의 준비를 유지한다`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        postCreationRepository.prepareAwait = gate
+        val handle = SavedStateHandle(
+            mapOf(
+                "upload_selected_image" to "content://old",
+                "upload_selected_edit" to croppedMonoEdit.toSavedState(),
+            ),
+        )
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        restored.onImageSelected("content://new")
+        restored.onEditCanceled()
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("content://old", restored.uiState.value.selectedImage)
+        assertEquals(croppedMonoEdit, restored.uiState.value.selectedEdit)
+        assertEquals("content://old", handle.get<String>("upload_selected_image"))
+        assertEquals(croppedMonoEdit, handle.get<HashMap<String, String>>("upload_selected_edit")?.toPhotoEdit())
+        assertEquals(listOf("content://old"), postCreationRepository.preparedImageUris)
+        assertEquals(listOf(croppedMonoEdit), postCreationRepository.preparedEdits)
+        assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `저장된 제목을 복원하되 자동 제출하지 않는다`() {
+        val handle = SavedStateHandle(mapOf("upload_caption" to "작성 중"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        assertEquals("작성 중", restored.uiState.value.caption)
+        assertFalse(restored.uiState.value.isSubmitting)
+        assertEquals(0, postCreationRepository.callCount)
+    }
+
+    @Test
+    fun `변경한 제목을 저장하고 새 ViewModel에서 복원한다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        original.onAction(PhotoUploadUiAction.CaptionChanged("바다"))
+
+        val restoredHandle = SavedStateHandle(mapOf("upload_caption" to handle.get<String>("upload_caption")))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = restoredHandle)
+
+        assertEquals("바다", restored.uiState.value.caption)
+        original.onAction(PhotoUploadUiAction.CaptionChanged(""))
+        assertEquals("", handle.get<String>("upload_caption"))
+    }
+
+    @Test
+    fun `초기화하면 저장한 제목도 제거한다`() {
+        val handle = SavedStateHandle(mapOf("upload_caption" to "작성 중"))
+        val original = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+
+        original.reset()
+
+        assertFalse(handle.contains("upload_caption"))
+        val restored = PhotoUploadViewModel(postCreationRepository, uploadTopicDate, savedStateHandle = handle)
+        assertEquals("", restored.uiState.value.caption)
+    }
 
     @Test
     fun `입력 내용이 없거나 공백뿐이면 확인 없이 뒤로 간다`() = runTest {
@@ -667,6 +881,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     val requestedTopicDates = mutableListOf<LocalDate>()
     val requestedTopics = mutableListOf<Topic>()
     val preparations = mutableListOf<PostImagePreparation>()
+    val preparedImageUris = mutableListOf<String>()
     val preparedEdits = mutableListOf<PhotoEdit>()
     val discardedPreparations = mutableListOf<PostImagePreparation>()
 
@@ -683,6 +898,7 @@ private class FakePostCreationRepository : PostCreationRepository {
         edit: PhotoEdit,
     ): PostImagePreparationResult {
         prepareCount++
+        preparedImageUris += imageUri
         preparedEdits += edit
         prepareAwait?.await()
         if (prepareResults.isNotEmpty()) return prepareResults.removeFirst()

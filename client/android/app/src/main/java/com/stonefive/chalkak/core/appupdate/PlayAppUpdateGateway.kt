@@ -12,9 +12,10 @@ import com.google.android.play.core.install.model.UpdateAvailability
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
-class PlayAppUpdateGateway(context: Context) : AppUpdateGateway {
-    private val appUpdateManager: AppUpdateManager =
-        AppUpdateManagerFactory.create(context.applicationContext)
+class PlayAppUpdateGateway(
+    context: Context,
+    private val appUpdateManager: AppUpdateManager = AppUpdateManagerFactory.create(context.applicationContext),
+) : AppUpdateGateway {
     private var pendingAppUpdateInfo: AppUpdateInfo? = null
 
     override suspend fun checkForUpdate(): AppUpdateCheckResult = suspendCancellableCoroutine { continuation ->
@@ -53,13 +54,10 @@ class PlayAppUpdateGateway(context: Context) : AppUpdateGateway {
     private fun AppUpdateInfo.toCheckResult(): AppUpdateCheckResult = when (updateAvailability()) {
         UpdateAvailability.UPDATE_NOT_AVAILABLE -> AppUpdateCheckResult.NoUpdate
 
-        UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> immediateUpdateResult()
+        // An accepted Immediate update is resumable even when a new flow is no longer allowed.
+        UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> AppUpdateCheckResult.ImmediateUpdateRequired
 
-        UpdateAvailability.UPDATE_AVAILABLE -> if (isForcedUpdatePriority(updatePriority())) {
-            immediateUpdateResult()
-        } else {
-            AppUpdateCheckResult.NoUpdate
-        }
+        UpdateAvailability.UPDATE_AVAILABLE -> immediateUpdateResult()
 
         else -> AppUpdateCheckResult.Failed
     }

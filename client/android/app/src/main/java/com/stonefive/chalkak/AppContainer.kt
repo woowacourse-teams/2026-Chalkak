@@ -73,11 +73,17 @@ class AppContainer(context: Context) {
     }
 
     val appUpdateGateway: AppUpdateGateway by lazy {
-        if (!BuildConfig.ENABLE_PLAY_APP_UPDATES) {
-            DisabledAppUpdateGateway()
-        } else {
-            PlayAppUpdateGateway(context)
-        }
+        com.stonefive.chalkak.data.remote.appversion.ServerAppUpdateGateway(
+            api = networkModule.appVersionApi,
+            currentVersion = BuildConfig.VERSION_NAME.substringBefore("-"),
+            playGateway = if (BuildConfig.ENABLE_PLAY_APP_UPDATES) {
+                PlayAppUpdateGateway(
+                    context,
+                )
+            } else {
+                DisabledAppUpdateGateway()
+            },
+        )
     }
 
     val connectivityObserver: ConnectivityObserver by lazy {

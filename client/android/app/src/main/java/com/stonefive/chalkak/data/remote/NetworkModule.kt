@@ -79,6 +79,7 @@ class NetworkModule(
         .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE))
         .build()
 
+    val appVersionApi = publicRetrofit.create(com.stonefive.chalkak.data.remote.appversion.AppVersionApi::class.java)
     val bannerApi: BannerApi = publicRetrofit.create(BannerApi::class.java)
     val authApi: AuthApi = retrofit.create(AuthApi::class.java)
     val topicApi: TopicApi = retrofit.create(TopicApi::class.java)

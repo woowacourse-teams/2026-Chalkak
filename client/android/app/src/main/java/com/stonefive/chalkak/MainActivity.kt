@@ -1,7 +1,7 @@
 package com.stonefive.chalkak
 
-import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -41,12 +41,8 @@ class MainActivity : ComponentActivity() {
     @Suppress("InvalidFragmentVersionForActivityResult")
     private val updateLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            versionGateViewModel.onImmediateUpdateFinished()
-        } else {
-            finish()
-        }
+    ) {
+        versionGateViewModel.onImmediateUpdateFinished()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,7 +84,11 @@ class MainActivity : ComponentActivity() {
                     onStartImmediateUpdate = {
                         appUpdateGateway.startImmediateUpdate(updateLauncher)
                     },
-                    onImmediateUpdateStartFailed = ::finish,
+                    onImmediateUpdateStartFailed = {
+                        appUpdateGateway.storeUrl?.let { url ->
+                            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        }
+                    },
                 )
             }
         }
