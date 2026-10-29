@@ -203,6 +203,46 @@ struct RecordPillarLayoutTests {
         #expect(abs((start - next) - step) < 0.0001)
     }
 
+    @Test("펼친 기둥은 폭 상한까지 사진 원본 비율 그대로이고 높이는 늘 같다", arguments: [0.5625, 0.75, 1.0, 4.0 / 3.0, 16.0 / 9.0] as [Double])
+    func openPillarKeepsRatio(ratio: Double) {
+        let size = RecordPillarLayout.openSize(ratio: CGFloat(ratio))
+        #expect(abs(size.width / size.height - CGFloat(ratio)) < 0.0001)
+        #expect(abs(size.height - 126) < 0.0001)
+
+        let layout = RecordPillarLayout(
+            entryCount: 13,
+            position: 4,
+            width: Self.width,
+            previousShift: nil,
+            openSizes: Array(repeating: size, count: 13)
+        )
+        #expect(abs(layout.widths[4] - size.width) < 0.0001)
+        #expect(layout.heights.allSatisfy { abs($0 - 126) < 0.0001 })
+    }
+
+    @Test("폭 상한을 넘는 넓은 사진은 높이를 지키고 폭에서 멈춘다")
+    func widePillarStopsAtMaxWidth() {
+        let size = RecordPillarLayout.openSize(ratio: 3)
+        #expect(abs(size.width - 240) < 0.0001)
+        #expect(abs(size.height - 126) < 0.0001)
+    }
+
+    @Test("끄는 동안 날짜 가까이에서는 그 날에 걸려 있다가 사이 구간에서만 넘어간다")
+    func dragDetentsOnEachDay() {
+        #expect(RecordPillarLayout.detented(3.2, entryCount: 13) == 3)
+        #expect(RecordPillarLayout.detented(3.5, entryCount: 13) == 3.5)
+        #expect(RecordPillarLayout.detented(3.8, entryCount: 13) == 4)
+        var previous = RecordPillarLayout.detented(0, entryCount: 13)
+        for hundredth in 1...1200 {
+            let value = RecordPillarLayout.detented(CGFloat(hundredth) / 100, entryCount: 13)
+            #expect(value >= previous)
+            previous = value
+        }
+        // 끝을 넘겨 끈 고무줄 거리는 그대로 둔다.
+        #expect(RecordPillarLayout.detented(-0.2, entryCount: 13) == -0.2)
+        #expect(RecordPillarLayout.detented(12.3, entryCount: 13) == 12.3)
+    }
+
     @Test("한 달이 넘치면 펼친 기둥이 가장자리 안쪽에 머물도록 줄을 민다")
     func longMonthKeepsFocusInside() {
         var shift: CGFloat?
@@ -258,67 +298,18 @@ struct RecordBookTests {
         #expect(model.spread(for: 14) == 0)
     }
 
-    @Test("리본은 이번 달 책에만 오늘 날짜로 단다")
-    func ribbonOnlyInThisMonth() {
-        #expect(Self.model.hasRibbon)
-        #expect(Self.model.todayDay == 13)
-
-        let september = RecordBookModel(month: RecordMonth(year: 2026, month: 9), posts: [], now: Self.now)
-        #expect(!september.hasRibbon)
-        #expect(september.maxSpread == 31)
-    }
-
-    @Test("펼친 책은 정면이라 그린 자리와 누를 자리가 같고, 한 면 책은 위쪽이 멀어지게 조금 눕는다")
-    func tiltPerLayout() {
-        let spread = RecordBookGeometry(layout: .spread)
-        let point = CGPoint(x: 120, y: 80)
-        #expect(abs(spread.project(point).x - point.x) < 0.0001)
-        #expect(abs(spread.project(point).y - point.y) < 0.0001)
-
-        let single = RecordBookGeometry(layout: .single)
-        let top = single.projectedFrame(of: CGRect(x: 100, y: 60, width: 200, height: 1))
-        let bottom = single.projectedFrame(of: CGRect(x: 100, y: 250, width: 200, height: 1))
-        let anchor = RecordBookGeometry.tiltAnchor
-        #expect(top.width < bottom.width)
-        #expect(abs(single.project(anchor).x - anchor.x) < 0.0001)
-        #expect(abs(single.project(anchor).y - anchor.y) < 0.0001)
-    }
-
-    @Test("한 면 책은 덮였을 때 표지가 화면 가운데에 온다")
-    func singleCoverIsCentered() {
-        let single = RecordBookGeometry(layout: .single)
-        let center = single.spineX + single.pageSize.width / 2
-        #expect(abs(center - RecordBookGeometry.stageSize.width / 2) < 0.5)
-    }
-
     @Test("사진은 원래 비율 그대로 면 안에 들어간다", arguments: [9.0 / 16.0, 3.0 / 4.0, 1.0, 4.0 / 3.0, 3.0 / 2.0])
     func photoKeepsRatio(ratio: CGFloat) {
-        for layout in RecordBookLayout.allCases {
-            let geometry = RecordBookGeometry(layout: layout)
-            let page = CGRect(origin: CGPoint(x: geometry.spineX, y: geometry.pageTop), size: geometry.pageSize)
-            let photo = geometry.photoFrame(ratio: ratio)
-            #expect(abs(photo.width / photo.height - ratio) < 0.001)
-            #expect(page.contains(photo))
-        }
-    }
-
-    @Test("한 면 책에서 세로·정사각 사진은 캡션 칸을, 가로 사진은 캡션 줄을 남긴다")
-    func singleLeavesCaptionRoom() {
-        let single = RecordBookGeometry(layout: .single)
-        let pageMaxX = single.spineX + single.pageSize.width
-        let pageMaxY = single.pageTop + single.pageSize.height
-
-        let tall = single.photoFrame(ratio: 3.0 / 4.0)
-        #expect(pageMaxX - tall.maxX >= RecordBookMetrics.singleSideColumn)
-        #expect(tall.height == single.pageSize.height - RecordBookMetrics.singleInset * 2)
-
-        let wide = single.photoFrame(ratio: 4.0 / 3.0)
-        #expect(pageMaxY - wide.maxY >= RecordBookMetrics.singleCaptionHeight)
+        let geometry = RecordBookGeometry()
+        let page = CGRect(origin: CGPoint(x: geometry.spineX, y: geometry.pageTop), size: geometry.pageSize)
+        let photo = geometry.photoFrame(ratio: ratio)
+        #expect(abs(photo.width / photo.height - ratio) < 0.001)
+        #expect(page.contains(photo))
     }
 
     @Test("펼친 책 화살표는 책 양 끝 바깥, 화면 안에 놓인다")
     func spreadArrowsSitOutsideBook() {
-        let spread = RecordBookGeometry(layout: .spread)
+        let spread = RecordBookGeometry()
         let half = RecordBookMetrics.minimumTouch / 2
         let leading = spread.arrowCenterX(leading: true)
         let trailing = spread.arrowCenterX(leading: false)
@@ -329,15 +320,6 @@ struct RecordBookTests {
         #expect(trailing > spread.spineX + spread.coverSize.width)
     }
 
-    @Test("리본 꼬리표의 누를 자리는 44pt 이상이고 무대 안에 있다")
-    func ribbonTouchIsLargeEnough() {
-        for layout in RecordBookLayout.allCases {
-            let frame = RecordBookGeometry(layout: layout).ribbonTouchFrame
-            #expect(frame.width >= 44)
-            #expect(frame.height >= 44)
-            #expect(frame.maxX <= RecordBookGeometry.stageSize.width)
-        }
-    }
 }
 
 struct RecordPhotoColorExtractorTests {

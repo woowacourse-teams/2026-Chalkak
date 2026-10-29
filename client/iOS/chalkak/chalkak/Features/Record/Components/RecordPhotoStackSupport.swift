@@ -19,38 +19,12 @@ enum RecordPhotoStackStyle: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .pillars: "chart.bar.fill"
+        case .pillars: "photo.stack"
         case .book: "book"
         }
     }
 
     var toggled: RecordPhotoStackStyle { self == .pillars ? .book : .pillars }
-}
-
-/// 월간 책자의 모양. 책자를 보고 있을 때 오른쪽 위 책 선택 버튼으로 바꿔 본다.
-enum RecordBookLayout: String, CaseIterable, Identifiable {
-    /// 정면으로 세워 펼친 책. 왼쪽 면에 날짜, 오른쪽 면에 사진(시안 2번).
-    case spread
-    /// 한 면만 크게 보는 책. 사진 비율에 따라 캡션을 아래나 옆에 둔다(시안 4번).
-    case single
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .spread: "펼친 책자"
-        case .single: "한 면 책자"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .spread: "book"
-        case .single: "doc.richtext"
-        }
-    }
-
-    var toggled: RecordBookLayout { self == .spread ? .single : .spread }
 }
 
 /// 묶음 위 한 장. 기록이 있는 날은 사진, 없는 날은 빈 프레임이다.
@@ -180,37 +154,44 @@ struct RecordEmptyFrame: View {
     }
 }
 
-/// 묶음 영역 오른쪽 아래의 연도와 월.
-struct RecordStackMonthLabel: View {
+/// 묶음 왼쪽 위의 월과 연도. 뒤로 가기 버튼 자리에 놓이며, 누르면 연간 달력으로 나가 다른 달을 고른다.
+/// 달은 크게, 연도는 작게 한 줄로 적는다. 예: "10월 2026".
+struct RecordStackMonthButton: View {
     @Environment(\.chalkakTheme) private var theme
     let month: RecordMonth
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: theme.spacing.none) {
-            Text(verbatim: "\(month.year)")
-                .font(theme.typography.footnote)
-                .foregroundStyle(theme.colors.textMuted)
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.xs) {
+                Text(verbatim: "\(month.month)월")
+                    .font(theme.typography.title2)
+                    .foregroundStyle(theme.colors.textPrimary)
 
-            Text(verbatim: "\(month.month)월")
-                .font(theme.typography.display)
-                .foregroundStyle(theme.colors.textPrimary)
+                Text(verbatim: "\(month.year)")
+                    .font(theme.typography.footnote)
+                    .foregroundStyle(theme.colors.textMuted)
+            }
+            .padding(.horizontal, Metrics.horizontalPadding)
+            .frame(minHeight: ChalkakNavigationButton.diameter)
+            .contentShape(Rectangle())
         }
-        .accessibilityElement(children: .ignore)
+        .buttonStyle(.plain)
         .accessibilityLabel(month.formatted)
-        .accessibilityAddTraits(.isHeader)
-        .padding(.trailing, Metrics.trailingPadding)
-        .padding(.bottom, theme.spacing.sm)
-        .allowsHitTesting(false)
+        .accessibilityHint("연간 달력에서 다른 달을 고릅니다")
     }
 
     private enum Metrics {
-        static let trailingPadding: CGFloat = 20
+        /// 바깥 여백(12pt)과 더해 달력 왼쪽 끝(20pt)에 글자를 맞춘다.
+        static let horizontalPadding: CGFloat = 8
     }
 }
 
 /// 뒤로 가기 버튼과 같은 모양의 아이콘 버튼.
 struct RecordGlassIconButton: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.isEnabled) private var isEnabled
+    private static let disabledOpacity: Double = 0.6
     let title: String
     let systemImage: String
     /// 책 양 끝 화살표처럼 작은 자리에 둘 때 줄인다. 누를 자리는 44pt 아래로 줄이지 않는다.
@@ -221,8 +202,10 @@ struct RecordGlassIconButton: View {
     var body: some View {
         Button(title, systemImage: systemImage, action: action)
             .labelStyle(.iconOnly)
-            .foregroundStyle(theme.colors.iconPrimary)
-            .tint(theme.colors.iconPrimary)
+            // 유리 버튼은 꺼져도 흐려지지 않아서, 꺼지면 아이콘을 비활성 색으로 바꿔 누를 수 없음을 보인다.
+            .foregroundStyle(isEnabled ? theme.colors.iconPrimary : theme.colors.textInactive)
+            .tint(isEnabled ? theme.colors.iconPrimary : theme.colors.textInactive)
+            .opacity(isEnabled ? 1 : Self.disabledOpacity)
             .controlSize(controlSize)
             .modifier(ChalkakNavigationButtonStyle())
             .buttonBorderShape(.circle)
@@ -232,9 +215,11 @@ struct RecordGlassIconButton: View {
 }
 
 enum RecordStackMetrics {
-    /// 묶음 영역의 높이. 두 모양이 같은 높이를 쓴다.
-    static let height: CGFloat = 290
-    static let overlayZIndex: Double = 1000
+    /// 묶음 영역의 높이. 두 모양이 같은 높이를 쓴다. 책 아래 그림자가 잘리지 않을 만큼 여유를 둔다.
+    static let height: CGFloat = 300
+    /// 묶음 내용(기둥, 책 표지)이 시작하는 높이. 위 버튼 줄(위 여백 8 + 48pt) 아래로 28pt를 띄운다.
+    /// 묶음이 커지거나 줄어도, 기둥이든 책자든 이 간격은 같다.
+    static let contentTop: CGFloat = 84
     static let dragMinimumDistance: CGFloat = 6
 }
 

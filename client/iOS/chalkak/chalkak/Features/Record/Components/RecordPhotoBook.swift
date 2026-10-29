@@ -1,31 +1,21 @@
-import QuartzCore
 import SwiftUI
 import UIKit
 
-/// 월간 상단의 사진 묶음(월간 책자). 한 달이 천 장정 하드커버 한 권이다.
-/// 모양은 두 가지이고(`RecordBookLayout`), 오른쪽 위 책 선택 버튼으로 바꾼다.
-/// - 펼친 책(시안 2번): 정면으로 세워 펼친다. 왼쪽 면에 요일·날짜·주제, 오른쪽 면에 사진을 둔다.
-///   책 양 끝의 화살표로도 넘긴다.
-/// - 한 면 책(시안 4번): 한 면만 크게 보여 준다. 가로 사진은 캡션을 아래에, 세로·정사각 사진은 캡션을 옆에 둔다.
-///   화면 양 끝의 ‹ › 표시로 넘기는 자리를 알린다.
-///
-/// 두 모양 공통:
+/// 월간 상단의 사진 묶음(월간 책자, 시안 2번). 한 달이 천 장정 하드커버 한 권이다.
+/// - 정면으로 세워 펼친다. 왼쪽 면에 요일·날짜·주제, 오른쪽 면에 사진을 둔다. 책 양 끝의 화살표로도 넘긴다.
 /// - 사진은 원래 비율 그대로 넣고 자르지 않는다.
 /// - 화면 왼쪽 절반을 누르거나 오른쪽으로 끌면 전날, 오른쪽 절반을 누르거나 왼쪽으로 끌면 다음 날로 넘어간다.
 /// - 사진을 누르면 그 사진의 피드로 간다.
-/// - 이번 달 책에는 리본 책갈피가 늘 오늘 면에 끼워져 있고, 꼬리의 "오늘" 꼬리표를 누르면 오늘로 넘어간다.
 /// - 속표지에는 찰캌 로고, "N월의 기록", 내 사인을 넣는다.
 ///
 /// 위치(`position`)는 다른 모양과 같이 보고 있는 날의 순서다(가장 최근 날이 0).
 /// 책 안에서는 넘긴 장 수(`spread`)로 다룬다. 0은 덮인 표지, 1은 속표지, d + 1은 d일이다.
 struct RecordPhotoBook: View {
     @Environment(\.chalkakTheme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let month: RecordMonth
     let posts: [RecordPost]
     let images: [RecordPost.ID: UIImage]
     let topicTitles: [Date: String]
-    let layout: RecordBookLayout
     /// 속표지에 넣을 내 사인. 아직 받지 못했거나 없으면 비워 둔다.
     var signatureURL: URL?
     @Binding var position: CGFloat
@@ -33,52 +23,76 @@ struct RecordPhotoBook: View {
     var now: Date = Date()
 
     @State private var drag: DragState?
-    @State private var wiggleTrigger = 0
-    @State private var hasWiggled = false
+    /// 종이가 넘어가는 방향. 다음 장으로 넘기면 1, 앞 장으로 되돌리면 -1이다. 종이 끝이 이 방향으로 앞서며 휜다.
+    @State private var bendDirection: CGFloat = 1
+    /// 지금 방향으로 가장 멀리 간 위치(넘긴 장 수). 여기서 반대로 조금 이상 돌아와야 방향을 바꾼다.
+    @State private var bendAnchor: CGFloat?
 
     var body: some View {
         GeometryReader { proxy in
             let model = RecordBookModel(month: month, posts: posts, now: now)
-            let geometry = RecordBookGeometry(layout: layout)
-            let scale = min(1, proxy.size.width / RecordBookGeometry.stageSize.width)
+            let geometry = RecordBookGeometry()
+            // 기본 높이에서는 화면 폭에 맞춘 크기로 그린다. 묶음이 위아래로 커지면 책도 같은 비율로 커지되,
+            // 책이 화면 양옆을 넘지 않는 데까지만 커진다.
+            let fitScale = min(1, proxy.size.width / RecordBookGeometry.stageSize.width)
+            let growth = min(
+                max(1, proxy.size.height / RecordStackMetrics.height),
+                geometry.maxGrowth(width: proxy.size.width / fitScale)
+            )
+            let scale = fitScale * growth
+            // 책이 커지거나 줄어도 표지 위쪽이 늘 묶음 공통 높이(`contentTop`)에 오게 옮긴다.
+            let topOffset = RecordStackMetrics.contentTop - (geometry.pageTop - RecordBookGeometry.coverMargin) * scale
             let spread = model.spread(for: position)
             let cloth = clothColor(model: model)
 
             ZStack(alignment: .topLeading) {
-                RecordBookStage(
-                    spread: spread,
-                    model: model,
-                    geometry: geometry,
-                    images: images,
-                    topicTitles: topicTitles,
-                    signatureURL: signatureURL,
-                    cloth: cloth,
-                    wiggleTrigger: wiggleTrigger
-                )
-                .projectionEffect(geometry.tilt)
+                // 휘는 방향은 넘기는 움직임과 따로 애니메이션한다. 끄는 동안 매 순간 위치가 바뀌어도
+                // 방향이 바뀌는 애니메이션이 끊기지 않고 이어진다.
+                RecordBookBendAnimator(direction: bendDirection) { direction in
+                    RecordBookStage(
+                        spread: spread,
+                        model: model,
+                        geometry: geometry,
+                        images: images,
+                        topicTitles: topicTitles,
+                        signatureURL: signatureURL,
+                        cloth: cloth,
+                        bendDirection: direction
+                    )
+                }
                 .allowsHitTesting(false)
 
                 touchLayer(model: model, geometry: geometry, spread: spread)
             }
             .frame(width: RecordBookGeometry.stageSize.width, height: RecordBookGeometry.stageSize.height, alignment: .topLeading)
             .scaleEffect(scale, anchor: .top)
-            .frame(width: proxy.size.width, height: RecordStackMetrics.height, alignment: .top)
+            .offset(y: topOffset)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            // 화살표는 책과 함께 커지지 않고 화면 기준으로 둔다. 책이 커져도 화면 양 끝에 늘 보인다.
+            .overlay(alignment: .topLeading) {
+                spreadArrows(
+                    model: model,
+                    placement: RecordBookControlPlacement(
+                        geometry: geometry,
+                        screenWidth: proxy.size.width,
+                        scale: scale,
+                        topOffset: topOffset
+                    ),
+                    settled: spread.rounded()
+                )
+            }
             .contentShape(Rectangle())
             .simultaneousGesture(dragGesture(model: model, geometry: geometry, scale: scale))
             .onChange(of: position) { oldValue, newValue in
-                // 오늘을 처음 떠날 때 리본을 한 번 흔들어 눌러 볼 수 있다는 걸 알린다.
-                guard model.hasRibbon, !hasWiggled, !reduceMotion, oldValue < 0.5, newValue >= 0.5 else { return }
-                hasWiggled = true
-                wiggleTrigger += 1
+                updateBendDirection(to: model.spread(for: newValue), from: model.spread(for: oldValue))
             }
         }
-        .frame(height: RecordStackMetrics.height)
         .clipped()
     }
 
     // MARK: - 누르는 자리
 
-    /// 그려진 책 위에서 누를 자리. 기울여 그린 책은 화면에 그려진 위치를 직접 계산해 평면 위에 둔다.
+    /// 그려진 책 위에서 누를 자리.
     @ViewBuilder
     private func touchLayer(model: RecordBookModel, geometry: RecordBookGeometry, spread: CGFloat) -> some View {
         let settled = spread.rounded()
@@ -102,7 +116,7 @@ struct RecordPhotoBook: View {
 
             if let post = model.post(atSpread: Int(settled)), abs(spread - settled) < 0.05 {
                 let photo = geometry.photoFrame(ratio: RecordPhotoAspect.widthRatio(of: images[post.id]))
-                let frame = geometry.projectedFrame(of: photo)
+                let frame = photo
                 Button { onSelectPost(post) } label: {
                     Color.clear
                         .frame(width: frame.width, height: frame.height)
@@ -115,66 +129,35 @@ struct RecordPhotoBook: View {
                 .accessibilityLabel("\(RecordStackFormat.monthDay.string(from: post.topicDate)) 사진")
                 .accessibilityHint("피드에서 봅니다")
             }
-
-            if model.hasRibbon {
-                let tag = geometry.ribbonTouchFrame
-                Button {
-                    withAnimation(turnAnimation(distance: abs(position))) { position = 0 }
-                } label: {
-                    Color.clear
-                        .frame(width: tag.width, height: tag.height)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .offset(x: tag.minX, y: tag.minY)
-                .accessibilityLabel("오늘(\(model.todayDay)일)로 가기")
-            }
-
-            switch geometry.layout {
-            case .spread:
-                spreadArrows(model: model, geometry: geometry, settled: settled)
-            case .single:
-                singleEdgeMarks(geometry: geometry)
-            }
         }
         .frame(width: stage.width, height: stage.height, alignment: .topLeading)
     }
 
     /// 펼친 책 양 끝의 화살표. 처음(표지)과 끝(마지막 날)에서는 그쪽 화살표를 끈다.
     @ViewBuilder
-    private func spreadArrows(model: RecordBookModel, geometry: RecordBookGeometry, settled: CGFloat) -> some View {
-        let centerY = geometry.pageTop + geometry.pageSize.height / 2
+    private func spreadArrows(model: RecordBookModel, placement: RecordBookControlPlacement, settled: CGFloat) -> some View {
         RecordGlassIconButton(title: "전날 보기", systemImage: "chevron.left", diameter: Metrics.arrowDiameter, controlSize: .regular) {
             turn(by: -1, model: model)
         }
         .disabled(settled <= 0)
-        .position(x: geometry.arrowCenterX(leading: true), y: centerY)
+        .position(x: placement.arrowX(leading: true, width: Metrics.arrowDiameter), y: placement.centerY)
 
         RecordGlassIconButton(title: "다음 날 보기", systemImage: "chevron.right", diameter: Metrics.arrowDiameter, controlSize: .regular) {
             turn(by: 1, model: model)
         }
         .disabled(settled >= CGFloat(model.maxSpread))
-        .position(x: geometry.arrowCenterX(leading: false), y: centerY)
+        .position(x: placement.arrowX(leading: false, width: Metrics.arrowDiameter), y: placement.centerY)
     }
 
-    /// 한 면 책 양 끝의 ‹ › 표시. 넘기는 자리를 알리기만 하고, 누르는 것은 아래 판이 받는다.
-    @ViewBuilder
-    private func singleEdgeMarks(geometry: RecordBookGeometry) -> some View {
-        let centerY = geometry.pageTop + geometry.pageSize.height / 2
-        let stage = RecordBookGeometry.stageSize
-        ForEach([true, false], id: \.self) { leading in
-            Image(systemName: leading ? "chevron.left" : "chevron.right")
-                .font(.system(size: Metrics.edgeMarkIconSize, weight: .semibold))
-                .foregroundStyle(theme.colors.iconPrimary)
-                .frame(width: Metrics.edgeMarkSize.width, height: Metrics.edgeMarkSize.height)
-                .background(theme.colors.inputBackground.opacity(Metrics.edgeMarkOpacity), in: Capsule())
-                .shadow(color: .black.opacity(Metrics.edgeMarkShadowOpacity), radius: 2, y: 1)
-                .position(
-                    x: leading ? Metrics.edgeMarkInset + Metrics.edgeMarkSize.width / 2 : stage.width - Metrics.edgeMarkInset - Metrics.edgeMarkSize.width / 2,
-                    y: centerY
-                )
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+    /// 넘기는 방향이 바뀌었는지 보고 휘는 방향을 천천히 뒤집는다.
+    /// 손가락이 조금 떨리는 정도로는 바꾸지 않고, 가장 멀리 간 자리에서 `bendFlipThreshold` 이상 돌아와야 바꾼다.
+    private func updateBendDirection(to newSpread: CGFloat, from oldSpread: CGFloat) {
+        let anchor = bendAnchor ?? oldSpread
+        if (newSpread - anchor) * bendDirection >= 0 {
+            bendAnchor = newSpread
+        } else if abs(newSpread - anchor) > Metrics.bendFlipThreshold {
+            bendAnchor = newSpread
+            withAnimation(.smooth(duration: Metrics.bendFlipDuration)) { bendDirection = -bendDirection }
         }
     }
 
@@ -236,11 +219,10 @@ struct RecordPhotoBook: View {
     private enum Metrics {
         /// 책 양 끝 화살표. 책과 화면 끝 사이 좁은 자리에 들어가도록 44pt 누를 자리 그대로 둔다.
         static let arrowDiameter: CGFloat = 44
-        static let edgeMarkSize = CGSize(width: 22, height: 44)
-        static let edgeMarkInset: CGFloat = 2
-        static let edgeMarkIconSize: CGFloat = 13
-        static let edgeMarkOpacity: Double = 0.85
-        static let edgeMarkShadowOpacity: Double = 0.18
+        /// 휘는 방향이 반대로 넘어가는 시간. 그동안 종이가 평평해졌다가 반대로 휜다.
+        static let bendFlipDuration: Double = 0.4
+        /// 방향을 바꾸려면 반대로 돌아와야 하는 거리(장 수).
+        static let bendFlipThreshold: CGFloat = 0.04
     }
 }
 
@@ -251,21 +233,15 @@ struct RecordBookModel {
     let month: RecordMonth
     /// 1일부터 날짜순.
     let days: [RecordPhotoStackEntry]
-    /// 이번 달이면 오늘 날짜, 아니면 nil. 리본은 이번 달에만 단다.
-    let today: Int?
 
     init(month: RecordMonth, posts: [RecordPost], now: Date = Date()) {
         self.month = month
         let order = RecordPhotoStackOrder(month: month, posts: posts, elapsedDays: month.elapsedDayCount(now: now))
         days = order.entries.reversed()
-        let isThisMonth = RecordMonth.current(now: now) == month
-        today = isThisMonth && !days.isEmpty ? days.last?.day : nil
     }
 
     /// 마지막 날이 펼쳐지는 펼침면. 표지(0), 속표지(1) 다음에 날마다 한 장이다.
     var maxSpread: Int { days.count + 1 }
-    var hasRibbon: Bool { today != nil }
-    var todayDay: Int { today ?? 0 }
     var firstPhotoPost: RecordPost? { days.first { $0.post != nil }?.post }
     var photoCount: Int { days.filter { $0.post != nil }.count }
 
@@ -310,125 +286,38 @@ struct RecordBookCloth {
 }
 
 /// 책을 그리는 자리. 앱 묶음 자리(393×290)를 기준으로 하고 화면 폭에 맞춰 줄인다.
-/// 위쪽 양 모서리에는 뒤로 가기·전환 버튼이 떠 있어, 책은 그 아래(`pageTop`)부터 그린다.
+/// 위쪽 양 모서리에는 연월·전환 버튼이 떠 있어, 책은 그 아래(`pageTop`)부터 그린다.
 struct RecordBookGeometry {
     static let stageSize = CGSize(width: 393, height: 290)
-    static let ribbonWidth: CGFloat = 7
-    static let tagSize = CGSize(width: 42, height: 23)
-    static let perspectiveDistance: CGFloat = 1200
-    static let tiltAnchor = CGPoint(x: stageSize.width * 0.5, y: stageSize.height * 0.52)
-    /// 가로 사진으로 볼 비율(너비 / 높이). 정사각에 가까운 사진은 세로처럼 다룬다.
-    static let wideRatio: CGFloat = 1.02
 
-    let layout: RecordBookLayout
-    let pageSize: CGSize
-    /// 낱장이 붙은 책등의 x. 펼친 책은 화면 가운데, 한 면 책은 면이 가운데 오도록 왼쪽에 둔다.
-    let spineX: CGFloat
-    let pageTop: CGFloat
-    /// 책을 뒤로 눕힌 각도. 펼친 책은 정면이라 0이다.
-    let tiltDegrees: CGFloat
-    /// 책등에서 리본까지의 거리.
-    let ribbonInset: CGFloat
-    /// 책 아래로 늘어진 리본 길이(꼬리표 제외).
-    let ribbonTail: CGFloat
+    /// 낱장 한 면. 양 끝에 화살표(44pt)가 들어갈 자리를 남긴다.
+    let pageSize = CGSize(width: 152, height: 198)
+    /// 낱장이 붙은 책등의 x. 화면 가운데다.
+    let spineX = Self.stageSize.width / 2
+    /// 책 무대 안에서 책 면의 위쪽. 화면에서는 표지 위쪽이 `RecordStackMetrics.contentTop`에 오도록 무대를 옮겨 그린다.
+    let pageTop: CGFloat = 72
     /// 이만큼 끌면 한 장 넘어간다.
-    let dragStep: CGFloat
+    let dragStep: CGFloat = 152
 
-    init(layout: RecordBookLayout) {
-        self.layout = layout
-        switch layout {
-        case .spread:
-            // 양 끝에 화살표(44pt)가 들어갈 자리를 남긴다.
-            pageSize = CGSize(width: 152, height: 198)
-            spineX = Self.stageSize.width / 2
-            pageTop = 60
-            tiltDegrees = 0
-            // 리본은 책등 바로 옆 골에 끼워 사진을 가리지 않는다.
-            ribbonInset = 0
-            ribbonTail = 10
-            dragStep = 152
-        case .single:
-            pageSize = CGSize(width: 300, height: 200)
-            spineX = (Self.stageSize.width - 300) / 2
-            pageTop = 56
-            tiltDegrees = 8
-            // 한 면에 사진이 크게 놓이므로 리본은 바깥 가장자리에 끼운다.
-            // 꼬리표가 덮인 책 아래에 숨지 않을 만큼만 늘어뜨린다.
-            ribbonInset = 286
-            ribbonTail = 8
-            dragStep = 150
-        }
+    /// 묶음이 커질 때 책이 커질 수 있는 최대 배율. 펼친 책이 화면 양옆 `growthGutter` 안쪽에 머문다.
+    /// - Parameter width: 책 무대 기준 화면 폭(무대를 화면 폭에 맞춘 뒤의 폭).
+    func maxGrowth(width: CGFloat) -> CGFloat {
+        max(1, (width / 2 - Self.growthGutter) / coverSize.width)
     }
+
+    static let growthGutter: CGFloat = 8
 
     /// 표지는 속지보다 위·아래·바깥쪽으로 같은 폭(`coverMargin`)만큼 크다. 그래야 표지 테두리 두께가 둘레 어디서나 같다.
     var coverSize: CGSize { CGSize(width: pageSize.width + Self.coverMargin, height: pageSize.height + Self.coverMargin * 2) }
     static let coverMargin: CGFloat = 4
 
-    /// 책을 위쪽이 멀어지게 눕히는 변환.
-    var tilt: ProjectionTransform {
-        ProjectionTransform(tiltTransform)
-    }
-
-    private var tiltTransform: CATransform3D {
-        var perspective = CATransform3DIdentity
-        perspective.m34 = -1 / Self.perspectiveDistance
-        let anchor = Self.tiltAnchor
-        let toAnchor = CATransform3DMakeTranslation(-anchor.x, -anchor.y, 0)
-        let rotation = CATransform3DMakeRotation(tiltDegrees * .pi / 180, 1, 0, 0)
-        let back = CATransform3DMakeTranslation(anchor.x, anchor.y, 0)
-        return CATransform3DConcat(CATransform3DConcat(CATransform3DConcat(toAnchor, rotation), perspective), back)
-    }
-
-    /// 책 평면의 점이 화면 어디에 그려지는지. `projectionEffect`가 쓰는 것과 같은 식이다.
-    func project(_ point: CGPoint) -> CGPoint {
-        let m = tiltTransform
-        let x = point.x, y = point.y
-        let w = x * m.m14 + y * m.m24 + m.m44
-        return CGPoint(
-            x: (x * m.m11 + y * m.m21 + m.m41) / w,
-            y: (x * m.m12 + y * m.m22 + m.m42) / w
-        )
-    }
-
-    /// 책 평면의 사각형이 화면에 그려진 영역을 감싸는 사각형.
-    func projectedFrame(of rect: CGRect) -> CGRect {
-        let corners = [
-            CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
-            CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY)
-        ].map(project)
-        let xs = corners.map(\.x), ys = corners.map(\.y)
-        return CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
-    }
-
-    static func isWide(_ ratio: CGFloat) -> Bool { ratio > wideRatio }
-
-    /// 사진 자리(책 평면). 원래 비율 그대로 아래 칸 안에 맞춘다.
-    /// - 펼친 책: 오른쪽 면 안쪽 가운데. 예) 3:4는 132×176, 4:3은 132×99.
-    /// - 한 면 책, 가로 사진: 아래 캡션 줄을 뺀 자리 가운데. 예) 4:3은 173×130.
-    /// - 한 면 책, 세로·정사각 사진: 오른쪽 캡션 칸을 뺀 왼쪽 자리. 예) 3:4는 132×176, 9:16은 99×176.
+    /// 사진 자리. 오른쪽 면 안쪽 가운데에 원래 비율 그대로 맞춘다. 예) 3:4는 132×176, 4:3은 132×99.
     func photoFrame(ratio: CGFloat) -> CGRect {
         let page = CGRect(origin: CGPoint(x: spineX, y: pageTop), size: pageSize)
-        switch layout {
-        case .spread:
-            let inset = RecordBookMetrics.spreadPhotoInset
-            let size = Self.fit(ratio: ratio, in: CGSize(width: page.width - inset * 2, height: page.height - inset * 2))
-            return CGRect(x: page.midX - size.width / 2, y: page.midY - size.height / 2, width: size.width, height: size.height)
-        case .single:
-            let inset = RecordBookMetrics.singleInset
-            if Self.isWide(ratio) {
-                let area = CGSize(width: page.width - inset * 2, height: page.height - inset * 2 - RecordBookMetrics.singleCaptionHeight)
-                let size = Self.fit(ratio: ratio, in: area)
-                return CGRect(x: page.midX - size.width / 2, y: page.minY + inset + (area.height - size.height) / 2, width: size.width, height: size.height)
-            }
-            let area = CGSize(
-                width: page.width - inset * 2 - RecordBookMetrics.singleSideColumn - RecordBookMetrics.singleSideGap,
-                height: page.height - inset * 2
-            )
-            let size = Self.fit(ratio: ratio, in: area)
-            return CGRect(x: page.minX + inset, y: page.midY - size.height / 2, width: size.width, height: size.height)
-        }
+        let inset = RecordBookMetrics.spreadPhotoInset
+        let size = Self.fit(ratio: ratio, in: CGSize(width: page.width - inset * 2, height: page.height - inset * 2))
+        return CGRect(x: page.midX - size.width / 2, y: page.midY - size.height / 2, width: size.width, height: size.height)
     }
-
     static func fit(ratio: CGFloat, in area: CGSize) -> CGSize {
         area.width / ratio <= area.height
             ? CGSize(width: area.width, height: area.width / ratio)
@@ -442,15 +331,6 @@ struct RecordBookGeometry {
         let center = max(half, bookEdge / 2)
         return leading ? center : Self.stageSize.width - center
     }
-
-    /// 리본 꼬리와 꼬리표를 덮는 누를 자리. 리본이 가늘어서 44pt 폭으로 넓힌다.
-    var ribbonTouchFrame: CGRect {
-        let centerX = spineX + ribbonInset + Self.ribbonWidth / 2
-        let tail = CGRect(x: centerX - 22, y: pageTop + pageSize.height, width: 44, height: ribbonTail + Self.tagSize.height)
-        let frame = projectedFrame(of: tail)
-        let minimum = RecordBookMetrics.minimumTouch
-        return frame.insetBy(dx: min(0, (frame.width - minimum) / 2), dy: min(0, (frame.height - minimum) / 2))
-    }
 }
 
 /// 책 무대. 넘긴 장 수를 애니메이션 값으로 받아 넘기는 중간 모습을 매 프레임 다시 계산한다.
@@ -463,7 +343,7 @@ private struct RecordBookStage: View, Animatable {
     let topicTitles: [Date: String]
     let signatureURL: URL?
     let cloth: RecordBookCloth
-    let wiggleTrigger: Int
+    let bendDirection: CGFloat
 
     var animatableData: CGFloat {
         get { spread }
@@ -472,7 +352,6 @@ private struct RecordBookStage: View, Animatable {
 
     private typealias M = RecordBookMetrics
     private var g: RecordBookGeometry { geometry }
-    private var isSpread: Bool { geometry.layout == .spread }
 
     var body: some View {
         let maxSpread = CGFloat(model.maxSpread)
@@ -480,9 +359,8 @@ private struct RecordBookStage: View, Animatable {
         let overscroll = spread - settled
         let open = min(1, settled)
         let top = Int(settled.rounded(.down))
-        // 펼친 책은 덮였을 때 표지 가운데가 책등 자리에 오게 옮긴다. 한 면 책은 표지가 이미 가운데다.
-        // 끝을 넘겨 끌면 책 전체가 조금 밀린다.
-        let closedShift = isSpread ? -(1 - open) * g.coverSize.width / 2 : 0
+        // 덮였을 때는 표지 가운데가 책등 자리에 오게 옮긴다. 끝을 넘겨 끌면 책 전체가 조금 밀린다.
+        let closedShift = -(1 - open) * g.coverSize.width / 2
         let shiftX = closedShift - overscroll * M.overscrollShift
         let coverColor = cloth.color(fallback: theme.colors.calendarCellBorder)
 
@@ -495,10 +373,6 @@ private struct RecordBookStage: View, Animatable {
                 }
             }
 
-            if model.hasRibbon {
-                ribbon(settled: settled)
-            }
-
             turnShadow(settled: settled, top: top)
         }
         .offset(x: shiftX)
@@ -506,7 +380,6 @@ private struct RecordBookStage: View, Animatable {
     }
 
     /// 지금 모습에 보이는 낱장만 그린다.
-    /// 한 면 책도 넘긴 장을 왼쪽에 그대로 그린다. 대부분 화면 밖으로 잘리고 책등 옆 일부만 보여 펼친 책으로 읽힌다.
     private func isLeafVisible(_ index: Int, settled: CGFloat, top: Int) -> Bool {
         index == 0 || abs(index - top) <= 2
     }
@@ -541,9 +414,70 @@ private struct RecordBookStage: View, Animatable {
     // MARK: 낱장
 
     /// 책등에 붙은 낱장 한 장. 펼침면 번호보다 앞선 장은 왼쪽으로 넘어가 있고, 그 사이에서는 책등을 축으로 넘어간다.
+    /// 넘어가는 중인 종이는 휘어서 넘어가고(`bentLeaf`), 하드커버 표지는 휘지 않는다.
     @ViewBuilder
     private func leaf(_ index: Int, settled: CGFloat, coverColor: Color) -> some View {
         let turn = min(1, max(0, settled - CGFloat(index)))
+        let isCover = index == 0
+        if !isCover, turn > 0, turn < 1 {
+            bentLeaf(index, turn: turn, coverColor: coverColor)
+        } else {
+            rigidLeaf(index, turn: turn, coverColor: coverColor)
+        }
+    }
+
+    /// 넘어가는 중인 종이. 세로 띠로 나눠 띠마다 기울기를 달리 주어 휜 종이처럼 그린다.
+    /// 띠마다 앞면이 보이는지 뒷면이 보이는지 따로 정하므로, 휜 종이의 한쪽은 앞면, 다른 쪽은 뒷면이 보일 수 있다.
+    private func bentLeaf(_ index: Int, turn: CGFloat, coverColor: Color) -> some View {
+        let size = g.pageSize
+        let stripWidth = size.width / CGFloat(M.paperStrips)
+        let segments = RecordPaperCurl.segments(turn: turn, direction: bendDirection, size: size, count: M.paperStrips)
+        let shape = UnevenRoundedRectangle(topLeadingRadius: 1, bottomLeadingRadius: 1, bottomTrailingRadius: 2, topTrailingRadius: 2)
+        // 세워질수록 빛을 덜 받아 어두워진다. 종이 전체에 한 장의 그러데이션으로 칠한 뒤 띠로 나눠,
+        // 겹쳐 그리는 띠 경계에서도 명암이 같아 줄이 보이지 않게 한다.
+        let shade = LinearGradient(
+            stops: segments.indices.map { strip in
+                Gradient.Stop(
+                    color: .black.opacity(M.turnShadeOpacity * sin(Double(segments[strip].startAngle))),
+                    location: CGFloat(strip) / CGFloat(segments.count)
+                )
+            } + [Gradient.Stop(
+                color: .black.opacity(M.turnShadeOpacity * sin(Double(segments.last?.endAngle ?? 0))),
+                location: 1
+            )],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+
+        return ZStack(alignment: .topLeading) {
+            ForEach(segments.indices, id: \.self) { strip in
+                let segment = segments[strip]
+                Group {
+                    if segment.showsFront {
+                        front(of: index, coverColor: coverColor)
+                    } else {
+                        // 뒤집힌 면은 띠의 좌우가 뒤바뀌어 그려지므로 미리 좌우를 바꿔 둔다.
+                        back(of: index, coverColor: coverColor)
+                            .scaleEffect(x: -1)
+                    }
+                }
+                .frame(width: size.width, height: size.height)
+                .overlay { shade }
+                .clipShape(shape)
+                .offset(x: -CGFloat(strip) * stripWidth)
+                // 띠 사이에 틈이 보이지 않도록 조금씩 겹친다.
+                .frame(width: stripWidth + M.paperStripOverlap, height: size.height, alignment: .leading)
+                .clipped()
+                .projectionEffect(segment.transform)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .offset(x: g.spineX, y: g.pageTop)
+        .zIndex(M.turningZIndex)
+    }
+
+    @ViewBuilder
+    private func rigidLeaf(_ index: Int, turn: CGFloat, coverColor: Color) -> some View {
         let isCover = index == 0
         let size = isCover ? g.coverSize : g.pageSize
         let top = isCover ? g.pageTop - RecordBookGeometry.coverMargin : g.pageTop
@@ -580,22 +514,18 @@ private struct RecordBookStage: View, Animatable {
         } else if index == 1 {
             titlePage
         } else if let day = model.day(atSpread: index) {
-            if isSpread {
-                photoPage(day)
-            } else {
-                singlePage(day)
-            }
+            photoPage(day)
         } else {
             paper(isRight: true)
         }
     }
 
-    /// 낱장 뒷면. 펼친 책은 다음 날의 왼쪽 면이고, 한 면 책은 빈 종이다.
+    /// 낱장 뒷면. 다음 날의 왼쪽 면이고, 마지막 장 뒤는 빈 종이다.
     @ViewBuilder
     private func back(of index: Int, coverColor: Color) -> some View {
         if index == 0 {
             coverInside(coverColor)
-        } else if isSpread, let day = model.day(atSpread: index + 1) {
+        } else if let day = model.day(atSpread: index + 1) {
             textPage(day)
         } else {
             paper(isRight: false)
@@ -720,55 +650,6 @@ private struct RecordBookStage: View, Animatable {
         .frame(width: g.pageSize.width, height: g.pageSize.height, alignment: .topLeading)
     }
 
-    // MARK: 속지 — 한 면 책
-
-    /// 한 면 책의 면. 가로 사진은 캡션을 아래 한 줄에, 세로·정사각 사진은 사진 오른쪽 칸에 둔다.
-    private func singlePage(_ day: RecordPhotoStackEntry) -> some View {
-        let ratio = day.post.map { RecordPhotoAspect.widthRatio(of: images[$0.id]) }
-        let isTall = ratio.map { !RecordBookGeometry.isWide($0) } ?? false
-        let photo = g.photoFrame(ratio: ratio ?? RecordBookMetrics.emptyRatio)
-
-        return ZStack(alignment: .topLeading) {
-            paper(isRight: true)
-
-            if let post = day.post {
-                pagePhoto(post)
-            } else {
-                emptyNotice
-                    .frame(width: photo.width, height: photo.height)
-                    .offset(x: photo.minX - g.spineX, y: photo.minY - g.pageTop)
-            }
-
-            if isTall {
-                // 사진 오른쪽 칸. 아래쪽에 맞춰 날짜, 달·요일, 주제 순서로 둔다.
-                let columnX = photo.maxX - g.spineX + M.singleSideGap
-                VStack(alignment: .leading, spacing: theme.spacing.xs) {
-                    Spacer(minLength: 0)
-                    dayNumber(day)
-                    monthWeekday(day)
-                    topic(day, lineLimit: M.sideTopicLineLimit)
-                }
-                .frame(width: g.pageSize.width - columnX - M.singleInset, alignment: .leading)
-                .frame(maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.vertical, M.singleInset)
-                .offset(x: columnX)
-            } else {
-                // 사진 아래 한 줄.
-                HStack(alignment: .center, spacing: theme.spacing.sm) {
-                    dayNumber(day)
-                    VStack(alignment: .leading, spacing: theme.spacing.none) {
-                        monthWeekday(day)
-                        topic(day, lineLimit: 1)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(width: g.pageSize.width - M.singleInset * 2, height: M.singleCaptionHeight)
-                .offset(x: M.singleInset, y: g.pageSize.height - M.singleInset - M.singleCaptionHeight)
-            }
-        }
-        .frame(width: g.pageSize.width, height: g.pageSize.height, alignment: .topLeading)
-    }
-
     private func dayNumber(_ day: RecordPhotoStackEntry) -> some View {
         Text(verbatim: "\(day.day)")
             .font(theme.typography.title1)
@@ -844,59 +725,6 @@ private struct RecordBookStage: View, Animatable {
             }
     }
 
-    // MARK: 리본
-
-    /// 오늘 면 사이에 끼워 둔 리본. 오늘보다 앞선 날을 볼 때는 넘기지 않은 장 아래로 들어가 꼬리만 보인다.
-    private func ribbon(settled: CGFloat) -> some View {
-        let isAtToday = settled > CGFloat(model.maxSpread) - 0.5
-        let length = g.pageSize.height + 6 + g.ribbonTail
-        let x = g.spineX + g.ribbonInset
-        let tag = RecordBookGeometry.tagSize
-        let ribbonWidth = RecordBookGeometry.ribbonWidth
-        // 리본은 기둥 모양의 삼각 표시와 같은 강조색을 천처럼 어둡게 눌러 쓴다.
-        let ribbonMid = theme.colors.inputCursor
-        let ribbonDark = ribbonMid.mix(with: .black, by: M.ribbonDarken)
-
-        return VStack(spacing: -M.tagOverlap) {
-            RecordRibbonStrip()
-                .fill(LinearGradient(colors: [ribbonDark, ribbonMid, ribbonDark], startPoint: .leading, endPoint: .trailing))
-                .frame(width: ribbonWidth, height: length)
-            HStack(spacing: 2) {
-                Text("오늘")
-                    .font(theme.typography.caption)
-                Text(verbatim: "\(model.todayDay)")
-                    .font(theme.typography.caption)
-                    .fontWeight(.bold)
-                    .monospacedDigit()
-            }
-            .foregroundStyle(ribbonDark)
-            .frame(width: tag.width, height: tag.height)
-            .background(theme.colors.inputBackground, in: RoundedRectangle(cornerRadius: 3))
-            .overlay {
-                RoundedRectangle(cornerRadius: 2)
-                    .strokeBorder(ribbonDark.opacity(0.45), style: StrokeStyle(lineWidth: 0.8, dash: [2, 1.5]))
-                    .padding(2)
-            }
-            .shadow(color: .black.opacity(0.28), radius: 1, y: 1)
-        }
-        .keyframeAnimator(initialValue: 0.0, trigger: wiggleTrigger) { content, angle in
-            content.rotationEffect(.degrees(angle), anchor: .top)
-        } keyframes: { _ in
-            KeyframeTrack {
-                SpringKeyframe(6, duration: 0.17)
-                SpringKeyframe(-4.5, duration: 0.24)
-                SpringKeyframe(2.6, duration: 0.24)
-                SpringKeyframe(-1.2, duration: 0.24)
-                SpringKeyframe(0, duration: 0.31)
-            }
-        }
-        .rotationEffect(.degrees(1.5), anchor: .top)
-        .offset(x: x + ribbonWidth / 2 - tag.width / 2, y: g.pageTop - 6)
-        // 오늘 면을 보고 있으면 장 위에 놓이고, 아니면 넘기지 않은 장 아래로 들어간다.
-        .zIndex(isAtToday ? M.ribbonOnTopZIndex : M.ribbonBelowZIndex)
-        .accessibilityHidden(true)
-    }
-
     // MARK: 넘기는 장의 그림자
 
     /// 넘어가는 장이 아래 면에 드리우는 그림자. 장 끝이 바닥에 비치는 자리까지 짙어진다.
@@ -924,33 +752,134 @@ private struct RecordBookStage: View, Animatable {
     }
 }
 
-/// 끝이 V자로 파인 리본 띠.
-private struct RecordRibbonStrip: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - 6))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
+/// 책 양 끝 화살표를 화면 어디에 둘지. 책 무대는 위 가운데를 기준으로 `scale`만큼 커져 그려진다.
+/// - 기본 크기에서는 지금처럼 책과 화면 끝 사이에 둔다.
+/// - 책이 커져 그 자리가 화면 밖으로 밀려나면 화면 끝 `RecordBookMetrics.controlEdgeInset` 안쪽에 붙여, 책 가장자리 위에 얹는다.
+struct RecordBookControlPlacement {
+    let geometry: RecordBookGeometry
+    let screenWidth: CGFloat
+    let scale: CGFloat
+    /// 표지 위쪽을 묶음 공통 높이에 맞추느라 책 무대를 내린 거리.
+    let topOffset: CGFloat
+
+    /// 책 면 한가운데 높이.
+    var centerY: CGFloat {
+        (geometry.pageTop + geometry.pageSize.height / 2) * scale + topOffset
     }
+
+    /// 펼친 책 화살표의 가로 가운데.
+    func arrowX(leading: Bool, width: CGFloat) -> CGFloat {
+        let stageX = geometry.arrowCenterX(leading: true)
+        let x = max(RecordBookMetrics.controlEdgeInset + width / 2, screenX(ofStageX: stageX))
+        return leading ? x : screenWidth - x
+    }
+
+    /// 책 무대의 가로 위치가 화면에서 어디에 그려지는지.
+    private func screenX(ofStageX stageX: CGFloat) -> CGFloat {
+        screenWidth / 2 + (stageX - RecordBookGeometry.stageSize.width / 2) * scale
+    }
+}
+
+/// 휘는 방향만 따로 애니메이션하는 틀. 방향이 바뀌는 동안 그 사이 값(예: 0.3)을 내용에 넘긴다.
+private struct RecordBookBendAnimator<Content: View>: View, Animatable {
+    var direction: CGFloat
+    @ViewBuilder let content: (CGFloat) -> Content
+
+    var animatableData: CGFloat {
+        get { direction }
+        set { direction = newValue }
+    }
+
+    var body: some View {
+        content(direction)
+    }
+}
+
+/// 넘어가는 종이의 휜 모양. 손으로 종이 끝을 잡아 넘기듯, 책등에서 종이 끝으로 갈수록 넘기는 쪽으로 더 넘어가 휜다.
+/// - 기울기는 책등 쪽이 `turn`만큼(0이면 오른쪽에 누움, 1이면 왼쪽에 누움) 넘어가 있고, 끝으로 갈수록 거리의 제곱만큼 앞선다.
+/// - 휘는 정도는 넘기는 한가운데에서 가장 크고, 다 넘어가면 다시 평평해진다. 그래서 종이가 팔랑이며 내려앉는다.
+/// - 띠마다 원근을 넣은 사영 변환을 만든다. 화면에 가까이 들린 쪽이 조금 커 보인다.
+enum RecordPaperCurl {
+    struct Segment {
+        /// 띠의 기울기(라디안). 0은 오른쪽에 누운 면, π는 왼쪽에 누운 면이다.
+        let angle: CGFloat
+        /// 띠 양 끝(책등 쪽, 종이 끝 쪽)에서의 기울기. 명암을 띠 사이에 끊기지 않게 잇는 데 쓴다.
+        let startAngle: CGFloat
+        let endAngle: CGFloat
+        let transform: ProjectionTransform
+        var showsFront: Bool { angle < .pi / 2 }
+    }
+
+    /// - Parameters:
+    ///   - turn: 넘어간 정도(0~1).
+    ///   - direction: 다음 장으로 넘기는 중이면 1, 되돌리는 중이면 -1. 그 사이 값이면 덜 휜다.
+    ///   - size: 낱장 크기. 책등이 x = 0이다.
+    ///   - count: 띠 수.
+    static func segments(turn: CGFloat, direction: CGFloat, size: CGSize, count: Int) -> [Segment] {
+        let stripWidth = size.width / CGFloat(count)
+        let base = .pi * turn
+        let bend = maxBend * sin(.pi * turn) * direction
+        // 원근의 깊이. 화면에서 이만큼 떨어진 눈으로 본다.
+        let depth = size.width * depthRatio
+        let centerY = size.height / 2
+        var x: CGFloat = 0
+        var z: CGFloat = 0
+        var segments: [Segment] = []
+        segments.reserveCapacity(count)
+        func tilt(at along: CGFloat) -> CGFloat {
+            min(.pi, max(0, base + bend * along * along))
+        }
+        for strip in 0..<count {
+            let angle = tilt(at: (CGFloat(strip) + 0.5) / CGFloat(count))
+            let nextX = x + stripWidth * cos(angle)
+            let nextZ = z + stripWidth * sin(angle)
+            segments.append(Segment(
+                angle: angle,
+                startAngle: tilt(at: CGFloat(strip) / CGFloat(count)),
+                endAngle: tilt(at: CGFloat(strip + 1) / CGFloat(count)),
+                transform: transform(from: (x, z), to: (nextX, nextZ), stripWidth: stripWidth, centerY: centerY, depth: depth)
+            ))
+            x = nextX
+            z = nextZ
+        }
+        return segments
+    }
+
+    /// 띠(가로 `stripWidth`)를 3차원의 두 점 사이 평면에 놓고 원근으로 비춘 모습.
+    /// 띠의 가로 위치 u에서 화면 좌표는 X = x(u) / w(u), Y = centerY + (y - centerY) / w(u)이고 w = 1 - z / depth다.
+    private static func transform(
+        from start: (x: CGFloat, z: CGFloat),
+        to end: (x: CGFloat, z: CGFloat),
+        stripWidth: CGFloat,
+        centerY: CGFloat,
+        depth: CGFloat
+    ) -> ProjectionTransform {
+        let a = 1 - start.z / depth
+        let b = -(end.z - start.z) / (depth * stripWidth)
+        var t = ProjectionTransform()
+        t.m11 = (end.x - start.x) / stripWidth
+        t.m12 = centerY * b
+        t.m13 = b
+        t.m21 = 0
+        t.m22 = 1
+        t.m23 = 0
+        t.m31 = start.x
+        t.m32 = centerY * (a - 1)
+        t.m33 = a
+        return t
+    }
+
+    /// 넘기는 한가운데에서 종이 끝이 책등 쪽보다 앞서는 기울기(라디안, 약 55°).
+    static let maxBend: CGFloat = 0.95
+    static let depthRatio: CGFloat = 3.2
 }
 
 enum RecordBookMetrics {
     static let minimumTouch: CGFloat = 44
-    /// 펼친 책 오른쪽 면에서 사진 둘레 여백.
+    /// 책이 커졌을 때 화살표가 화면 끝에서 떨어지는 거리.
+    static let controlEdgeInset: CGFloat = 4
+    /// 오른쪽 면에서 사진 둘레 여백.
     static let spreadPhotoInset: CGFloat = 10
-    /// 한 면 책 면 둘레 여백.
-    static let singleInset: CGFloat = 12
-    /// 한 면 책에서 가로 사진 아래 캡션 줄 높이.
-    static let singleCaptionHeight: CGFloat = 46
-    /// 한 면 책에서 세로 사진 옆 캡션 칸 폭과 사진과의 간격.
-    static let singleSideColumn: CGFloat = 104
-    static let singleSideGap: CGFloat = 14
-    /// 사진이 없는 날 한 면 책의 빈 자리 비율(가로 4:3).
-    static let emptyRatio: CGFloat = 4.0 / 3.0
     fileprivate static let overscrollShift: CGFloat = 28
     fileprivate static let shadowRadius: CGFloat = 10
     fileprivate static let deskShadowOpacity: Double = 0.22
@@ -961,11 +890,12 @@ enum RecordBookMetrics {
     fileprivate static let coverRadius: CGFloat = 5
     fileprivate static let leafPerspective: CGFloat = 0.3
     fileprivate static let turnShadeOpacity: Double = 0.16
+    /// 넘기는 종이를 나누는 세로 띠 수.
+    fileprivate static let paperStrips = 10
+    fileprivate static let paperStripOverlap: CGFloat = 0.6
     fileprivate static let castShadowOpacity: Double = 0.28
     fileprivate static let leafZIndex: Double = 100
     fileprivate static let turningZIndex: Double = 400
-    fileprivate static let ribbonOnTopZIndex: Double = 300
-    fileprivate static let ribbonBelowZIndex: Double = 1
     fileprivate static let spineBandWidth: CGFloat = 7
     fileprivate static let tipPhotoSize: CGFloat = 76
     fileprivate static let tipPadding: CGFloat = 4
@@ -980,12 +910,9 @@ enum RecordBookMetrics {
     fileprivate static let endpaperLighten: Double = 0.78
     fileprivate static let ruleWidth: CGFloat = 22
     fileprivate static let topicLineLimit = 3
-    fileprivate static let sideTopicLineLimit = 4
     fileprivate static let textInset: CGFloat = 16
     fileprivate static let textTop: CGFloat = 32
     fileprivate static let headerInset: CGFloat = 14
     fileprivate static let headerTop: CGFloat = 12
     fileprivate static let gutterDark: Double = 0.18
-    fileprivate static let tagOverlap: CGFloat = 9
-    fileprivate static let ribbonDarken: Double = 0.3
 }

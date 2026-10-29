@@ -4,8 +4,7 @@ import UIKit
 /// 기록 탭.
 /// - 월간: 위에 사진 묶음, 아래에 달력. 달력의 사진을 누르면 묶음이 그날로 옮겨 가고, 묶음의 사진을 누르면 그 사진의 피드로 간다.
 /// - 묶음은 기둥과 눈금자와 월간 책자 두 모양이 있고, 오른쪽 위 버튼으로 바꿔 A/B로 비교한다.
-///   월간 책자는 다시 펼친 책자와 한 면 책자 두 모양이 있고, 책자를 보는 동안 옆의 책 선택 버튼으로 바꾼다.
-/// - 연간: 월간의 뒤로 가기로 나가 다른 달을 고른다.
+/// - 연간: 월간 왼쪽 위의 연월을 눌러 나가 다른 달을 고른다.
 struct RecordScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.chalkakShowToast) private var showToast
@@ -28,8 +27,12 @@ struct RecordScreen: View {
 
     // 사진 묶음
     @AppStorage("record.photoStackStyle") private var stackStyle: RecordPhotoStackStyle = .pillars
-    @AppStorage("record.photoBookLayout") private var bookLayout: RecordBookLayout = .spread
     @State private var stackPosition: CGFloat = 0
+    /// 월간 스크롤이 내려간 거리와 보이는 높이. 기둥 묶음을 줄이는 데 쓴다.
+    @State private var scrollOffset: CGFloat = 0
+    @State private var scrollViewportHeight: CGFloat = 0
+    /// 손으로 끌기 시작할 때의 스크롤 거리. 손을 뗄 때 이번에 내렸는지 올렸는지 본다.
+    @State private var scrollDragStartOffset: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -73,37 +76,76 @@ struct RecordScreen: View {
     private var monthContent: some View {
         let state = viewModel.viewState
 
-        return ScrollView {
-            VStack(spacing: 0) {
-                photoStack
-                    .overlay(alignment: .top) { stackControls }
+        let collapse = stackCollapseDistance
+        // 줄어드는 동안에는 묶음을 화면 위에 붙여 두고 그만큼 높이를 줄인다. 다 줄어든 뒤에는 함께 스크롤된다.
+        let shrink = min(collapse, max(0, scrollOffset))
 
-                RecordWeekdayHeader()
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: RecordStackMetrics.height + collapse)
+                        .id(Metrics.scrollTopID)
+                        .overlay(alignment: .top) {
+                            photoStack
+                                .frame(height: RecordStackMetrics.height + collapse - shrink)
+                                .overlay(alignment: .top) { stackControls }
+                                .offset(y: shrink)
+                        }
+                        .zIndex(1)
+
+                    RecordWeekdayHeader()
+                        .padding(.horizontal, Metrics.horizontalPadding)
+                        .padding(.top, Metrics.stackToWeekday)
+
+                    RecordCalendarGrid(
+                        month: state.month,
+                        posts: state.posts,
+                        onDateClick: { date in
+                            guard let post = state.posts.first(where: { $0.topicDate == date }) else { return }
+                            bringToFront(post)
+                        },
+                        showsDayNumbers: true,
+                        selectedWeekIndex: selectedWeekIndex
+                    )
+                    .matchedGeometryEffect(id: RecordMonthTransition.id(state.month), in: monthNamespace)
                     .padding(.horizontal, Metrics.horizontalPadding)
-                    .padding(.top, Metrics.stackToWeekday)
+                    .padding(.top, Metrics.weekdayToGrid)
 
-                RecordCalendarGrid(
-                    month: state.month,
-                    posts: state.posts,
-                    onDateClick: { date in
-                        guard let post = state.posts.first(where: { $0.topicDate == date }) else { return }
-                        bringToFront(post)
-                    },
-                    showsDayNumbers: true,
-                    selectedWeekIndex: selectedWeekIndex
-                )
-                .matchedGeometryEffect(id: RecordMonthTransition.id(state.month), in: monthNamespace)
-                .padding(.horizontal, Metrics.horizontalPadding)
-                .padding(.top, Metrics.weekdayToGrid)
-
-                if state.errorMessage != nil {
-                    errorSection
+                    if state.errorMessage != nil {
+                        errorSection
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, Metrics.contentBottomPadding)
+                // 달력이 짧아도 묶음이 다 줄어드는 데까지는 스크롤되게 한다.
+                .frame(minHeight: scrollViewportHeight + collapse, alignment: .top)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, Metrics.contentBottomPadding)
+            // 하단 바가 줄거나 늘어 보이는 높이가 바뀌어도 맨 위를 기준으로 두어, 내린 거리가 저절로 바뀌지 않게 한다.
+            .defaultScrollAnchor(.top)
+            .scrollTargetBehavior(RecordStackSnapBehavior(collapseDistance: collapse, currentOffset: scrollOffset, dragStartOffset: scrollDragStartOffset))
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting { scrollDragStartOffset = scrollOffset }
+            }
+            .onScrollGeometryChange(for: RecordScrollMetrics.self) { geometry in
+                RecordScrollMetrics(
+                    offset: geometry.contentOffset.y + geometry.contentInsets.top,
+                    topInset: geometry.contentInsets.top,
+                    // 스크롤 뷰 크기에는 위아래 안전 영역과 하단 바 자리가 이미 빠져 있다. 여기서 다시 빼면 내용이 모자라
+                    // 묶음이 다 줄어들 만큼 내려가지 않고, 놓으면 되돌아온다.
+                    viewportHeight: geometry.containerSize.height
+                )
+            } action: { oldMetrics, metrics in
+                // 처음 그릴 때 안전 영역이 늦게 잡히면 스크롤 뷰가 가운데를 기준으로 밀려 묶음이 저절로 줄어든다.
+                // 맨 위에 있었다면 그때 한 번만 맨 위로 되돌린다. 위치를 계속 붙잡아 두면 내린 뒤에도 끌려 올라간다.
+                if oldMetrics.offset <= 0, oldMetrics.topInset != metrics.topInset || oldMetrics.viewportHeight != metrics.viewportHeight {
+                    proxy.scrollTo(Metrics.scrollTopID, anchor: .top)
+                }
+                scrollOffset = metrics.offset
+                scrollViewportHeight = metrics.viewportHeight
+            }
+            .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
         }
-        .chalkakBottomBarScrollBehavior(isCompact: bottomBarCompact)
     }
 
     @ViewBuilder
@@ -124,7 +166,6 @@ struct RecordScreen: View {
                 posts: state.posts,
                 images: images,
                 topicTitles: state.topicTitles,
-                layout: bookLayout,
                 signatureURL: state.signatureURL,
                 position: $stackPosition,
                 onSelectPost: openFeed
@@ -132,22 +173,17 @@ struct RecordScreen: View {
         }
     }
 
-    /// 묶음 위의 버튼. 왼쪽은 연간 달력으로 나가는 뒤로 가기, 오른쪽은 묶음 모양을 바꾸는 A/B 전환이다.
-    /// 책자를 보는 동안에는 전환 버튼 앞에 펼친 책자 ↔ 한 면 책자를 바꾸는 책 선택 버튼이 붙는다.
+    /// 맨 위에서 묶음이 더 커져 있는 높이. 이만큼 스크롤하면 기본 높이로 줄어든다. 기둥과 책자 모두 같다.
+    private var stackCollapseDistance: CGFloat {
+        Metrics.stackExpansion
+    }
+
+    /// 묶음 위의 버튼. 왼쪽은 연간 달력으로 나가는 연월, 오른쪽은 묶음 모양을 바꾸는 A/B 전환이다.
     private var stackControls: some View {
         HStack(spacing: theme.spacing.xs) {
-            ChalkakNavigationButton(kind: .back, action: openYear)
+            RecordStackMonthButton(month: viewModel.viewState.month, action: openYear)
 
             Spacer(minLength: 0)
-
-            if stackStyle == .book {
-                RecordGlassIconButton(
-                    title: "\(bookLayout.toggled.title)로 보기",
-                    systemImage: bookLayout.toggled.systemImage
-                ) {
-                    bookLayout = bookLayout.toggled
-                }
-            }
 
             RecordGlassIconButton(
                 title: "\(stackStyle.toggled.title)로 보기",
@@ -248,6 +284,7 @@ struct RecordScreen: View {
         return RecordYearCalendar(
             year: displayedYear,
             latestMonth: state.latestMonth,
+            shownMonth: state.month,
             canGoPreviousYear: displayedYear > state.earliestYear,
             canGoNextYear: displayedYear < state.latestMonth.year,
             postsByMonth: state.yearPosts,
@@ -359,6 +396,9 @@ private enum Metrics {
     // Android RecordScreen / RecordHorizontalPadding 값과 맞춘다.
     static let horizontalPadding: CGFloat = 20
     static let stackControlsPadding: CGFloat = 12
+    /// 맨 위에서 묶음이 기본 높이(300pt)보다 커져 있는 높이. 기둥은 126pt에서 236pt가 되고, 책자는 화면 폭이 허락하는 만큼 커진다.
+    static let stackExpansion: CGFloat = 110
+    static let scrollTopID = "record.month.top"
     static let stackToWeekday: CGFloat = 8
     static let weekdayToGrid: CGFloat = 14
     static let contentBottomPadding: CGFloat = 32
@@ -367,6 +407,42 @@ private enum Metrics {
     static let retryTouchHeight: CGFloat = 44
     /// 책에서 펼친 날 앞뒤로 주제를 미리 불러올 날 수.
     static let bookTopicRange = 3
+}
+
+private struct RecordScrollMetrics: Equatable {
+    let offset: CGFloat
+    let topInset: CGFloat
+    let viewportHeight: CGFloat
+}
+
+/// 묶음이 줄어드는 중간에 손을 떼면 움직이던 쪽으로 마저 간다.
+/// - 튕기듯 떼면 튕긴 쪽으로 간다(아래로 튕기면 다 줄어든 상태, 위로 튕기면 다 펼친 상태).
+/// - 멈췄다 떼면 이번에 끈 방향을 따른다. 내리던 중이면 다 줄어든 상태, 올리던 중이면 다 펼친 상태로 간다.
+///   멈췄다 떼도 목적지가 지금보다 몇 pt 어긋나게 잡히므로, `flickDistance`보다 작은 차이는 튕긴 것으로 보지 않는다.
+private struct RecordStackSnapBehavior: ScrollTargetBehavior {
+    let collapseDistance: CGFloat
+    /// 손을 뗄 때의 스크롤 거리(맨 위가 0).
+    let currentOffset: CGFloat
+    /// 이번에 끌기 시작할 때의 스크롤 거리.
+    let dragStartOffset: CGFloat
+
+    /// 손을 뗀 뒤 이만큼 넘게 굴러갈 만큼 떼야 튕긴 것으로 본다.
+    private static let flickDistance: CGFloat = 24
+
+    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+        // 목표 위치는 맨 위가 0이다(위쪽 안전 영역은 이미 빠져 있다).
+        let offset = target.rect.minY
+        guard collapseDistance > 0, offset > 0, offset < collapseDistance else { return }
+        let snapped: CGFloat
+        if offset < currentOffset - Self.flickDistance {
+            snapped = 0
+        } else if offset > currentOffset + Self.flickDistance {
+            snapped = collapseDistance
+        } else {
+            snapped = currentOffset < dragStartOffset ? 0 : collapseDistance
+        }
+        target.rect.origin.y = snapped
+    }
 }
 
 #Preview("Record Loaded") {

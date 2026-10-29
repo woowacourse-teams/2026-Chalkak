@@ -2,12 +2,15 @@ import SwiftUI
 
 /// 한 해를 한 화면에 보는 연간 달력.
 /// - 달마다 날짜를 작은 칸으로 그리고, 기록이 있는 날은 그 사진의 대표색으로 칠한다.
-/// - 달을 누르면 그 달의 월간 화면으로 들어간다. 아직 오지 않은 달은 누를 수 없다.
+/// - 달을 누르면 그 달의 월간 화면으로 들어간다. 아직 오지 않은 달과 기록이 없는 달은 누를 수 없다.
+///   지금 보고 있던 달은 기록이 없어도 돌아갈 수 있게 남겨 둔다.
 /// - 다른 해는 위의 화살표로 옮겨 간다.
 struct RecordYearCalendar: View {
     @Environment(\.chalkakTheme) private var theme
     let year: Int
     let latestMonth: RecordMonth
+    /// 연간으로 나오기 전에 보던 달.
+    let shownMonth: RecordMonth
     let canGoPreviousYear: Bool
     let canGoNextYear: Bool
     let postsByMonth: [RecordMonth: [RecordPost]]
@@ -77,7 +80,10 @@ struct RecordYearCalendar: View {
 
     private func monthCell(_ month: RecordMonth) -> some View {
         let posts = postsByMonth[month] ?? []
-        let isAvailable = month <= latestMonth
+        // 아직 받지 않은 달(nil)은 흐리게 하지 않고 누르지만 못하게 둔다. 받자마자 깜빡이지 않게 한다.
+        let hasNoRecords = postsByMonth[month]?.isEmpty == true
+        let isAvailable = month <= latestMonth && (!hasNoRecords || month == shownMonth)
+        let canEnter = isAvailable && (!posts.isEmpty || month == shownMonth)
 
         return Button {
             onSelectMonth(month)
@@ -94,7 +100,7 @@ struct RecordYearCalendar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!isAvailable)
+        .disabled(!canEnter)
         .opacity(isAvailable ? 1 : Metrics.unavailableOpacity)
         .accessibilityLabel("\(month.month)월, 기록 \(posts.count)개")
     }
