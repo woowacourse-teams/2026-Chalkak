@@ -576,6 +576,80 @@ class SecurityFilterChainTest extends IntegrationTestSupport {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("앱 버전 설정은 익명과 관리자가 같은 값과 캐시 방지 헤더를 받는다")
+    void appVersion_anonymousAndAdmin_returnsPublicSettings() throws Exception {
+        // Given
+        jdbcTemplate.update("""
+                INSERT INTO app_versions (platform, minimum_supported_version, store_url)
+                VALUES ('ANDROID', '1.2.0',
+                    'https://play.google.com/store/apps/details?id=com.example.chalkak')
+                """);
+        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/app-version").param("platform", "ANDROID"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.platform").value("ANDROID"))
+                .andExpect(jsonPath("$.minimumSupportedVersion").value("1.2.0"))
+                .andExpect(jsonPath("$.storeUrl").value(
+                        "https://play.google.com/store/apps/details?id=com.example.chalkak"));
+        mockMvc.perform(get("/api/v1/app-version").param("platform", "ANDROID")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.minimumSupportedVersion").value("1.2.0"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "BANNED", "WITHDRAWN"})
+    @DisplayName("앱 버전 공개 조회는 정상·정지·탈퇴 회원 모두 허용한다")
+    void appVersion_memberStates_allowsPublicQuery(String state) throws Exception {
+        // Given
+        UUID userId = createUser();
+        if (state.equals("BANNED")) {
+            jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", userId);
+        }
+        if (state.equals("WITHDRAWN")) {
+            jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    userId);
+        }
+        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/app-version").param("platform", "IOS")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.platform").value("IOS"));
+    }
+
+    @Test
+    @DisplayName("앱 버전 공개 조회도 잘못된 토큰과 scope 없는 토큰은 거절한다")
+    void appVersion_invalidCredentials_returnsAuthenticationOrScopeError() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/app-version").param("platform", "ANDROID")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer invalid"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/app-version").param("platform", "ANDROID")
+                .header(HttpHeaders.AUTHORIZATION,
+                        "Bearer " + issueTokenWithoutScope(UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("앱 버전 공개 허용은 정확한 GET 경로만 열고 기존 보호 경로는 유지한다")
+    void appVersion_otherPathsAndMethods_remainProtected() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/app-version"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/app-version/ANDROID"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put(LIKE_PATH, UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/app-version"))
+                .andExpect(status().isBadRequest());
+    }
+
     /**
      * {@link JwtAccessTokenProvider}는 언제나 scope를 담으므로 여기서만 직접 서명한다. 서명과 나머지 클레임이 모두
      * 유효한데 scope만 없어야 필터가 무엇을 보고 막는지 드러난다.

@@ -1,5 +1,8 @@
 package com.chalkak.backend.admin.domain;
 
+import com.chalkak.backend.appversion.domain.AppPlatform;
+import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
+import com.chalkak.backend.appversion.domain.StoreUrl;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import java.math.BigDecimal;
@@ -57,6 +60,26 @@ public final class AdminAuditSnapshot {
 
     public Map<String, Object> values() {
         return values;
+    }
+
+    // 일반 URL 허용으로 넓히지 않고, 검증된 플랫폼별 스토어 주소만 원문을 기록한다.
+    public static AdminAuditSnapshot fromAppVersion(
+            AppPlatform platform,
+            MinimumSupportedVersion version,
+            StoreUrl storeUrl,
+            long revision
+    ) {
+        if (platform == null || version == null || storeUrl == null || revision < 0) {
+            throw invalidStateException();
+        }
+        storeUrl.validatePlatform(platform);
+        Map<String, Object> source = new LinkedHashMap<>();
+        source.put("platform", platform);
+        source.put("minimumSupportedVersion", version.value());
+        source.put("revision", revision);
+        Map<String, Object> state = new LinkedHashMap<>(from(source).values());
+        state.put("storeUrl", normalizeScalar(storeUrl.value()));
+        return new AdminAuditSnapshot(Collections.unmodifiableMap(state));
     }
 
     boolean isEmpty() {
