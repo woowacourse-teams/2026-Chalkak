@@ -81,7 +81,16 @@ struct FeedScreen: View {
 
     var body: some View {
         ZStack(alignment: .top) {
+            // 백 스와이프로 화면을 줄이는(scaleEffect) 동안에는 ignoresSafeArea가 안전 영역까지 늘어나지 않는다.
+            // 그러면 하단 안전 영역의 배경이 비어 좋아요 행 아래로 뒤 화면이 비친다(이동만 할 때는 그대로다).
+            // 측정한 안전 영역만큼 직접 늘려 줄어든 동안에도 하단까지 하나의 창으로 보이게 한다.
             theme.colors.background
+                .padding(EdgeInsets(
+                    top: -transitionSafeAreaInsets.top,
+                    leading: -transitionSafeAreaInsets.leading,
+                    bottom: -transitionSafeAreaInsets.bottom,
+                    trailing: -transitionSafeAreaInsets.trailing
+                ))
                 .ignoresSafeArea()
                 .opacity(visibleContentProgress)
 
