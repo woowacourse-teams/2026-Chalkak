@@ -7,7 +7,7 @@
 
 @media (max-width: 800px) {
   :root {
-    --admin-bottom-nav-height: calc(69px + env(safe-area-inset-bottom));
+    --admin-bottom-nav-height: calc(74px + env(safe-area-inset-bottom));
   }
 }
 

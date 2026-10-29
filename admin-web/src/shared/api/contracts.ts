@@ -179,7 +179,7 @@ export interface AdminAuditLogResponse {
   actorAdminId: string;
   actorUsername: string;
   action: string;
-  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER" | "REMINDER" | "AI_PROMPT_VERSION";
+  targetType: "POST" | "USER" | "TOPIC" | "TOPIC_PUSH_SCHEDULE" | "NOTICE" | "BANNER" | "REMINDER" | "AI_PROMPT_VERSION" | "APP_VERSION";
   targetId: string;
   reason: string | null;
   beforeState: Record<string, unknown>;
@@ -284,6 +284,30 @@ export interface AdminReminderListResponse {
 }
 
 export type AdminReminderInput = Pick<AdminReminder, "title" | "body" | "repeat" | "target" | "scheduledAt">;
+
+export type AppPlatform = "ANDROID" | "IOS";
+
+export interface AdminAppVersion {
+  platform: AppPlatform;
+  minimumSupportedVersion: string | null;
+  storeUrl: string | null;
+  revision: number | null;
+  lastChangedBy: string | null;
+  changeReason: string | null;
+  createdAt: Instant | null;
+  updatedAt: Instant | null;
+}
+
+export interface AdminAppVersionListResponse {
+  appVersions: AdminAppVersion[];
+}
+
+export interface AdminAppVersionInput {
+  revision: number | null;
+  minimumSupportedVersion: string;
+  storeUrl: string;
+  reason: string;
+}
 
 export type AiPromptType = "PHOTO_REVIEW";
 export type AiImageDetail = "LOW" | "HIGH" | "AUTO";

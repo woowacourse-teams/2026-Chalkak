@@ -744,3 +744,35 @@ describe("banner relay", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("app version settings relay", () => {
+  it("forwards authenticated GET and platform PUT with the original revision", async () => {
+    fetchMock.mockImplementation(async () => Response.json({ appVersions: [] }));
+    const list = await relay("app-versions", { cookie: token });
+    expect(list.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${upstream}/app-versions`);
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe(`Bearer ${token}`);
+    const body = { revision: null, minimumSupportedVersion: "1.10.0", storeUrl: "https://apps.apple.com/app/id123456789", reason: "스토어 확인" };
+    for (const platform of ["ANDROID", "IOS"]) {
+      const response = await relay(`app-versions/${platform}`, { method: "PUT", cookie: token, body });
+      expect(response.status).toBe(200);
+      expect(fetchMock).toHaveBeenLastCalledWith(`${upstream}/app-versions/${platform}`, expect.objectContaining({ method: "PUT", body: JSON.stringify(body), cache: "no-store" }));
+    }
+  });
+  it("rejects missing sessions, invalid platforms, unsupported verbs, and foreign origins", async () => {
+    expect((await relay("app-versions")).status).toBe(401);
+    expect((await relay("app-versions/IOS", { method: "PUT", body: {} })).status).toBe(401);
+    expect((await relay("app-versions/android", { method: "PUT", cookie: token, body: {} })).status).toBe(404);
+    expect((await relay("app-versions/WINDOWS", { method: "PUT", cookie: token, body: {} })).status).toBe(404);
+    expect((await relay("app-versions/IOS", { cookie: token })).status).toBe(405);
+    expect((await relay("app-versions", { method: "POST", cookie: token, body: {} })).status).toBe(405);
+    expect((await relay("app-versions/IOS", { method: "PUT", cookie: token, body: {}, headers: { Origin: "https://foreign.example.test" } })).status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("preserves the conflict code for UI recovery", async () => {
+    fetchMock.mockResolvedValue(Response.json({ errorCode: "RESOURCE_STATE_CHANGED", message: "다른 관리자가 변경했습니다." }, { status: 400 }));
+    const response = await relay("app-versions/ANDROID", { method: "PUT", cookie: token, body: {} });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ errorCode: "RESOURCE_STATE_CHANGED" });
+  });
+});

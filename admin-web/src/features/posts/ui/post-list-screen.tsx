@@ -155,6 +155,7 @@ export function PostListScreen() {
         {([ ["PENDING", "검수 대기"], ["APPROVED", "승인"], ["REJECTED", "거절"] ] as const).map(([status, label]) => (
           <Link aria-current={filters.status === status ? "page" : undefined} href={pathname + withQueryPatch(searchParams, { status, page: 1 })} key={status}>{label}</Link>
         ))}
+        <Link className={styles.auditHistoryLink} href="/audit-logs">전체 처리 이력 ↗</Link>
       </nav>
       {filters.topicId || filters.userId ? <p className={styles.filterContext}>{filters.topicId ? (selectedTopic.data?.title ?? "선택한 주제") : null}{filters.topicId && filters.userId ? " · " : null}{filters.userId ? (selectedUser.data?.email ?? "선택한 사용자") : null}의 게시물</p> : null}
 

@@ -4,6 +4,7 @@ import { createBannerHandlers, resetBannerMocks } from "./banner-handlers";
 import { delay, http, HttpResponse } from "msw";
 import { noticeHandlers, resetNoticeMocks } from "./notice-handlers";
 import { createReminderHandlers, resetReminderMocks } from "./reminder-handlers";
+import { createAppVersionHandlers, resetAppVersionMocks } from "./app-version-handlers";
 
 import type {
   AdminAuditLogResponse,
@@ -43,6 +44,7 @@ const scheduleFixtures: TopicPushSchedule[] = [
 let scheduleStore = structuredClone(scheduleFixtures);
 
 export function resetMockData() {
+  resetAppVersionMocks();
   resetNoticeMocks();
   resetBannerMocks();
   resetReminderMocks();
@@ -269,6 +271,7 @@ async function saveSchedule(request: Request, scheduleId?: string) {
 }
 
 export const handlers = [
+  ...createAppVersionHandlers((action, id, reason, before, after) => recordAudit(action, "APP_VERSION", id, reason, before, after)),
   ...noticeHandlers,
   ...createBannerHandlers((action, id, before, after) => recordAudit(action, "BANNER", id, null, before, after)),
   ...createReminderHandlers((action, id, before, after) => recordAudit(action, "REMINDER", id, null, before, after)),
