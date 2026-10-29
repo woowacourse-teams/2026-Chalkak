@@ -8,13 +8,18 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.PhotoColor
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.repository.PhotoColorRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.RecordPreferenceRepository
+import com.stonefive.chalkak.feature.record.component.RecordPhotoStackStyle
+import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -89,6 +94,23 @@ class RecordViewModelTest {
         advanceUntilIdle()
 
         assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun `피드로 연 날짜는 돌아와 재검증해도 다시 펼치고 그다음 재검증부터는 최신 날짜를 고른다`() = runTest {
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
+
+        viewModel.keepDateOnReturn(RecordTestMonth.atDay(2))
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+
+        viewModel.revalidate()
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(2), viewModel.uiState.value.selectedDate)
+
+        viewModel.revalidate()
+        advanceUntilIdle()
+        assertEquals(RecordTestMonth.atDay(5), viewModel.uiState.value.selectedDate)
     }
 
     @Test
@@ -917,6 +939,127 @@ class RecordViewModelTest {
         advanceUntilIdle()
     }
 
+    @Test
+    fun `책자 주제는 모르는 날짜만 불러오고 받은 주제를 합친다`() = runTest {
+        advanceUntilIdle()
+
+        viewModel.loadTopicTitles(listOf(RecordTestMonth.atDay(1), RecordTestMonth.atDay(3)))
+        advanceUntilIdle()
+        viewModel.loadTopicTitles(listOf(RecordTestMonth.atDay(1), RecordTestMonth.atDay(4)))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(RecordTestMonth.atDay(1), RecordTestMonth.atDay(3), RecordTestMonth.atDay(4)),
+            repository.topicRequests,
+        )
+        assertEquals(
+            mapOf(RecordTestMonth.atDay(1) to "주제 1", RecordTestMonth.atDay(4) to "주제 4"),
+            viewModel.uiState.value.topicTitles,
+        )
+    }
+
+    @Test
+    fun `연간 달력은 그 해의 받지 않은 달만 불러오고 사진 색을 채운다`() = runTest {
+        val colors = FakePhotoColorRepository()
+        viewModel = RecordViewModel(
+            repository = repository,
+            initialMonth = RecordTestMonth,
+            latestMonth = RecordLatestMonth,
+            currentMonthProvider = { RecordLatestMonth },
+            photoColorRepository = colors,
+        )
+        advanceUntilIdle()
+        repository.requests.clear()
+
+        viewModel.loadYear(2026)
+        advanceUntilIdle()
+
+        assertEquals(setOf(RecordLatestMonth, RecordTestMonth.minusMonths(1)), repository.requests.toSet())
+        assertEquals(
+            setOf(RecordLatestMonth, RecordTestMonth, RecordTestMonth.minusMonths(1)),
+            viewModel.uiState.value.yearPosts.keys,
+        )
+        assertEquals(setOf("post-2", "post-5", "post-1"), viewModel.uiState.value.photoColors.keys)
+        assertEquals(2026, viewModel.uiState.value.earliestYear)
+
+        viewModel.loadYear(2026)
+        advanceUntilIdle()
+        assertEquals(3, colors.requests.size)
+    }
+
+    @Test
+    fun `연간 달력에서 고른 달은 받아 둔 기록으로 먼저 그리고 최신화한다`() = runTest {
+        advanceUntilIdle()
+        viewModel.loadYear(2026)
+        advanceUntilIdle()
+        repository.pendingCalendarResult = CompletableDeferred()
+
+        viewModel.showMonth(RecordLatestMonth)
+
+        assertEquals(RecordLatestMonth, viewModel.uiState.value.month)
+        assertEquals(
+            listOf("post-1"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+        assertEquals(false, viewModel.uiState.value.isLoading)
+
+        repository.pendingCalendarResult!!.complete(HomeResult.Success(PostCalendar(RecordLatestMonth, emptyList())))
+        advanceUntilIdle()
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+    }
+
+    @Test
+    fun `묶음 모양을 바꾸면 저장하고 새 ViewModel에서 이어 쓴다`() = runTest {
+        val preferences = FakeRecordPreferenceRepository()
+        viewModel = RecordViewModel(repository = repository, preferenceRepository = preferences)
+        advanceUntilIdle()
+        assertEquals(RecordPhotoStackStyle.PILLARS, viewModel.uiState.value.photoStackStyle)
+
+        viewModel.togglePhotoStackStyle()
+        advanceUntilIdle()
+        assertEquals(RecordPhotoStackStyle.BOOK, viewModel.uiState.value.photoStackStyle)
+        assertEquals("BOOK", preferences.style)
+
+        val restored = RecordViewModel(repository = repository, preferenceRepository = preferences)
+        advanceUntilIdle()
+        assertEquals(RecordPhotoStackStyle.BOOK, restored.uiState.value.photoStackStyle)
+    }
+
+    @Test
+    fun `사인을 받지 못하면 전에 받은 사인을 유지한다`() = runTest {
+        var signature: String? = "https://example.com/sign.png"
+        var fails = false
+        viewModel = RecordViewModel(
+            repository = repository,
+            signatureLoader = {
+                if (fails) error("network")
+                signature
+            },
+        )
+        viewModel.loadSignature()
+        advanceUntilIdle()
+        assertEquals("https://example.com/sign.png", viewModel.uiState.value.signatureUrl)
+
+        fails = true
+        signature = null
+        viewModel.loadSignature()
+        advanceUntilIdle()
+        assertEquals("https://example.com/sign.png", viewModel.uiState.value.signatureUrl)
+    }
+
+    @Test
+    fun `승인 전 사진을 고르면 안내 토스트를 띄운다`() = runTest {
+        advanceUntilIdle()
+
+        viewModel.onPendingPhotoSelected()
+
+        assertEquals(
+            "승인 전 사진은 아직 피드에서 볼 수 없어요",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
     private fun TestScope.returnToCachedMonth(): CompletableDeferred<HomeResult<PostCalendar>> {
         advanceUntilIdle()
         viewModel.moveToNextMonth()
@@ -1096,6 +1239,28 @@ class RecordViewModelTest {
 private val RecordTestMonth = YearMonth.of(2026, 8)
 private val RecordLatestMonth = YearMonth.of(2026, 9)
 
+private class FakePhotoColorRepository : PhotoColorRepository {
+    val requests = mutableListOf<String>()
+
+    override suspend fun getPhotoColor(
+        postId: String,
+        imageUrl: String,
+    ): PhotoColor {
+        requests += postId
+        return PhotoColor(0.2f, 0.4f, 0.6f)
+    }
+}
+
+private class FakeRecordPreferenceRepository : RecordPreferenceRepository {
+    var style: String? = null
+
+    override suspend fun getPhotoStackStyle(): String? = style
+
+    override suspend fun setPhotoStackStyle(name: String) {
+        style = name
+    }
+}
+
 private class FakePostRepository : PostRepository {
     override suspend fun getAuthorPosts(
         authorId: String,
@@ -1130,6 +1295,13 @@ private class FakePostRepository : PostRepository {
                 },
             ),
         )
+    }
+
+    val topicRequests = mutableListOf<LocalDate>()
+
+    override suspend fun getTopicTitle(date: LocalDate): String? {
+        topicRequests += date
+        return "주제 ${date.dayOfMonth}".takeIf { date.dayOfMonth != 3 }
     }
 
     override suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = pendingMonthsResult?.await()

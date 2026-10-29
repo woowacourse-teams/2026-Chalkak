@@ -10,6 +10,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -26,6 +27,9 @@ interface PostRepository {
     suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar>
 
     suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = HomeResult.Success(emptyList())
+
+    /** 그날의 주제 제목(TOPIC-005: 오늘·과거 날짜만 조회 가능). 받지 못하면 null이다. */
+    suspend fun getTopicTitle(date: LocalDate): String? = null
 
     suspend fun getPostDetail(postId: String): HomeResult<PostDetail>
 

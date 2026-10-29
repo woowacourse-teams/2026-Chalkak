@@ -111,6 +111,11 @@ class PostRepositoryImpl(
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
+    override suspend fun getTopicTitle(date: LocalDate): String? {
+        topicRemoteDataSource.getCachedTopic(date)?.let { return it.title }
+        return (topicRemoteDataSource.getTopic(date) as? ApiResult.Success)?.value?.title
+    }
+
     override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> =
         when (val result = remoteDataSource.getPostDetail(postId)) {
             is ApiResult.Success -> result.value.toDomain(postId)
