@@ -5,7 +5,7 @@ import UIKit
 /// - 1일이 맨 왼쪽, 가장 최근 날이 맨 오른쪽에 가는 기둥으로 서 있고, 고른 날만 넓게 펼쳐진다.
 /// - 기둥 아래에 날마다 눈금, 일요일마다 긴 눈금, 5일마다 숫자를 둔다. 위의 삼각 표시가 고른 날을 가리킨다.
 /// - 펼친 기둥은 사진 비율과 상관없이 폭이 같아서, 끄는 동안 펼친 자리가 하루에 기둥 한 칸씩 곧게 움직인다.
-/// - 좌우로 끌면 펼친 기둥이 손가락을 따라간다(오른쪽으로 끌면 최근 날). 손을 떼면 하루 단위로 붙는다.
+/// - 좌우로 끌면 스크롤처럼 넘어간다(오른쪽으로 끌면 지난 날, 왼쪽으로 끌면 최근 날). 손을 떼면 하루 단위로 붙는다.
 /// - 펼친 사진을 누르면 그 사진의 피드로 간다. 다른 기둥을 누르면 그날을 펼친다.
 struct RecordPhotoPillars: View {
     @Environment(\.chalkakTheme) private var theme
@@ -157,7 +157,7 @@ struct RecordPhotoPillars: View {
 
     private func dragGesture(count: Int, width: CGFloat) -> some Gesture {
         let range: ClosedRange<CGFloat> = 0...CGFloat(max(0, count - 1))
-        // 손가락이 가는 기둥 한 칸만큼 움직이면 하루 옮겨 가, 펼친 기둥이 손가락 밑에 머문다.
+        // 손가락이 가는 기둥 한 칸만큼 움직이면 하루 옮겨 간다.
         let step = RecordPillarLayout.step(entryCount: count, width: width)
         return DragGesture(minimumDistance: RecordStackMetrics.dragMinimumDistance)
             .onChanged { value in
@@ -166,8 +166,8 @@ struct RecordPhotoPillars: View {
                     drag = DragState(startPosition: position, isHorizontal: isHorizontal)
                 }
                 guard let drag, drag.isHorizontal else { return }
-                // 순서는 최근 날이 0이고 최근 날이 오른쪽에 있으므로, 오른쪽으로 끌면 순서가 줄어든다.
-                let raw = drag.startPosition - value.translation.width / step
+                // 순서는 최근 날이 0이고 최근 날이 오른쪽에 있다. 스크롤처럼 오른쪽으로 끌면 지난 날(왼쪽)로 가므로 순서가 커진다.
+                let raw = drag.startPosition + value.translation.width / step
                 let next = RecordPhotoStackOrder.rubberBanded(raw, in: range)
                 position = next
                 rowShift = RecordPillarLayout(entryCount: count, position: next, width: width, previousShift: rowShift).shift
@@ -175,7 +175,7 @@ struct RecordPhotoPillars: View {
             .onEnded { value in
                 defer { drag = nil }
                 guard let drag, drag.isHorizontal else { return }
-                let projected = drag.startPosition - value.predictedEndTranslation.width / step
+                let projected = drag.startPosition + value.predictedEndTranslation.width / step
                 settle(at: min(range.upperBound, max(range.lowerBound, projected.rounded())), count: count, width: width)
             }
     }
