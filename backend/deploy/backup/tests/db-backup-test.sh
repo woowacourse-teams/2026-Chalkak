@@ -73,6 +73,7 @@ prepare_case() {
   printf '[backup]\ntype = alias\nremote = %s/remote\n' "$case_dir" > "$case_dir/rclone.conf"
   cat > "$case_dir/backup.env" <<EOF
 PGHOST=unused
+BACKUP_LOCK_FILE=$case_dir/backup.lock
 PGPORT=5432
 PGDATABASE=fixture
 PGUSER=fixture

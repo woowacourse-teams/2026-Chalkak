@@ -68,6 +68,7 @@ prepare_case() {
     "$case_dir" "$case_dir" > "$case_dir/rclone.conf"
   cat > "$case_dir/backup.env" <<EOF
 RCLONE_CONFIG=$case_dir/rclone.conf
+BACKUP_LOCK_FILE=$case_dir/backup.lock
 IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 IMAGE_BACKUP_TEMP_ROOT=$case_dir/work
@@ -80,13 +81,17 @@ EOF
 execute_backup() {
   status=0
   bash "$BACKUP_SCRIPT" "$case_dir/backup.env" > "$case_dir/output" 2>&1 || status=$?
-  ! grep -q SECRET_SENTINEL "$case_dir/output"
+  if grep -q SECRET_SENTINEL "$case_dir/output"; then
+    echo 'FAIL: 비밀값 노출' >&2; exit 1
+  fi
   [[ -z "$(ls -A "$case_dir/work")" ]]
 }
 assert_failed() {
   [[ $status -ne 0 ]]
   grep -q "FAILED stage=$1 " "$case_dir/output"
-  ! grep -q ' COMPLETE ' "$case_dir/output"
+  if grep -q ' COMPLETE ' "$case_dir/output"; then
+    echo 'FAIL: 실패한 이미지 백업을 성공으로 기록' >&2; exit 1
+  fi
   [[ ! -d "$runs" || -z "$(find "$runs" -name COMPLETE -print)" ]]
 }
 
@@ -212,7 +217,9 @@ export TEST_FAULT=marker
 execute_backup
 [[ $status -ne 0 ]]
 grep -q 'FAILED stage=completion ' "$case_dir/output"
-! grep -q ' COMPLETE ' "$case_dir/output"
+if grep -q ' COMPLETE ' "$case_dir/output"; then
+  echo 'FAIL: 완료 검증 실패 후 성공 기록' >&2; exit 1
+fi
 echo 'PASS: 완료 표식 재조회 불일치 실패, 이미 전송된 표식은 자동 삭제하지 않음'
 
 echo '총 31개 시나리오 통과 (실제 rclone 로컬 저장소, 실패·해시 부재 상황 주입; AWS 버저닝은 별도 검증)'

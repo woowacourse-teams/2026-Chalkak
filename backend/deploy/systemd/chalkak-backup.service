@@ -1,0 +1,29 @@
+[Unit]
+Description=Chalkak daily DB and image backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=chalkak-backup
+Group=chalkak-backup
+WorkingDirectory=/opt/chalkak-backup
+ExecStart=/bin/bash /opt/chalkak-backup/scheduled-backup.sh /etc/chalkak-backup/backup.env
+# 전체 시간 상한은 실측한 BACKUP_MAX_RUNTIME_SECONDS와 GNU timeout으로 적용한다.
+TimeoutStartSec=infinity
+TimeoutStopSec=30s
+KillMode=control-group
+Restart=no
+UMask=0077
+Nice=10
+CPUAccounting=true
+MemoryAccounting=true
+IOAccounting=true
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+StateDirectory=chalkak-backup
+StateDirectoryMode=0700
+StandardOutput=journal
+StandardError=journal

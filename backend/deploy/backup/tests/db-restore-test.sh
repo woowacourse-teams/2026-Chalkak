@@ -69,6 +69,7 @@ unset PGPASSWORD
 printf '[backup]\ntype = alias\nremote = %s/remote\n' "$TEST_ROOT" > "$TEST_ROOT/rclone.conf"
 cat > "$TEST_ROOT/backup.env" <<EOF
 PGHOST=localhost
+BACKUP_LOCK_FILE=$TEST_ROOT/backup.lock
 PGPORT=5432
 PGDATABASE=fixture
 PGUSER=fixture

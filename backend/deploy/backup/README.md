@@ -16,12 +16,12 @@ DB 덤프에는 실제 사진 파일이 포함되지 않는다. `image-backup.sh
 
 | 환경 | 설치·실행 범위 | 실행 주기 |
 | --- | --- | --- |
-| 운영 EC2 | `db-backup.sh`·`image-backup.sh`와 백업 도구·공통 설정 | #844에서 매일 자정(Asia/Seoul) 예약 |
+| 운영 EC2 | 통합·개별 백업 스크립트, 예약 래퍼·공통 잠금·백업 도구·설정 | 매일 자정(Asia/Seoul), 실제 설치·활성화 필요 |
 | 팀 계정의 임시 검증 EC2 | `db-restore.sh`·`image-restore.sh`, rclone, Docker(DB 검증용), `sha256sum`과 보관본 조회 전용 설정 | 최초 실제 보관본 검증 및 매월 1회 수동 실행 |
 
 운영 EC2에는 복구 검증용 Docker를 설치하거나 복구 스크립트를 예약 작업에 연결하지 않는다.
 스크립트는 Git 저장소에서 함께 관리하되, 서버에는 역할에 필요한 파일만 설치한다.
-현재 CodeDeploy 배포 묶음에는 `deploy/backup/`이 포함되지 않는다. 서버별 설치와 설정은 #844에서 준비한다.
+현재 CodeDeploy 배포 묶음에는 `deploy/backup/`이 포함되지 않는다. 아래 절차로 별도 설치한다.
 
 검증 EC2는 검증할 때만 생성한다. 생성 전에 담당자의 삭제 권한과 비용을 확인하고,
 운영 DB 자격 증명·운영 저장소 쓰기 권한 없이 필요한 보관본만 조회하도록 구성한다.
@@ -31,7 +31,7 @@ DB 덤프에는 실제 사진 파일이 포함되지 않는다. `image-backup.sh
 
 ## 백업 실행 준비
 
-Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`, GNU coreutils의 `timeout`이 필요하다.
+Linux에 Bash, PostgreSQL 18의 `pg_dump`·`pg_restore`, rclone, `sha256sum`, `cmp`, GNU coreutils의 `timeout`, util-linux의 `flock`이 필요하다.
 DB에 직접 연결해 스키마·테이블·시퀀스를 내보낼 권한이 있어야 한다.
 TLS 인증서 검증을 위해 RDS CA 번들을 준비한다. 스크립트는 `verify-full`을 강제한다.
 
@@ -46,6 +46,188 @@ PGPASSWORD나 명령 인자로 비밀번호를 전달하지 않는다. 소스·�
 삭제·설정 변경 권한은 주지 않는다. 업로드와 전체 내용 검증이 가능해야 한다.
 
 ## 수동 실행
+
+### DB·이미지 통합 실행
+
+`backup.sh`가 공통 잠금을 잡은 뒤 DB → 이미지를 순서대로 시도한다. DB 설정이나 덤프가
+실패해도 이미지는 시도하며, 선택한 작업 중 하나라도 실패하면 0이 아닌 종료 코드를 반환한다.
+기존 백업·복구·전송 기능은 각 도구를 그대로 호출해 재사용한다. 복구 도구는 호출하지 않는다.
+
+운영 설치 시 실행 사용자 소유의 `/var/lib/chalkak-backup`을 mode 700으로 미리 준비한다.
+`BACKUP_STATE_DIRECTORY`는 이 로컬 결과 보관 위치다. `BACKUP_LOCK_FILE`은 같은 보호 경로
+안의 고정 파일이며, 예약·수동·개별 실행에서 모두 같은 경로를 사용한다.
+`BACKUP_RUN_DESTINATION`은 팀 버킷의 `remote:bucket/prefix/runs` 형식 결과 보관 경로다.
+이 세 항목은 백업 전용 설정이며 앱 `application.env`나 CD 필수 키에 추가하지 않는다.
+
+```bash
+# 일별 실행과 수동 전체 실행
+bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env
+# 실패한 대상만 새 회차로 재시도 (전체 실행 성공을 대신하지 않는다)
+bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env db
+bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env images
+```
+
+실행마다 고유한 `chalkak-backup-...` 디렉터리에 `RESULT`, `db.log`, `image.log`를 남긴다.
+최종 종료 코드·단계는 로컬 `OUTCOME`에도 기록한다. 원격 기록 실패를 진단할 수 있도록
+OUTCOME은 원격 기록 시도까지 끝난 후 로컬에 작성하며 원격에는 업로드하지 않는다.
+`RESULT`에는 시작·종료 UTC 시각, 선택 대상, 개별 종료 코드, 중단 여부를 기록한다.
+제외 대상은 `not-selected`, 선택했지만 아직 시작하지 않은 대상은 `not-started`다.
+도구 로그의 개별 `run` 값으로 실제 DB·이미지 보관 회차를 찾는다. 선택한 작업과 결과 파일의
+업로드·내용 비교가 모두 성공한 뒤 통합 `COMPLETE`를 업로드·재조회한다.
+`selection=db` 또는 `images`의 COMPLETE는 그 대상만 성공했다는 의미다.
+
+```text
+팀 버킷/chalkak/runs/chalkak-backup-실행UTC시각-고유문자열/
+├── RESULT
+├── db.log       # DB를 선택한 회차만
+├── image.log    # 이미지를 선택한 회차만
+└── COMPLETE     # 선택한 백업 및 결과 기록 검증 성공 시에만
+```
+
+DB·이미지 실패도 가능한 경우 `RESULT`와 도구 로그를 원격에 보관하지만 COMPLETE를 만들지
+않는다. 원격 결과 전송·검증이 실패하면 `FAILED stage=record`, 완료 표식 실패는
+`stage=completion`으로 종료하고 로컬 기록은 유지한다. 원격 COMPLETE 업로드 후 재조회만
+실패하는 경우 표식이 남을 수 있으므로 실패 로그도 함께 확인한다. 로컬 COMPLETE만으로
+원격 전송 성공을 판단하지 않는다. 설정 오류·잠금 충돌처럼 작업 시작 전의 오류는 표준 오류에
+남기며, 아래 서비스로 실행하면 systemd 저널로 수집한다. 파일 추가만으로 예약이 활성화되지는 않는다.
+
+잠금이 이미 잡혀 있으면 기다리거나 겹쳐 실행하지 않고 `SKIPPED reason=already-running`과
+종료 코드 75를 남긴다. `db-backup.sh`·`image-backup.sh` 직접 실행에도 같은 잠금을 적용한다.
+통합 실행의 자식은 같은 열린 파일 디스크립터를 상속하며 `/proc`로 파일을 대조한 뒤 실제
+flock을 확인한다. 환경변수 플래그만으로 잠금을 생략하지 않는다. 잠금 파일은 계속 남아도
+정상이고, 프로세스가 사용한 파일을 모두 닫으면 커널 잠금이 해제된다. 실행 중 잠금 파일을
+삭제·교체하거나 다른 설정에서 다른 잠금 경로를 지정하면 중복 방지가 깨지므로 하지 않는다.
+이 잠금은 같은 Linux 호스트·동일 파일에만 적용되며 여러 서버의 중복 실행은 막지 못한다.
+
+INT·TERM을 받으면 진행 중인 자식에 종료를 전달하고 종료를 기다린 뒤 다음 대상은 시작하지
+않는다. 중단 결과는 로컬에 남기고 원격 업로드를 시도해 종료를 지연하지 않는다. Bash는 자식의
+외부 명령이 끝날 때까지 신호 처리가 늦을 수 있다. SIGKILL·호스트 장애에서는 결과 기록이
+남지 않거나 자식이 잠금을 유지할 수 있으므로 프로세스·기록을 확인한다. 예약 래퍼는 GNU timeout으로
+프로세스 그룹의 전체 실행 시간을 제한하며, systemd 중지는 서비스의 모든 프로세스에 적용한다.
+로컬 결과·원격 회차는 초기 정책대로 자동 삭제하지 않는다.
+
+```bash
+# Linux에서 실행. DB 명령은 합성 도구, flock·rclone 전송·내용 비교는 실제 도구다.
+bash deploy/backup/tests/backup-test.sh
+```
+
+## 운영 서버의 자정 예약 설치
+
+`chalkak-backup.timer` → `chalkak-backup.service` → `scheduled-backup.sh` → `backup.sh`
+순서로 실행한다. 운영 서버의 systemd를 사용하며 앱 내부 스케줄러나 복구 컨테이너는 실행하지 않는다.
+예약 래퍼는 설정 파일·인증 파일 소유권과 권한, 필수 도구, PostgreSQL 18과 전체 시간 상한을
+확인한다. `--check`는 연결·DB 접근·S3 권한·실제 복구를 검증하는 명령이 아니다.
+
+### 1. 파일과 실행 사용자 준비
+
+아래는 Linux에서 최초 설치할 때의 명령이다. 저장소의 `backend/`에서 실행하며 기존 설치를
+갱신할 때는 먼저 타이머를 중지한다. Bash·rclone·PostgreSQL 18 도구·jq·coreutils·flock과
+최초 실측용 `/usr/bin/time`을 먼저 준비한다. 운영 서버에는 복구 시험용 Docker를 추가하지 않는다.
+
+```bash
+if ! id chalkak-backup >/dev/null 2>&1; then
+  sudo useradd --system --user-group --home-dir /var/lib/chalkak-backup \
+    --shell /usr/sbin/nologin chalkak-backup
+fi
+sudo install -d -o root -g root -m 755 /opt/chalkak-backup
+sudo install -d -o root -g chalkak-backup -m 750 /etc/chalkak-backup
+sudo install -d -o chalkak-backup -g chalkak-backup -m 700 /var/lib/chalkak-backup
+for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh; do
+  sudo install -o root -g root -m 644 "deploy/backup/$file" /opt/chalkak-backup/
+done
+sudo install -o root -g root -m 644 deploy/systemd/chalkak-backup.service /etc/systemd/system/
+sudo install -o root -g root -m 644 deploy/systemd/chalkak-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+`backup.env.example`을 참고해 Git 밖에서 실제 `backup.env`, `pgpass`, `rclone.conf`를 준비한다.
+세 파일은 `/etc/chalkak-backup/`에 실행 사용자 `chalkak-backup` 소유·mode 600으로 설치한다.
+RDS CA 번들은 같은 위치의 `rds-ca.pem`에 읽을 수 있게 둔다. 비밀 값을 셸 명령 인자에 넣지 않는다.
+서비스는 `/home`을 읽지 못하고 시스템 경로에 쓸 수 없으므로 기본 결과 경로와 `/tmp`를 사용한다.
+임시 경로를 바꾸려면 service의 쓰기 허용 범위도 함께 검토해야 한다.
+
+앱과 백업은 다른 OS 사용자로 실행한다. 운영 S3 읽기는 기존 EC2 역할 사용 가능 여부를 확인하고,
+팀 S3 인증은 백업용 설정에만 둔다. 서버 관리자와 같은 호스트의 침해까지 격리하는 구조는 아니다.
+이 OS 분리만으로 IAM 삭제·덮어쓰기 제한을 대신하지 않으며 실제 대상 권한은 별도로 검증한다.
+
+### 2. 실측·검증 후 시간 상한 설정
+
+처음에는 타이머를 켜지 않고 백업 전용 사용자로 수동 전체 백업을 실행한다.
+실제 회사 S3 읽기·팀 S3 생성/조회·버저닝·제한된 삭제 권한을 먼저 확인한다.
+
+```bash
+sudo -u chalkak-backup /usr/bin/time -v /bin/bash \
+  /opt/chalkak-backup/backup.sh /etc/chalkak-backup/backup.env
+```
+
+최초 전체 백업과 변경분이 있는 일별 백업을 각각 측정한다. 전체 시간, 대상 수·용량,
+운영·백업 양쪽 읽기/전송량, 최대 메모리, 같은 시간 운영 앱의 응답·메모리·CPU·I/O를 기록한다.
+`time -v`의 최대 RSS만으로 EC2 전체 피크를 판단하지 않고 서버 모니터링도 함께 확인한다.
+전체 내용 비교는 변경 없는 이미지까지 양쪽에서 읽는다. RPO 24시간·RTO 12시간은 목표이며,
+이 측정이나 로컬 합성 시험만으로 달성했다고 기록하지 않는다.
+
+운영 영향과 여유를 확인한 뒤 `BACKUP_MAX_RUNTIME_SECONDS`를 실측에 근거한 초 단위 정수로
+설정한다(1~86399). 예제 값·미설정으로는 예약 실행을 거부한다. 이 값은 전체 작업 상한이며,
+DB 덤프의 기존 5분 상한과 별개다. `backup.sh` 직접 실행에는 이 전체 시간 상한이 적용되지 않는다.
+한도를 넘으면 프로세스 그룹에 TERM을 보내고 10초 후에도 남으면 KILL한다. 부분 회차는 미완료다.
+
+```bash
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/scheduled-backup.sh \
+  /etc/chalkak-backup/backup.env --check
+# 설정 검사 통과 후, 타이머를 켜기 전에 실제 서비스 수동 실행
+sudo systemctl start chalkak-backup.service
+sudo systemctl status chalkak-backup.service --no-pager
+sudo journalctl -u chalkak-backup.service --since today --no-pager
+```
+
+이 서비스도 실제 백업을 만든다. 개별 도구·통합 COMPLETE와 실패 로그를 확인하고, 별도 검증
+환경에서 실제 보관본 복구·사용자 관계·이미지 key 연결까지 확인한 후에만 다음 단계로 진행한다.
+서비스가 성공 후 `inactive (dead)`인 것은 정상이다. 반복 상주하는 서버가 아닌 일회 실행이다.
+
+### 3. 예약 활성화와 확인
+
+```bash
+sudo systemd-analyze verify /etc/systemd/system/chalkak-backup.service /etc/systemd/system/chalkak-backup.timer
+systemd-analyze calendar '*-*-* 00:00:00 Asia/Seoul'
+sudo systemctl enable --now chalkak-backup.timer
+systemctl list-timers --all chalkak-backup.timer
+systemctl show chalkak-backup.service -p Result -p ExecMainStatus -p MemoryPeak -p CPUUsageNSec
+```
+
+서버 시간대와 무관하게 한국 시간 자정에 실행한다. `Persistent=true`이므로 서버가 꺼져 놓친
+예약은 다시 켤 때 한 번 실행할 수 있다. 이때는 재실행 시점의 데이터를 백업하며 과거 자정 상태를
+재현하지 않는다. 이미 실행 중인 서비스는 다음 타이머가 다시 시작하지 않는다. 직접 실행과의
+중복은 공통 flock으로 막고, 충돌 종료 75를 백업 성공으로 처리하지 않는다. 자동 재시도는 없다.
+전체 시간 제한은 래퍼에서 적용한다. oneshot의 `RuntimeMaxSec`는 사용하지 않는다.
+
+첫 자정 실행 후 저널의 종료 코드와 통합/개별 원격 결과를 확인해 실제 예약 성공을 기록한다.
+실패하면 원인을 고치고 수동으로 새 회차를 실행한다. 자동 삭제·자동 복구·외부 알림은 없다.
+실제 권한·복구·부하·첫 예약 실행이 확인되기 전까지 #844 완료로 간주하지 않는다.
+
+### 배포 전 중지·배포 후 재개
+
+같은 운영 EC2의 무중단 배포와 백업이 겹치지 않도록 배포 담당자가 아래 순서를 지킨다.
+타이머 중지만으로 이미 실행 중인 백업이 멈추지는 않는다.
+
+```bash
+sudo systemctl stop chalkak-backup.timer
+# 실행 중이면 종료를 기다리거나, 아래 명령으로 이번 백업을 중단한다(미완료 기록 확인).
+sudo systemctl stop chalkak-backup.service
+systemctl is-active chalkak-backup.service
+sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup/backup.lock true
+```
+
+서비스가 비활성이고 잠금 확인이 성공했는지 확인한 뒤 배포한다. 직접 실행 중인 백업이 있으면
+완료·종료를 확인한다. 배포 중에는 누구도 수동 백업을 시작하지 않는다. 배포 완료·앱 정상 상태를
+확인한 후 `sudo systemctl start chalkak-backup.timer`로 재개한다. 놓친 예약이 있으면 즉시 실행될
+수 있다. 현재 CodeDeploy와의 자동 상호 잠금은 없으며 이 수동 절차를 지켜야 한다.
+
+```bash
+# Linux에서 설정·권한 거부, 종료 코드 전달, 실제 프로세스 그룹 시간 초과 검사
+bash deploy/backup/tests/scheduled-backup-test.sh
+```
+
+### 개별 DB 실행
 
 ```bash
 bash deploy/backup/db-backup.sh /etc/chalkak-backup/backup.env
@@ -254,7 +436,7 @@ bash deploy/backup/tests/image-backup-test.sh
 한글·공백·다른 확장자·하위 경로의 보존과 실제 줄바꿈 파일 이름의 거부를 확인한다.
 로컬 파일시스템이 정규화하는 위험한 S3 key는 조회 응답에 주입해 검사한다.
 실패와 해시 부재 상황은 명령 대역으로 주입하며 실제 AWS 네트워크·권한·버저닝 시험은 아니다.
-DB·이미지 공통 실행 `backup.sh`와 systemd 예약은 #844에서 구성한다. 둘의 결과를 구분하고
+DB·이미지 공통 실행 `backup.sh`와 systemd 예약은 위 절차로 연결한다. 둘의 결과를 구분하고
 DB 실패에도 이미지 작업을 시도하며, 하나라도 실패하면 통합 실행은 실패하도록 연결한다.
 
 ## 이미지 수동 복구·검증

@@ -25,6 +25,7 @@ printf '[production]\ntype = alias\nremote = %s/source\n[backup]\ntype = alias\n
   "$fixture" "$fixture" > "$fixture/rclone.conf"
 cat > "$fixture/backup.env" <<EOF
 RCLONE_CONFIG=$fixture/rclone.conf
+BACKUP_LOCK_FILE=$fixture/backup.lock
 IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 IMAGE_BACKUP_TEMP_ROOT=$fixture/work
@@ -90,12 +91,16 @@ execute_restore() {
   status=0
   bash "$SCRIPT_DIR/../image-restore.sh" "$case_dir/restore.env" "$run_id" "$case_dir/keys.txt" "$output" "$@" \
     > "$case_dir/output" 2>&1 || status=$?
-  ! grep -q SECRET_SENTINEL "$case_dir/output"
+  if grep -q SECRET_SENTINEL "$case_dir/output"; then
+    echo 'FAIL: 비밀값 노출' >&2; exit 1
+  fi
   [[ -z "$(ls -A "$case_dir/work")" ]]
 }
 assert_failed() {
   [[ $status -ne 0 && ! -f "$output/RESTORED" ]]
-  ! grep -q ' RESTORED ' "$case_dir/output"
+  if grep -q ' RESTORED ' "$case_dir/output"; then
+    echo 'FAIL: 실패한 이미지 복구를 성공으로 기록' >&2; exit 1
+  fi
   if [[ -n "${1:-}" ]]; then grep -q "FAILED stage=$1 " "$case_dir/output"; fi
 }
 
