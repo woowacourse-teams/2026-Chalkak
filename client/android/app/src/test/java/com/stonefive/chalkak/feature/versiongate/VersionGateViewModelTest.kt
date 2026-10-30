@@ -5,7 +5,6 @@ import androidx.activity.result.IntentSenderRequest
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.appupdate.AppUpdateCheckResult
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
-import com.stonefive.chalkak.core.appupdate.isForcedUpdatePriority
 import com.stonefive.chalkak.core.network.ConnectivityObserver
 import com.stonefive.chalkak.core.network.ConnectivityStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,10 +24,24 @@ class VersionGateViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `Play 우선순위 0은 허용하고 1 이상은 강제한다`() {
-        assertFalse(isForcedUpdatePriority(0))
-        assertTrue(isForcedUpdatePriority(1))
-        assertTrue(isForcedUpdatePriority(2))
+    fun `강제 업데이트 확인 후에도 조회 실패면 앱 진입을 허용하고 이후 조회 성공 시 다시 차단한다`() = runTest {
+        val gateway = FakeAppUpdateGateway(AppUpdateCheckResult.ImmediateUpdateRequired)
+        val observer = FakeConnectivityObserver(ConnectivityStatus.Online)
+        val viewModel = VersionGateViewModel(gateway, observer)
+        advanceUntilIdle()
+        assertEquals(VersionGateStatus.UpdateRequired, viewModel.uiState.value.status)
+        gateway.result = AppUpdateCheckResult.Failed
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
+        observer.mutableStatus.value = ConnectivityStatus.Offline
+        advanceUntilIdle()
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        gateway.result = AppUpdateCheckResult.ImmediateUpdateRequired
+        observer.mutableStatus.value = ConnectivityStatus.Online
+        advanceUntilIdle()
+        assertEquals(VersionGateStatus.UpdateRequired, viewModel.uiState.value.status)
     }
 
     @Test
@@ -102,15 +115,15 @@ class VersionGateViewModelTest {
     }
 
     @Test
-    fun `온라인 상태에서 업데이트 확인에 실패하면 앱 진입을 막고 재시도로 회복한다`() = runTest {
+    fun `온라인 상태에서 업데이트 확인에 실패하면 앱 진입을 허용한다`() = runTest {
         val gateway = FakeAppUpdateGateway(AppUpdateCheckResult.Failed)
         val connectivityObserver = FakeConnectivityObserver(ConnectivityStatus.Online)
         val viewModel = VersionGateViewModel(gateway, connectivityObserver)
 
         advanceUntilIdle()
 
-        assertEquals(VersionGateStatus.CheckFailed, viewModel.uiState.value.status)
-        assertFalse(viewModel.uiState.value.hasPassedVersionGate)
+        assertEquals(VersionGateStatus.Accessible, viewModel.uiState.value.status)
+        assertTrue(viewModel.uiState.value.hasPassedVersionGate)
 
         gateway.result = AppUpdateCheckResult.NoUpdate
         viewModel.retry()

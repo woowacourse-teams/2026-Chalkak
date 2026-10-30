@@ -4,8 +4,9 @@ import UIKit
 /// 월 단위 사진 달력 그리드.
 /// Android `RecordCalendarGrid`와 레이아웃을 맞춘다.
 /// - 7열, 셀 간격 6, 셀은 1:1 정사각, 모서리 7.
-/// - 사진이 있는 날짜만 셀을 그리고, 없는 칸은 빈 공간으로 둔다.
+/// - 사진이 있는 날짜만 셀을 그린다. 없는 날은 빈 공간으로 두거나(`showsDayNumbers`) 날짜 숫자를 둔다.
 /// - 셀 사이 간격 중앙에 1pt 구분선을 그린다(color = calendarCellBorder α0.6).
+/// - `selectedWeekIndex`의 줄은 흰 카드에 얹혀 떠오른다. 주가 바뀌면 이전 줄은 가라앉고 새 줄이 올라온다.
 /// 화면 좌우 패딩은 호출부가 관리한다.
 struct RecordCalendarGrid: View {
     /// 달력 칸 사진을 디코딩·캐시할 최대 폭(픽셀).
@@ -15,21 +16,29 @@ struct RecordCalendarGrid: View {
     static let thumbnailMaxPixelWidth: CGFloat = 240
 
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let month: RecordMonth
     let posts: [RecordPost]
     let onDateClick: (Date) -> Void
     let thumbnailImages: [RecordPost.ID: UIImage]?
+    let showsDayNumbers: Bool
+    /// 띄워 보일 주(첫 줄이 0). nil이면 어느 줄도 띄우지 않는다.
+    let selectedWeekIndex: Int?
 
     init(
         month: RecordMonth,
         posts: [RecordPost],
         onDateClick: @escaping (Date) -> Void,
-        thumbnailImages: [RecordPost.ID: UIImage]? = nil
+        thumbnailImages: [RecordPost.ID: UIImage]? = nil,
+        showsDayNumbers: Bool = false,
+        selectedWeekIndex: Int? = nil
     ) {
         self.month = month
         self.posts = posts
         self.onDateClick = onDateClick
         self.thumbnailImages = thumbnailImages
+        self.showsDayNumbers = showsDayNumbers
+        self.selectedWeekIndex = selectedWeekIndex
     }
 
     private var postsByDate: [Date: RecordPost] {
@@ -50,12 +59,25 @@ struct RecordCalendarGrid: View {
     var body: some View {
         let weeks = weeks
         VStack(spacing: Metrics.itemGap) {
-            ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
+            ForEach(Array(weeks.enumerated()), id: \.offset) { index, week in
+                let isLifted = index == selectedWeekIndex
                 HStack(spacing: Metrics.itemGap) {
                     ForEach(Array(week.enumerated()), id: \.offset) { _, date in
                         cell(for: date)
                     }
                 }
+                .background {
+                    RecordCalendarWeekCard(
+                        isLifted: isLifted,
+                        columns: Metrics.columns,
+                        gap: Metrics.itemGap
+                    )
+                }
+                // 움직임을 줄인 설정에서는 카드만 나타났다 사라진다.
+                .scaleEffect(isLifted && !reduceMotion ? Metrics.liftScale : 1)
+                .offset(y: isLifted && !reduceMotion ? -Metrics.liftRise : 0)
+                .zIndex(isLifted ? 1 : 0)
+                .animation(Metrics.liftAnimation, value: isLifted)
             }
         }
         .background {
@@ -79,6 +101,12 @@ struct RecordCalendarGrid: View {
             .overlay {
                 if let date, let post = postsByDate[date] {
                     photoCell(post)
+                } else if let date, showsDayNumbers {
+                    Text(verbatim: "\(RecordMonth.calendar.component(.day, from: date))")
+                        .font(theme.typography.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(theme.colors.textSecondary)
+                        .accessibilityHidden(true)
                 }
             }
             // 사진 레이어가 아니라 정사각 앵커를 기준으로 잘라야 고유 비율이
@@ -165,12 +193,54 @@ private struct RecordCalendarDividers: View {
     }
 }
 
+/// 고른 주의 줄 밑에 깔리는 카드. 평소에는 보이지 않다가 줄이 떠오를 때 그림자와 함께 나타난다.
+/// 격자 구분선을 덮으므로 칸 사이 세로선은 카드 위에 다시 긋는다.
+private struct RecordCalendarWeekCard: View {
+    @Environment(\.chalkakTheme) private var theme
+    let isLifted: Bool
+    let columns: Int
+    let gap: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: Metrics.cardRadius)
+            .fill(theme.colors.surfaceElevated)
+            .shadow(
+                color: .black.opacity(isLifted ? Metrics.cardShadowOpacity : 0),
+                radius: isLifted ? Metrics.cardShadowRadius : 0,
+                y: isLifted ? Metrics.cardShadowOffset : 0
+            )
+            .padding(.horizontal, -Metrics.cardOutset.width)
+            .padding(.vertical, -Metrics.cardOutset.height)
+            .overlay {
+                RecordCalendarDividers(
+                    columns: columns,
+                    rows: 1,
+                    gap: gap,
+                    lineWidth: Metrics.dividerWidth,
+                    color: theme.colors.calendarCellBorder.opacity(Metrics.dividerOpacity)
+                )
+            }
+            .opacity(isLifted ? 1 : 0)
+            .accessibilityHidden(true)
+    }
+}
+
 private enum Metrics {
     static let columns = 7
     static let itemGap: CGFloat = 6
     static let dividerWidth: CGFloat = 1
     static let dividerOpacity: CGFloat = 0.6
     static let cellAspectRatio: CGFloat = 1
+
+    // 떠오른 줄
+    static let liftScale: CGFloat = 1.03
+    static let liftRise: CGFloat = 2
+    static let liftAnimation = Animation.spring(response: 0.42, dampingFraction: 0.68)
+    static let cardRadius: CGFloat = 10
+    static let cardOutset = CGSize(width: 6, height: 3)
+    static let cardShadowOpacity: Double = 0.12
+    static let cardShadowRadius: CGFloat = 6
+    static let cardShadowOffset: CGFloat = 4
 }
 
 #Preview("Record Calendar Grid", traits: .sizeThatFitsLayout) {

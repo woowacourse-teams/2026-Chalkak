@@ -14,6 +14,8 @@ struct FeedPhoto: View {
     // nil이면 사인을 누를 수 없다(작성자 ID를 모르거나 사인 탭을 쓰지 않는 화면).
     let onSignatureTap: (() -> Void)?
     @State private var imageRatio: CGFloat?
+    // 사진 칸 비율을 실제 이미지(또는 출발 화면이 알려 준 비율)로 정했는지. 아니면 기본 비율로 잡아 둔 상태다.
+    @State private var hasKnownImageRatio: Bool
     @State private var imageSwap: FeedPhotoImageSwap
     @State private var didReportReady = false
     @State private var hasResolvedTransitionImage = false
@@ -49,6 +51,7 @@ struct FeedPhoto: View {
             ?? post?.originalImageSource.cachedImage()
         _imageSwap = State(initialValue: FeedPhotoImageSwap(displayedImage: cached))
         _imageRatio = State(initialValue: cached.map { $0.size.height / $0.size.width } ?? placeholder?.heightToWidthRatio ?? Metrics.defaultImageRatio)
+        _hasKnownImageRatio = State(initialValue: cached != nil || placeholder?.heightToWidthRatio != nil)
     }
 
     var body: some View {
@@ -132,6 +135,12 @@ struct FeedPhoto: View {
                     guard !Task.isCancelled else { return }
                     if imageSwap.displayedImage == nil {
                         imageSwap.displayedImage = image
+                        // 캐시에서 밀려나 비율을 모른 채 열렸으면, 받은 사진의 비율로 칸을 다시 잡는다.
+                        // 그대로 두면 기본(정사각) 칸에 사진을 꽉 채워 그려 위아래가 칸 밖으로 삐져나온다.
+                        if !hasKnownImageRatio, let image, image.size.width > 0 {
+                            imageRatio = image.size.height / image.size.width
+                            hasKnownImageRatio = true
+                        }
                         if case .system = source {
                             transitionImageFailed = false
                         } else {
@@ -158,8 +167,9 @@ struct FeedPhoto: View {
                 }
                 // 목록에서 받은 썸네일도 원본 비율이다. 원본은 화질만 교체하고
                 // 이미 펼친 사진의 크기는 다시 바꾸지 않는다.
-                if placeholder == nil, let image {
+                if placeholder == nil || !hasKnownImageRatio, let image, image.size.width > 0 {
                     imageRatio = image.size.height / image.size.width
+                    hasKnownImageRatio = true
                 }
                 if image != nil {
                     // 원본이 먼저 준비되면 느린 썸네일 요청을 기다릴 필요가 없다.

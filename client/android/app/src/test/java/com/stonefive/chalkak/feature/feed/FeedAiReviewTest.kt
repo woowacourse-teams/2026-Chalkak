@@ -53,6 +53,43 @@ class FeedAiReviewTest {
     }
 
     @Test
+    fun `remote config disabled hides review and never queries or starts it`() = runTest {
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.NONE) }
+        val viewModel = createViewModel(
+            ai,
+            initialContent = feedContent(isOwned = true),
+            isAiReviewEnabled = { false },
+        )
+        viewModel.onResume()
+        viewModel.startFeedback()
+        runCurrent()
+        assertTrue(ai.getPostIds.isEmpty())
+        assertTrue(ai.requestPostIds.isEmpty())
+        assertEquals(AiReviewPhase.Hidden, viewModel.uiState.value.aiReview.phase)
+    }
+
+    @Test
+    fun `remote config turned off while away hides a shown review on return`() = runTest {
+        var enabled = true
+        val ai = FeedAiReviewFake().apply { getResults += success(AiReview.Status.NONE) }
+        val viewModel = createViewModel(
+            ai,
+            initialContent = feedContent(isOwned = true),
+            isAiReviewEnabled = { enabled },
+        )
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(AiReviewPhase.Ready, viewModel.uiState.value.aiReview.phase)
+
+        viewModel.onPause()
+        enabled = false
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(listOf(PHOTO_ID), ai.getPostIds)
+        assertEquals(AiReviewPhase.Hidden, viewModel.uiState.value.aiReview.phase)
+    }
+
+    @Test
     fun `foreign content does not query or start review`() = runTest {
         val ai = FeedAiReviewFake()
         val viewModel = createViewModel(ai, initialContent = feedContent(isOwned = false))
@@ -388,12 +425,14 @@ class FeedAiReviewTest {
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         initialContent: FeedContentState.Success? = null,
         dateProvider: () -> LocalDate = { TEST_DATE },
+        isAiReviewEnabled: () -> Boolean = { true },
     ) = FeedViewModel(
         repository = repository,
         aiReviewRepository = ai,
         sessionState = session,
         initialContent = initialContent,
         dateProvider = dateProvider,
+        isAiReviewEnabled = isAiReviewEnabled,
     )
 
     private class FeedAiReviewFake : AiReviewRepository {

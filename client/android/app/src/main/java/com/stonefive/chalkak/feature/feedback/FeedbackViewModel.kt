@@ -1,7 +1,9 @@
 package com.stonefive.chalkak.feature.feedback
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -19,8 +21,13 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class FeedbackViewModel(private val feedbackRepository: FeedbackRepository) : ViewModel() {
-    private val _uiState = MutableStateFlow(FeedbackUiState())
+class FeedbackViewModel(
+    private val feedbackRepository: FeedbackRepository,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(
+        FeedbackUiState(content = savedStateHandle[KEY_CONTENT] ?: ""),
+    )
     val uiState: StateFlow<FeedbackUiState> = _uiState.asStateFlow()
 
     private val _uiEvent = Channel<FeedbackUiEvent>(Channel.BUFFERED)
@@ -29,6 +36,7 @@ class FeedbackViewModel(private val feedbackRepository: FeedbackRepository) : Vi
     private var nextMessageId = 0L
 
     fun updateContent(content: String) {
+        savedStateHandle[KEY_CONTENT] = content
         _uiState.update { it.copy(content = content) }
     }
 
@@ -90,11 +98,14 @@ class FeedbackViewModel(private val feedbackRepository: FeedbackRepository) : Vi
     )
 
     companion object {
+        private const val KEY_CONTENT = "feedback_content"
+
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedbackViewModel(
                     feedbackRepository = application.appContainer.feedbackRepository,
+                    savedStateHandle = createSavedStateHandle(),
                 )
             }
         }

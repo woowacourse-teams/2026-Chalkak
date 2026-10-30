@@ -11,6 +11,7 @@ class ChalkakApplication : Application() {
         super.onCreate()
         LegacyReminderCleanup.cancel(this)
         KakaoSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
+        appContainer.initializeRemoteConfig()
         appContainer.initializePush()
     }
 }

@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import StoreKit
 
 struct AppVersion: Equatable {
     let major: Int
@@ -16,7 +15,8 @@ struct AppVersion: Equatable {
     init?(_ value: String) {
         let components = value.split(separator: ".", omittingEmptySubsequences: false)
         let numbers = components.compactMap { Int($0) }
-        guard (2...3).contains(components.count),
+        guard components.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
+              (2...3).contains(components.count),
               numbers.count == components.count,
               numbers.allSatisfy({ $0 >= 0 })
         else { return nil }
@@ -26,9 +26,10 @@ struct AppVersion: Equatable {
         patch = numbers.count == 3 ? numbers[2] : 0
     }
 
-    func requiresMajorOrMinorUpdate(to storeVersion: AppVersion) -> Bool {
-        storeVersion.major > major ||
-            (storeVersion.major == major && storeVersion.minor > minor)
+    func isOlder(than minimumVersion: AppVersion) -> Bool {
+        if major != minimumVersion.major { return major < minimumVersion.major }
+        if minor != minimumVersion.minor { return minor < minimumVersion.minor }
+        return patch < minimumVersion.patch
     }
 
     static func current(in bundle: Bundle = .main) -> AppVersion? {
@@ -51,73 +52,75 @@ enum AppUpdateCheckResult: Equatable {
     case unavailable
 }
 
-struct AppStoreVersionChecker {
+struct AppVersionChecker {
     private let session: URLSession
-    private let bundle: Bundle
+    private let baseURL: URL?
+    private let currentVersion: AppVersion?
+
+    // Keep this public request separate from authenticated clients and shared caches.
+    private static let publicSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        return URLSession(configuration: configuration)
+    }()
 
     init(
-        session: URLSession = .shared,
-        bundle: Bundle = .main
+        session: URLSession? = nil,
+        baseURL: URL? = AppConfiguration().apiBaseURL,
+        currentVersion: AppVersion? = AppVersion.current()
     ) {
-        self.session = session
-        self.bundle = bundle
+        self.session = session ?? Self.publicSession
+        self.baseURL = baseURL
+        self.currentVersion = currentVersion
     }
 
     func check() async -> AppUpdateCheckResult {
-        guard let countryCode = await Self.currentLookupCountryCode(),
-              let bundleIdentifier = bundle.bundleIdentifier,
-              let currentVersion = AppVersion.current(in: bundle),
-              let requestURL = Self.lookupURL(
-                  bundleIdentifier: bundleIdentifier,
-                  countryCode: countryCode
-              )
-        else { return .unavailable }
-
-        var request = URLRequest(url: requestURL)
-        request.timeoutInterval = 3
-        request.cachePolicy = .useProtocolCachePolicy
+        guard let request = makeRequest(), let currentVersion else { return .unavailable }
 
         do {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode)
+                  httpResponse.statusCode == 200
             else { return .unavailable }
 
-            let lookup = try JSONDecoder().decode(AppStoreLookupResponse.self, from: data)
-            guard let product = lookup.results.first(where: {
-                $0.bundleId == bundleIdentifier
-            }),
-            let storeVersion = AppVersion(product.version),
-            let storeURL = URL(string: product.trackViewUrl)
+            let policy = try JSONDecoder().decode(AppVersionResponse.self, from: data)
+            guard policy.platform == "IOS" else { return .unavailable }
+            if policy.minimumSupportedVersion == nil && policy.storeUrl == nil {
+                return .upToDate
+            }
+            guard let minimum = policy.minimumSupportedVersion.flatMap(AppVersion.init)
             else { return .unavailable }
-
-            return currentVersion.requiresMajorOrMinorUpdate(to: storeVersion)
-                ? .updateRequired(storeURL: storeURL)
-                : .upToDate
+            guard currentVersion.isOlder(than: minimum) else { return .upToDate }
+            guard let storeURL = policy.storeUrl.flatMap(URL.init(string:)),
+                  storeURL.scheme?.lowercased() == "https",
+                  storeURL.host?.isEmpty == false
+            else { return .unavailable }
+            return .updateRequired(storeURL: storeURL)
         } catch {
             return .unavailable
         }
     }
 
-    static func lookupCountryCode(from storefrontCountryCode: String) -> String? {
-        let region = Locale(identifier: "und_\(storefrontCountryCode)").region?.identifier
-        guard let region, region.count == 2 else { return nil }
-        return region
-    }
-
-    static func lookupURL(bundleIdentifier: String, countryCode: String) -> URL? {
-        var components = URLComponents(string: "https://itunes.apple.com/lookup")
-        components?.queryItems = [
-            URLQueryItem(name: "bundleId", value: bundleIdentifier),
-            URLQueryItem(name: "country", value: countryCode.lowercased()),
-            URLQueryItem(name: "entity", value: "software"),
-        ]
-        return components?.url
-    }
-
-    private static func currentLookupCountryCode() async -> String? {
-        guard let storefront = await Storefront.current else { return nil }
-        return lookupCountryCode(from: storefront.countryCode)
+    func makeRequest() -> URLRequest? {
+        guard let baseURL,
+              baseURL.scheme?.lowercased() == "https", baseURL.host?.isEmpty == false,
+              var components = URLComponents(
+                  url: baseURL.appendingPathComponent("app-version"),
+                  resolvingAgainstBaseURL: false
+              )
+        else { return nil }
+        components.queryItems = [URLQueryItem(name: "platform", value: "IOS")]
+        guard let url = components.url else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 3
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.httpShouldHandleCookies = false
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-cache, no-store", forHTTPHeaderField: "Cache-Control")
+        return request
     }
 }
 
@@ -133,7 +136,7 @@ final class AppVersionGateViewModel {
 
     init(
         updateChecker: @escaping UpdateChecker = {
-            await AppStoreVersionChecker().check()
+            await AppVersionChecker().check()
         }
     ) {
         self.updateChecker = updateChecker
@@ -150,18 +153,13 @@ final class AppVersionGateViewModel {
         case let .updateRequired(storeURL):
             requiredUpdateStoreURL = storeURL
         case .unavailable:
-            // 최초 조회 실패는 앱을 허용하고, 이미 확인된 강제 업데이트 상태는 유지한다.
-            break
+            requiredUpdateStoreURL = nil
         }
     }
 }
 
-private struct AppStoreLookupResponse: Decodable {
-    let results: [AppStoreProduct]
-}
-
-private struct AppStoreProduct: Decodable {
-    let bundleId: String
-    let version: String
-    let trackViewUrl: String
+private struct AppVersionResponse: Decodable {
+    let platform: String
+    let minimumSupportedVersion: String?
+    let storeUrl: String?
 }
