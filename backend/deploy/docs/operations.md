@@ -66,13 +66,15 @@ Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준
 - 예외: 이전 앱이 비정상이거나 upstream을 되돌리지 못하면 새 컨테이너를 그대로 두고 `Rollback not possible`을 기록한 뒤 배포를 실패 처리한다. 운영자가 두 컨테이너와 snippet 상태를 직접 확인해야 한다.
 - 예외: 첫 컨테이너 배포가 실패해 CodeDeploy 자동 롤백이 이전 revision을 재배포하면 옛 appspec(systemd)이 실행되며 nginx snippet은 건드리지 않는다. snippet이 8081에 남아 있으면 운영자가 `server 127.0.0.1:8080;`로 고치고 nginx를 reload한다.
 - CodeDeploy 자동 롤백은 이전 revision을 같은 blue/green hook으로 다시 배포한다. ApplicationStart가 먼저 snippet을 health가 정상인 포트로 맞춘다.
-- 수동 롤백(배포 중): 먼저 CodeDeploy 콘솔에서 진행 중인 배포를 중지한다(Stop deployment, "Stop and roll back"이 아닌 중지만). 배포를 두고 snippet만 고치면 ValidateService가 안정화를 마친 뒤 새 앱을 다시 primary로 쓰고 이전 앱을 종료해 수동 변경을 덮어쓴다. 중지 후 이전 컨테이너(또는 첫 배포의 레거시 앱)가 실행 중이면 snippet을 이전 포트 한 줄로 고치고 reload한 뒤 새 컨테이너를 정리한다.
+- 수동 롤백(배포 중): CodeDeploy 콘솔에서 진행 중인 배포를 중지한다(Stop deployment). 이 배포 그룹은 자동 롤백이 켜져 있어, 중지만 선택해도 CodeDeploy가 직전 성공 revision으로 롤백 배포를 바로 시작한다. 롤백 배포는 같은 blue/green hook으로 진행되며, ApplicationStart가 남은 backup 줄을 먼저 정리한 뒤 직전 revision 컨테이너를 반대 포트에 띄우고 전환한다(2026-10-30 운영 확인: 중지 후 약 40초에 트래픽 전환, 약 11분에 완료, 외부 요청 실패 0건).
+  - 배포를 중지해도 서버에서 실행 중인 ValidateService 스크립트는 멈추지 않는다. 롤백 배포와 동시에 돌며 nginx와 컨테이너를 서로 덮어쓸 수 있으므로, 중지한 배포 ID 경로의 스크립트를 PID로 바로 종료한다. `pkill -f`는 자기 셸 명령까지 맞을 수 있어 쓰지 않는다.
 
-  ```bash
-  sudoedit /etc/nginx/snippets/chalkak-upstream.conf   # server 127.0.0.1:<이전 포트>; 한 줄
-  sudo nginx -t && sudo nginx -s reload
-  sudo docker rm -f chalkak-backend-<새 포트>
-  ```
+    ```bash
+    pgrep -af 'deploy/scripts/validate_service.sh'   # 중지한 배포 ID(d-...) 경로의 PID를 고른다
+    sudo kill <PID>
+    ```
+
+  - 배포를 두고 snippet만 고치는 방식은 쓰지 않는다. 실행 중인 ValidateService가 안정화를 마친 뒤 새 앱을 다시 primary로 쓰고 이전 앱을 종료해 수동 변경을 덮어쓴다.
 
 - 수동 롤백(배포 완료 후): 이전 컨테이너는 이미 종료됐으므로 CodeDeploy에서 직전 성공 revision을 다시 배포한다(이전 배포 화면의 Redeploy, 또는 deployment group에서 그 revision으로 Create deployment). 같은 blue/green hook으로 진행되어 무중단으로 되돌린다. 첫 컨테이너 배포 이전의 revision은 옛 appspec(systemd)이므로 이 방법의 대상이 아니다.
 
