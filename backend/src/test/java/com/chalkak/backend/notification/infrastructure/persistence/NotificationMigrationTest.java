@@ -155,6 +155,56 @@ class NotificationMigrationTest extends IntegrationTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("좋아요 푸시 설정을 추가하면 기존 회원과 이후 생성 회원 모두 켜짐으로 시작한다")
+    void migrate_likePushSetting_enablesExistingAndNewUsers() throws Exception {
+        // Given
+        String schema = "notification_migration_" + UUID.randomUUID().toString().replace("-", "");
+        JdbcTemplate admin = new JdbcTemplate(dataSource);
+        admin.execute("CREATE SCHEMA " + schema);
+        try {
+            migrate(schema, "202610291401");
+            try (Connection connection = dataSource.getConnection()) {
+                String previousSchema = connection.getSchema();
+                connection.setSchema(schema);
+                try {
+                    JdbcTemplate jdbc = new JdbcTemplate(
+                            new SingleConnectionDataSource(connection, true));
+                    UUID existingUserId = UUID.randomUUID();
+                    jdbc.update("""
+                            INSERT INTO users (id, email, signature_original_storage_key)
+                            VALUES (?, 'existing-like-push@test.chalkak', 'signatures/existing')
+                            """, existingUserId);
+
+                    // When
+                    migrate(schema, "202610301000");
+
+                    // Then
+                    assertThat(jdbc.queryForObject(
+                            "SELECT like_push_enabled FROM users WHERE id = ?",
+                            Boolean.class,
+                            existingUserId
+                    )).isTrue();
+
+                    UUID newUserId = UUID.randomUUID();
+                    jdbc.update("""
+                            INSERT INTO users (id, email, signature_original_storage_key)
+                            VALUES (?, 'new-like-push@test.chalkak', 'signatures/new')
+                            """, newUserId);
+                    assertThat(jdbc.queryForObject(
+                            "SELECT like_push_enabled FROM users WHERE id = ?",
+                            Boolean.class,
+                            newUserId
+                    )).isTrue();
+                } finally {
+                    connection.setSchema(previousSchema);
+                }
+            }
+        } finally {
+            admin.execute("DROP SCHEMA " + schema + " CASCADE");
+        }
+    }
+
     private void assertExistingKindsStillStorable(JdbcTemplate jdbc, UUID userId) {
         // 새 CHECK는 AI 리뷰 종류만 제한하므로 기존 종류는 그대로 저장된다.
         insertNotification(

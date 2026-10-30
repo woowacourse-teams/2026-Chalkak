@@ -9,14 +9,17 @@ public record NotificationSettingsResponse(
         @Schema(description = "게시물 승인·반려 결과 푸시 수신 여부")
         boolean moderationPushEnabled,
         @Schema(description = "AI 리뷰 결과 푸시 수신 여부")
-        boolean aiReviewPushEnabled
+        boolean aiReviewPushEnabled,
+        @Schema(description = "좋아요 마일스톤 푸시 수신 여부")
+        boolean likePushEnabled
 ) {
 
     public static NotificationSettingsResponse from(NotificationSettingsResult result) {
         return new NotificationSettingsResponse(
                 result.topicPushEnabled(),
                 result.moderationPushEnabled(),
-                result.aiReviewPushEnabled()
+                result.aiReviewPushEnabled(),
+                result.likePushEnabled()
         );
     }
 }

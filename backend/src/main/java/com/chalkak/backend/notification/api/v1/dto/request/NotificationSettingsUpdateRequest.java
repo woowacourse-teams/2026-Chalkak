@@ -10,7 +10,9 @@ public record NotificationSettingsUpdateRequest(
         @Schema(description = "승인·반려 푸시 수신 여부. 생략 또는 null이면 기존 값을 유지합니다.", nullable = true)
         Boolean moderationPushEnabled,
         @Schema(description = "AI 리뷰 결과 푸시 수신 여부. 생략 또는 null이면 기존 값을 유지합니다.", nullable = true)
-        Boolean aiReviewPushEnabled
+        Boolean aiReviewPushEnabled,
+        @Schema(description = "좋아요 마일스톤 푸시 수신 여부. 생략 또는 null이면 기존 값을 유지합니다.", nullable = true)
+        Boolean likePushEnabled
 ) {
 
     @JsonIgnore
@@ -19,6 +21,7 @@ public record NotificationSettingsUpdateRequest(
     public boolean isUpdatePresent() {
         return topicPushEnabled != null
                 || moderationPushEnabled != null
-                || aiReviewPushEnabled != null;
+                || aiReviewPushEnabled != null
+                || likePushEnabled != null;
     }
 }

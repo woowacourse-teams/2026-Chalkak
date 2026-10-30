@@ -33,20 +33,23 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @CsvSource({
-            "true, true, true", "true, false, true", "false, true, true", "false, false, true",
-            "true, true, false", "false, false, false"})
-    @DisplayName("회원에게 저장된 주제·검수·AI 리뷰 푸시 설정을 그대로 조회한다")
+            "true, true, true, true", "true, false, true, false",
+            "false, true, true, false", "false, false, true, true",
+            "true, true, false, false", "false, false, false, false"})
+    @DisplayName("회원에게 저장된 주제·검수·AI 리뷰·좋아요 푸시 설정을 그대로 조회한다")
     void getSettings_savedPreferences_returnsStoredValues(
             boolean topic,
             boolean moderation,
-            boolean aiReview
+            boolean aiReview,
+            boolean like
     ) {
         // Given
         User user = userRepository.save(UserFixture.create());
         user.updatePushPreferences(
                 topic,
                 moderation,
-                aiReview
+                aiReview,
+                like
         );
         entityManager.flush();
         entityManager.clear();
@@ -58,7 +61,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
         assertThat(result).isEqualTo(new NotificationSettingsResult(
                 topic,
                 moderation,
-                aiReview
+                aiReview,
+                like
         ));
     }
 
@@ -90,35 +94,39 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @CsvSource({
-            "true, true, true, false, , , false, true, true",
-            "true, true, true, , false, , true, false, true",
-            "false, false, false, true, , , true, false, false",
-            "false, false, false, , true, , false, true, false",
-            "true, true, true, false, false, , false, false, true",
-            "false, false, false, true, true, , true, true, false",
-            "true, true, true, , , false, true, true, false",
-            "false, false, false, , , true, false, false, true",
-            "true, true, true, false, false, false, false, false, false",
-            "false, false, false, true, true, true, true, true, true"
+            "true, true, true, true, false, , , , false, true, true, true",
+            "true, true, true, true, , false, , , true, false, true, true",
+            "true, true, true, true, , , false, , true, true, false, true",
+            "true, true, true, true, , , , false, true, true, true, false",
+            "false, false, false, false, true, , , , true, false, false, false",
+            "false, false, false, false, , true, , , false, true, false, false",
+            "false, false, false, false, , , true, , false, false, true, false",
+            "false, false, false, false, , , , true, false, false, false, true",
+            "true, true, true, true, false, false, false, false, false, false, false, false",
+            "false, false, false, false, true, true, true, true, true, true, true, true"
     })
     @DisplayName("전달한 수신 설정만 저장하고 같은 요청을 반복해도 설정을 유지한다")
     void updateSettings_providedPreferences_persistsOnlyRequestedValues(
             boolean initialTopic,
             boolean initialModeration,
             boolean initialAiReview,
+            boolean initialLike,
             Boolean topic,
             Boolean moderation,
             Boolean aiReview,
+            Boolean like,
             boolean expectedTopic,
             boolean expectedModeration,
-            boolean expectedAiReview
+            boolean expectedAiReview,
+            boolean expectedLike
     ) {
         // Given
         User user = userRepository.save(UserFixture.create());
         user.updatePushPreferences(
                 initialTopic,
                 initialModeration,
-                initialAiReview
+                initialAiReview,
+                initialLike
         );
         entityManager.flush();
         entityManager.clear();
@@ -128,7 +136,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 user.getId(),
                 topic,
                 moderation,
-                aiReview
+                aiReview,
+                like
         );
         entityManager.flush();
         entityManager.clear();
@@ -138,7 +147,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 .isEqualTo(new NotificationSettingsResult(
                         expectedTopic,
                         expectedModeration,
-                        expectedAiReview
+                        expectedAiReview,
+                        expectedLike
                 ));
 
         // When
@@ -146,7 +156,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 user.getId(),
                 topic,
                 moderation,
-                aiReview
+                aiReview,
+                like
         );
         entityManager.flush();
         entityManager.clear();
@@ -156,7 +167,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 .isEqualTo(new NotificationSettingsResult(
                         expectedTopic,
                         expectedModeration,
-                        expectedAiReview
+                        expectedAiReview,
+                        expectedLike
                 ));
     }
 
@@ -168,6 +180,7 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 () -> notificationSettingsService.updateSettings(
                         UUID.randomUUID(),
                         false,
+                        null,
                         null,
                         null
                 ))
@@ -191,6 +204,7 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                         user.getId(),
                         false,
                         null,
+                        false,
                         false
                 ))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
@@ -202,5 +216,6 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
         assertThat(saved.isTopicPushEnabled()).isTrue();
         assertThat(saved.isModerationPushEnabled()).isTrue();
         assertThat(saved.isAiReviewPushEnabled()).isTrue();
+        assertThat(saved.isLikePushEnabled()).isTrue();
     }
 }
