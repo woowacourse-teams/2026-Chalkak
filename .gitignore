@@ -1,12 +1,2 @@
-# macOS
-.DS_Store
-
-# IntelliJ IDEA
-.idea/
-*.iml
-out/
-
-# Private keys
-*.pem
-.vercel/
-.env.local
+# Agent
+.omc/

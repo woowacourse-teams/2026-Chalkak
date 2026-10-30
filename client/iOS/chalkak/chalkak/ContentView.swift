@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var selectedIssueURL: URL?
     @State private var onboardingAnalyticsScreen = AnalyticsScreen(name: "terms", screenClass: "Terms")
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
+    @AppStorage("record.photoStackStyle") private var recordStackStyle: RecordPhotoStackStyle = .pillars
     @State private var notificationPath: [NotificationRoute] = []
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
@@ -509,12 +510,15 @@ struct ContentView: View {
                 onOpenPhotoUpload: { openPhotoUpload(from: .record) },
                 onSelectBottomBarItem: select,
                 onOpenDisplay: { openDisplay(at: $0) },
-                onOpenFeed: { post in
+                onOpenFeed: { post, heightToWidthRatio in
                     selectedFeed = FeedTarget(
                         postID: post.postId,
                         isOwnedByCurrentUser: true,
                         zoomSource: .record(post.postId),
-                        placeholder: FeedPhotoPlaceholder(imageSource: post.thumbnailImageSource)
+                        placeholder: FeedPhotoPlaceholder(
+                            imageSource: post.thumbnailImageSource,
+                            heightToWidthRatio: heightToWidthRatio
+                        )
                     )
                 },
                 onNavigateToLogin: showLogin,
@@ -1032,11 +1036,17 @@ struct ContentView: View {
     }
 
     private static func makeRecordViewModel() -> RecordViewModel {
-        RecordViewModel(
+        // 월간 책자 속표지의 사인은 설정 화면과 같은 내 사인 API로 받는다.
+        let settingsClient = SettingsAPIClient(
+            baseURL: resolvedAPIBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        return RecordViewModel(
             apiClient: RecordAPIClient(
                 configuration: RecordAPIConfiguration(baseURL: resolvedAPIBaseURL),
                 accessTokenProvider: { KeychainSessionStore.accessToken() }
-            )
+            ),
+            signatureHandler: { try? await settingsClient.fetchSignature() }
         )
     }
 
@@ -1228,7 +1238,7 @@ struct ContentView: View {
             return onboardingAnalyticsScreen
         case .photoUploadSuccess:
             return successSubmission == nil
-                ? selectedTab.analyticsScreen
+                ? selectedTabAnalyticsScreen
                 : AnalyticsScreen(name: "photo_upload_success", screenClass: "PhotoUploadSuccess")
         case .main:
             break
@@ -1258,7 +1268,11 @@ struct ContentView: View {
         if selectedIssueURL != nil {
             return AnalyticsScreen(name: "issue", screenClass: "IssueWeb")
         }
-        return selectedTab.analyticsScreen
+        return selectedTabAnalyticsScreen
+    }
+
+    private var selectedTabAnalyticsScreen: AnalyticsScreen {
+        selectedTab == .record ? recordStackStyle.analyticsScreen : selectedTab.analyticsScreen
     }
 
     private func trackCurrentScreen() {

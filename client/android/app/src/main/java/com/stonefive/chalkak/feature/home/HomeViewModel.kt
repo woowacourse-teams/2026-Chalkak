@@ -51,6 +51,7 @@ class HomeViewModel(
     private val aiReviewRepository: AiReviewRepository,
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
     private val notificationRepository: NotificationRepository? = null,
+    private val isAiReviewEnabled: () -> Boolean = { true },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -65,6 +66,7 @@ class HomeViewModel(
         repository = aiReviewRepository,
         currentUserId = { (sessionState.value as? UserSessionState.Authenticated)?.userId },
         onStateChanged = ::updateFeedbackState,
+        isEnabled = isAiReviewEnabled,
     )
     private val _isReadyForInitialDisplay = MutableStateFlow(false)
     val isReadyForInitialDisplay: StateFlow<Boolean> = _isReadyForInitialDisplay.asStateFlow()
@@ -424,6 +426,7 @@ class HomeViewModel(
                     bannerRepository = application.appContainer.bannerRepository,
                     aiReviewRepository = application.appContainer.aiReviewRepository,
                     notificationRepository = application.appContainer.notificationRepository,
+                    isAiReviewEnabled = { application.appContainer.appConfigRepository.config.value.isAiReviewEnabled },
                 )
             }
         }

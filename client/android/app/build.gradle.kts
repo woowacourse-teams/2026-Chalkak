@@ -42,8 +42,8 @@ android {
         applicationId = "com.stonefive.chalkak"
         minSdk = 26
         targetSdk = 37
-        versionCode = 27
-        versionName = "1.1.1"
+        versionCode = 28
+        versionName = "1.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "ENABLE_PLAY_APP_UPDATES", "true")
@@ -140,6 +140,7 @@ dependencies {
     implementation(libs.play.app.update.ktx)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.config)
     implementation(libs.googleid)
     implementation(libs.kakao.user)
     implementation(libs.retrofit)

@@ -227,6 +227,60 @@ class ChalkakNavHostTest {
     }
 
     @Test
+    fun recordTracksSelectedModeOnToggleAndReturn() {
+        lateinit var navController: NavHostController
+        val screenViews = mutableListOf<Pair<String, String>>()
+        val analyticsTracker = object : AnalyticsTracker {
+            override fun trackScreenView(
+                screenName: String,
+                screenClass: String,
+            ) {
+                screenViews += screenName to screenClass
+            }
+
+            override fun trackBottomNavigationSelection(destination: String) = Unit
+        }
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = analyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Record,
+                )
+            }
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            screenViews.lastOrNull()?.second == "Record"
+        }
+        composeRule.waitForIdle()
+        val initialMode = screenViews.last().first
+        val nextMode = if (initialMode == "record_scroll") "record_book" else "record_scroll"
+        val toggleDescription = if (initialMode == "record_scroll") "월간 책자로 보기" else "기둥과 눈금자로 보기"
+        composeRule.runOnIdle { screenViews.clear() }
+
+        composeRule.onNodeWithContentDescription(toggleDescription).performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { screenViews.isNotEmpty() }
+        composeRule.runOnIdle {
+            assertEquals(listOf(nextMode to "Record"), screenViews)
+            navController.navigate(WebPage(title = "ISSUE", url = "about:blank"))
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            screenViews.lastOrNull()?.first == "issue"
+        }
+        composeRule.runOnIdle { navController.popBackStack() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            screenViews.lastOrNull()?.first == nextMode
+        }
+        composeRule.runOnIdle {
+            assertEquals(2, screenViews.count { it == (nextMode to "Record") })
+            assertFalse(screenViews.any { it.first == "record" })
+        }
+    }
+
+    @Test
     fun issueWebPageTracksOneScreenViewOnEntry() {
         lateinit var navController: NavHostController
         val screenViews = mutableListOf<Pair<String, String>>()

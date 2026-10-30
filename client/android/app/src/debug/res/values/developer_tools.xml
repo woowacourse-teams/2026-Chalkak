@@ -8,4 +8,14 @@
     <string name="developer_tools_application_id">패키지 ID</string>
     <string name="developer_tools_server_environment">서버 환경 (호스트)</string>
     <string name="developer_tools_server_url">서버 주소</string>
+    <string name="developer_tools_remote_config">원격 설정</string>
+    <string name="developer_tools_remote_config_last_fetched_at">마지막으로 받아 온 시각</string>
+    <string name="developer_tools_remote_config_last_fetch_status">마지막 요청 결과</string>
+    <string name="developer_tools_remote_config_never_fetched">아직 받아 오지 않음</string>
+    <string name="developer_tools_remote_config_refresh">지금 다시 받기</string>
+    <string name="developer_tools_remote_config_source_default">앱 기본값</string>
+    <string name="developer_tools_remote_config_source_remote">원격</string>
+    <string name="developer_tools_remote_config_status_success">성공</string>
+    <string name="developer_tools_remote_config_status_failure">실패</string>
+    <string name="developer_tools_remote_config_status_throttled">요청 제한됨</string>
 </resources>

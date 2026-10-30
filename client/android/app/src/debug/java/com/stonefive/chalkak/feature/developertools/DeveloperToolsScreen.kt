@@ -21,21 +21,31 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakOutlinedButton
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.domain.model.AppConfigDiagnostics
+import com.stonefive.chalkak.domain.model.AppConfigEntry
+import com.stonefive.chalkak.domain.model.AppConfigFetchStatus
+import com.stonefive.chalkak.domain.model.AppConfigSource
 
 @Composable
 fun DeveloperToolsRoute(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: DeveloperToolsViewModel = viewModel(),
+    viewModel: DeveloperToolsViewModel = viewModel(factory = DeveloperToolsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    DeveloperToolsScreen(uiState = uiState, onBackClick = onBackClick, modifier = modifier)
+    DeveloperToolsScreen(
+        uiState = uiState,
+        onBackClick = onBackClick,
+        onRefreshRemoteConfigClick = viewModel::refreshRemoteConfig,
+        modifier = modifier,
+    )
 }
 
 @Composable
 fun DeveloperToolsScreen(
     uiState: DeveloperToolsUiState,
     onBackClick: () -> Unit,
+    onRefreshRemoteConfigClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -95,6 +105,12 @@ fun DeveloperToolsScreen(
                     }
                 }
             }
+            DeveloperToolsRemoteConfigCard(
+                remoteConfig = uiState.remoteConfig,
+                isRefreshing = uiState.isRefreshingRemoteConfig,
+                onRefreshClick = onRefreshRemoteConfigClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
             ChalkakOutlinedButton(
                 text = stringResource(R.string.developer_tools_back),
                 onClick = onBackClick,
@@ -127,8 +143,17 @@ private fun DeveloperToolsScreenPreview() {
                 applicationId = "com.stonefive.chalkak.debug",
                 serverEnvironment = "dev.example.com",
                 serverBaseUrl = "https://dev.example.com/",
+                remoteConfig = AppConfigDiagnostics(
+                    entries = listOf(
+                        AppConfigEntry("ai_review_enabled", "true", AppConfigSource.Default),
+                        AppConfigEntry("photo_edit_enabled", "false", AppConfigSource.Remote),
+                    ),
+                    lastFetchStatus = AppConfigFetchStatus.Success,
+                    lastFetchedAtMillis = 1_793_000_000_000L,
+                ),
             ),
             onBackClick = {},
+            onRefreshRemoteConfigClick = {},
         )
     }
 }
