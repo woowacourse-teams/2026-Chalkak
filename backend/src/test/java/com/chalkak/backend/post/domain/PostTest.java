@@ -2,10 +2,6 @@ package com.chalkak.backend.post.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static com.chalkak.backend.topic.domain.TopicPhase.CLOSED;
-import static com.chalkak.backend.topic.domain.TopicPhase.OPEN;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
@@ -13,6 +9,9 @@ import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.topic.domain.ParticipationPeriod;
+import java.time.LocalDate;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -31,8 +30,20 @@ class PostTest {
     private static final Instant DELETED_AT = Instant.parse("2026-08-20T01:00:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-08-20T00:30:00Z");
 
-    private final User author = mock(User.class);
-    private final Topic topic = mock(Topic.class);
+    private final User author = UserFixture.create(AUTHOR_ID);
+    private final Topic topic = Topic.create(
+            "게시물 주제",
+            LocalDate.of(
+                    2026,
+                    8,
+                    20
+            ),
+            new ParticipationPeriod(
+                    Instant.parse("2026-08-19T15:00:00Z"),
+                    Instant.parse("2026-08-20T15:00:00Z")
+            ),
+            Instant.parse("2026-08-19T00:00:00Z")
+    );
     private final Photo photo = Photo.createPhoto("chalkak/posts/dev/original/upload-id.png");
 
     @Test
@@ -202,8 +213,6 @@ class PostTest {
     @DisplayName("작성자는 참여 기간 중인 검수 대기 게시물의 제목을 수정한다")
     void updateTitle_pendingPostDuringOpenPeriod_updatesTitle() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
-        given(topic.phaseAt(UPDATED_AT)).willReturn(OPEN);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -339,7 +348,6 @@ class PostTest {
     @DisplayName("수정할 수 없는 검수 상태의 게시물은 제목을 수정할 수 없다")
     void updateTitle_uneditableStatus_throwsBusinessException(ModerationStatus status) {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = createPostWithStatus(status);
 
         // When & Then
@@ -357,8 +365,19 @@ class PostTest {
     @DisplayName("주제 참여 기간이 종료되면 게시물 제목을 수정할 수 없다")
     void updateTitle_closedTopic_throwsBusinessException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
-        given(topic.phaseAt(UPDATED_AT)).willReturn(CLOSED);
+        Topic topic = Topic.create(
+                "종료된 주제",
+                LocalDate.of(
+                        2026,
+                        8,
+                        20
+                ),
+                new ParticipationPeriod(
+                        Instant.parse("2026-08-19T15:00:00Z"),
+                        UPDATED_AT
+                ),
+                Instant.parse("2026-08-19T00:00:00Z")
+        );
         Post post = Post.createPost(
                 author,
                 topic,
@@ -604,7 +623,6 @@ class PostTest {
     @DisplayName("작성자는 검수 대기 게시물을 삭제할 수 있다")
     void deleteByAuthor_pendingPost_softDeletesPost() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -625,7 +643,6 @@ class PostTest {
     @DisplayName("작성자는 승인된 게시물을 사진과 함께 삭제할 수 있다")
     void deleteByAuthor_approvedPost_softDeletesPostAndPhoto() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -648,7 +665,6 @@ class PostTest {
     @DisplayName("작성자가 삭제를 반복해도 최초 삭제 시각을 유지한다")
     void deleteByAuthor_alreadyDeletedPost_keepsFirstDeletionTime() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -671,7 +687,6 @@ class PostTest {
     @DisplayName("작성자가 아닌 사용자는 게시물을 삭제할 수 없다")
     void deleteByAuthor_otherUser_throwsForbiddenException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -695,7 +710,6 @@ class PostTest {
     @DisplayName("작성자는 거절된 게시물을 삭제할 수 없다")
     void deleteByAuthor_rejectedPost_throwsBusinessException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -719,7 +733,6 @@ class PostTest {
     @DisplayName("작성자는 이미지 처리 중인 게시물을 삭제할 수 없다")
     void deleteByAuthor_validatingPost_throwsBusinessException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -793,7 +806,6 @@ class PostTest {
     @DisplayName("작성자 식별자와 같을 때만 작성자로 판단한다")
     void isAuthoredBy_comparesAuthorId() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
@@ -830,8 +842,6 @@ class PostTest {
     }
 
     private Post createPendingPostDuringOpenPeriod(String title) {
-        given(author.getId()).willReturn(AUTHOR_ID);
-        given(topic.phaseAt(UPDATED_AT)).willReturn(OPEN);
         Post post = Post.createPost(
                 author,
                 topic,

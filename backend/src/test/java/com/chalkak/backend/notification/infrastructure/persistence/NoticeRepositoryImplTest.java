@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.repository.DistributableNotice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -13,10 +13,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
 
-@Transactional
-class NoticeRepositoryImplTest extends IntegrationTestSupport {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(NoticeRepositoryImpl.class)
+class NoticeRepositoryImplTest {
 
     private static final Instant SCHEDULED_AT = Instant.parse("2026-10-13T00:00:00Z");
 

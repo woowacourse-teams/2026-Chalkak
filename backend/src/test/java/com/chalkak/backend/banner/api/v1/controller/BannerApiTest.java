@@ -1,5 +1,6 @@
 package com.chalkak.backend.banner.api.v1.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -75,6 +76,11 @@ class BannerApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.banners").isEmpty())
                 .andExpect(jsonPath("$.hasNext").value(false));
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM banners", Integer.class))
+                .isEqualTo(4);
+        assertThat(
+                jdbcTemplate.queryForObject("SELECT COUNT(*) FROM admin_audit_logs", Integer.class))
+                .isZero();
     }
 
     @Test

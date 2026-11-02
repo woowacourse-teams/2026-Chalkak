@@ -10,6 +10,7 @@ import com.chalkak.backend.admin.repository.user.AdminUserSort;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.repository.user.AdminUserSummaryProjection;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.support.DatabaseCleaner;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -54,6 +55,7 @@ class AdminUserQueryRepositoryTest {
 
     @BeforeEach
     void setUp() {
+        new DatabaseCleaner(jdbcTemplate).clean();
         insertUsers();
         insertSocialAccounts();
         insertPostsForActiveUser();

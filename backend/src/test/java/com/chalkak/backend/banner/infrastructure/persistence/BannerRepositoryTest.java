@@ -6,15 +6,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerRepository;
 import com.chalkak.backend.exception.BusinessException;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
 
-@Transactional
-class BannerRepositoryTest extends IntegrationTestSupport {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(BannerRepositoryImpl.class)
+class BannerRepositoryTest {
 
     private static final String URL = "https://chalkak.vercel.app/event?source=home#camera";
 

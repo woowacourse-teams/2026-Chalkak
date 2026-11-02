@@ -12,7 +12,6 @@ import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -29,11 +28,15 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
 import tools.jackson.databind.ObjectMapper;
 
-@Transactional
-class AiReviewRepositoryTest extends IntegrationTestSupport {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(AiReviewRepositoryImpl.class)
+class AiReviewRepositoryTest {
 
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");
 
@@ -46,8 +49,7 @@ class AiReviewRepositoryTest extends IntegrationTestSupport {
     @Autowired
     private EntityManager entityManager;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private UUID promptVersionId;
 

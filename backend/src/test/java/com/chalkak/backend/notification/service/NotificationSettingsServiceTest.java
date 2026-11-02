@@ -2,54 +2,54 @@ package com.chalkak.backend.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
+import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class NotificationSettingsServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class NotificationSettingsServiceTest {
 
-    @Autowired
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b657a01");
+
+    @InjectMocks
     private NotificationSettingsService notificationSettingsService;
 
-    @Autowired
+    @Mock
     private UserRepository userRepository;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     @ParameterizedTest
     @CsvSource({
             "true, true, true", "true, false, true", "false, true, true", "false, false, true",
             "true, true, false", "false, false, false"})
-    @DisplayName("회원에게 저장된 주제·검수·AI 리뷰 푸시 설정을 그대로 조회한다")
+    @DisplayName("회원의 주제, 검수, AI 리뷰 푸시 설정을 그대로 반환한다")
     void getSettings_savedPreferences_returnsStoredValues(
             boolean topic,
             boolean moderation,
             boolean aiReview
     ) {
         // Given
-        User user = userRepository.save(UserFixture.create());
+        User user = UserFixture.create(USER_ID);
         user.updatePushPreferences(
                 topic,
                 moderation,
                 aiReview
         );
-        entityManager.flush();
-        entityManager.clear();
+
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 
         // When
         NotificationSettingsResult result = notificationSettingsService.getSettings(user.getId());
@@ -65,8 +65,11 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("없는 회원의 푸시 설정은 인증 오류로 거부한다")
     void getSettings_missingUser_throwsUnauthorizedException() {
+        // Given
+        given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
+
         // When & Then
-        assertThatThrownBy(() -> notificationSettingsService.getSettings(UUID.randomUUID()))
+        assertThatThrownBy(() -> notificationSettingsService.getSettings(USER_ID))
                 .isInstanceOfSatisfying(UnauthorizedException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
@@ -76,10 +79,9 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
     @DisplayName("탈퇴한 회원의 푸시 설정은 인증 오류로 거부한다")
     void getSettings_withdrawnUser_throwsUnauthorizedException() {
         // Given
-        User user = userRepository.save(UserFixture.create());
+        User user = UserFixture.create(USER_ID);
         user.withdraw();
-        entityManager.flush();
-        entityManager.clear();
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 
         // When & Then
         assertThatThrownBy(() -> notificationSettingsService.getSettings(user.getId()))
@@ -101,8 +103,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
             "true, true, true, false, false, false, false, false, false",
             "false, false, false, true, true, true, true, true, true"
     })
-    @DisplayName("전달한 수신 설정만 저장하고 같은 요청을 반복해도 설정을 유지한다")
-    void updateSettings_providedPreferences_persistsOnlyRequestedValues(
+    @DisplayName("전달한 수신 설정만 바꾸고 같은 요청을 반복해도 설정을 유지한다")
+    void updateSettings_providedPreferences_updatesOnlyRequestedValues(
             boolean initialTopic,
             boolean initialModeration,
             boolean initialAiReview,
@@ -114,14 +116,15 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
             boolean expectedAiReview
     ) {
         // Given
-        User user = userRepository.save(UserFixture.create());
+        User user = UserFixture.create(USER_ID);
         user.updatePushPreferences(
                 initialTopic,
                 initialModeration,
                 initialAiReview
         );
-        entityManager.flush();
-        entityManager.clear();
+
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 
         // When
         notificationSettingsService.updateSettings(
@@ -130,8 +133,6 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 moderation,
                 aiReview
         );
-        entityManager.flush();
-        entityManager.clear();
 
         // Then
         assertThat(notificationSettingsService.getSettings(user.getId()))
@@ -148,8 +149,6 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 moderation,
                 aiReview
         );
-        entityManager.flush();
-        entityManager.clear();
 
         // Then
         assertThat(notificationSettingsService.getSettings(user.getId()))
@@ -163,10 +162,13 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("없는 회원의 수신 설정 수정은 인증 오류로 거부한다")
     void updateSettings_missingUser_throwsUnauthorizedException() {
+        // Given
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.empty());
+
         // When & Then
         assertThatThrownBy(
                 () -> notificationSettingsService.updateSettings(
-                        UUID.randomUUID(),
+                        USER_ID,
                         false,
                         null,
                         null
@@ -180,10 +182,9 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
     @DisplayName("탈퇴 회원의 수신 설정 수정은 거부하고 기존 값을 보존한다")
     void updateSettings_withdrawnUser_throwsUnauthorizedException() {
         // Given
-        User user = userRepository.save(UserFixture.create());
+        User user = UserFixture.create(USER_ID);
         user.withdraw();
-        entityManager.flush();
-        entityManager.clear();
+        given(userRepository.findByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
 
         // When & Then
         assertThatThrownBy(
@@ -196,11 +197,8 @@ class NotificationSettingsServiceTest extends IntegrationTestSupport {
                 .isInstanceOfSatisfying(UnauthorizedException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED));
-        entityManager.flush();
-        entityManager.clear();
-        User saved = userRepository.findById(user.getId()).orElseThrow();
-        assertThat(saved.isTopicPushEnabled()).isTrue();
-        assertThat(saved.isModerationPushEnabled()).isTrue();
-        assertThat(saved.isAiReviewPushEnabled()).isTrue();
+        assertThat(user.isTopicPushEnabled()).isTrue();
+        assertThat(user.isModerationPushEnabled()).isTrue();
+        assertThat(user.isAiReviewPushEnabled()).isTrue();
     }
 }

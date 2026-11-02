@@ -200,6 +200,30 @@ class AdminTopicQueryRepositoryTest {
         assertThat(topic.rejectedPostCount()).isZero();
         assertThat(repository.findActiveTopicById(DELETED_ID)).isEmpty();
         assertThat(repository.findActiveTopicById(new UUID(0, 99))).isEmpty();
+        jdbcTemplate
+                .update("""
+                        INSERT INTO users (id, email, status, signature_original_storage_key, created_at, updated_at)
+                        VALUES ('0198fd20-0000-7000-8000-000000000021', 'topic-count-author@example.com',
+                            'ACTIVE', 'signatures/topic-count-author', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """);
+        jdbcTemplate.update("""
+                INSERT INTO photos (id, original_storage_key, created_at, updated_at)
+                VALUES ('0198fd20-0000-7000-8000-000000000022', 'posts/topic-count-original',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at)
+                        VALUES ('0198fd20-0000-7000-8000-000000000023',
+                            '0198fd20-0000-7000-8000-000000000021', ?,
+                            '0198fd20-0000-7000-8000-000000000022', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                OPEN_ID
+        );
+        AdminTopicProjection withPost = repository.findActiveTopicById(OPEN_ID).orElseThrow();
+        assertThat(withPost.pendingPostCount()).isEqualTo(1);
+        assertThat(withPost.approvedPostCount()).isZero();
+        assertThat(withPost.rejectedPostCount()).isZero();
     }
 
     private static Stream<Arguments> sortCases() {

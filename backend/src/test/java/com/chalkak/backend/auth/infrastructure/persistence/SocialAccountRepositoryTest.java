@@ -6,7 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.auth.infrastructure.persistence.identity.SocialAccountRepositoryImpl;
+import com.chalkak.backend.user.infrastructure.persistence.UserRepositoryImpl;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -18,10 +19,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
 
-@Transactional
-class SocialAccountRepositoryTest extends IntegrationTestSupport {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import({SocialAccountRepositoryImpl.class, UserRepositoryImpl.class})
+class SocialAccountRepositoryTest {
 
     private static final String GOOGLE_SUBJECT_HMAC = "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
     private static final String KAKAO_SUBJECT_HMAC = "73bce40e3e8b39018d68b14b38454b28892c1b50c93b143ce36b5406949542ba";
