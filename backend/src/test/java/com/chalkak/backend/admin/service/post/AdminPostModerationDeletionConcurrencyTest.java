@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.service.post;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.exception.BaseException;
@@ -223,6 +224,7 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
         jdbcTemplate.update(
                 "DELETE FROM notifications WHERE source_type = 'POST' AND source_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
         jdbcTemplate.update("DELETE FROM post_image_uploads WHERE id = ?", UPLOAD_ID);
@@ -329,6 +331,7 @@ class AdminPostModerationDeletionConcurrencyTest extends IntegrationTestSupport 
                 PHOTO_ID,
                 UPLOAD_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private Instant instant(Timestamp timestamp) {
