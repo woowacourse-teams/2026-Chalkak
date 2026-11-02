@@ -1,6 +1,8 @@
 package com.chalkak.backend.appversion.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.chalkak.backend.appversion.domain.AppPlatform;
+import com.chalkak.backend.appversion.repository.AppVersionRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.concurrent.CountDownLatch;
@@ -10,11 +12,16 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class AppVersionRepositoryTest extends IntegrationTestSupport {
+
+    @Autowired
+    private AppVersionRepository repository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -27,6 +34,34 @@ class AppVersionRepositoryTest extends IntegrationTestSupport {
     @AfterEach
     void tearDown() {
         new DatabaseCleaner(jdbcTemplate).clean();
+    }
+
+    @ParameterizedTest
+    @CsvSource(textBlock = """
+            ANDROID, 1.2.0, https://play.google.com/store/apps/details?id=com.example.chalkak
+            IOS, 2.0.0, https://apps.apple.com/app/id1234567890
+            """)
+    @DisplayName("두 플랫폼이 함께 저장돼 있어도 요청한 플랫폼의 설정만 매핑해 조회한다")
+    void findByPlatform_configuredPlatforms_returnsMatchingSetting(
+            AppPlatform platform,
+            String version,
+            String storeUrl
+    ) {
+        // Given
+        jdbcTemplate.update("""
+                INSERT INTO app_versions (platform, minimum_supported_version, store_url)
+                VALUES ('ANDROID', '1.2.0',
+                    'https://play.google.com/store/apps/details?id=com.example.chalkak'),
+                    ('IOS', '2.0.0', 'https://apps.apple.com/app/id1234567890')
+                """);
+
+        // When
+        var result = repository.findByPlatform(platform).orElseThrow();
+
+        // Then
+        assertThat(result.getPlatform()).isEqualTo(platform);
+        assertThat(result.getMinimumSupportedVersion().value()).isEqualTo(version);
+        assertThat(result.getStoreUrl().value()).isEqualTo(storeUrl);
     }
 
     @Test

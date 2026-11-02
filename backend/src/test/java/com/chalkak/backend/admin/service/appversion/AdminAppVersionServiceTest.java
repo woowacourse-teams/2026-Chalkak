@@ -61,6 +61,10 @@ class AdminAppVersionServiceTest extends IntegrationTestSupport {
         });
         assertThat(publicService.getAppVersion(AppPlatform.ANDROID).minimumSupportedVersion())
                 .isNull();
+        assertThat(publicService.getAppVersion(AppPlatform.IOS).minimumSupportedVersion())
+                .isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM app_versions", Integer.class))
+                .isZero();
     }
 
     @Test

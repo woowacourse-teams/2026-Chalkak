@@ -6,7 +6,6 @@ import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.domain.AppVersion;
 import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
 import com.chalkak.backend.appversion.domain.StoreUrl;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -19,13 +18,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class AppVersionTimestampTest extends IntegrationTestSupport {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+class AppVersionTimestampTest {
 
     @Autowired
     private EntityManager entityManager;
