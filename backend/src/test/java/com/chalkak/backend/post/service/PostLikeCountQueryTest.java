@@ -169,6 +169,82 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
         )).isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    @DisplayName("관리자 목록은 집계 행 누락 시 게시물 ID를 포함한 명확한 오류를 낸다")
+    void getAdminPosts_missingCounter_throwsIntegrityException() {
+        // Given
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", FIRST_POST_ID);
+
+        // When & Then
+        assertThatThrownBy(() -> adminPostQueryService.getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                1,
+                20
+        )).isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessage("좋아요 집계 행을 찾을 수 없습니다: " + FIRST_POST_ID);
+    }
+
+    @Test
+    @DisplayName("관리자 상세는 집계 행 누락 시 게시물 ID를 포함한 명확한 오류를 낸다")
+    void getAdminPost_missingCounter_throwsIntegrityException() {
+        // Given
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", FIRST_POST_ID);
+
+        // When & Then
+        assertThatThrownBy(() -> adminPostQueryService.getPost(FIRST_POST_ID))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessage("좋아요 집계 행을 찾을 수 없습니다: " + FIRST_POST_ID);
+    }
+
+    @Test
+    @DisplayName("관리자 목록은 집계 행의 실제 값이 0이면 정상적으로 0을 반환한다")
+    void getAdminPosts_zeroCounter_returnsZero() {
+        // Given
+        jdbcTemplate.update("UPDATE post_like_counts SET like_count = 0 WHERE post_id = ?",
+                FIRST_POST_ID);
+
+        // When
+        AdminPostListResult result = adminPostQueryService.getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.posts()).hasSize(2);
+        boolean foundZeroCounter = false;
+        for (var post : result.posts()) {
+            if (post.postId().equals(FIRST_POST_ID)) {
+                assertThat(post.likeCount()).isZero();
+                foundZeroCounter = true;
+            }
+        }
+        assertThat(foundZeroCounter).isTrue();
+    }
+
+    @Test
+    @DisplayName("관리자 상세는 집계 행의 실제 값이 0이면 정상적으로 0을 반환한다")
+    void getAdminPost_zeroCounter_returnsZero() {
+        // Given
+        jdbcTemplate.update("UPDATE post_like_counts SET like_count = 0 WHERE post_id = ?",
+                FIRST_POST_ID);
+
+        // When & Then
+        assertThat(adminPostQueryService.getPost(FIRST_POST_ID).likeCount()).isZero();
+    }
+
     private void insertPost(UUID userId, UUID postId) {
         jdbcTemplate.update(
                 "INSERT INTO users (id, email, signature_original_storage_key) VALUES (?, ?, ?)",
