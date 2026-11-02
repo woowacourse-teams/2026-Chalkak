@@ -1,5 +1,7 @@
 package com.chalkak.backend.notification.service;
 
+import static com.chalkak.backend.notification.support.PushSessionFixtures.insertSession;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -249,44 +251,6 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
         verify(sender).send(any(), any());
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"notificationId", "sourceType", "deadline", "future"})
-    @DisplayName("알림 ID·다른 대상 종류·30분이 아닌 기한·미래 예정 시각이 있는 리마인더 메시지는 보내지 않는다")
-    void process_invalidReminderMessage_skips(String invalidField) {
-        // Given
-        PushMessage valid = reminderMessage(insertReminder("ALL"));
-        UUID notificationId = null;
-        NotificationSourceType sourceType = NotificationSourceType.REMINDER;
-        Instant occurredAt = valid.occurredAt();
-        Instant expiresAt = valid.expiresAt();
-        if (invalidField.equals("notificationId")) {
-            notificationId = UUID.randomUUID();
-        }
-        if (invalidField.equals("sourceType")) {
-            sourceType = NotificationSourceType.TOPIC;
-        }
-        if (invalidField.equals("deadline")) {
-            expiresAt = occurredAt.plusSeconds(3600);
-        }
-        if (invalidField.equals("future")) {
-            occurredAt = NOW.plusSeconds(60);
-            expiresAt = occurredAt.plusSeconds(1800);
-        }
-        PushMessage invalid = new PushMessage(
-                valid.eventId(),
-                notificationId,
-                USER_ID,
-                NotificationType.REMINDER,
-                sourceType,
-                valid.sourceId(),
-                occurredAt,
-                expiresAt
-        );
-
-        // When & Then
-        assertSkipped(invalid, "INVALID_MESSAGE");
-    }
-
     private void assertSkipped(PushMessage message, String reason) {
         appender.list.clear();
         assertThat(worker().process(message)).isEqualTo(PushProcessingResult.completed());
@@ -367,14 +331,10 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
     }
 
     private void addDevice(String token) {
-        UUID sessionId = UUID.randomUUID();
-        jdbc.update(
-                "INSERT INTO user_refresh_tokens(user_id,session_id,token_hash,expires_at,absolute_expires_at) VALUES (?,?,?,?,?)",
+        UUID sessionId = insertSession(
+                jdbc,
                 USER_ID,
-                sessionId,
-                new FcmToken(UUID.randomUUID().toString()).getHash(),
-                Timestamp.from(NOW.plusSeconds(3600)),
-                Timestamp.from(NOW.plusSeconds(7200))
+                NOW
         );
         jdbc.update(
                 "INSERT INTO push_devices(user_id,session_id,fcm_token,fcm_token_hash,registered_at,updated_at) VALUES (?,?,?,?,?,?)",

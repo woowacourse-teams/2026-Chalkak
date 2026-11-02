@@ -1,5 +1,7 @@
 package com.chalkak.backend.admin.infrastructure.persistence.topic;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.repository.AdminPage;
@@ -22,14 +24,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminTopicQueryRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminTopicQueryRepositoryTest {
 
     private static final Instant NOW = Instant.parse("2026-08-20T00:00:00Z");

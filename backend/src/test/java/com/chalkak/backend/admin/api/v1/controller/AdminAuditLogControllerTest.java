@@ -1,5 +1,8 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.DisplayName;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -64,6 +67,7 @@ class AdminAuditLogControllerTest {
     }
 
     @Test
+    @DisplayName("모든 감사 조회 조건을 전달하고 이력 필드를 응답한다")
     void getAuditLogs_allFilters_returnsAuditHistory() throws Exception {
         AdminAuditLogListResult result = new AdminAuditLogListResult(
                 2,
@@ -128,6 +132,7 @@ class AdminAuditLogControllerTest {
     }
 
     @Test
+    @DisplayName("조회 조건을 생략하면 기본 페이지와 빈 이력을 응답한다")
     void getAuditLogs_withoutFilters_usesDefaults() throws Exception {
         given(service.getAuditLogs(
                 null,
@@ -153,19 +158,15 @@ class AdminAuditLogControllerTest {
                 .andExpect(jsonPath("$.auditLogs").isEmpty());
     }
 
-    @Test
-    void getAuditLogs_invalidPage_returnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/audit-logs").queryParam("pageSize", "101"))
+    @ParameterizedTest
+    @CsvSource({"pageSize, 101", "action, PASSWORD_VIEWED"})
+    @DisplayName("잘못된 페이지 또는 감사 행위는 조회 전에 400으로 거절한다")
+    void getAuditLogs_invalidQuery_returnsBadRequest(String parameter, String value)
+            throws Exception {
+        mockMvc.perform(get("/api/v1/admin/audit-logs").queryParam(parameter, value))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
         then(service).shouldHaveNoInteractions();
     }
 
-    @Test
-    void getAuditLogs_unknownEnum_returnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/audit-logs").queryParam("action", "PASSWORD_VIEWED"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        then(service).shouldHaveNoInteractions();
-    }
 }

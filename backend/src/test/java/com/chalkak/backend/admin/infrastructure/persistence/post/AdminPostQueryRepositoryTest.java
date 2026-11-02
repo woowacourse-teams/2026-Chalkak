@@ -1,5 +1,7 @@
 package com.chalkak.backend.admin.infrastructure.persistence.post;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,14 +24,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminPostQueryRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminPostQueryRepositoryTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("0198fa00-0000-7000-8000-000000000001");

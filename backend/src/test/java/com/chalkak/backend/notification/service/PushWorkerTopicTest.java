@@ -1,5 +1,7 @@
 package com.chalkak.backend.notification.service;
 
+import static com.chalkak.backend.notification.support.PushSessionFixtures.insertSession;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -330,43 +332,6 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
         verifyNoInteractions(sender);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"notificationId", "sourceType", "deadline", "future", "eventId"})
-    @DisplayName("알림함 ID·게시물 대상·연장 기한·미래 시각·누락 식별자가 있는 주제 메시지는 보내지 않는다")
-    void process_invalidTopicMessage_completesWithoutSending(String invalidField) {
-        // Given
-        UUID notificationId = null;
-        UUID eventId = message.eventId();
-        NotificationSourceType sourceType = NotificationSourceType.TOPIC;
-        Instant occurredAt = NOW;
-        Instant expiresAt = message.expiresAt();
-        if (invalidField.equals("notificationId"))
-            notificationId = UUID.randomUUID();
-        if (invalidField.equals("sourceType"))
-            sourceType = NotificationSourceType.POST;
-        if (invalidField.equals("deadline"))
-            expiresAt = NOW.plusSeconds(3600);
-        if (invalidField.equals("future")) {
-            occurredAt = NOW.plusSeconds(60);
-            expiresAt = occurredAt.plusSeconds(1800);
-        }
-        if (invalidField.equals("eventId"))
-            eventId = null;
-        PushMessage invalid = new PushMessage(
-                eventId,
-                notificationId,
-                USER_ID,
-                NotificationType.TOPIC,
-                sourceType,
-                TOPIC_ID,
-                occurredAt,
-                expiresAt
-        );
-        // When & Then
-        assertThat(worker(NOW).process(invalid)).isEqualTo(PushProcessingResult.completed());
-        verifyNoInteractions(sender);
-    }
-
     @Test
     @DisplayName("재전달 때는 당시의 기기를 다시 조회하고 새 등록 기기로 발송한다")
     void process_redelivery_usesCurrentDevices() {
@@ -459,14 +424,10 @@ class PushWorkerTopicTest extends IntegrationTestSupport {
     }
 
     private void addDevice(String token) {
-        UUID sessionId = UUID.randomUUID();
-        jdbc.update(
-                "INSERT INTO user_refresh_tokens(user_id,session_id,token_hash,expires_at,absolute_expires_at) VALUES (?,?,?,?,?)",
+        UUID sessionId = insertSession(
+                jdbc,
                 USER_ID,
-                sessionId,
-                new FcmToken(UUID.randomUUID().toString()).getHash(),
-                Timestamp.from(NOW.plusSeconds(3600)),
-                Timestamp.from(NOW.plusSeconds(7200))
+                NOW
         );
         jdbc.update(
                 "INSERT INTO push_devices(user_id,session_id,fcm_token,fcm_token_hash,registered_at,updated_at) VALUES (?,?,?,?,?,?)",

@@ -1,5 +1,7 @@
 package com.chalkak.backend.notification.infrastructure.infra.slack;
 
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -10,8 +12,8 @@ import org.junit.jupiter.api.Test;
 
 class SlackNotificationPropertiesTest {
 
-    private static final URI SLACK_WEBHOOK_URL =
-            URI.create("https://hooks.slack.com/services/TEST/TEST/TEST");
+    private static final URI SLACK_WEBHOOK_URL = URI
+            .create("https://hooks.slack.com/services/TEST/TEST/TEST");
 
     @Test
     @DisplayName("공식 Slack Webhook과 양수 제한 시간을 사용한다")
@@ -29,23 +31,13 @@ class SlackNotificationPropertiesTest {
         assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(3));
     }
 
-    @Test
-    @DisplayName("Slack 이외 호스트의 Webhook을 거부한다")
-    void create_nonSlackWebhook_throwsException() {
+    @ParameterizedTest
+    @ValueSource(strings = {"https://attacker.example.com/services/TEST/TEST/TEST",
+            "https://hooks.slack.com/services/TEST/TEST/TEST/"})
+    @DisplayName("공식 주소가 아니거나 끝에 슬래시가 붙은 Slack Webhook은 거절한다")
+    void create_invalidWebhook_throwsException(String webhook) {
         assertThatThrownBy(() -> createProperties(
-                URI.create("https://attacker.example.com/services/TEST/TEST/TEST"),
-                Duration.ofSeconds(2),
-                Duration.ofSeconds(3)
-        ))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Slack Webhook은 hooks.slack.com의 HTTPS URL이어야 합니다.");
-    }
-
-    @Test
-    @DisplayName("마지막 슬래시가 붙은 Slack Webhook을 거부한다")
-    void create_slackWebhookWithTrailingSlash_throwsException() {
-        assertThatThrownBy(() -> createProperties(
-                URI.create("https://hooks.slack.com/services/TEST/TEST/TEST/"),
+                URI.create(webhook),
                 Duration.ofSeconds(2),
                 Duration.ofSeconds(3)
         ))

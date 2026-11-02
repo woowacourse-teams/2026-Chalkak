@@ -212,28 +212,13 @@ class AdminAiReviewControllerTest {
             "pageSize, 0",
             "pageSize, 101",
             "page, abc",
-            "pageSize, abc"
-    })
-    @DisplayName("페이지 조건이 범위를 벗어나거나 숫자가 아니면 400을 반환하고 서비스를 호출하지 않는다")
-    void getAiReviews_invalidPagination_returnsBadRequest(
-            String parameterName,
-            String parameterValue
-    ) throws Exception {
-        // When & Then
-        mockMvc.perform(get(PATH).queryParam(parameterName, parameterValue))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        then(queryService).shouldHaveNoInteractions();
-    }
-
-    @ParameterizedTest
-    @CsvSource({
+            "pageSize, abc",
             "status, UNKNOWN",
             "status, completed",
             "promptVersionId, invalid-uuid"
     })
-    @DisplayName("상태나 프롬프트 버전 ID 형식이 잘못되면 400을 반환하고 서비스를 호출하지 않는다")
-    void getAiReviews_invalidFilter_returnsBadRequest(
+    @DisplayName("페이지나 필터가 올바르지 않으면 400을 반환하고 서비스를 호출하지 않는다")
+    void getAiReviews_invalidQuery_returnsBadRequest(
             String parameterName,
             String parameterValue
     ) throws Exception {

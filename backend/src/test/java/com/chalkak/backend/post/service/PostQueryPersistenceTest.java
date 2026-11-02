@@ -6,6 +6,16 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.photo.domain.Photo;
+import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostImageUpload;
+import java.util.Map;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.domain.ParticipationPeriod;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.user.domain.SignatureStorageKeys;
+import java.time.Instant;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
@@ -26,10 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PostQueryPersistenceTest extends IntegrationTestSupport {
 
-    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
-    private static final UUID SECOND_USER_ID = UUID
-            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
-    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
     private static final LocalDate TOPIC_DATE = LocalDate.of(
             2026,
             8,
@@ -52,62 +58,28 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
     @MockitoBean
     private ImageUrlProvider imageUrlProvider;
 
+    private User author;
+    private Topic topic;
+    private UUID postId;
+    private UUID secondUserId;
+
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    'post-service@example.com',
-                    'ACTIVE',
-                    'chalkak/dev/signatures/signature.png',
-                    'chalkak/dev/signatures/signature-thumbnail.png',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '오늘 가장 기억에 남은 순간',
-                    '2026-08-12',
-                    '2026-08-12T00:00:00Z',
-                    '2026-08-13T00:00:00Z',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    'chalkak/dev/posts/original.jpg',
-                    'chalkak/dev/posts/thumbnail.jpg',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate
-                .update("""
-                        INSERT INTO posts (
-                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                        ) VALUES (
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                            '오늘의 순간',
-                            'APPROVED',
-                            '2026-08-12T03:30:00Z',
-                            CURRENT_TIMESTAMP
-                        )
-                        """);
-        synchronizeFixtureCounts(jdbcTemplate);
+        author = User.create(
+                "post-service@example.com",
+                new SignatureStorageKeys(SIGNATURE_STORAGE_KEY,
+                        "chalkak/dev/signatures/signature-thumbnail.png"));
+        Instant startsAt = Instant.parse("2026-08-12T00:00:00Z");
+        topic = Topic.create(
+                "오늘 가장 기억에 남은 순간",
+                TOPIC_DATE,
+                new ParticipationPeriod(startsAt, startsAt.plusSeconds(86400)),
+                startsAt.minusSeconds(1)
+        );
+        entityManager.persist(author);
+        entityManager.persist(topic);
+        postId = persistApprovedPost(author);
+        entityManager.clear();
     }
 
     @Test
@@ -125,9 +97,9 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.of(SECOND_USER_ID)
+                Optional.of(secondUserId)
         );
-        PostDetail beforeDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
+        PostDetail beforeDetail = postQueryService.getPost(postId, secondUserId);
         jdbcTemplate.update(
                 """
                         UPDATE users
@@ -136,7 +108,7 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                         """,
                 newSignatureKey,
                 "chalkak/dev/signatures/new-signature-thumbnail.png",
-                USER_ID
+                author.getId()
         );
         entityManager.flush();
         entityManager.clear();
@@ -148,9 +120,9 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 null,
                 1,
                 20,
-                Optional.of(SECOND_USER_ID)
+                Optional.of(secondUserId)
         );
-        PostDetail afterDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
+        PostDetail afterDetail = postQueryService.getPost(postId, secondUserId);
 
         // Then
         assertThat(beforeFeed.posts()).extracting(
@@ -159,8 +131,8 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 PostListResult.PostSummary::signatureOriginalImageUrl
         )
                 .contains(tuple(
-                        POST_ID,
-                        USER_ID,
+                        postId,
+                        author.getId(),
                         SIGNATURE_IMAGE_URL
                 ));
         assertThat(afterFeed.posts()).extracting(
@@ -169,12 +141,12 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 PostListResult.PostSummary::signatureOriginalImageUrl
         )
                 .contains(tuple(
-                        POST_ID,
-                        USER_ID,
+                        postId,
+                        author.getId(),
                         newSignatureUrl
                 ));
-        assertThat(beforeDetail.authorId()).isEqualTo(USER_ID);
-        assertThat(afterDetail.authorId()).isEqualTo(USER_ID).isNotEqualTo(SECOND_USER_ID);
+        assertThat(beforeDetail.authorId()).isEqualTo(author.getId());
+        assertThat(afterDetail.authorId()).isEqualTo(author.getId()).isNotEqualTo(secondUserId);
         assertThat(beforeDetail.signatureOriginalImageUrl()).isEqualTo(SIGNATURE_IMAGE_URL);
         assertThat(afterDetail.signatureOriginalImageUrl()).isEqualTo(newSignatureUrl);
     }
@@ -192,10 +164,10 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 20,
                 Optional.empty()
         );
-        UUID authorId = feed.posts().stream().filter(post -> post.id().equals(POST_ID))
+        UUID authorId = feed.posts().stream().filter(post -> post.id().equals(postId))
                 .findFirst().orElseThrow().authorId();
         jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                POST_ID);
+                postId);
         entityManager.flush();
         entityManager.clear();
 
@@ -204,11 +176,11 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 authorId,
                 1,
                 20,
-                SECOND_USER_ID
+                secondUserId
         );
 
         // Then
-        assertThat(authorId).isEqualTo(USER_ID);
+        assertThat(authorId).isEqualTo(author.getId());
         assertThat(result.posts()).isEmpty();
         assertThat(result.currentPage()).isEqualTo(1);
         assertThat(result.hasNext()).isFalse();
@@ -226,7 +198,7 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
         insertPostLike();
         if (empty) {
             jdbcTemplate.update("UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?",
-                    POST_ID);
+                    postId);
         }
         entityManager.flush();
         entityManager.clear();
@@ -244,7 +216,7 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                     null,
                     1,
                     20,
-                    authenticated ? Optional.of(USER_ID) : Optional.empty()
+                    authenticated ? Optional.of(author.getId()) : Optional.empty()
             );
             assertThat(result.posts()).hasSize(empty ? 0 : 1).allSatisfy(post -> {
                 assertThat(post.likeCount()).isEqualTo(1L);
@@ -260,54 +232,41 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
     private void insertPostLike() {
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
-                POST_ID,
-                USER_ID
+                postId,
+                author.getId()
         );
         synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private void insertSecondVisiblePost() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
-                    'post-service-2@example.com',
-                    'ACTIVE',
-                    'chalkak/dev/signatures/signature-2.png',
-                    'chalkak/dev/signatures/signature-thumbnail-2.png',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
-                    'chalkak/dev/posts/original-2.jpg',
-                    'chalkak/dev/posts/thumbnail-2.jpg',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status,
-                    created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
-                    '두 번째 순간',
-                    'APPROVED',
-                    '2026-08-12T04:00:00Z',
-                    CURRENT_TIMESTAMP
-                )
-                """);
+        User other = UserFixture.create();
+        entityManager.persist(other);
+        persistApprovedPost(other);
+        secondUserId = other.getId();
+        entityManager.clear();
+    }
+
+    private UUID persistApprovedPost(User user) {
+        PostImageUpload upload = PostImageUpload.createPostImageUpload(user, Instant.now());
+        upload.completeProcessing(Map.of());
+        upload.claim(Instant.now());
+        entityManager.persist(upload);
+        Photo photo = Photo.createPhoto("chalkak/posts/" + user.getId() + ".webp");
+        photo.completeProcessing("chalkak/posts/" + user.getId() + "-thumbnail.webp", null);
+        entityManager.persist(photo);
+        Post post = Post.createPost(
+                user,
+                topic,
+                photo,
+                upload.getId(),
+                "오늘의 순간"
+        );
+        post.requestModeration();
+        post.approve(Instant.now());
+        entityManager.persist(post);
+        entityManager.flush();
         synchronizeFixtureCounts(jdbcTemplate);
+        return post.getId();
     }
 
 }

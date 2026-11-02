@@ -65,14 +65,15 @@ class AdminAiReviewQueryServiceTest {
         );
     }
 
-    @Test
-    @DisplayName("완료된 리뷰를 점수·프롬프트 버전·게시물 썸네일 URL·작성자·사용량과 함께 조회한다")
-    void getAiReviews_completedReview_returnsSummary() {
+    @ParameterizedTest
+    @CsvSource({"1, true", "100, false"})
+    @DisplayName("페이지 크기 경계에서도 완료 리뷰와 다음 페이지 정보를 반환한다")
+    void getAiReviews_completedReview_returnsSummary(int pageSize, boolean hasNext) {
         // Given
         given(repository.findAiReviews(
                 new Criteria(null, null),
                 1,
-                20
+                pageSize
         )).willReturn(new AdminPage<>(
                 List.of(summary(
                         reviewId,
@@ -80,8 +81,8 @@ class AdminAiReviewQueryServiceTest {
                         THUMBNAIL_STORAGE_KEY
                 )),
                 1,
-                20,
-                false
+                pageSize,
+                hasNext
         ));
         given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
 
@@ -90,13 +91,13 @@ class AdminAiReviewQueryServiceTest {
                 null,
                 null,
                 1,
-                20
+                pageSize
         );
 
         // Then
         assertThat(result.currentPage()).isEqualTo(1);
-        assertThat(result.pageSize()).isEqualTo(20);
-        assertThat(result.hasNext()).isFalse();
+        assertThat(result.pageSize()).isEqualTo(pageSize);
+        assertThat(result.hasNext()).isEqualTo(hasNext);
         assertThat(result.aiReviews()).hasSize(1);
         AiReviewSummary summary = result.aiReviews().get(0);
         assertThat(summary.aiReviewId()).isEqualTo(reviewId);
@@ -243,68 +244,6 @@ class AdminAiReviewQueryServiceTest {
         // Then
         assertThat(result.aiReviews()).hasSize(1);
         assertThat(result.aiReviews().get(0).post().thumbnailUrl()).isNull();
-    }
-
-    @Test
-    @DisplayName("페이지 크기 경계값 1과 100을 허용하며 hasNext는 남은 리뷰 유무를 따른다")
-    void getAiReviews_pageSizeBoundary_setsHasNext() {
-        // Given
-        given(repository.findAiReviews(
-                new Criteria(null, null),
-                1,
-                1
-        )).willReturn(new AdminPage<>(
-                List.of(summary(
-                        reviewId,
-                        Status.COMPLETED,
-                        THUMBNAIL_STORAGE_KEY
-                )),
-                1,
-                1,
-                true
-        ));
-        given(repository.findAiReviews(
-                new Criteria(null, null),
-                1,
-                100
-        )).willReturn(new AdminPage<>(
-                List.of(
-                        summary(
-                                reviewId,
-                                Status.COMPLETED,
-                                THUMBNAIL_STORAGE_KEY
-                        ),
-                        summary(
-                                new UUID(0, 3),
-                                Status.QUEUED,
-                                THUMBNAIL_STORAGE_KEY
-                        )
-                ),
-                1,
-                100,
-                false
-        ));
-        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
-
-        // When
-        ListResult minSize = queryService.getAiReviews(
-                null,
-                null,
-                1,
-                1
-        );
-        ListResult maxSize = queryService.getAiReviews(
-                null,
-                null,
-                1,
-                100
-        );
-
-        // Then
-        assertThat(minSize.aiReviews()).hasSize(1);
-        assertThat(minSize.hasNext()).isTrue();
-        assertThat(maxSize.aiReviews()).hasSize(2);
-        assertThat(maxSize.hasNext()).isFalse();
     }
 
     @Test

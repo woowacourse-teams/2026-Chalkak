@@ -1,5 +1,7 @@
 package com.chalkak.backend.banner.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -10,13 +12,8 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(BannerRepositoryImpl.class)
+@PostgresRepositoryTest
 class BannerRepositoryTest {
 
     private static final String URL = "https://chalkak.vercel.app/event?source=home#camera";

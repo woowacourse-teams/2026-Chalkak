@@ -1,10 +1,11 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.apple.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
-import com.chalkak.backend.auth.infrastructure.persistence.apple.PendingAppleAuthorizationRepositoryImpl;
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
@@ -12,13 +13,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PendingAppleAuthorizationRepositoryImpl.class)
+@PostgresRepositoryTest
 class PendingAppleAuthorizationRepositoryTest {
 
     private static final String SUBJECT_HMAC = "a".repeat(64);

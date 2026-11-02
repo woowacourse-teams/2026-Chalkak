@@ -1,11 +1,11 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.token.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
-import com.chalkak.backend.auth.infrastructure.persistence.token.UserRefreshTokenRepositoryImpl;
-import com.chalkak.backend.user.infrastructure.persistence.UserRepositoryImpl;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -17,13 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({UserRefreshTokenRepositoryImpl.class, UserRepositoryImpl.class})
+@PostgresRepositoryTest
 class UserRefreshTokenRepositoryTest {
 
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");

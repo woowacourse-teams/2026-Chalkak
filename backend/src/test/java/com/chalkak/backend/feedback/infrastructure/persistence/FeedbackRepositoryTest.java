@@ -1,5 +1,7 @@
 package com.chalkak.backend.feedback.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.feedback.domain.Feedback;
@@ -10,14 +12,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(FeedbackRepositoryImpl.class)
+@PostgresRepositoryTest
 class FeedbackRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fc30-0000-7000-8000-000000000001");
@@ -45,24 +42,6 @@ class FeedbackRepositoryTest {
                 )
                 """,
                 USER_ID);
-    }
-
-    @Test
-    @DisplayName("저장한 피드백에 식별자와 접수 시각이 채워진다")
-    void save_newFeedback_assignsIdentifierAndCreatedAt() {
-        // When
-        Feedback saved = feedbackRepository.save(
-                Feedback.create(USER_ID, "사진 업로드가 느려요."));
-        entityManager.flush();
-        entityManager.clear();
-
-        // Then
-        assertThat(saved.getId()).isNotNull();
-        assertThat(saved.getCreatedAt()).isNotNull();
-
-        Feedback reloaded = entityManager.find(Feedback.class, saved.getId());
-        assertThat(reloaded.getUserId()).isEqualTo(USER_ID);
-        assertThat(reloaded.getContent()).isEqualTo("사진 업로드가 느려요.");
     }
 
     @Test

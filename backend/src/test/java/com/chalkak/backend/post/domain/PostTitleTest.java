@@ -35,7 +35,7 @@ class PostTitleTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"   ", "　　"})
+    @ValueSource(strings = {"   ", "　　", "　　　　　　　　　　　"})
     @DisplayName("null, 빈 문자열, 공백뿐인 제목은 제목 없음으로 보고 null을 돌려준다")
     void from_blankTitle_returnsNull(String raw) {
         // When
@@ -96,7 +96,7 @@ class PostTitleTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "   ", "　　"})
+    @ValueSource(strings = {"", "   ", "　　", "　　　　　　　　　　　"})
     @DisplayName("생성자를 직접 호출할 때 공백뿐인 제목은 거부한다")
     void constructor_blankTitle_throwsBusinessException(String value) {
         // When & Then

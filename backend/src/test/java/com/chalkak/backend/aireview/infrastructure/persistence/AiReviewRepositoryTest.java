@@ -1,5 +1,7 @@
 package com.chalkak.backend.aireview.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,14 +30,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import tools.jackson.databind.ObjectMapper;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AiReviewRepositoryImpl.class)
+@PostgresRepositoryTest
 class AiReviewRepositoryTest {
 
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-20T05:00:00Z");

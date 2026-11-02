@@ -55,20 +55,20 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "오늘의 기록"
+                "  오늘의  기록  "
         );
 
         // Then
         assertThat(post.getAuthor()).isSameAs(author);
         assertThat(post.getTopic()).isSameAs(topic);
         assertThat(post.getPhoto()).isSameAs(photo);
-        assertThat(post.getTitle()).isEqualTo("오늘의 기록");
+        assertThat(post.getTitle()).isEqualTo("오늘의  기록");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
     }
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"   ", "　　"})
+    @ValueSource(strings = {"   ", "　　", "　　　　　　　　　　　"})
     @DisplayName("null, 빈 문자열, 공백 제목은 제목 없는 게시물로 생성한다")
     void createPost_blankTitle_normalizesTitleToNull(String title) {
         // When
@@ -85,117 +85,10 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("제목이 10자면 게시물을 생성한다")
-    void createPost_tenCharacterTitle_createsPost() {
-        // Given
-        String title = "1234567890";
-
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo(title);
-    }
-
-    @Test
-    @DisplayName("10자를 넘는 유니코드 공백 제목도 제목 없는 게시물로 생성한다")
-    void createPost_longBlankTitle_normalizesTitleToNull() {
-        // Given
-        String title = "　".repeat(11);
-
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        );
-
-        // Then
-        assertThat(post.getTitle()).isNull();
-    }
-
-    @Test
-    @DisplayName("이모지 제목은 코드 포인트 기준으로 10자까지 허용한다")
-    void createPost_tenCodePointEmojiTitle_createsPost() {
-        // Given
-        String title = "📸".repeat(10);
-
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo(title);
-    }
-
-    @Test
     @DisplayName("제목이 10자를 초과하면 게시물을 생성할 수 없다")
     void createPost_tooLongTitle_throwsBusinessException() {
         // Given
         String title = "12345678901";
-
-        // When & Then
-        assertThatThrownBy(() -> Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        ))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("제목은 10자 이하여야 합니다.");
-    }
-
-    @Test
-    @DisplayName("제목을 생성할 때 앞뒤 공백은 제거하고 가운데 공백은 유지한다")
-    void createPost_titleWithSurroundingSpaces_normalizesTitle() {
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                "  오늘의  기록  "
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("오늘의  기록");
-    }
-
-    @Test
-    @DisplayName("제목을 생성할 때 앞뒤 공백을 제거한 값이 10자면 허용한다")
-    void createPost_tenCharacterNormalizedTitle_createsPost() {
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                "  1234567890  "
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("1234567890");
-    }
-
-    @Test
-    @DisplayName("제목을 생성할 때 앞뒤 공백을 제거한 값이 Unicode code point 기준 10자를 초과하면 거부한다")
-    void createPost_tooLongNormalizedTitle_throwsBusinessException() {
-        // Given
-        String title = "  " + "📸".repeat(11) + "  ";
 
         // When & Then
         assertThatThrownBy(() -> Post.createPost(
@@ -225,12 +118,12 @@ class PostTest {
         // When
         post.updateTitle(
                 AUTHOR_ID,
-                "수정 제목",
+                "  1234567890  ",
                 UPDATED_AT
         );
 
         // Then
-        assertThat(post.getTitle()).isEqualTo("수정 제목");
+        assertThat(post.getTitle()).isEqualTo("1234567890");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
     }
 
@@ -254,23 +147,6 @@ class PostTest {
         assertThat(post.getModeratedAt()).isEqualTo(Instant.parse("2026-08-20T00:10:00Z"));
     }
 
-    @Test
-    @DisplayName("제목을 수정할 때 앞뒤 공백은 제거하고 가운데 공백은 유지한다")
-    void updateTitle_titleWithSurroundingSpaces_normalizesTitle() {
-        // Given
-        Post post = createPendingPostDuringOpenPeriod("기존 제목");
-
-        // When
-        post.updateTitle(
-                AUTHOR_ID,
-                "  수정 제목  ",
-                UPDATED_AT
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("수정 제목");
-    }
-
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "　　"})
@@ -288,23 +164,6 @@ class PostTest {
 
         // Then
         assertThat(post.getTitle()).isNull();
-    }
-
-    @Test
-    @DisplayName("제목을 수정할 때 앞뒤 공백을 제거한 값이 10자면 허용한다")
-    void updateTitle_tenCharacterNormalizedTitle_updatesTitle() {
-        // Given
-        Post post = createPendingPostDuringOpenPeriod("기존 제목");
-
-        // When
-        post.updateTitle(
-                AUTHOR_ID,
-                "  1234567890  ",
-                UPDATED_AT
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("1234567890");
     }
 
     @Test

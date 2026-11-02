@@ -1,0 +1,354 @@
+파일 (src/test/java/com/chalkak/backend 기준),실행 환경,이전 메서드,이후 메서드,판단,이유
+admin/api/support/AdminArgumentResolverFailClosedWebMvcTest.java,웹 슬라이스,1,1,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 작업자 전략이 누락되어도 요청 값으로 관리자 ID를 위조하지 못한다
+admin/api/support/AdminCorsProdProfileTest.java,웹 슬라이스,2,2,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 운영 프로필에서도 설정한 관리자 웹 Origin의 사전 요청만 허용한다; 운영 프로필에서 등록하지 않은 Origin은 차단한다
+admin/api/support/AdminCorsPropertiesTest.java,단위/Adapter/아키텍처,4,3,정리 또는 보강,잘못된 Origin 입력을 파라미터화. 빈 목록은 별도 원인/메시지로 유지
+admin/api/support/AdminWebMvcConfigTest.java,웹 슬라이스,5,5,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 등록한 CurrentAdmin Resolver로 개발 관리자를 Controller에 주입한다; 설정하지 않은 Origin의 실제 관리자 API 요청을 작업자 조회 전에 차단한다
+admin/api/support/CurrentAdminArgumentResolverTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 관리자 ID 헤더 없이 현재 개발 관리자를 Controller에 전달한다; 가짜 관리자 ID 헤더를 보내도 개발 관리자의 ID를 전달한다
+admin/api/v1/controller/AdminAiPromptPreviewApiTest.java,통합(DB/실제 구성),3,3,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 관리자가 공개 게시물에 초안을 실행하면 200과 결과를 응답하고 감사 로그는 남기지 않는다; 허용되지 않은 모델은 400이다
+admin/api/v1/controller/AdminAiPromptPreviewControllerTest.java,웹 슬라이스,12,12,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 성공 결과는 200과 변환 결과 원본 점수 사용량을 직렬화한다; 서비스의 404 예외는 404로 변환한다
+admin/api/v1/controller/AdminAiPromptVersionControllerTest.java,웹 슬라이스,18,18,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 생성하면 201과 저장된 버전 전체를 응답한다; 서비스의 400 예외는 BUSINESS_ERROR 400으로 변환한다
+admin/api/v1/controller/AdminAiReviewControllerTest.java,웹 슬라이스,10,10,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 조건 없이 조회하면 기본 페이지로 서비스에 전달하고 항목 전체와 페이지 정보를 응답한다; 없는 리뷰 ID는 404 BUSINESS_ERROR로 변환한다
+admin/api/v1/controller/AdminAnalyticsControllerTest.java,웹 슬라이스,4,4,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 관리자가 날짜를 보내면 본문 없는 202로 응답하고 러너를 시작한다; 러너가 진행 중이라고 거절하면 USER_METRICS_AGGREGATION_IN_PROGRESS 400으로 변환한다
+admin/api/v1/controller/AdminAppVersionControllerTest.java,웹 슬라이스,5,5,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 목록 조회는 두 플랫폼과 미설정 null을 직렬화한다; 서비스 입력 오류와 수정 충돌은 기존 400 오류 계약으로 반환한다
+admin/api/v1/controller/AdminAuditLogControllerTest.java,웹 슬라이스,4,3,정리 또는 보강,조회 조건의 이름/입력만 다른 두 요청을 CsvSource로 통합. 두 요청과 오류/무호출 검증 유지 / 빠진 한글 테스트 설명 보완. 서로 다른 예외/DB 제약/필터 경로는 독립 검증 유지
+admin/api/v1/controller/AdminAuditRequestIdTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 관리자 API 요청이 남긴 감사 로그의 requestId는 응답의 X-Request-Id와 같다
+admin/api/v1/controller/AdminAuthControllerTest.java,웹 슬라이스,8,8,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 관리자 로그인에 성공하면 액세스 토큰과 리프레시 토큰을 함께 반환한다; 로그아웃 요청의 리프레시 토큰이 비어 있으면 400을 반환한다
+admin/api/v1/controller/AdminBannerApiTest.java,통합(DB/실제 구성),3,3,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 관리자 토큰으로 등록, 조회하면 배너를 반환하고 인증된 관리자를 등록 감사 로그에 기록한다; 본문 없는 관리자 삭제는 204를 반환하고 인증된 관리자를 감사에 기록한다"
+admin/api/v1/controller/AdminBannerControllerTest.java,웹 슬라이스,6,6,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 배너 등록 성공 시 201과 여섯 가지 응답 필드를 반환한다; 삭제 대상이 없으면 404와 BUSINESS_ERROR를 반환한다
+admin/api/v1/controller/AdminFeedbackControllerTest.java,웹 슬라이스,4,4,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 조회 조건을 생략하면 최신순 첫 페이지를 조회한다; 페이지당 피드백 수가 100을 넘으면 400을 반환한다
+admin/api/v1/controller/AdminNoticeApiTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 관리자 토큰으로 공지를 등록하면 저장하고 처리 관리자를 감사 로그에 남긴다
+admin/api/v1/controller/AdminNoticeControllerTest.java,웹 슬라이스,19,19,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 목록 조회는 200과 페이지 정보, 공지 목록을 응답한다; 없는 공지의 삭제는 404로 응답한다"
+admin/api/v1/controller/AdminPostControllerTest.java,웹 슬라이스,28,28,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 관리자는 기본 조건으로 전체 게시물 목록을 조회한다; 이미 삭제된 게시물도 삭제 서비스에 위임해 멱등하게 204를 반환한다
+admin/api/v1/controller/AdminReminderApiTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 관리자 토큰으로 리마인더를 등록하면 저장하고 처리 관리자를 감사 로그에 남긴다
+admin/api/v1/controller/AdminReminderControllerTest.java,웹 슬라이스,14,14,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 목록 조회는 200과 페이지 정보, 리마인더 목록을 응답한다; 서비스의 업무 예외는 400과 BUSINESS_ERROR로 응답한다"
+admin/api/v1/controller/AdminTopicControllerTest.java,웹 슬라이스,6,6,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 관리자는 phase와 날짜, 정렬, 페이지 조건으로 주제 목록을 조회한다; 빈 제목 또는 삭제 사유는 400으로 거절한다"
+admin/api/v1/controller/AdminTopicPaginationTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 일반 페이지와 조회 가능한 마지막 페이지까지 기존 응답 형식을 유지한다; 조회 범위를 넘는 페이지는 서버 오류 대신 기존 형식의 400 오류를 반환한다
+admin/api/v1/controller/AdminTopicPushScheduleApiTest.java,통합(DB/실제 구성),2,2,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 초 또는 소수 초가 있는 생성 요청은 400으로 거절하고 설정, 감사 기록을 저장하지 않는다; 초 또는 소수 초가 있는 수정 요청은 400으로 거절하고 기존 시각, 감사 기록을 유지한다"
+admin/api/v1/controller/AdminTopicPushScheduleControllerTest.java,웹 슬라이스,13,13,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 설정 목록 조회는 200과 설정별 시각, 식별자, UTC 시각을 응답한다; 없는 설정의 삭제는 404로 응답한다"
+admin/api/v1/controller/AdminUserControllerTest.java,웹 슬라이스,9,8,정리 또는 보강,잘못된 상태 변경 요청의 입력 2개/오류/무호출 assertion을 파라미터화
+admin/api/v1/docs/AdminAiPromptPreviewOpenApiTest.java,통합(DB/실제 구성),1,1,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 미리보기 API는 관리자 보안, 응답 코드, 요청 스키마 계약을 노출하고 사용자 문서에는 없다"
+admin/api/v1/docs/AdminAiPromptVersionOpenApiTest.java,통합(DB/실제 구성),3,3,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 프롬프트 버전 생성 API는 관리자 보안, 응답 코드, 요청 스키마 계약을 노출하고 사용자 문서에는 없다; 프롬프트 버전 상세 API는 관리자 보안, 404 포함 응답 코드, 전체 응답 스키마를 노출한다"
+admin/api/v1/docs/AdminAiReviewOpenApiTest.java,통합(DB/실제 구성),2,2,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — AI 리뷰 목록 API는 관리자 보안, 응답 코드, 쿼리 파라미터, 응답 스키마 계약을 노출하고 사용자 문서에는 없다; AI 리뷰 상세 API는 경로 파라미터, 응답 코드, 응답 스키마 계약을 노출하고 사용자 문서에는 없다"
+admin/api/v1/docs/AdminAnalyticsOpenApiTest.java,통합(DB/실제 구성),1,1,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — admin-api 문서에 수동 집계 계약을 노출하고 user-api에서는 제외한다
+admin/api/v1/docs/AdminAppVersionOpenApiTest.java,통합(DB/실제 구성),1,1,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 앱 버전 관리 문서는 관리자 보안, 플랫폼, 입력, 응답, 오류 코드와 nullable 설정을 노출한다"
+admin/api/v1/docs/AdminAuditLogOpenApiTest.java,통합(DB/실제 구성),1,1,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 관리자 감사 로그 조회에 주제 푸시 설정, 공지, 리마인더의 대상, 행위 필터를 노출한다"
+admin/api/v1/docs/AdminAuthOpenApiTest.java,통합(DB/실제 구성),2,2,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 관리자 문서는 리프레시 토큰 경로만 공개하고 나머지 관리자 API에 관리자 Bearer 인증을 요구한다; 관리자 재발급 문서는 재로그인 필요 401을, 로그아웃 문서는 인증 실패 응답을 두지 않는다"
+admin/api/v1/docs/AdminBannerOpenApiTest.java,통합(DB/실제 구성),3,3,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 배너 등록 문서는 관리자 보안, 필수 입력, 응답 필드, 상태 코드를 노출한다; 배너 삭제 문서는 UUID 경로, 본문 없음, 관리자 보안, 응답 코드를 노출한다"
+admin/api/v1/docs/AdminFeedbackOpenApiTest.java,통합(DB/실제 구성),2,2,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — admin-api 문서는 조회 전용 피드백 계약을 제공한다; user-api 문서는 관리자 피드백 경로를 노출하지 않는다
+admin/api/v1/docs/AdminNoticeOpenApiTest.java,통합(DB/실제 구성),4,4,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 공지 목록, 상세 API는 관리자 보안, 페이지 파라미터, 응답 코드 계약을 노출한다; 공지 삭제 API는 관리자 보안, UUID 경로, 사유 본문, 응답 코드 계약을 노출한다"
+admin/api/v1/docs/AdminPostOpenApiTest.java,통합(DB/실제 구성),1,1,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — admin-api 문서는 관리자 게시물 목록과 상세 계약을 서로 다른 스키마로 제공한다
+admin/api/v1/docs/AdminReminderOpenApiTest.java,통합(DB/실제 구성),4,4,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 리마인더 목록 API는 관리자 보안, 페이지 파라미터, 응답 코드 계약을 노출한다; 리마인더 등록 API는 관리자 보안, 필수 필드, 반복 방식, 대상, 시각 형식, 응답 코드 계약을 노출한다"
+admin/api/v1/docs/AdminTopicOpenApiTest.java,통합(DB/실제 구성),1,1,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — admin-api 문서에 주제 CRUD와 필터 계약을 노출하고 user-api에서는 제외한다
+admin/api/v1/docs/AdminTopicPushScheduleOpenApiTest.java,통합(DB/실제 구성),4,4,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 조회 API는 관리자 보안, 응답 코드, 목록 스키마 계약을 노출한다; 삭제 API는 설정 ID, 관리자 보안, 본문 없는 응답 계약을 노출한다"
+admin/api/v1/docs/AdminUserOpenApiTest.java,통합(DB/실제 구성),1,1,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — admin-api 문서에 관리자 사용자 목록, 상세 계약만 노출한다"
+admin/domain/AdminAppVersionAuditTest.java,단위/Adapter/아키텍처,4,4,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 타입 검증된 스토어 URL만 감사 원문으로 허용하고 일반 URL은 계속 거절한다; revision 상한 직전 변경은 허용하고 상한에서 순환하는 전이는 거절한다
+admin/domain/AdminAuditHashTest.java,단위/Adapter/아키텍처,1,1,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 감사 해시는 UTF-8 문자열을 SHA-256 소문자 16진수로 반환한다
+admin/domain/AdminAuditLogTest.java,단위/Adapter/아키텍처,34,34,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 주제 푸시 설정 생성, 수정, 삭제의 올바른 변경 전후 상태를 기록한다; 바이너리 객체는 감사 로그 상태에 저장할 수 없다"
+admin/domain/AdminAuditSnapshotTest.java,단위/Adapter/아키텍처,10,10,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 허용한 상태 값은 문자열 형식으로 정규화하고 불변 복사한다; 문자열 상태 값이 2000자를 초과하면 저장할 수 없다
+admin/domain/AdminTest.java,단위/Adapter/아키텍처,7,7,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 사용자명과 단방향 비밀번호 해시로 관리자를 생성한다; BCrypt 형식이 아닌 비밀번호 값으로 관리자를 생성할 수 없다
+admin/domain/AiPromptVersionAuditTransitionTest.java,단위/Adapter/아키텍처,2,2,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 프롬프트 버전 생성은 빈 이전 상태와 유형, 버전만 있는 이후 상태를 허용한다; 프롬프트 버전 생성은 잘못된 대상, 이전 상태, 필드, 값을 거절한다"
+admin/domain/BannerAuditTransitionTest.java,단위/Adapter/아키텍처,4,4,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 배너 생성은 빈 이전 상태와 제목, 부제목 해시만 있는 이후 상태를 허용한다; 배너 삭제 감사는 잘못된 대상, 상태 전이를 거절한다"
+admin/infrastructure/bootstrap/AdminAccountBootstrapTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 설정한 관리자 계정이 없으면 BCrypt 해시만 저장한다; 설정한 관리자 계정이 이미 있으면 비밀번호 해시를 덮어쓰지 않는다
+admin/infrastructure/bootstrap/DevelopmentAdminBootstrapProfileTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 운영 프로필에서는 개발 관리자 부트스트랩을 등록하지 않는다; 운영 프로필이 개발 프로필과 함께 활성화되어도 부트스트랩을 등록하지 않는다
+admin/infrastructure/bootstrap/DevelopmentAdminBootstrapTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 개발 관리자가 없으면 사용할 수 없는 임의 비밀번호의 BCrypt 해시로 생성한다; 개발 부트스트랩을 반복 실행해도 관리자 한 명만 유지한다
+admin/infrastructure/infra/DevAdminActorResolverTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 개발 환경에서는 저장된 dev-admin의 ID를 현재 작업자로 반환한다
+admin/infrastructure/infra/SecurityContextAdminActorResolverTest.java,단위/Adapter/아키텍처,3,3,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 관리자 권한 JWT의 subject를 현재 관리자 식별자로 반환한다; 일반 사용자 권한 JWT이면 403 예외를 반환한다
+admin/infrastructure/persistence/aireview/AdminAiReviewQueryRepositoryTest.java,PostgreSQL 슬라이스,16,16,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 조건 없이 조회하면 마지막 요청 시각 내림차순, 같으면 ID 내림차순으로 정렬한다; visibleToAuthor는 사용자 조회가 쓰는 findVisibleById의 결과와 조건마다 같다"
+admin/infrastructure/persistence/audit/AdminAuditLogQueryRepositoryTest.java,PostgreSQL 슬라이스,3,3,정리 또는 보강,빠진 한글 테스트 설명 보완. 서로 다른 예외/DB 제약/필터 경로는 독립 검증 유지
+admin/infrastructure/persistence/audit/AdminAuditLogRepositoryTest.java,PostgreSQL 슬라이스,5,5,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — JPA 감사 로그 저장소는 같은 패키지에 저장, 조회 기능만 노출한다; migration_adminAuditLogs_hasQueryIndexes"
+admin/infrastructure/persistence/auth/AdminRepositoryTest.java,PostgreSQL 슬라이스,2,2,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 관리자를 저장하고 사용자명으로 조회한다; 동일한 사용자명을 가진 관리자를 중복 저장할 수 없다
+admin/infrastructure/persistence/feedback/AdminFeedbackQueryRepositoryTest.java,PostgreSQL 슬라이스,4,4,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 피드백 목록은 작성자 정보와 함께 최신순으로 조회한다; 정지, 탈퇴 회원이 남긴 피드백도 상태와 함께 조회한다"
+admin/infrastructure/persistence/post/AdminPostQueryRepositoryTest.java,PostgreSQL 슬라이스,9,9,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 관리자 목록은 내부 검증 중 게시물을 제외하고 삭제된 게시물을 함께 조회한다; 존재하지 않는 게시물 상세 조회는 빈 결과를 반환한다
+admin/infrastructure/persistence/topic/AdminTopicQueryRepositoryTest.java,PostgreSQL 슬라이스,4,4,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 네 정렬은 ID 보조 정렬과 다음 페이지 경계를 유지한다; 상세는 삭제된 주제를 제외하고 게시글이 없으면 집계가 0이다
+admin/infrastructure/persistence/user/AdminUserQueryRepositoryTest.java,PostgreSQL 슬라이스,5,5,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 관리자 사용자 목록은 탈퇴자를 포함해 안정적인 최신순으로 조회한다; 각 회원 상태 필터는 탈퇴 여부를 반영해 해당 회원만 조회한다
+admin/service/aireview/AdminAiPromptPreviewServiceTest.java,통합(DB/실제 구성),13,13,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 공개 게시물에 초안을 실행하면 변환 결과 원본 점수 사용량을 반환하고 원본 이미지 URL과 주제 제목으로 호출한다; 실패하면 로그에 실패 유형을 남기고 값이 없는 항목은 남기지 않는다
+admin/service/aireview/AdminAiPromptVersionConcurrencyTest.java,통합(DB/실제 구성),1,1,유지,"경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 유형에 동시에 버전을 만들어도 중복, 유니크 위반 없이 1부터 5까지 부여된다"
+admin/service/aireview/AdminAiPromptVersionServiceTest.java,통합(DB/실제 구성),13,13,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 첫 버전은 1이고 이어서 만들면 2, 3으로 올라가며 이전 버전은 바뀌지 않는다; 없는 버전 상세는 NotFoundException이다"
+admin/service/aireview/AdminAiReviewQueryServiceTest.java,단위/Adapter/아키텍처,9,9,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 페이지 크기 경계에서도 완료 리뷰와 다음 페이지 정보를 반환한다; 없는 리뷰 ID로 상세 조회하면 404 예외를 던진다
+admin/service/appversion/AdminAppVersionServiceTest.java,통합(DB/실제 구성),6,6,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 미설정 두 플랫폼은 null 설정으로 조회하고 앱의 이용을 허용한다; 보조 문자 500자의 사유를 저장하고 같은 code point 길이로 조회한다
+admin/service/appversion/AdminAppVersionTransactionTest.java,통합(DB/실제 구성),6,6,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 경쟁하는 최초 저장과 같은 revision 수정은 한 요청만 변경하고 다른 요청은 충돌로 거절한다; 감사에 기록할 수 없는 스토어 주소는 최초 입력과 기존 설정 변경을 모두 롤백한다
+admin/service/audit/AdminAuditLogQueryServiceTest.java,단위/Adapter/아키텍처,3,3,정리 또는 보강,빠진 한글 테스트 설명 보완. 서로 다른 예외/DB 제약/필터 경로는 독립 검증 유지
+admin/service/audit/AdminAuditLogServiceTest.java,통합(DB/실제 구성),4,4,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 업무 트랜잭션 안에서 변경과 감사 로그를 함께 저장하고 감사 로그에는 현재 요청의 requestId를 남긴다; 감사 로그 저장이 실패하면 앞선 업무 변경도 함께 롤백한다
+admin/service/auth/AdminAuthenticationServiceTest.java,단위/Adapter/아키텍처,7,7,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 비밀번호가 일치하면 관리자 scope의 발급 결과를 그대로 반환한다; BCrypt의 72바이트를 넘는 로그인 비밀번호는 500 대신 인증 실패로 거부한다
+admin/service/auth/AdminRefreshTokenServiceTest.java,통합(DB/실제 구성),11,11,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 리프레시 토큰을 발급하면 평문은 반환만 하고 저장소에는 해시만 남는다; 실제 계정 로그인은 관리자 JWT와 해시만 저장한 리프레시 토큰 계보를 만든다
+admin/service/banner/AdminBannerDeletionServiceTest.java,통합(DB/실제 구성),4,4,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 사유 없이 삭제 감사를 기록하고 배너는 목록에서 제외한다; 삭제한 URL로 새 배너를 등록하면 새 ID로 활성 목록에 나타난다
+admin/service/banner/AdminBannerServiceTest.java,통합(DB/실제 구성),5,5,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 배너 등록은 정규화한 정보를 저장하고 URL 없이 감사 로그를 남긴다; 2,000자의 다국어 URL도 인덱스 크기 오류 없이 저장한다"
+admin/service/banner/AdminBannerTransactionTest.java,통합(DB/실제 구성),5,5,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 앞뒤 공백만 다른 동일 URL의 중복 등록을 거절하고 기존 배너와 감사 기록을 유지한다; 삭제 감사 기록 실패 시 삭제 시각도 롤백된다
+admin/service/feedback/AdminFeedbackQueryServiceTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 탈퇴한 작성자의 피드백은 WITHDRAWN 상태로 내려준다; 페이지 조건이 범위를 벗어나면 조회하지 않는다
+admin/service/notification/AdminNoticeAuditTransactionTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 감사 로그 저장이 실패하면 공지 등록도 함께 롤백한다; 감사 로그 저장이 실패하면 공지 삭제도 함께 롤백한다
+admin/service/notification/AdminNoticeConcurrencyTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 배포가 먼저 공지를 잠그면 수정은 배포 커밋을 기다린 뒤 거절된다; 삭제가 공지를 잠그고 있으면 배포는 그 공지를 건너뛰고 삭제 후에도 배포하지 않는다
+admin/service/notification/AdminNoticeServiceTest.java,통합(DB/실제 구성),23,23,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 공지를 등록하면 정규화한 내용을 저장하고 감사 로그에는 본문 대신 해시를 남긴다; 공지 목록은 삭제된 공지도 삭제 시각과 함께 보여준다
+admin/service/notification/AdminReminderAuditTransactionTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 감사 로그 저장이 실패하면 리마인더 등록도 함께 롤백한다; 감사 로그 저장이 실패하면 리마인더 삭제도 함께 롤백한다
+admin/service/notification/AdminReminderConcurrencyTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 리마인더를 동시에 수정하면 직전 변경 값을 감사 로그의 변경 전 값으로 기록한다; 같은 리마인더를 동시에 두 번 삭제해도 삭제 감사 로그는 한 건만 남긴다
+admin/service/notification/AdminReminderServiceTest.java,통합(DB/실제 구성),17,17,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 리마인더를 등록하면 정규화한 내용을 저장하고 감사 로그에는 본문 대신 해시를 남긴다; 삭제한 리마인더는 수정할 수 없다
+admin/service/notification/AdminTopicPushScheduleAuditTransactionTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 감사 로그 저장이 실패하면 주제 푸시 설정 변경도 함께 롤백한다; 업무 트랜잭션이 실패하면 설정과 감사 로그를 함께 롤백한다
+admin/service/notification/AdminTopicPushScheduleConcurrencyTest.java,통합(DB/실제 구성),6,6,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 시각의 동시 등록은 한 건만 커밋하고 나머지는 중복 오류로 거절한다; 수정을 기다린 삭제는 수정된 시각을 감사 기록에 남기고 설정을 삭제한다
+admin/service/notification/AdminTopicPushScheduleServiceTest.java,통합(DB/실제 구성),16,16,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 설정 전체를 등록 순서와 관계없이 발송 시각 오름차순으로 조회한다; 없는 설정을 삭제하면 찾을 수 없음 오류로 거절한다
+admin/service/post/AdminPostCommandDeletionTest.java,통합(DB/실제 구성),7,7,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 허용된 검수 상태의 게시물을 삭제하면 미디어를 보존하고 soft delete와 감사 로그를 저장한다; 삭제된 게시물은 사용자 상세, 캘린더, 피드 조회에서 즉시 제외한다"
+admin/service/post/AdminPostCommandModerationTest.java,통합(DB/실제 구성),10,10,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 검수와 알림은 같은 고정 시각을 기록하고 생성 후 정확한 30일까지만 조회한다; 삭제된 대기 게시물은 검수 대상에서 제외한다
+admin/service/post/AdminPostModerationConcurrencyTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 두 관리자가 동시에 승인과 거절을 요청하면 하나만 확정하고 감사 로그도 하나만 남긴다; 감사 로그 작업자 외래키 저장이 실패하면 게시물 검수 상태도 함께 롤백한다
+admin/service/post/AdminPostModerationDeletionConcurrencyTest.java,통합(DB/실제 구성),1,1,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 대기 게시물의 승인과 삭제가 겹쳐도 교착 없이 삭제 상태로 수렴한다
+admin/service/post/AdminPostModerationLogTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 관리자가 승인하면 approved 로그에 대기 시간을 초 단위로 남긴다; 관리자가 반려하면 rejected 로그를 한 건 남긴다
+admin/service/post/AdminPostNotificationTransactionTest.java,통합(DB/실제 구성),3,3,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 검수 트랜잭션이 롤백되면 게시물 변경과 감사 로그 및 알림이 모두 사라진다; 알림 생성은 호출자의 업무 트랜잭션이 없으면 실행되지 않는다
+admin/service/post/AdminPostQueryServiceTest.java,단위/Adapter/아키텍처,7,7,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 필터가 없으면 내부 검증 중을 제외하고 삭제된 게시물도 최신순으로 조회한다; 존재하지 않는 관리자 게시물 상세를 조회하면 찾을 수 없음 예외를 발생시킨다
+admin/service/topic/AdminTopicCommandServiceTest.java,통합(DB/실제 구성),11,11,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 주제를 생성하면 관리자 감사 로그를 남긴다; 공개 전 주제를 사유와 함께 삭제하면 목록에서 제외하고 감사 로그를 남긴다
+admin/service/topic/AdminTopicConcurrencyTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 날짜의 주제를 동시에 생성하면 하나만 저장하고 감사 로그도 하나만 남긴다; 감사 로그 관리자 외래키 저장이 실패하면 주제 생성도 롤백한다
+admin/service/topic/AdminTopicQueryServiceTest.java,단위/Adapter/아키텍처,6,6,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 상태와 날짜 필터에 고정 Clock 시각을 함께 전달하고 조회 결과를 반환한다; 페이지 offset이 정수 범위를 넘으면 조회하지 않고 거절한다
+admin/service/user/AdminUserQueryServiceTest.java,단위/Adapter/아키텍처,5,5,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 이메일을 정규화하고 기본 정렬로 조회한 탈퇴 회원의 파생 상태를 반환한다; 페이지 오프셋이 정수 범위를 넘으면 조회하지 않고 거절한다
+admin/service/user/AdminUserStatusConcurrencyTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 동시에 같은 사용자를 차단하면 한 요청만 성공하고 감사 로그도 하나만 남긴다; 감사 로그의 관리자 외래키 저장이 실패하면 사용자 차단도 롤백한다
+admin/service/user/AdminUserStatusServiceTest.java,통합(DB/실제 구성),6,6,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 소셜 계정이 없는 활성 사용자도 관리자가 차단하면 상태와 감사 로그를 저장한다; 상태 변경 사유가 비어 있으면 사용자를 변경하지 않는다
+aireview/api/v1/controller/PostAiReviewControllerTest.java,웹 슬라이스,9,9,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 요청은 처리 중이면 202, 완료, 실패면 200이고 조회는 항상 200이며 응답 필드는 같다; 지금 요청할 수 없으면 안내 메시지와 함께 400을 반환한다"
+aireview/api/v1/docs/PostAiReviewOpenApiTest.java,통합(DB/실제 구성),3,3,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — AI 리뷰 요청 문서는 인증, 게시물 ID, 202와 200 응답, 오류 코드를 제공한다; 응답 스키마는 상태, 시각, 결과를 고정된 필드 이름으로 제공한다"
+aireview/domain/AiPromptDraftTest.java,단위/Adapter/아키텍처,12,12,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 생성_허용된 topicTitle 변수만 쓰면_성공한다; 생성_model이 비어 있으면_거부한다
+aireview/domain/AiPromptParametersTest.java,단위/Adapter/아키텍처,8,5,정리 또는 보강,모든 생략 옵션의 기본값을 한 생성 시나리오로 통합. 기존 경계 파라미터화는 그대로 유지
+aireview/domain/AiPromptVersionTest.java,단위/Adapter/아키텍처,9,9,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 버전 생성은 초안 값과 유형의 출력 스키마 버전을 그대로 담는다; 버전에서 만든 초안은 버전을 만든 초안과 같은 값이다
+aireview/domain/AiReviewTest.java,단위/Adapter/아키텍처,25,25,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 요청하면 대기 상태로 시작하고 시도 횟수, 결과, 완료 시각은 비어 있다; 다시 요청한 뒤에는 이전 회차에서 시도하던 워커의 완료, 실패, 재시도를 반영하지 않는다"
+aireview/domain/PhotoReviewOutputTest.java,단위/Adapter/아키텍처,12,12,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 변환_구도 점수 8.72면_종합 점수와 구도 항목이 8.7이다; 생성_피드백이 null이면_거부한다
+aireview/infrastructure/infra/AiReviewWorkerConfigurationTest.java,설정 컨텍스트,5,5,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 워커를 켜지 않으면 워커와 전용 스케줄러를 만들지 않는다; 스케줄링을 끄면 폴러는 만들지 않고 처리 서비스만 남긴다
+aireview/infrastructure/infra/AiReviewWorkerTest.java,단위/Adapter/아키텍처,8,8,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 동시에 처리하는 건은 설정한 수를 넘지 않고 끝나면 다음 건을 가져간다; 가져온 뒤 종료 경합으로 실행기가 거절하면 자리를 돌려주고 중단 처리를 알린다
+aireview/infrastructure/infra/openai/OpenAiPropertiesBindingTest.java,설정 컨텍스트,1,1,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — application.yml의 허용 모델 목록이 설정 객체에 바인딩된다
+aireview/infrastructure/infra/openai/OpenAiPropertiesTest.java,단위/Adapter/아키텍처,7,7,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 생성_모든 값이 올바르면_성공한다; toString_API 키를 노출하지 않는다
+aireview/infrastructure/infra/openai/OpenAiRealTimeoutTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — generate_응답이 읽기 제한 시간보다 늦으면_재시도 가능한 TIMEOUT으로 실패한다; generate_헤더를 받은 뒤 본문이 제한 시간 안에 끝나지 않으면_재시도 가능한 TIMEOUT으로 실패한다
+aireview/infrastructure/infra/openai/OpenAiResponsesReviewGeneratorTest.java,단위/Adapter/아키텍처,51,51,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — generate_요청을_보내면_OpenAI Responses 계약대로 본문과 인증 헤더를 구성한다; generate_실패해도_예외 메시지에 API 키 프롬프트 이미지 주소를 담지 않는다
+aireview/infrastructure/persistence/AiReviewRepositoryTest.java,PostgreSQL 슬라이스,9,9,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 게시물에 리뷰가 없으면 대기 행을 넣고 1을 돌려준다; 가져가기와 완료로 바뀐 모든 열이 CHECK 제약을 지켜 저장되고 원출력은 그대로 읽힌다
+aireview/service/AiReviewGenerationExceptionTest.java,단위/Adapter/아키텍처,4,4,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — of는 실패 유형만 담고 응답 기록과 대기 시간 힌트는 비워 둔다; withCause는 원인 예외를 버리지 않고 보존한다
+aireview/service/AiReviewGenerationRequestTest.java,단위/Adapter/아키텍처,4,4,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 생성_모든 값이 있으면_성공한다; 생성_topicTitle이 비어 있으면_거부한다
+aireview/service/AiReviewRetryBackoffTest.java,단위/Adapter/아키텍처,6,6,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 지터가 중간값이고 Retry-After가 없으면 첫 재시도는 10초, 그 뒤는 30초를 기다린다; Retry-After가 60초를 넘으면 60초로 제한한다"
+aireview/service/AiReviewWorkerServiceTest.java,통합(DB/실제 구성),42,42,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 대기 행을 가져가면 처리 중으로 바꾸고 시도 번호, 임대 만료, 시작 시각을 저장한다; 처리 중 예상 못 한 예외로 중단하면 reason과 예외 이름을 남기고 행은 그대로 둔다"
+aireview/service/PostAiReviewConcurrencyTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 게시물에 동시에 요청해도 행은 하나이고 모두 처리 중으로 응답받는다; 실패한 리뷰에 동시에 다시 요청해도 요청 횟수는 한 번만 늘고 재요청 로그도 한 건이다
+aireview/service/PostAiReviewServiceTest.java,통합(DB/실제 구성),20,20,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 처음 요청하면 최신 프롬프트 버전을 고정한 대기 행을 만들고 처리 중으로 응답한다; 본인의 공개된 게시물에 리뷰를 요청한 적 없으면 조회는 요청 전 상태로 응답하고 행을 만들지 않는다
+aireview/service/ReviewResultTest.java,단위/Adapter/아키텍처,2,2,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 내부 대기, 처리 상태는 모두 처리 중으로 노출하고 완료, 실패는 그대로 노출한다; 처리 중 상태일 때만 진행 중이다"
+analytics/infrastructure/infra/CloudWatchLogsAccessLogMetricsReaderTest.java,단위/Adapter/아키텍처,16,16,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 로그 그룹과 KST 하루의 epoch 초 구간으로 쿼리를 시작한다; 보존 기간이 완전히 지난 날짜는 쿼리 없이 빈 값을 돌려준다
+analytics/infrastructure/infra/UserMetricsAggregationConfigurationTest.java,설정 컨텍스트,3,3,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 집계가 꺼져 있거나 설정이 없으면 스케줄러와 전용 스레드를 만들지 않는다; 집계 작업은 공용 풀이 아닌 집계 전용 스케줄러 빈을 지정한다
+analytics/infrastructure/infra/UserMetricsAggregationSchedulerTest.java,단위/Adapter/아키텍처,1,1,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 집계 작업은 KST 기준 어제 날짜를 집계한다
+analytics/service/UserMetricsAggregationLogMetricsTest.java,단위/Adapter/아키텍처,7,7,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 접근 로그 지표가 비어 있으면 로그 지표 키를 남기지 않고 DB 지표만 남긴다; 코호트가 비면 유지율 키는 남기지 않고 인원과 유지 회원 수는 0으로 남긴다
+analytics/service/UserMetricsAggregationRunnerTest.java,단위/Adapter/아키텍처,12,12,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 백그라운드 집계를 시작하면 요청 시점에는 집계하지 않고 실행기가 돌릴 때 해당 날짜를 집계한다; 두 요청이 동시에 시작하면 하나만 집계하고 나머지는 진행 중 에러 코드로 거절한다
+analytics/service/UserMetricsAggregationServiceTest.java,통합(DB/실제 구성),17,17,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — KST 하루의 시작은 포함하고 직전과 다음 날 0시는 제외한다; 제외 회원의 AI 리뷰는 네 값에서 모두 빠진다
+analytics/service/WeeklyRetentionTest.java,단위/Adapter/아키텍처,2,2,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 유지율은 소수 첫째 자리까지 반올림한다; 코호트가 비면 유지율은 null이다
+appversion/api/v1/controller/AppVersionControllerTest.java,웹 슬라이스,4,4,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 플랫폼 설정의 세 필드와 캐시 방지 헤더를 반환한다; 빈 값이나 허용되지 않은 플랫폼이면 400을 반환한다
+appversion/api/v1/docs/AppVersionOpenApiTest.java,통합(DB/실제 구성),1,1,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 앱 버전 문서는 공개 조회, 필수 플랫폼, nullable 응답 계약을 노출한다"
+appversion/domain/AppVersionTest.java,단위/Adapter/아키텍처,2,2,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 필수 설정과 사유가 없거나 사유 길이를 넘으면 생성, 수정을 거절한다; 누락된 수정 사유를 거절하면 기존 설정과 변경자도 유지한다"
+appversion/domain/ChangeReasonTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 변경 사유는 공백 제거 후 Unicode code point 기준 상한까지 허용한다; ASCII와 보조 문자의 사유 길이가 상한을 넘으면 거절한다
+appversion/domain/MinimumSupportedVersionTest.java,단위/Adapter/아키텍처,2,2,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 각 자리의 0부터 정수 상한까지 정규 형식 버전을 허용한다; 형식, 앞자리 0, 각 자리 정수 상한을 어기면 거절한다"
+appversion/domain/StoreUrlTest.java,단위/Adapter/아키텍처,5,5,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 공식 스토어 상세 주소의 플랫폼, 앱 ID, 언어 형식을 허용한다; 요청 입력 팩토리는 Unicode 공백과 개행을 제거한 주소를 생성한다"
+appversion/infrastructure/persistence/AppVersionMigrationValidationTest.java,통합(DB/실제 구성),7,7,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 기존 버전, 주소, 플랫폼, 감사 값이 유효하지 않으면 변경 전에 사전 검증으로 중단한다; 사전 검증 DB 조회가 실패하면 유효한 데이터로 간주하지 않고 시작을 중단한다"
+appversion/infrastructure/persistence/AppVersionRepositoryTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 두 플랫폼이 함께 저장돼 있어도 요청한 플랫폼의 설정만 매핑해 조회한다; 중복 플랫폼 저장이 경쟁해도 하나만 저장할 수 있는 고유 제약을 유지한다
+appversion/infrastructure/persistence/AppVersionTimestampTest.java,PostgreSQL 슬라이스,5,5,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 기존 설정의 데이터는 보존하고 새 시각 컬럼을 마이그레이션 적용 시각으로 채운다; JPA로 설정을 바꾸면 생성 시각을 유지하고 수정 시각만 갱신한다
+appversion/service/AppVersionServiceTest.java,단위/Adapter/아키텍처,2,2,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 요청한 플랫폼의 최소 지원 버전과 스토어 주소를 반환한다; 요청한 플랫폼 설정이 없으면 null 설정을 반환하고 기본 데이터를 저장하지 않는다
+architecture/ArchitectureConventionTest.java,단위/Adapter/아키텍처,1,1,유지,실제 운영 클래스와 통과/위반 fixture로 아키텍처 규칙 확인 — 운영 코드의 요청 DTO와 계층 의존 규칙을 검사한다
+architecture/ArchitectureRulesTest.java,단위/Adapter/아키텍처,3,3,유지,"실제 운영 클래스와 통과/위반 fixture로 아키텍처 규칙 확인 — 기존 도메인과 독립 배너의 올바른 계층, record 요청을 허용한다; 독립 배너도 요청 record, 서비스 의존성, 저장소, Controller 배치 위반을 거절한다"
+auth/api/support/AccessLogUserInterceptorTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 회원 토큰이면 회원 식별자를 요청 속성에 담는다; 관리자 토큰이면 요청 속성에 아무것도 담지 않는다
+auth/api/support/AuthenticatedUsersTest.java,단위/Adapter/아키텍처,4,4,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 검증된 회원 JWT에서 회원 식별자를 꺼낸다; 로그인 ID가 문자열이 아니면 로그인 ID가 없는 것으로 처리한다
+auth/api/support/AuthenticationFailureLogTest.java,통합(DB/실제 구성),3,3,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 토큰 없이 보호 경로를 호출하면 401 WARN 1건에 예외 종류가 담긴다; 관리자 토큰으로 회원 API를 호출하면 403 WARN 1건이 남고 전역 예외 처리기는 로그를 남기지 않는다
+auth/api/support/CallbackBodySizeLimitFilterTest.java,통합(DB/실제 구성),3,3,유지,실제 필터와 회원/권한 정책의 연결 확인 — 상한을 넘는 본문은 인증까지 가지 않고 413을 받는다; 상한 안의 본문은 필터를 통과해 인증 단계까지 간다
+auth/api/support/ProcessingCallbackAuthenticatorTest.java,단위/Adapter/아키텍처,14,14,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 현재 시각의 올바른 HMAC 서명은 허용한다; 다른 환경을 대상으로 만든 서명은 거부한다
+auth/api/support/SuspendedUserAccessTest.java,통합(DB/실제 구성),20,20,유지,실제 필터와 회원/권한 정책의 연결 확인 — 정지 회원은 게시물 사진 업로드 URL을 발급받을 수 없다; 정지 회원도 캘린더 기록 연월을 조회할 수 있다
+auth/api/support/UsableUserPolicyTest.java,단위/Adapter/아키텍처,10,10,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 정지된 회원은 거부한다; 저장소에 없는 회원은 거부한다
+auth/api/support/WithdrawnUserAccessTest.java,통합(DB/실제 구성),17,17,유지,실제 필터와 회원/권한 정책의 연결 확인 — 탈퇴 회원은 게시물 사진 업로드 URL을 발급받을 수 없다; 탈퇴 회원은 캘린더 기록 연월을 조회할 수 없다
+auth/api/v1/controller/AuthControllerTest.java,웹 슬라이스,23,21,정리 또는 보강,회원가입 토큰 누락과 공백 두 요청을 보존하면서 준비/오류/무호출 검증 통합 / 리프레시 토큰 누락과 공백 두 요청을 보존하면서 준비/오류/무호출 검증 통합
+auth/api/v1/docs/AuthOpenApiTest.java,통합(DB/실제 구성),9,9,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 사용자 문서는 차단 회원의 로그인 성공과 탈퇴한 차단 계정의 거부를 구분한다; user-api 문서는 로그아웃을 인증 없이 호출하는 계약으로 제공한다
+auth/domain/apple/AppleAuthorizationTest.java,단위/Adapter/아키텍처,5,5,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — Apple 소셜 계정에 인증 정보를 연결한다; 저장 가능한 최대 길이의 암호화된 RT를 허용한다
+auth/domain/apple/PendingAppleAuthorizationTest.java,단위/Adapter/아키텍처,6,6,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 신원 지문과 암호화된 RT, 만료 시각으로 임시 인증 정보를 만든다; 더 뒤인 만료 시각만 반영하고 앞당기지는 않는다"
+auth/domain/identity/SocialAccountTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 소셜 제공자와 subject HMAC을 회원에게 연결한다; 회원이나 제공자가 없으면 소셜 계정을 생성할 수 없다
+auth/domain/signup/ConsumedSignupTokenTest.java,단위/Adapter/아키텍처,5,5,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — jti와 만료 시각으로 소진 기록을 만든다; 만료 시각이 없으면 생성할 수 없다
+auth/domain/token/RefreshTokenPolicyTest.java,단위/Adapter/아키텍처,4,4,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 비활동 만료가 절대 만료보다 이르면 비활동 만료를 그대로 쓴다; 절대 만료 시각은 기준 시각에 절대 만료 기간을 더한 값이다
+auth/domain/token/RefreshTokenTest.java,단위/Adapter/아키텍처,8,8,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 회전된 적 없는 토큰은 재사용으로 판정하지 않는다; 후속 토큰은 세션과 절대 만료를 물려받고 비활동 만료만 갱신한다
+auth/infrastructure/infra/apple/AesGcmAppleAuthorizationCipherTest.java,단위/Adapter/아키텍처,8,8,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — Refresh Token을 암호화한 뒤 복호화하면 원본을 반환한다; 64자리 16진수가 아닌 암호화 키는 사용할 수 없다
+auth/infrastructure/infra/apple/AppleAuthPropertiesTest.java,설정 컨텍스트,1,1,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — Apple refresh token 암호화 키가 64자리 16진수가 아니면 시작을 거부한다
+auth/infrastructure/infra/apple/AppleClientSecretGeneratorTest.java,단위/Adapter/아키텍처,4,4,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — Apple 규격의 ES256 client_secret을 생성한다; EC 개인키가 아니면 생성기를 만드는 시점에 거부한다
+auth/infrastructure/infra/apple/AppleHttpTokenClientTest.java,단위/Adapter/아키텍처,14,14,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — authorizationCode와 서버 자격증명을 Form으로 보내 Apple 토큰을 반환한다; Apple 토큰 폐기 서버의 네트워크 오류는 통신 오류로 처리한다
+auth/infrastructure/infra/apple/PendingAppleAuthorizationCleanupSchedulerTest.java,통합(DB/실제 구성),3,3,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 만료된 임시 Apple RT를 트랜잭션 밖에서 폐기한 뒤 삭제한다; 유효한 임시 Apple 인증 정보만 있으면 복호화와 폐기를 요청하지 않는다
+auth/infrastructure/infra/identity/HmacSocialIdentityFingerprintEncoderTest.java,단위/Adapter/아키텍처,1,1,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 소셜 제공자와 subject를 HMAC-SHA256 지문으로 변환한다
+auth/infrastructure/infra/oidc/OidcEmailPolicyTest.java,단위/Adapter/아키텍처,6,6,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 확인된 이메일만 받는 정책은 email_verified가 boolean true이면 이메일을 반환한다; 받은 이메일을 그대로 쓰는 정책도 이메일이 없으면 이메일 없이 반환한다
+auth/infrastructure/infra/oidc/OidcIdTokenAudienceValidatorTest.java,단위/Adapter/아키텍처,6,6,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — audience가 허용된 값 하나이면 검증에 성공한다; 검증 실패 메시지에 제공자 이름을 담는다
+auth/infrastructure/infra/oidc/OidcIdTokenClaimsValidatorTest.java,단위/Adapter/아키텍처,4,4,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — exp가 없는 ID Token은 검증에 실패한다; iat가 현재보다 60초 미래이면 시계 오차로 허용한다
+auth/infrastructure/infra/oidc/OidcIdTokenConfigTest.java,설정 컨텍스트,3,3,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 세 제공자의 OIDC 설정으로 디코더와 ID Token 검증기를 등록한다; 제공자의 필수 OIDC 설정이 없으면 애플리케이션을 시작하지 않는다
+auth/infrastructure/infra/oidc/OidcIdTokenDecoderFactoryTest.java,단위/Adapter/아키텍처,20,20,정리 또는 보강,불변 RSA 서명키 준비를 클래스당 1회로 재사용. 매 테스트 디코더/캐시/조회 횟수는 새로 생성하고 변조/회전 키는 독립 생성 유지
+auth/infrastructure/infra/oidc/OidcIdTokenVerifierTest.java,단위/Adapter/아키텍처,11,11,유지,"외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — nonce가 원본의 해시와 같으면 제공자와 subject, 이메일 정책에 맞는 이메일을 반환한다; subject가 255자이면 소셜 식별 정보로 반환한다"
+auth/infrastructure/infra/oidc/OidcJwkSetEventLoggerTest.java,단위/Adapter/아키텍처,1,1,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 재조회 제한 알림은 구간 직전까지 다시 남기지 않고 구간이 지나면 다시 남긴다
+auth/infrastructure/infra/signup/ConsumedSignupTokenCleanupSchedulerTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 만료된 회원가입 토큰 기록만 지우고 아직 유효한 기록은 남긴다; 만료 시각이 정확히 현재와 같은 기록은 아직 지우지 않는다
+auth/infrastructure/infra/signup/JwtSocialSignupTokenProviderTest.java,단위/Adapter/아키텍처,14,14,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 소셜 사용자와 업로드 식별자를 연결한 회원가입 토큰을 발급하고 검증한다; 허용 오차보다 미래에 발급된 회원가입 토큰은 검증할 수 없다
+auth/infrastructure/infra/token/access/JwtAccessTokenProviderTest.java,단위/Adapter/아키텍처,13,13,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 회원과 로그인 회차 식별자로 액세스 토큰을 발급하고 검증한다; subject가 회원 식별자 형식이 아닌 토큰은 검증할 수 없다
+auth/infrastructure/infra/token/refresh/RefreshTokenCleanupSchedulerTest.java,통합(DB/실제 구성),4,4,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 절대 만료가 지난 회원 토큰과 폐기된 지 오래된 회원 토큰만 지운다; 관리자 토큰도 같은 기준으로 지운다
+auth/infrastructure/infra/token/refresh/SecureRandomRefreshTokenProviderTest.java,단위/Adapter/아키텍처,5,5,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 생성한 토큰은 패딩 없는 43자 Base64URL 문자열이다; 다른 토큰은 다른 해시로 변환한다
+auth/infrastructure/persistence/AppleAuthorizationRepositoryTest.java,PostgreSQL 슬라이스,2,2,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 같은 소셜 계정에 인증 정보를 중복 저장할 수 없다; 인증 정보는 요청한 소셜 계정으로만 조회하고 저장된 ID와 암호문을 유지한다
+auth/infrastructure/persistence/ConsumedSignupTokenRepositoryTest.java,PostgreSQL 슬라이스,5,5,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 처음 소진하는 jti는 저장하고 성공을 반환한다; 만료된 소진 기록만 정리하고 아직 유효한 기록은 남긴다
+auth/infrastructure/persistence/PendingAppleAuthorizationRepositoryTest.java,PostgreSQL 슬라이스,3,3,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 한 신원에 만료 전 행이 여러 개면 가장 나중에 만든 행을 반환한다; 다른 신원의 임시 인증 정보는 반환하지 않는다
+auth/infrastructure/persistence/SocialAccountRepositoryTest.java,PostgreSQL 슬라이스,3,3,정리 또는 보강,Processor의 제공자 구분 실제 DB 검증을 기존 Repository 정상 조회에 흡수. 제공자/subject 각 불일치 검증 유지
+auth/infrastructure/persistence/UserRefreshTokenRepositoryTest.java,PostgreSQL 슬라이스,8,8,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 토큰 해시로 리프레시 토큰을 조회한다; 세션과 회원이 일치하고 회전, 폐기, 만료되지 않은 토큰만 사용 가능하다"
+auth/infrastructure/persistence/signup/ConsumedSignupTokenRepositoryConcurrencyTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 jti를 기록 중인 트랜잭션이 커밋되면 기다리던 트랜잭션은 예외 없이 실패를 반환한다; 같은 jti를 기록 중인 트랜잭션이 롤백되면 기다리던 트랜잭션이 기록에 성공한다
+auth/service/apple/AppleAuthorizationFingerprintEncoderTest.java,단위/Adapter/아키텍처,1,1,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — Apple 인증 정보 암호문을 SHA-256 지문으로 변환한다
+auth/service/apple/AppleAuthorizationServiceTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 소셜 계정의 실제 인증 객체에서 ID와 암호문 스냅샷을 만든다; 회원 존재 여부와 관계없이 소셜 계정이 없으면 인증 정보를 조회하지 않는다
+auth/service/identity/SocialIdentityVerifierTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — Kakao 제공자로 검증하면 Kakao ID Token 검증 결과를 반환한다; 등록되지 않은 제공자로 검증하면 지원하지 않는 제공자 예외를 발생시킨다
+auth/service/login/ExistingSocialAccountLoginProcessorTest.java,단위/Adapter/아키텍처,8,4,정리 또는 보강,"빈 결과/토큰 미발급, 탈퇴차단 거부/토큰 미발급 각각 통합. 일반 탈퇴의 레거시 소셜 연결이 실제로 남도록 준비 수정 및 확인 / 가입/탈퇴 판단은 실제 User/SocialAccount와 의존 Mock 단위로 전환. 실제 JWT/RT 저장은 SocialLoginServiceTest, 제공자/subject 쿼리는 SocialAccountRepositoryTest로 대조/보강"
+auth/service/login/SocialLoginServiceTest.java,통합(DB/실제 구성),17,14,정리 또는 보강,기존 로그인 3회→1회로 응답/실제 JWT/해시 저장 모든 assertion 통합. 신규 로그인 accessToken 없음은 기존 가입필요 시나리오로 흡수 / 기존 실제 로그인에 JWT session_id/RT 일치 검증 유지. 일반 탈퇴는 연결 제거/레거시 연결 유지 모두 실제 DB로 검증
+auth/service/signup/SocialSignupRetryTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 사인 이미지 처리 중으로 가입 완료가 실패하면 같은 회원가입 토큰으로 다시 시도해 가입할 수 있다
+auth/service/signup/SocialSignupServiceTest.java,통합(DB/실제 구성),27,26,정리 또는 보강,실제 가입 저장과 JWT 발급 검증은 동일 성공 시나리오 1회로 합침. 서명키/소셜 식별/RT 해시/JWT 세션/만료 assertion 보존
+auth/service/token/LoginSessionServiceTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 유효한 로그인은 정상 회원과 정지 회원을 모두 반환한다; 사용할 수 없는 로그인은 예외 없이 빈 결과를 반환한다
+auth/service/token/UserRefreshTokenConcurrencyTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 토큰으로 동시에 재발급하면 하나만 성공하고 계보 전체가 폐기된다; 재사용 탐지와 회전이 겹쳐도 계보 전체가 폐기된다
+auth/service/token/UserRefreshTokenServiceTest.java,통합(DB/실제 구성),13,13,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 리프레시 토큰을 발급하면 평문은 반환만 하고 저장소에는 해시만 남는다; 회원의 모든 기기 계보를 한 번에 폐기한다
+banner/api/v1/controller/BannerApiTest.java,통합(DB/실제 구성),3,3,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 익명 조회는 삭제 배너를 제외하고 최신순, ID 내림차순으로 페이지를 구성한다; 잘못된 페이지, 크기와 offset 초과는 실제 서비스에서 400으로 거절한다"
+banner/api/v1/controller/BannerControllerTest.java,웹 슬라이스,4,4,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 기본 페이지로 조회하면 페이지 정보와 배너 여섯 필드를 반환한다; 공통 조회 서비스의 검증 예외는 400으로 반환한다
+banner/api/v1/controller/BannerCorsTest.java,통합(DB/실제 구성),4,4,유지,실제 필터와 회원/권한 정책의 연결 확인 — 관리자 웹의 Authorization 헤더를 포함한 배너 GET 사전 요청을 허용한다; 관리자 웹에서도 배너 조회 이외 메서드의 사전 요청은 차단한다
+banner/api/v1/docs/BannerOpenApiTest.java,통합(DB/실제 구성),1,1,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 앱 배너 문서는 공개 접근, 페이지 기본값, 응답 계약을 노출한다"
+banner/domain/BannerTest.java,단위/Adapter/아키텍처,14,14,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 배너 생성은 네 항목의 앞뒤 공백만 제거하고 URL 쿼리와 프래그먼트를 보존한다; 삭제는 최초 시각을 기록하고 반복해도 변경하지 않는다
+banner/infrastructure/persistence/BannerRepositoryImplTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 웹뷰 URL의 고유 인덱스 위반만 중복 배너 업무 예외로 변환한다; 다른 제약이나 PostgreSQL 상세 정보가 없는 오류는 원래 예외를 유지한다
+banner/infrastructure/persistence/BannerRepositoryTest.java,PostgreSQL 슬라이스,4,4,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — URL 사전 조회는 전체 문자열을 비교하고 쿼리, 프래그먼트 차이를 구분한다; 부분 고유 인덱스는 삭제된 URL 재등록을 허용하고 활성 중복은 거절한다"
+banner/service/BannerServiceTest.java,단위/Adapter/아키텍처,2,2,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 허용된 페이지와 offset 경계에서는 빈 조회 결과의 메타데이터를 반환한다; 잘못된 페이지와 크기 또는 offset 초과는 DB를 조회하지 않고 거절한다
+common/logging/AccessLogTest.java,통합(DB/실제 구성),9,9,유지,실제 필터와 회원/권한 정책의 연결 확인 — handler가 매칭된 요청은 UUID 형식 X-Request-Id 헤더와 route 템플릿이 담긴 접근 로그 1건을 남긴다; 피드 조회가 아닌 경로는 접근 로그에 topicDate 키가 없다
+common/logging/CurrentRequestIdTest.java,단위/Adapter/아키텍처,3,3,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — MDC에 UUID 형식 requestId가 있으면 그 값을 그대로 돌려준다; MDC의 requestId가 UUID 형식이 아니면 그 값을 쓰지 않고 새 UUID를 만든다
+common/logging/JsonFileLogTest.java,단위/Adapter/아키텍처,4,4,유지,"외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — dev 프로필에서는 설정한 경로의 파일에 MDC와 key-value가 최상위 필드로 한 번씩 담긴 JSON 한 줄이 남는다; 로컬, 테스트에서는 알림 전용 파일과 일반 파일을 생성하지 않는다"
+common/logging/RequestIdFilterTest.java,단위/Adapter/아키텍처,4,4,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 체인이 예외를 던지면 status 500으로 접근 로그를 남기고 예외를 다시 던지며 MDC를 정리한다; 정확히 /actuator 경로는 접근 로그를 남기지 않는다
+common/logging/RuntimeSnapshotLoggerTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 스냅샷의 값을 type=runtime key-value로 담은 INFO 로그 1건을 남긴다; 측정하지 못한 값은 0으로 채우지 않고 key-value에서 뺀다
+common/logging/RuntimeSnapshotReaderTest.java,단위/Adapter/아키텍처,6,6,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 모든 원천이 있으면 GC 시간은 컬렉터별로 합산하되 정의되지 않은 값(-1)은 뺀 스냅샷을 만든다; Hikari 풀을 꺼내다 SQLException이 나면 Hikari 값만 비어 있고 나머지는 채워진다
+common/logging/RuntimeSnapshotTest.java,단위/Adapter/아키텍처,1,1,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 로그 필드는 측정된 값만 선언 순서대로 담는다
+common/util/CanonicalUuidParserTest.java,단위/Adapter/아키텍처,3,2,정리 또는 보강,잘못된 형식과 축약 UUID를 입력만 다른 한 테스트로 파라미터화. 두 입력/오류 코드/메시지 유지
+config/AdminDevelopmentBypassTest.java,설정 컨텍스트,2,2,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 배포 환경과 알 수 없는 프로필에서는 관리자 인증 우회 설정을 거부한다; dev 또는 prod가 포함되면 개발 관리자 생성기와 Resolver를 등록하지 않는다
+config/AdminLocalConfigurationTest.java,설정 컨텍스트,4,4,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 로컬 환경변수로 인증 우회를 끄면 지정한 계정 생성기와 실제 관리자 Resolver를 사용한다; dev와 prod에서는 로컬 전용 환경변수로 인증 우회를 켤 수 없다
+config/AdminSecurityFilterChainTest.java,통합(DB/실제 구성),15,15,유지,실제 필터와 회원/권한 정책의 연결 확인 — 관리자 로그인은 액세스 토큰 없이 호출할 수 있다; 관리자 토큰으로 실제 주제 푸시 설정을 삭제할 수 있다
+config/RequestIdFilterConfigTest.java,통합(DB/실제 구성),1,1,유지,실제 필터와 회원/권한 정책의 연결 확인 — requestId 필터는 콜백 필터와 Security 필터 체인보다 먼저 실행된다
+config/SchedulingConfigurationTest.java,설정 컨텍스트,3,3,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 기본 설정은 스케줄링과 리프레시 토큰 정리 작업을 모두 켠다; 리프레시 토큰 정리 작업만 끄면 스케줄링 자체는 켜진 채로 남는다
+config/SecurityFilterChainTest.java,통합(DB/실제 구성),36,36,유지,실제 필터와 회원/권한 정책의 연결 확인 — 토큰 없이 보호된 API를 호출하면 401과 공통 에러 형식을 반환한다; 관리자 토큰으로 회원의 연월 목록을 조회할 수 없다
+exception/GlobalExceptionHandlerLogTest.java,통합(DB/실제 구성),6,6,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 비즈니스 4xx 응답은 errorCode, status, exception 종류가 담긴 WARN 1건을 requestId와 함께 남긴다; Authorization, Cookie, 요청 본문과 파라미터 값이 있는 실패 요청도 로그에 그 값을 남기지 않는다"
+exception/GlobalExceptionHandlerTest.java,웹 슬라이스,14,14,정리 또는 보강,빠진 한글 테스트 설명 보완. 서로 다른 예외/DB 제약/필터 경로는 독립 검증 유지
+feedback/api/v1/controller/FeedbackControllerTest.java,웹 슬라이스,5,5,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 피드백을 접수하고 201과 식별자를 반환한다; 인증 정보가 없으면 401을 반환한다
+feedback/api/v1/controller/FeedbackSubmissionIntegrationTest.java,통합(DB/실제 구성),2,2,정리 또는 보강,제거한 단건 Repository 생성값 assertion은 기존 실제 제출 시나리오의 저장 행에서 함께 확인
+feedback/api/v1/docs/FeedbackOpenApiTest.java,통합(DB/실제 구성),2,2,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — user-api 문서는 피드백 제출 계약을 제공한다; 피드백 제출은 조회, 수정, 삭제를 제공하지 않는다"
+feedback/domain/FeedbackTest.java,단위/Adapter/아키텍처,6,6,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 피드백 내용의 앞뒤 공백을 제거해 보관한다; 보조 평면 문자는 code point 하나로 세어 1000자까지 허용한다
+feedback/infrastructure/persistence/FeedbackRepositoryTest.java,PostgreSQL 슬라이스,2,1,정리 또는 보강,기본 단건 저장/ID/시각은 기존 FeedbackSubmissionIntegrationTest가 실제 HTTP 응답과 저장값으로 검증. 반복 제출 허용 DB 검증 유지
+like/api/v1/controller/PostLikeControllerTest.java,웹 슬라이스,5,5,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 게시물 좋아요를 등록하고 현재 상태를 반환한다; 공개 가능한 게시물이 아니면 404를 반환한다
+like/domain/PostLikesTest.java,단위/Adapter/아키텍처,5,5,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 집계가 있는 게시물의 좋아요 수와 조회자의 좋아요 여부를 반환한다; 원본 컬렉션이 바뀌어도 생성한 좋아요 집계는 유지한다
+like/infrastructure/persistence/PostLikeCountMigrationTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 기존 관계를 보존하고 좋아요가 없는 게시물과 삭제된 게시물까지 집계 행을 만든다
+like/infrastructure/persistence/PostLikeCounterRepositoryTest.java,PostgreSQL 슬라이스,6,6,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 좋아요가 없는 집계 행은 0으로 조회한다; 빈 게시물 목록의 집계 조회는 빈 결과를 반환한다
+like/infrastructure/persistence/PostLikeRepositoryTest.java,PostgreSQL 슬라이스,7,7,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 좋아요가 없으면 새 좋아요를 생성한다; 사용자가 게시물에 좋아요했는지 확인한다
+like/service/PostLikeCounterTransactionTest.java,통합(DB/실제 구성),12,12,유지,"경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 서로 다른 사용자가 동시에 등록, 취소해도 집계 증감이 유실되지 않는다; 게시물 생성 중 집계 저장이 실패하면 게시물, 사진, 업로드 점유를 롤백한다"
+like/service/PostLikeDeletionConcurrencyTest.java,통합(DB/실제 구성),3,3,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 게시물 삭제가 시작된 뒤의 좋아요 등록은 삭제 완료 후 거부한다; 같은 게시물의 공유 락은 두 트랜잭션이 동시에 획득한다
+like/service/PostLikeServiceTest.java,통합(DB/실제 구성),6,6,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 공개 게시물에 좋아요를 등록하고 현재 상태를 반환한다; 인증된 사용자를 찾을 수 없으면 인증 예외를 발생시킨다
+notification/api/v1/controller/NotificationControllerTest.java,웹 슬라이스,8,8,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 승인, 반려 알림 목록은 관련 게시물 정보와 기존 목록 필드를 함께 반환한다; 인증 정보가 없으면 알림함 조회를 거부한다"
+notification/api/v1/controller/NotificationSettingsAccessTest.java,통합(DB/실제 구성),7,7,유지,실제 필터와 회원/권한 정책의 연결 확인 — 인증 없는 수신 설정 조회는 필터에서 401로 차단한다; AI 리뷰 설정만 보낸 수정은 그 값만 바꾸고 나머지 설정은 유지한다
+notification/api/v1/controller/NotificationSettingsControllerTest.java,웹 슬라이스,6,6,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 저장된 세 수신 설정을 불리언 필드로 반환한다; 수신 설정 수정에서 인증 오류가 발생하면 공통 401 응답을 반환한다
+notification/api/v1/controller/PushDeviceAccessTest.java,통합(DB/실제 구성),4,4,유지,실제 필터와 회원/권한 정책의 연결 확인 — 유효한 로그인 JWT로 등록하고 갱신하면 같은 DB 행에 새 토큰을 저장한다; 로그인 ID 없는 이전 JWT는 알림함을 조회하지만 기기 등록은 재로그인이 필요하다
+notification/api/v1/controller/PushDeviceControllerTest.java,웹 슬라이스,4,4,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 회원과 로그인 ID는 JWT에서 꺼내 기기를 등록하고 본문 없는 204를 반환한다; 서비스의 탈퇴 회원 오류를 401로 반환한다
+notification/api/v1/docs/NotificationOpenApiTest.java,통합(DB/실제 구성),1,1,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 사용자 API 문서에 알림함 조회와 읽음 계약을 제공한다
+notification/api/v1/docs/NotificationSettingsOpenApiTest.java,통합(DB/실제 구성),2,2,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 수신 설정 조회 문서는 인증, 세 불리언 필드, 실제 응답 코드를 제공한다; 수신 설정 수정 문서는 선택 필드, 인증, 빈 성공 응답, 오류 코드를 제공한다"
+notification/api/v1/docs/PushDeviceOpenApiTest.java,통합(DB/실제 구성),1,1,유지,실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 기기 등록 문서는 토큰만 필수로 받고 인증과 실제 응답 코드를 제공한다
+notification/domain/FcmTokenTest.java,단위/Adapter/아키텍처,2,2,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 유효한 FCM 토큰의 원문을 변경하지 않고 중복 판별용 해시를 만든다; FCM 토큰이 없거나 공백뿐이면 등록할 수 없다
+notification/domain/NoticeTest.java,단위/Adapter/아키텍처,24,24,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 공지를 생성하면 제목, 본문의 앞뒤 공백을 제거하고 예약 시각을 저장한다; 삭제된 공지는 배포할 수 없다"
+notification/domain/NotificationTest.java,단위/Adapter/아키텍처,19,19,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 푸시 기한은 사건 발생 후 30분부터 만료다; AI 리뷰 알림은 회원, 게시물, 리뷰, 발생 시각이 없으면 만들지 않는다"
+notification/domain/NotificationTypeTest.java,단위/Adapter/아키텍처,4,4,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 알림 종류마다 정해진 대상 종류만 자기 대상으로 판단한다; 공지는 수신 설정을 모두 꺼도 보낸다
+notification/domain/PushDeadlinePolicyTest.java,단위/Adapter/아키텍처,5,5,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 날짜가 바뀌어도 발생 시각부터 정확히 30분 뒤로 기한을 계산한다; 극단적인 메시지 시각도 덧셈 오버플로 없이 잘못된 기한으로 판정한다
+notification/domain/PushDeliveryTest.java,단위/Adapter/아키텍처,8,8,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 첫 발송 시작을 기록하고 호출자가 원본 맵을 바꿔도 스냅샷은 유지한다; 저장한 기기 결과를 반영하면 같은 실행에서도 수락 기기를 다시 시작하지 않는다
+notification/domain/PushDeviceTest.java,단위/Adapter/아키텍처,1,1,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — FCM 토큰을 갱신해도 최초 기기 등록 시각은 유지한다
+notification/domain/PushEventIdPolicyTest.java,단위/Adapter/아키텍처,6,6,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 리뷰 ID와 회차별 AI 리뷰 사건 ID는 기존에 발행한 UUID 형식을 유지한다; 같은 설정이어도 같은 날의 다른 시각과 다음 날 회차는 다른 사건으로 식별한다
+notification/domain/ReminderRepeatTest.java,단위/Adapter/아키텍처,2,2,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 일회성은 발송 시각 직전까지만 수정할 수 있고 발송 시각부터는 수정할 수 없다; 매일 반복은 첫 발송 시각이 지난 뒤에도 수정할 수 있다
+notification/domain/ReminderTest.java,단위/Adapter/아키텍처,30,30,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 리마인더를 생성하면 제목, 본문의 앞뒤 공백을 제거하고 반복 방식, 대상, 발송 시각을 저장한다; 삭제된 리마인더는 회차가 없다"
+notification/domain/TopicPushScheduleTest.java,단위/Adapter/아키텍처,11,11,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 하루의 시작, 중간, 마지막 분에 설정을 생성할 수 있다; KST 날짜가 바뀌면 전날 마지막 회차를 소급 실행하지 않는다"
+notification/infrastructure/infra/FcmDevicePushSenderTest.java,단위/Adapter/아키텍처,12,12,유지,"외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 실제 SDK 요청은 화면 이동 정보, Android TTL, APNs 절대 만료를 포함한다; 기한 직전 시작한 SDK 재시도는 기한이 지나도 수락 결과로 완료한다"
+notification/infrastructure/infra/NoticeDistributionConfigurationTest.java,설정 컨텍스트,2,2,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 공지 배포가 꺼져 있으면 스케줄러와 전용 스레드를 만들지 않는다; 공지 배포를 켜면 스케줄러와 공지 전용 단일 스레드를 만든다
+notification/infrastructure/infra/NotificationCleanupSchedulerTest.java,통합(DB/실제 구성),7,7,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 일반, 정지 회원의 알림은 읽음 여부와 무관하게 조회와 삭제에 같은 30일 경계를 적용한다; 완료된 발송 이력과 기기 결과 JSON도 보관 기간이 지나면 함께 삭제한다"
+notification/infrastructure/infra/NotificationConfigurationTest.java,설정 컨텍스트,2,2,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 공통 알림 설정은 메시지 생성기와 이벤트 리스너를 등록한다; 알림 발송을 끄면 공통 알림 Bean을 등록하지 않는다
+notification/infrastructure/infra/NotificationPropertiesTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 경로 없는 HTTPS 관리자 웹 Origin을 사용한다; 경로가 붙은 관리자 웹 주소를 거부한다
+notification/infrastructure/infra/NotificationPublicationMonitorTest.java,통합(DB/실제 구성),5,5,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 발행 대기가 없으면 건수와 나이가 0인 정상 관측을 남긴다; 발행 대기 관측은 종료 후 지연 없이 시작 기준 60초 간격으로 예약한다
+notification/infrastructure/infra/PushWorkerConfigurationTest.java,설정 컨텍스트,8,8,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — Worker가 꺼져 있으면 Firebase 키 없이도 앱 컨텍스트를 만들 수 있다; 컨텍스트 종료 단계에서 진행 중인 수신이 끝나도 다음 폴링을 시작하지 않는다
+notification/infrastructure/infra/ReminderConfigurationTest.java,설정 컨텍스트,2,2,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — 리마인더 발행이 꺼져 있으면 스케줄러와 전용 스레드를 만들지 않는다; 리마인더 발행을 켜면 스케줄러와 리마인더 전용 단일 스레드를 만든다
+notification/infrastructure/infra/SqsPushConfigurationTest.java,설정 컨텍스트,6,6,유지,"프로필/옵션에 따른 빈 등록과 설정 실패 확인 — Relay가 꺼져 있으면 AWS 자격증명이나 큐 없이 기동하고 스케줄러는 만들지 않는다; Relay, 주제 발행 대기 중에도 공용 작업이 실행되고 전용 스케줄러는 앱 종료 시 종료된다"
+notification/infrastructure/infra/SqsPushMessagePublisherTest.java,단위/Adapter/아키텍처,7,7,유지,"외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 실제 SDK 요청에는 사건, 회원, 알림, 대상, 기한만 담고 수락 ID를 반환한다; 직렬화 오류는 큐에 보내지 않고 영구 실패로 분류한다"
+notification/infrastructure/infra/SqsPushServiceTest.java,단위/Adapter/아키텍처,32,32,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 재수신마다 SQS 식별자와 횟수를 발송 로그에 연결하고 기존 로그 문맥을 복원한다; 해석할 수 없는 JSON은 발송하지 않고 영구 오류로 완료한다
+notification/infrastructure/infra/slack/SlackIncomingWebhookNotificationSenderTest.java,단위/Adapter/아키텍처,4,4,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — Block Kit JSON에 검수 내용과 정확한 링크를 담아 POST하고 2xx를 성공으로 반환한다; 그 밖의 통신 실패도 발송 실패로 반환한다
+notification/infrastructure/infra/slack/SlackNotificationConfigurationTest.java,설정 컨텍스트,2,2,유지,프로필/옵션에 따른 빈 등록과 설정 실패 확인 — Slack 설정은 redirect를 따르지 않는 HTTP 클라이언트와 발송기를 등록한다; 알림 발송을 끄면 Slack 관련 Bean을 등록하지 않는다
+notification/infrastructure/infra/slack/SlackNotificationPropertiesTest.java,단위/Adapter/아키텍처,5,4,정리 또는 보강,잘못된 Slack URI 두 입력을 보존하며 동일 예외 검증 파라미터화
+notification/infrastructure/persistence/NoticeRepositoryImplTest.java,PostgreSQL 슬라이스,4,4,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 배포 대상은 예약 시각이 지났거나 정각인 미배포 공지만 예약 시각 순으로 조회한다; 삭제된 공지는 배포 대상 조회와 배포 잠금 조회에서 제외한다
+notification/infrastructure/persistence/NotificationJpaRepositoryTest.java,PostgreSQL 슬라이스,2,2,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 삭제되지 않은 게시물의 본인 승인, 반려 알림을 발송 검증용으로 조회한다; 삭제, 누락 게시물과 다른 회원, 없는 알림은 발송 조회에서 제외한다"
+notification/infrastructure/persistence/NotificationMigrationTest.java,통합(DB/실제 구성),2,2,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 기존 승인, 반려 대상과 사유를 이관하면서 알림 ID, 사건, 읽음, 시각을 보존한다; AI 리뷰 알림 설정을 추가해도 기존 회원은 켜짐이고 기존 종류 알림 저장은 막히지 않는다"
+notification/infrastructure/persistence/NotificationRepositoryTest.java,PostgreSQL 슬라이스,9,9,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 오늘 주제에 처리 중, 승인 대기, 승인 게시물이 있으면 제외하고 반려, 삭제만 있으면 포함한다; AI 리뷰 알림 저장은 도메인이 만든 종류, 대상, 문구, 발행 상태를 그대로 저장한다"
+notification/infrastructure/persistence/PushDeliveryRepositoryImplTest.java,통합(DB/실제 구성),10,10,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 같은 사건, 회원으로 다시 생성해도 기존 기기 결과와 완료 상태를 보존한다; 발송 이력 생성 마이그레이션 하나로 최종 스키마를 만들고 기존 회원을 보존한다"
+notification/infrastructure/persistence/PushDeviceJpaRepositoryTest.java,PostgreSQL 슬라이스,5,5,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 같은 로그인에는 두 기기 행을 저장할 수 없다; 기기에는 회원과 로그인 연결이 모두 있어야 한다
+notification/infrastructure/persistence/PushDeviceMigrationTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 로그인 테이블 없이 기기 테이블을 생성하고 기존 RT 회전 기록과 수신 설정을 보존한다
+notification/infrastructure/persistence/TopicPushScheduleRepositoryImplTest.java,단위/Adapter/아키텍처,3,3,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 다른 제약조건 위반은 시각 중복으로 변환하지 않는다; PostgreSQL 원인이 아닌 무결성 오류는 원래 예외를 전달한다
+notification/service/DirectPushPublisherTest.java,단위/Adapter/아키텍처,6,6,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 회원마다 회차의 공통 값과 예정 시각부터 30분 뒤의 만료 시각을 담아 발행하고 수락을 센다; 회원이 없으면 발행하지 않고 모든 건수를 0으로 센다
+notification/service/NoticeDistributionServiceTest.java,통합(DB/실제 구성),7,7,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 예약 시각이 지난 공지를 탈퇴하지 않은 회원 전체의 알림함에 발행 대기로 배포한다; 두 실행이 동시에 같은 공지를 배포해도 회원당 알림은 하나만 생긴다
+notification/service/NotificationMessageFactoryTest.java,단위/Adapter/아키텍처,2,2,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 게시물 검수 알림은 관리자 웹의 해당 게시물 상세 주소를 만든다; 관리자 웹 주소의 마지막 슬래시는 제거한 뒤 상세 경로를 붙인다
+notification/service/NotificationRelayServiceTest.java,통합(DB/실제 구성),11,11,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 커밋된 발행 대기는 식별 정보만 전달하고 SQS 수락 상태를 저장한다; 발행 거절과 수락 불명을 구분하고 DB 재시도 상태와 식별자를 함께 기록한다
+notification/service/NotificationServiceTest.java,통합(DB/실제 구성),19,19,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 내 알림 목록에는 썸네일 URL을 포함하고 다른 회원의 알림은 제외한다; AI 리뷰 알림 상세는 원본 사진과 null 반려 사유를 돌려주고 다른 회원은 조회할 수 없다
+notification/service/NotificationSettingsConcurrencyTest.java,통합(DB/실제 구성),1,1,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 두 기기에서 서로 다른 설정을 수정하면 앞선 커밋을 기다리고 두 변경을 모두 보존한다
+notification/service/NotificationSettingsServiceTest.java,단위/Adapter/아키텍처,6,6,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 회원의 주제, 검수, AI 리뷰 푸시 설정을 그대로 반환한다; 탈퇴 회원의 수신 설정 수정은 거부하고 기존 값을 보존한다"
+notification/service/PostModerationPendingNotificationListenerTest.java,단위/Adapter/아키텍처,4,3,정리 또는 보강,어노테이션 반사 검사는 실제 PostModerationNotificationTransactionTest의 커밋/중복/롤백 검증으로 대체. 직접 호출 단위 테스트 이름은 실제 메시지 전달 역할로 정정
+notification/service/PushDeliveryLocksTest.java,단위/Adapter/아키텍처,3,3,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 같은 스레드의 중첩 진입을 거절하고 해제 후에는 다시 등록한다; 동시 획득과 해제, 재획득이 반복돼도 같은 키의 임계 구역에는 한 스레드만 진입한다"
+notification/service/PushDeliveryServiceTest.java,통합(DB/실제 구성),12,12,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 수락한 기기가 있어도 다른 기기의 재처리가 필요하면 미완료 이력을 유지한다; 완료된 이력은 기기 처리에 진입하지 않고 락을 해제한다
+notification/service/PushDeviceConcurrencyTest.java,통합(DB/실제 구성),3,3,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 토큰을 두 로그인이 동시에 등록해도 둘 다 처리되고 활성 연결은 하나만 남는다; 두 로그인이 서로의 토큰으로 동시에 바꾸어도 교착 없이 두 등록을 처리한다
+notification/service/PushDeviceLogoutTest.java,통합(DB/실제 구성),8,8,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 로그아웃한 로그인 기기의 토큰만 제거하고 다른 로그인, 회원의 기기는 유지한다; 기존 로그아웃 API는 액세스 토큰 없이 RT로 기기를 해제하고 빈 204를 반환한다"
+notification/service/PushDeviceLogoutTransactionTest.java,통합(DB/실제 구성),2,2,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 기기 행 삭제에 실패하면 RT 폐기도 함께 롤백한다; 기기 등록과 로그아웃이 겹쳐도 로그아웃이 커밋되면 활성 기기와 유효한 RT가 남지 않는다
+notification/service/PushDeviceRefreshRevocationTest.java,통합(DB/실제 구성),6,6,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 재사용, 비활동 만료, 절대 만료로 갱신이 401을 반환해도 해당 RT와 기기 해제는 커밋한다; 이미 폐기된 RT로 갱신을 반복해도 기기는 삭제된 상태를 유지한다"
+notification/service/PushDeviceServiceTest.java,통합(DB/실제 구성),12,12,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 살아 있는 로그인에 기기를 처음 등록하면 토큰과 등록 시각을 저장한다; 탈퇴한 회원은 기존 로그인으로 기기를 등록할 수 없다
+notification/service/PushDeviceWithdrawalTest.java,통합(DB/실제 구성),5,5,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 탈퇴하면 모든 로그인 기기의 토큰을 제거하고 다른 회원의 기기는 유지한다; 정지 회원이 탈퇴해도 연결된 모든 푸시 기기의 토큰을 제거한다
+notification/service/PushDeviceWithdrawalTransactionTest.java,통합(DB/실제 구성),2,2,유지,"경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 기기 행 삭제에 실패하면 회원, 소셜 연결, RT 폐기도 함께 롤백한다; 기존 연결을 옮기는 기기 등록과 탈퇴가 겹쳐도 두 로그인 기기와 RT가 모두 해제된다"
+notification/service/PushWorkerAiReviewTest.java,통합(DB/실제 구성),4,4,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — AI 리뷰 알림을 저장된 문구와 종류, 게시물 대상으로 현재 기기에 보낸다; 만료 직전의 저장된 알림은 현재 기기에 발송한다"
+notification/service/PushWorkerNoticeTest.java,통합(DB/실제 구성),9,9,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 배포된 공지 알림을 공지 제목, 본문으로 현재 기기에 보낸다; 배포 후 삭제된 공지의 알림은 보내지 않는다"
+notification/service/PushWorkerPersistenceTest.java,통합(DB/실제 구성),38,38,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 현재 등록 기기로 보내며 최초 SQS 상태 반영이 실패한 대기 알림도 처리한다; 중단 후 SENDING만 남으면 재시도하고 수락 기록이 남으면 재발송 없이 완료한다
+notification/service/PushWorkerReminderTest.java,통합(DB/실제 구성),9,9,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 전체 대상 리마인더는 리마인더의 제목, 본문으로 현재 기기에 보내고 알림함에 저장하지 않는다; 미참여자 대상은 오늘 주제의 참여 시간이 끝난 뒤에도 보낸다"
+notification/service/PushWorkerServiceTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 잘못된 주제와 리마인더 메시지는 DB와 발송을 시작하지 않고 무시한다; 메시지가 없으면 DB와 발송을 시작하지 않고 무시한다
+notification/service/PushWorkerTopicTest.java,통합(DB/실제 구성),13,13,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 오늘 주제에 제출하지 않은 회원에게 검수 설정과 관계없이 주제를 보내고 알림함에 저장하지 않는다; 주제의 영구 실패는 완료하고 무효 토큰일 때만 기기 행을 지운다
+notification/service/ReminderPushServiceTest.java,통합(DB/실제 구성),14,14,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 전체 대상은 정상이면서 주제 알림을 켠 회원에게만 회차 값으로 발행하고 집계를 남긴다; 삭제된 리마인더의 시도 기록을 지워, 같은 ID가 다시 나타나도 회차를 새로 판단한다"
+notification/service/TopicPushServiceTest.java,통합(DB/실제 구성),16,16,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 오늘 주제 참여 회원을 제외하고 검수 설정과 무관하게 사용자별 메시지를 직접 발행한다; 실행 중단 후 같은 인스턴스는 재발행하지 않고 재시작하면 같은 사건 ID로 다시 발행한다
+photo/domain/PhotoTest.java,단위/Adapter/아키텍처,6,6,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 원본 스토리지 키로 처리 전 사진을 생성한다; 이미 삭제된 사진을 다시 삭제해도 최초 삭제 시각을 유지한다
+photo/infrastructure/infra/CloudFrontUrlProviderTest.java,단위/Adapter/아키텍처,5,5,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 스토리지 키의 원본 경로를 제거하고 CloudFront URL을 반환한다; 스토리지 키가 비어 있으면 예외를 발생시킨다
+post/api/internal/v1/controller/PostImageProcessingCallbackControllerTest.java,웹 슬라이스,10,10,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 인증된 Lambda에 게시물 처리 결과용 presigned URL을 발급한다; 정규 형식이 아닌 uploadId는 400을 반환하고 인증까지 가지 않는다
+post/api/v1/controller/PostControllerTest.java,웹 슬라이스,47,46,정리 또는 보강,게시물 조회 ID 오류 두 입력을 그대로 보존하고 같은 HTTP 검증 본문 통합
+post/api/v1/controller/PostFeedAccessLogTest.java,웹 슬라이스,5,5,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 정상 피드 응답은 조회 조건만 접근 로그 한 줄에 남기고 게시물 ID는 제외한다; 조회 서비스 실패 뒤 다음 성공 요청에도 이전 요청의 메타데이터가 섞이지 않는다
+post/api/v1/docs/PostOpenApiTest.java,통합(DB/실제 구성),8,8,유지,"실제 Spring이 생성하는 OpenAPI의 경로/보안/스키마 계약 확인 — 피드, 상세 문서는 실제 작성자의 UUID를 제공하고 회원의 다른 정보는 추가하지 않는다; 연월 목록 문서는 입력 없이 숫자 연월 배열과 인증 계약을 제공한다"
+post/domain/PostImageUploadTest.java,단위/Adapter/아키텍처,15,14,정리 또는 보강,미지 거절 사유 테스트는 claim_unknownRejectionReason_throwsBusinessExceptionWithDefaultMessage가 동일 입력과 전체 메시지로 보호. null 사유는 별도 유지
+post/domain/PostTest.java,단위/Adapter/아키텍처,39,31,정리 또는 보강,"제목 상세 경계 8개는 PostTitleTest에 집중. Post 생성/수정 정규화 연결, null 적용, 거부와 기존 상태 유지 검증 보존 / 긴 공백 11자는 기존 blankTitle 입력에도 흡수하고, 수정 성공은 공백을 포함한 최대 길이 10자로 위임을 확인"
+post/domain/PostTitleTest.java,단위/Adapter/아키텍처,12,12,정리 또는 보강,Post에서 이동한 긴 Unicode 공백 입력을 from_blankTitle 파라미터에 보존 / 긴 Unicode 공백 입력은 원래 11개 그대로 유지
+post/infrastructure/infra/S3PostImageStorageTest.java,단위/Adapter/아키텍처,7,6,정리 또는 보강,S3 403/404의 같은 이미지 없음 처리 파라미터화. NoSuchKey/그 외 오류 전파 분기는 독립 유지
+post/infrastructure/infra/S3PostImageUploadIssuerTest.java,단위/Adapter/아키텍처,4,4,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 게시물 처리 결과의 원본과 썸네일 키에 덮어쓰기 방지 URL을 발급한다; 처리 결과 URL은 업로드에 필요한 헤더를 모두 서명한다
+post/infrastructure/persistence/AuthorPostRepositoryTest.java,PostgreSQL 슬라이스,3,3,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 제출 순서와 관계없이 주제 날짜 최신순으로 사진과 주제를 최대 20개 조회한다; 게시물과 연결 자원 중 하나라도 삭제되면 공개 사진에서 제외한다
+post/infrastructure/persistence/PostCalendarRepositoryTest.java,PostgreSQL 슬라이스,8,8,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 본인의 해당 월 승인 대기, 승인 게시물만 주제 날짜순으로 조회한다; 같은 달의 기록이 남아 있으면 유지하고 마지막 기록 삭제 시 그 달을 제외한다"
+post/infrastructure/persistence/PostRepositoryImplTest.java,단위/Adapter/아키텍처,1,1,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 알 수 없는 무결성 오류는 중복 요청으로 변환하지 않고 전파한다
+post/infrastructure/persistence/PostRepositoryTest.java,PostgreSQL 슬라이스,21,21,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 승인되고 삭제되지 않은 게시물을 관계와 함께 조회한다; 게시물 저장 실패 시 cascade로 저장한 사진도 함께 롤백한다
+post/service/AuthorPostQueryServiceTest.java,통합(DB/실제 구성),13,13,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 정상, 정지 작성자의 공개 사진을 실제 이미지 URL과 주제 정보로 반환한다; 사진 수와 무관하게 좋아요를 일괄 조회하고 빈 페이지는 좋아요 쿼리를 생략한다"
+post/service/PostCalendarServiceTest.java,단위/Adapter/아키텍처,6,6,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 월의 양 끝 날짜로 조회하고 승인 대기와 승인 게시물의 사진 및 상태를 반환한다; 미존재 또는 탈퇴로 조회할 수 없는 사용자의 연월 요청을 거절한다
+post/service/PostCommandServiceTest.java,단위/Adapter/아키텍처,9,9,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 발급할 업로드의 회원, 초기 상태, 만료와 저장 ID로 요청한 URL을 반환한다; 없는 업로드의 성공 또는 실패 콜백은 게시물을 변경하지 않는다"
+post/service/PostCreationServiceTest.java,통합(DB/실제 구성),18,18,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 발급한 업로드의 초기 상태와 만료를 DB에 저장하고 그 ID로 URL을 발급한다; claim 유효 시간이 지난 업로드로는 게시물을 생성할 수 없다
+post/service/PostDeletionServiceTest.java,통합(DB/실제 구성),7,7,정리 또는 보강,소유자/검증 중/거절 상태의 삭제 거부 3개는 DB 검증 그대로 유지하고 같은 두 행 조회/assertion만 이름이 명확한 기존 클래스 내부 헬퍼로 재사용
+post/service/PostImageProcessingServiceTest.java,통합(DB/실제 구성),10,10,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 완료 콜백은 업로드를 READY로 올리고 메타데이터를 기록한다; 게시물이 아직 없어도 완료 콜백은 업로드 상태만 바꾸고 끝난다
+post/service/PostImageUploadConcurrencyTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 같은 업로드로 동시에 게시물을 만들면 하나만 성공한다; 시간 초과 게시물 재시도와 완료 콜백이 겹쳐도 잠금 교착 없이 끝난다
+post/service/PostLikeCountQueryTest.java,통합(DB/실제 구성),9,9,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 모든 정렬의 목록은 집계 값을 읽고 내 좋아요 여부는 관계에서 확인한다; 관리자 상세는 집계 행의 실제 값이 0이면 정상적으로 0을 반환한다
+post/service/PostModerationNotificationTransactionTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — READY 업로드로 만든 게시물이 커밋되면 관리자 알림을 한 번 보낸다; 게시물 트랜잭션이 롤백되면 관리자 알림을 보내지 않는다
+post/service/PostModerationPendingLogTest.java,통합(DB/실제 구성),1,1,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 이미지 완료 콜백이 게시물을 PENDING으로 전환하면 검수 대기 로그를 한 건 남긴다
+post/service/PostProcessingPolicyTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 대기 시간을 넘기면 처리가 끝나지 않은 것으로 본다; 0 이하의 대기 시간은 설정할 수 없다
+post/service/PostQueryPersistenceTest.java,통합(DB/실제 구성),3,3,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 사인을 교체해도 피드, 상세의 작성자 ID는 유지하고 현재 사인만 바뀐다; 피드는 비로그인 상태 조회와 빈 페이지의 좋아요 쿼리를 생략한다"
+post/service/PostQueryServiceTest.java,단위/Adapter/아키텍처,16,16,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 특정 날짜의 공개 게시물을 최신순으로 조회한다; 모든 정렬의 로그인, 비로그인 피드는 사인 URL이 같아도 실제 작성자 ID를 구분한다"
+post/service/PostTodayStatusConsistencyTest.java,통합(DB/실제 구성),2,2,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 기존 게시물이 있을 때 사전 확인과 게시물 생성이 같은 답을 낸다; 기존 게시물이 없을 때 사전 확인과 게시물 생성이 같은 답을 낸다
+post/service/PostTodayStatusServiceTest.java,통합(DB/실제 구성),12,12,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 참여할 수 있는 주제에 재작성을 막는 게시물이 있으면 작성함으로 판정한다; 유효하지 않은 사용자의 조회는 인증 예외를 발생시킨다
+post/service/PostUpdateConcurrencyTest.java,통합(DB/실제 구성),4,4,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 제목 수정이 먼저 시작되면 검수는 수정 커밋을 기다린 뒤 승인한다; 서로 다른 제목 수정은 게시물 락 순서대로 처리되어 마지막 제목을 저장한다
+post/service/PostUpdateServiceTest.java,통합(DB/실제 구성),4,4,유지,"SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 작성자가 열린 주제의 검수 대기 게시물 제목을 수정한다; null, 빈 문자열, 공백 제목으로 수정하면 DB에 NULL로 저장한다"
+post/service/RandomSeedGeneratorTest.java,단위/Adapter/아키텍처,1,1,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 8자리 소문자 16진수 랜덤 시드를 생성한다
+topic/api/v1/controller/TopicControllerTest.java,웹 슬라이스,2,2,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 공개일로 주제를 조회한다; 날짜 형식이 올바르지 않으면 400을 반환한다
+topic/domain/ParticipationPeriodTest.java,단위/Adapter/아키텍처,7,7,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 참여 시작 전이면 공개 전 상태다; 참여 기간 시각은 필수다
+topic/domain/TopicTest.java,단위/Adapter/아키텍처,7,7,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 공개 전 제목과 날짜, 참여 기간으로 주제를 생성한다; 공개가 끝난 주제는 삭제할 수 없다"
+topic/infrastructure/persistence/TopicRepositoryImplTest.java,단위/Adapter/아키텍처,3,3,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 활성 주제 날짜 유니크 인덱스 위반만 날짜 중복 오류로 변환한다; 알 수 없는 무결성 오류는 날짜 중복 오류로 변환하지 않고 전파한다
+topic/infrastructure/persistence/TopicRepositoryTest.java,PostgreSQL 슬라이스,4,4,유지,직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 공개일로 주제를 조회한다; 실제 DB의 참여 기간 겹침 제약 위반을 관리자 안내 오류로 변환한다
+topic/service/TopicServiceTest.java,단위/Adapter/아키텍처,3,3,유지,Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 조회된 과거 주제의 정보와 종료 상태를 반환한다; 조회 결과가 없으면 주제를 찾을 수 없다는 예외를 반환한다
+user/api/internal/v1/controller/SignatureProcessingCallbackControllerTest.java,웹 슬라이스,7,7,유지,서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 인증된 Lambda에 사인 처리 결과용 presigned URL을 발급한다; timestamp 헤더가 없는 콜백은 401을 반환하고 상태를 변경하지 않는다
+user/api/v1/controller/UserControllerTest.java,웹 슬라이스,27,27,유지,"서비스를 대체하고 엔드포인트별 요청/응답 및 오류 변환 확인 — 작성자의 사진, 게시물 ID, 주제와 좋아요 정보를 응답한다; 사용할 수 없는 사인 이미지면 400을 반환한다"
+user/domain/SignatureImagePolicyTest.java,단위/Adapter/아키텍처,4,4,유지,Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 허용 형식이고 크기 제한 이내면 통과한다; 크기 제한을 넘으면 예외를 발생시킨다
+user/domain/UserPushPreferencesTest.java,단위/Adapter/아키텍처,3,3,유지,"Spring 없이 실제 값 객체와 엔티티의 규칙/상태 전환 확인 — 새 회원은 주제, 검수, AI 리뷰 푸시를 모두 수신하도록 설정된다; 탈퇴 회원은 푸시 수신 설정을 변경할 수 없다"
+user/domain/UserTest.java,단위/Adapter/아키텍처,28,27,정리 또는 보강,회원 탈퇴의 비식별화와 삭제 시각 판정 assertion을 같은 상태전환에 통합
+user/infrastructure/infra/S3SignatureImageStorageTest.java,단위/Adapter/아키텍처,9,9,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 업로드 ID로 원본과 썸네일의 결정적 스토리지 키를 만든다; 403과 404가 아닌 S3 오류는 전파한다
+user/infrastructure/infra/S3SignatureImageUploadIssuerTest.java,단위/Adapter/아키텍처,2,2,유지,외부 계약 구성/해석/오류 변환 또는 로그/입력 처리 확인 — 사인 처리 결과의 원본과 썸네일 키에 덮어쓰기 방지 URL을 발급한다; 개발 환경 사인 PNG 업로드 URL을 5분 동안 유효하게 발급한다
+user/infrastructure/persistence/UserRepositoryTest.java,PostgreSQL 슬라이스,3,3,유지,"직접 작성한 조회 조건 또는 DB 제약/매핑을 실제 PostgreSQL로 확인 — 동일한 이메일을 가진 여러 회원을 저장할 수 있다; 주제, 검수, AI 리뷰 수신 설정의 각 필드를 DB에 저장하고 다시 읽는다"
+user/service/SignatureProcessingPolicyTest.java,단위/Adapter/아키텍처,4,3,정리 또는 보강,직전/정각 false 경계를 한 파라미터 테스트로 통합. 직후 true 별도 유지
+user/service/UserPersistenceTest.java,통합(DB/실제 구성),34,34,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — 탈퇴하면 개인 식별 정보가 비식별화되고 탈퇴 시각이 기록된다; 차단된 Apple 회원이 탈퇴하면 소셜 계정은 남기고 Apple 인증 정보만 삭제한다
+user/service/UserServiceTest.java,단위/Adapter/아키텍처,3,3,유지,"Spring 없는 판단/협력 검증 또는 순수 정책 계산 확인 — 활성 회원의 사인 업로드는 새 ID로 발급한 URL과 유효 시간을 반환한다; 활성 회원이 없으면 사인 발급, 조회와 탈퇴를 부수 효과 없이 거부한다"
+user/service/UserWithdrawalServiceTest.java,통합(DB/실제 구성),7,7,유지,SQL 조회/여러 저장/이벤트 또는 실제 구성의 연결 결과 확인 — Apple 회원이 탈퇴하면 Apple에 RT를 폐기하고 인증 정보를 삭제한다; 이미 탈퇴한 회원은 폐기 요청 없이 예외가 발생한다
+user/service/UserWithdrawalTransactionTest.java,통합(DB/실제 구성),1,1,유지,경쟁/잠금/실제 커밋과 롤백의 연결 검증이므로 실제 DB 유지 — 공개 탈퇴 진입점은 내부 완료 메서드의 트랜잭션으로 회원을 탈퇴 처리한다
+aireview/service/AiReviewFixture.java,준비 및 격리 도구,,,유지,"여러 AI 리뷰 테스트가 재사용하는 유효한 PostgreSQL 행, 상태, 정리 SQL을 준비한다. 개별 시나리오 입력은 호출부에 둔다."
+like/support/PostLikeCountFixtures.java,준비 및 격리 도구,,,유지,직접 SQL로 준비한 데이터의 좋아요 집계만 맞춘다. 서비스 실행 뒤 결과를 보정하지 않는다.
+notification/support/PushSessionFixtures.java,준비 및 격리 도구,,,유지,여러 Worker 테스트가 사용하는 로그인과 RT 준비 SQL을 재사용한다.
+post/support/AuthorPostFixtures.java,준비 및 격리 도구,,,유지,"작성자 조회의 사용자, 주제, 사진, 게시물 SQL 준비를 재사용한다."
+support/DatabaseCleaner.java,준비 및 격리 도구,,,유지,실제 커밋과 별도 스레드 테스트의 PostgreSQL 정리를 TRUNCATE로 통일한다.
+support/IntegrationTestSupport.java,준비 및 격리 도구,,,유지,"전체 Spring 구성과 외부 알림, AI 연동 Mock만 공유한다. 트랜잭션을 전역으로 감싸지 않는다."
+support/PostgresRepositoryTest.java,준비 및 격리 도구,,,유지,28개 슬라이스가 PostgreSQL과 저장 계층 Context를 재사용한다. Service나 외부 연동을 로딩하지 않는다.
+support/WithMockLoginUser.java,준비 및 격리 도구,,,유지,웹 슬라이스에서 인증 이후 HTTP 계약을 검증하기 위한 인증 주체를 지정한다. 실제 보안 검증과 구분한다.
+support/WithMockLoginUserSecurityContextFactory.java,준비 및 격리 도구,,,유지,회원 scope와 선택적 로그인 ID를 가진 테스트 JWT 주체를 만든다. 서명 검증은 실제 보안 테스트가 담당한다.
+user/domain/UserFixture.java,준비 및 격리 도구,,,정리 또는 보강,DB 없이 실제 회원 객체를 준비한다. 식별자만 reflection으로 지정하며 정지는 실제 ban을 사용한다.

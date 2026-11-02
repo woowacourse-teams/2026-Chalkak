@@ -1,13 +1,13 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.auth.domain.token.UserRefreshToken;
-import com.chalkak.backend.auth.infrastructure.persistence.token.UserRefreshTokenRepositoryImpl;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.notification.domain.FcmToken;
-import com.chalkak.backend.user.infrastructure.persistence.UserRepositoryImpl;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -23,13 +23,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({UserRepositoryImpl.class, UserRefreshTokenRepositoryImpl.class})
+@PostgresRepositoryTest
 class PushDeviceJpaRepositoryTest {
 
     @Autowired

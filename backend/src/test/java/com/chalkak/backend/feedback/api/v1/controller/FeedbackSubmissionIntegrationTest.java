@@ -80,7 +80,9 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.createdAt").isNotEmpty());
 
         Map<String, Object> stored = jdbcTemplate.queryForMap(
-                "SELECT content FROM feedbacks WHERE user_id = ?", userId);
+                "SELECT id, created_at, content FROM feedbacks WHERE user_id = ?", userId);
+        assertThat(stored.get("id")).isNotNull();
+        assertThat(stored.get("created_at")).isNotNull();
         assertThat(stored.get("content")).isEqualTo("사진 업로드가 느려요.");
     }
 

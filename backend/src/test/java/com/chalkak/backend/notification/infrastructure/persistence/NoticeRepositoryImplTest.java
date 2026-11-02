@@ -1,5 +1,7 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.repository.DistributableNotice;
@@ -13,13 +15,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(NoticeRepositoryImpl.class)
+@PostgresRepositoryTest
 class NoticeRepositoryImplTest {
 
     private static final Instant SCHEDULED_AT = Instant.parse("2026-10-13T00:00:00Z");

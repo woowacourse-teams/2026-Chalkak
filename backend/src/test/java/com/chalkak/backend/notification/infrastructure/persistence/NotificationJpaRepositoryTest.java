@@ -1,9 +1,10 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.domain.Notification;
-import com.chalkak.backend.user.infrastructure.persistence.UserRepositoryImpl;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -16,13 +17,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(UserRepositoryImpl.class)
+@PostgresRepositoryTest
 class NotificationJpaRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-10-07T00:00:00Z");
 

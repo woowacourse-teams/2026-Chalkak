@@ -15,7 +15,6 @@ import com.chalkak.backend.appversion.repository.AppVersionRepository;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -28,8 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class AppVersionServiceTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("019a0000-0000-7000-8000-000000000848");
-    private static final String ANDROID_URL = "https://play.google.com/store/apps/details?id=com.example.chalkak";
-
     @Mock
     private AppVersionRepository repository;
 
@@ -83,36 +80,6 @@ class AppVersionServiceTest {
                 null
         ));
         then(repository).should(never()).saveAndFlush(any(AppVersion.class));
-    }
-
-    @Test
-    @DisplayName("조회 결과가 바뀌면 이전 설정을 재사용하지 않고 최신 설정을 반환한다")
-    void getAppVersion_changedSettings_returnsCurrentSettings() {
-        // Given
-        AppVersion original = setting(
-                AppPlatform.ANDROID,
-                "1.2.0",
-                ANDROID_URL
-        );
-        AppVersion updated = setting(
-                AppPlatform.ANDROID,
-                "1.3.0",
-                ANDROID_URL + "&hl=ko"
-        );
-        given(repository.findByPlatform(AppPlatform.ANDROID))
-                .willReturn(Optional.of(original))
-                .willReturn(Optional.of(updated));
-        service.getAppVersion(AppPlatform.ANDROID);
-
-        // When
-        AppVersionResult result = service.getAppVersion(AppPlatform.ANDROID);
-
-        // Then
-        assertThat(result).isEqualTo(new AppVersionResult(
-                AppPlatform.ANDROID,
-                "1.3.0",
-                ANDROID_URL + "&hl=ko"
-        ));
     }
 
     private AppVersion setting(

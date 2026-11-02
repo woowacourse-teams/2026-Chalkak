@@ -230,24 +230,7 @@ class AdminPostControllerTest {
     @CsvSource({
             "page, 0",
             "pageSize, 0",
-            "pageSize, 101"
-    })
-    @DisplayName("관리자 게시물 페이지 조건이 범위를 벗어나면 400을 반환한다")
-    void getPosts_invalidPagination_returnsBadRequest(
-            String parameterName,
-            String parameterValue
-    ) throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/posts")
-                .queryParam(parameterName, parameterValue))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-
-        then(adminPostQueryService).shouldHaveNoInteractions();
-    }
-
-    @ParameterizedTest
-    @CsvSource({
+            "pageSize, 101",
             "status, UNKNOWN",
             "topicId, invalid-uuid",
             "topicDate, 2026-13-40",
@@ -256,11 +239,12 @@ class AdminPostControllerTest {
             "createdAtTo, invalid-time",
             "sort, unknownSort"
     })
-    @DisplayName("관리자 게시물 필터 형식이 잘못되면 400을 반환한다")
-    void getPosts_invalidFilterFormat_returnsBadRequest(
+    @DisplayName("페이지나 필터가 올바르지 않으면 400을 반환하고 서비스를 호출하지 않는다")
+    void getPosts_invalidQuery_returnsBadRequest(
             String parameterName,
             String parameterValue
     ) throws Exception {
+        // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
                 .queryParam(parameterName, parameterValue))
                 .andExpect(status().isBadRequest())
@@ -500,10 +484,13 @@ class AdminPostControllerTest {
             "{\"status\":\"REJECTED\"}",
             "{\"status\":\"REJECTED\",\"rejectionReason\":null}",
             "{\"status\":\"REJECTED\",\"rejectionReason\":\"\"}",
-            "{\"status\":\"REJECTED\",\"rejectionReason\":\"   \"}"
+            "{\"status\":\"REJECTED\",\"rejectionReason\":\"   \"}",
+            "{}",
+            "{\"status\":null}",
+            "{\"status\":\"UNKNOWN\"}"
     })
-    @DisplayName("거절 사유가 누락되거나 비어 있으면 400을 반환한다")
-    void moderatePost_rejectedWithoutReason_returnsBadRequest(String requestBody) throws Exception {
+    @DisplayName("검수 상태나 거절 사유가 올바르지 않으면 400을 반환한다")
+    void moderatePost_invalidRequest_returnsBadRequest(String requestBody) throws Exception {
         // When & Then
         mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -586,24 +573,6 @@ class AdminPostControllerTest {
                           "rejectionReason": "%s"
                         }
                         """.formatted(rejectionReason)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-
-        then(adminPostCommandService).shouldHaveNoInteractions();
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "{}",
-            "{\"status\":null}",
-            "{\"status\":\"UNKNOWN\"}"
-    })
-    @DisplayName("검수 상태가 누락되거나 올바르지 않으면 400을 반환한다")
-    void moderatePost_invalidStatus_returnsBadRequest(String requestBody) throws Exception {
-        // When & Then
-        mockMvc.perform(put("/api/v1/admin/posts/{postId}/moderation", POST_ID)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 

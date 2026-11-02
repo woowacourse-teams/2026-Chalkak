@@ -1,5 +1,7 @@
 package com.chalkak.backend.admin.infrastructure.persistence.aireview;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.repository.AdminPage;
@@ -11,7 +13,6 @@ import com.chalkak.backend.aireview.domain.AiReview.Status;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostRepository;
-import com.chalkak.backend.post.infrastructure.persistence.PostRepositoryImpl;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
@@ -27,13 +28,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({AdminAiReviewQueryRepositoryImpl.class, PostRepositoryImpl.class})
+@PostgresRepositoryTest
 class AdminAiReviewQueryRepositoryTest {
 
     private static final UUID ACTIVE_TOPIC_ID = UUID

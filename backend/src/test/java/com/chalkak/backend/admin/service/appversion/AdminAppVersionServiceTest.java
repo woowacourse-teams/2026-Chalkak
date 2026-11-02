@@ -78,6 +78,9 @@ class AdminAppVersionServiceTest extends IntegrationTestSupport {
         );
         em.flush();
         em.clear();
+        assertThat(publicService.getAppVersion(AppPlatform.ANDROID).minimumSupportedVersion())
+                .isEqualTo("2.0.0");
+        assertThat(publicService.getAppVersion(AppPlatform.ANDROID).storeUrl()).isEqualTo(URL);
         var lowered = save(
                 created.revision(),
                 "1.10.0",

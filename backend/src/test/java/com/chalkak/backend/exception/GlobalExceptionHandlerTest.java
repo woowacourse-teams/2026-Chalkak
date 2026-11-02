@@ -37,16 +37,18 @@ class GlobalExceptionHandlerTest {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("필수 요청 필드 검증 실패는 메시지와 업무 오류 400으로 반환한다")
     void dtoValidationFailure() throws Exception {
         mockMvc.perform(post("/test/requests")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\",\"type\":\"POST\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\",\"type\":\"POST\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("이름은 비어 있을 수 없습니다."));
     }
 
     @Test
+    @DisplayName("조회 파라미터 형식 오류는 필드명을 포함한 400으로 반환한다")
     void typeMismatchFailureKeepsFieldName() throws Exception {
         mockMvc.perform(get("/test/count").queryParam("count", "한글"))
                 .andExpect(status().isBadRequest())
@@ -55,25 +57,28 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("알 수 없는 JSON enum은 공통 본문 오류 400으로 반환한다")
     void invalidJsonValue() throws Exception {
         mockMvc.perform(post("/test/requests")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"찰캌\",\"type\":\"POSST\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"찰캌\",\"type\":\"POSST\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("JSON 형식이 올바르지 않거나 요청 본문이 비어 있습니다."));
     }
 
     @Test
+    @DisplayName("빈 요청 본문은 공통 본문 오류 400으로 반환한다")
     void emptyRequestBody() throws Exception {
         mockMvc.perform(post("/test/requests")
-                        .contentType(MediaType.APPLICATION_JSON))
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("JSON 형식이 올바르지 않거나 요청 본문이 비어 있습니다."));
     }
 
     @Test
+    @DisplayName("메서드 파라미터 제약 위반은 검증 메시지와 400으로 반환한다")
     void methodParameterValidationFailure() throws Exception {
         mockMvc.perform(get("/test/count").queryParam("count", "0"))
                 .andExpect(status().isBadRequest())
@@ -82,6 +87,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("존재하지 않는 API는 경로 안내와 업무 오류 404로 반환한다")
     void apiNotFound() throws Exception {
         mockMvc.perform(get("/api/v1/not-found"))
                 .andExpect(status().isNotFound())
@@ -90,6 +96,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("업무 예외는 지정한 메시지와 400으로 반환한다")
     void businessException() throws Exception {
         mockMvc.perform(get("/test/business-error"))
                 .andExpect(status().isBadRequest())
@@ -98,6 +105,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("대상 없음 예외는 지정한 메시지와 404로 반환한다")
     void notFoundException() throws Exception {
         mockMvc.perform(get("/test/not-found-error"))
                 .andExpect(status().isNotFound())
@@ -106,6 +114,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("접근 거부 예외는 지정한 메시지와 403으로 반환한다")
     void forbiddenException() throws Exception {
         mockMvc.perform(get("/test/forbidden-error"))
                 .andExpect(status().isForbidden())
@@ -114,6 +123,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("지원하지 않는 HTTP 메서드는 405로 반환한다")
     void unsupportedHttpMethod() throws Exception {
         mockMvc.perform(put("/test/business-error"))
                 .andExpect(status().isMethodNotAllowed())
@@ -122,16 +132,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("지원하지 않는 본문 형식은 415로 반환한다")
     void unsupportedMediaType() throws Exception {
         mockMvc.perform(post("/test/requests")
-                        .contentType(MediaType.TEXT_PLAIN)
-                        .content("이름"))
+                .contentType(MediaType.TEXT_PLAIN)
+                .content("이름"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("지원하지 않는 요청 방식이거나 형식입니다."));
     }
 
     @Test
+    @DisplayName("예상하지 못한 예외는 내부 내용을 숨기고 500으로 반환한다")
     void unexpectedException() throws Exception {
         mockMvc.perform(get("/test/unexpected-error"))
                 .andExpect(status().isInternalServerError())
@@ -150,6 +162,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("Spring 서버 오류도 내부 내용을 숨기고 원래 상태 503으로 반환한다")
     void serverSideStandardException() throws Exception {
         mockMvc.perform(get("/test/server-error-response"))
                 .andExpect(status().isServiceUnavailable())

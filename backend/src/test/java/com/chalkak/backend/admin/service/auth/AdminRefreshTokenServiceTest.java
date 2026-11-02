@@ -34,6 +34,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
 
+    private static final String USERNAME = "auth-operator";
+    private static final String RAW_PASSWORD = "test-password";
+
+    @Autowired
+    private AdminAuthenticationService service;
+
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");
     private static final String TOKEN_HASH_PATTERN = "^[0-9a-f]{64}$";
     private static final String PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
@@ -341,5 +350,41 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
             Instant expiresAt,
             Instant absoluteExpiresAt
     ) {
+    }
+    @Test
+    @DisplayName("실제 계정 로그인은 관리자 JWT와 해시만 저장한 리프레시 토큰 계보를 만든다")
+    void login_validCredentials_issuesJwtAndPersistsHashedRefreshToken() {
+        // Given
+        Admin admin = persistAdmin(RAW_PASSWORD);
+
+        // When
+        AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
+        Jwt jwt = accessTokenProvider.jwtDecoder().decode(result.accessToken().value());
+
+        // Then
+        assertThat(result.adminId()).isEqualTo(admin.getId());
+        assertThat(result.username()).isEqualTo(USERNAME);
+        assertThat(jwt.getSubject()).isEqualTo(admin.getId().toString());
+        assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
+        entityManager.flush();
+        String storedTokenHash = jdbcTemplate.queryForObject(
+                """
+                        SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
+                        """,
+                String.class,
+                admin.getId()
+        );
+        assertThat(result.refreshToken().value()).isNotBlank();
+        assertThat(result.refreshToken().expiresIn()).isEqualTo(Duration.ofDays(30));
+        assertThat(storedTokenHash).isNotEqualTo(result.refreshToken().value());
+        assertThat(storedTokenHash).matches("^[0-9a-f]{64}$");
+    }
+
+    private Admin persistAdmin(String password) {
+        Admin admin = adminRepository
+                .save(Admin.create(USERNAME, passwordEncoder.encode(password)));
+        entityManager.flush();
+        entityManager.clear();
+        return admin;
     }
 }

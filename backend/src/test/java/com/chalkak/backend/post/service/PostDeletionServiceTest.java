@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
-import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -180,15 +179,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
-                SELECT post.deleted_at AS post_deleted_at,
-                       photo.deleted_at AS photo_deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, POST_ID);
-        assertThat(deletionState.get("post_deleted_at")).isNull();
-        assertThat(deletionState.get("photo_deleted_at")).isNull();
+        assertPostAndPhotoNotDeleted();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
                 Integer.class,
@@ -215,15 +206,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception).hasMessage("이미지 처리 중인 게시물은 삭제할 수 없습니다.");
-        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
-                SELECT post.deleted_at AS post_deleted_at,
-                       photo.deleted_at AS photo_deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, POST_ID);
-        assertThat(deletionState.get("post_deleted_at")).isNull();
-        assertThat(deletionState.get("photo_deleted_at")).isNull();
+        assertPostAndPhotoNotDeleted();
     }
 
     @Test
@@ -246,15 +229,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception).hasMessage("검수 거절된 게시물은 삭제할 수 없습니다.");
-        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
-                SELECT post.deleted_at AS post_deleted_at,
-                       photo.deleted_at AS photo_deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, POST_ID);
-        assertThat(deletionState.get("post_deleted_at")).isNull();
-        assertThat(deletionState.get("photo_deleted_at")).isNull();
+        assertPostAndPhotoNotDeleted();
     }
 
     @Test
@@ -329,20 +304,6 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 TOPIC_ID
         )).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 게시물은 삭제할 수 없다")
-    void deletePost_unknownPost_throwsNotFoundException() {
-        // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
-                () -> postCommandService.deletePost(AUTHOR_ID, UNKNOWN_POST_ID)
-        );
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-        assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
     }
 
     private void insertAuthor() {
@@ -452,4 +413,16 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 WHERE post.id = ?
                 """, POST_ID);
     }
+    private void assertPostAndPhotoNotDeleted() {
+        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
+                SELECT post.deleted_at AS post_deleted_at,
+                       photo.deleted_at AS photo_deleted_at
+                FROM posts post
+                JOIN photos photo ON photo.id = post.photo_id
+                WHERE post.id = ?
+                """, POST_ID);
+        assertThat(deletionState.get("post_deleted_at")).isNull();
+        assertThat(deletionState.get("photo_deleted_at")).isNull();
+    }
+
 }

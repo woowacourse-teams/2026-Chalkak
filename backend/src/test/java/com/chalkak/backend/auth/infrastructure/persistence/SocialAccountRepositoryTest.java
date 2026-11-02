@@ -1,13 +1,13 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
+import com.chalkak.backend.support.PostgresRepositoryTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.infrastructure.persistence.identity.SocialAccountRepositoryImpl;
-import com.chalkak.backend.user.infrastructure.persistence.UserRepositoryImpl;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -19,13 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({SocialAccountRepositoryImpl.class, UserRepositoryImpl.class})
+@PostgresRepositoryTest
 class SocialAccountRepositoryTest {
 
     private static final String GOOGLE_SUBJECT_HMAC = "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
@@ -41,7 +36,7 @@ class SocialAccountRepositoryTest {
     private EntityManager entityManager;
 
     @Test
-    @DisplayName("provider와 subject HMAC으로 소셜 계정과 회원을 함께 조회한다")
+    @DisplayName("provider와 subject가 모두 맞는 계정만 회원과 함께 조회한다")
     void findByProviderAndSubjectHmac_existingAccount_loadsUser() {
         // Given
         User user = userRepository.save(createUser());
@@ -64,6 +59,10 @@ class SocialAccountRepositoryTest {
         assertThat(socialAccount.getSubjectHmac()).isEqualTo(GOOGLE_SUBJECT_HMAC);
         assertThat(Persistence.getPersistenceUtil().isLoaded(socialAccount.getUser()))
                 .isTrue();
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.KAKAO, GOOGLE_SUBJECT_HMAC)).isEmpty();
+        assertThat(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.GOOGLE, KAKAO_SUBJECT_HMAC)).isEmpty();
     }
 
     @Test
