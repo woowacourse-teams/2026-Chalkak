@@ -146,18 +146,22 @@ public class PostCommandService {
     public PostUpdateResult updatePost(
             UUID authorId,
             UUID postId,
-            String title
+            String title,
+            String description
     ) {
         validateUpdatableUser(authorId);
         Post post = getActivePostForUpdate(postId);
-        post.updateTitle(
+        post.updateTitleAndDescription(
                 authorId,
                 title,
+                description,
                 Instant.now()
         );
         return new PostUpdateResult(
                 post.getId(),
-                post.getTitle());
+                post.getTitle(),
+                post.getDescription()
+        );
     }
 
     /**

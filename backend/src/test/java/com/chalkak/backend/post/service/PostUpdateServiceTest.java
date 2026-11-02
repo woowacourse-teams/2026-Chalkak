@@ -53,7 +53,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                "  수정 제목  "
+                "  수정 제목  ",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -88,7 +89,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                "승인 제목"
+                "승인 제목",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -112,7 +114,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                "  기존 제목  "
+                "  기존 제목  ",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -131,7 +134,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                title
+                title,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -148,6 +152,58 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("제목과 설명을 수정하면 다시 조회해도 새 값이 저장되어 있다")
+    void updatePost_titleAndDescription_persistsBoth() {
+        // When
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "새 제목",
+                "  새 설명  "
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.description()).isEqualTo("새 설명");
+        Map<String, Object> updated = jdbcTemplate.queryForMap("""
+                SELECT title, description
+                FROM posts
+                WHERE id = ?
+                """, POST_ID);
+        assertThat(updated.get("title")).isEqualTo("새 제목");
+        assertThat(updated.get("description")).isEqualTo("새 설명");
+    }
+
+    @Test
+    @DisplayName("설명이 있던 게시물을 설명 없이 수정하면 DB에서 설명이 NULL이 된다")
+    void updatePost_nullDescription_clearsStoredDescription() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET description = '기존 설명' WHERE id = ?",
+                POST_ID);
+
+        // When
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "기존 제목",
+                null
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.description()).isNull();
+        Map<String, Object> updated = jdbcTemplate.queryForMap("""
+                SELECT description
+                FROM posts
+                WHERE id = ?
+                """, POST_ID);
+        assertThat(updated.get("description")).isNull();
+    }
+
+    @Test
     @DisplayName("삭제된 게시물은 제목을 수정할 수 없다")
     void updatePost_deletedPost_throwsNotFoundException() {
         // Given
@@ -161,7 +217,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 () -> postCommandService.updatePost(
                         AUTHOR_ID,
                         POST_ID,
-                        "수정 제목"
+                        "수정 제목",
+                        null
                 ));
 
         // Then
@@ -183,7 +240,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 () -> postCommandService.updatePost(
                         AUTHOR_ID,
                         POST_ID,
-                        "수정 제목"
+                        "수정 제목",
+                        null
                 ));
 
         // Then

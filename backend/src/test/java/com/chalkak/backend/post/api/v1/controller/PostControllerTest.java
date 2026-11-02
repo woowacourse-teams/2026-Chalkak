@@ -557,11 +557,14 @@ class PostControllerTest {
         given(postCommandService.updatePost(
                 USER_ID,
                 POST_ID,
-                "수정한 제목"
+                "수정한 제목",
+                null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
-                        "수정한 제목"));
+                        "수정한 제목",
+                        null
+                ));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
@@ -579,7 +582,8 @@ class PostControllerTest {
         then(postCommandService).should().updatePost(
                 USER_ID,
                 POST_ID,
-                "수정한 제목"
+                "수정한 제목",
+                null
         );
     }
 
@@ -591,11 +595,14 @@ class PostControllerTest {
         given(postCommandService.updatePost(
                 USER_ID,
                 POST_ID,
+                null,
                 null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
-                        null));
+                        null,
+                        null
+                ));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
@@ -613,8 +620,95 @@ class PostControllerTest {
         then(postCommandService).should().updatePost(
                 USER_ID,
                 POST_ID,
+                null,
                 null
         );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물 수정 응답에 설명을 포함한다")
+    void updatePost_withDescription_returnsDescription() throws Exception {
+        // Given
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                "수정한 설명"
+        ))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목",
+                        "수정한 설명"
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "description": "수정한 설명"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("수정한 설명"));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("설명 필드가 누락되어도 200을 반환하고 설명 없음으로 서비스에 전달한다")
+    void updatePost_missingDescription_passesNullDescription() throws Exception {
+        // Given
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                null
+        ))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목",
+                        null
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value(nullValue()));
+
+        then(postCommandService).should().updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                null
+        );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("앞뒤 공백을 제거한 설명이 300자를 초과하면 400을 반환한다")
+    void updatePost_tooLongNormalizedDescription_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "description": "%s"
+                        }
+                        """.formatted("가".repeat(301))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("설명은 300자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
     }
 
     @Test

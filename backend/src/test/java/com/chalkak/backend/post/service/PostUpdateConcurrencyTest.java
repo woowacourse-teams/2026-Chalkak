@@ -88,7 +88,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
             postCommandService.updatePost(
                     AUTHOR_ID,
                     POST_ID,
-                    "수정 제목"
+                    "수정 제목",
+                    null
             );
             return null;
         }));
@@ -157,7 +158,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                 postCommandService.updatePost(
                         AUTHOR_ID,
                         POST_ID,
-                        "수정 제목"
+                        "수정 제목",
+                        null
                 );
                 return "SUCCESS";
             } catch (BaseException exception) {
@@ -218,7 +220,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                 postCommandService.updatePost(
                         AUTHOR_ID,
                         POST_ID,
-                        "수정 제목"
+                        "수정 제목",
+                        null
                 );
                 return "SUCCESS";
             } catch (BaseException exception) {
@@ -269,7 +272,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
             postCommandService.updatePost(
                     AUTHOR_ID,
                     POST_ID,
-                    "첫 번째 제목"
+                    "첫 번째 제목",
+                    null
             );
             return null;
         }));
@@ -278,7 +282,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
             postCommandService.updatePost(
                     AUTHOR_ID,
                     POST_ID,
-                    "두 번째 제목"
+                    "두 번째 제목",
+                    null
             );
             return null;
         }));

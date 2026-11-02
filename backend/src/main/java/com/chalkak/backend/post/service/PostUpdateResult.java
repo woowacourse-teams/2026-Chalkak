@@ -4,5 +4,7 @@ import java.util.UUID;
 
 public record PostUpdateResult(
         UUID postId,
-        String title) {
+        String title,
+        String description
+) {
 }

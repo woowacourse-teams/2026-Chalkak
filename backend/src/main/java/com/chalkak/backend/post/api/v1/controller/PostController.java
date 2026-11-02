@@ -101,7 +101,8 @@ public class PostController implements PostApiDocs {
         PostUpdateResult result = postCommandService.updatePost(
                 loginUser.userId(),
                 parsedPostId,
-                request.title()
+                request.title(),
+                request.description()
         );
 
         return ResponseEntity.ok(PostUpdateResponse.from(result));

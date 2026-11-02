@@ -163,15 +163,20 @@ public class Post {
         this.moderatedAt = null;
     }
 
-    public void updateTitle(
+    /**
+     * 제목과 설명을 함께 교체한다. 설명이 {@code null}이거나 공백이면 설명을 삭제한다.
+     */
+    public void updateTitleAndDescription(
             UUID authorId,
             String title,
+            String description,
             Instant now
     ) {
         validateAuthor(authorId);
-        validateTitleUpdateStatus();
-        validateTitleUpdatePeriod(now);
+        validateUpdateStatus();
+        validateUpdatePeriod(now);
         this.title = PostTitle.from(title);
+        this.description = PostDescription.from(description);
     }
 
     /**
@@ -224,7 +229,7 @@ public class Post {
         }
     }
 
-    private void validateTitleUpdateStatus() {
+    private void validateUpdateStatus() {
         if (moderationStatus == ModerationStatus.PENDING
                 || moderationStatus == ModerationStatus.APPROVED) {
             return;
@@ -234,7 +239,7 @@ public class Post {
                 "현재 상태의 게시물은 수정할 수 없습니다.");
     }
 
-    private void validateTitleUpdatePeriod(Instant now) {
+    private void validateUpdatePeriod(Instant now) {
         if (topic.phaseAt(now) == TopicPhase.OPEN) {
             return;
         }

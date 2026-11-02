@@ -235,6 +235,12 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.PostUpdateResponse"
                         + ".properties.title.type")
                         .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostUpdateRequest"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostUpdateResponse"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.PostUpdateResponse"
                         + ".properties.moderationStatus").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].put.responses['200']")
