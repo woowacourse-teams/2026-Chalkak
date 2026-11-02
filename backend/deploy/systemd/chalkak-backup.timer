@@ -1,8 +1,8 @@
 [Unit]
-Description=Chalkak backup at midnight Korea time
+Description=Chalkak backup at 02:00 Korea time
 
 [Timer]
-OnCalendar=*-*-* 00:00:00 Asia/Seoul
+OnCalendar=*-*-* 02:00:00 Asia/Seoul
 AccuracySec=1s
 RandomizedDelaySec=0
 Persistent=true

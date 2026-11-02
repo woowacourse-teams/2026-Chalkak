@@ -8,15 +8,40 @@ DB 덤프에는 실제 사진 파일이 포함되지 않는다. `image-backup.sh
 
 - #842: 수동 DB 백업 생성·전송·검증, 보관본의 격리 PostgreSQL 복원과 합성 데이터 시험.
 - #843: 게시글·사인 이미지 백업·내용 검증과 별도 로컬 위치의 수동 복구·검증.
-- #844: 실제 팀 S3 권한, 운영 보관본 복구 검증, 매일 자정(Asia/Seoul) 예약 실행 적용.
+- #844: 실제 팀 S3 권한, 운영 보관본 복구 검증, 매일 새벽 2시(Asia/Seoul) 예약 실행 적용.
 - DB 파일은 최소 7일 보존 목표다. 현재 자동 삭제는 없으므로 실제로는 더 오래 쌓인다.
 - 아직 이 문서와 스크립트만으로 자동 백업이나 운영 복구가 검증된 것은 아니다.
+
+## 백업 시각과 날짜별 복구 정책
+
+자정 주제 공개 직후의 업로드와 백업 부하가 겹치지 않도록 매일 한국 시간 02:00에 백업을 시작한다.
+DB 전체 덤프와 운영 게시글·사인 이미지 네 경로를 백업하며, 전날 사진만 골라 백업하지 않는다.
+따라서 00:00~02:00에 등록된 다음 날 데이터도 포함될 수 있다. DB 덤프와 이미지 조회·복사는
+순차 실행되므로 전체 백업이 정확히 02:00 한 순간의 상태를 담는 것도 아니다.
+
+장애 복구 시에는 사용할 보관본과 마지막으로 복구할 주제 날짜를 사람이 결정한다. 예를 들어
+11월 3일 02:00 보관본으로 11월 2일까지 복구하기로 했다면, 그 보관본에 들어 있는
+11월 3일 주제의 게시글은 관련 데이터·이미지와 함께 운영 반영 대상에서 제외한다.
+게시글의 날짜는 생성·승인 시각 대신 연결된 주제의 날짜를 기준으로 한다(POST-009, TOPIC-002).
+사인 이미지는 복구 대상 DB의 참조 관계에 맞춰 선택한다. 백업 저장소의 원본을 삭제하지 않는다.
+
+**날짜별 선별 복구는 아직 구현되지 않았다.** 현재 `db-restore.sh`는 선택한 덤프 전체를 격리 DB에
+복원하고, `image-restore.sh`는 명시한 S3 key 목록을 로컬에 복구한다. 주제 날짜로 DB 데이터를
+제외하거나 이미지 목록을 자동 생성하지 않으므로, 위 정책은 후속 선별·정합성 검증 절차가
+준비된 뒤 적용한다. 02:00 덤프에는 자정 이후의 사용자 변경·삭제 등도 포함되므로 게시글을
+제외하는 것만으로 DB 전체가 전날 자정 상태로 되돌아가지는 않는다.
+
+일별 백업으로 목표하는 RPO 24시간과 날짜 단위 제외에 따른 손실 범위는 구분한다. 예를 들어
+11월 3일 02:00 백업 전에 장애가 나서 11월 2일 02:00 보관본만 있고, 11월 2일 주제 전체를
+제외하면 11월 1일까지의 게시글만 복구하게 된다. 사고 시점에서 24시간보다 오래된 시점까지만
+복구할 수 있으므로 RPO 24시간을 항상 보장한다고 표현하지 않는다. 사고별로 보관본 시각,
+복구 기준 날짜, 제외·누락 데이터와 실제 손실 범위를 기록한다. RTO 12시간도 별도 검증 목표다.
 
 ## 실행 환경과 설치 범위
 
 | 환경 | 설치·실행 범위 | 실행 주기 |
 | --- | --- | --- |
-| 운영 EC2 | 통합·개별 백업 스크립트, 예약 래퍼·공통 잠금·백업 도구·설정 | 매일 자정(Asia/Seoul), 실제 설치·활성화 필요 |
+| 운영 EC2 | 통합·개별 백업 스크립트, 예약 래퍼·공통 잠금·백업 도구·설정 | 매일 새벽 2시(Asia/Seoul), 실제 설치·활성화 필요 |
 | 팀 계정의 임시 검증 EC2 | `db-restore.sh`·`image-restore.sh`, rclone, Docker(DB 검증용), `sha256sum`과 보관본 조회 전용 설정 | 최초 실제 보관본 검증 및 매월 1회 수동 실행 |
 
 운영 EC2에는 복구 검증용 Docker를 설치하거나 복구 스크립트를 예약 작업에 연결하지 않는다.
@@ -111,7 +136,7 @@ INT·TERM을 받으면 진행 중인 자식에 종료를 전달하고 종료를 
 bash deploy/backup/tests/backup-test.sh
 ```
 
-## 운영 서버의 자정 예약 설치
+## 운영 서버의 새벽 2시 예약 설치
 
 `chalkak-backup.timer` → `chalkak-backup.service` → `scheduled-backup.sh` → `backup.sh`
 순서로 실행한다. 운영 서버의 systemd를 사용하며 앱 내부 스케줄러나 복구 컨테이너는 실행하지 않는다.
@@ -188,19 +213,19 @@ sudo journalctl -u chalkak-backup.service --since today --no-pager
 
 ```bash
 sudo systemd-analyze verify /etc/systemd/system/chalkak-backup.service /etc/systemd/system/chalkak-backup.timer
-systemd-analyze calendar '*-*-* 00:00:00 Asia/Seoul'
+systemd-analyze calendar '*-*-* 02:00:00 Asia/Seoul'
 sudo systemctl enable --now chalkak-backup.timer
 systemctl list-timers --all chalkak-backup.timer
 systemctl show chalkak-backup.service -p Result -p ExecMainStatus -p MemoryPeak -p CPUUsageNSec
 ```
 
-서버 시간대와 무관하게 한국 시간 자정에 실행한다. `Persistent=true`이므로 서버가 꺼져 놓친
-예약은 다시 켤 때 한 번 실행할 수 있다. 이때는 재실행 시점의 데이터를 백업하며 과거 자정 상태를
+서버 시간대와 무관하게 한국 시간 새벽 2시에 실행한다. `Persistent=true`이므로 서버가 꺼져 놓친
+예약은 다시 켤 때 한 번 실행할 수 있다. 이때는 재실행 시점의 데이터를 백업하며 놓친 예약 시점의 상태를
 재현하지 않는다. 이미 실행 중인 서비스는 다음 타이머가 다시 시작하지 않는다. 직접 실행과의
 중복은 공통 flock으로 막고, 충돌 종료 75를 백업 성공으로 처리하지 않는다. 자동 재시도는 없다.
 전체 시간 제한은 래퍼에서 적용한다. oneshot의 `RuntimeMaxSec`는 사용하지 않는다.
 
-첫 자정 실행 후 저널의 종료 코드와 통합/개별 원격 결과를 확인해 실제 예약 성공을 기록한다.
+첫 새벽 2시 실행 후 저널의 종료 코드와 통합/개별 원격 결과를 확인해 실제 예약 성공을 기록한다.
 실패하면 원인을 고치고 수동으로 새 회차를 실행한다. 자동 삭제·자동 복구·외부 알림은 없다.
 실제 권한·복구·부하·첫 예약 실행이 확인되기 전까지 #844 완료로 간주하지 않는다.
 
@@ -225,6 +250,8 @@ sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup/back
 ```bash
 # Linux에서 설정·권한 거부, 종료 코드 전달, 실제 프로세스 그룹 시간 초과 검사
 bash deploy/backup/tests/scheduled-backup-test.sh
+# systemd-analyze가 있는 Linux에서 서버 시간대·날짜 경계에 따른 다음 예약 시각 검사
+bash deploy/backup/tests/backup-timer-test.sh
 ```
 
 ### 개별 DB 실행
