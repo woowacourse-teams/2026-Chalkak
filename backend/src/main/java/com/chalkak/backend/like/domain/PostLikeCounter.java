@@ -6,12 +6,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.util.UUID;
 import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/** JPQL 조회·조인 매핑용이다. 개수 변경은 저장소의 원자적 SQL로 처리한다. */
 @Entity
 @Table(name = "post_like_counts")
-@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PostLikeCounter {
 

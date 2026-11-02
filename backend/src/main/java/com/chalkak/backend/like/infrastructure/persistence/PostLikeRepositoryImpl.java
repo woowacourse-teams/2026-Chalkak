@@ -1,6 +1,5 @@
 package com.chalkak.backend.like.infrastructure.persistence;
 
-import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeRepository;
 import java.util.List;
 import java.util.Set;
@@ -27,16 +26,6 @@ public class PostLikeRepositoryImpl implements PostLikeRepository {
     @Override
     public int deleteByPostId(UUID postId) {
         return postLikeJpaRepository.deleteByPostId(postId);
-    }
-
-    @Override
-    public long countByPostId(UUID postId) {
-        return postLikeJpaRepository.countByPostId(postId);
-    }
-
-    @Override
-    public List<PostLikeCount> countByPostIds(List<UUID> postIds) {
-        return postLikeJpaRepository.countByPostIds(postIds);
     }
 
     @Override

@@ -24,8 +24,7 @@ public interface PostLikeCounterJpaRepository extends JpaRepository<PostLikeCoun
             """)
     List<PostLikeCount> findCountsByPostIds(@Param("postIds") List<UUID> postIds);
 
-    // 게시물 INSERT가 먼저 DB에 반영돼야 집계 행의 외래 키를 만족한다.
-    @Modifying(flushAutomatically = true)
+    @Modifying
     @Query(value = """
             INSERT INTO post_like_counts (post_id, like_count)
             VALUES (:postId, 0)
