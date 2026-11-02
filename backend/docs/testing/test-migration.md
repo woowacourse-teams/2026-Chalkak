@@ -2,7 +2,7 @@
 
 2026-11-02 / [이슈 #893](https://github.com/woowacourse-teams/2026-Chalkak/issues/893)
 
-규칙과 분류를 정리한 단계다. 이 문서는 기존 테스트 전환 완료를 의미하지 않는다. 현재 기준은 [테스트 규칙](../../.agents/skills/test-code/SKILL.md)이며, 기존 테스트 코드는 기능별 작업에서 검증을 대조하며 옮긴다.
+규칙 정비를 커밋한 뒤 앱 버전 조회 테스트를 첫 이관 대상으로 정리했다. 전체 기존 테스트의 전환은 아직 완료하지 않았다. 현재 기준은 [테스트 규칙](../../.agents/skills/test-code/SKILL.md)이며, 기존 테스트 코드는 기능별 작업에서 검증을 대조하며 옮긴다.
 
 ## 기준이 되는 코드
 
@@ -60,6 +60,21 @@
 | [UserRefreshTokenConcurrencyTest](../../src/test/java/com/chalkak/backend/auth/service/token/UserRefreshTokenConcurrencyTest.java) | 토큰 경쟁 요청을 실제 DB로 유지한다. |
 | [AiReviewWorkerServiceTest](../../src/test/java/com/chalkak/backend/aireview/service/AiReviewWorkerServiceTest.java) | 일반 처리와 경쟁 상황이 섞여 있다. 클래스 전체를 Mock으로 전환하지 않는다. |
 | [PushWorkerServiceTest](../../src/test/java/com/chalkak/backend/notification/service/PushWorkerServiceTest.java) | 발송 판단과 실제 트랜잭션 검증을 나눠 읽고, 필요한 경계 검증을 남긴다. |
+
+## 앱 버전 조회의 첫 이관
+
+규칙 정비는 `3987d2b7`로 커밋했다. 사용자의 추가 요청에 따라 아래 기존 클래스 4개에서 첫 전환을 진행한다. 새 테스트 클래스는 만들지 않는다.
+
+| 이전 시나리오 | 남긴 검증 위치 |
+| --- | --- |
+| 두 플랫폼의 설정과 조회 결과 매핑 | [서비스 단위](../../src/test/java/com/chalkak/backend/appversion/service/AppVersionServiceTest.java)의 플랫폼별 반환값과 [Repository 통합](../../src/test/java/com/chalkak/backend/appversion/infrastructure/persistence/AppVersionRepositoryTest.java)의 실제 DB 조회로 역할을 나눈다. |
+| 빈 DB에서 미설정 조회와 기본 행 미생성 | 서비스 단위에서 null 응답과 저장 미호출을 확인하고, [기존 관리자 통합](../../src/test/java/com/chalkak/backend/admin/service/appversion/AdminAppVersionServiceTest.java)에서 두 플랫폼의 공개 조회 후 DB 행이 0개인지 확인한다. |
+| 다른 플랫폼만 설정된 경우 | 서비스의 동일한 미설정 분기는 파라미터화하고, 관리자 생성과 수정 통합 시나리오에서 ANDROID가 저장돼도 IOS는 미설정인지를 유지한다. |
+| 변경된 설정의 다음 조회 반영 | 서비스 단위의 연속 조회와 기존 관리자 저장 후 공개 조회 통합 시나리오에 남긴다. |
+| 생성과 수정 시각, 기존 데이터 마이그레이션 | [시각과 매핑 테스트](../../src/test/java/com/chalkak/backend/appversion/infrastructure/persistence/AppVersionTimestampTest.java)를 PostgreSQL `@DataJpaTest`로 좁히고 기존 assertion을 유지한다. |
+| 플랫폼 중복 저장 경쟁과 관리자 트랜잭션 | Repository의 기존 경쟁 요청과 [관리자 트랜잭션](../../src/test/java/com/chalkak/backend/admin/service/appversion/AdminAppVersionTransactionTest.java)은 실제 DB를 유지한다. |
+
+이 전환은 DB 없는 일반 서비스 판단과 실제 DB 검증을 분리하는 첫 단위다. 관리자 서비스 전체나 다른 기능까지 단위 테스트로 옮겼다는 뜻은 아니다. 실행 결과와 환경 제약은 해당 작업 기록과 PR에 남긴다.
 
 ## 기능별 후속 작업 범위
 
