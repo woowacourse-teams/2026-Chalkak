@@ -32,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -252,28 +253,16 @@ class AdminUserControllerTest {
                 .andExpect(jsonPath("$.status").value("BANNED"));
     }
 
-    @Test
-    @DisplayName("상태 변경 사유가 비어 있으면 400을 반환한다")
-    void updateStatus_blankReason_returnsBadRequest() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"status\":\"BANNED\",\"reason\":\" \"}",
+            "{\"status\":\"WITHDRAWN\",\"reason\":\"변경 요청\"}"
+    })
+    @DisplayName("사유가 비거나 변경할 수 없는 상태를 요청하면 400으로 거절한다")
+    void updateStatus_invalidRequest_returnsBadRequest(String body) throws Exception {
         mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"status":"BANNED","reason":" "}
-                        """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-
-        then(adminUserStatusService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("탈퇴 상태는 관리자 변경 요청 값으로 사용할 수 없다")
-    void updateStatus_withdrawnRequest_returnsBadRequest() throws Exception {
-        mockMvc.perform(patch("/api/v1/admin/users/{userId}/status", USER_ID)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"status":"WITHDRAWN","reason":"변경 요청"}
-                        """))
+                .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 

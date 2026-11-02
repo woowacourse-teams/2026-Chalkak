@@ -1,5 +1,6 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.auth.domain.apple.AppleAuthorization;
@@ -7,7 +8,7 @@ import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -18,10 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class AppleAuthorizationRepositoryTest {
 
     private static final String SUBJECT_HMAC = "921c5d35312df654eaa8ec114fd1de5a156cbcc64b23ddb6a709a9423f90c218";
     private static final String ENCRYPTED_REFRESH_TOKEN = "encrypted-refresh-token";
@@ -57,6 +57,28 @@ class AppleAuthorizationRepositoryTest extends IntegrationTestSupport {
         })
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasRootCauseInstanceOf(SQLException.class);
+    }
+
+    @Test
+    @DisplayName("인증 정보는 요청한 소셜 계정으로만 조회하고 저장된 ID와 암호문을 유지한다")
+    void findAllBySocialAccountId_existingAuthorization_returnsStoredData() {
+        // Given
+        SocialAccount account = saveAppleSocialAccount();
+        AppleAuthorization saved = appleAuthorizationRepository.save(AppleAuthorization.create(
+                account,
+                ENCRYPTED_REFRESH_TOKEN
+        ));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(account.getId()))
+                .singleElement().satisfies(found -> {
+                    assertThat(found.getId()).isEqualTo(saved.getId());
+                    assertThat(found.getEncryptedRefreshToken()).isEqualTo(ENCRYPTED_REFRESH_TOKEN);
+                });
+        assertThat(appleAuthorizationRepository.findAllBySocialAccountId(new UUID(0, 99)))
+                .isEmpty();
     }
 
     private SocialAccount saveAppleSocialAccount() {

@@ -1,9 +1,9 @@
 package com.chalkak.backend.post.service;
 
-import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -11,31 +11,44 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.like.repository.PostLikeCount;
+import com.chalkak.backend.like.repository.PostLikeCounterRepository;
+import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
-import com.chalkak.backend.support.IntegrationTestSupport;
-import jakarta.persistence.EntityManager;
+import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.post.repository.PostSlice;
+import com.chalkak.backend.topic.domain.ParticipationPeriod;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.repository.TopicRepository;
+import com.chalkak.backend.user.domain.SignatureStorageKeys;
+import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
-@Transactional
-class PostQueryServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class PostQueryServiceTest {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
     private static final UUID SECOND_USER_ID = UUID
@@ -64,83 +77,72 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     private static final String SIGNATURE_IMAGE_URL = "https://cdn.example.com/dev/signatures/signature.png";
     private static final String SIGNATURE_THUMBNAIL_IMAGE_URL = "https://cdn.example.com/dev/signatures/signature-thumbnail.png";
 
-    @Autowired
+    @InjectMocks
     private PostQueryService postQueryService;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private EntityManager entityManager;
-
-    @MockitoBean
+    @Mock
+    private PostRepository postRepository;
+    @Mock
+    private TopicRepository topicRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private PostLikeRepository postLikeRepository;
+    @Mock
+    private PostLikeCounterRepository postLikeCounterRepository;
+    @Mock
     private ImageUrlProvider imageUrlProvider;
-
-    @MockitoBean
+    @Mock
     private RandomSeedGenerator randomSeedGenerator;
+
+    private Topic topic;
+    private Post post;
+    private Post secondPost;
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                    'post-service@example.com',
-                    'ACTIVE',
-                    'chalkak/dev/signatures/signature.png',
-                    'chalkak/dev/signatures/signature-thumbnail.png',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO topics (
-                    id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '오늘 가장 기억에 남은 순간',
-                    '2026-08-12',
-                    '2026-08-12T00:00:00Z',
-                    '2026-08-13T00:00:00Z',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                    'chalkak/dev/posts/original.jpg',
-                    'chalkak/dev/posts/thumbnail.jpg',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate
-                .update("""
-                        INSERT INTO posts (
-                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                        ) VALUES (
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                            '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                            '오늘의 순간',
-                            'APPROVED',
-                            '2026-08-12T03:30:00Z',
-                            CURRENT_TIMESTAMP
-                        )
-                        """);
-        synchronizeFixtureCounts(jdbcTemplate);
+        Instant startsAt = Instant.parse("2026-08-12T00:00:00Z");
+        topic = Topic.create(
+                "오늘 가장 기억에 남은 순간",
+                TOPIC_DATE,
+                new ParticipationPeriod(startsAt, startsAt.plusSeconds(86400)),
+                startsAt.minusSeconds(1)
+        );
+        ReflectionTestUtils.setField(
+                topic,
+                "id",
+                TOPIC_ID
+        );
+        post = createPost(
+                POST_ID,
+                USER_ID,
+                ORIGINAL_STORAGE_KEY,
+                THUMBNAIL_STORAGE_KEY,
+                SIGNATURE_STORAGE_KEY,
+                SIGNATURE_THUMBNAIL_STORAGE_KEY,
+                "오늘의 순간"
+        );
+        secondPost = createPost(
+                SECOND_POST_ID,
+                SECOND_USER_ID,
+                "chalkak/dev/posts/original-2.jpg",
+                "chalkak/dev/posts/thumbnail-2.jpg",
+                "chalkak/dev/signatures/signature-2.png",
+                "chalkak/dev/signatures/signature-thumbnail-2.png",
+                "두 번째 순간"
+        );
     }
 
     @Test
     @DisplayName("특정 날짜의 공개 게시물을 최신순으로 조회한다")
     void getPosts_recentSort_returnsPostList() {
         // Given
+        givenFeed(
+                PostSort.RECENT,
+                null,
+                Optional.empty(),
+                List.of(post)
+        );
         given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_IMAGE_URL);
         given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_IMAGE_URL);
         given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
@@ -183,7 +185,15 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("로그인 사용자의 게시물 목록에 좋아요 개수와 여부를 반환한다")
     void getPosts_authenticatedUser_returnsLikeInformation() {
         // Given
-        insertPostLike();
+        givenFeed(
+                PostSort.RECENT,
+                null,
+                Optional.of(USER_ID),
+                List.of(post),
+                List.of(new PostLikeCount(POST_ID, 1L))
+        );
+        given(postLikeRepository.findLikedPostIds(List.of(POST_ID), USER_ID))
+                .willReturn(Set.of(POST_ID));
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -206,7 +216,13 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("비로그인 사용자의 게시물 목록에는 좋아요 개수와 false 상태를 반환한다")
     void getPosts_anonymousUser_returnsLikeCountAndUnlikedStatus() {
         // Given
-        insertPostLike();
+        givenFeed(
+                PostSort.RECENT,
+                null,
+                Optional.empty(),
+                List.of(post),
+                List.of(new PostLikeCount(POST_ID, 1L))
+        );
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -229,7 +245,12 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("로그인 사용자의 게시물 목록에서 본인 게시물만 isMine이 true다")
     void getPosts_authenticatedUser_marksOwnPostAsMine() {
         // Given
-        insertSecondVisiblePost();
+        givenFeed(
+                PostSort.RECENT,
+                null,
+                Optional.of(USER_ID),
+                List.of(post, secondPost)
+        );
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -253,7 +274,12 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("비로그인 사용자의 게시물 목록에는 isMine이 모두 false다")
     void getPosts_anonymousUser_returnsNoOwnedPost() {
         // Given
-        insertSecondVisiblePost();
+        givenFeed(
+                PostSort.RECENT,
+                null,
+                Optional.empty(),
+                List.of(post, secondPost)
+        );
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -275,6 +301,12 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     void getPosts_randomFirstPageWithoutSeed_generatesRandomSeed() {
         // Given
         given(randomSeedGenerator.generateRandomSeed()).willReturn("f4c3a091");
+        givenFeed(
+                PostSort.RANDOM,
+                "f4c3a091",
+                Optional.empty(),
+                List.of(post)
+        );
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -295,6 +327,14 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("랜덤 시드를 전달하면 새 시드를 생성하지 않고 기존 시드를 사용한다")
     void getPosts_randomSortWithSeed_reusesRandomSeed() {
+        // Given
+        givenFeed(
+                PostSort.RANDOM,
+                "f4c3a091",
+                Optional.empty(),
+                List.of(post)
+        );
+
         // When
         PostListResult result = postQueryService.getPosts(
                 TOPIC_DATE,
@@ -314,15 +354,16 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("공개 게시물을 좋아요 개수가 많은 순서로 조회한다")
     void getPosts_popularSort_returnsPopularPostList() {
         // Given
-        insertSecondVisiblePost();
-        jdbcTemplate.update(
-                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?), (?, ?)",
-                POST_ID,
-                USER_ID,
-                POST_ID,
-                SECOND_USER_ID
+        givenFeed(
+                PostSort.POPULAR,
+                null,
+                Optional.empty(),
+                List.of(post, secondPost),
+                List.of(new PostLikeCount(POST_ID, 2L), new PostLikeCount(SECOND_POST_ID, 0L))
         );
-        synchronizeFixtureCounts(jdbcTemplate);
+        given(postLikeCounterRepository.getCountsByPostIds(List.of(POST_ID, SECOND_POST_ID)))
+                .willReturn(List.of(new PostLikeCount(POST_ID, 2L),
+                        new PostLikeCount(SECOND_POST_ID, 0L)));
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -346,9 +387,12 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("주제는 있지만 공개 게시물이 없으면 빈 목록을 반환한다")
     void getPosts_withoutVisiblePosts_returnsEmptyList() {
         // Given
-        jdbcTemplate.update(
-                "UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?",
-                POST_ID);
+        givenFeed(
+                PostSort.RECENT,
+                null,
+                Optional.empty(),
+                List.of()
+        );
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -369,11 +413,8 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("해당 날짜의 주제가 없으면 찾을 수 없음 예외를 발생시킨다")
     void getPosts_unknownTopicDate_throwsNotFoundException() {
         // Given
-        LocalDate unknownTopicDate = LocalDate.of(
-                2026,
-                8,
-                11
-        );
+        LocalDate unknownTopicDate = TOPIC_DATE.minusDays(1);
+        given(topicRepository.findActiveByTopicDate(unknownTopicDate)).willReturn(Optional.empty());
 
         // When
         NotFoundException exception = catchThrowableOfType(
@@ -448,12 +489,16 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("공개 가능한 게시물을 조회하고 이미지 URL을 조립한다")
     void getPost_visiblePost_returnsPostDetailWithImageUrls() {
         // Given
+        given(userRepository.findActiveById(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(postRepository.findVisibleById(POST_ID)).willReturn(Optional.of(post));
+        given(postLikeCounterRepository.getCountByPostId(POST_ID)).willReturn(1L);
+        given(postLikeRepository.existsByPostIdAndUserId(POST_ID, USER_ID)).willReturn(true);
         given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_IMAGE_URL);
         given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_IMAGE_URL);
         given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
 
         // When
-        insertPostLike();
 
         PostDetail result = postQueryService.getPost(POST_ID, USER_ID);
 
@@ -482,6 +527,11 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("공개 가능한 게시물이 없으면 찾을 수 없음 예외를 발생시킨다")
     void getPost_invisiblePost_throwsNotFoundException() {
+        // Given
+        given(userRepository.findActiveById(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(postRepository.findVisibleById(UNKNOWN_POST_ID)).willReturn(Optional.empty());
+
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
@@ -495,6 +545,9 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("상세 조회 사용자를 찾을 수 없으면 인증 예외를 발생시킨다")
     void getPost_unknownUser_throwsUnauthorizedException() {
+        // Given
+        given(userRepository.findActiveById(UNKNOWN_USER_ID)).willReturn(Optional.empty());
+
         // When
         UnauthorizedException exception = catchThrowableOfType(
                 UnauthorizedException.class,
@@ -511,12 +564,22 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("모든 정렬의 로그인·비로그인 피드는 사인 URL이 같아도 실제 작성자 ID를 구분한다")
     void getPosts_allSorts_returnsActualAuthorIds(PostSort sort, boolean authenticated) {
         // Given
-        insertSecondVisiblePost();
-        given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
-        given(imageUrlProvider.getUrl("chalkak/dev/signatures/signature-2.png"))
-                .willReturn(SIGNATURE_IMAGE_URL);
         String randomSeed = sort == PostSort.RANDOM ? "author-id-test" : null;
         Optional<UUID> viewerId = authenticated ? Optional.of(USER_ID) : Optional.empty();
+        givenFeed(
+                sort,
+                randomSeed,
+                viewerId,
+                List.of(post, secondPost)
+        );
+        Map<String, String> signatureUrls = Map.of(
+                SIGNATURE_STORAGE_KEY,
+                SIGNATURE_IMAGE_URL,
+                "chalkak/dev/signatures/signature-2.png",
+                SIGNATURE_IMAGE_URL
+        );
+        given(imageUrlProvider.getUrl(anyString()))
+                .willAnswer(call -> signatureUrls.get(call.getArgument(0)));
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -541,206 +604,6 @@ class PostQueryServiceTest extends IntegrationTestSupport {
         assertThat(result.hasNext()).isFalse();
     }
 
-    @Test
-    @DisplayName("사인을 교체해도 피드·상세의 작성자 ID는 유지하고 현재 사인만 바뀐다")
-    void getPostsAndGetPost_changedSignature_preserveAuthorIdAndShowCurrentSignature() {
-        // Given
-        insertSecondVisiblePost();
-        String newSignatureKey = "chalkak/dev/signatures/new-signature.png";
-        String newSignatureUrl = "https://cdn.example.com/dev/signatures/new-signature.png";
-        given(imageUrlProvider.getUrl(SIGNATURE_STORAGE_KEY)).willReturn(SIGNATURE_IMAGE_URL);
-        given(imageUrlProvider.getUrl(newSignatureKey)).willReturn(newSignatureUrl);
-        PostListResult beforeFeed = postQueryService.getPosts(
-                TOPIC_DATE,
-                PostSort.RECENT,
-                null,
-                1,
-                20,
-                Optional.of(SECOND_USER_ID)
-        );
-        PostDetail beforeDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
-        jdbcTemplate.update(
-                """
-                        UPDATE users
-                        SET signature_original_storage_key = ?, signature_thumbnail_storage_key = ?
-                        WHERE id = ?
-                        """,
-                newSignatureKey,
-                "chalkak/dev/signatures/new-signature-thumbnail.png",
-                USER_ID
-        );
-        entityManager.flush();
-        entityManager.clear();
-
-        // When
-        PostListResult afterFeed = postQueryService.getPosts(
-                TOPIC_DATE,
-                PostSort.RECENT,
-                null,
-                1,
-                20,
-                Optional.of(SECOND_USER_ID)
-        );
-        PostDetail afterDetail = postQueryService.getPost(POST_ID, SECOND_USER_ID);
-
-        // Then
-        assertThat(beforeFeed.posts()).extracting(
-                PostListResult.PostSummary::id,
-                PostListResult.PostSummary::authorId,
-                PostListResult.PostSummary::signatureOriginalImageUrl
-        )
-                .contains(tuple(
-                        POST_ID,
-                        USER_ID,
-                        SIGNATURE_IMAGE_URL
-                ));
-        assertThat(afterFeed.posts()).extracting(
-                PostListResult.PostSummary::id,
-                PostListResult.PostSummary::authorId,
-                PostListResult.PostSummary::signatureOriginalImageUrl
-        )
-                .contains(tuple(
-                        POST_ID,
-                        USER_ID,
-                        newSignatureUrl
-                ));
-        assertThat(beforeDetail.authorId()).isEqualTo(USER_ID);
-        assertThat(afterDetail.authorId()).isEqualTo(USER_ID).isNotEqualTo(SECOND_USER_ID);
-        assertThat(beforeDetail.signatureOriginalImageUrl()).isEqualTo(SIGNATURE_IMAGE_URL);
-        assertThat(afterDetail.signatureOriginalImageUrl()).isEqualTo(newSignatureUrl);
-    }
-
-    @Test
-    @DisplayName("진입 게시물이 삭제돼도 피드에서 받은 작성자 ID로 공개 사진 목록을 조회한다")
-    void getAuthorPosts_deletedEntryPost_keepsAuthorLookupAvailable() {
-        // Given
-        insertSecondVisiblePost();
-        PostListResult feed = postQueryService.getPosts(
-                TOPIC_DATE,
-                PostSort.RECENT,
-                null,
-                1,
-                20,
-                Optional.empty()
-        );
-        UUID authorId = feed.posts().stream().filter(post -> post.id().equals(POST_ID))
-                .findFirst().orElseThrow().authorId();
-        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                POST_ID);
-        entityManager.flush();
-        entityManager.clear();
-
-        // When
-        AuthorPostListResult result = postQueryService.getAuthorPosts(
-                authorId,
-                1,
-                20,
-                SECOND_USER_ID
-        );
-
-        // Then
-        assertThat(authorId).isEqualTo(USER_ID);
-        assertThat(result.posts()).isEmpty();
-        assertThat(result.currentPage()).isEqualTo(1);
-        assertThat(result.hasNext()).isFalse();
-    }
-
-    @ParameterizedTest
-    @CsvSource({"false, false, 3", "true, false, 5", "false, true, 2", "true, true, 3"})
-    @DisplayName("피드는 비로그인 상태 조회와 빈 페이지의 좋아요 쿼리를 생략한다")
-    void getPosts_viewerAndEmptyPage_skipsUnneededLikeQueries(
-            boolean authenticated,
-            boolean empty,
-            long expectedQueries
-    ) {
-        // Given
-        insertPostLike();
-        if (empty) {
-            jdbcTemplate.update("UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?",
-                    POST_ID);
-        }
-        entityManager.flush();
-        entityManager.clear();
-        Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class)
-                .getStatistics();
-        boolean wasEnabled = statistics.isStatisticsEnabled();
-        statistics.setStatisticsEnabled(true);
-        long beforeCount = statistics.getPrepareStatementCount();
-
-        // When & Then
-        try {
-            PostListResult result = postQueryService.getPosts(
-                    TOPIC_DATE,
-                    PostSort.RECENT,
-                    null,
-                    1,
-                    20,
-                    authenticated ? Optional.of(USER_ID) : Optional.empty()
-            );
-            assertThat(result.posts()).hasSize(empty ? 0 : 1).allSatisfy(post -> {
-                assertThat(post.likeCount()).isEqualTo(1L);
-                assertThat(post.isLiked()).isEqualTo(authenticated);
-            });
-            assertThat(statistics.getPrepareStatementCount() - beforeCount)
-                    .isEqualTo(expectedQueries);
-        } finally {
-            statistics.setStatisticsEnabled(wasEnabled);
-        }
-    }
-
-    private void insertPostLike() {
-        jdbcTemplate.update(
-                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
-                POST_ID,
-                USER_ID
-        );
-        synchronizeFixtureCounts(jdbcTemplate);
-    }
-
-    private void insertSecondVisiblePost() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key,
-                    signature_thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
-                    'post-service-2@example.com',
-                    'ACTIVE',
-                    'chalkak/dev/signatures/signature-2.png',
-                    'chalkak/dev/signatures/signature-thumbnail-2.png',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO photos (
-                    id, original_storage_key, thumbnail_storage_key, created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
-                    'chalkak/dev/posts/original-2.jpg',
-                    'chalkak/dev/posts/thumbnail-2.jpg',
-                    CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status,
-                    created_at, updated_at
-                ) VALUES (
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                    '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
-                    '두 번째 순간',
-                    'APPROVED',
-                    '2026-08-12T04:00:00Z',
-                    CURRENT_TIMESTAMP
-                )
-                """);
-        synchronizeFixtureCounts(jdbcTemplate);
-    }
-
     private static Stream<Arguments> invalidRandomSeedCombinations() {
         return Stream.of(
                 Arguments.of(
@@ -759,5 +622,95 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                         1
                 )
         );
+    }
+
+    private void givenFeed(
+            PostSort sort,
+            String seed,
+            Optional<UUID> viewer,
+            List<Post> content
+    ) {
+        givenFeed(
+                sort,
+                seed,
+                viewer,
+                content,
+                content.stream().map(item -> new PostLikeCount(item.getId(), 0L)).toList()
+        );
+    }
+
+    private void givenFeed(
+            PostSort sort,
+            String seed,
+            Optional<UUID> viewer,
+            List<Post> content,
+            List<PostLikeCount> counts
+    ) {
+        given(topicRepository.findActiveByTopicDate(TOPIC_DATE)).willReturn(Optional.of(topic));
+        viewer.ifPresent(id -> given(userRepository.findActiveById(id))
+                .willReturn(Optional.of(UserFixture.create(id))));
+        if (!content.isEmpty()) {
+            List<UUID> ids = content.stream().map(Post::getId).toList();
+            given(postLikeCounterRepository.getCountsByPostIds(ids)).willReturn(counts);
+        }
+        PostSlice slice = new PostSlice(content, false);
+        switch (sort) {
+            case RECENT -> given(postRepository.findVisibleRecentByTopicId(
+                    TOPIC_ID,
+                    0,
+                    20
+            )).willReturn(slice);
+            case POPULAR -> given(postRepository.findVisiblePopularByTopicId(
+                    TOPIC_ID,
+                    0,
+                    20
+            )).willReturn(slice);
+            case RANDOM -> given(postRepository.findVisibleRandomByTopicId(
+                    TOPIC_ID,
+                    seed,
+                    0,
+                    20
+            )).willReturn(slice);
+        }
+    }
+
+    private Post createPost(
+            UUID id,
+            UUID authorId,
+            String originalKey,
+            String thumbnailKey,
+            String signatureKey,
+            String signatureThumbnailKey,
+            String title
+    ) {
+        User author = User.create(null,
+                new SignatureStorageKeys(signatureKey, signatureThumbnailKey));
+        ReflectionTestUtils.setField(
+                author,
+                "id",
+                authorId
+        );
+        Photo photo = Photo.createPhoto(originalKey);
+        photo.completeProcessing(thumbnailKey, null);
+        Post created = Post.createPost(
+                author,
+                topic,
+                photo,
+                id,
+                title
+        );
+        ReflectionTestUtils.setField(
+                created,
+                "id",
+                id
+        );
+        ReflectionTestUtils.setField(
+                created,
+                "createdAt",
+                Instant.parse("2026-08-12T03:30:00Z")
+        );
+        created.requestModeration();
+        created.approve(Instant.parse("2026-08-12T03:30:00Z"));
+        return created;
     }
 }

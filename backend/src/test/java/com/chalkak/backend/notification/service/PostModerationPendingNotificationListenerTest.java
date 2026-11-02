@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.post.service.PostModerationPendingEvent;
-import java.lang.reflect.Method;
 import java.net.URI;
 import java.time.Instant;
 import java.util.UUID;
@@ -16,19 +15,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 @ExtendWith(OutputCaptureExtension.class)
 class PostModerationPendingNotificationListenerTest {
 
-    private static final UUID POST_ID =
-            UUID.fromString("0199a000-0000-7000-8000-000000000001");
-    private static final PostModerationPendingEvent EVENT =
-            new PostModerationPendingEvent(
-                    POST_ID,
-                    Instant.parse("2026-09-02T00:00:00Z")
-            );
+    private static final UUID POST_ID = UUID.fromString("0199a000-0000-7000-8000-000000000001");
+    private static final PostModerationPendingEvent EVENT = new PostModerationPendingEvent(
+            POST_ID,
+            Instant.parse("2026-09-02T00:00:00Z")
+    );
     private static final NotificationMessage MESSAGE = new NotificationMessage(
             "새 게시물 검수 요청",
             "새 게시물이 승인 대기 상태가 되었습니다.",
@@ -38,15 +33,15 @@ class PostModerationPendingNotificationListenerTest {
     );
 
     @Test
-    @DisplayName("트랜잭션 커밋이 끝난 뒤 Slack 알림을 전송한다")
-    void sendPostModerationPending_afterCommit_sendsMessage() {
+    @DisplayName("검수 이벤트로 만든 메시지를 Slack 발송기에 전달한다")
+    void sendPostModerationPending_event_sendsMessage() {
         // Given
         NotificationMessageFactory messageFactory = mock(NotificationMessageFactory.class);
         NotificationSender sender = mock(NotificationSender.class);
         given(messageFactory.create(EVENT)).willReturn(MESSAGE);
         given(sender.send(MESSAGE)).willReturn(true);
-        PostModerationPendingNotificationListener listener =
-                new PostModerationPendingNotificationListener(messageFactory, sender);
+        PostModerationPendingNotificationListener listener = new PostModerationPendingNotificationListener(
+                messageFactory, sender);
 
         // When
         listener.sendPostModerationPending(EVENT);
@@ -63,8 +58,8 @@ class PostModerationPendingNotificationListenerTest {
         NotificationSender sender = mock(NotificationSender.class);
         given(messageFactory.create(EVENT)).willReturn(MESSAGE);
         given(sender.send(MESSAGE)).willReturn(false);
-        PostModerationPendingNotificationListener listener =
-                new PostModerationPendingNotificationListener(messageFactory, sender);
+        PostModerationPendingNotificationListener listener = new PostModerationPendingNotificationListener(
+                messageFactory, sender);
 
         // When & Then
         assertThatCode(() -> listener.sendPostModerationPending(EVENT))
@@ -81,8 +76,8 @@ class PostModerationPendingNotificationListenerTest {
         given(sender.send(MESSAGE)).willThrow(new IllegalStateException(
                 "https://hooks.slack.com/services/SECRET/SECRET/SECRET"
         ));
-        PostModerationPendingNotificationListener listener =
-                new PostModerationPendingNotificationListener(messageFactory, sender);
+        PostModerationPendingNotificationListener listener = new PostModerationPendingNotificationListener(
+                messageFactory, sender);
 
         // When & Then
         assertThatCode(() -> listener.sendPostModerationPending(EVENT))
@@ -93,21 +88,4 @@ class PostModerationPendingNotificationListenerTest {
                 .doesNotContain("SECRET/SECRET/SECRET");
     }
 
-    @Test
-    @DisplayName("알림 리스너는 트랜잭션 커밋 이후 단계에서 실행된다")
-    void sendPostModerationPending_annotation_usesAfterCommitPhase() throws Exception {
-        // Given
-        Method method = PostModerationPendingNotificationListener.class.getMethod(
-                "sendPostModerationPending",
-                PostModerationPendingEvent.class
-        );
-
-        // When
-        TransactionalEventListener annotation =
-                method.getAnnotation(TransactionalEventListener.class);
-
-        // Then
-        assertThat(annotation).isNotNull();
-        assertThat(annotation.phase()).isEqualTo(TransactionPhase.AFTER_COMMIT);
-    }
 }

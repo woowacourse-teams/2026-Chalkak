@@ -5,9 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeCounterRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
-import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Transactional
-class PostLikeCounterRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class PostLikeCounterRepositoryTest {
 
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 

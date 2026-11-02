@@ -434,24 +434,13 @@ class PostControllerTest {
         then(postQueryService).shouldHaveNoInteractions();
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-post-id", "1-1-1-1-1"})
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("ID 형식이 올바르지 않으면 400 응답을 반환한다")
-    void getPost_invalidPostId_returnsBadRequest() throws Exception {
+    @DisplayName("잘못되거나 비정규 게시물 ID는 400으로 거절한다")
+    void getPost_invalidOrNonCanonicalUuid_returnsBadRequest(String postId) throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", "invalid-post-id"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
-        then(postQueryService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("표준 형식이 아닌 UUID이면 400 응답을 반환한다")
-    void getPost_nonCanonicalUuid_returnsBadRequest() throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", "1-1-1-1-1"))
+        mockMvc.perform(get("/api/v1/posts/{postId}", postId))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));

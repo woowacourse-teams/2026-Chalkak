@@ -33,7 +33,8 @@ class StoreUrlTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {" ", "https:chalkak", "https://play.google.com",
+    @ValueSource(strings = {
+            " ", "https:chalkak", "https://play.google.com",
             "http://apps.apple.com/app/id123", "https://evil.example/app/id123",
             "https://play.google.com.evil.example/store/apps/details?id=com.example.app",
             "https://user@play.google.com/store/apps/details?id=com.example.app",
@@ -53,8 +54,16 @@ class StoreUrlTest {
             "https://apps.apple.com/app/%ZZ/id123",
             "https://apps.apple.com/app/%2e%2e/id123",
             "https://apps.apple.com/app/name%2fid123",
-            "https://apps.apple.com/app/name%5c/id123"})
-    @DisplayName("잘못된 스킴·호스트·권한정보·포트·경로·앱 ID·쿼리·인코딩을 거절한다")
+            "https://apps.apple.com/app/name%5c/id123",
+            "https://play.google.com/store/apps/%64etails?id=com.a.b",
+            "https://play.google.com/store/%61pps/details?id=com.a.b",
+            "https://apps.apple.com/%61pp/id123",
+            "https://apps.apple.com/app/%69d123",
+            " https://apps.apple.com/app/id123",
+            "https://apps.apple.com/app/id123\n",
+            "\u2000https://apps.apple.com/app/id123\u2000"
+    })
+    @DisplayName("잘못된 스토어 주소와 인코딩, 비정규 공백이 있는 DB 원문을 거절한다")
     void create_invalidStoreUrl_throwsBusinessException(String value) {
         // When & Then
         assertThatThrownBy(() -> new StoreUrl(value)).isInstanceOf(BusinessException.class);
@@ -87,21 +96,6 @@ class StoreUrlTest {
                 .isInstanceOf(BusinessException.class);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "https://play.google.com/store/apps/%64etails?id=com.a.b",
-            "https://play.google.com/store/%61pps/details?id=com.a.b",
-            "https://apps.apple.com/%61pp/id123",
-            "https://apps.apple.com/app/%69d123",
-            " https://apps.apple.com/app/id123",
-            "https://apps.apple.com/app/id123\n",
-            "\u2000https://apps.apple.com/app/id123\u2000"
-    })
-    @DisplayName("DB 원문 생성자는 고정 경로 인코딩과 비정규 공백을 거절한다")
-    void create_noncanonicalStoredUrl_rejectsWithoutChangingValue(String value) {
-        // When & Then
-        assertThatThrownBy(() -> new StoreUrl(value)).isInstanceOf(BusinessException.class);
-    }
     @Test
     @DisplayName("요청 입력 팩토리는 Unicode 공백과 개행을 제거한 주소를 생성한다")
     void from_requestWhitespace_normalizesBeforeConstruction() {

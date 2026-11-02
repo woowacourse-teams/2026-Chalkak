@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -37,6 +38,7 @@ class AdminAuditLogQueryServiceTest {
     private AdminAuditLogQueryService service;
 
     @Test
+    @DisplayName("모든 감사 조회 조건을 저장소에 전달하고 읽기 전용 페이지를 반환한다")
     void getAuditLogs_allFilters_returnsReadOnlyPage() {
         AdminAuditLogQueryCriteria criteria = new AdminAuditLogQueryCriteria(
                 ADMIN_ID,
@@ -92,6 +94,7 @@ class AdminAuditLogQueryServiceTest {
     }
 
     @Test
+    @DisplayName("시작이 종료보다 늦은 감사 조회 기간은 거절한다")
     void getAuditLogs_reversedPeriod_throwsBusinessException() {
         assertThatThrownBy(() -> service.getAuditLogs(
                 null,
@@ -107,6 +110,7 @@ class AdminAuditLogQueryServiceTest {
     }
 
     @Test
+    @DisplayName("감사 조회 offset이 정수 범위를 넘으면 거절한다")
     void getAuditLogs_excessiveOffset_throwsBusinessException() {
         assertThatThrownBy(() -> service.getAuditLogs(
                 null,
