@@ -272,6 +272,35 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("실제 계정 로그인은 관리자 JWT와 해시만 저장한 리프레시 토큰 계보를 만든다")
+    void login_validCredentials_issuesJwtAndPersistsHashedRefreshToken() {
+        // Given
+        Admin admin = persistAdmin(RAW_PASSWORD);
+
+        // When
+        AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
+        Jwt jwt = accessTokenProvider.jwtDecoder().decode(result.accessToken().value());
+
+        // Then
+        assertThat(result.adminId()).isEqualTo(admin.getId());
+        assertThat(result.username()).isEqualTo(USERNAME);
+        assertThat(jwt.getSubject()).isEqualTo(admin.getId().toString());
+        assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
+        entityManager.flush();
+        String storedTokenHash = jdbcTemplate.queryForObject(
+                """
+                        SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
+                        """,
+                String.class,
+                admin.getId()
+        );
+        assertThat(result.refreshToken().value()).isNotBlank();
+        assertThat(result.refreshToken().expiresIn()).isEqualTo(Duration.ofDays(30));
+        assertThat(storedTokenHash).isNotEqualTo(result.refreshToken().value());
+        assertThat(storedTokenHash).matches("^[0-9a-f]{64}$");
+    }
+
     private Admin saveAdmin() {
         Admin admin = adminRepository.save(Admin.create(
                 "refresh-operator-" + UUID.randomUUID(),
@@ -350,34 +379,6 @@ class AdminRefreshTokenServiceTest extends IntegrationTestSupport {
             Instant expiresAt,
             Instant absoluteExpiresAt
     ) {
-    }
-    @Test
-    @DisplayName("실제 계정 로그인은 관리자 JWT와 해시만 저장한 리프레시 토큰 계보를 만든다")
-    void login_validCredentials_issuesJwtAndPersistsHashedRefreshToken() {
-        // Given
-        Admin admin = persistAdmin(RAW_PASSWORD);
-
-        // When
-        AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
-        Jwt jwt = accessTokenProvider.jwtDecoder().decode(result.accessToken().value());
-
-        // Then
-        assertThat(result.adminId()).isEqualTo(admin.getId());
-        assertThat(result.username()).isEqualTo(USERNAME);
-        assertThat(jwt.getSubject()).isEqualTo(admin.getId().toString());
-        assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
-        entityManager.flush();
-        String storedTokenHash = jdbcTemplate.queryForObject(
-                """
-                        SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
-                        """,
-                String.class,
-                admin.getId()
-        );
-        assertThat(result.refreshToken().value()).isNotBlank();
-        assertThat(result.refreshToken().expiresIn()).isEqualTo(Duration.ofDays(30));
-        assertThat(storedTokenHash).isNotEqualTo(result.refreshToken().value());
-        assertThat(storedTokenHash).matches("^[0-9a-f]{64}$");
     }
 
     private Admin persistAdmin(String password) {

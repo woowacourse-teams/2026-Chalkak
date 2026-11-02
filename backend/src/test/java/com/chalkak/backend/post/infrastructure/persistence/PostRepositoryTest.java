@@ -1,7 +1,5 @@
 package com.chalkak.backend.post.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,6 +9,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.EntityManager;

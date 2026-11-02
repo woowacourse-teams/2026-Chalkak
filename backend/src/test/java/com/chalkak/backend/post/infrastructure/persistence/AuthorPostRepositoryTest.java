@@ -1,7 +1,5 @@
 package com.chalkak.backend.post.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static com.chalkak.backend.post.support.AuthorPostFixtures.createPost;
 import static com.chalkak.backend.post.support.AuthorPostFixtures.createUser;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -10,6 +8,7 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;

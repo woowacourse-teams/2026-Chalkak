@@ -1,28 +1,28 @@
 package com.chalkak.backend.admin.service.post;
 
-import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.admin.repository.AdminPage;
+import com.chalkak.backend.admin.repository.post.AdminPostDetailProjection;
+import com.chalkak.backend.admin.repository.post.AdminPostQueryCriteria;
+import com.chalkak.backend.admin.repository.post.AdminPostQueryRepository;
+import com.chalkak.backend.admin.repository.post.AdminPostSort;
+import com.chalkak.backend.admin.repository.post.AdminPostSummaryProjection;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
-import com.chalkak.backend.admin.repository.AdminPage;
-import com.chalkak.backend.admin.repository.post.AdminPostQueryCriteria;
-import com.chalkak.backend.admin.repository.post.AdminPostQueryRepository;
-import com.chalkak.backend.admin.repository.post.AdminPostSummaryProjection;
-import com.chalkak.backend.admin.repository.post.AdminPostDetailProjection;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.UUID;
-import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

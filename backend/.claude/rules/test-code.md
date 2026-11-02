@@ -30,7 +30,7 @@ paths:
 | --- | --- | --- |
 | Domain | 단위 | 실제 도메인 객체를 생성한다. Spring과 DB 없이 규칙과 상태 전환을 검증한다. |
 | Service | 단위 | Repository와 외부 연동 Port를 Mock으로 대체한다. 실제 도메인 객체로 유스케이스의 판단, 결과와 필요한 협력을 검증한다. |
-| Repository | 슬라이스 | `@DataJpaTest`와 실제 테스트 PostgreSQL로 쿼리, 매핑과 DB 제약을 검증한다. 필요한 구현체만 import한다. |
+| Repository | 슬라이스 | `@DataJpaTest`와 실제 테스트 PostgreSQL로 쿼리, 매핑과 DB 제약을 검증한다. 저장 계층의 공통 슬라이스 구성을 재사용하고, 구성을 나눠야 할 이유가 있을 때만 별도 import를 둔다. |
 | Controller | 웹 슬라이스 | `@WebMvcTest`, MockMvc와 Service `@MockitoBean`으로 요청 검증, 응답과 예외 변환을 검증한다. |
 | 핵심 인수 시나리오 | 통합 | `IntegrationTestSupport`와 MockMvc로 실제 Controller, Service, Repository와 테스트 DB를 연결한다. 외부 연동은 대체한다. |
 | 접근 정책 | 통합 | 실제 보안 구성을 연결해 인증과 회원 상태에 따른 접근을 검증한다. 필터 검증에 불필요한 Service는 대체할 수 있다. |
@@ -110,8 +110,10 @@ paths:
 - 로컬은 `compose.yaml`의 `postgres-test`, CI는 워크플로의 PostgreSQL 서비스 컨테이너를 사용한다.
 - 접속 정보는 `application-test.yml`의 `TEST_POSTGRES_*`로 설정한다. 테스트 코드에서 DB 컨테이너를 직접 띄우지 않는다.
 - 같은 스레드와 트랜잭션에서 끝나며 실제 커밋이 필요 없는 DB 테스트는 `@Transactional` 롤백으로 격리할 수 있다.
-- 커밋 후 이벤트, `REQUIRES_NEW`, 비동기 처리, 별도 스레드, 실제 HTTP 서버나 트랜잭션 종료 이후를 검증할 때는 테스트 전체를 감싸는 `@Transactional`을 사용하지 않는다.
-- 위 테스트는 필요한 실제 트랜잭션을 열고 종료하며, `DatabaseCleaner`로 `@BeforeEach`에 DB를 정리한다. 별도 스레드와 비동기 작업이 끝난 뒤 다음 테스트로 넘어간다.
+- 커밋 후 이벤트, 비동기 처리, 별도 스레드, 실제 HTTP 서버처럼 테스트 트랜잭션 밖의 동작이나 실제 커밋 이후를 확인할 때는 테스트 전체를 감싸는 `@Transactional`을 사용하지 않는다.
+- `REQUIRES_NEW`와 롤백 검증은 실제 트랜잭션 경계가 관찰되는지로 판단한다. 별도 트랜잭션 안에서 데이터를 준비하고 실패시킨 뒤 새 트랜잭션으로 롤백 결과를 조회하는 슬라이스는 바깥 테스트의 롤백 격리를 유지할 수 있다. 이때 바깥 트랜잭션의 미커밋 데이터에 의존하지 않는다.
+- 테스트 전체를 감싸는 트랜잭션을 쓰지 않는 테스트는 필요한 실제 트랜잭션을 열고 종료하며, `DatabaseCleaner`로 `@BeforeEach`에 DB를 정리한다. 별도 스레드와 비동기 작업이 끝난 뒤 다음 테스트로 넘어간다.
+- 전역 조회를 검증하는 슬라이스에 다른 실행이 커밋한 데이터가 영향을 주면, 그 실패 조건을 명시하고 `@BeforeTransaction`에서 정리할 수 있다. 테스트 트랜잭션 안의 `@BeforeEach`에서 TRUNCATE해 종료까지 테이블 잠금을 유지하지 않는다. 이 정리를 모든 슬라이스에 일괄 추가하지 않는다.
 - `DatabaseCleaner`의 `TRUNCATE ... RESTART IDENTITY CASCADE`를 재사용한다. DB 정리에 `deleteAll()`이나 `@DirtiesContext`를 사용하지 않는다.
 - `@DirtiesContext`는 ApplicationContext 자체가 오염된 경우에만 사용한다.
 - 전체 Spring 통합 테스트는 `IntegrationTestSupport`의 프로파일과 공통 외부 Mock을 재사용한다. 상위 클래스에 `@Transactional`을 추가하지 않는다.

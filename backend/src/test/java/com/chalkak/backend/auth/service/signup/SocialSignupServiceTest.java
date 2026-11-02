@@ -120,7 +120,7 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("회원가입은 회원과 소셜 계정을 저장하고 같은 회원과 로그인 ID의 JWT를 발급한다")
-    void signup_completedSignature_savesUserAndSocialAccount() {
+    void signup_completedSignature_persistsIdentityAndIssuesMatchingTokens() {
         // Given
         UUID uploadId = UUID.randomUUID();
         SignatureStorageKeys storageKeys = new SignatureStorageKeys(

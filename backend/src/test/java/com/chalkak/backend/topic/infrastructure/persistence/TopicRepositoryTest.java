@@ -1,12 +1,11 @@
 package com.chalkak.backend.topic.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.ParticipationPeriod;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.domain.TopicPhase;

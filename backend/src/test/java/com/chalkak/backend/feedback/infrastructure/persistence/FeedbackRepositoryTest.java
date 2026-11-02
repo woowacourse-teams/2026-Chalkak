@@ -1,11 +1,10 @@
 package com.chalkak.backend.feedback.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;

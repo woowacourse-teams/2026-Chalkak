@@ -1,11 +1,10 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.apple.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;

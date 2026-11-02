@@ -1,7 +1,5 @@
 package com.chalkak.backend.admin.infrastructure.persistence.topic;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.repository.AdminPage;
@@ -9,6 +7,7 @@ import com.chalkak.backend.admin.repository.topic.AdminTopicProjection;
 import com.chalkak.backend.admin.repository.topic.AdminTopicQueryCriteria;
 import com.chalkak.backend.admin.repository.topic.AdminTopicQueryRepository;
 import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;

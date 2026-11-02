@@ -1,15 +1,14 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.auth.domain.apple.AppleAuthorization;
 import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;

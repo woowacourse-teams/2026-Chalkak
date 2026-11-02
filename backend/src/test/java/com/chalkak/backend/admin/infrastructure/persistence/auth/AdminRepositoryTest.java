@@ -1,12 +1,11 @@
 package com.chalkak.backend.admin.infrastructure.persistence.auth;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.SQLException;
 import java.util.Optional;

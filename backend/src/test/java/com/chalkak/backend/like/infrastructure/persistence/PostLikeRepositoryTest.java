@@ -1,10 +1,9 @@
 package com.chalkak.backend.like.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Set;

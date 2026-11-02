@@ -1,7 +1,5 @@
 package com.chalkak.backend.admin.infrastructure.persistence.audit;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -15,6 +13,7 @@ import com.chalkak.backend.admin.repository.audit.AdminAuditLogQueryCriteria;
 import com.chalkak.backend.admin.repository.audit.AdminAuditLogRepository;
 import com.chalkak.backend.admin.repository.audit.AdminAuditLogSort;
 import com.chalkak.backend.admin.repository.audit.AdminAuditLogSummaryProjection;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;

@@ -1,7 +1,5 @@
 package com.chalkak.backend.admin.infrastructure.persistence.post;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,6 +11,7 @@ import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import com.chalkak.backend.admin.repository.post.AdminPostSummaryProjection;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;

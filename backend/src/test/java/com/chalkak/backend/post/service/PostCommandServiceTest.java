@@ -25,6 +25,7 @@ import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -228,19 +229,27 @@ class PostCommandServiceTest {
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR);
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    @DisplayName("없는 업로드의 성공 또는 실패 콜백은 게시물을 변경하지 않는다")
-    void processImage_unknownUpload_doesNothing(boolean success) {
+    @Test
+    @DisplayName("없는 업로드의 성공 콜백은 게시물을 변경하지 않는다")
+    void completePostImageProcessing_unknownUpload_doesNothing() {
         // Given
         given(uploads.findByIdForUpdate(UPLOAD_ID)).willReturn(Optional.empty());
 
         // When
-        if (success) {
-            service.completePostImageProcessing(UPLOAD_ID, java.util.Map.of());
-        } else {
-            service.failPostImageProcessing(UPLOAD_ID, "검수 실패");
-        }
+        service.completePostImageProcessing(UPLOAD_ID, Map.of());
+
+        // Then
+        verifyNoInteractions(posts);
+    }
+
+    @Test
+    @DisplayName("없는 업로드의 실패 콜백은 게시물을 변경하지 않는다")
+    void failPostImageProcessing_unknownUpload_doesNothing() {
+        // Given
+        given(uploads.findByIdForUpdate(UPLOAD_ID)).willReturn(Optional.empty());
+
+        // When
+        service.failPostImageProcessing(UPLOAD_ID, "검수 실패");
 
         // Then
         verifyNoInteractions(posts);

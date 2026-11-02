@@ -21,8 +21,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -84,22 +82,52 @@ class UserServiceTest {
         assertThat(result.thumbnailImageUrl()).isEqualTo("https://cdn.test/thumbnail");
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"upload", "read", "withdraw"})
-    @DisplayName("활성 회원이 없으면 사인 발급, 조회와 탈퇴를 부수 효과 없이 거부한다")
-    void handleUser_unavailableUser_throwsUnauthorizedException(String operation) {
+    @Test
+    @DisplayName("활성 회원이 없으면 사인 업로드 발급을 부수 효과 없이 거부한다")
+    void createSignatureUpload_unavailableUser_throwsUnauthorizedException() {
         // Given
         given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
 
         // When & Then
-        assertThatThrownBy(() -> {
-            switch (operation) {
-                case "upload" -> service.createSignatureUpload(USER_ID);
-                case "read" -> service.getSignature(USER_ID);
-                case "withdraw" -> service.completeWithdrawal(USER_ID, List.of());
-                default -> throw new AssertionError(operation);
-            }
-        }).isInstanceOf(UnauthorizedException.class).hasMessage("유효하지 않은 인증 정보입니다.");
+        assertThatThrownBy(() -> service.createSignatureUpload(USER_ID))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
+        verifyNoInteractions(
+                issuer,
+                storage,
+                accounts,
+                refreshTokens
+        );
+    }
+
+    @Test
+    @DisplayName("활성 회원이 없으면 사인 조회를 부수 효과 없이 거부한다")
+    void getSignature_unavailableUser_throwsUnauthorizedException() {
+        // Given
+        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> service.getSignature(USER_ID))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
+        verifyNoInteractions(
+                issuer,
+                storage,
+                accounts,
+                refreshTokens
+        );
+    }
+
+    @Test
+    @DisplayName("활성 회원이 없으면 탈퇴를 부수 효과 없이 거부한다")
+    void completeWithdrawal_unavailableUser_throwsUnauthorizedException() {
+        // Given
+        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> service.completeWithdrawal(USER_ID, List.of()))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("유효하지 않은 인증 정보입니다.");
         verifyNoInteractions(
                 issuer,
                 storage,

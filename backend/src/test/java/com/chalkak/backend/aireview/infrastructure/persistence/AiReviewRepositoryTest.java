@@ -1,7 +1,5 @@
 package com.chalkak.backend.aireview.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static com.chalkak.backend.aireview.service.AiReviewFixture.AUTHOR_ID;
 import static com.chalkak.backend.aireview.service.AiReviewFixture.POST_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,6 +12,7 @@ import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.aireview.domain.AiReviewResult.Criterion;
 import com.chalkak.backend.aireview.repository.AiReviewRepository;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;

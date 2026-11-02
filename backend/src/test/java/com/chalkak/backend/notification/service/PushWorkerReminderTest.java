@@ -1,7 +1,6 @@
 package com.chalkak.backend.notification.service;
 
 import static com.chalkak.backend.notification.support.PushSessionFixtures.insertSession;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;

@@ -1,10 +1,9 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;

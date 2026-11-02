@@ -1,13 +1,12 @@
 package com.chalkak.backend.auth.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -37,7 +36,7 @@ class SocialAccountRepositoryTest {
 
     @Test
     @DisplayName("provider와 subject가 모두 맞는 계정만 회원과 함께 조회한다")
-    void findByProviderAndSubjectHmac_existingAccount_loadsUser() {
+    void findByProviderAndSubjectHmac_bothKeysMatch_loadsUserOtherwiseEmpty() {
         // Given
         User user = userRepository.save(createUser());
         socialAccountRepository.save(SocialAccount.create(

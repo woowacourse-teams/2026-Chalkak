@@ -239,7 +239,7 @@ DB 슬라이스마다 다른 구현체를 import하면서 컨텍스트가 나뉜
 추가 요청에 따라 테스트가 선언된 Java 파일 343개와 준비 도구 10개를 모두 목록화했다. 각 파일의 시나리오, assertion, 실제 의존성과 실행 환경을 기준에 대조하고, 본문이 같거나 입력 상수만 다른 후보는 준비 과정과 다른 계층의 검증까지 함께 확인했다.
 
 - [파일별 대조 결과](test-review-files.csv): 전체 353개 Java 파일의 실행 환경, 메서드 수, 유지 또는 정리 이유.
-- [옮기거나 합친 검증의 대응표](test-review-replacements.csv): 삭제 또는 이름이 바뀐 50개 기존 메서드와 남은 검증 위치. 입력을 합친 경우와 다른 계층으로 옮긴 경우를 함께 기록한다.
+- [옮기거나 합친 검증의 대응표](test-review-replacements.csv): 기준 커밋 `0c55d29a`에서 현재 위치나 이름이 사라진 테스트 173개의 남은 검증 위치와 정리 이유. 입력을 합친 경우와 다른 계층으로 옮긴 경우를 함께 기록한다.
 
 | 정리한 부분 | 남긴 보호 범위 |
 | --- | --- |
@@ -309,3 +309,50 @@ Claude에는 임의 Bash 대신 고정 `java_check`를 제공했다. 검증된 m
 | Claude 실제 AI 동작 | 미검증. 최초 실행과 재로그인 후 실행 모두 OAuth 401로 중단, 입력/출력 토큰 0. 사용자 안내에 따라 추가 실행 보류 |
 
 기존 FAIL/BLOCKED와 인증 중단 기록은 보존했다. 새 결과는 `build/harness-eval/20261102-195523-d7a439d5`와 `20261102-195925-25a489ba`에 남긴다. 자동 검사와 격리 확인을 Claude의 실제 AI 동작 통과로 대신하지 않는다. Java 경로 규칙의 자동 로딩, 전체 Spring/Gradle 실행과 모든 사례의 AI 동작을 확인한 결과도 아니다.
+
+
+## 리뷰 반영 후 최종 상태
+
+파일별 대조표는 리뷰 직전 `762f65db`와 이번 수정 후를 비교한다. 메서드 대응표는 최초 기준 `0c55d29a`와 현재를 비교해 50행에서 173행으로 보완했다. 이름이 같아도 파일을 옮겼으면 포함하며, 모든 대상 파일과 JUnit 메서드가 실제로 존재하는지 확인했다. 준비 헬퍼는 JUnit 테스트가 아니므로 테스트 행수에서 제외한다. 별도 빈 `contextLoads`를 없앤 이유와 실제 전체 Context를 사용하는 대체 시나리오는 표에 포함했다.
+
+서로 다른 메서드를 호출하던 UserService의 3개 입력과 이미지 처리의 성공/실패 2개 입력은 같은 클래스 안에서 각각의 실제 메서드 이름으로 분리했다. 새 클래스나 범용 헬퍼 없이 기존 실행 사례를 유지한다.
+
+이번 리뷰에서 없앤 중간 이름도 다음 위치로 대응한다.
+
+- `UserServiceTest#handleUser_unavailableUser_throwsUnauthorizedException`: 같은 클래스의 `createSignatureUpload_unavailableUser_throwsUnauthorizedException`, `getSignature_unavailableUser_throwsUnauthorizedException`, `completeWithdrawal_unavailableUser_throwsUnauthorizedException`에 세 입력과 부수 효과 미발생을 유지한다.
+- `PostCommandServiceTest#processImage_unknownUpload_doesNothing`: 같은 클래스의 `completePostImageProcessing_unknownUpload_doesNothing`과 `failPostImageProcessing_unknownUpload_doesNothing`에 성공/실패 두 입력과 게시물 미접근을 유지한다.
+
+ 회원가입과 소셜 계정 조회의 이름은 기존 assertion 범위에 맞추고, 관리자 로그인 테스트는 private 헬퍼 앞으로 옮겼다. 이 PR에서 바뀐 파일의 import 블록을 정리했다.
+
+대응표를 더 엄밀히 확인한 결과, 삭제된 주제의 ID 조회와 삭제된 게시물의 수정용 잠금 조회는 날짜 조회나 공개 조회로 정확히 대체할 수 없었다. `PostCreationServiceTest#createPost_deletedTopic_throwsNotFoundException`과 `PostUpdateServiceTest#updatePost_deletedPost_throwsNotFoundException`의 기존 실제 DB 검증을 복구했다. 서비스의 Mock 불가 판단과 쿼리의 삭제 필터를 구분해 보호한다.
+
+관리자 회원과 알림 대상 조회의 DB 정리는 유지하되 `@BeforeTransaction`으로 옮겼다. 전용 DB에 다른 실행이 이미 커밋한 활성 회원을 준비하고 정리를 제거하자 관리자 조회 2건과 알림 조회 8건이 해당 회원 때문에 실패했다. 정리 위치를 바꾼 뒤 같은 두 클래스의 31건이 모두 통과했다. 각 테스트의 롤백은 외부의 커밋 데이터를 없애지 못하므로 필요한 정리이며, 이제 TRUNCATE는 테스트 트랜잭션이 시작되기 전에 끝난다. 필요한 이유를 두 클래스에 남겼으며 다른 슬라이스에는 일괄 추가하지 않았다. 같은 DB를 공유하는 테스트의 병렬 실행까지 보장하는 변경은 아니다. 별도 PostgreSQL 확인에서도 TRUNCATE 잠금은 명시적 트랜잭션 안에서 유지되고 autocommit이 끝난 뒤에는 0개임을 확인했다.
+
+공통 슬라이스 구성을 재사용한다는 선택과 지침을 맞췄다. `REQUIRES_NEW`가 있다는 이유만으로 롤백 격리를 금지하지 않고, 독립된 트랜잭션 안에서 준비와 실패를 끝내고 새 트랜잭션에서 결과를 조회하는지로 구분한다. `PostRepositoryTest`의 실제 cascade 롤백 검증은 유지한다. Codex와 Claude 지침에 동일하게 반영했다.
+
+| 항목 | 리뷰 전 | 리뷰 반영 후 |
+| --- | ---: | ---: |
+| 테스트 클래스 파일 | 343 | 343 |
+| 준비 도구 파일 | 10 | 10 |
+| AST로 확인한 JUnit 메서드 | 2,409 | 2,414 |
+| 실제 실행 | 3,659 | 3,661 |
+| 준비 도구 포함 테스트 Java | 83,605줄 | 83,665줄 |
+| 완전히 같은 테스트 본문 그룹 | 8 | 8 |
+
+메서드 5개 증가는 기존 파라미터 실행을 나누며 늘어난 3개 선언과 실제 DB 검증 2개 복구에 따른다. 실행은 복구한 2건만 늘었다. 같은 본문의 새 중복 그룹이나 기존 그룹의 확대는 없고, 기존 8그룹은 서로 다른 API/감사 전이/알림 종류를 보호해 유지한다. 단순 본문 동일성 검사만으로 의미적인 중복이 전혀 없다고 보장하지는 않는다.
+
+이전 정규식 집계는 SqsPushConfigurationTest의 여러 줄 메서드 선언 1건을 누락했다. AST 기준 최초 메서드는 2,453개이며 현재는 2,414개로 39개 적다. 이전 표의 실행 건수와 시간 측정값에는 영향이 없다. 현재 테스트 Java는 최초 83,735줄보다 70줄 적다. 추가한 60줄은 분기 제거와 필요한 DB 검증 복구를 포함한 순증가이며, 이 수정 후의 속도 개선률을 새로 측정한 결과는 아니다.
+
+전용 PostgreSQL에서 전체 3,661건이 실패/오류/건너뜀 없이 통과했고 Spotless와 JavaLayout도 통과했다. 개인 .env는 변경하지 않았으며 기존 계약 누락 때문에 checkEnvContract는 이전과 같이 제외했다. 이번 변경은 미커밋 상태로 검토한다.
+
+
+리뷰 반영 후 하네스 자동 테스트 237개와 평가 자료 42개 준비는 통과했다. 실제 Codex의 기존 `combined-java-skills`는 JUnit 10건/JavaLayout 8파일/재현 실패와 수정/커밋 승인 경계를 확인했으나, 새 운영 클래스에 필요한 package-structure와 naming-conventions 지침 본문 읽기를 누락해 FAIL로 판정했다. 원본 도구 기록과 판정은 `build/harness-eval/20261102-204209-5a76a40b`에 보존하며 동작 검증 완료로 취급하지 않는다. 이 사례는 DB 정리와 공통 슬라이스 선택을 직접 평가하지 않는다. 해당 선택의 AI 판단을 확인하려면 별도 사례 보완이 필요하다. Claude 실제 평가는 앞선 사용자 선택에 따라 생략한다.
+
+
+### 필수 규칙 읽기 누락 후속 보완
+
+실제 AI 평가에서 main-code를 읽고도 새 클래스의 package-structure와 이름의 naming-conventions를 빠뜨렸다. 운영 코드 작성 지침의 적용 단계에 조건별 규칙 본문 링크를 연결하고, 코드 작성 전에 읽으며 완료 전에 적용 대상과 실제 읽은 규칙을 대조하도록 보완했다. 두 플랫폼의 운영 코드 지침에 같은 조건을 반영했다. 기존 사례의 요청과 판정 기준, 실행기와 격리는 변경하지 않았다.
+
+같은 CLI와 모델 설정으로 combined-java-skills를 새 세션 한 번 실행했다. 첫 편집 전에 적용 대상 8개 지침의 본문 읽기를 확인했고, 수정 전 2건 중 1건이 KST 오늘 조회에서 BusinessException으로 실패한 뒤 수정 후 JUnit 12건과 JavaLayout 8파일이 통과했다. 도구 기록, 코드와 최종 답변의 승인 경계까지 판정해 PASS로 집계했다. 전체 자동 검사 237개와 평가 자료 준비 42개도 통과했다. 이전 FAIL은 보존하고 새 결과는 build/harness-eval/20261102-205946-412ab138에 남긴다. 이는 해당 Java 사례의 결과이며 모든 작업과 Claude의 실제 AI 행동을 검증한 결과로 확대하지 않는다. Claude 실제 평가는 사용자 선택에 따라 생략한다.
+
+테스트 이관 과정에서 다른 DB 조회를 동등한 검증으로 잘못 판단해 삭제했던 두 사례는 앞서 복구했다. 공통 Context 재사용과 서비스 판단의 Mock 단위를 유지하면서, 삭제된 주제의 ID 조회와 삭제된 게시물의 수정용 잠금 조회는 실제 DB로 확인한다. 같은 클래스에 복구했으므로 새 Context는 늘어나지 않는다. 이 후속 하네스 보완에서는 실제 테스트 Java 353개와 기존 검증 결과를 그대로 유지했으며 커밋하지 않았다.

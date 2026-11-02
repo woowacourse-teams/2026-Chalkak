@@ -1,13 +1,12 @@
 package com.chalkak.backend.appversion.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.domain.AppVersion;
 import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
 import com.chalkak.backend.appversion.domain.StoreUrl;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

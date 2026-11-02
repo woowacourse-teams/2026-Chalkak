@@ -1,12 +1,10 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.repository.DistributableNotice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
-
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;

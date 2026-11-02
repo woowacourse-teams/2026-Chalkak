@@ -1,13 +1,12 @@
 package com.chalkak.backend.banner.infrastructure.persistence;
 
-import com.chalkak.backend.support.PostgresRepositoryTest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.banner.domain.Banner;
 import com.chalkak.backend.banner.repository.BannerRepository;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

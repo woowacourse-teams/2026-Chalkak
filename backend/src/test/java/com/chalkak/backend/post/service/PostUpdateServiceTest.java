@@ -1,7 +1,10 @@
 package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -40,6 +43,28 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         insertOpenTopic();
         insertPhoto();
         insertPendingPost();
+    }
+
+    @Test
+    @DisplayName("삭제된 게시물은 제목을 수정할 수 없다")
+    void updatePost_deletedPost_throwsNotFoundException() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                POST_ID);
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postCommandService.updatePost(
+                        AUTHOR_ID,
+                        POST_ID,
+                        "수정 제목"
+                ));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
     }
 
     @Test

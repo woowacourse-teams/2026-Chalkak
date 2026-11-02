@@ -10,33 +10,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.admin.repository.AdminPage;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.Criteria;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.DetailProjection;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.SummaryProjection;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewDetail;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewSummary;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.ListResult;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
-import com.chalkak.backend.admin.repository.AdminPage;
-import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository;
-import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.Criteria;
-import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.SummaryProjection;
-import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.DetailProjection;
-import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.user.domain.UserStatus;
-import java.util.UUID;
 import java.util.List;
 import java.util.Optional;
-import tools.jackson.databind.ObjectMapper;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class AdminAiReviewQueryServiceTest {

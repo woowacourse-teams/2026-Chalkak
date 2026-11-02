@@ -1,10 +1,12 @@
 package com.chalkak.backend.appversion.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.repository.AppVersionRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -82,7 +84,7 @@ class AppVersionRepositoryTest extends IntegrationTestSupport {
             }
 
             // Then
-            assertThat(java.util.List.of(
+            assertThat(List.of(
                     first.get(10, TimeUnit.SECONDS),
                     second.get(10, TimeUnit.SECONDS)))
                     .containsExactlyInAnyOrder(true, false);

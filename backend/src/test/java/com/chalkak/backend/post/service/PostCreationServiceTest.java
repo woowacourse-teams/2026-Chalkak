@@ -3,6 +3,7 @@ package com.chalkak.backend.post.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -11,11 +12,10 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PresignedPostImageUpload;
-import com.chalkak.backend.post.domain.PostImageUpload;
-import static org.mockito.ArgumentMatchers.any;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -120,6 +120,30 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 userId,
                 status
         );
+    }
+
+    @Test
+    @DisplayName("삭제된 주제에는 게시물을 생성할 수 없다")
+    void createPost_deletedTopic_throwsNotFoundException() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                TOPIC_ID);
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postCommandService.createPost(
+                        USER_ID,
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        null
+                ));
+
+        // Then
+        assertThat(exception).hasMessage("게시물을 작성할 주제를 찾을 수 없습니다.");
+        assertNoCreatedRows();
+        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test

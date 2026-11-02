@@ -1,7 +1,6 @@
 package com.chalkak.backend.notification.service;
 
 import static com.chalkak.backend.notification.support.PushSessionFixtures.insertSession;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -13,8 +12,8 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
-import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.AiReviewOutcome;
+import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
