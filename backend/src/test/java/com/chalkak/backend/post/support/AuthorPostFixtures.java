@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.support;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -67,6 +68,7 @@ public final class AuthorPostFixtures {
                 photoId,
                 status.name()
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         return postId;
     }
 }

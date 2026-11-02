@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 
@@ -333,6 +334,7 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
         jdbcTemplate.update(
                 "DELETE FROM notifications WHERE source_type = 'POST' AND source_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
         jdbcTemplate.update("DELETE FROM topics WHERE id = ?", TOPIC_ID);
@@ -405,6 +407,7 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 PHOTO_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     @FunctionalInterface

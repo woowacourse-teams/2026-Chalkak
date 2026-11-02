@@ -1,5 +1,6 @@
 package com.chalkak.backend.like.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
@@ -91,6 +92,7 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                             CURRENT_TIMESTAMP
                         )
                         """);
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     @Test
