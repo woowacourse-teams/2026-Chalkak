@@ -36,7 +36,7 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.PostResponse.properties.authorId.format")
                         .value("uuid"))
                 .andExpect(jsonPath("$.components.schemas.PostDetailResponse.properties")
-                        .value(aMapWithSize(9)))
+                        .value(aMapWithSize(10)))
                 .andExpect(
                         jsonPath("$.components.schemas.PostDetailResponse.properties.authorId.type")
                                 .value("string"))
@@ -47,6 +47,19 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].get.responses")
                         .value(aMapWithSize(4)));
+    }
+
+    @Test
+    @DisplayName("user-api 문서는 상세 응답에만 nullable 설명을 제공하고 피드 항목에는 추가하지 않는다")
+    void userApiDocs_postDetail_exposesDescriptionOnlyOnDetail() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostDetailResponse"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostResponse"
+                        + ".properties.description").doesNotExist());
     }
 
     @Test

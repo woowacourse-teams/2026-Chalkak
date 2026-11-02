@@ -15,6 +15,8 @@ public record PostDetailResponse(
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
         String title,
+        @Schema(description = "작품 설명. 줄바꿈을 포함할 수 있으며 설명이 없으면 null", nullable = true)
+        String description,
         long likeCount,
         boolean isLiked
 ) {
@@ -28,6 +30,7 @@ public record PostDetailResponse(
                 detail.thumbnailImageUrl(),
                 detail.signatureOriginalImageUrl(),
                 detail.title(),
+                detail.description(),
                 detail.likeCount(),
                 detail.isLiked()
         );

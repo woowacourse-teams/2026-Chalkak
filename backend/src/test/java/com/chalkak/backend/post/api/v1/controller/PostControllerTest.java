@@ -398,6 +398,7 @@ class PostControllerTest {
                 "https://cdn.example.com/dev/posts/thumbnail.jpg",
                 "https://cdn.example.com/dev/signatures/signature.png",
                 "오늘의 순간",
+                "퇴근길에 만난 노을\n오래 기억하고 싶다",
                 43L,
                 true
         );
@@ -418,6 +419,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.signatureOriginalImageUrl")
                         .value("https://cdn.example.com/dev/signatures/signature.png"))
                 .andExpect(jsonPath("$.title").value("오늘의 순간"))
+                .andExpect(jsonPath("$.description").value("퇴근길에 만난 노을\n오래 기억하고 싶다"))
                 .andExpect(jsonPath("$.likeCount").value(43L))
                 .andExpect(jsonPath("$.isLiked").value(true));
     }

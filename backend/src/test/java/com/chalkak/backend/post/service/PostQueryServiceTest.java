@@ -442,6 +442,33 @@ class PostQueryServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("설명이 있는 공개 게시물을 조회하면 상세에 설명을 포함한다")
+    void getPost_postWithDescription_returnsDescription() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET description = ? WHERE id = ?",
+                "첫 줄\n둘째 줄",
+                POST_ID
+        );
+
+        // When
+        PostDetail result = postQueryService.getPost(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result.description()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("설명이 없는 공개 게시물을 조회하면 상세의 설명은 null이다")
+    void getPost_postWithoutDescription_returnsNullDescription() {
+        // When
+        PostDetail result = postQueryService.getPost(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result.description()).isNull();
+    }
+
+    @Test
     @DisplayName("공개 가능한 게시물을 조회하고 이미지 URL을 조립한다")
     void getPost_visiblePost_returnsPostDetailWithImageUrls() {
         // Given
@@ -471,6 +498,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 THUMBNAIL_IMAGE_URL,
                 SIGNATURE_IMAGE_URL,
                 "오늘의 순간",
+                null,
                 1L,
                 true
         ));
