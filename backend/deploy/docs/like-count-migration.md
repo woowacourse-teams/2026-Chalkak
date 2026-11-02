@@ -113,4 +113,34 @@ HAVING counts.like_count IS NULL OR counts.like_count <> COUNT(post_like.id);
 - **마이그레이션 적용 후:** JAR을 되돌려도 집계 테이블과 Flyway 변경은 되돌아가지 않는다. 우선 신버전을 수정해 재시도한다. 부득이하게 구버전 서비스를 재개하면 집계가 다시 어긋나므로, 다음 신버전 전환 전에 **모든 쓰기를 멈추고 누락 행 생성·관계 수 재계산**을 별도로 수행해야 한다.
 - **DB 복구가 필요할 때:** 백업은 앱 롤백과 별도다. RDS 복구 대상·접속 전환·백업 이후 데이터 유실 범위를 확인한 뒤 결정한다. 이미 적용한 Flyway 파일을 수정하거나 이력만 삭제해 재실행하지 않는다.
 
+### 집계가 어긋났을 때 사용하는 보정 SQL
+
+**게시물·좋아요를 변경하는 모든 앱·배치·관리 작업과 진행 중인 트랜잭션을 종료한 점검 상태에서만 사용한다.** 대상 DB와 백업, 집계 테이블 생성 완료를 확인한다. 아래 SQL 자체가 다른 쓰기를 막아 주는 것은 아니다.
+
+누락된 집계 행은 만들고, 기존 행은 실제 좋아요 관계 수로 덮어쓴다. 좋아요 0개·소프트 삭제 게시물도 포함하며 `posts`·`post_likes` 원본은 변경하지 않는다. 쓰기가 멈춘 같은 데이터에 반복 실행해도 개수를 중복해서 더하지 않는다.
+
+```sql
+BEGIN;
+
+INSERT INTO post_like_counts (post_id, like_count)
+SELECT post.id, COUNT(post_like.id)
+FROM posts post
+LEFT JOIN post_likes post_like ON post_like.post_id = post.id
+GROUP BY post.id
+ON CONFLICT (post_id) DO UPDATE
+SET like_count = EXCLUDED.like_count;
+```
+
+**같은 DB 세션·트랜잭션에서** 위 [초기 집계 검증 SQL](#4-초기-집계와-api를-확인한-뒤-공개한다)을 실행한다. 결과가 **0행이면 아래 COMMIT만**, 불일치가 남거나 SQL 오류가 발생하면 **ROLLBACK만** 실행하고 점검을 유지한다. 두 명령을 연달아 실행하지 않는다.
+
+```sql
+COMMIT;
+```
+
+```sql
+ROLLBACK;
+```
+
+커밋 후에도 구버전을 재시작하지 않는다. 신버전만 실행해 위 API·집계 검증을 마친 뒤 서비스를 재개한다. 이 보정 SQL은 문서에만 추가했으며, 실제 DB 실행·동작 검증은 하지 않았다.
+
 동시 쓰기 중 자동 보정·정기 재계산 기능은 이번 변경에 포함하지 않았다. 이번 작업은 문서화만 했으며 개발·운영 서버 설정, 배포 스크립트, DB는 변경하지 않았다.
