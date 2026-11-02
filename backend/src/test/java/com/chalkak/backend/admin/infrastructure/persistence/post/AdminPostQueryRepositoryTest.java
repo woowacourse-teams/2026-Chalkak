@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.infrastructure.persistence.post;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.repository.AdminPage;
@@ -855,6 +856,7 @@ class AdminPostQueryRepositoryTest {
                 timestamp(createdAt.plusSeconds(30)),
                 timestamp(deletedAt)
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private Timestamp timestamp(Instant instant) {
@@ -870,10 +872,12 @@ class AdminPostQueryRepositoryTest {
                 PENDING_POST_ID,
                 VALIDATING_USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 PENDING_POST_ID,
                 APPROVED_USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 }

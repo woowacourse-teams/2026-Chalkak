@@ -3,6 +3,7 @@ package com.chalkak.backend.like.domain;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 
 public record PostLikes(Map<UUID, Long> counts, Set<UUID> likedPostIds) {
 
@@ -20,6 +21,10 @@ public record PostLikes(Map<UUID, Long> counts, Set<UUID> likedPostIds) {
     }
 
     public long getLikeCount(UUID postId) {
-        return counts.getOrDefault(postId, 0L);
+        Long count = counts.get(postId);
+        if (count == null) {
+            throw new DataIntegrityViolationException("좋아요 집계 행을 찾을 수 없습니다: " + postId);
+        }
+        return count;
     }
 }

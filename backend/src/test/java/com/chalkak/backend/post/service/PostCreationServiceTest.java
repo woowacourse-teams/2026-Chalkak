@@ -136,6 +136,11 @@ class PostCreationServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(result.postId()).isNotNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT like_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                result.postId()
+        )).isZero();
         assertThat(result.moderationStatus()).isEqualTo(ModerationStatus.VALIDATING);
 
         Map<String, Object> saved = jdbcTemplate.queryForMap("""
