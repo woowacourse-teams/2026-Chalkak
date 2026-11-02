@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
@@ -104,6 +105,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 AUTHOR_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
 
         // When
         postCommandService.deletePost(AUTHOR_ID, POST_ID);
@@ -168,6 +170,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 AUTHOR_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
 
         // When
         ForbiddenException exception = catchThrowableOfType(
@@ -437,6 +440,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 PHOTO_ID,
                 UPLOAD_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private Map<String, Object> findDeletionState() {

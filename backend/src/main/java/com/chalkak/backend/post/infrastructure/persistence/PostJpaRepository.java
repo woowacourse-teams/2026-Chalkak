@@ -221,15 +221,14 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             JOIN post.topic topic
             JOIN FETCH post.photo photo
             JOIN FETCH post.author author
-            LEFT JOIN PostLike postLike ON postLike.postId = post.id
+            LEFT JOIN PostLikeCounter counter ON counter.postId = post.id
             WHERE topic.id = :topicId
               AND post.moderationStatus = :moderationStatus
               AND post.deletedAt IS NULL
               AND topic.deletedAt IS NULL
               AND photo.deletedAt IS NULL
               AND author.deletedAt IS NULL
-            GROUP BY post, photo, author
-            ORDER BY COUNT(postLike) DESC, post.createdAt DESC, post.id ASC
+            ORDER BY counter.likeCount DESC, post.createdAt DESC, post.id ASC
             """)
     Slice<Post> findVisiblePopularByTopicId(
             @Param("topicId") UUID topicId,

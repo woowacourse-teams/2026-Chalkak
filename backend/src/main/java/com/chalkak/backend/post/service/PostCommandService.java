@@ -6,6 +6,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.like.repository.PostLikeCounterRepository;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.repository.PhotoRepository;
 import com.chalkak.backend.post.domain.ModerationStatus;
@@ -47,6 +48,7 @@ public class PostCommandService {
 
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
+    private final PostLikeCounterRepository postLikeCounterRepository;
     private final TopicRepository topicRepository;
     private final UserRepository userRepository;
     private final PhotoRepository photoRepository;
@@ -128,6 +130,7 @@ public class PostCommandService {
             post.requestModeration();
         }
         Post savedPost = postRepository.save(post);
+        postLikeCounterRepository.create(savedPost.getId());
         if (savedPost.getModerationStatus() == ModerationStatus.PENDING) {
             publishPostModerationPending(savedPost.getId());
         }
@@ -139,6 +142,7 @@ public class PostCommandService {
         Post post = getPostForDeletion(postId);
         post.deleteByAuthor(authorId, Instant.now());
         postLikeRepository.deleteByPostId(postId);
+        postLikeCounterRepository.reset(postId);
     }
 
     public PostUpdateResult updatePost(

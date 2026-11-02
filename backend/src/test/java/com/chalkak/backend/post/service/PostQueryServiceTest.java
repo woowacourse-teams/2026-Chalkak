@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.tuple;
@@ -133,6 +134,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                             CURRENT_TIMESTAMP
                         )
                         """);
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     @Test
@@ -320,6 +322,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 SECOND_USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
 
         // When
         PostListResult result = postQueryService.getPosts(
@@ -691,6 +694,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                 POST_ID,
                 USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private void insertSecondVisiblePost() {
@@ -734,6 +738,7 @@ class PostQueryServiceTest extends IntegrationTestSupport {
                     CURRENT_TIMESTAMP
                 )
                 """);
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private static Stream<Arguments> invalidRandomSeedCombinations() {

@@ -1,5 +1,6 @@
 package com.chalkak.backend.like.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 
@@ -289,10 +290,12 @@ class PostLikeDeletionConcurrencyTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 PHOTO_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private void cleanUp() {
         jdbcTemplate.update("DELETE FROM post_likes WHERE post_id = ?", POST_ID);
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
         jdbcTemplate.update("DELETE FROM topics WHERE id = ?", TOPIC_ID);

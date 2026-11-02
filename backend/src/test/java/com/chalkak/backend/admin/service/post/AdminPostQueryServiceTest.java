@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.service.post;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -83,6 +84,7 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
                 SECOND_POST_ID,
                 USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     @Test

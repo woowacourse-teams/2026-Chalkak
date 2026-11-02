@@ -7,6 +7,7 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.like.domain.PostLikes;
 import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.like.repository.PostLikeCounterRepository;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -19,12 +20,13 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,7 @@ public class PostQueryService {
     private final TopicRepository topicRepository;
     private final UserRepository userRepository;
     private final PostLikeRepository postLikeRepository;
+    private final PostLikeCounterRepository postLikeCounterRepository;
     private final ImageUrlProvider imageUrlProvider;
     private final RandomSeedGenerator randomSeedGenerator;
     private final PostProcessingPolicy postProcessingPolicy;
@@ -55,7 +58,7 @@ public class PostQueryService {
         return PostDetail.from(
                 post,
                 imageUrlProvider,
-                postLikeRepository.countByPostId(postId),
+                postLikeCounterRepository.getCountByPostId(postId),
                 postLikeRepository.existsByPostIdAndUserId(postId, userId)
         );
     }
@@ -76,7 +79,7 @@ public class PostQueryService {
                 page,
                 pageSize
         );
-        List<UUID> postIds = postSlice.posts().stream().map(Post::getId).toList();
+        List<UUID> postIds = getPostIds(postSlice.posts());
         PostLikes postLikes = findPostLikes(postIds, Optional.of(viewerId));
 
         return AuthorPostListResult.fromPostSlice(
@@ -246,9 +249,7 @@ public class PostQueryService {
             String randomSeed,
             Optional<UUID> userId
     ) {
-        List<UUID> postIds = postSlice.posts().stream()
-                .map(Post::getId)
-                .toList();
+        List<UUID> postIds = getPostIds(postSlice.posts());
         PostLikes postLikes = findPostLikes(postIds, userId);
 
         return PostListResult.from(
@@ -266,14 +267,22 @@ public class PostQueryService {
         if (postIds.isEmpty()) {
             return PostLikes.createEmpty();
         }
-        Map<UUID, Long> likeCounts = postLikeRepository.countByPostIds(postIds).stream()
-                .collect(Collectors.toMap(
-                        PostLikeCount::postId,
-                        PostLikeCount::likeCount));
+        Map<UUID, Long> likeCounts = new HashMap<>();
+        for (PostLikeCount count : postLikeCounterRepository.getCountsByPostIds(postIds)) {
+            likeCounts.put(count.postId(), count.likeCount());
+        }
         Set<UUID> likedPostIds = viewerId
                 .map(id -> postLikeRepository.findLikedPostIds(postIds, id))
                 .orElseGet(Set::of);
         return new PostLikes(likeCounts, likedPostIds);
+    }
+
+    private List<UUID> getPostIds(List<Post> posts) {
+        List<UUID> postIds = new ArrayList<>();
+        for (Post post : posts) {
+            postIds.add(post.getId());
+        }
+        return postIds;
     }
 
     private Topic getOpenTopic(Instant now) {
