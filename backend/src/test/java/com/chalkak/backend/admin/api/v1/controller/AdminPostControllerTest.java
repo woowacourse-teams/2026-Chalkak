@@ -144,7 +144,8 @@ class AdminPostControllerTest {
                 .andExpect(jsonPath("$.posts[0].moderationStatus").value("PENDING"))
                 .andExpect(jsonPath("$.posts[0].author.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].topic.topicId").value(TOPIC_ID.toString()))
-                .andExpect(jsonPath("$.posts[0].photo.photoId").value(PHOTO_ID.toString()));
+                .andExpect(jsonPath("$.posts[0].photo.photoId").value(PHOTO_ID.toString()))
+                .andExpect(jsonPath("$.posts[0].description").doesNotExist());
 
         then(adminActorResolver).should().resolve();
         then(adminPostQueryService).should().getPosts(
@@ -305,7 +306,8 @@ class AdminPostControllerTest {
         AdminPostDetail detail = createDetail(
                 ModerationStatus.REJECTED,
                 MODERATED_AT,
-                DELETED_AT
+                DELETED_AT,
+                "첫 줄\n둘째 줄"
         );
         given(adminPostQueryService.getPost(POST_ID)).willReturn(detail);
 
@@ -314,6 +316,7 @@ class AdminPostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.title").value("오늘의 순간"))
+                .andExpect(jsonPath("$.description").value("첫 줄\n둘째 줄"))
                 .andExpect(jsonPath("$.moderationStatus").value("REJECTED"))
                 .andExpect(jsonPath("$.author.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.author.email").value("author@example.com"))
@@ -349,6 +352,7 @@ class AdminPostControllerTest {
         AdminPostDetail detail = createDetail(
                 ModerationStatus.PENDING,
                 null,
+                null,
                 null
         );
         given(adminPostQueryService.getPost(POST_ID)).willReturn(detail);
@@ -358,6 +362,7 @@ class AdminPostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(POST_ID.toString()))
                 .andExpect(jsonPath("$.moderationStatus").value("PENDING"))
+                .andExpect(jsonPath("$.description").value(nullValue()))
                 .andExpect(jsonPath("$.moderatedAt").value(nullValue()))
                 .andExpect(jsonPath("$.deletedAt").value(nullValue()));
     }
@@ -858,11 +863,13 @@ class AdminPostControllerTest {
     private AdminPostDetail createDetail(
             ModerationStatus moderationStatus,
             Instant moderatedAt,
-            Instant deletedAt
+            Instant deletedAt,
+            String description
     ) {
         return new AdminPostDetail(
                 POST_ID,
                 "오늘의 순간",
+                description,
                 moderationStatus,
                 new AdminPostDetail.AuthorDetail(
                         USER_ID,

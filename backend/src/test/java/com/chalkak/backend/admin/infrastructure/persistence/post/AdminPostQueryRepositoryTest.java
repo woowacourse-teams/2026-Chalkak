@@ -411,6 +411,35 @@ class AdminPostQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("상세 조회는 저장된 게시물 설명을 줄바꿈 그대로 반환한다")
+    void findPostById_postWithDescription_returnsDescription() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET description = ? WHERE id = ?",
+                "첫 줄\n둘째 줄",
+                APPROVED_POST_ID
+        );
+
+        // When
+        AdminPostDetailProjection detail = adminPostQueryRepository.findPostById(
+                APPROVED_POST_ID).orElseThrow();
+
+        // Then
+        assertThat(detail.description()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("상세 조회는 설명이 없는 게시물의 설명을 null로 반환한다")
+    void findPostById_postWithoutDescription_returnsNullDescription() {
+        // When
+        AdminPostDetailProjection detail = adminPostQueryRepository.findPostById(
+                PENDING_POST_ID).orElseThrow();
+
+        // Then
+        assertThat(detail.description()).isNull();
+    }
+
+    @Test
     @DisplayName("내부 검증 중 게시물은 관리자 상세에서 조회하지 않는다")
     void findPostById_validatingPost_returnsEmpty() {
         // When

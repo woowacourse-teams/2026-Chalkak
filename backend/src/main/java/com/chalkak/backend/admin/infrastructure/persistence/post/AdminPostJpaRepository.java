@@ -57,6 +57,7 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
             SELECT new com.chalkak.backend.admin.repository.post.AdminPostDetailProjection(
                 post.id,
                 post.title.value,
+                post.description.value,
                 post.moderationStatus,
                 post.createdAt,
                 post.updatedAt,
