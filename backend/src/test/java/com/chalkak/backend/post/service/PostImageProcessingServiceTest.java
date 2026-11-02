@@ -116,7 +116,8 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         );
         entityManager.flush();
         entityManager.clear();

@@ -120,6 +120,7 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
+                    null,
                     null
             );
             return null;
@@ -145,6 +146,7 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
+                    null,
                     null
             );
             return null;
@@ -181,6 +183,7 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
+                null,
                 null
         );
         Callable<Void> completeCallback = () -> {
@@ -217,6 +220,7 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
+                null,
                 null
         );
         jdbcTemplate.update(
@@ -244,6 +248,7 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
+                    null,
                     null
             );
             return null;

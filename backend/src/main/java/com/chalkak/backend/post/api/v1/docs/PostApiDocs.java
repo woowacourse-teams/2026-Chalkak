@@ -48,7 +48,7 @@ public interface PostApiDocs {
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(summary = "게시물 생성", description = "업로드된 사진과 선택 제목을 주제에 연결합니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다.")
+    @Operation(summary = "게시물 생성", description = "업로드된 사진과 선택 제목·설명을 주제에 연결합니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "게시물 생성 성공", useReturnTypeSchema = true),

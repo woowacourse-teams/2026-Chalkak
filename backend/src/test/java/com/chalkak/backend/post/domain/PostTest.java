@@ -44,7 +44,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         );
 
         // Then
@@ -53,6 +54,40 @@ class PostTest {
         assertThat(post.getPhoto()).isSameAs(photo);
         assertThat(post.getTitle()).isEqualTo("오늘의 기록");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
+    }
+
+    @Test
+    @DisplayName("설명의 앞뒤 공백과 줄바꿈을 제거해 게시물을 생성한다")
+    void createPost_descriptionWithSurroundingWhitespace_normalizesDescription() {
+        // When
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "오늘의 기록",
+                "  \n첫 줄\n둘째 줄\n  "
+        );
+
+        // Then
+        assertThat(post.getDescription()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("설명이 null이면 설명 없는 게시물로 생성한다")
+    void createPost_nullDescription_createsPostWithoutDescription() {
+        // When
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "오늘의 기록",
+                null
+        );
+
+        // Then
+        assertThat(post.getDescription()).isNull();
     }
 
     @ParameterizedTest
@@ -66,7 +101,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         );
 
         // Then
@@ -85,7 +121,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         );
 
         // Then
@@ -104,7 +141,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         );
 
         // Then
@@ -123,7 +161,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         );
 
         // Then
@@ -142,7 +181,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
@@ -157,7 +197,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "  오늘의  기록  "
+                "  오늘의  기록  ",
+                null
         );
 
         // Then
@@ -173,7 +214,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "  1234567890  "
+                "  1234567890  ",
+                null
         );
 
         // Then
@@ -192,7 +234,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
@@ -209,7 +252,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "기존 제목"
+                "기존 제목",
+                null
         );
         post.requestModeration();
 
@@ -364,7 +408,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "기존 제목"
+                "기존 제목",
+                null
         );
         post.requestModeration();
 
@@ -388,7 +433,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When
@@ -408,7 +454,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
@@ -430,7 +477,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
@@ -452,7 +500,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When
@@ -472,7 +521,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -491,7 +541,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -510,7 +561,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -530,7 +582,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -549,7 +602,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         post.reject(Instant.parse("2026-08-20T00:00:00Z"));
@@ -569,7 +623,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -589,7 +644,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -610,7 +666,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -631,7 +688,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         post.approve(Instant.parse("2026-08-20T00:00:00Z"));
@@ -654,7 +712,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
@@ -677,7 +736,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -701,7 +761,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.failImageProcessing();
 
@@ -725,7 +786,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -762,7 +824,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -799,7 +862,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -813,7 +877,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         if (status == ModerationStatus.VALIDATING) {
             return post;
@@ -837,7 +902,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         );
         post.requestModeration();
         return post;

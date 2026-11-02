@@ -12,6 +12,7 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
@@ -129,7 +130,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -156,6 +158,31 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("이모지와 줄바꿈을 포함한 300자 설명을 저장하고 다시 읽으면 같은 값이다")
+    void createPost_threeHundredCodePointDescription_savesDescription() {
+        // Given
+        String description = "📸".repeat(150) + "\n" + "가".repeat(149);
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+
+        // When
+        PostCreationResult result = postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                "\n " + description + " \n"
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Post saved = entityManager.find(Post.class, result.postId());
+        assertThat(saved.getDescription()).isEqualTo(description);
+    }
+
+    @Test
     @DisplayName("이모지 제목은 코드 포인트 기준 10자까지 그대로 저장한다")
     void createPost_tenCodePointEmojiTitle_savesTitle() {
         // Given
@@ -169,7 +196,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                title
+                title,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -197,7 +225,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
-                        "12345678901"
+                        "12345678901",
+                        null
                 ));
 
         // Then
@@ -218,6 +247,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         unknownUserId,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -242,6 +272,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -269,6 +300,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -296,6 +328,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -318,6 +351,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -346,6 +380,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
 
@@ -356,6 +391,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
+                        null,
                         null
                 ));
 
@@ -422,6 +458,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         backdatePost(stalled.postId(), 8);
@@ -431,6 +468,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 secondUploadId,
+                null,
                 null
         );
 
@@ -449,6 +487,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         backdatePost(pending.postId(), 6);
@@ -460,6 +499,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
+                        null,
                         null
                 ));
 
@@ -489,6 +529,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         postCommandService.failPostImageProcessing(PHOTO_UPLOAD_ID, "CORRUPTED_IMAGE");
@@ -498,6 +539,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 secondUploadId,
+                null,
                 null
         );
 
@@ -519,6 +561,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
 
@@ -529,6 +572,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -564,6 +608,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -582,6 +627,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         entityManager.clear();
@@ -615,6 +661,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         entityManager.flush();
@@ -656,6 +703,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         entityManager.flush();
@@ -681,6 +729,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         UUID.randomUUID(),
+                        null,
                         null
                 ));
 
@@ -702,6 +751,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         SECOND_USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -727,6 +777,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -753,6 +804,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 

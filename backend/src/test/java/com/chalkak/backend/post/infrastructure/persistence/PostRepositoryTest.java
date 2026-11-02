@@ -524,6 +524,7 @@ class PostRepositoryTest {
                 topic,
                 photo,
                 UUID.randomUUID(),
+                null,
                 null
         );
 
@@ -565,6 +566,7 @@ class PostRepositoryTest {
                 topic,
                 photo,
                 UUID.randomUUID(),
+                null,
                 null
         );
 
@@ -597,6 +599,7 @@ class PostRepositoryTest {
                             topic,
                             photo,
                             UUID.randomUUID(),
+                            null,
                             null
                     );
 

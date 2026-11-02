@@ -81,7 +81,8 @@ public class PostController implements PostApiDocs {
                 userId,
                 request.topicId(),
                 request.photoUploadId(),
-                request.title()
+                request.title(),
+                request.description()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)

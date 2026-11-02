@@ -67,6 +67,11 @@ public class Post {
     @Embedded
     private PostTitle title;
 
+    /** 설명 없음은 {@code null}로 표현한다. {@link PostDescription} 참고. */
+    @Getter(AccessLevel.NONE)
+    @Embedded
+    private PostDescription description;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "moderation_status", nullable = false, columnDefinition = "moderation_status")
@@ -91,13 +96,15 @@ public class Post {
             Topic topic,
             Photo photo,
             UUID postImageUploadId,
-            String title
+            String title,
+            String description
     ) {
         this.author = author;
         this.topic = topic;
         this.photo = photo;
         this.postImageUploadId = postImageUploadId;
         this.title = PostTitle.from(title);
+        this.description = PostDescription.from(description);
         this.moderationStatus = ModerationStatus.VALIDATING;
     }
 
@@ -106,7 +113,8 @@ public class Post {
             Topic topic,
             Photo photo,
             UUID postImageUploadId,
-            String title
+            String title,
+            String description
     ) {
         validateRelations(
                 author,
@@ -123,7 +131,8 @@ public class Post {
                 topic,
                 photo,
                 postImageUploadId,
-                title
+                title,
+                description
         );
     }
 
@@ -170,6 +179,14 @@ public class Post {
      */
     public String getTitle() {
         return title == null ? null : title.value();
+    }
+
+    /**
+     * 설명 없음을 {@code null}로 돌려준다. 응답 매핑이 {@link PostDescription}의 null 여부를 직접 다루지 않게
+     * 한다.
+     */
+    public String getDescription() {
+        return description == null ? null : description.value();
     }
 
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {

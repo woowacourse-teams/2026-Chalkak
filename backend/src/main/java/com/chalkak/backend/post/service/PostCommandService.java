@@ -80,7 +80,8 @@ public class PostCommandService {
             UUID userId,
             UUID topicId,
             UUID photoUploadId,
-            String title
+            String title,
+            String description
     ) {
         User author = getPostableUser(userId);
         Topic topic = topicRepository.findActiveById(topicId)
@@ -119,7 +120,8 @@ public class PostCommandService {
                 topic,
                 photo,
                 photoUploadId,
-                title
+                title,
+                description
         );
         if (upload.isProcessed()) {
             photo.completeProcessing(

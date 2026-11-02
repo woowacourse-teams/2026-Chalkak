@@ -520,7 +520,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
@@ -541,7 +542,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         );
     }
 
@@ -824,6 +826,67 @@ class PostControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 설명이 300자를 초과하면 400을 반환한다")
+    void createPost_tooLongDescription_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "description": "%s"
+                        }
+                        """.formatted(
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        "a".repeat(301)
+                )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("설명은 300자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 설명을 서비스로 전달한다")
+    void createPost_withDescription_passesDescriptionToService() throws Exception {
+        // Given
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                "첫 줄\n둘째 줄"
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "description": "첫 줄\\n둘째 줄"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()));
+
+        then(postCommandService).should().createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                "첫 줄\n둘째 줄"
+        );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("게시물을 생성할 때 앞뒤 공백을 포함해 10자를 넘어도 제거 후 10자면 서비스로 전달한다")
     void createPost_tenCharacterNormalizedTitle_returnsCreatedPost() throws Exception {
         // Given
@@ -832,7 +895,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle
+                paddedTitle,
+                null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -856,7 +920,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle
+                paddedTitle,
+                null
         );
     }
 
@@ -870,7 +935,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle
+                emojiTitle,
+                null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -895,7 +961,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle
+                emojiTitle,
+                null
         );
     }
 
@@ -909,7 +976,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle
+                blankTitle,
+                null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -933,7 +1001,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle
+                blankTitle,
+                null
         );
     }
 

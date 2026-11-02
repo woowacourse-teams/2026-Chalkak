@@ -3,7 +3,9 @@ package com.chalkak.backend.post.api.v1.docs;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -180,6 +182,19 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].delete.responses['404']")
                         .exists());
+    }
+
+    @Test
+    @DisplayName("user-api 문서는 게시물 생성 요청의 선택 설명을 제공한다")
+    void userApiDocs_createPost_exposesOptionalDescription() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostCreateRequest"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostCreateRequest.required")
+                        .value(not(hasItem("description"))));
     }
 
     @Test
