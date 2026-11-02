@@ -103,6 +103,11 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void cleanUp() {
+        jdbcTemplate.update(
+                """
+                        DELETE FROM post_like_counts WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?)
+                        """,
+                USER_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE user_id = ?", USER_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE original_storage_key = ?",
                 ORIGINAL_STORAGE_KEY);

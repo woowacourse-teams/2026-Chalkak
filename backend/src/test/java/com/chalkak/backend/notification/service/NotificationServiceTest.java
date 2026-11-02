@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -755,6 +756,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 PHOTO_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         jdbcTemplate.update(
                 """
                         INSERT INTO admin_audit_logs (

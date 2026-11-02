@@ -12,10 +12,6 @@ public interface PostLikeRepository {
 
     int deleteByPostId(UUID postId);
 
-    long countByPostId(UUID postId);
-
-    List<PostLikeCount> countByPostIds(List<UUID> postIds);
-
     Set<UUID> findLikedPostIds(List<UUID> postIds, UUID userId);
 
     boolean existsByPostIdAndUserId(UUID postId, UUID userId);

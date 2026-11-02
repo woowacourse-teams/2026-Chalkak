@@ -11,6 +11,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.like.repository.PostLikeCounterRepository;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
@@ -41,6 +42,7 @@ public class AdminPostCommandService {
 
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
+    private final PostLikeCounterRepository postLikeCounterRepository;
     private final AdminAuditLogService adminAuditLogService;
     private final NotificationService notificationService;
     private final Clock clock;
@@ -127,6 +129,7 @@ public class AdminPostCommandService {
         AdminAuditSnapshot beforeState = deletionState(post);
         post.deleteByAdmin(requestedAt);
         postLikeRepository.deleteByPostId(postId);
+        postLikeCounterRepository.reset(postId);
         adminAuditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.POST_DELETED,

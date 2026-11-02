@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.infrastructure.persistence;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -107,6 +108,7 @@ class PostRepositoryTest {
                             CURRENT_TIMESTAMP
                         )
                         """);
+        synchronizeFixtureCounts(jdbcTemplate);
 
         entityManager.flush();
         entityManager.clear();
@@ -653,6 +655,7 @@ class PostRepositoryTest {
                 topicId,
                 photoId
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private void insertSecondVisiblePost() {
@@ -697,6 +700,7 @@ class PostRepositoryTest {
                             CURRENT_TIMESTAMP
                         )
                         """);
+        synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
     }
@@ -711,6 +715,7 @@ class PostRepositoryTest {
                 SECOND_POST_ID,
                 USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
     }
