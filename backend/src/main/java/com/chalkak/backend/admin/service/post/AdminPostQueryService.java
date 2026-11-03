@@ -36,6 +36,7 @@ public class AdminPostQueryService {
     ) {
         validateStatus(status);
         validatePagination(page, pageSize);
+        validatePopularSortTopic(sort, topicId);
         validateCreatedAtRange(createdAtFrom, createdAtTo);
         AdminPostQueryCriteria criteria = new AdminPostQueryCriteria(
                 status,
@@ -71,6 +72,14 @@ public class AdminPostQueryService {
         throw new BusinessException(
                 ErrorCode.BUSINESS_ERROR,
                 "게시물 조회 상태가 올바르지 않습니다.");
+    }
+
+    private void validatePopularSortTopic(AdminPostSort sort, UUID topicId) {
+        if (sort == AdminPostSort.LIKE_COUNT_DESC && topicId == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "조회 조건이 올바르지 않습니다.");
+        }
     }
 
     private void validateCreatedAtRange(Instant createdAtFrom, Instant createdAtTo) {

@@ -44,6 +44,15 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                                         "REJECTED"
                                 )
                         )))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get"
+                        + ".parameters[?(@.name == 'sort')].schema.enum")
+                        .value(containsInAnyOrder(
+                                containsInAnyOrder(
+                                        "createdAtDesc",
+                                        "createdAtAsc",
+                                        "likeCountDesc"
+                                )
+                        )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}'].get"
                         + ".parameters[?(@.name == 'postId')].schema.format")
                         .value(containsInAnyOrder("uuid")))

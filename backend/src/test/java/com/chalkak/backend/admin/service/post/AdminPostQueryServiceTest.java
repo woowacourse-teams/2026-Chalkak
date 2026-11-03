@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.service.post;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.post.AdminPostDetailProjection;
@@ -165,6 +166,71 @@ class AdminPostQueryServiceTest {
             assertThat(post.moderationStatus()).isEqualTo(ModerationStatus.REJECTED);
             assertThat(post.deletedAt()).isEqualTo(SECOND_POST_DELETED_AT);
         });
+    }
+
+    @Test
+    @DisplayName("주제가 지정되면 인기순 조건으로 게시물을 조회한다")
+    void getPosts_likeCountDescWithTopic_queriesPopularSort() {
+        // Given
+        given(repository.findPosts(
+                new AdminPostQueryCriteria(
+                        null,
+                        SECOND_TOPIC_ID,
+                        null,
+                        null,
+                        null,
+                        null,
+                        AdminPostSort.LIKE_COUNT_DESC
+                ),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary()),
+                1,
+                20,
+                false
+        ));
+
+        // When
+        AdminPostListResult result = adminPostQueryService.getPosts(
+                null,
+                SECOND_TOPIC_ID,
+                null,
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.posts()).singleElement()
+                .satisfies(post -> assertThat(post.postId()).isEqualTo(SECOND_POST_ID));
+    }
+
+    @Test
+    @DisplayName("주제 없이 인기순으로 조회하면 잘못된 요청 예외를 발생시키고 조회하지 않는다")
+    void getPosts_likeCountDescWithoutTopic_throwsBusinessException() {
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminPostQueryService.getPosts(
+                        null,
+                        null,
+                        null,
+                        SECOND_USER_ID,
+                        null,
+                        null,
+                        AdminPostSort.LIKE_COUNT_DESC,
+                        1,
+                        20
+                ));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("조회 조건이 올바르지 않습니다.");
+        then(repository).shouldHaveNoInteractions();
     }
 
     @Test

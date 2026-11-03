@@ -216,6 +216,46 @@ class AdminPostControllerTest {
     }
 
     @Test
+    @DisplayName("관리자 게시물 목록의 인기순 정렬 값을 서비스에 전달한다")
+    void getPosts_likeCountDescSort_passesPopularSort() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                1,
+                20
+        )).willReturn(new AdminPostListResult(
+                1,
+                20,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("topicId", TOPIC_ID.toString())
+                .queryParam("sort", "likeCountDesc"))
+                .andExpect(status().isOk());
+
+        then(adminPostQueryService).should().getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                1,
+                20
+        );
+    }
+
+    @Test
     @DisplayName("내부 검증 중 상태로 관리자 게시물 목록을 요청하면 400을 반환한다")
     void getPosts_validatingStatus_returnsBadRequest() throws Exception {
         // When & Then

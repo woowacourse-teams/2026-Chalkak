@@ -78,6 +78,12 @@ class AdminPostQueryRepositoryTest {
             .fromString("0198fa50-0000-7000-8000-000000000004");
     private static final UUID DELETED_POST_ID = UUID
             .fromString("0198fa50-0000-7000-8000-000000000005");
+    private static final UUID TIE_POST_ID = UUID
+            .fromString("0198fa50-0000-7000-8000-000000000000");
+    private static final UUID TIE_USER_ID = UUID
+            .fromString("0198fa10-0000-7000-8000-000000000006");
+    private static final UUID TIE_PHOTO_ID = UUID
+            .fromString("0198fa30-0000-7000-8000-000000000006");
 
     private static final LocalDate FIRST_TOPIC_DATE = LocalDate.of(
             2026,
@@ -360,6 +366,101 @@ class AdminPostQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("주제별 인기순은 저장된 좋아요 수가 많은 순으로 정렬하고 좋아요가 없는 게시물도 포함한다")
+    void findPosts_likeCountDescWithTopic_ordersByStoredLikeCountAndPaginates() {
+        // Given
+        insertLike(REJECTED_POST_ID, VALIDATING_USER_ID);
+        insertLike(REJECTED_POST_ID, APPROVED_USER_ID);
+        insertLike(REJECTED_POST_ID, PENDING_USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+        AdminPostQueryCriteria firstTopic = popularCriteria(FIRST_TOPIC_ID);
+        AdminPostQueryCriteria secondTopic = popularCriteria(SECOND_TOPIC_ID);
+
+        // When
+        AdminPage<AdminPostSummaryProjection> firstPage = adminPostQueryRepository.findPosts(
+                firstTopic,
+                1,
+                1
+        );
+        AdminPage<AdminPostSummaryProjection> secondPage = adminPostQueryRepository.findPosts(
+                firstTopic,
+                2,
+                1
+        );
+        AdminPage<AdminPostSummaryProjection> zeroLikeTopic = adminPostQueryRepository.findPosts(
+                secondTopic,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(firstPage.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(REJECTED_POST_ID);
+        assertThat(firstPage.items().getFirst().likeCount()).isEqualTo(3);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(PENDING_POST_ID);
+        assertThat(secondPage.hasNext()).isFalse();
+        assertThat(zeroLikeTopic.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(APPROVED_POST_ID);
+        assertThat(zeroLikeTopic.items().getFirst().likeCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("주제별 인기순에서 좋아요 수가 같으면 등록 시각 내림차순, ID 오름차순으로 정렬한다")
+    void findPosts_likeCountDescTie_ordersByCreatedAtDescThenIdAsc() {
+        // Given
+        insertUser(
+                TIE_USER_ID,
+                "tie@example.com",
+                "ACTIVE",
+                null
+        );
+        insertPhoto(
+                TIE_PHOTO_ID,
+                "tie",
+                "{}",
+                PHOTO_CREATED_AT,
+                PHOTO_CREATED_AT,
+                null
+        );
+        insertPost(
+                TIE_POST_ID,
+                TIE_USER_ID,
+                FIRST_TOPIC_ID,
+                TIE_PHOTO_ID,
+                null,
+                "동률",
+                "APPROVED",
+                MODERATED_AT,
+                TIED_CREATED_AT,
+                null
+        );
+        insertLike(TIE_POST_ID, VALIDATING_USER_ID);
+        insertLike(TIE_POST_ID, APPROVED_USER_ID);
+        insertLike(REJECTED_POST_ID, VALIDATING_USER_ID);
+        insertLike(REJECTED_POST_ID, APPROVED_USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AdminPage<AdminPostSummaryProjection> result = adminPostQueryRepository.findPosts(
+                popularCriteria(FIRST_TOPIC_ID),
+                1,
+                10
+        );
+
+        // Then
+        assertThat(result.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(
+                        TIE_POST_ID,
+                        PENDING_POST_ID,
+                        REJECTED_POST_ID
+                );
+    }
+
+    @Test
     @DisplayName("상세 조회는 게시물 연관 정보와 사진·업로드 메타데이터 및 좋아요 수를 반환한다")
     void findPostById_existingPost_returnsSingleRichProjection() {
         // When
@@ -496,6 +597,27 @@ class AdminPostQueryRepositoryTest {
                 null,
                 sort
         );
+    }
+
+    private AdminPostQueryCriteria popularCriteria(UUID topicId) {
+        return new AdminPostQueryCriteria(
+                null,
+                topicId,
+                null,
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC
+        );
+    }
+
+    private void insertLike(UUID postId, UUID userId) {
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                postId,
+                userId
+        );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private AdminPostSummaryProjection summaryOf(

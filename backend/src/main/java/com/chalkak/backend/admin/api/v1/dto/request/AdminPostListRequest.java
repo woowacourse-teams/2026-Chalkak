@@ -33,11 +33,12 @@ public record AdminPostListRequest(
         Instant createdAtTo,
 
         @Schema(
-                description = "등록 시각 정렬",
+                description = "정렬(likeCountDesc는 topicId와 함께만 사용 가능, "
+                        + "좋아요 수 내림차순·등록 시각 내림차순·ID 오름차순)",
                 defaultValue = "createdAtDesc",
                 implementation = String.class,
                 allowableValues = {
-                        "createdAtDesc", "createdAtAsc"})
+                        "createdAtDesc", "createdAtAsc", "likeCountDesc"})
         AdminPostSort sort,
 
         @Schema(description = "페이지 번호", defaultValue = "1", example = "1")

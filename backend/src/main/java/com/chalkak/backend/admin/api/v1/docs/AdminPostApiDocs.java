@@ -26,7 +26,8 @@ public interface AdminPostApiDocs {
     @Operation(
             summary = "관리자 게시물 목록 조회",
             description = "승인 대기·승인·거절 게시물과 삭제된 게시물을 필터링해 조회합니다. "
-                    + "내부 검증 중 게시물은 노출하지 않으며 등록 시각 범위의 양 끝값은 포함됩니다."
+                    + "내부 검증 중 게시물은 노출하지 않으며 등록 시각 범위의 양 끝값은 포함됩니다. "
+                    + "sort=likeCountDesc(인기순)는 topicId를 함께 지정해야 합니다."
     )
     @ApiResponses({
             @ApiResponse(
@@ -36,7 +37,7 @@ public interface AdminPostApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 필터 또는 페이지 조건",
+                    description = "잘못된 필터·정렬·페이지 조건 또는 topicId 없는 인기순 정렬",
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class)
