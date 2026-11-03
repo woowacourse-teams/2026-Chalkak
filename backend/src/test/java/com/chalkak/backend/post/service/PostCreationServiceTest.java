@@ -1,7 +1,6 @@
 package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -731,9 +730,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .satisfies(event -> assertThat(event.postId()).isEqualTo(result.postId()));
         then(postImageStorage).should(never()).existsUploadedImage(PHOTO_UPLOAD_ID);
 
-        assertThatThrownBy(() -> postQueryService.getPost(result.postId(), USER_ID))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("게시물을 찾을 수 없습니다.");
+        assertThat(postQueryService.getPost(result.postId(), USER_ID).id())
+                .isEqualTo(result.postId());
     }
 
     @Test

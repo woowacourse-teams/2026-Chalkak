@@ -171,13 +171,13 @@ public interface PostApiDocs {
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(summary = "게시물 상세 조회", description = "authorId는 사진 작성자의 회원 ID이며 작성자의 공개 사진 목록 조회에 사용합니다. instagramConsent는 조회자가 작성자 본인일 때만 내려가고 다른 사용자에게는 null입니다.")
+    @Operation(summary = "게시물 상세 조회", description = "authorId는 사진 작성자의 회원 ID이며 작성자의 공개 사진 목록 조회에 사용합니다. instagramConsent는 조회자가 작성자 본인일 때만 내려가고 다른 사용자에게는 null입니다. 승인된 게시물만 조회할 수 있지만 작성자 본인은 승인 대기 중인 자신의 게시물도 조회할 수 있습니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "게시물 상세 조회 성공", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "400", description = "잘못된 게시물 ID", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음(검수 중·거절·삭제된 게시물, 다른 사용자의 승인 대기 게시물 포함)", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<PostDetailResponse> getPost(
             @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4") String postId,

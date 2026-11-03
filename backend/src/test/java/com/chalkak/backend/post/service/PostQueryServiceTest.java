@@ -492,7 +492,8 @@ class PostQueryServiceTest {
         // Given
         given(userRepository.findActiveById(USER_ID))
                 .willReturn(Optional.of(UserFixture.create(USER_ID)));
-        given(postRepository.findVisibleById(POST_ID)).willReturn(Optional.of(post));
+        given(postRepository.findVisibleByIdForViewer(POST_ID, USER_ID))
+                .willReturn(Optional.of(post));
         given(postLikeCounterRepository.getCountByPostId(POST_ID)).willReturn(1L);
         given(postLikeRepository.existsByPostIdAndUserId(POST_ID, USER_ID)).willReturn(true);
         given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_IMAGE_URL);
@@ -582,7 +583,8 @@ class PostQueryServiceTest {
     private void stubVisiblePostDetail(UUID viewerId) {
         given(userRepository.findActiveById(viewerId))
                 .willReturn(Optional.of(UserFixture.create(viewerId)));
-        given(postRepository.findVisibleById(POST_ID)).willReturn(Optional.of(post));
+        given(postRepository.findVisibleByIdForViewer(POST_ID, viewerId))
+                .willReturn(Optional.of(post));
         given(postLikeCounterRepository.getCountByPostId(POST_ID)).willReturn(0L);
         given(imageUrlProvider.getUrl(anyString())).willReturn(ORIGINAL_IMAGE_URL);
     }
@@ -603,7 +605,8 @@ class PostQueryServiceTest {
         );
         given(userRepository.findActiveById(USER_ID))
                 .willReturn(Optional.of(UserFixture.create(USER_ID)));
-        given(postRepository.findVisibleById(POST_ID)).willReturn(Optional.of(postWithDescription));
+        given(postRepository.findVisibleByIdForViewer(POST_ID, USER_ID))
+                .willReturn(Optional.of(postWithDescription));
         given(postLikeCounterRepository.getCountByPostId(POST_ID)).willReturn(0L);
         given(imageUrlProvider.getUrl(anyString())).willReturn(ORIGINAL_IMAGE_URL);
 
@@ -618,7 +621,8 @@ class PostQueryServiceTest {
         // Given
         given(userRepository.findActiveById(USER_ID))
                 .willReturn(Optional.of(UserFixture.create(USER_ID)));
-        given(postRepository.findVisibleById(UNKNOWN_POST_ID)).willReturn(Optional.empty());
+        given(postRepository.findVisibleByIdForViewer(UNKNOWN_POST_ID, USER_ID))
+                .willReturn(Optional.empty());
 
         // When
         NotFoundException exception = catchThrowableOfType(

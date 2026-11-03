@@ -2,9 +2,12 @@ package com.chalkak.backend.post.service;
 
 import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
@@ -184,6 +187,41 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
         assertThat(result.posts()).isEmpty();
         assertThat(result.currentPage()).isEqualTo(1);
         assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("작성자 본인은 승인 대기 게시물의 현재 인스타그램 동의를 상세에서 읽고 다른 사용자는 찾지 못한다")
+    void getPost_pendingPost_visibleOnlyToAuthorWithConsent() {
+        // Given
+        insertSecondVisiblePost();
+        jdbcTemplate.update(
+                """
+                        UPDATE posts
+                        SET moderation_status = 'PENDING'::moderation_status,
+                            instagram_upload_agreed = TRUE,
+                            instagram_id = 'chalkak'
+                        WHERE id = ?
+                        """,
+                postId
+        );
+        entityManager.flush();
+        entityManager.clear();
+        given(imageUrlProvider.getUrl(anyString())).willReturn(SIGNATURE_IMAGE_URL);
+
+        // When
+        PostDetail authorDetail = postQueryService.getPost(postId, author.getId());
+        NotFoundException otherViewerException = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postQueryService.getPost(postId, secondUserId)
+        );
+
+        // Then
+        assertThat(authorDetail.instagramConsent())
+                .isEqualTo(new PostDetail.InstagramConsentDetail(
+                        true,
+                        "chalkak"
+                ));
+        assertThat(otherViewerException).hasMessage("게시물을 찾을 수 없습니다.");
     }
 
     @ParameterizedTest
