@@ -7,6 +7,8 @@ struct HomeWeeklyRecord: View {
     var onOpenRecord: () -> Void
     var onRetry: () -> Void
     var onOpenRecordDate: (Date) -> Void = { _ in }
+    var uploadEntryDate: Date?
+    var onOpenPhotoUpload: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
@@ -49,6 +51,13 @@ struct HomeWeeklyRecord: View {
                                 WeeklyRecordCell(day: day)
                             }
                             .buttonStyle(ChalkakUnhighlightedButtonStyle())
+                        } else if day.date == uploadEntryDate {
+                            Button(action: onOpenPhotoUpload) {
+                                WeeklyRecordUploadCell()
+                            }
+                            .buttonStyle(ChalkakUnhighlightedButtonStyle())
+                            .accessibilityLabel("오늘 사진 올리기")
+                            .accessibilityIdentifier("home.weekly.upload")
                         } else {
                             WeeklyRecordCell(day: day)
                         }
@@ -103,6 +112,28 @@ private struct WeeklyRecordCell: View {
         var text = "\(day.date.homeFullDateText) 기록 \(day.post == nil ? "없음" : "있음")"
         if day.post?.status == .pending { text += ", 검수 대기" }
         return text
+    }
+}
+
+private struct WeeklyRecordUploadCell: View {
+    @Environment(\.chalkakTheme) private var theme
+
+    var body: some View {
+        theme.colors.calendarCell
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                Image(systemName: "plus")
+                    .font(.system(size: Metrics.uploadIconSize, weight: .regular))
+                    .foregroundStyle(theme.colors.textPrimary)
+                    .accessibilityHidden(true)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: theme.shapes.small)
+                    .strokeBorder(theme.colors.textMuted, lineWidth: Metrics.uploadBorderWidth)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: theme.shapes.small))
+            .contentShape(RoundedRectangle(cornerRadius: theme.shapes.small))
     }
 }
 
@@ -166,6 +197,8 @@ private enum Metrics {
     static let retryIconSize: CGFloat = 15
     static let chevronSize: CGFloat = 12
     static let pendingBadgeVerticalPadding: CGFloat = 1
+    static let uploadIconSize: CGFloat = 14
+    static let uploadBorderWidth: CGFloat = 1.5
 }
 
 extension Date {
@@ -174,6 +207,22 @@ extension Date {
         let weekday = calendar.component(.weekday, from: self)
         return calendar.shortWeekdaySymbols[weekday - 1]
     }
+}
+
+#Preview("Weekly Record Upload Entry", traits: .sizeThatFitsLayout) {
+    HomeWeeklyRecord(
+        days: HomePreviewData.contentState.week.map { day in
+            var day = day
+            if day.date == HomePreviewData.previewDate { day.post = nil }
+            return day
+        },
+        status: .ready,
+        onOpenRecord: {},
+        onRetry: {},
+        uploadEntryDate: HomePreviewData.previewDate
+    )
+    .padding()
+    .chalkakTheme(.light)
 }
 
 #Preview("Weekly Record", traits: .sizeThatFitsLayout) {

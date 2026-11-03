@@ -46,15 +46,17 @@ struct HomeScreen: View {
                     .padding(.top, theme.spacing.xl + theme.spacing.sm)
                     .id(HomeScrollTarget.top)
 
-                    HomeHeroCard(
-                        hero: viewModel.viewState.hero,
-                        topic: viewModel.viewState.topic,
-                        onOpenPhotoUpload: onOpenPhotoUpload,
-                        onRetry: { Task { await viewModel.refresh() } }
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .padding(.top, theme.spacing.xl)
+                    if !showsUploadEntry {
+                        HomeHeroCard(
+                            hero: viewModel.viewState.hero,
+                            topic: viewModel.viewState.topic,
+                            onOpenPhotoUpload: onOpenPhotoUpload,
+                            onRetry: { Task { await viewModel.refresh() } }
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, theme.spacing.screenHorizontal)
+                        .padding(.top, theme.spacing.xl)
+                    }
 
                     if showsFeedback {
                         HomeFeedbackCard(
@@ -75,7 +77,9 @@ struct HomeScreen: View {
                         status: viewModel.viewState.recordsStatus,
                         onOpenRecord: onOpenRecord,
                         onRetry: { Task { await viewModel.refresh() } },
-                        onOpenRecordDate: onOpenRecordDate
+                        onOpenRecordDate: onOpenRecordDate,
+                        uploadEntryDate: showsUploadEntry ? viewModel.viewState.date : nil,
+                        onOpenPhotoUpload: onOpenPhotoUpload
                     )
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
@@ -239,6 +243,9 @@ struct HomeScreen: View {
     }
 
     private var showsFeedback: Bool { feedbackPostID != nil }
+
+    /// 오늘 사진을 올리기 전에는 히어로 카드 대신 주간 기록의 오늘 칸이 업로드 진입점이 된다.
+    private var showsUploadEntry: Bool { viewModel.viewState.hero == .empty }
 
     private var feedbackObservationID: String? {
         guard scenePhase == .active, isActive, let postID = feedbackPostID else { return nil }
