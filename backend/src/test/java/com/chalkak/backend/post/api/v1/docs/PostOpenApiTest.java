@@ -3,7 +3,9 @@ package com.chalkak.backend.post.api.v1.docs;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -34,7 +36,7 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.PostResponse.properties.authorId.format")
                         .value("uuid"))
                 .andExpect(jsonPath("$.components.schemas.PostDetailResponse.properties")
-                        .value(aMapWithSize(9)))
+                        .value(aMapWithSize(10)))
                 .andExpect(
                         jsonPath("$.components.schemas.PostDetailResponse.properties.authorId.type")
                                 .value("string"))
@@ -45,6 +47,33 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/posts/{postId}'].get.responses")
                         .value(aMapWithSize(4)));
+    }
+
+    @Test
+    @DisplayName("user-api 문서는 상세 응답에만 nullable 설명을 제공하고 피드 항목에는 추가하지 않는다")
+    void userApiDocs_postDetail_exposesDescriptionOnlyOnDetail() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostDetailResponse"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostResponse"
+                        + ".properties.description").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("user-api 문서는 피드·상세 응답의 제목을 nullable로 표기한다")
+    void userApiDocs_postResponses_marksTitleNullable() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostResponse"
+                        + ".properties.title.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostDetailResponse"
+                        + ".properties.title.type")
+                        .value(containsInAnyOrder("string", "null")));
     }
 
     @Test
@@ -183,6 +212,19 @@ class PostOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("user-api 문서는 게시물 생성 요청의 선택 설명을 제공한다")
+    void userApiDocs_createPost_exposesOptionalDescription() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostCreateRequest"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostCreateRequest.required")
+                        .value(not(hasItem("description"))));
+    }
+
+    @Test
     @DisplayName("user-api 문서는 게시물 제목 수정 계약을 제공한다")
     void userApiDocs_updatePost_exposesContract() throws Exception {
         // When & Then
@@ -206,6 +248,12 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.PostUpdateResponse"
                         + ".properties.title.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostUpdateRequest"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.PostUpdateResponse"
+                        + ".properties.description.type")
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.PostUpdateResponse"
                         + ".properties.moderationStatus").doesNotExist())

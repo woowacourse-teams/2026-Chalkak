@@ -11,8 +11,13 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.like.repository.PostLikeCounterRepository;
+import com.chalkak.backend.photo.domain.Photo;
+import com.chalkak.backend.photo.repository.PhotoRepository;
+import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
+import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -25,6 +30,7 @@ import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,6 +65,12 @@ class PostCommandServiceTest {
     private PostImageUploadRepository uploads;
     @Mock
     private PostImageUploadIssuer issuer;
+    @Mock
+    private PostImageStorage storage;
+    @Mock
+    private PostLikeCounterRepository likeCounters;
+    @Mock
+    private PhotoRepository photos;
 
     @Test
     @DisplayName("발급할 업로드의 회원, 초기 상태, 만료와 저장 ID로 요청한 URL을 반환한다")
@@ -128,7 +140,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         )).isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.UNAUTHORIZED);
@@ -151,7 +164,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         )).isInstanceOf(NotFoundException.class).hasMessage("게시물을 작성할 주제를 찾을 수 없습니다.");
         verifyNoInteractions(uploads, posts);
     }
@@ -177,9 +191,95 @@ class PostCommandServiceTest {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         )).isInstanceOf(BusinessException.class).hasMessage("현재 게시물을 작성할 수 없는 주제입니다.");
         verifyNoInteractions(uploads, posts);
+    }
+
+    @Test
+    @DisplayName("작성 요청의 설명을 저장할 게시물에 담는다")
+    void createPost_description_savesPostWithDescription() {
+        // Given
+        User user = UserFixture.create(USER_ID);
+        PostImageUpload upload = PostImageUpload.createPostImageUpload(user, Instant.now());
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(user));
+        given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.of(openTopic()));
+        given(uploads.findStatusByIdAndUserId(UPLOAD_ID, USER_ID))
+                .willReturn(Optional.of(PostImageUploadStatus.ISSUED));
+        given(storage.existsUploadedImage(UPLOAD_ID)).willReturn(true);
+        given(uploads.findByIdForUpdate(UPLOAD_ID)).willReturn(Optional.of(upload));
+        given(storage.toOriginalStorageKey(UPLOAD_ID))
+                .willReturn("chalkak/posts/test/original/" + UPLOAD_ID + ".webp");
+        given(posts.save(any(Post.class))).willAnswer(invocation -> {
+            Post post = invocation.getArgument(0);
+            ReflectionTestUtils.setField(
+                    post,
+                    "id",
+                    POST_ID
+            );
+            return post;
+        });
+
+        // When
+        PostCreationResult result = service.createPost(
+                USER_ID,
+                TOPIC_ID,
+                UPLOAD_ID,
+                "제목",
+                "첫 줄\n둘째 줄"
+        );
+
+        // Then
+        assertThat(result.postId()).isEqualTo(POST_ID);
+        ArgumentCaptor<Post> saved = ArgumentCaptor.forClass(Post.class);
+        verify(posts).save(saved.capture());
+        assertThat(saved.getValue().getDescription()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("작성자가 제목과 설명을 수정하면 게시물에 반영하고 새 값을 반환한다")
+    void updatePost_titleAndDescription_updatesPostAndReturnsBoth() {
+        // Given
+        Post post = pendingPostInOpenTopic("기존 설명");
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
+
+        // When
+        PostUpdateResult result = service.updatePost(
+                USER_ID,
+                POST_ID,
+                "새 제목",
+                "새 설명"
+        );
+
+        // Then
+        assertThat(result.postId()).isEqualTo(POST_ID);
+        assertThat(result.title()).isEqualTo("새 제목");
+        assertThat(result.description()).isEqualTo("새 설명");
+        assertThat(post.getTitle()).isEqualTo("새 제목");
+        assertThat(post.getDescription()).isEqualTo("새 설명");
+    }
+
+    @Test
+    @DisplayName("설명 없이 수정하면 기존 설명을 지우고 설명 없음으로 반환한다")
+    void updatePost_nullDescription_clearsDescription() {
+        // Given
+        Post post = pendingPostInOpenTopic("기존 설명");
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
+
+        // When
+        PostUpdateResult result = service.updatePost(
+                USER_ID,
+                POST_ID,
+                "기존 제목",
+                null
+        );
+
+        // Then
+        assertThat(result.description()).isNull();
+        assertThat(post.getDescription()).isNull();
     }
 
     @Test
@@ -193,7 +293,8 @@ class PostCommandServiceTest {
         assertThatThrownBy(() -> service.updatePost(
                 USER_ID,
                 POST_ID,
-                "수정 제목"
+                "수정 제목",
+                null
         )).isInstanceOf(NotFoundException.class)
                 .hasMessage("게시물을 찾을 수 없습니다.")
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.BUSINESS_ERROR);
@@ -209,7 +310,8 @@ class PostCommandServiceTest {
         assertThatThrownBy(() -> service.updatePost(
                 USER_ID,
                 POST_ID,
-                "수정 제목"
+                "수정 제목",
+                null
         )).isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.UNAUTHORIZED);
@@ -253,5 +355,33 @@ class PostCommandServiceTest {
 
         // Then
         verifyNoInteractions(posts);
+    }
+
+    private Topic openTopic() {
+        Instant start = Instant.now().minusSeconds(3600);
+        return Topic.create(
+                "참여 주제",
+                LocalDate.ofInstant(start, ZoneId.of("Asia/Seoul")),
+                new ParticipationPeriod(start, start.plusSeconds(7200)),
+                start.minusSeconds(3600)
+        );
+    }
+
+    private Post pendingPostInOpenTopic(String description) {
+        Post post = Post.createPost(
+                UserFixture.create(USER_ID),
+                openTopic(),
+                Photo.createPhoto("chalkak/posts/test/original/" + UPLOAD_ID + ".webp"),
+                UPLOAD_ID,
+                "기존 제목",
+                description
+        );
+        ReflectionTestUtils.setField(
+                post,
+                "id",
+                POST_ID
+        );
+        post.requestModeration();
+        return post;
     }
 }

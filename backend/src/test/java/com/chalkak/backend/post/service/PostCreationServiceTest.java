@@ -137,6 +137,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -195,7 +196,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -240,7 +242,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                title
+                title,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -268,7 +271,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
-                        "12345678901"
+                        "12345678901",
+                        null
                 ));
 
         // Then
@@ -289,6 +293,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -317,6 +322,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
 
@@ -327,6 +333,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
+                        null,
                         null
                 ));
 
@@ -393,6 +400,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         backdatePost(stalled.postId(), 8);
@@ -402,6 +410,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 secondUploadId,
+                null,
                 null
         );
 
@@ -420,6 +429,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         backdatePost(pending.postId(), 6);
@@ -431,6 +441,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
+                        null,
                         null
                 ));
 
@@ -460,6 +471,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         postCommandService.failPostImageProcessing(PHOTO_UPLOAD_ID, "CORRUPTED_IMAGE");
@@ -469,6 +481,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 secondUploadId,
+                null,
                 null
         );
 
@@ -490,6 +503,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
 
@@ -500,6 +514,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -535,6 +550,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -553,6 +569,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         entityManager.clear();
@@ -586,6 +603,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         entityManager.flush();
@@ -627,6 +645,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
                 null
         );
         entityManager.flush();
@@ -652,6 +671,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         UUID.randomUUID(),
+                        null,
                         null
                 ));
 
@@ -673,6 +693,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         SECOND_USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -698,6 +719,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 
@@ -724,6 +746,7 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
                         null
                 ));
 

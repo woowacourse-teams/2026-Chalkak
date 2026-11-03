@@ -519,9 +519,35 @@ class PostQueryServiceTest {
                 THUMBNAIL_IMAGE_URL,
                 SIGNATURE_IMAGE_URL,
                 "오늘의 순간",
+                null,
                 1L,
                 true
         ));
+    }
+
+    @Test
+    @DisplayName("설명이 있는 공개 게시물을 조회하면 상세에 설명을 포함한다")
+    void getPost_postWithDescription_returnsDescription() {
+        // Given
+        Post postWithDescription = createPost(
+                POST_ID,
+                USER_ID,
+                ORIGINAL_STORAGE_KEY,
+                THUMBNAIL_STORAGE_KEY,
+                SIGNATURE_STORAGE_KEY,
+                SIGNATURE_THUMBNAIL_STORAGE_KEY,
+                "오늘의 순간",
+                "첫 줄\n둘째 줄"
+        );
+        given(userRepository.findActiveById(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(postRepository.findVisibleById(POST_ID)).willReturn(Optional.of(postWithDescription));
+        given(postLikeCounterRepository.getCountByPostId(POST_ID)).willReturn(0L);
+        given(imageUrlProvider.getUrl(anyString())).willReturn(ORIGINAL_IMAGE_URL);
+
+        // When & Then
+        assertThat(postQueryService.getPost(POST_ID, USER_ID).description())
+                .isEqualTo("첫 줄\n둘째 줄");
     }
 
     @Test
@@ -683,6 +709,28 @@ class PostQueryServiceTest {
             String signatureThumbnailKey,
             String title
     ) {
+        return createPost(
+                id,
+                authorId,
+                originalKey,
+                thumbnailKey,
+                signatureKey,
+                signatureThumbnailKey,
+                title,
+                null
+        );
+    }
+
+    private Post createPost(
+            UUID id,
+            UUID authorId,
+            String originalKey,
+            String thumbnailKey,
+            String signatureKey,
+            String signatureThumbnailKey,
+            String title,
+            String description
+    ) {
         User author = User.create(null,
                 new SignatureStorageKeys(signatureKey, signatureThumbnailKey));
         ReflectionTestUtils.setField(
@@ -697,7 +745,8 @@ class PostQueryServiceTest {
                 topic,
                 photo,
                 id,
-                title
+                title,
+                description
         );
         ReflectionTestUtils.setField(
                 created,

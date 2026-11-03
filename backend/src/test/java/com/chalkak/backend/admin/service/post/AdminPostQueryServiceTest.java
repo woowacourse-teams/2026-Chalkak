@@ -310,6 +310,7 @@ class AdminPostQueryServiceTest {
         return new AdminPostDetailProjection(
                 SECOND_POST_ID,
                 "거절 게시물",
+                null,
                 ModerationStatus.REJECTED,
                 SECOND_POST_CREATED_AT,
                 SECOND_POST_CREATED_AT,

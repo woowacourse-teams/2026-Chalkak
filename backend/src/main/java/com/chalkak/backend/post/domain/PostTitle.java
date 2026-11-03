@@ -34,6 +34,11 @@ public record PostTitle(
                     ErrorCode.BUSINESS_ERROR,
                     "제목은 %d자 이하여야 합니다.".formatted(MAX_LENGTH));
         }
+        if (!isCharacterValid(value)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "제목에 사용할 수 없는 문자가 포함되어 있습니다.");
+        }
     }
 
     /**
@@ -52,8 +57,16 @@ public record PostTitle(
     /**
      * 요청 DTO의 빠른 실패용. 예외 대신 판정만 돌려준다. 공백뿐인 제목은 제목 없음으로 정규화되므로 길이를 재지 않는다.
      */
-    public static boolean isValid(String raw) {
+    public static boolean isLengthValid(String raw) {
         return raw == null || !exceedsMaxLength(raw.strip());
+    }
+
+    /**
+     * 요청 DTO의 빠른 실패용. PostgreSQL 문자열 타입은 NUL(U+0000)을 저장할 수 없어, 통과시키면 저장 시점에 500이
+     * 되므로 미리 거른다. 줄바꿈 같은 다른 제어 문자는 허용한다.
+     */
+    public static boolean isCharacterValid(String raw) {
+        return raw == null || raw.indexOf('\u0000') < 0;
     }
 
     /**
