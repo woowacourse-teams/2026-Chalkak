@@ -507,7 +507,7 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun `연속 좋아요는 직전 요청이 끝난 뒤 보내고 최신 상태를 유지한다`() = runTest {
+    fun `이전 좋아요 응답이 늦게 도착해도 최신 상태를 유지한다`() = runTest {
         val controlledRepository = ControlledPostRepository()
         val controlledViewModel =
             FeedViewModel(
@@ -518,10 +518,8 @@ class FeedViewModelTest {
 
         controlledViewModel.onLikeClicked()
         controlledViewModel.onLikeClicked()
-        assertEquals(1, controlledRepository.likeRequests.size)
-        controlledRepository.completeLike(requestIndex = 0, likeCount = 25)
-        assertEquals(2, controlledRepository.likeRequests.size)
         controlledRepository.completeLike(requestIndex = 1, likeCount = 24)
+        controlledRepository.completeLike(requestIndex = 0, likeCount = 25)
 
         val content = controlledViewModel.uiState.value.content as FeedContentState.Success
         assertFalse(content.isLiked)
@@ -914,7 +912,7 @@ private class ControlledPostRepository : PostRepository {
         pageSize: Int,
     ): HomeResult<AuthorPostsPage> = HomeResult.Failure(HomeFailure.Network)
 
-    val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
+    private val likeRequests = mutableListOf<CompletableDeferred<HomeResult<HomeLike>>>()
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 

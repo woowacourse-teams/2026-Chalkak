@@ -533,16 +533,14 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun `연속 좋아요는 직전 요청이 끝난 뒤 보내고 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
+    fun `이전 좋아요 응답과 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
         val repository = ControlledPostRepository(autoInitial = todayContent())
         val viewModel = todayViewModel(repository)
 
         viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
         viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
-        assertEquals(1, repository.likeRequests.size)
-        repository.completeLike(0, HomeResult.Success(HomeLike(25, true)))
-        assertEquals(2, repository.likeRequests.size)
         repository.completeLike(1, HomeResult.Success(HomeLike(24, false)))
+        repository.completeLike(0, HomeResult.Success(HomeLike(25, true)))
 
         assertEquals(
             24,

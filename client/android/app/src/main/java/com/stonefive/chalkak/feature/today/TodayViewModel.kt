@@ -318,14 +318,11 @@ class TodayViewModel(
             },
         )
 
-        // 같은 사진의 직전 요청이 끝난 뒤 보내 서버에 누른 순서대로 반영되게 한다.
-        val previousJobs = likeJobsByPhotoId[photoId]?.toList().orEmpty()
         val job = viewModelScope.launch(
             context = launchContext,
             start = CoroutineStart.LAZY,
         ) {
             try {
-                previousJobs.joinAll()
                 val result = repository.updateLike(photoId, isLiked)
                 if (
                     latestLikeGenerationByPhotoId[photoId] != generation ||

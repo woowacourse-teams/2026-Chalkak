@@ -23,7 +23,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -112,7 +111,6 @@ class FeedViewModel(
     private var syncedLikeRevision = 0
     private var syncedLike: Pair<Int, PostLikeUpdate>? = null
     private var latestLikeGeneration = 0
-    private var likeJob: Job? = null
     private var nextMessageId = 0L
 
     private var contentOwnerUserId = currentUserId()
@@ -237,10 +235,8 @@ class FeedViewModel(
             )
         }
 
-        // 직전 좋아요 요청이 끝난 뒤 보내 서버에 누른 순서대로 반영되게 한다.
-        val previousJob = likeJob
-        likeJob = viewModelScope.launch {
-            previousJob?.join()
+        // 같은 게시물의 요청 순서는 저장소가 보장한다. generation은 마지막으로 누른 상태만 화면에 남긴다.
+        viewModelScope.launch {
             val result = try {
                 repository.updateLike(
                     photoId = previousPost.id,
