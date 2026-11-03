@@ -299,6 +299,7 @@ public class Post {
         }
         photo.delete(deletedAt);
         this.deletedAt = deletedAt;
+        this.instagramConsent = instagramConsent.clearInstagramId();
     }
 
     private void decideModeration(ModerationStatus moderationStatus, Instant moderatedAt) {

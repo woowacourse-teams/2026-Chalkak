@@ -87,6 +87,35 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("작성자가 동의한 게시물을 삭제하면 인스타그램 ID만 지우고 동의 여부와 동의 시각은 보존한다")
+    void deletePost_agreedPostWithId_clearsOnlyInstagramId() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE posts
+                SET instagram_upload_agreed = TRUE,
+                    instagram_id = 'chalkak',
+                    instagram_agreed_at = TIMESTAMPTZ '2026-08-28 10:00:00+00'
+                WHERE id = ?
+                """, POST_ID);
+
+        // When
+        postCommandService.deletePost(AUTHOR_ID, POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> saved = jdbcTemplate.queryForMap("""
+                SELECT instagram_upload_agreed, instagram_id,
+                       instagram_agreed_at IS NOT NULL AS has_agreed_at
+                FROM posts
+                WHERE id = ?
+                """, POST_ID);
+        assertThat(saved.get("instagram_upload_agreed")).isEqualTo(true);
+        assertThat(saved.get("instagram_id")).isNull();
+        assertThat(saved.get("has_agreed_at")).isEqualTo(true);
+    }
+
+    @Test
     @DisplayName("작성자가 승인 게시물을 삭제하면 게시물과 사진을 soft delete하고 좋아요와 조회 결과에서 제거한다")
     void deletePost_approvedPost_softDeletesAndDeletesLikesAndExcludesReadModels() {
         // Given

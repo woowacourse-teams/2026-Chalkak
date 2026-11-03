@@ -921,6 +921,60 @@ class PostTest {
     }
 
     @Test
+    @DisplayName("작성자가 삭제하면 인스타그램 ID만 지우고 동의 여부와 시각은 유지한다")
+    void deleteByAuthor_agreedPostWithId_clearsOnlyInstagramId() {
+        // Given
+        Post post = createAgreedPostWithId();
+
+        // When
+        post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
+
+        // Then
+        assertThat(post.getInstagramConsent().instagramId()).isNull();
+        assertThat(post.getInstagramConsent().agreed()).isTrue();
+        assertThat(post.getInstagramConsent().agreedAt()).isEqualTo(UPDATED_AT);
+        assertThat(post.getInstagramConsent().revokedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("관리자가 삭제해도 인스타그램 ID만 지우고 동의 여부와 시각은 유지한다")
+    void deleteByAdmin_agreedPostWithId_clearsOnlyInstagramId() {
+        // Given
+        Post post = createAgreedPostWithId();
+
+        // When
+        post.deleteByAdmin(DELETED_AT);
+
+        // Then
+        assertThat(post.getInstagramConsent().instagramId()).isNull();
+        assertThat(post.getInstagramConsent().agreed()).isTrue();
+        assertThat(post.getInstagramConsent().agreedAt()).isEqualTo(UPDATED_AT);
+        assertThat(post.getInstagramConsent().revokedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("삭제할 수 없는 상태라 거부되면 인스타그램 ID를 지우지 않는다")
+    void deleteByAuthor_rejectedDeletion_keepsInstagramId() {
+        // Given
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "제목",
+                null,
+                true,
+                "chalkak",
+                UPDATED_AT
+        );
+
+        // When & Then
+        assertThatThrownBy(() -> post.deleteByAuthor(AUTHOR_ID, DELETED_AT))
+                .isInstanceOf(BusinessException.class);
+        assertThat(post.getInstagramConsent().instagramId()).isEqualTo("chalkak");
+    }
+
+    @Test
     @DisplayName("작성자 식별자와 같을 때만 작성자로 판단한다")
     void isAuthoredBy_comparesAuthorId() {
         // Given
@@ -982,6 +1036,22 @@ class PostTest {
                 false,
                 null,
                 Instant.now()
+        );
+        post.requestModeration();
+        return post;
+    }
+
+    private Post createAgreedPostWithId() {
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "제목",
+                null,
+                true,
+                "chalkak",
+                UPDATED_AT
         );
         post.requestModeration();
         return post;

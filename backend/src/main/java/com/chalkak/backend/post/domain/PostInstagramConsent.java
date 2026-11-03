@@ -121,6 +121,18 @@ public record PostInstagramConsent(
     }
 
     /**
+     * 게시물 삭제 시 개인정보인 인스타그램 ID만 지운다. 동의 여부와 동의·철회 시각은 이력으로 유지한다.
+     */
+    public PostInstagramConsent clearInstagramId() {
+        return new PostInstagramConsent(
+                agreed,
+                null,
+                agreedAt,
+                revokedAt
+        );
+    }
+
+    /**
      * 요청 DTO의 빠른 실패용. 예외 대신 판정만 돌려준다. 정규화 후 비어 있으면 ID 없음이므로 허용한다.
      */
     public static boolean isIdFormatValid(String raw) {
