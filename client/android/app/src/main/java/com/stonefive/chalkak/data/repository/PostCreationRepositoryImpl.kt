@@ -236,7 +236,11 @@ class PostCreationRepositoryImpl(
     private fun String?.normalizedTitle(): String? = takeIf { !it.isNullOrBlank() }
 
     // 서버처럼 앞뒤 공백과 줄바꿈을 지우고, 비면 설명 없음으로 보낸다. 가운데 줄바꿈은 유지한다.
-    private fun String?.normalizedDescription(): String? = this?.trim()?.takeIf(String::isNotEmpty)
+    // 서버가 거부하는 NUL 문자는 미리 지운다.
+    private fun String?.normalizedDescription(): String? = this
+        ?.replace("\u0000", "")
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
 
     private fun PostImageUploadResponse.isUsable(): Boolean {
         if (

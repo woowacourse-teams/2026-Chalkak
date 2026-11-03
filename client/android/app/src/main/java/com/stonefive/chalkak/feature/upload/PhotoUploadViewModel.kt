@@ -74,8 +74,10 @@ class PhotoUploadViewModel(
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
-                savedStateHandle[KEY_CAPTION] = action.caption
-                _uiState.update { it.copy(caption = action.caption) }
+                // 제목은 한 줄이므로 붙여넣은 줄바꿈도 지운다.
+                val caption = action.caption.filterNot { it == '\n' || it == '\r' }
+                savedStateHandle[KEY_CAPTION] = caption
+                _uiState.update { it.copy(caption = caption) }
             }
 
             is PhotoUploadUiAction.DescriptionChanged -> {

@@ -670,6 +670,13 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `제목은 한 줄이라 붙여넣은 줄바꿈을 지운다`() {
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의\r\n다리"))
+
+        assertEquals("한낮의다리", viewModel.uiState.value.caption)
+    }
+
+    @Test
     fun `설명만 입력해도 뒤로 가기 전에 확인한다`() = runTest {
         viewModel.onAction(PhotoUploadUiAction.DescriptionChanged(" \n "))
         viewModel.onAction(PhotoUploadUiAction.BackClicked)

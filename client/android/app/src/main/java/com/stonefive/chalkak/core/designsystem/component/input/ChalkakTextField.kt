@@ -6,8 +6,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -101,14 +104,8 @@ fun ChalkakTextField(
         interactionSource = interactionSource,
         cursorBrush = SolidColor(ChalkakTheme.colors.inputCursor),
         decorationBox = { innerTextField ->
-            Box {
-                Box(
-                    modifier = if (showCharacterCount) {
-                        Modifier.padding(bottom = 24.dp)
-                    } else {
-                        Modifier
-                    },
-                ) {
+            val inputContent: @Composable (Modifier) -> Unit = { inputModifier ->
+                Box(modifier = inputModifier) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
                             text = placeholder,
@@ -118,14 +115,31 @@ fun ChalkakTextField(
                     }
                     innerTextField()
                 }
-
+            }
+            val counter: @Composable (Modifier) -> Unit = { counterModifier ->
                 if (showCharacterCount && maxLength != null) {
                     Text(
                         text = "$characterCount / $maxLength",
-                        modifier = Modifier.align(Alignment.BottomEnd),
+                        modifier = counterModifier,
                         color = ChalkakTheme.colors.textInactive,
                         style = ChalkakTheme.typography.subheadline,
                     )
+                }
+            }
+
+            if (singleLine) {
+                // 한 줄 입력은 글자 수를 같은 줄 오른쪽에 두어 한 줄 높이를 유지한다.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    inputContent(Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(ChalkakTheme.spacing.sm))
+                    counter(Modifier)
+                }
+            } else {
+                Box {
+                    inputContent(
+                        if (showCharacterCount) Modifier.padding(bottom = 24.dp) else Modifier,
+                    )
+                    counter(Modifier.align(Alignment.BottomEnd))
                 }
             }
         },
@@ -147,7 +161,23 @@ internal fun String.limited(
 
 private fun String.takeCodePoints(count: Int): String {
     if (codePointCount(0, length) <= count) return this
-    return substring(0, offsetByCodePoints(0, count))
+
+    // 글자 중간에서 자르면 국기·피부색 이모지가 깨지므로, 글자 단위로 담다가 합이 넘기 전에 멈춘다.
+    // JVM 단위 테스트에서도 쓸 수 있도록 java.text 구현을 쓴다. 기기에서는 ICU 기반으로 동작한다.
+    val iterator = java.text.BreakIterator.getCharacterInstance().apply {
+        setText(this@takeCodePoints)
+    }
+    var start = iterator.first()
+    var end = iterator.next()
+    var usedCount = 0
+    while (end != java.text.BreakIterator.DONE) {
+        val size = codePointCount(start, end)
+        if (usedCount + size > count) break
+        usedCount += size
+        start = end
+        end = iterator.next()
+    }
+    return substring(0, start)
 }
 
 private fun String.graphemeCount(): Int {

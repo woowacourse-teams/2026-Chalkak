@@ -19,4 +19,13 @@ class ChalkakTextLengthMetricTest {
         assertEquals("가".repeat(298) + "🇰🇷", limited)
         assertEquals("짧은 설명", "짧은 설명".limited(300, ChalkakTextLengthMetric.CODE_POINTS))
     }
+
+    @Test
+    fun `code point 기준 제한은 글자 중간을 자르지 않는다`() {
+        val flag = "가".repeat(299) + "🇰🇷"
+        val family = "가".repeat(296) + "👨‍👩‍👧"
+
+        assertEquals("가".repeat(299), flag.limited(300, ChalkakTextLengthMetric.CODE_POINTS))
+        assertEquals("가".repeat(296), family.limited(300, ChalkakTextLengthMetric.CODE_POINTS))
+    }
 }

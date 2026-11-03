@@ -176,8 +176,10 @@ fun PhotoUploadScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(isInputFocused, imeTargetBottom) {
-        if (isInputFocused && imeTargetBottom > 0) {
+    // 설명칸은 화면 맨 아래 입력칸이라, 키보드가 올라오거나 줄이 늘면 끝까지 따라 내려간다.
+    // 제목칸은 포커스될 때 입력칸이 스스로 보이는 위치로 스크롤된다.
+    LaunchedEffect(isDescriptionFocused, imeTargetBottom) {
+        if (isDescriptionFocused && imeTargetBottom > 0) {
             snapshotFlow { captionScrollState.maxValue }
                 .collectLatest(captionScrollState::scrollTo)
         }
@@ -285,7 +287,7 @@ fun PhotoUploadScreen(
                         placeholder = "작품 제목은 선택이에요.",
                         enabled = !uiState.isSubmitting,
                         textStyle = ChalkakTheme.typography.subheadline,
-                        minLines = 3,
+                        singleLine = true,
                         maxLength = CAPTION_MAX_LENGTH,
                     )
 
@@ -302,6 +304,7 @@ fun PhotoUploadScreen(
                         enabled = !uiState.isSubmitting,
                         textStyle = ChalkakTheme.typography.subheadline,
                         minLines = 4,
+                        maxLines = DESCRIPTION_MAX_LINES,
                         maxLength = DESCRIPTION_MAX_LENGTH,
                         // 서버가 설명 길이를 code point로 검증하므로 같은 단위로 제한한다.
                         lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
@@ -449,6 +452,7 @@ const val PHOTO_UPLOAD_DESCRIPTION_TAG = "photoUploadDescription"
 
 private const val CAPTION_MAX_LENGTH = 10
 private const val DESCRIPTION_MAX_LENGTH = 300
+private const val DESCRIPTION_MAX_LINES = 10
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
     "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"

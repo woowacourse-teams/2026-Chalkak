@@ -94,8 +94,9 @@ class PostCreationRepositoryImplTest {
 
         repository.createPost(prepare(), null, "\n  퇴근길 노을\n두 번째 줄  \n", topic)
         repository.createPost(prepare(), null, " \n ", topic)
+        repository.createPost(prepare(), null, "노\u0000을", topic)
 
-        assertEquals(listOf("퇴근길 노을\n두 번째 줄", null), remote.createdDescriptions)
+        assertEquals(listOf("퇴근길 노을\n두 번째 줄", null, "노을"), remote.createdDescriptions)
     }
 
     @Test
