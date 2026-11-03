@@ -1,8 +1,13 @@
 package com.chalkak.backend.feedback.repository;
 
 import com.chalkak.backend.feedback.domain.Feedback;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 public interface FeedbackRepository {
 
     Feedback save(Feedback feedback);
+
+    List<Instant> findSubmissionTimesAfter(UUID userId, Instant createdAfter);
 }

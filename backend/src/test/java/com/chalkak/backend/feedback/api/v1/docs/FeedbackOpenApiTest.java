@@ -31,6 +31,8 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
                         + "['application/json'].schema.$ref").exists())
                 .andExpect(jsonPath(SUBMIT_PATH + ".responses['201']").exists())
                 .andExpect(jsonPath(SUBMIT_PATH + ".responses['400']").exists())
+                .andExpect(jsonPath(SUBMIT_PATH + ".responses['400'].description")
+                        .value("내용이 비었거나 1000자를 초과함, 또는 접수 간격·횟수 제한 초과"))
                 .andExpect(jsonPath(SUBMIT_PATH + ".responses['401']").exists())
                 .andExpect(jsonPath(SUBMIT_PATH + ".responses['403']").doesNotExist())
                 .andExpect(jsonPath(

@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.exception.GlobalExceptionHandler;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.service.FeedbackService;
 import com.chalkak.backend.feedback.service.FeedbackSubmissionResult;
@@ -100,6 +102,24 @@ class FeedbackControllerTest {
                 .andExpect(jsonPath("$.message").value("피드백 내용은 1000자 이하여야 합니다."));
 
         verify(feedbackService, never()).submit(any(), any());
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("접수 제한 초과는 기존 400 오류 형식으로 재접수 시각을 안내한다")
+    void submitFeedback_limitExceeded_returnsBadRequestWithNextTime() throws Exception {
+        // Given
+        String message = "다음 접수 가능 시각(UTC): 2026-11-03T06:01:00Z";
+        given(feedbackService.submit(USER_ID, "문의합니다"))
+                .willThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, message));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/feedbacks")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"문의합니다\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value(message));
     }
 
     @Test

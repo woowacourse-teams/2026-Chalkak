@@ -6,6 +6,8 @@ import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,5 +60,37 @@ class FeedbackRepositoryTest {
                 USER_ID
         );
         assertThat(count).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("접수 이력은 해당 회원의 최근 24시간만 최신순으로 조회하며 정확한 경계는 제외한다")
+    void findSubmissionTimesAfter_userAndTimeBoundary_returnsRecentTimesInOrder() {
+        // Given
+        Instant now = Instant.parse("2026-11-03T06:00:00Z");
+        Instant boundary = now.minusSeconds(86400);
+        insertFeedback(USER_ID, boundary);
+        insertFeedback(USER_ID, boundary.minusSeconds(1));
+        insertFeedback(USER_ID, boundary.plusSeconds(1));
+        insertFeedback(USER_ID, now.minusSeconds(60));
+        UUID otherUserId = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (id, email, signature_original_storage_key, created_at, updated_at)
+                        VALUES (?, 'other@chalkak.test', 'signatures/other', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                otherUserId);
+        insertFeedback(otherUserId, now);
+
+        // When & Then
+        assertThat(feedbackRepository.findSubmissionTimesAfter(USER_ID, boundary))
+                .containsExactly(now.minusSeconds(60), boundary.plusSeconds(1));
+    }
+
+    private void insertFeedback(UUID userId, Instant createdAt) {
+        jdbcTemplate.update(
+                "INSERT INTO feedbacks (user_id, content, created_at) VALUES (?, '문의', ?)",
+                userId,
+                Timestamp.from(createdAt)
+        );
     }
 }

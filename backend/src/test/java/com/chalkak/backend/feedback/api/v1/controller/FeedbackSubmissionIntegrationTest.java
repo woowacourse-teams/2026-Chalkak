@@ -102,4 +102,51 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
                 "SELECT content FROM feedbacks WHERE user_id = ?", userId);
         assertThat(stored.get("content")).isEqualTo(content);
     }
+
+    @Test
+    @DisplayName("잘못된 내용으로 실패한 요청은 다음 정상 접수를 막지 않는다")
+    void submitFeedback_invalidThenValidRequest_doesNotConsumeLimit() throws Exception {
+        // Given
+        mockMvc.perform(post("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"정상 문의\"}"))
+                .andExpect(status().isCreated());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM feedbacks WHERE user_id = ?",
+                Long.class,
+                userId
+        )).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("첫 접수 후 연속 접수는 거절하며 실패 요청은 저장하지 않는다")
+    void submitFeedback_repeatedRequest_rejectsWithoutAdditionalRow() throws Exception {
+        // Given
+        mockMvc.perform(post("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"첫 문의\"}"))
+                .andExpect(status().isCreated());
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"반복 문의\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM feedbacks WHERE user_id = ?",
+                Long.class,
+                userId
+        )).isEqualTo(1L);
+    }
 }
