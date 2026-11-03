@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.feedback.repository.FeedbackSlice;
 import com.chalkak.backend.user.domain.UserFixture;
@@ -42,6 +44,35 @@ class FeedbackServiceTest {
 
     @InjectMocks
     private FeedbackService service;
+
+    @Test
+    @DisplayName("조회 가능한 본인 문의를 상세 결과로 반환한다")
+    void getFeedback_visibleOwnFeedback_returnsDetail() {
+        // Given
+        UUID feedbackId = UUID.randomUUID();
+        given(feedbackRepository.findVisibleByIdAndUserId(feedbackId, USER_ID))
+                .willReturn(Optional.of(Feedback.create(USER_ID, "내 문의")));
+
+        // When
+        FeedbackDetailResult result = service.getFeedback(USER_ID, feedbackId);
+
+        // Then
+        assertThat(result.content()).isEqualTo("내 문의");
+    }
+
+    @Test
+    @DisplayName("조회할 수 있는 본인 문의가 없으면 동일한 찾을 수 없음 예외를 반환한다")
+    void getFeedback_unavailableFeedback_throwsNotFound() {
+        // Given
+        UUID feedbackId = UUID.randomUUID();
+        given(feedbackRepository.findVisibleByIdAndUserId(feedbackId, USER_ID))
+                .willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> service.getFeedback(USER_ID, feedbackId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("문의를 찾을 수 없습니다.");
+    }
 
     @Test
     @DisplayName("문의가 없으면 페이지 정보와 빈 목록을 반환한다")

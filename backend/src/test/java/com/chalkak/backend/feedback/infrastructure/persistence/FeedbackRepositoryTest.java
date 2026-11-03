@@ -64,6 +64,36 @@ class FeedbackRepositoryTest {
     }
 
     @Test
+    @DisplayName("상세 조회는 식별자가 맞아도 작성자가 다르면 반환하지 않는다")
+    void findVisibleByIdAndUserId_differentUser_returnsEmpty() {
+        // Given
+        Feedback feedback = feedbackRepository.save(Feedback.create(USER_ID, "비공개 문의"));
+        UUID feedbackId = feedback.getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(feedbackRepository.findVisibleByIdAndUserId(feedbackId, USER_ID)).isPresent();
+        assertThat(feedbackRepository.findVisibleByIdAndUserId(feedbackId, UUID.randomUUID()))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("삭제 표시가 있는 문의는 작성자 본인의 상세 조회에서도 제외한다")
+    void findVisibleByIdAndUserId_deletedFeedback_returnsEmpty() {
+        // Given
+        Feedback feedback = feedbackRepository.save(Feedback.create(USER_ID, "삭제된 문의"));
+        UUID feedbackId = feedback.getId();
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE feedbacks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                feedbackId);
+        entityManager.clear();
+
+        // When & Then
+        assertThat(feedbackRepository.findVisibleByIdAndUserId(feedbackId, USER_ID)).isEmpty();
+    }
+
+    @Test
     @DisplayName("본인 문의만 최신순으로 페이지를 나누고 같은 시각은 식별자 내림차순으로 정렬한다")
     void findByUserId_ownFeedbackWithTiedTimes_returnsStablePages() {
         // Given

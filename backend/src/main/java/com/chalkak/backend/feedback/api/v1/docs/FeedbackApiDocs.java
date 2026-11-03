@@ -4,6 +4,7 @@ import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.exception.ErrorResponse;
 import com.chalkak.backend.feedback.api.v1.dto.request.FeedbackListRequest;
 import com.chalkak.backend.feedback.api.v1.dto.response.FeedbackListResponse;
+import com.chalkak.backend.feedback.api.v1.dto.response.FeedbackDetailResponse;
 import com.chalkak.backend.feedback.api.v1.dto.request.FeedbackSubmissionRequest;
 import com.chalkak.backend.feedback.api.v1.dto.response.FeedbackSubmissionResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +22,18 @@ import org.springdoc.core.annotations.ParameterObject;
 @Tag(name = "Feedbacks", description = "사용자 피드백 API")
 @SecurityRequirement(name = "accessToken")
 public interface FeedbackApiDocs {
+
+    @Operation(summary = "본인 문의 상세 조회", description = "로그인한 회원의 삭제되지 않은 문의를 조회합니다. 정지 회원도 조회할 수 있습니다. 타인의 문의, 삭제된 문의, 존재하지 않는 문의는 구분하지 않고 같은 404 응답으로 처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "본인 문의 상세 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "문의 식별자 형식이 올바르지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보 또는 탈퇴한 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "조회할 수 있는 본인 문의가 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<FeedbackDetailResponse> getFeedback(
+            @Parameter(schema = @Schema(type = "string", format = "uuid")) String feedbackId,
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
 
     @Operation(summary = "본인 문의 목록 조회", description = "로그인한 회원의 삭제되지 않은 문의만 접수 시각·식별자 최신순으로 조회합니다. 도입 전 피드백은 소프트 딜리트하여 목록에서 제외합니다. 정지 회원도 조회할 수 있습니다. 페이지는 1부터 시작하고 기본 20건, 최대 100건입니다.")
     @ApiResponses({

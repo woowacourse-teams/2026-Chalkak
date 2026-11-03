@@ -15,6 +15,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.service.FeedbackService;
 import com.chalkak.backend.feedback.service.FeedbackListResult;
+import com.chalkak.backend.feedback.service.FeedbackDetailResult;
 import com.chalkak.backend.feedback.service.FeedbackSubmissionResult;
 import com.chalkak.backend.support.WithMockLoginUser;
 import java.time.Instant;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -47,6 +49,41 @@ class FeedbackControllerTest {
 
     @MockitoBean
     private FeedbackService feedbackService;
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("본인 문의 상세는 식별자·내용·UTC 접수 시각을 반환한다")
+    void getFeedback_ownFeedback_returnsDetailContract() throws Exception {
+        // Given
+        given(feedbackService.getFeedback(USER_ID, FEEDBACK_ID))
+                .willReturn(new FeedbackDetailResult(
+                        FEEDBACK_ID,
+                        "내 문의",
+                        CREATED_AT
+                ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", FEEDBACK_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbackId").value(FEEDBACK_ID.toString()))
+                .andExpect(jsonPath("$.content").value("내 문의"))
+                .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(jsonPath("$.deletedAt").doesNotExist());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-id", "1-1-1-1-1"})
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("문의 식별자가 잘못됐거나 축약된 UUID면 400을 반환하고 조회하지 않는다")
+    void getFeedback_invalidIdentifier_returnsBadRequest(String feedbackId) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", feedbackId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+        verify(feedbackService, never()).getFeedback(any(), any());
+    }
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)

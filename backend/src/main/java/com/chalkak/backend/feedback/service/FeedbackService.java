@@ -3,6 +3,7 @@ package com.chalkak.backend.feedback.service;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.domain.FeedbackSubmissionHistory;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
@@ -21,6 +22,16 @@ public class FeedbackService {
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
     private final Clock clock;
+
+    @Transactional(readOnly = true)
+    public FeedbackDetailResult getFeedback(UUID userId, UUID feedbackId) {
+        Feedback feedback = feedbackRepository.findVisibleByIdAndUserId(feedbackId, userId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "문의를 찾을 수 없습니다."
+                ));
+        return FeedbackDetailResult.from(feedback);
+    }
 
     @Transactional(readOnly = true)
     public FeedbackListResult getFeedbacks(

@@ -15,9 +15,37 @@ import org.springframework.test.web.servlet.MockMvc;
 class FeedbackOpenApiTest extends IntegrationTestSupport {
 
     private static final String SUBMIT_PATH = "$.paths['/api/v1/feedbacks'].post";
+    private static final String DETAIL_PATH = "$.paths['/api/v1/feedbacks/{feedbackId}'].get";
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Test
+    @DisplayName("문의 상세 문서는 본인 인증과 ID·성공·오류 응답 계약을 제공한다")
+    void userApiDocs_feedbackDetail_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(DETAIL_PATH + ".security[0].accessToken").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].name").value("feedbackId"))
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].in").value("path"))
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].required").value(true))
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['200']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['400']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['401']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['404']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['403']").doesNotExist())
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackDetailResponse.properties.feedbackId")
+                        .exists())
+                .andExpect(
+                        jsonPath("$.components.schemas.FeedbackDetailResponse.properties.content")
+                                .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackDetailResponse.properties.createdAt.format")
+                        .value("date-time"));
+    }
 
     @Test
     @DisplayName("user-api 문서는 피드백 제출 계약을 제공한다")

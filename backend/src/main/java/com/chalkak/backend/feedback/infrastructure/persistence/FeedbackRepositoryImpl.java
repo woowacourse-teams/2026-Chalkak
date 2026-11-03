@@ -5,6 +5,7 @@ import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.feedback.repository.FeedbackSlice;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +22,11 @@ public class FeedbackRepositoryImpl implements FeedbackRepository {
     @Override
     public Feedback save(Feedback feedback) {
         return feedbackJpaRepository.save(feedback);
+    }
+
+    @Override
+    public Optional<Feedback> findVisibleByIdAndUserId(UUID feedbackId, UUID userId) {
+        return feedbackJpaRepository.findByIdAndUserIdAndDeletedAtIsNull(feedbackId, userId);
     }
 
     @Override
