@@ -29,7 +29,7 @@
   번호는 위에서 아래, 왼쪽에서 오른쪽 순서다.
 
 전제
-  python3 와 Pillow(PIL), numpy. 상태 표시줄 고정·애니메이션 끄기는 찍는 쪽(기기 스킬)에서 한다.
+  python3 와 Pillow(PIL), numpy. 상태 표시줄 고정·애니메이션 끄기는 찍는 쪽(화면 확인 스킬)에서 한다.
 
 예시
   python3 mark-changes.py before-1.png after-1.png -o compare-1.png

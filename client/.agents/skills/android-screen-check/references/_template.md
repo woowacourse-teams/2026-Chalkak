@@ -1,7 +1,7 @@
 # <화면 이름> 화면
 
 `client-record`가 화면 확인 방법을 남길 때 이 형식으로 `references/<화면-영어-이름>.md`를 만든다.
-iOS도 같은 형식을 `ios-simulator/references/`에 둔다.
+iOS도 같은 형식을 `ios-screen-check/references/`에 둔다.
 
 ```markdown
 # 작가 프로필 화면

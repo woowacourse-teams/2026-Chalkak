@@ -19,7 +19,7 @@ disable-model-invocation: true
 |---|---|---|---|
 | ADR | 선택지가 여럿이었고 이유가 있는 구조 결정(예: 삭제 결과를 일회성 이벤트 대신 UiState로) | `client/<플랫폼>/docs/architecture/<영어-이름>.md` | `client-plan`이 바꿀 파일과 `관련 경로`를 맞춰 볼 때 |
 | 함정 기록 | 플랫폼·라이브러리의 의외 동작(예: 공유 요소 전환이 끝나면 clip이 풀림) | 그 동작을 다루는 코드 바로 옆 **주석** | 그 코드를 고치는 사람이 읽을 때 |
-| 화면 확인 방법 | 그 화면까지 가는 길, 재현 조건, 필요한 테스트 데이터 | 기기 스킬의 `references/<화면>.md` | 기기 스킬이 그 화면을 확인할 때 |
+| 화면 확인 방법 | 그 화면까지 가는 길, 재현 조건, 필요한 테스트 데이터 | 화면 확인 스킬의 `references/<화면>.md` | 화면 확인 스킬이 그 화면을 확인할 때 |
 
 - ADR은 [ADR 형식](references/adr-template.md)을 따르고 `관련 경로:` 줄을 꼭 넣는다. 없으면 `related-adr.py`가 찾지 못한다.
 - 함정 주석에는 무엇이 의외인지, 그래서 코드가 왜 이렇게 생겼는지, 근거 이슈 번호를 쓴다.
@@ -27,7 +27,7 @@ disable-model-invocation: true
   // 공유 요소 전환이 끝나면 clip이 풀려서 여기서 다시 건다.
   // 근거: 이슈 #123
   ```
-- 화면 확인 방법은 [기존 형식](../android-device/references/_template.md)을 따른다. 같은 화면 파일이 있으면 고친다.
+- 화면 확인 방법은 화면 확인 스킬이 돌려준 `route`를 [기존 형식](../android-screen-check/references/_template.md)으로 옮긴다. 같은 화면 파일이 있으면 고친다.
 
 ## 남기지 않는 것
 

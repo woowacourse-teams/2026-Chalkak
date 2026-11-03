@@ -70,7 +70,7 @@ mkdir -p "$EVID/media"
 |---|---|---|
 | `plan.md` | `client-plan` | 승인된 계획(이슈 댓글과 같은 내용) |
 | `evidence.md` | `client-tdd` | TC마다 Red 메시지 한 줄과 Green 통과, 전체 검사 결과 |
-| `media/` | 기기 스킬 | `before-<n>.png`, `after-<n>.png`, `compare-<n>.png`, `repro.mp4` 등 |
+| `media/` | 화면 확인 스킬 | `before-<n>.png`, `after-<n>.png`, `compare-<n>.png`, `repro.mp4` 등 |
 
 `n`은 계획의 테스트 밖 확인 항목 번호다. 사용자에게 보고할 때는 `file://` 절대 경로로 적는다.
 
