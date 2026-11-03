@@ -260,7 +260,10 @@ class PostQueryPersistenceTest extends IntegrationTestSupport {
                 photo,
                 upload.getId(),
                 "오늘의 순간",
-                null
+                null,
+                false,
+                null,
+                Instant.now()
         );
         post.requestModeration();
         post.approve(Instant.now());

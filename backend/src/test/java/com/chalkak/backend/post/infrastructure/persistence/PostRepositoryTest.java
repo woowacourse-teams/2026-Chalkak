@@ -537,7 +537,10 @@ class PostRepositoryTest {
                 Photo.createPhoto("chalkak/dev/posts/description-original.png"),
                 upload.getId(),
                 null,
-                description
+                description,
+                false,
+                null,
+                Instant.now()
         );
 
         // When
@@ -647,7 +650,10 @@ class PostRepositoryTest {
                 photo,
                 UUID.randomUUID(),
                 null,
-                null
+                null,
+                false,
+                null,
+                Instant.now()
         );
 
         // When & Then
@@ -689,7 +695,10 @@ class PostRepositoryTest {
                 photo,
                 UUID.randomUUID(),
                 null,
-                null
+                null,
+                false,
+                null,
+                Instant.now()
         );
 
         // When & Then
@@ -722,7 +731,10 @@ class PostRepositoryTest {
                             photo,
                             UUID.randomUUID(),
                             null,
-                            null
+                            null,
+                            false,
+                            null,
+                            Instant.now()
                     );
 
                     postRepository.save(duplicatePost);

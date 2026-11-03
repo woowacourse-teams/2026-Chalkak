@@ -157,6 +157,8 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
                     TOPIC_ID,
                     PHOTO_UPLOAD_ID,
                     "제목",
+                    null,
+                    false,
                     null
             );
             return false;

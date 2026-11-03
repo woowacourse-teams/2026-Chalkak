@@ -82,7 +82,9 @@ public class PostController implements PostApiDocs {
                 request.topicId(),
                 request.photoUploadId(),
                 request.title(),
-                request.description()
+                request.description(),
+                Boolean.TRUE.equals(request.instagramUploadAgreed()),
+                request.instagramId()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)

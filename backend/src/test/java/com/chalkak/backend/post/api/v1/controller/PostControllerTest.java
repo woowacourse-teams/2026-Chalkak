@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -512,6 +513,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 "오늘의 기록",
+                null,
+                false,
                 null
         )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -534,6 +537,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 "오늘의 기록",
+                null,
+                false,
                 null
         );
     }
@@ -930,6 +935,159 @@ class PostControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("인스타그램 동의 필드를 생략하거나 null로 보내면 동의하지 않은 것으로 서비스에 전달한다")
+    void createPost_instagramFieldsOmittedOrNull_passesNotAgreed() throws Exception {
+        // Given
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
+                null
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "instagramUploadAgreed": null,
+                          "instagramId": null
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated());
+
+        then(postCommandService).should(times(2)).createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
+                null
+        );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("인스타그램 게시에 동의하고 ID를 보내면 201과 함께 입력값을 서비스에 전달한다")
+    void createPost_instagramAgreedWithId_passesValuesToService() throws Exception {
+        // Given
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                null,
+                true,
+                " @Chalkak "
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "instagramUploadAgreed": true,
+                          "instagramId": " @Chalkak "
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("동의하지 않았는데 인스타그램 ID를 보내면 400을 반환한다")
+    void createPost_instagramIdWithoutAgreement_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "instagramUploadAgreed": false,
+                          "instagramId": "chalkak"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("인스타그램 ID 형식이 올바르지 않으면 400을 반환한다")
+    void createPost_invalidInstagramIdFormat_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "instagramUploadAgreed": true,
+                          "instagramId": "cha-kak"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("인스타그램 ID 형식이 올바르지 않습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("동의하지 않았어도 @만 있는 인스타그램 ID는 ID 없음으로 보고 201을 반환한다")
+    void createPost_notAgreedWithAtOnlyId_returnsCreatedPost() throws Exception {
+        // Given
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
+                "@"
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "instagramUploadAgreed": false,
+                          "instagramId": "@"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("게시물을 생성할 때 앞뒤 공백을 제거한 제목이 10자를 초과하면 400을 반환한다")
     void createPost_tooLongNormalizedTitle_returnsBadRequest() throws Exception {
         // When & Then
@@ -1030,7 +1188,9 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 null,
-                "첫 줄\n둘째 줄"
+                "첫 줄\n둘째 줄",
+                false,
+                null
         )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
@@ -1051,7 +1211,9 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 null,
-                "첫 줄\n둘째 줄"
+                "첫 줄\n둘째 줄",
+                false,
+                null
         );
     }
 
@@ -1066,6 +1228,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 paddedTitle,
+                null,
+                false,
                 null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
@@ -1091,6 +1255,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 paddedTitle,
+                null,
+                false,
                 null
         );
     }
@@ -1106,6 +1272,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 emojiTitle,
+                null,
+                false,
                 null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
@@ -1132,6 +1300,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 emojiTitle,
+                null,
+                false,
                 null
         );
     }
@@ -1147,6 +1317,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 blankTitle,
+                null,
+                false,
                 null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
@@ -1172,6 +1344,8 @@ class PostControllerTest {
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
                 blankTitle,
+                null,
+                false,
                 null
         );
     }

@@ -141,6 +141,8 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
+                null,
+                false,
                 null
         )).isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
@@ -165,6 +167,8 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
+                null,
+                false,
                 null
         )).isInstanceOf(NotFoundException.class).hasMessage("게시물을 작성할 주제를 찾을 수 없습니다.");
         verifyNoInteractions(uploads, posts);
@@ -192,6 +196,8 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
+                null,
+                false,
                 null
         )).isInstanceOf(BusinessException.class).hasMessage("현재 게시물을 작성할 수 없는 주제입니다.");
         verifyNoInteractions(uploads, posts);
@@ -227,7 +233,9 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
-                "첫 줄\n둘째 줄"
+                "첫 줄\n둘째 줄",
+                false,
+                null
         );
 
         // Then
@@ -374,7 +382,10 @@ class PostCommandServiceTest {
                 Photo.createPhoto("chalkak/posts/test/original/" + UPLOAD_ID + ".webp"),
                 UPLOAD_ID,
                 "기존 제목",
-                description
+                description,
+                false,
+                null,
+                Instant.now()
         );
         ReflectionTestUtils.setField(
                 post,

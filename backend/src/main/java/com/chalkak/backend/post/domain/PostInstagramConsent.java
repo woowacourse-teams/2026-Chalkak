@@ -1,0 +1,112 @@
+package com.chalkak.backend.post.domain;
+
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+import java.time.Instant;
+import java.util.Locale;
+import java.util.regex.Pattern;
+
+/**
+ * 게시물별 공식 인스타그램 게시 동의와 태그용 인스타그램 ID의 정규화·형식 규칙을 한곳에 모은 값 객체. 생성·요청 검증이 모두 이
+ * 클래스에 위임해, 같은 규칙이 여러 벌로 복제되어 어긋나는 일을 막는다.
+ *
+ * <p>
+ * 동의 여부는 항상 값이 있어 {@code posts.instagram_upload_agreed}가 {@code NOT NULL}이므로,
+ * 조회 시 이 객체가 {@code null}로 복원되는 일은 없다. ID 없음은 {@code instagramId}가
+ * {@code null}인 것으로 표현한다.
+ */
+@Embeddable
+public record PostInstagramConsent(
+        @Column(name = "instagram_upload_agreed", nullable = false) boolean agreed,
+        @Column(name = "instagram_id", length = PostInstagramConsent.MAX_ID_LENGTH) String instagramId,
+        @Column(name = "instagram_agreed_at") Instant agreedAt,
+        @Column(name = "instagram_revoked_at") Instant revokedAt
+) {
+
+    private static final int MAX_ID_LENGTH = 30;
+    private static final String LEADING_AT = "@";
+    private static final Pattern RAW_ID_PATTERN = Pattern
+            .compile("[A-Za-z0-9._]{1,%d}".formatted(MAX_ID_LENGTH));
+    private static final Pattern ID_PATTERN = Pattern
+            .compile("[a-z0-9._]{1,%d}".formatted(MAX_ID_LENGTH));
+
+    public PostInstagramConsent {
+        if (instagramId != null && !agreed) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.");
+        }
+        if (instagramId != null && !ID_PATTERN.matcher(instagramId).matches()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "인스타그램 ID 형식이 올바르지 않습니다.");
+        }
+    }
+
+    /**
+     * 새 게시물의 동의 정보를 만든다. ID는 앞뒤 공백 제거, 맨 앞 {@code @} 하나 제거, 소문자 변환 순으로 정규화하고 비어 있으면
+     * ID 없음으로 본다. 동의한 경우에만 동의 시각을 {@code now}로 기록한다.
+     */
+    public static PostInstagramConsent of(
+            boolean agreed,
+            String rawInstagramId,
+            Instant now
+    ) {
+        String candidate = withoutLeadingAt(rawInstagramId);
+        if (candidate.isEmpty()) {
+            return new PostInstagramConsent(
+                    agreed,
+                    null,
+                    agreed ? now : null,
+                    null
+            );
+        }
+        if (!agreed) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.");
+        }
+        if (!RAW_ID_PATTERN.matcher(candidate).matches()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "인스타그램 ID 형식이 올바르지 않습니다.");
+        }
+        return new PostInstagramConsent(
+                true,
+                candidate.toLowerCase(Locale.ROOT),
+                now,
+                null
+        );
+    }
+
+    /**
+     * 요청 DTO의 빠른 실패용. 예외 대신 판정만 돌려준다. 정규화 후 비어 있으면 ID 없음이므로 허용한다.
+     */
+    public static boolean isIdFormatValid(String raw) {
+        String candidate = withoutLeadingAt(raw);
+        return candidate.isEmpty() || RAW_ID_PATTERN.matcher(candidate).matches();
+    }
+
+    /**
+     * 요청 DTO의 빠른 실패용. 동의하지 않은 요청은 정규화 후 ID가 비어 있을 때만 허용한다.
+     */
+    public static boolean isIdAllowedWithAgreement(
+            boolean agreed,
+            String raw
+    ) {
+        return agreed || withoutLeadingAt(raw).isEmpty();
+    }
+
+    private static String withoutLeadingAt(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String stripped = raw.strip();
+        if (stripped.startsWith(LEADING_AT)) {
+            return stripped.substring(LEADING_AT.length());
+        }
+        return stripped;
+    }
+}

@@ -746,7 +746,10 @@ class PostQueryServiceTest {
                 photo,
                 id,
                 title,
-                description
+                description,
+                false,
+                null,
+                Instant.now()
         );
         ReflectionTestUtils.setField(
                 created,

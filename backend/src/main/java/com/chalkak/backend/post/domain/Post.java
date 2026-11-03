@@ -72,6 +72,9 @@ public class Post {
     @Embedded
     private PostDescription description;
 
+    @Embedded
+    private PostInstagramConsent instagramConsent;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "moderation_status", nullable = false, columnDefinition = "moderation_status")
@@ -97,7 +100,8 @@ public class Post {
             Photo photo,
             UUID postImageUploadId,
             String title,
-            String description
+            String description,
+            PostInstagramConsent instagramConsent
     ) {
         this.author = author;
         this.topic = topic;
@@ -105,6 +109,7 @@ public class Post {
         this.postImageUploadId = postImageUploadId;
         this.title = PostTitle.from(title);
         this.description = PostDescription.from(description);
+        this.instagramConsent = instagramConsent;
         this.moderationStatus = ModerationStatus.VALIDATING;
     }
 
@@ -114,7 +119,10 @@ public class Post {
             Photo photo,
             UUID postImageUploadId,
             String title,
-            String description
+            String description,
+            boolean instagramUploadAgreed,
+            String instagramId,
+            Instant now
     ) {
         validateRelations(
                 author,
@@ -132,7 +140,12 @@ public class Post {
                 photo,
                 postImageUploadId,
                 title,
-                description
+                description,
+                PostInstagramConsent.of(
+                        instagramUploadAgreed,
+                        instagramId,
+                        now
+                )
         );
     }
 

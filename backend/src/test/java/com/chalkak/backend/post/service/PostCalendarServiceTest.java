@@ -207,7 +207,10 @@ class PostCalendarServiceTest {
                 photo,
                 id,
                 null,
-                null
+                null,
+                false,
+                null,
+                Instant.now()
         );
         post.requestModeration();
         if (status == ModerationStatus.APPROVED) {

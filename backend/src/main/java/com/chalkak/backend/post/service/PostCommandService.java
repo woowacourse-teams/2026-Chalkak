@@ -83,7 +83,9 @@ public class PostCommandService {
             UUID topicId,
             UUID photoUploadId,
             String title,
-            String description
+            String description,
+            boolean instagramUploadAgreed,
+            String instagramId
     ) {
         User author = getPostableUser(userId);
         Topic topic = topicRepository.findActiveById(topicId)
@@ -123,7 +125,10 @@ public class PostCommandService {
                 photo,
                 photoUploadId,
                 title,
-                description
+                description,
+                instagramUploadAgreed,
+                instagramId,
+                Instant.now()
         );
         if (upload.isProcessed()) {
             photo.completeProcessing(

@@ -279,6 +279,8 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 SECOND_UPLOAD_ID,
                 "재제출",
+                null,
+                false,
                 null
         );
         entityManager.flush();
