@@ -14,7 +14,7 @@ ViewModel이 바뀌지 않는 작업은 2부터 한다.
 
 ## TC 한 개 돌리기
 
-TC는 항상 하나씩 돌린다. 다시 불렸을 때는 `$EVID/evidence.md`에 Green이 기록된 TC를 건너뛰고, 그 TC들의 테스트가 지금도 통과하는지 한 번 돌려 본 뒤 다음 TC부터 한다.
+TC는 항상 하나씩 돌린다. 다시 불렸을 때는 `$EVID/evidence.md`에 Green이 기록된 TC를 건너뛰고, 그 TC들의 테스트가 지금도 통과하는지 한 번 돌려 본 뒤 다음 TC부터 한다. 두 플랫폼 작업이면 플랫폼마다 따로 본다(Android가 다 Green이고 iOS TC 2까지 Green이면 iOS TC 3부터).
 
 1. **Red**
    - 계획의 TC 제목을 그대로 테스트 이름으로 쓰고, Given / When / Then 세 줄을 본문 주석으로 둔다.
@@ -36,9 +36,9 @@ TC는 항상 하나씩 돌린다. 다시 불렸을 때는 `$EVID/evidence.md`에
 3. **Refactor**
    - 중복을 정리하고 플랫폼 `AGENTS.md`의 MUST 규칙(UiState, Route/Screen 분리, 디자인 토큰 등)에 맞춘다.
    - 다시 실행해서 같은 결과인지 본다.
-4. **기록**: `$EVID/evidence.md`에 덧붙인다. PR 본문 근거로 그대로 쓴다.
+4. **기록**: `$EVID/evidence.md`에 덧붙인다. PR 본문 근거로 그대로 쓴다. 플랫폼을 꼭 적는다.
    ```text
-   - TC 1 삭제에 성공하면 피드 목록에서 빠진다
+   - TC 1 (Android) 삭제에 성공하면 피드 목록에서 빠진다
      Red: expected:<[1, 3]> but was:<[1, 2, 3]>
      Green: 통과
    ```

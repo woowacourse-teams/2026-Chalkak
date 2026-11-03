@@ -37,8 +37,8 @@ disable-model-invocation: true
 | 남은 기록 | 이어 갈 곳 |
 |---|---|
 | 이 브랜치의 PR이 열려 있음 (`gh pr list --head <브랜치>`) | 5단계. `client-pr`의 "리뷰에서 지적받았을 때" |
-| `$EVID/evidence.md`에 전체 검사 종료 코드 0이 있음 | 화면 확인 대상이고 `$EVID/media/after-*`가 없으면 수정 후 화면 확인, 아니면 4단계 |
-| 이슈에 `<!-- client-plan -->` 댓글이 있음 | 3단계. `evidence.md`에 Green이 없는 첫 TC부터. 화면 확인 대상인데 `before-*`가 없고 아직 코드를 고치지 않았으면 수정 전 확인부터 |
+| `$EVID/evidence.md`에 바꾼 플랫폼 **모두**의 전체 검사 종료 코드 0이 있음 | 화면 확인 대상이고 그 플랫폼의 `$EVID/media/<플랫폼>-after-*`가 없으면 수정 후 화면 확인, 아니면 4단계 |
+| 이슈에 `<!-- client-plan -->` 댓글이 있음 | 3단계. 플랫폼마다 `evidence.md`에 Green이 없는 첫 TC부터(Android를 먼저 끝낸다). 화면 확인 대상인데 `<플랫폼>-before-*`가 없고 아직 코드를 고치지 않았으면 수정 전 확인부터 |
 | 계획 댓글이 없음 | 2단계 |
 
 - `$EVID`는 [공통 약속](references/conventions.md)의 작업 기록 폴더다.

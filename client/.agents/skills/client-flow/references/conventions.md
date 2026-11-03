@@ -42,6 +42,7 @@
 | `client/iOS/` | iOS | `iOS` | `ios` |
 | `client/web/` | Web | `Web` | `web` |
 
+- Android와 iOS를 함께 바꾸면 라벨을 둘 다 달고, 제목은 `클라이언트`로 시작하고, 브랜치 이름에서 플랫폼 자리를 뺀다(예: `client/refactor/#907-like-logic-update`). 검증은 `client-tdd`의 "두 플랫폼을 함께 바꿀 때"를 따른다.
 - Web은 이슈·계획·PR만 쓴다. TDD, Gradle·xcodebuild 검사, 기기 확인은 하지 않는다.
 - 루트의 `.claude/`, `AGENTS.md`, `CLAUDE.md`는 백엔드 영역이라 고치지 않는다.
 - 서비스 정책은 `business-rules`를 읽기만 한다. 정책이 없거나 서버와 다르면 백엔드에 전달할 문구로 남긴다.
@@ -53,6 +54,7 @@
 | 테스트 클래스 하나 | `./gradlew testDebugUnitTest --tests "*.FeedViewModelTest"` | `xcodebuild test -project chalkak.xcodeproj -scheme chalkak -destination "platform=iOS Simulator,id=$UDID" -only-testing:chalkakTests/FeedViewModelTests` |
 | push 전 전체 검사 | `./gradlew ktlintCheck lintDebug testDebugUnitTest` | `xcodebuild test -project chalkak.xcodeproj -scheme chalkak -destination "platform=iOS Simulator,id=$UDID" -only-testing:chalkakTests` |
 
+- 두 플랫폼을 바꾸면 전체 검사도 둘 다 돌리고, 둘 다 종료 코드 0이어야 통과다.
 - iOS의 `$UDID`는 `xcrun simctl list devices available`에서 고른 iPhone 시뮬레이터다.
 - 통과 여부는 종료 코드로 정한다. 출력을 훑어보고 "통과한 것 같다"고 쓰지 않는다.
 
@@ -71,11 +73,11 @@ mkdir -p "$EVID/media"
 | 파일 | 쓰는 커맨드 | 내용 |
 |---|---|---|
 | `plan.md` | `client-plan` | 승인된 계획(이슈 댓글과 같은 내용) |
-| `evidence.md` | `client-tdd` | TC마다 Red 메시지 한 줄과 Green 통과, 전체 검사 결과 |
-| `media/` | 화면 확인 스킬 | `before-<n>.png`, `after-<n>.png`, `compare-<n>.png`, `repro.mp4` 등 |
-| `route.md` | `client-tdd` | 수정 전 화면 확인 결과의 `route`. 수정 후에 같은 길·조건으로 찍을 때 `hint`로 넘긴다 |
+| `evidence.md` | `client-tdd` | 플랫폼마다 TC의 Red 메시지 한 줄과 Green 통과, 전체 검사 결과 |
+| `media/` | 화면 확인 스킬 | `android-before-<n>.png`, `ios-after-<n>.png`, `android-compare-<n>.png`, `ios-repro.mp4` 등 |
+| `route-<플랫폼>.md` | `client-tdd` | 수정 전 화면 확인 결과의 `route`. 수정 후에 같은 길·조건으로 찍을 때 `hint`로 넘긴다 |
 
-`n`은 계획의 테스트 밖 확인 항목 번호다. 사용자에게 보고할 때는 `file://` 절대 경로로 적는다.
+플랫폼은 `android` 또는 `ios`, `n`은 계획의 테스트 밖 확인 항목 번호다. 사용자에게 보고할 때는 `file://` 절대 경로로 적는다.
 
 ## 커밋 메시지
 

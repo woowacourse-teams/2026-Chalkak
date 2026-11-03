@@ -18,6 +18,7 @@ disable-model-invocation: true
 2. **템플릿 고르기**: `.github/ISSUE_TEMPLATE/`에서 종류에 맞는 파일을 읽는다.
    - 버그 `bug_report.md`, 기능 `feature_request.md`, 리팩터링 `refactor.md`, 문서 `docs.md`, 그 밖 `chore.md`
 3. **제목·본문 쓰기**: 템플릿의 제목 접두사(`fix: ` 등)와 칸을 그대로 쓴다.
+   - 두 플랫폼을 함께 바꾸면 제목을 `클라이언트`로 시작한다. 예: `feat: 클라이언트 알람 모두 읽기 버튼 추가`
    - 모르는 내용은 지어내지 않고 `확인 필요`로 남긴다. 계획 단계에서 채운다.
    - 버그는 재현 방법을 Given / When / Then으로 쓴다.
    - 이슈 확인 칸에는 `@<gh api user -q .login 결과>`를 넣는다.
@@ -25,7 +26,7 @@ disable-model-invocation: true
    ```bash
    gh issue create --title "<제목>" --body-file <본문 파일> --label "<종류>" --label "<플랫폼>" --assignee @me
    ```
-   라벨은 종류(`feat` `fix` `refactor` `docs` `chore` `test` `style`) 하나와 플랫폼(`Android` `iOS` `Web`)이다.
+   라벨은 종류(`feat` `fix` `refactor` `docs` `chore` `test` `style`) 하나와 바꿀 플랫폼(`Android` `iOS` `Web`)마다 하나씩이다. 두 플랫폼이면 `--label Android --label iOS`.
 5. **연결 브랜치 만들기**: 이슈 페이지의 Development에 브랜치가 붙도록 GitHub에서 만들고, 지금 작업 폴더에서 그 브랜치로 바꾼다.
    ```bash
    git fetch origin
@@ -35,6 +36,7 @@ disable-model-invocation: true
      --name "client/<종류>/#<번호>-<플랫폼>-<영어 요약>" --checkout
    ```
    - 지금 레포 규칙은 `client/{feature|fix|refactor|chore|docs}/#번호-{android|ios|web}-{요약}`이다.
+     두 플랫폼을 함께 바꾸면 플랫폼 자리를 뺀다. 예: `client/refactor/#907-like-logic-update`
      종류 자리는 커밋 type과 달리 `feat`가 아니라 `feature`다. 예: `client/feature/#901-android-home-top-redesign`
    - `git branch -a`에서 다른 규칙이 보이면 그쪽을 따른다.
    - 커밋하지 않은 변경이 있으면 브랜치를 바꾸기 전에 알리고 멈춘다.

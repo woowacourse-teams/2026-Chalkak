@@ -16,16 +16,16 @@
 
 ```bash
 # 녹화에서 같은 시점 프레임 뽑기 (전·후 녹화를 같은 시점끼리 비교할 때)
-ffmpeg -ss 1.20 -i "$EVID/media/before.mp4" -frames:v 1 "$EVID/media/before-1.png"
+ffmpeg -ss 1.20 -i "$EVID/media/android-before.mp4" -frames:v 1 "$EVID/media/android-before-1.png"
 # 움직임 GIF (5초, 폭 360px)
 ffmpeg -ss 0.5 -t 5 -i "$EVID/media/after.mp4" \
   -vf "fps=15,scale=360:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" \
-  "$EVID/media/after-1.gif"
+  "$EVID/media/android-after-1.gif"
 ```
 
 ## 파일 이름
 
-`before-<n>`, `after-<n>`, `compare-<n>`. `n`은 계획의 테스트 밖 확인 항목 번호다. 버그 재현 녹화는 `repro.mp4`.
+`<플랫폼>-before-<n>`, `<플랫폼>-after-<n>`, `<플랫폼>-compare-<n>`. 플랫폼은 `android` 또는 `ios`, `n`은 계획의 테스트 밖 확인 항목 번호다. 버그 재현 녹화는 `<플랫폼>-repro.mp4`. 업로드는 파일 이름만으로 경로를 정하므로 플랫폼을 빼면 두 플랫폼의 같은 번호가 서로 덮어쓴다.
 
 ## 전·후 비교: 번호 테두리
 
@@ -33,7 +33,7 @@ AI가 놓치는 건 의도하지 않은 변화다(#814의 탑바 아래 그림�
 
 ```bash
 python3 client/.agents/skills/client-pr/scripts/mark-changes.py \
-  "$EVID/media/before-1.png" "$EVID/media/after-1.png" -o "$EVID/media/compare-1.png"
+  "$EVID/media/android-before-1.png" "$EVID/media/android-after-1.png" -o "$EVID/media/android-compare-1.png"
 ```
 
 - 필요한 것: `python3 -m pip install --user pillow numpy`
@@ -61,7 +61,7 @@ python3 client/.agents/skills/client-pr/scripts/mark-changes.py \
 ## 📸 화면 확인
 
 1. 소개가 3줄을 넘으면 말줄임으로 끝난다 (왼쪽 수정 전, 오른쪽 수정 후)
-   ![compare-1.png](https://raw.githubusercontent.com/...)
+   ![android-compare-1.png](https://raw.githubusercontent.com/...)
    - ① 의도한 변화 — 소개 문구 영역 추가
    - ② 설명 못 함 — 탑바 아래 1px 가로줄
    - 녹화: [after.mp4](https://github.com/...)

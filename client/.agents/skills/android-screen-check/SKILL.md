@@ -34,8 +34,9 @@ EVID="$(git rev-parse --show-toplevel)/client/.work/${num:-$(printf '%s' "$branc
 ## 할 일
 
 - 어떤 화면을 어떤 순서와 도구로 볼지는 스스로 정한다. `hint`에 가는 길·조건이 있으면 그대로 따른다.
-- `before`: 항목마다 `before-<n>.png`를 찍는다. 버그면 `repro.mp4`도 녹화한다. 비교는 하지 않는다.
-- `after`: `hint`로 받은 수정 전 `route`를 그대로 따라 `before`와 **같은 조건**으로 `after-<n>.png`를 찍고, 항목마다 `mark-changes.py`로 `compare-<n>.png`를 만든 뒤 번호마다 판단한다.
+- 파일 이름 앞에는 플랫폼을 붙인다(`android-`). 두 플랫폼을 함께 확인해도 같은 폴더에서 겹치지 않게 하기 위해서다.
+- `before`: 항목마다 `android-before-<n>.png`를 찍는다. 버그면 `android-repro.mp4`도 녹화한다. 비교는 하지 않는다.
+- `after`: `hint`로 받은 수정 전 `route`를 그대로 따라 `before`와 **같은 조건**으로 `android-after-<n>.png`를 찍고, 항목마다 `mark-changes.py`로 `android-compare-<n>.png`를 만든 뒤 번호마다 판단한다.
 - `adhoc`: 요청대로 찍거나 녹화한다.
 - 형식(PNG 기본, 움직임만 GIF)과 비교 방법은 [화면 확인 자료](../client-pr/references/screen-evidence.md)를 따른다.
 
@@ -68,9 +69,9 @@ mode: after
 blocked: 없음                     ← 막혔으면 무엇이 막혔는지 한 줄
 items:
   1. 소개가 3줄을 넘으면 말줄임으로 끝난다
-     before: file:///…/media/before-1.png
-     after: file:///…/media/after-1.png
-     compare: file:///…/media/compare-1.png (marked)
+     before: file:///…/media/android-before-1.png
+     after: file:///…/media/android-after-1.png
+     compare: file:///…/media/android-compare-1.png (marked)
      ① 의도한 변화 — 소개 문구 영역 추가
      ② 설명 못 함 — 탑바 아래 1px 가로줄
 route: ProfileScreen: 피드 → 사진 탭 → 작가 이름 탭 (긴 소개: 소개가 4줄 이상인 테스트 작가)
@@ -139,11 +140,11 @@ $ADB shell input keyevent KEYCODE_BACK
 ## 캡처·녹화
 
 ```bash
-$ADB exec-out screencap -p > "$EVID/media/before-1.png"
+$ADB exec-out screencap -p > "$EVID/media/android-before-1.png"
 
-$ADB shell screenrecord --time-limit 20 /sdcard/repro.mp4   # 백그라운드로 돌리고 조작
+$ADB shell screenrecord --time-limit 20 /sdcard/android-repro.mp4   # 백그라운드로 돌리고 조작
 $ADB shell pkill -INT screenrecord                          # 일찍 끝낼 때 (INT로 멈춰야 파일이 닫힌다)
-$ADB pull /sdcard/repro.mp4 "$EVID/media/repro.mp4"
+$ADB pull /sdcard/android-repro.mp4 "$EVID/media/android-repro.mp4"
 ```
 
-수정 후에는 같은 조건으로 `after-<n>.png`를 찍고 `mark-changes.py`로 비교한다([화면 확인 자료](../client-pr/references/screen-evidence.md)).
+수정 후에는 같은 조건으로 `android-after-<n>.png`를 찍고 `mark-changes.py`로 비교한다([화면 확인 자료](../client-pr/references/screen-evidence.md)).
