@@ -59,7 +59,7 @@ AfterInstall을 실패 처리하고 새 앱 기동·전환 단계로 진행하�
 
 - 실행 중인 백업과 같은 `/var/lib/chalkak-backup/backup.lock`을 사용한다. 잠금을 얻지 못하면
   기존 백업을 중단하지 않고 종료 코드 75로 배포를 중단한다. 백업 완료 후 재배포한다.
-- 실행 파일 5개만 root 소유로 새 `releases/release.*` 디렉터리에 준비하고 문법을 검사한 뒤
+- 실행 파일 6개만 root 소유로 새 `releases/release.*` 디렉터리에 준비하고 문법을 검사한 뒤
   `current` 연결을 한 번에 교체한다. 서비스의 실제 작업 디렉터리와 `pwd -P`로 한 회차의
   실행 파일을 고정한다. 이전 release는 자동 삭제하지 않는다.
 - `backup.env`, `pgpass`, `rclone.conf`, CA 인증서는 복사하거나 수정하지 않는다.
@@ -184,7 +184,7 @@ fi
 sudo install -d -o root -g root -m 755 /opt/chalkak-backup
 sudo install -d -o root -g chalkak-backup -m 750 /etc/chalkak-backup
 sudo install -d -o chalkak-backup -g chalkak-backup -m 700 /var/lib/chalkak-backup
-for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh; do
+for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh report-backup-status.sh; do
   sudo install -o root -g root -m 644 "deploy/backup/$file" /opt/chalkak-backup/
 done
 ```
@@ -253,7 +253,9 @@ systemctl show chalkak-backup.service -p Result -p ExecMainStatus -p MemoryPeak 
 전체 시간 제한은 래퍼에서 적용한다. oneshot의 `RuntimeMaxSec`는 사용하지 않는다.
 
 첫 새벽 2시 실행 후 저널의 종료 코드와 통합/개별 원격 결과를 확인해 실제 예약 성공을 기록한다.
-실패하면 원인을 고치고 수동으로 새 회차를 실행한다. 자동 삭제·자동 복구·외부 알림은 없다.
+실패하면 원인을 고치고 수동으로 새 회차를 실행한다. 자동 삭제·자동 복구는 하지 않는다.
+서비스 종료 요약을 기존 CloudWatch·SNS·슬랙 경보로 전달하는 설정은 [실패 알림](monitoring.md)을 따른다.
+코드 배포만으로 CloudWatch 필터·경보·Agent 설정까지 자동 반영되지는 않는다.
 실제 권한·복구·부하·첫 예약 실행이 확인되기 전까지 #844 완료로 간주하지 않는다.
 
 ### 배포 전 중지·배포 후 재개
@@ -273,11 +275,10 @@ sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup/back
 완료·종료를 확인한다. 배포 중에는 누구도 수동 백업을 시작하지 않는다. 배포 완료·앱 정상 상태를
 확인한 후 `sudo systemctl start chalkak-backup.timer`로 재개한다. 놓친 예약이 있으면 즉시 실행될
 수 있다. 파일 갱신 단계에는 자동 잠금이 있지만 앱 배포 전체와 백업의 부하를 분리하는 잠금은
-아니므로 이 수동 절차를 지킨다. 갱신 이후 운영 수동 백업도 아래처럼 현재 release에서 실행한다.
+아니므로 이 수동 절차를 지킨다. 갱신 이후 운영 수동 백업은 실패 알림도 적용되도록 서비스로 실행한다.
 
 ```bash
-sudo -u chalkak-backup /bin/bash -c \
-  'cd /opt/chalkak-backup/current && exec /bin/bash backup.sh /etc/chalkak-backup/backup.env'
+sudo systemctl start chalkak-backup.service
 ```
 
 ```bash
@@ -285,6 +286,8 @@ sudo -u chalkak-backup /bin/bash -c \
 bash deploy/backup/tests/scheduled-backup-test.sh
 # systemd-analyze가 있는 Linux에서 서버 시간대·날짜 경계에 따른 다음 예약 시각 검사
 bash deploy/backup/tests/backup-timer-test.sh
+# 종료 요약·비밀 문자열 차단·수집 설정 검사
+bash deploy/backup/tests/backup-status-test.sh
 ```
 
 ### 개별 DB 실행

@@ -7,6 +7,7 @@ config=/etc/chalkak-backup/backup.env
 install_dir=/opt/chalkak-backup
 state_dir=/var/lib/chalkak-backup
 unit_dir=/etc/systemd/system
+log_dir=/var/log/chalkak-backup
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 source_dir="$script_dir/../backup"
 
@@ -36,7 +37,7 @@ flock --exclusive --nonblock --conflict-exit-code 75 9 || {
 }
 
 # 전체 디렉터리를 복사하지 않는다. 복구 스크립트·테스트·env·인증 파일은 운영 설치 대상이 아니다.
-files=(backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh)
+files=(backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh report-backup-status.sh)
 for file in "${files[@]}"; do
   [[ -f "$source_dir/$file" && ! -L "$source_dir/$file" ]] || {
     printf '백업 배포 파일 누락: %s\n' "$file" >&2; exit 1;
@@ -48,6 +49,17 @@ service="$script_dir/../systemd/chalkak-backup.service"
 [[ ! -L "$install_dir/releases" && ! -L "$unit_dir/chalkak-backup.service" ]] || exit 1
 if [[ -e "$install_dir/current" && ! -L "$install_dir/current" ]]; then
   echo 'current는 배포용 심볼릭 링크여야 합니다.' >&2; exit 1
+fi
+
+# cwagent가 읽는 파일에는 비밀값 없는 종료 요약만 둔다. 기존 요약은 지우지 않는다.
+[[ ! -L "$log_dir" && ! -L "$log_dir/status.log" ]] || exit 1
+install -d -o root -g root -m 755 "$log_dir"
+if [[ -e "$log_dir/status.log" ]]; then
+  [[ -f "$log_dir/status.log" ]] || exit 1
+  chown chalkak-backup:chalkak-backup "$log_dir/status.log"
+  chmod 644 "$log_dir/status.log"
+else
+  install -o chalkak-backup -g chalkak-backup -m 644 /dev/null "$log_dir/status.log"
 fi
 
 install -d -o root -g root -m 755 "$install_dir/releases"

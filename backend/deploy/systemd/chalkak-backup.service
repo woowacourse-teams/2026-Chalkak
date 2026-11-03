@@ -9,6 +9,8 @@ User=chalkak-backup
 Group=chalkak-backup
 WorkingDirectory=/opt/chalkak-backup/current
 ExecStart=/bin/bash scheduled-backup.sh /etc/chalkak-backup/backup.env
+# 실패 요약 기록이 실패해도 원래 백업 종료 결과를 바꾸지 않는다.
+ExecStopPost=-/usr/bin/timeout --kill-after=1s 5s /bin/bash report-backup-status.sh /var/log/chalkak-backup/status.log
 # 전체 시간 상한은 실측한 BACKUP_MAX_RUNTIME_SECONDS와 GNU timeout으로 적용한다.
 TimeoutStartSec=infinity
 TimeoutStopSec=30s
@@ -23,6 +25,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+ReadWritePaths=/var/log/chalkak-backup
 StateDirectory=chalkak-backup
 StateDirectoryMode=0700
 StandardOutput=journal

@@ -12,6 +12,7 @@ sed -e "s|/etc/chalkak-backup|$root/etc/chalkak-backup|g" \
   -e "s|/opt/chalkak-backup|$root/opt/chalkak-backup|g" \
   -e "s|/var/lib/chalkak-backup|$root/state|g" \
   -e "s|/etc/systemd/system|$root/units|g" \
+  -e "s|/var/log/chalkak-backup|$root/logs|g" \
   -e 's/\[\[ $EUID -eq 0 \]\]/true/' \
   "$script_dir/install_backup.sh" > "$root/deploy/scripts/install_backup.sh"
 cat > "$root/bin/install" <<'MOCK'
@@ -31,6 +32,7 @@ cat > "$root/bin/id" <<'MOCK'
 #!/usr/bin/env bash
 exit 0
 MOCK
+printf '#!/bin/bash\nexit 0\n' > "$root/bin/chown"
 cat > "$root/bin/systemctl" <<'MOCK'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TEST_ROOT/systemctl.log"
@@ -49,7 +51,7 @@ export PATH="$root/bin:$PATH"
 runner="$root/deploy/scripts/install_backup.sh"
 config="$root/etc/chalkak-backup/backup.env"
 current="$root/opt/chalkak-backup/current"
-for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh; do
+for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh report-backup-status.sh; do
   printf '#!/bin/bash\nprintf "실행 금지\\n" >> "$TEST_ROOT/forbidden"\n' > "$root/deploy/backup/$file"
 done
 printf '비밀 예제\n' > "$root/deploy/backup/backup.env.example"
@@ -75,6 +77,9 @@ first=$(readlink "$current")
 [[ $(grep -c '^daemon-reload$' "$root/systemctl.log") -eq 1 ]]
 diff -r "$root/secret-before" "$root/etc/chalkak-backup"
 [[ ! -e "$root/forbidden" ]]
+[[ -f "$first/report-backup-status.sh" && $(stat -c '%a' "$root/logs/status.log") == 644 ]]
+printf '기존 종료 기록\n' > "$root/logs/status.log"
+cp "$root/logs/status.log" "$root/status-before"
 echo 'PASS: 실행 파일만 설치하고 비밀 설정 유지, 백업·복구·예약 시작 없음'
 # 이미 시작된 프로세스의 작업 디렉터리는 current 교체 뒤에도 이전 release에 고정돼야 한다.
 (cd "$current"; pwd -P > "$root/pinned"; touch "$root/ready"; while [[ ! -e "$root/continue" ]]; do sleep 0.05; done; cmp backup.sh "$first/backup.sh") &
@@ -83,6 +88,7 @@ while [[ ! -e "$root/ready" ]]; do sleep 0.05; done
 printf '#!/bin/bash\nexit 0\n' > "$root/deploy/backup/backup.sh"
 bash "$runner" > "$root/output"
 second=$(readlink "$current")
+cmp "$root/status-before" "$root/logs/status.log"
 [[ "$first" != "$second" && -d "$first" && $(cat "$root/pinned") == "$first" ]]
 touch "$root/continue"
 wait "$reader"
