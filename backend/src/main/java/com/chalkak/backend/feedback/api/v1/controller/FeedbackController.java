@@ -3,7 +3,11 @@ package com.chalkak.backend.feedback.api.v1.controller;
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.auth.api.support.LoginUser;
 import com.chalkak.backend.auth.api.support.RequiresExistingUser;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.feedback.api.v1.docs.FeedbackApiDocs;
+import com.chalkak.backend.feedback.api.v1.dto.request.FeedbackListRequest;
+import com.chalkak.backend.feedback.api.v1.dto.response.FeedbackListResponse;
+import com.chalkak.backend.feedback.api.v1.dto.response.FeedbackDetailResponse;
 import com.chalkak.backend.feedback.api.v1.dto.request.FeedbackSubmissionRequest;
 import com.chalkak.backend.feedback.api.v1.dto.response.FeedbackSubmissionResponse;
 import com.chalkak.backend.feedback.service.FeedbackService;
@@ -13,6 +17,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +31,44 @@ import org.springframework.web.bind.annotation.RestController;
 public class FeedbackController implements FeedbackApiDocs {
 
     private final FeedbackService feedbackService;
+
+    @Override
+    @RequiresExistingUser
+    @DeleteMapping("/{feedbackId}")
+    public ResponseEntity<Void> deleteFeedback(
+            @PathVariable String feedbackId,
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        feedbackService.deleteFeedback(loginUser.userId(), CanonicalUuidParser.parse(feedbackId));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping("/{feedbackId}")
+    public ResponseEntity<FeedbackDetailResponse> getFeedback(
+            @PathVariable String feedbackId,
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        return ResponseEntity.ok(FeedbackDetailResponse.from(feedbackService.getFeedback(
+                loginUser.userId(),
+                CanonicalUuidParser.parse(feedbackId)
+        )));
+    }
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping
+    public ResponseEntity<FeedbackListResponse> getFeedbacks(
+            @Valid @ModelAttribute FeedbackListRequest request,
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        return ResponseEntity.ok(FeedbackListResponse.from(feedbackService.getFeedbacks(
+                loginUser.userId(),
+                request.page(),
+                request.pageSize()
+        )));
+    }
 
     @Override
     @RequiresExistingUser
