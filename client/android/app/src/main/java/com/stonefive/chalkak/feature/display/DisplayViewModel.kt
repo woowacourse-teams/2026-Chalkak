@@ -785,7 +785,7 @@ private data class DisplayCacheEntry(
 )
 
 private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"
-private const val LIKE_ERROR_MESSAGE = "좋아요를 반영하지 못했어요"
+private const val LIKE_ERROR_MESSAGE = "좋아요를 변경하지 못했어요"
 
 private fun DisplayUiState.withoutPhoto(photoId: String): DisplayUiState = copy(
     content = when (val currentContent = content) {

@@ -505,7 +505,7 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun `좋아요 실패는 해당 게시물만 복원한다`() = runTest {
+    fun `좋아요 실패는 해당 게시물만 복원하고 토스트를 띄운다`() = runTest {
         val repository = RecordingPostRepository(
             likeResults = ArrayDeque(listOf(HomeResult.Failure(HomeFailure.Network))),
             todayResults = ArrayDeque(
@@ -529,17 +529,20 @@ class TodayViewModelTest {
             viewModel.uiState.value.likedPhotoIds
                 .isEmpty(),
         )
+        assertEquals("좋아요를 변경하지 못했어요", (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
     }
 
     @Test
-    fun `이전 좋아요 응답과 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
+    fun `연속 좋아요는 직전 요청이 끝난 뒤 보내고 reload 이전 rollback은 최신 상태를 덮지 않는다`() = runTest {
         val repository = ControlledPostRepository(autoInitial = todayContent())
         val viewModel = todayViewModel(repository)
 
         viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
         viewModel.onAction(TodayUiAction.LikeClicked(PHOTO_ID))
-        repository.completeLike(1, HomeResult.Success(HomeLike(24, false)))
+        assertEquals(1, repository.likeRequests.size)
         repository.completeLike(0, HomeResult.Success(HomeLike(25, true)))
+        assertEquals(2, repository.likeRequests.size)
+        repository.completeLike(1, HomeResult.Success(HomeLike(24, false)))
 
         assertEquals(
             24,

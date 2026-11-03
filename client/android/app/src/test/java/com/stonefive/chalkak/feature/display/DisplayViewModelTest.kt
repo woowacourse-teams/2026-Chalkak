@@ -917,7 +917,7 @@ class DisplayViewModelTest {
         assertEquals(17, restoredPhoto.likeCount)
         assertFalse(restoredPhoto.isLiked)
         assertEquals(
-            "좋아요를 반영하지 못했어요",
+            "좋아요를 변경하지 못했어요",
             (state.pendingMessage as UiMessage.Toast).text,
         )
     }
