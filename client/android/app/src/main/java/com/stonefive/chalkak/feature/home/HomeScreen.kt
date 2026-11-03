@@ -367,15 +367,18 @@ private fun HomeContent(
                         ),
                 )
             }
+            // 항목 순서가 바뀌지 않도록 업로드 전에도 자리는 유지하고 내용만 비운다.
             item {
-                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
-                HomeHeroCard(
-                    hero = uiState.hero,
-                    topic = uiState.topic,
-                    onOpenPhotoUpload = onOpenPhotoUpload,
-                    onRetry = onRetry,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
-                )
+                if (!uiState.showsUploadEntry) {
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
+                    HomeHeroCard(
+                        hero = uiState.hero,
+                        topic = uiState.topic,
+                        onOpenPhotoUpload = onOpenPhotoUpload,
+                        onRetry = onRetry,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                    )
+                }
             }
             if (uiState.showsFeedback) {
                 item {
@@ -403,6 +406,8 @@ private fun HomeContent(
                     onOpenRecord = onOpenRecord,
                     onOpenRecordDate = onOpenRecordDate,
                     onRetry = onRetry,
+                    uploadEntryDate = uiState.date.takeIf { uiState.showsUploadEntry },
+                    onOpenPhotoUpload = onOpenPhotoUpload,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
             }

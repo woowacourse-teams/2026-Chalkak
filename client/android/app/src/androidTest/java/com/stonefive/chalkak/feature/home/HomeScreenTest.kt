@@ -34,12 +34,13 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun emptyHeroOpensUploadAndBottomTabReadsHome() {
+    fun emptyHeroShowsWeeklyUploadEntryAndBottomTabReadsHome() {
         var uploads = 0
         var tab: ChalkakBottomBarItem? = null
         showHome(readyState(), onUpload = { uploads++ }, onTab = { tab = it })
+        composeRule.onNodeWithTag(HOME_HERO_TEST_TAG).assertDoesNotExist()
         composeRule
-            .onNodeWithContentDescription("하늘 사진을 공유하지 않았어요")
+            .onNodeWithContentDescription("오늘 사진 올리기")
             .assertIsDisplayed()
             .performClick()
         assertEquals(1, uploads)
