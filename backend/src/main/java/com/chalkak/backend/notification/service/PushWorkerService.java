@@ -568,14 +568,6 @@ public class PushWorkerService {
                     "PUBLICATION_INACTIVE"
             );
         }
-        if (message.type() == NotificationType.POST_LIKE_MILESTONE
-                && postRepository.findVisibleById(message.sourceId()).isEmpty()) {
-            return skipRequest(
-                    message,
-                    device.getId(),
-                    "POST_UNAVAILABLE"
-            );
-        }
         return new DevicePushRequest(
                 message,
                 device.getFcmToken(),
@@ -608,7 +600,7 @@ public class PushWorkerService {
         if (!message.type().isSourceOf(message.sourceType())) {
             return false;
         }
-        // 주제·리마인더는 알림함 없이 발행하므로 알림 ID가 없다.
+        // 주제·리마인더는 알림함 없이 SQS로 직접 발행하므로 알림 ID가 없고 원래 예정 시각의 수명을 지닌다.
         if (message.type() == NotificationType.TOPIC
                 || message.type() == NotificationType.REMINDER) {
             return message.notificationId() == null

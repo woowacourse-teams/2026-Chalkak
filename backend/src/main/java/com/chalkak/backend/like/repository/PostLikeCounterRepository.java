@@ -7,9 +7,7 @@ public interface PostLikeCounterRepository {
 
     long getCountByPostId(UUID postId);
 
-    long getLastMilestoneCountByPostId(UUID postId);
-
-    void updateLastMilestoneCount(UUID postId, long milestoneCount);
+    boolean updateLastMilestoneCount(UUID postId, long milestoneCount);
 
     List<PostLikeCount> getCountsByPostIds(List<UUID> postIds);
 

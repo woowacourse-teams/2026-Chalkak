@@ -1,4 +1,4 @@
-package com.chalkak.backend.like.domain;
+package com.chalkak.backend.notification.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;

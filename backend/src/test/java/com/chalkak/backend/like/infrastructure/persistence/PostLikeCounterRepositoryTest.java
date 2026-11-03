@@ -104,7 +104,7 @@ class PostLikeCounterRepositoryTest {
         entityManager.clear();
 
         // When
-        repository.updateLastMilestoneCount(POST_ID, 5L);
+        boolean updated = repository.updateLastMilestoneCount(POST_ID, 5L);
         repository.decrement(POST_ID);
         repository.reset(POST_ID);
         entityManager.flush();
@@ -112,38 +112,42 @@ class PostLikeCounterRepositoryTest {
 
         // Then
         assertThat(repository.getCountByPostId(POST_ID)).isZero();
-        assertThat(repository.getLastMilestoneCountByPostId(POST_ID)).isEqualTo(5L);
+        assertThat(updated).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT last_milestone_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(5L);
     }
 
     @Test
-    @DisplayName("최고 단계를 같은 값이나 낮은 값으로 갱신하려 하면 무결성 오류로 처리한다")
-    void updateLastMilestoneCount_nonIncreasing_throwsIntegrityException() {
+    @DisplayName("최고 단계를 같은 값이나 낮은 값으로 갱신하려 하면 false를 반환하고 보존한다")
+    void updateLastMilestoneCount_nonIncreasing_returnsFalse() {
         // Given
         repository.updateLastMilestoneCount(POST_ID, 10L);
         entityManager.flush();
         entityManager.clear();
 
         // When & Then
-        assertThatThrownBy(() -> repository.updateLastMilestoneCount(POST_ID, 10L))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> repository.updateLastMilestoneCount(POST_ID, 5L))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(repository.getLastMilestoneCountByPostId(POST_ID)).isEqualTo(10L);
+        assertThat(repository.updateLastMilestoneCount(POST_ID, 10L)).isFalse();
+        assertThat(repository.updateLastMilestoneCount(POST_ID, 5L)).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT last_milestone_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(10L);
     }
 
     @Test
-    @DisplayName("최고 단계 조회·갱신 대상 집계가 없으면 무결성 오류로 처리한다")
-    void milestoneProgress_missingCounter_throwsIntegrityException() {
+    @DisplayName("최고 단계를 갱신할 집계가 없으면 false를 반환한다")
+    void updateLastMilestoneCount_missingCounter_returnsFalse() {
         // Given
         UUID missing = UUID.randomUUID();
         entityManager.flush();
         entityManager.clear();
 
         // When & Then
-        assertThatThrownBy(() -> repository.getLastMilestoneCountByPostId(missing))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> repository.updateLastMilestoneCount(missing, 5L))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(repository.updateLastMilestoneCount(missing, 5L)).isFalse();
     }
 
     @Test

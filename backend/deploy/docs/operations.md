@@ -80,6 +80,8 @@ Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준
 
 ### 두 버전 중복 실행 주의
 
+좋아요 새 알림 종류의 최초 배포는 [1차 호환 배포·2차 활성화 절차](like-milestone-rollout.md)를 따른다. 임시 스위치를 false로 유지하는 1차가 각 환경에서 끝나기 전에 활성화하지 않는다.
+
 - 안정화 약 10분(관찰이 연장되면 최대 약 12분) 동안 두 버전이 함께 실행되어 스케줄러와 worker도 둘 다 동작한다. 중복 실행 여부 검토는 후속 작업이다.
 - 알려진 위험: 푸시 Worker(SQS consumer)가 두 컨테이너에서 모두 동작한다. `PushDeliveryLocks`는 JVM 메모리 락이고 토픽 스케줄러의 라운드 기록도 JVM 메모리에 있어, 약 10~12분의 중복 구간에 같은 기기가 FCM 푸시를 중복 수신하거나 같은 이벤트가 큐에 두 번 발행될 수 있다. 배포 후 확인하고 후속 작업(웹과 Worker 분리 또는 JVM 간 발송 소유권 도입)으로 처리한다.
 - 중복 구간에 서버가 재부팅되면 `--restart unless-stopped`인 두 컨테이너가 모두 되살아나 2GB 메모리에 JVM 두 개가 뜬다. 다음 배포의 reconcile이 snippet을 정상화하며, 운영자는 primary가 아닌 컨테이너를 중지할 수 있다.

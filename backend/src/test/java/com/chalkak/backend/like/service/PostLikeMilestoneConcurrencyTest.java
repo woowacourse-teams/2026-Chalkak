@@ -207,6 +207,28 @@ class PostLikeMilestoneConcurrencyTest extends IntegrationTestSupport {
         )).isEqualTo(4L);
     }
 
+    @Test
+    @DisplayName("집계 행이 누락되면 개수 증가 단계에서 실패하고 신규 좋아요도 롤백한다")
+    void likePost_missingCounter_rollsBackNewLike() {
+        // Given
+        insertSeedLike();
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", POST_ID);
+
+        // When & Then
+        assertThatThrownBy(() -> postLikeService.likePost(POST_ID, FIRST_LIKER_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(4L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE source_id = ?",
+                Long.class,
+                POST_ID
+        )).isZero();
+    }
+
     private void insertFixture() {
         jdbcTemplate.update(
                 """

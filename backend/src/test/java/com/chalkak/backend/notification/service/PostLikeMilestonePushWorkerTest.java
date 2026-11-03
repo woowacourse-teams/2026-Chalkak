@@ -39,9 +39,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+@TestPropertySource(properties = "chalkak.notification.like-milestone.enabled=false")
 class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-11-03T00:00:00Z");
@@ -123,8 +125,9 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PUSH_DISABLED", "POST_DELETED", "WITHDRAWN", "NO_DEVICE", "READ",
-            "REJECTED", "EXPIRED", "NOT_REQUIRED", "FAILED", "MISSING"})
+    @ValueSource(strings = {"PUSH_DISABLED", "POST_DELETED", "TOPIC_DELETED", "PHOTO_DELETED",
+            "WITHDRAWN", "NO_DEVICE", "READ", "REJECTED", "EXPIRED", "NOT_REQUIRED", "FAILED",
+            "MISSING"})
     @DisplayName("최신 발송 조건을 충족하지 않으면 FCM을 호출하지 않고 완료한다")
     void process_latestConditionUnavailable_completesWithoutSending(String condition) {
         // Given
@@ -140,6 +143,16 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
                     "UPDATE users SET deleted_at = ? WHERE id = ?",
                     Timestamp.from(NOW),
                     USER_ID
+            );
+            case "TOPIC_DELETED" -> jdbcTemplate.update(
+                    "UPDATE topics SET deleted_at = ? WHERE id = (SELECT topic_id FROM posts WHERE id = ?)",
+                    Timestamp.from(NOW),
+                    POST_ID
+            );
+            case "PHOTO_DELETED" -> jdbcTemplate.update(
+                    "UPDATE photos SET deleted_at = ? WHERE id = (SELECT photo_id FROM posts WHERE id = ?)",
+                    Timestamp.from(NOW),
+                    POST_ID
             );
             case "READ" -> jdbcTemplate.update(
                     "UPDATE notifications SET read_at = ? WHERE id = ?",

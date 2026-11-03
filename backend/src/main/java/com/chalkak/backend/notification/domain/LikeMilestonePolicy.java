@@ -1,4 +1,4 @@
-package com.chalkak.backend.like.domain;
+package com.chalkak.backend.notification.domain;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;

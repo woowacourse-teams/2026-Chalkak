@@ -2,7 +2,6 @@ package com.chalkak.backend.notification.domain;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
-import com.chalkak.backend.like.domain.LikeMilestonePolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

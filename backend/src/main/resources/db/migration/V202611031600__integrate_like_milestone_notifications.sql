@@ -8,8 +8,6 @@ ALTER TABLE post_like_counts
 UPDATE post_like_counts
 SET last_milestone_count = like_count / 5 * 5;
 
-DROP TABLE post_like_push_milestones;
-
 ALTER TABLE notifications
     ADD CONSTRAINT ck_notifications_like_milestone_source CHECK (
         type <> 'POST_LIKE_MILESTONE'
