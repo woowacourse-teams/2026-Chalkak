@@ -3,6 +3,10 @@ package com.stonefive.chalkak.feature.upload
 sealed interface PhotoUploadUiAction {
     data object BackClicked : PhotoUploadUiAction
 
+    data object NextClicked : PhotoUploadUiAction
+
+    data object WritingBackClicked : PhotoUploadUiAction
+
     data object GalleryClicked : PhotoUploadUiAction
 
     data object CameraClicked : PhotoUploadUiAction

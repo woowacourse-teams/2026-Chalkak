@@ -670,6 +670,47 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `사진을 고르면 글 쓰기 단계로 넘어가고 뒤로 갔다가 다음으로 다시 들어올 수 있다`() {
+        viewModel.onAction(PhotoUploadUiAction.NextClicked)
+        assertFalse(viewModel.uiState.value.isWriting)
+
+        viewModel.selectPhoto("content://media/photo/1")
+        assertTrue(viewModel.uiState.value.isWriting)
+
+        viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의 다리"))
+        viewModel.onAction(PhotoUploadUiAction.WritingBackClicked)
+        assertFalse(viewModel.uiState.value.isWriting)
+        assertEquals("content://media/photo/1", viewModel.uiState.value.selectedImage)
+
+        viewModel.onAction(PhotoUploadUiAction.NextClicked)
+        assertTrue(viewModel.uiState.value.isWriting)
+        assertEquals("한낮의 다리", viewModel.uiState.value.caption)
+    }
+
+    @Test
+    fun `저장 상태를 복원하면 마지막 단계를 유지한다`() {
+        val handle = SavedStateHandle()
+        val original = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+            savedStateHandle = handle,
+        )
+        original.onImageSelected("content://original")
+        original.onAction(PhotoUploadUiAction.WritingBackClicked)
+
+        val restored = PhotoUploadViewModel(
+            postCreationRepository,
+            uploadTopicDate,
+            isPhotoEditEnabled = { false },
+            savedStateHandle = SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) }),
+        )
+
+        assertEquals("content://original", restored.uiState.value.selectedImage)
+        assertFalse(restored.uiState.value.isWriting)
+    }
+
+    @Test
     fun `제목은 한 줄이라 붙여넣은 줄바꿈을 지운다`() {
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의\r\n다리"))
 

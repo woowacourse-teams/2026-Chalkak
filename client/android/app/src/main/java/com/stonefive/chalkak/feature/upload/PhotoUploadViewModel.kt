@@ -54,7 +54,7 @@ class PhotoUploadViewModel(
     init {
         loadCreationTopic()
         _uiState.value.selectedImage
-            ?.let { replaceSelectedImage(it, _uiState.value.selectedEdit) }
+            ?.let { replaceSelectedImage(it, _uiState.value.selectedEdit, startsWriting = false) }
     }
 
     fun onAction(action: PhotoUploadUiAction) {
@@ -68,6 +68,12 @@ class PhotoUploadViewModel(
                     sendUiEvent(PhotoUploadUiEvent.NavigateBack)
                 }
             }
+
+            PhotoUploadUiAction.NextClicked -> {
+                if (_uiState.value.selectedImage != null) updateWriting(true)
+            }
+
+            PhotoUploadUiAction.WritingBackClicked -> updateWriting(false)
 
             PhotoUploadUiAction.GalleryClicked -> sendUiEvent(PhotoUploadUiEvent.OpenGallery)
 
@@ -181,6 +187,7 @@ class PhotoUploadViewModel(
         clearImageWork()
         savedStateHandle.remove<String>(KEY_CAPTION)
         savedStateHandle.remove<String>(KEY_DESCRIPTION)
+        savedStateHandle.remove<Boolean>(KEY_WRITING)
         savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
         savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
@@ -207,6 +214,9 @@ class PhotoUploadViewModel(
             caption = savedStateHandle[KEY_CAPTION] ?: "",
             description = savedStateHandle[KEY_DESCRIPTION] ?: "",
             selectedImage = savedStateHandle[KEY_SELECTED_IMAGE],
+            isWriting = edit != null &&
+                savedStateHandle.get<String>(KEY_SELECTED_IMAGE) != null &&
+                savedStateHandle[KEY_WRITING] ?: false,
             selectedEdit = edit ?: PhotoEdit(),
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
             pendingMessage = if (edit == null) nextToast(RESTORED_EDIT_FAILED_MESSAGE) else null,
@@ -256,10 +266,18 @@ class PhotoUploadViewModel(
         }
     }
 
+    private fun updateWriting(isWriting: Boolean) {
+        savedStateHandle[KEY_WRITING] = isWriting
+        _uiState.update { it.copy(isWriting = isWriting) }
+    }
+
+    /** 사진을 새로 고르면 바로 글 쓰기 단계로 넘어간다. 저장 상태를 복원할 때는 이전 단계를 유지한다. */
     private fun replaceSelectedImage(
         image: String,
         edit: PhotoEdit,
+        startsWriting: Boolean = true,
     ) {
+        if (startsWriting) updateWriting(true)
         savedStateHandle[KEY_SELECTED_IMAGE] = image
         savedStateHandle[KEY_SELECTED_EDIT] = edit.toSavedState()
         imageGeneration++
@@ -495,6 +513,7 @@ class PhotoUploadViewModel(
     companion object {
         private const val KEY_CAPTION = "upload_caption"
         private const val KEY_DESCRIPTION = "upload_description"
+        private const val KEY_WRITING = "upload_writing"
         private const val KEY_SELECTED_IMAGE = "upload_selected_image"
         private const val KEY_SELECTED_EDIT = "upload_selected_edit"
         private const val RESTORED_EDIT_FAILED_MESSAGE = "사진 편집 정보를 복원하지 못했어요. 사진을 다시 선택해 주세요."

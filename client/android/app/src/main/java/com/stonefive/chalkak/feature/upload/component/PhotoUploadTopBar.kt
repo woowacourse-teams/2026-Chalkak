@@ -26,6 +26,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 fun PhotoUploadTopBar(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = "전시하기",
 ) {
     Row(
         modifier = modifier,
@@ -51,7 +52,7 @@ fun PhotoUploadTopBar(
         }
 
         Text(
-            text = "전시하기",
+            text = title,
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.headline,
             modifier = Modifier.weight(1f),
