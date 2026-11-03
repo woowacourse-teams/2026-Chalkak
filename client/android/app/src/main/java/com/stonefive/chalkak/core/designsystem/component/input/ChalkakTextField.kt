@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -129,6 +130,8 @@ fun ChalkakTextField(
                             text = placeholder,
                             color = ChalkakTheme.colors.textInactive,
                             style = resolvedTextStyle,
+                            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     innerTextField()

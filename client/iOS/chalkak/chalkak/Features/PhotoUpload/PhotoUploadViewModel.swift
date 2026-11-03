@@ -390,7 +390,7 @@ final class PhotoUploadViewModel {
 
     private enum Constants {
         static let captionMaxLength = 10
-        static let descriptionMaxLength = 300
+        static let descriptionMaxLength = 150
     }
 }
 

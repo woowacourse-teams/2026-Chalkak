@@ -300,27 +300,27 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.caption == "한낮의 다리")
     }
 
-    @Test("설명 입력은 서버 기준인 code point 300개까지 허용한다")
-    func limitsDescriptionToThreeHundredCodePoints() {
+    @Test("이야기 입력은 서버와 같은 code point 기준으로 150개까지 허용한다")
+    func limitsDescriptionToOneHundredFiftyCodePoints() {
         let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
         // 국기 이모지는 한 글자로 보이지만 code point 두 개다.
-        let text = String(repeating: "가", count: 298) + "🇰🇷" + "끝"
+        let text = String(repeating: "가", count: 148) + "🇰🇷" + "끝"
 
         viewModel.handle(.descriptionChanged(text))
 
-        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 298) + "🇰🇷")
-        #expect(viewModel.viewState.postDescription.unicodeScalars.count == 300)
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 148) + "🇰🇷")
+        #expect(viewModel.viewState.postDescription.unicodeScalars.count == 150)
     }
 
     @Test("설명 길이 제한은 이모지 글자 중간을 자르지 않는다")
     func keepsGraphemesWhenLimitingDescription() {
         let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
 
-        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 299) + "🇰🇷"))
-        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 299))
+        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 149) + "🇰🇷"))
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 149))
 
-        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 296) + "👨‍👩‍👧"))
-        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 296))
+        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 146) + "👨‍👩‍👧"))
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 146))
     }
 
     @Test("제목은 한 줄이라 붙여넣은 줄바꿈을 지운다")

@@ -12,7 +12,8 @@ struct PhotoUploadWritingScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: theme.spacing.lg) {
+                // 제목 글자 수를 썸네일 아래쪽에 맞춰, 아래 구분선과의 간격을 이야기 칸의 글자 수-테두리 간격과 같게 한다.
+                HStack(alignment: .bottom, spacing: theme.spacing.lg) {
                     thumbnail
 
                     VStack(alignment: .leading, spacing: theme.spacing.xs) {
@@ -26,10 +27,12 @@ struct PhotoUploadWritingScreen: View {
                             placeholder: "사진의 제목을 적어 주세요. (선택)",
                             isEnabled: !viewState.isSubmitting,
                             lineLimit: 1...1,
-                            textFont: theme.typography.title3,
+                            textFont: theme.typography.headline,
                             maximumCharacterCount: Constants.captionMaxLength,
                             style: .plain
                         )
+                        // 이야기 칸의 글자 수와 오른쪽 끝을 맞춘다.
+                        .padding(.trailing, theme.spacing.lg)
                     }
                 }
 
@@ -112,7 +115,7 @@ struct PhotoUploadWritingScreen: View {
 
     private enum Constants {
         static let captionMaxLength = 10
-        static let descriptionMaxLength = 300
+        static let descriptionMaxLength = 150
         static let descriptionLineLimit = 8...16
     }
 }

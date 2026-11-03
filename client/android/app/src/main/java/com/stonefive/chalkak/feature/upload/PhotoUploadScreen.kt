@@ -326,7 +326,8 @@ private fun PhotoUploadWritingContent(
                 .padding(horizontal = PhotoUploadContentHorizontalPadding)
                 .padding(top = ChalkakTheme.spacing.lg),
         ) {
-            Row(verticalAlignment = Alignment.Top) {
+            // 제목 글자 수를 썸네일 아래쪽에 맞춰, 아래 구분선과의 간격을 이야기 칸의 글자 수-테두리 간격과 같게 한다.
+            Row(verticalAlignment = Alignment.Bottom) {
                 uiState.selectedImage?.let { image ->
                     EditedPhotoImage(
                         model = image,
@@ -353,10 +354,12 @@ private fun PhotoUploadWritingContent(
                         onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
                         modifier = Modifier
                             .fillMaxWidth()
+                            // 이야기 칸의 글자 수와 오른쪽 끝을 맞춘다.
+                            .padding(end = ChalkakTheme.spacing.lg)
                             .testTag(PHOTO_UPLOAD_CAPTION_TAG),
                         placeholder = "사진의 제목을 적어 주세요. (선택)",
                         enabled = !uiState.isSubmitting,
-                        textStyle = ChalkakTheme.typography.title3,
+                        textStyle = ChalkakTheme.typography.headline,
                         singleLine = true,
                         maxLength = CAPTION_MAX_LENGTH,
                         style = ChalkakTextFieldStyle.PLAIN,
@@ -580,7 +583,7 @@ const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
 const val PHOTO_UPLOAD_DESCRIPTION_TAG = "photoUploadDescription"
 
 private const val CAPTION_MAX_LENGTH = 10
-private const val DESCRIPTION_MAX_LENGTH = 300
+private const val DESCRIPTION_MAX_LENGTH = 150
 private const val DESCRIPTION_MIN_LINES = 8
 private const val DESCRIPTION_MAX_LINES = 16
 private val PhotoUploadContentHorizontalPadding = 22.dp
