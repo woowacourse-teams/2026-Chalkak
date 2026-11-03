@@ -103,6 +103,8 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/feedbacks'].get.parameters[?(@.name == 'pageSize')]")
                         .isNotEmpty())
+                .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get.parameters.length()")
+                        .value(2))
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].delete").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks/me']").doesNotExist());

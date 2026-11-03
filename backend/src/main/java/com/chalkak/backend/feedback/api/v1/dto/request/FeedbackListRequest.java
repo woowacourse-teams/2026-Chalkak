@@ -1,6 +1,8 @@
 package com.chalkak.backend.feedback.api.v1.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
@@ -21,5 +23,11 @@ public record FeedbackListRequest(
     public FeedbackListRequest {
         page = page == null ? DEFAULT_PAGE : page;
         pageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
+    }
+
+    @JsonIgnore
+    @AssertTrue(message = "조회 조건이 올바르지 않습니다.")
+    public boolean isValidOffset() {
+        return ((long) page - 1) * pageSize <= Integer.MAX_VALUE;
     }
 }

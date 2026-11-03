@@ -143,13 +143,16 @@ class FeedbackControllerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"page,0", "page,-1", "pageSize,0", "pageSize,-1", "pageSize,101", "page,wrong"})
+    @CsvSource({"0,20", "-1,20", "1,0", "1,-1", "1,101", "wrong,20",
+            "21474838,100", "2147483647,2"})
     @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("잘못된 목록 조회 조건은 400으로 거절한다")
-    void getFeedbacks_invalidParameter_returnsBadRequest(String name, String value)
+    void getFeedbacks_invalidParameter_returnsBadRequest(String page, String pageSize)
             throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/feedbacks").param(name, value))
+        mockMvc.perform(get("/api/v1/feedbacks")
+                .param("page", page)
+                .param("pageSize", pageSize))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
         verify(feedbackService, never()).getFeedbacks(
@@ -160,9 +163,9 @@ class FeedbackControllerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"1,1", "2,100"})
+    @CsvSource({"1,1", "2,100", "2147483647,1", "21474837,100"})
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("목록 요청 DTO는 페이지당 최소 1건과 최대 100건을 허용한다")
+    @DisplayName("목록 요청 DTO는 건수와 조회 위치의 허용 경계를 통과시킨다")
     void getFeedbacks_pageSizeBoundary_returnsOk(int page, int pageSize) throws Exception {
         // Given
         given(feedbackService.getFeedbacks(

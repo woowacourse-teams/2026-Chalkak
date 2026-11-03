@@ -13,10 +13,14 @@ public record FeedbackListResult(
         List<FeedbackSummary> feedbacks
 ) {
 
-    public static FeedbackListResult from(FeedbackSlice slice) {
+    public static FeedbackListResult from(
+            FeedbackSlice slice,
+            int currentPage,
+            int pageSize
+    ) {
         return new FeedbackListResult(
-                slice.currentPage(),
-                slice.pageSize(),
+                currentPage,
+                pageSize,
                 slice.hasNext(),
                 slice.feedbacks().stream().map(FeedbackSummary::from).toList()
         );

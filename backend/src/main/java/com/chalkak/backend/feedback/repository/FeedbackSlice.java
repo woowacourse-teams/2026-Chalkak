@@ -5,8 +5,6 @@ import java.util.List;
 
 public record FeedbackSlice(
         List<Feedback> feedbacks,
-        int currentPage,
-        int pageSize,
         boolean hasNext
 ) {
 }

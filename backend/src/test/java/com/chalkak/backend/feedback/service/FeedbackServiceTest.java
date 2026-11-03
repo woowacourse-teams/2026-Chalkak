@@ -115,55 +115,28 @@ class FeedbackServiceTest {
     }
 
     @Test
-    @DisplayName("문의가 없으면 페이지 정보와 빈 목록을 반환한다")
+    @DisplayName("문의가 없어도 요청한 페이지 정보를 빈 목록과 함께 반환한다")
     void getFeedbacks_noFeedback_returnsEmptyPage() {
         // Given
         given(feedbackRepository.findByUserId(
                 USER_ID,
-                1,
-                20
+                3,
+                7
         ))
-                .willReturn(new FeedbackSlice(
-                        List.of(),
-                        1,
-                        20,
-                        false
-                ));
+                .willReturn(new FeedbackSlice(List.of(), false));
 
         // When
         FeedbackListResult result = service.getFeedbacks(
                 USER_ID,
-                1,
-                20
+                3,
+                7
         );
 
         // Then
-        assertThat(result.currentPage()).isEqualTo(1);
-        assertThat(result.pageSize()).isEqualTo(20);
+        assertThat(result.currentPage()).isEqualTo(3);
+        assertThat(result.pageSize()).isEqualTo(7);
         assertThat(result.hasNext()).isFalse();
         assertThat(result.feedbacks()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("조회 위치가 정수 범위를 넘으면 조회하지 않는다")
-    void getFeedbacks_offsetOverIntegerRange_rejectsBeforeQuery() {
-        // Given
-        int page = Integer.MAX_VALUE;
-        int pageSize = 100;
-
-        // When & Then
-        assertThatThrownBy(() -> service.getFeedbacks(
-                USER_ID,
-                page,
-                pageSize
-        ))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("조회 조건이 올바르지 않습니다.");
-        verify(feedbackRepository, never()).findByUserId(
-                USER_ID,
-                page,
-                pageSize
-        );
     }
 
     @Test

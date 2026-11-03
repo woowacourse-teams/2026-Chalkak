@@ -52,12 +52,7 @@ public class FeedbackRepositoryImpl implements FeedbackRepository {
                         )
                 )
         );
-        return new FeedbackSlice(
-                result.getContent(),
-                page,
-                pageSize,
-                result.hasNext()
-        );
+        return new FeedbackSlice(result.getContent(), result.hasNext());
     }
 
     @Override
