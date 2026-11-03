@@ -106,8 +106,14 @@ public record PostCreateRequest(
     @AssertTrue(message = "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.")
     public boolean isInstagramIdAllowedWithAgreement() {
         return PostInstagramConsent.isIdAllowedWithAgreement(
-                Boolean.TRUE.equals(instagramUploadAgreed),
+                hasInstagramUploadAgreement(),
                 instagramId
         );
+    }
+
+    @JsonIgnore
+    @Schema(hidden = true)
+    public boolean hasInstagramUploadAgreement() {
+        return Boolean.TRUE.equals(instagramUploadAgreed);
     }
 }

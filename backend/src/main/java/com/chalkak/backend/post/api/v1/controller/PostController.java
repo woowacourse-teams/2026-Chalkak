@@ -83,7 +83,7 @@ public class PostController implements PostApiDocs {
                 request.photoUploadId(),
                 request.title(),
                 request.description(),
-                Boolean.TRUE.equals(request.instagramUploadAgreed()),
+                request.hasInstagramUploadAgreement(),
                 request.instagramId()
         );
 
@@ -105,7 +105,7 @@ public class PostController implements PostApiDocs {
                 parsedPostId,
                 request.title(),
                 request.description(),
-                Boolean.TRUE.equals(request.instagramUploadAgreed()),
+                request.hasInstagramUploadAgreement(),
                 request.instagramId()
         );
 
