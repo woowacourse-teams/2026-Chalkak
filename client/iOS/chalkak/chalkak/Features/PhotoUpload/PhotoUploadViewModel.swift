@@ -84,9 +84,6 @@ final class PhotoUploadViewModel {
         switch action {
         case .backClicked:
             publish(.navigateBack)
-        case .nextClicked:
-            guard viewState.selectedImage != nil else { return }
-            viewState.isWriting = true
         case .writingBackClicked:
             viewState.isWriting = false
         case .galleryClicked:
@@ -399,7 +396,6 @@ final class PhotoUploadViewModel {
 
 enum PhotoUploadAction: Equatable, Sendable {
     case backClicked
-    case nextClicked
     case writingBackClicked
     case galleryClicked
     case cameraClicked

@@ -670,8 +670,7 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
-    fun `사진을 고르면 글 쓰기 단계로 넘어가고 뒤로 갔다가 다음으로 다시 들어올 수 있다`() {
-        viewModel.onAction(PhotoUploadUiAction.NextClicked)
+    fun `사진을 고르면 글 쓰기 단계로 넘어가고 뒤로 갔다가 다시 편집하면 입력을 유지한 채 돌아온다`() {
         assertFalse(viewModel.uiState.value.isWriting)
 
         viewModel.selectPhoto("content://media/photo/1")
@@ -682,7 +681,9 @@ class PhotoUploadViewModelTest {
         assertFalse(viewModel.uiState.value.isWriting)
         assertEquals("content://media/photo/1", viewModel.uiState.value.selectedImage)
 
-        viewModel.onAction(PhotoUploadUiAction.NextClicked)
+        // 편집을 바꾸지 않고 마쳐도 글 쓰기로 넘어간다.
+        viewModel.onPhotoClick()
+        viewModel.onEditConfirmed("content://media/photo/1", PhotoEdit())
         assertTrue(viewModel.uiState.value.isWriting)
         assertEquals("한낮의 다리", viewModel.uiState.value.caption)
     }

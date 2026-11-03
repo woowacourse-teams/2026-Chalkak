@@ -102,7 +102,7 @@ class PhotoUploadScreenTest {
     }
 
     @Test
-    fun nextButtonIsDisabledWithoutPhoto() {
+    fun photoStepHasNoBottomButton() {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
@@ -112,10 +112,7 @@ class PhotoUploadScreenTest {
             }
         }
 
-        composeRule
-            .onNodeWithTag(PHOTO_UPLOAD_NEXT_BUTTON_TAG)
-            .assertIsDisplayed()
-            .assertIsNotEnabled()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertDoesNotExist()
         assertTrue(
             composeRule
@@ -146,26 +143,6 @@ class PhotoUploadScreenTest {
                 .fetchSemanticsNodes()
                 .isEmpty(),
         )
-    }
-
-    @Test
-    fun nextButtonIsEnabledWithPhotoAndForwardsAction() {
-        val actions = mutableListOf<PhotoUploadUiAction>()
-        composeRule.setContent {
-            ChalkakTheme {
-                PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
-                    onAction = actions::add,
-                )
-            }
-        }
-
-        composeRule
-            .onNodeWithTag(PHOTO_UPLOAD_NEXT_BUTTON_TAG)
-            .assertIsEnabled()
-            .performClick()
-
-        composeRule.runOnIdle { assertTrue(actions.contains(PhotoUploadUiAction.NextClicked)) }
     }
 
     @Test

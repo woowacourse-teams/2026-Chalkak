@@ -19,7 +19,7 @@ final class chalkakUITests: XCTestCase {
 
         let close = app.buttons["photoUpload.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["photoUpload.next"].isEnabled)
+        XCTAssertFalse(app.buttons["photoUpload.next"].exists)
         close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertFalse(app.alerts["작성을 그만둘까요?"].exists)
@@ -40,15 +40,11 @@ final class chalkakUITests: XCTestCase {
         caption.tap()
         caption.typeText("작품 제목")
 
-        // 뒤로 가면 사진 고르기 단계로 돌아가고, 다음으로 다시 들어오면 입력이 남아 있다.
+        // 뒤로 가면 사진 고르기 단계로 돌아간다.
         app.navigationBars["글 쓰기"].buttons.element(boundBy: 0).tap()
         let close = app.buttons["photoUpload.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
-        app.buttons["photoUpload.next"].tap()
-        XCTAssertTrue(caption.waitForExistence(timeout: 5))
-        XCTAssertTrue((caption.value as? String)?.contains("작품 제목") == true)
-        app.navigationBars["글 쓰기"].buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["photoUpload.next"].exists)
 
         close.tap()
         let dialogTitle = app.alerts["작성을 그만둘까요?"]

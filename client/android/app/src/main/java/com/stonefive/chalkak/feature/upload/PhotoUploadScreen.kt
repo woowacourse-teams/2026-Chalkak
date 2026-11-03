@@ -207,7 +207,7 @@ fun PhotoUploadScreen(
     }
 }
 
-/** 1단계: 사진을 고른다. 사진을 고르면 2단계(글 쓰기)로 넘어간다. */
+/** 1단계: 사진을 고른다. 사진을 고르거나 다시 편집하면 2단계(글 쓰기)로 넘어간다. */
 @Composable
 private fun PhotoUploadPhotoContent(
     uiState: PhotoUploadUiState,
@@ -221,17 +221,13 @@ private fun PhotoUploadPhotoContent(
     PhotoUploadScaffold(
         title = "전시하기",
         onBackClick = { if (!uiState.isSubmitting) onAction(PhotoUploadUiAction.BackClicked) },
-        buttonText = "다음",
-        onButtonClick = { onAction(PhotoUploadUiAction.NextClicked) },
-        isButtonEnabled = uiState.selectedImage != null && !uiState.isSubmitting,
-        buttonTestTag = PHOTO_UPLOAD_NEXT_BUTTON_TAG,
         modifier = modifier,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = PhotoUploadBottomButtonSpace),
+                .padding(bottom = ChalkakTheme.spacing.xl),
         ) {
             PhotoUploadImageArea(
                 selectedImage = uiState.selectedImage,
@@ -305,10 +301,14 @@ private fun PhotoUploadWritingContent(
     PhotoUploadScaffold(
         title = "글 쓰기",
         onBackClick = { if (!uiState.isSubmitting) onAction(PhotoUploadUiAction.WritingBackClicked) },
-        buttonText = if (uiState.isSubmitting) "전시 중..." else "전시하기",
-        onButtonClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
-        isButtonEnabled = uiState.canSubmit,
-        buttonTestTag = PHOTO_UPLOAD_SUBMIT_BUTTON_TAG,
+        bottomButton = {
+            ChalkakButton(
+                text = if (uiState.isSubmitting) "전시 중..." else "전시하기",
+                onClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
+                modifier = it.testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
+                enabled = uiState.canSubmit,
+            )
+        },
         modifier = modifier.pointerInput(focusManager, keyboardController) {
             detectTapGestures {
                 focusManager.clearFocus()
@@ -386,7 +386,6 @@ private fun PhotoUploadWritingContent(
                 maxLength = DESCRIPTION_MAX_LENGTH,
                 // 서버가 이야기 길이를 code point로 검증하므로 같은 단위로 제한한다.
                 lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
-                style = ChalkakTextFieldStyle.PLAIN,
             )
 
             PhotoUploadTopicError(
@@ -401,11 +400,8 @@ private fun PhotoUploadWritingContent(
 private fun PhotoUploadScaffold(
     title: String,
     onBackClick: () -> Unit,
-    buttonText: String,
-    onButtonClick: () -> Unit,
-    isButtonEnabled: Boolean,
-    buttonTestTag: String,
     modifier: Modifier = Modifier,
+    bottomButton: (@Composable (Modifier) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -435,18 +431,14 @@ private fun PhotoUploadScaffold(
         ) {
             content()
 
-            ChalkakButton(
-                text = buttonText,
-                onClick = onButtonClick,
-                modifier = Modifier
+            bottomButton?.invoke(
+                Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 26.dp)
                     .navigationBarsPadding()
                     .imePadding()
-                    .padding(bottom = 26.dp)
-                    .testTag(buttonTestTag),
-                enabled = isButtonEnabled,
+                    .padding(bottom = 26.dp),
             )
         }
     }
@@ -584,14 +576,13 @@ private fun rememberPhotoPickerState(
 }
 
 const val PHOTO_UPLOAD_SUBMIT_BUTTON_TAG = "photoUploadSubmitButton"
-const val PHOTO_UPLOAD_NEXT_BUTTON_TAG = "photoUploadNextButton"
 const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
 const val PHOTO_UPLOAD_DESCRIPTION_TAG = "photoUploadDescription"
 
 private const val CAPTION_MAX_LENGTH = 10
 private const val DESCRIPTION_MAX_LENGTH = 300
-private const val DESCRIPTION_MIN_LINES = 10
-private const val DESCRIPTION_MAX_LINES = 20
+private const val DESCRIPTION_MIN_LINES = 8
+private const val DESCRIPTION_MAX_LINES = 16
 private val PhotoUploadContentHorizontalPadding = 22.dp
 private val PhotoUploadBottomButtonSpace = 104.dp
 private val PhotoUploadThumbnailSize = 84.dp

@@ -69,10 +69,6 @@ class PhotoUploadViewModel(
                 }
             }
 
-            PhotoUploadUiAction.NextClicked -> {
-                if (_uiState.value.selectedImage != null) updateWriting(true)
-            }
-
             PhotoUploadUiAction.WritingBackClicked -> updateWriting(false)
 
             PhotoUploadUiAction.GalleryClicked -> sendUiEvent(PhotoUploadUiEvent.OpenGallery)
@@ -138,7 +134,11 @@ class PhotoUploadViewModel(
         val state = _uiState.value
         _uiState.update { it.copy(editingPhoto = null) }
         if (state.isSubmitting) return
-        if (state.selectedImage == image && state.selectedEdit == edit) return
+        // 편집을 바꾸지 않고 마쳐도 글 쓰기 단계로 넘어간다.
+        if (state.selectedImage == image && state.selectedEdit == edit) {
+            updateWriting(true)
+            return
+        }
         replaceSelectedImage(image, edit)
     }
 

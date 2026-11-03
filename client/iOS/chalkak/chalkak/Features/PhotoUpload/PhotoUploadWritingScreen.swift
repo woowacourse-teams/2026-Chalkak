@@ -50,8 +50,7 @@ struct PhotoUploadWritingScreen: View {
                     lineLimit: Constants.descriptionLineLimit,
                     textFont: theme.typography.body,
                     maximumCharacterCount: Constants.descriptionMaxLength,
-                    lengthMetric: .unicodeScalars,
-                    style: .plain
+                    lengthMetric: .unicodeScalars
                 )
 
                 if let topicErrorMessage = viewState.topicErrorMessage {
@@ -115,7 +114,7 @@ struct PhotoUploadWritingScreen: View {
     private enum Constants {
         static let captionMaxLength = 10
         static let descriptionMaxLength = 300
-        static let descriptionLineLimit = 10...20
+        static let descriptionLineLimit = 8...16
     }
 }
 

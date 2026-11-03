@@ -282,11 +282,9 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.caption == "1234567890")
     }
 
-    @Test("사진을 고르면 글 쓰기 단계로 넘어가고, 뒤로 갔다가 다음으로 다시 들어올 수 있다")
+    @Test("사진을 고르면 글 쓰기 단계로 넘어가고, 뒤로 갔다가 사진을 다시 고르면 입력을 유지한 채 돌아온다")
     func movesBetweenPhotoAndWritingSteps() {
         let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
-
-        viewModel.handle(.nextClicked)
         #expect(viewModel.viewState.isWriting == false)
 
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
@@ -297,7 +295,7 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.isWriting == false)
         #expect(viewModel.viewState.selectedImage != nil)
 
-        viewModel.handle(.nextClicked)
+        viewModel.selectImage(data: Data([0x02]), preview: Self.image())
         #expect(viewModel.viewState.isWriting)
         #expect(viewModel.viewState.caption == "한낮의 다리")
     }

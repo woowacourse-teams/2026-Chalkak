@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 전시하기 1단계: 사진을 고른다. 사진을 고르면 2단계(글 쓰기)로 넘어간다.
+/// 전시하기 1단계: 사진을 고른다. 사진을 고르거나 다시 편집하면 2단계(글 쓰기)로 넘어간다.
 struct PhotoUploadScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.chalkakShowToast) private var showToast
@@ -36,8 +36,7 @@ struct PhotoUploadScreen: View {
                 .padding(.horizontal, Metrics.contentHorizontalPadding)
                 .padding(.top, theme.spacing.xl)
             }
-            .padding(.top, theme.spacing.xl)
-            .padding(.bottom, Metrics.bottomButtonSpace)
+            .padding(.vertical, theme.spacing.xl)
             .frame(maxWidth: .infinity)
         }
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -56,17 +55,6 @@ struct PhotoUploadScreen: View {
                     .accessibilityIdentifier("photoUpload.close")
             }
             .chalkakNavigationBackground()
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChalkakButton(
-                title: "다음",
-                action: { onAction(.nextClicked) },
-                isEnabled: viewState.selectedImage != nil && !viewState.isSubmitting,
-                fillsWidth: true
-            )
-            .accessibilityIdentifier("photoUpload.next")
-            .padding(.horizontal, Metrics.buttonHorizontalPadding)
-            .padding(.bottom, Metrics.buttonBottomPadding)
         }
         .contentShape(Rectangle())
         .coordinateSpace(name: "photoUpload.dismiss")
@@ -176,9 +164,6 @@ struct PhotoUploadTopicError: View {
 
 private enum Metrics {
     static let contentHorizontalPadding: CGFloat = 22
-    static let buttonHorizontalPadding: CGFloat = 26
-    static let buttonBottomPadding: CGFloat = 26
-    static let bottomButtonSpace: CGFloat = 104
     static let minimumTouchHeight: CGFloat = 44
 }
 
