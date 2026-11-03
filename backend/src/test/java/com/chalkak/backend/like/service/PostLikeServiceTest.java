@@ -8,6 +8,8 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,11 +27,16 @@ class PostLikeServiceTest extends IntegrationTestSupport {
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a3");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 
+    private int userSequence;
+
     @Autowired
     private PostLikeService postLikeService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @BeforeEach
     void setUp() {
@@ -108,6 +115,7 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                 true
         ));
         assertThat(countPostLikes()).isEqualTo(1L);
+        assertThat(countMilestones()).isZero();
     }
 
     @Test
@@ -126,6 +134,7 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                 true
         ));
         assertThat(countPostLikes()).isEqualTo(1L);
+        assertThat(countMilestones()).isZero();
     }
 
     @Test
@@ -144,6 +153,7 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                 false
         ));
         assertThat(countPostLikes()).isZero();
+        assertThat(countMilestones()).isZero();
     }
 
     @Test
@@ -159,6 +169,157 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                 false
         ));
         assertThat(countPostLikes()).isZero();
+        assertThat(countMilestones()).isZero();
+    }
+
+    @Test
+    @DisplayName("새 좋아요가 5단계에 도달하면 작성자의 발행 대기 마일스톤을 생성한다")
+    void likePost_reachesMilestone_createsPendingMilestoneForAuthor() {
+        // Given
+        insertLikes(4);
+        UUID fifthLikerId = insertUser();
+
+        // When
+        PostLikeResult result = postLikeService.likePost(POST_ID, fifthLikerId);
+
+        // Then
+        assertThat(result.likeCount()).isEqualTo(5L);
+        assertThat(findMilestones()).containsExactly(new MilestoneRow(
+                AUTHOR_ID,
+                5L,
+                "PENDING"
+        ));
+    }
+
+    @Test
+    @DisplayName("작성자 자신의 좋아요로 5단계에 도달해도 마일스톤을 생성한다")
+    void likePost_authorReachesMilestone_createsPendingMilestone() {
+        // Given
+        insertLikes(4);
+
+        // When
+        postLikeService.likePost(POST_ID, AUTHOR_ID);
+
+        // Then
+        assertThat(findMilestones()).containsExactly(new MilestoneRow(
+                AUTHOR_ID,
+                5L,
+                "PENDING"
+        ));
+    }
+
+    @Test
+    @DisplayName("수신 설정이 꺼진 동안에는 마일스톤을 기록하지 않는다")
+    void likePost_pushDisabled_doesNotCreateMilestone() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE users SET like_push_enabled = FALSE WHERE id = ?",
+                AUTHOR_ID
+        );
+        insertLikes(4);
+
+        // When
+        postLikeService.likePost(POST_ID, insertUser());
+
+        // Then
+        assertThat(countPostLikes()).isEqualTo(5L);
+        assertThat(countMilestones()).isZero();
+    }
+
+    @Test
+    @DisplayName("설정을 다시 켠 뒤 새 좋아요가 생기면 현재 개수 이하의 미기록 최고 단계를 생성한다")
+    void likePost_enabledAfterMissedMilestone_createsHighestEligibleMilestone() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE users SET like_push_enabled = FALSE WHERE id = ?",
+                AUTHOR_ID
+        );
+        insertLikes(7);
+        jdbcTemplate.update(
+                "UPDATE users SET like_push_enabled = TRUE WHERE id = ?",
+                AUTHOR_ID
+        );
+        entityManager.clear();
+
+        // When
+        PostLikeResult result = postLikeService.likePost(POST_ID, insertUser());
+
+        // Then
+        assertThat(result.likeCount()).isEqualTo(8L);
+        assertThat(findMilestones()).containsExactly(new MilestoneRow(
+                AUTHOR_ID,
+                5L,
+                "PENDING"
+        ));
+    }
+
+    @Test
+    @DisplayName("여러 단계를 놓쳤으면 새 좋아요 시 현재 개수 이하의 최고 단계만 생성한다")
+    void likePost_multipleMissedMilestones_createsOnlyHighestEligibleMilestone() {
+        // Given
+        insertLikes(17);
+
+        // When
+        postLikeService.likePost(POST_ID, insertUser());
+
+        // Then
+        assertThat(findMilestones()).containsExactly(new MilestoneRow(
+                AUTHOR_ID,
+                15L,
+                "PENDING"
+        ));
+    }
+
+    @Test
+    @DisplayName("이미 기록한 단계는 좋아요가 감소한 뒤 다시 도달해도 중복 생성하지 않는다")
+    void likePost_reachesRecordedMilestoneAgain_doesNotCreateDuplicate() {
+        // Given
+        insertLikes(4);
+        UUID fifthLikerId = insertUser();
+        postLikeService.likePost(POST_ID, fifthLikerId);
+        postLikeService.unlikePost(POST_ID, fifthLikerId);
+
+        // When
+        postLikeService.likePost(POST_ID, insertUser());
+
+        // Then
+        assertThat(countPostLikes()).isEqualTo(5L);
+        assertThat(findMilestones()).containsExactly(new MilestoneRow(
+                AUTHOR_ID,
+                5L,
+                "PENDING"
+        ));
+    }
+
+    @Test
+    @DisplayName("이미 등록된 좋아요 요청은 마일스톤을 추가하지 않는다")
+    void likePost_duplicateLike_doesNotCreateAdditionalMilestone() {
+        // Given
+        insertLikes(4);
+        UUID fifthLikerId = insertUser();
+        postLikeService.likePost(POST_ID, fifthLikerId);
+
+        // When
+        postLikeService.likePost(POST_ID, fifthLikerId);
+
+        // Then
+        assertThat(countMilestones()).isOne();
+    }
+
+    @Test
+    @DisplayName("좋아요를 취소해도 이미 달성한 마일스톤은 유지한다")
+    void unlikePost_recordedMilestone_keepsMilestone() {
+        // Given
+        insertLikes(4);
+        UUID fifthLikerId = insertUser();
+        postLikeService.likePost(POST_ID, fifthLikerId);
+
+        // When
+        postLikeService.unlikePost(POST_ID, fifthLikerId);
+
+        // Then
+        assertThat(countPostLikes()).isEqualTo(4L);
+        assertThat(countMilestones()).isOne();
     }
 
     @Test
@@ -204,5 +365,66 @@ class PostLikeServiceTest extends IntegrationTestSupport {
                 POST_ID
         );
         return count == null ? 0L : count;
+    }
+
+    private void insertLikes(int count) {
+        for (int index = 0; index < count; index++) {
+            UUID userId = insertUser();
+            jdbcTemplate.update(
+                    "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                    POST_ID,
+                    userId
+            );
+        }
+        synchronizeFixtureCounts(jdbcTemplate);
+    }
+
+    private UUID insertUser() {
+        UUID userId = UUID.randomUUID();
+        userSequence++;
+        jdbcTemplate.update(
+                """
+                        INSERT INTO users (
+                            id, email, status, signature_original_storage_key, created_at, updated_at
+                        ) VALUES (?, ?, 'ACTIVE', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                userId,
+                "post-like-extra-%d@example.com".formatted(userSequence),
+                "chalkak/dev/signatures/post-like-extra-%d.png".formatted(userSequence)
+        );
+        return userId;
+    }
+
+    private long countMilestones() {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_like_push_milestones WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        );
+        return count == null ? 0L : count;
+    }
+
+    private List<MilestoneRow> findMilestones() {
+        return jdbcTemplate.query(
+                """
+                        SELECT user_id, milestone_count, sqs_publish_status
+                        FROM post_like_push_milestones
+                        WHERE post_id = ?
+                        ORDER BY milestone_count
+                        """,
+                (resultSet, rowNumber) -> new MilestoneRow(
+                        resultSet.getObject("user_id", UUID.class),
+                        resultSet.getLong("milestone_count"),
+                        resultSet.getString("sqs_publish_status")
+                ),
+                POST_ID
+        );
+    }
+
+    private record MilestoneRow(
+            UUID userId,
+            long milestoneCount,
+            String publishStatus
+    ) {
     }
 }

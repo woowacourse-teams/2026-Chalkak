@@ -3,10 +3,14 @@ package com.chalkak.backend.like.service;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.like.repository.PostLikeCounterRepository;
+import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.notification.domain.PostLikePushMilestone;
+import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
+import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Clock;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,28 +21,38 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class PostLikeService {
 
+    private static final long MILESTONE_INTERVAL = 5L;
+
     private final PostLikeRepository postLikeRepository;
     private final PostLikeCounterRepository postLikeCounterRepository;
+    private final PostLikePushMilestoneRepository postLikePushMilestoneRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     public PostLikeResult likePost(UUID postId, UUID userId) {
         validateUser(userId);
-        validatePost(postId);
-        if (postLikeRepository.createIfAbsent(postId, userId) == 1) {
+        Post post = getVisiblePostForShare(postId);
+        int createdCount = postLikeRepository.createIfAbsent(postId, userId);
+        if (createdCount == 1) {
             postLikeCounterRepository.increment(postId);
+        }
+
+        long likeCount = postLikeCounterRepository.getCountByPostId(postId);
+        if (createdCount == 1) {
+            createMilestoneIfRequired(post, likeCount);
         }
 
         return new PostLikeResult(
                 postId,
-                postLikeCounterRepository.getCountByPostId(postId),
+                likeCount,
                 true
         );
     }
 
     public PostLikeResult unlikePost(UUID postId, UUID userId) {
         validateUser(userId);
-        validatePost(postId);
+        getVisiblePostForShare(postId);
         if (postLikeRepository.deleteByPostIdAndUserId(postId, userId) == 1) {
             postLikeCounterRepository.decrement(postId);
         }
@@ -58,11 +72,33 @@ public class PostLikeService {
                 ));
     }
 
-    private void validatePost(UUID postId) {
-        postRepository.findVisibleByIdForShare(postId)
+    private Post getVisiblePostForShare(UUID postId) {
+        return postRepository.findVisibleByIdForShare(postId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 찾을 수 없습니다."
                 ));
+    }
+
+    private void createMilestoneIfRequired(Post post, long likeCount) {
+        if (!post.getAuthor().isLikePushEnabled()) {
+            return;
+        }
+        long candidateCount = likeCount / MILESTONE_INTERVAL * MILESTONE_INTERVAL;
+        if (candidateCount < MILESTONE_INTERVAL) {
+            return;
+        }
+        long maxMilestoneCount = postLikePushMilestoneRepository
+                .findMaxCountByPostId(post.getId())
+                .orElse(0L);
+        if (candidateCount <= maxMilestoneCount) {
+            return;
+        }
+        postLikePushMilestoneRepository.save(PostLikePushMilestone.create(
+                post.getId(),
+                post.getAuthor().getId(),
+                candidateCount,
+                clock.instant()
+        ));
     }
 }
