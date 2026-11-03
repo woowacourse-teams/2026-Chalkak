@@ -135,8 +135,6 @@ class PhotoUploadScreenTest {
         }
 
         composeRule.onNodeWithText("주제 ‘틈’에 맞는 한 장").assertIsDisplayed()
-        composeRule.onNodeWithText("오늘의 주제").assertIsDisplayed()
-        composeRule.onNodeWithText("틈").assertIsDisplayed()
         assertTrue(
             composeRule
                 .onAllNodesWithText("오늘의 주제에 맞는 한 장")

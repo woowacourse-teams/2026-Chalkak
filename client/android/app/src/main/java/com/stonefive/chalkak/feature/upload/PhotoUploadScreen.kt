@@ -247,20 +247,6 @@ private fun PhotoUploadPhotoContent(
                     .padding(horizontal = PhotoUploadContentHorizontalPadding)
                     .padding(top = ChalkakTheme.spacing.xl),
             ) {
-                Text(
-                    text = "오늘의 주제",
-                    color = ChalkakTheme.colors.textSecondary,
-                    style = ChalkakTheme.typography.caption,
-                )
-                uiState.topicTitle?.let { topicTitle ->
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xs))
-                    Text(
-                        text = topicTitle,
-                        color = ChalkakTheme.colors.textPrimary,
-                        style = ChalkakTheme.typography.title3,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
                 PhotoUploadTopicError(
                     errorMessage = uiState.topicErrorMessage,
                     onRetry = onRetryTopicLoad,

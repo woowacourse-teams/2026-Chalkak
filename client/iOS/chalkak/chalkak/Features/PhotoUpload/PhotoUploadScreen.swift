@@ -27,14 +27,11 @@ struct PhotoUploadScreen: View {
                     onCameraClick: { onAction(.cameraClicked) }
                 )
 
-                PhotoUploadTopicHeader(
-                    topicTitle: viewState.topicTitle,
-                    isLoading: viewState.isTopicLoading,
-                    errorMessage: viewState.topicErrorMessage,
-                    onRetry: onRetryTopicLoad
-                )
-                .padding(.horizontal, Metrics.contentHorizontalPadding)
-                .padding(.top, theme.spacing.xl)
+                if let topicErrorMessage = viewState.topicErrorMessage {
+                    PhotoUploadTopicError(message: topicErrorMessage, onRetry: onRetryTopicLoad)
+                        .padding(.horizontal, Metrics.contentHorizontalPadding)
+                        .padding(.top, theme.spacing.xl)
+                }
             }
             .padding(.vertical, theme.spacing.xl)
             .frame(maxWidth: .infinity)
@@ -101,40 +98,6 @@ struct PhotoUploadScreen: View {
                     onAction(.backClicked)
                 }
             }
-    }
-}
-
-private struct PhotoUploadTopicHeader: View {
-    @Environment(\.chalkakTheme) private var theme
-
-    let topicTitle: String?
-    let isLoading: Bool
-    let errorMessage: String?
-    let onRetry: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.xs) {
-            Text("오늘의 주제")
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.textSecondary)
-
-            if let topicTitle {
-                Text(topicTitle)
-                    .font(theme.typography.title3)
-                    .fontWeight(.bold)
-                    .foregroundStyle(theme.colors.textPrimary)
-            } else if isLoading {
-                ProgressView()
-                    .tint(theme.colors.actionPrimary)
-                    .accessibilityLabel("주제를 불러오는 중")
-            }
-
-            if let errorMessage {
-                PhotoUploadTopicError(message: errorMessage, onRetry: onRetry)
-                    .padding(.top, theme.spacing.sm)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
