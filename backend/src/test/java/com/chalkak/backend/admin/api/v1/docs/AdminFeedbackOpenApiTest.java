@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
 
+    private static final String DETAIL_PATH = "$.paths['/api/v1/admin/feedbacks/{feedbackId}'].get";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -26,6 +28,7 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters[*].name")
                         .value(containsInAnyOrder(
+                                "userId",
                                 "sort",
                                 "page",
                                 "pageSize"
@@ -37,12 +40,58 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.responses['400']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.responses['401']")
+                        .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.responses['403']")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.AdminFeedbackListItem.properties[*]")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'userId')].required").value(containsInAnyOrder(false)))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'userId')].schema.format")
+                        .value(containsInAnyOrder("uuid")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackListItem.properties.deletedAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackListItem.properties.deletedAt.type")
+                        .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.AdminFeedbackListAuthor.properties[*]")
                         .exists());
+    }
+
+    @Test
+    @DisplayName("관리자 문의 상세 문서는 UUID·관리자 인증·상세 스키마와 오류 계약을 제공한다")
+    void adminApiDocs_detail_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(DETAIL_PATH + ".security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].name").value("feedbackId"))
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].in").value("path"))
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].required").value(true))
+                .andExpect(jsonPath(DETAIL_PATH + ".parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['200']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['400']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['401']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['403']").exists())
+                .andExpect(jsonPath(DETAIL_PATH + ".responses['404']").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.feedbackId.format")
+                        .value("uuid"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.content.type")
+                        .value("string"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.createdAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.deletedAt.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.author.$ref")
+                        .value("#/components/schemas/AdminFeedbackListAuthor"));
     }
 
     @Test
@@ -51,6 +100,8 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks']").doesNotExist());
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks']").doesNotExist())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/admin/feedbacks/{feedbackId}']").doesNotExist());
     }
 }
