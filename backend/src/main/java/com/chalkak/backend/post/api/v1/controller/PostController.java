@@ -104,7 +104,9 @@ public class PostController implements PostApiDocs {
                 loginUser.userId(),
                 parsedPostId,
                 request.title(),
-                request.description()
+                request.description(),
+                Boolean.TRUE.equals(request.instagramUploadAgreed()),
+                request.instagramId()
         );
 
         return ResponseEntity.ok(PostUpdateResponse.from(result));

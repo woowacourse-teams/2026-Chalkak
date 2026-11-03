@@ -156,20 +156,26 @@ public class PostCommandService {
             UUID authorId,
             UUID postId,
             String title,
-            String description
+            String description,
+            boolean instagramUploadAgreed,
+            String instagramId
     ) {
         validateUpdatableUser(authorId);
         Post post = getActivePostForUpdate(postId);
-        post.updateTitleAndDescription(
+        post.updateContent(
                 authorId,
                 title,
                 description,
+                instagramUploadAgreed,
+                instagramId,
                 Instant.now()
         );
         return new PostUpdateResult(
                 post.getId(),
                 post.getTitle(),
-                post.getDescription()
+                post.getDescription(),
+                post.getInstagramConsent().agreed(),
+                post.getInstagramConsent().instagramId()
         );
     }
 

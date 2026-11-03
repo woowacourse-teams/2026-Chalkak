@@ -82,6 +82,45 @@ public record PostInstagramConsent(
     }
 
     /**
+     * 수정 요청으로 동의 정보를 통째로 교체한다. 동의 여부가 실제로 바뀔 때만 시각을 기록한다. 미동의에서 동의로 바뀌면 동의 시각을
+     * {@code now}로 갱신하고, 동의에서 미동의로 바뀌면 철회 시각을 {@code now}로 기록한다. 동의 여부가 같으면(ID만
+     * 바뀌어도) 시각을 유지한다. 이전 철회 시각은 이력으로 남기므로 현재 동의 상태는 항상 {@code agreed}로 판단한다.
+     */
+    public PostInstagramConsent replace(
+            boolean newAgreed,
+            String rawInstagramId,
+            Instant now
+    ) {
+        PostInstagramConsent requested = of(
+                newAgreed,
+                rawInstagramId,
+                now
+        );
+        if (newAgreed == agreed) {
+            return new PostInstagramConsent(
+                    newAgreed,
+                    requested.instagramId(),
+                    agreedAt,
+                    revokedAt
+            );
+        }
+        if (newAgreed) {
+            return new PostInstagramConsent(
+                    true,
+                    requested.instagramId(),
+                    now,
+                    revokedAt
+            );
+        }
+        return new PostInstagramConsent(
+                false,
+                null,
+                agreedAt,
+                now
+        );
+    }
+
+    /**
      * 요청 DTO의 빠른 실패용. 예외 대신 판정만 돌려준다. 정규화 후 비어 있으면 ID 없음이므로 허용한다.
      */
     public static boolean isIdFormatValid(String raw) {

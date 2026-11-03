@@ -68,6 +68,8 @@ public interface PostApiDocs {
             제목의 앞뒤 공백을 제거하고 null 또는 공백이면 제목을 삭제합니다.
             description을 생략하거나 null 또는 공백으로 보내면 설명을 삭제합니다.
             기존 설명을 유지하려면 현재 설명을 다시 보내야 합니다.
+            인스타그램 게시 동의 여부와 ID도 함께 교체합니다. instagramUploadAgreed를 생략하거나 null이면 동의를 철회하고 ID를 삭제하므로,
+            동의를 유지하려면 true와 ID를 다시 보내야 합니다.
             """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({

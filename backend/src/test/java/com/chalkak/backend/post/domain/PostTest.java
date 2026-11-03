@@ -70,6 +70,47 @@ class PostTest {
     }
 
     @Test
+    @DisplayName("작성자가 게시물을 수정하면 인스타그램 동의를 제목·설명과 함께 교체한다")
+    void updateContent_authorReplacesInstagramConsent_replacesConsent() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+
+        // When
+        post.updateContent(
+                AUTHOR_ID,
+                "수정 제목",
+                null,
+                true,
+                "@Chalkak",
+                UPDATED_AT
+        );
+
+        // Then
+        assertThat(post.getInstagramConsent().agreed()).isTrue();
+        assertThat(post.getInstagramConsent().instagramId()).isEqualTo("chalkak");
+        assertThat(post.getInstagramConsent().agreedAt()).isEqualTo(UPDATED_AT);
+    }
+
+    @Test
+    @DisplayName("수정 권한이 없으면 인스타그램 동의도 바뀌지 않는다")
+    void updateContent_otherUser_keepsInstagramConsent() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목");
+        PostInstagramConsent before = post.getInstagramConsent();
+
+        // When & Then
+        assertThatThrownBy(() -> post.updateContent(
+                OTHER_USER_ID,
+                "수정 제목",
+                null,
+                true,
+                "chalkak",
+                UPDATED_AT
+        )).isInstanceOf(ForbiddenException.class);
+        assertThat(post.getInstagramConsent()).isEqualTo(before);
+    }
+
+    @Test
     @DisplayName("작성자와 주제와 사진으로 검수 중인 게시물을 생성한다")
     void createPost_validValues_createsValidatingPost() {
         // When
@@ -195,9 +236,11 @@ class PostTest {
         post.requestModeration();
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 AUTHOR_ID,
                 "  1234567890  ",
+                null,
+                false,
                 null,
                 UPDATED_AT
         );
@@ -215,9 +258,11 @@ class PostTest {
         post.approve(Instant.parse("2026-08-20T00:10:00Z"));
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 AUTHOR_ID,
                 "수정 제목",
+                null,
+                false,
                 null,
                 UPDATED_AT
         );
@@ -237,9 +282,11 @@ class PostTest {
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 AUTHOR_ID,
                 title,
+                null,
+                false,
                 null,
                 UPDATED_AT
         );
@@ -255,9 +302,11 @@ class PostTest {
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitleAndDescription(
+        assertThatThrownBy(() -> post.updateContent(
                 AUTHOR_ID,
                 "  " + "📸".repeat(11) + "  ",
+                null,
+                false,
                 null,
                 UPDATED_AT
         ))
@@ -273,10 +322,12 @@ class PostTest {
         Post post = createPendingPostDuringOpenPeriod("기존 제목", "기존 설명");
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 AUTHOR_ID,
                 "수정 제목",
                 "새 설명",
+                false,
+                null,
                 UPDATED_AT
         );
 
@@ -292,9 +343,11 @@ class PostTest {
         Post post = createPendingPostDuringOpenPeriod("기존 제목", "기존 설명");
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 AUTHOR_ID,
                 "기존 제목",
+                null,
+                false,
                 null,
                 UPDATED_AT
         );
@@ -310,9 +363,11 @@ class PostTest {
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitleAndDescription(
+        assertThatThrownBy(() -> post.updateContent(
                 OTHER_USER_ID,
                 "수정 제목",
+                null,
+                false,
                 null,
                 UPDATED_AT
         ))
@@ -332,9 +387,11 @@ class PostTest {
         Post post = createPostWithStatus(status);
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitleAndDescription(
+        assertThatThrownBy(() -> post.updateContent(
                 AUTHOR_ID,
                 "수정 제목",
+                null,
+                false,
                 null,
                 UPDATED_AT
         ))
@@ -374,9 +431,11 @@ class PostTest {
         post.requestModeration();
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitleAndDescription(
+        assertThatThrownBy(() -> post.updateContent(
                 AUTHOR_ID,
                 "수정 제목",
+                null,
+                false,
                 null,
                 UPDATED_AT
         ))

@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class PostInstagramConsentTest {
 
+    private static final Instant CREATED_AT = Instant.parse("2026-11-03T08:00:00Z");
     private static final Instant NOW = Instant.parse("2026-11-03T09:20:00Z");
 
     @Test
@@ -160,5 +161,175 @@ class PostInstagramConsentTest {
         assertThat(consent.agreed()).isFalse();
         assertThat(consent.instagramId()).isNull();
         assertThat(consent.agreedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("미동의에서 동의로 바꾸면 동의 시각을 교체 시각으로 기록한다")
+    void replace_notAgreedToAgreed_recordsAgreedAt() {
+        // Given
+        PostInstagramConsent before = PostInstagramConsent.of(
+                false,
+                null,
+                CREATED_AT
+        );
+
+        // When
+        PostInstagramConsent after = before.replace(
+                true,
+                " @Chalkak ",
+                NOW
+        );
+
+        // Then
+        assertThat(after.agreed()).isTrue();
+        assertThat(after.instagramId()).isEqualTo("chalkak");
+        assertThat(after.agreedAt()).isEqualTo(NOW);
+        assertThat(after.revokedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("동의에서 미동의로 바꾸면 철회 시각을 기록하고 ID를 지우며 동의 시각은 남긴다")
+    void replace_agreedToNotAgreed_recordsRevokedAtAndClearsId() {
+        // Given
+        PostInstagramConsent before = PostInstagramConsent.of(
+                true,
+                "chalkak",
+                CREATED_AT
+        );
+
+        // When
+        PostInstagramConsent after = before.replace(
+                false,
+                null,
+                NOW
+        );
+
+        // Then
+        assertThat(after.agreed()).isFalse();
+        assertThat(after.instagramId()).isNull();
+        assertThat(after.agreedAt()).isEqualTo(CREATED_AT);
+        assertThat(after.revokedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("철회했다가 다시 동의하면 동의 시각만 새로 기록하고 이전 철회 시각은 이력으로 남긴다")
+    void replace_reAgreedAfterRevoke_recordsNewAgreedAtAndKeepsRevokedAt() {
+        // Given
+        Instant revokedAt = Instant.parse("2026-11-03T10:00:00Z");
+        PostInstagramConsent revoked = PostInstagramConsent
+                .of(
+                        true,
+                        null,
+                        CREATED_AT
+                )
+                .replace(
+                        false,
+                        null,
+                        revokedAt
+                );
+
+        // When
+        PostInstagramConsent after = revoked.replace(
+                true,
+                null,
+                NOW
+        );
+
+        // Then
+        assertThat(after.agreed()).isTrue();
+        assertThat(after.agreedAt()).isEqualTo(NOW);
+        assertThat(after.revokedAt()).isEqualTo(revokedAt);
+    }
+
+    @Test
+    @DisplayName("같은 동의값으로 다시 교체해도 동의·철회 시각은 바뀌지 않는다")
+    void replace_sameAgreement_keepsTimestamps() {
+        // Given
+        PostInstagramConsent agreed = PostInstagramConsent.of(
+                true,
+                null,
+                CREATED_AT
+        );
+        PostInstagramConsent notAgreed = PostInstagramConsent
+                .of(
+                        true,
+                        null,
+                        CREATED_AT
+                )
+                .replace(
+                        false,
+                        null,
+                        NOW
+                );
+
+        // When
+        PostInstagramConsent agreedAgain = agreed.replace(
+                true,
+                null,
+                NOW.plusSeconds(60)
+        );
+        PostInstagramConsent notAgreedAgain = notAgreed.replace(
+                false,
+                "@",
+                NOW.plusSeconds(60)
+        );
+
+        // Then
+        assertThat(agreedAgain).isEqualTo(agreed);
+        assertThat(notAgreedAgain).isEqualTo(notAgreed);
+    }
+
+    @Test
+    @DisplayName("동의를 유지한 채 ID만 바꾸거나 지워도 시각은 바뀌지 않는다")
+    void replace_agreedIdOnlyChange_keepsTimestamps() {
+        // Given
+        PostInstagramConsent before = PostInstagramConsent.of(
+                true,
+                "chalkak",
+                CREATED_AT
+        );
+
+        // When
+        PostInstagramConsent changed = before.replace(
+                true,
+                "@New.Id",
+                NOW
+        );
+        PostInstagramConsent removed = changed.replace(
+                true,
+                null,
+                NOW.plusSeconds(60)
+        );
+
+        // Then
+        assertThat(changed.instagramId()).isEqualTo("new.id");
+        assertThat(changed.agreedAt()).isEqualTo(CREATED_AT);
+        assertThat(changed.revokedAt()).isNull();
+        assertThat(removed.instagramId()).isNull();
+        assertThat(removed.agreedAt()).isEqualTo(CREATED_AT);
+        assertThat(removed.revokedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("교체할 때도 미동의에 ID가 있거나 형식이 올바르지 않으면 거부한다")
+    void replace_invalidInput_throwsBusinessException() {
+        // Given
+        PostInstagramConsent before = PostInstagramConsent.of(
+                true,
+                "chalkak",
+                CREATED_AT
+        );
+
+        // When & Then
+        assertThatThrownBy(() -> before.replace(
+                false,
+                "chalkak",
+                NOW
+        )).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> before.replace(
+                true,
+                "cha-kak",
+                NOW
+        )).isInstanceOf(BusinessException.class);
     }
 }

@@ -585,6 +585,121 @@ class PostControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물 수정 요청의 인스타그램 동의와 ID를 서비스에 전달하고 응답에 포함한다")
+    void updatePost_withInstagramConsent_passesToServiceAndReturnsConsent() throws Exception {
+        // Given
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                null,
+                true,
+                " @Chalkak "
+        ))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목",
+                        null,
+                        true,
+                        "chalkak"
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "instagramUploadAgreed": true,
+                          "instagramId": " @Chalkak "
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.instagramUploadAgreed").value(true))
+                .andExpect(jsonPath("$.instagramId").value("chalkak"));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물 수정 요청에서 인스타그램 필드를 생략하면 미동의로 서비스에 전달한다")
+    void updatePost_instagramFieldsOmitted_passesNotAgreed() throws Exception {
+        // Given
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                null,
+                false,
+                null
+        ))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목",
+                        null,
+                        false,
+                        null
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "instagramUploadAgreed": null
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.instagramUploadAgreed").value(false))
+                .andExpect(jsonPath("$.instagramId").value(nullValue()));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물 수정에서 동의하지 않았는데 인스타그램 ID를 보내면 400을 반환한다")
+    void updatePost_instagramIdWithoutAgreement_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "instagramUploadAgreed": false,
+                          "instagramId": "chalkak"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물 수정에서 인스타그램 ID 형식이 올바르지 않으면 400을 반환한다")
+    void updatePost_invalidInstagramIdFormat_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "instagramUploadAgreed": true,
+                          "instagramId": "cha-kak"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("인스타그램 ID 형식이 올바르지 않습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("인증된 사용자가 게시물 제목을 수정하면 200과 수정 정보를 반환한다")
     void updatePost_validRequest_returnsUpdatedPost() throws Exception {
         // Given
@@ -592,11 +707,15 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 "수정한 제목",
+                null,
+                false,
                 null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
                         "수정한 제목",
+                        null,
+                        false,
                         null
                 ));
 
@@ -617,6 +736,8 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 "수정한 제목",
+                null,
+                false,
                 null
         );
     }
@@ -630,11 +751,15 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 null,
+                null,
+                false,
                 null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
                         null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -655,6 +780,8 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 null,
+                null,
+                false,
                 null
         );
     }
@@ -668,12 +795,16 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 "수정한 제목",
-                "수정한 설명"
+                "수정한 설명",
+                false,
+                null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
                         "수정한 제목",
-                        "수정한 설명"
+                        "수정한 설명",
+                        false,
+                        null
                 ));
 
         // When & Then
@@ -698,11 +829,15 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 "수정한 제목",
+                null,
+                false,
                 null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
                         "수정한 제목",
+                        null,
+                        false,
                         null
                 ));
 
@@ -721,6 +856,8 @@ class PostControllerTest {
                 USER_ID,
                 POST_ID,
                 "수정한 제목",
+                null,
+                false,
                 null
         );
     }

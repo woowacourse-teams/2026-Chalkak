@@ -596,9 +596,11 @@ class PostRepositoryTest {
         Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 USER_ID,
                 "오늘의 순간",
+                null,
+                false,
                 null,
                 Instant.parse("2026-08-12T12:00:00Z")
         );
@@ -620,10 +622,12 @@ class PostRepositoryTest {
         Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 USER_ID,
                 "오늘의 순간",
                 "첫 줄\n둘째 줄",
+                false,
+                null,
                 Instant.parse("2026-08-12T12:00:00Z")
         );
         entityManager.flush();

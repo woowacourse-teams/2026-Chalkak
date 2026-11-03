@@ -177,12 +177,14 @@ public class Post {
     }
 
     /**
-     * 제목과 설명을 함께 교체한다. 설명이 {@code null}이거나 공백이면 설명을 삭제한다.
+     * 제목, 설명과 인스타그램 게시 동의를 함께 교체한다. 설명이 {@code null}이거나 공백이면 설명을 삭제한다.
      */
-    public void updateTitleAndDescription(
+    public void updateContent(
             UUID authorId,
             String title,
             String description,
+            boolean instagramUploadAgreed,
+            String instagramId,
             Instant now
     ) {
         validateAuthor(authorId);
@@ -190,6 +192,11 @@ public class Post {
         validateUpdatePeriod(now);
         this.title = PostTitle.from(title);
         this.description = PostDescription.from(description);
+        this.instagramConsent = instagramConsent.replace(
+                instagramUploadAgreed,
+                instagramId,
+                now
+        );
     }
 
     /**

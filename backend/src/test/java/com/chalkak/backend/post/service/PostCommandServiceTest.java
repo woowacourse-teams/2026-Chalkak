@@ -258,7 +258,9 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "새 제목",
-                "새 설명"
+                "새 설명",
+                false,
+                null
         );
 
         // Then
@@ -282,6 +284,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "기존 제목",
+                null,
+                false,
                 null
         );
 
@@ -302,6 +306,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "수정 제목",
+                null,
+                false,
                 null
         )).isInstanceOf(NotFoundException.class)
                 .hasMessage("게시물을 찾을 수 없습니다.")
@@ -319,6 +325,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "수정 제목",
+                null,
+                false,
                 null
         )).isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")

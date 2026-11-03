@@ -5,6 +5,8 @@ import java.util.UUID;
 public record PostUpdateResult(
         UUID postId,
         String title,
-        String description
+        String description,
+        boolean instagramUploadAgreed,
+        String instagramId
 ) {
 }

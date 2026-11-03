@@ -60,6 +60,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                         AUTHOR_ID,
                         POST_ID,
                         "수정 제목",
+                        null,
+                        false,
                         null
                 ));
 
@@ -76,6 +78,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 POST_ID,
                 "  수정 제목  ",
+                null,
+                false,
                 null
         );
         entityManager.flush();
@@ -92,6 +96,104 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 """, POST_ID);
         assertThat(updated.get("title")).isEqualTo("수정 제목");
         assertThat(updated.get("moderation_status").toString()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("미동의 게시물을 동의와 ID로 수정하면 정규화한 ID와 동의 시각을 저장하고 응답한다")
+    void updatePost_agreeWithId_savesNormalizedConsent() {
+        // When
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "수정 제목",
+                null,
+                true,
+                " @Chalkak "
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.instagramUploadAgreed()).isTrue();
+        assertThat(result.instagramId()).isEqualTo("chalkak");
+        Map<String, Object> saved = findInstagramState();
+        assertThat(saved.get("instagram_upload_agreed")).isEqualTo(true);
+        assertThat(saved.get("instagram_id")).isEqualTo("chalkak");
+        assertThat(saved.get("instagram_agreed_at")).isNotNull();
+        assertThat(saved.get("instagram_revoked_at")).isNull();
+    }
+
+    @Test
+    @DisplayName("동의한 게시물을 동의 필드 없이 수정하면 철회하고 ID를 지우며 철회 시각을 저장한다")
+    void updatePost_omittedConsent_revokesAndClearsId() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE posts
+                SET instagram_upload_agreed = TRUE,
+                    instagram_id = 'chalkak',
+                    instagram_agreed_at = TIMESTAMPTZ '2026-08-28 10:00:00+00'
+                WHERE id = ?
+                """, POST_ID);
+
+        // When
+        var result = postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "수정 제목",
+                null,
+                false,
+                null
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(result.instagramUploadAgreed()).isFalse();
+        assertThat(result.instagramId()).isNull();
+        Map<String, Object> saved = findInstagramState();
+        assertThat(saved.get("instagram_upload_agreed")).isEqualTo(false);
+        assertThat(saved.get("instagram_id")).isNull();
+        assertThat(saved.get("instagram_agreed_at")).isNotNull();
+        assertThat(saved.get("instagram_revoked_at")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("동의 상태에서 ID만 바꿔 수정하면 동의 시각은 그대로 둔다")
+    void updatePost_sameAgreementDifferentId_keepsAgreedAt() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE posts
+                SET instagram_upload_agreed = TRUE,
+                    instagram_id = 'chalkak',
+                    instagram_agreed_at = TIMESTAMPTZ '2026-08-28 10:00:00+00'
+                WHERE id = ?
+                """, POST_ID);
+
+        // When
+        postCommandService.updatePost(
+                AUTHOR_ID,
+                POST_ID,
+                "수정 제목",
+                null,
+                true,
+                "other.id"
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> saved = findInstagramState();
+        assertThat(saved.get("instagram_id")).isEqualTo("other.id");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT instagram_agreed_at = TIMESTAMPTZ '2026-08-28 10:00:00+00'
+                        FROM posts
+                        WHERE id = ?
+                        """,
+                Boolean.class,
+                POST_ID
+        )).isTrue();
+        assertThat(saved.get("instagram_revoked_at")).isNull();
     }
 
     @Test
@@ -112,6 +214,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 POST_ID,
                 "승인 제목",
+                null,
+                false,
                 null
         );
         entityManager.flush();
@@ -137,6 +241,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 POST_ID,
                 "  기존 제목  ",
+                null,
+                false,
                 null
         );
         entityManager.flush();
@@ -157,6 +263,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 POST_ID,
                 title,
+                null,
+                false,
                 null
         );
         entityManager.flush();
@@ -246,5 +354,14 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 Instant.class,
                 POST_ID
         );
+    }
+
+    private Map<String, Object> findInstagramState() {
+        return jdbcTemplate.queryForMap("""
+                SELECT instagram_upload_agreed, instagram_id,
+                       instagram_agreed_at, instagram_revoked_at
+                FROM posts
+                WHERE id = ?
+                """, POST_ID);
     }
 }
