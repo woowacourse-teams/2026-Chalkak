@@ -5,6 +5,7 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepositor
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
 import java.util.UUID;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -16,6 +17,11 @@ import org.springframework.stereotype.Repository;
 public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepository {
 
     private final AdminFeedbackJpaRepository repository;
+
+    @Override
+    public Optional<AdminFeedbackSummaryProjection> findFeedbackById(UUID feedbackId) {
+        return repository.findFeedbackById(feedbackId);
+    }
 
     @Override
     public AdminPage<AdminFeedbackSummaryProjection> findFeedbacks(

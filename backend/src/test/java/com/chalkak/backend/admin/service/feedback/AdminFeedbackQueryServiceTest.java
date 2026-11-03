@@ -11,10 +11,12 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -136,23 +138,71 @@ class AdminFeedbackQueryServiceTest {
         assertThat(result.feedbacks()).isEmpty();
     }
 
+    @Test
+    @DisplayName("삭제된 문의와 탈퇴 작성자 정보도 관리자 상세로 반환한다")
+    void getFeedback_deletedFeedbackWithWithdrawnAuthor_returnsDetail() {
+        // Given
+        Instant deletedAt = Instant.parse("2026-11-03T09:00:00Z");
+        given(adminFeedbackQueryRepository.findFeedbackById(FEEDBACK_ID))
+                .willReturn(Optional.of(feedback(
+                        UserStatus.ACTIVE,
+                        WITHDRAWN_AT,
+                        deletedAt
+                )));
+
+        // When
+        AdminFeedbackDetailResult result = adminFeedbackQueryService.getFeedback(FEEDBACK_ID);
+
+        // Then
+        assertThat(result.feedbackId()).isEqualTo(FEEDBACK_ID);
+        assertThat(result.content()).isEqualTo("사진 업로드가 느려요.");
+        assertThat(result.deletedAt()).isEqualTo(deletedAt);
+        assertThat(result.author().userId()).isEqualTo(USER_ID);
+        assertThat(result.author().status()).isEqualTo(AdminUserStatus.WITHDRAWN);
+    }
+
+    @Test
+    @DisplayName("없는 관리자 문의 상세는 찾을 수 없음 예외로 거절한다")
+    void getFeedback_missingFeedback_throwsNotFound() {
+        // Given
+        given(adminFeedbackQueryRepository.findFeedbackById(FEEDBACK_ID))
+                .willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> adminFeedbackQueryService.getFeedback(FEEDBACK_ID))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("문의를 찾을 수 없습니다.");
+    }
+
     private AdminPage<AdminFeedbackSummaryProjection> page(UserStatus userStatus,
             Instant userDeletedAt) {
         return new AdminPage<>(
-                List.of(new AdminFeedbackSummaryProjection(
-                        FEEDBACK_ID,
-                        "사진 업로드가 느려요.",
-                        CREATED_AT,
-                        null,
-                        USER_ID,
-                        "user@example.com",
+                List.of(feedback(
                         userStatus,
-                        "1.2.3",
-                        userDeletedAt
+                        userDeletedAt,
+                        null
                 )),
                 1,
                 20,
                 false
+        );
+    }
+
+    private AdminFeedbackSummaryProjection feedback(
+            UserStatus userStatus,
+            Instant userDeletedAt,
+            Instant deletedAt
+    ) {
+        return new AdminFeedbackSummaryProjection(
+                FEEDBACK_ID,
+                "사진 업로드가 느려요.",
+                CREATED_AT,
+                deletedAt,
+                USER_ID,
+                "user@example.com",
+                userStatus,
+                "1.2.3",
+                userDeletedAt
         );
     }
 }

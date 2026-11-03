@@ -56,7 +56,7 @@ public record AdminFeedbackListResponse(
             String appVersion
     ) {
 
-        private static AuthorResponse from(AdminFeedbackListResult.AuthorSummary author) {
+        static AuthorResponse from(AdminFeedbackListResult.AuthorSummary author) {
             return new AuthorResponse(
                     author.userId(),
                     author.email(),

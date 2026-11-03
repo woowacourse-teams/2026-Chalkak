@@ -51,7 +51,7 @@ public record AdminFeedbackListResult(
             String appVersion
     ) {
 
-        private static AuthorSummary from(AdminFeedbackSummaryProjection feedback) {
+        static AuthorSummary from(AdminFeedbackSummaryProjection feedback) {
             return new AuthorSummary(
                     feedback.authorId(),
                     feedback.authorEmail(),

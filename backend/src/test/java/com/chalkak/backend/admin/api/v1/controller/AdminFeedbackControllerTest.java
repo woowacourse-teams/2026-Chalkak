@@ -14,6 +14,7 @@ import com.chalkak.backend.admin.api.v1.converter.AdminFeedbackSortConverter;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
@@ -209,6 +210,49 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("조회 조건이 올바르지 않습니다."));
 
+        then(adminFeedbackQueryService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("관리자 상세 응답은 문의 원문·시각과 기존 작성자 필드를 제공한다")
+    void getFeedback_validId_returnsDetailContract() throws Exception {
+        // Given
+        given(adminFeedbackQueryService.getFeedback(FEEDBACK_ID))
+                .willReturn(new AdminFeedbackDetailResult(
+                        FEEDBACK_ID,
+                        "문의 원문",
+                        CREATED_AT,
+                        DELETED_AT,
+                        new AdminFeedbackListResult.AuthorSummary(
+                                USER_ID,
+                                "user@example.com",
+                                AdminUserStatus.ACTIVE,
+                                "1.2.3"
+                        )
+                ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", FEEDBACK_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbackId").value(FEEDBACK_ID.toString()))
+                .andExpect(jsonPath("$.content").value("문의 원문"))
+                .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.deletedAt").value(DELETED_AT.toString()))
+                .andExpect(jsonPath("$.author.userId").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.author.email").value("user@example.com"))
+                .andExpect(jsonPath("$.author.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.author.appVersion").value("1.2.3"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-id", "1-1-1-1-1"})
+    @DisplayName("관리자 상세의 잘못되거나 축약된 문의 ID는 조회 전에 400으로 거절한다")
+    void getFeedback_invalidId_returnsBadRequest(String feedbackId) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", feedbackId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
         then(adminFeedbackQueryService).shouldHaveNoInteractions();
     }
 

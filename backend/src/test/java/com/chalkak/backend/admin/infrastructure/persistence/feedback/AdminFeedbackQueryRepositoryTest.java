@@ -276,6 +276,42 @@ class AdminFeedbackQueryRepositoryTest {
         assertThat(beyond.hasNext()).isFalse();
     }
 
+    @Test
+    @DisplayName("관리자 상세는 삭제된 문의의 원문과 작성자 정보를 조회한다")
+    void findFeedbackById_deletedFeedback_returnsContentAndAuthor() {
+        // When
+        AdminFeedbackSummaryProjection detail = adminFeedbackQueryRepository
+                .findFeedbackById(OLDEST_FEEDBACK_ID).orElseThrow();
+
+        // Then
+        assertThat(detail.feedbackId()).isEqualTo(OLDEST_FEEDBACK_ID);
+        assertThat(detail.content()).isEqualTo("정지 사유가 궁금해요.");
+        assertThat(detail.createdAt()).isEqualTo(OLDEST_CREATED_AT);
+        assertThat(detail.deletedAt()).isEqualTo(DELETED_AT);
+        assertThat(detail.authorId()).isEqualTo(BANNED_USER_ID);
+        assertThat(detail.authorStatus()).isEqualTo(UserStatus.BANNED);
+    }
+
+    @Test
+    @DisplayName("관리자 상세는 탈퇴한 작성자의 문의도 제외하지 않는다")
+    void findFeedbackById_withdrawnAuthor_returnsFeedback() {
+        // When
+        AdminFeedbackSummaryProjection detail = adminFeedbackQueryRepository
+                .findFeedbackById(MIDDLE_FEEDBACK_ID).orElseThrow();
+
+        // Then
+        assertThat(detail.authorId()).isEqualTo(WITHDRAWN_USER_ID);
+        assertThat(detail.authorDeletedAt()).isEqualTo(WITHDRAWN_AT);
+        assertThat(detail.deletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 문의 ID는 관리자 상세 조회에서도 빈 결과다")
+    void findFeedbackById_missingFeedback_returnsEmpty() {
+        // When & Then
+        assertThat(adminFeedbackQueryRepository.findFeedbackById(UUID.randomUUID())).isEmpty();
+    }
+
     private static Stream<Arguments> filteredPageOrders() {
         return Stream.of(
                 Arguments.of(
