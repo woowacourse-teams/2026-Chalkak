@@ -204,8 +204,8 @@ final class HomeScreenUITests: XCTestCase {
             }
             captureScreenshot(app, named: "hero-\(scenario)")
             if scenario == "rejected-open" || scenario == "empty" {
-                let label = scenario == "rejected-open" ? "사진 다시 제출하기" : "하늘 사진을 공유하지 않았어요"
-                app.buttons[label].tap()
+                let identifier = scenario == "rejected-open" ? "사진 다시 제출하기" : "home.weekly.upload"
+                app.buttons[identifier].tap()
                 XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
             }
             app.terminate()
