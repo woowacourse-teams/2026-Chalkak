@@ -25,23 +25,24 @@ public record PostInstagramConsent(
         @Column(name = "instagram_revoked_at") Instant revokedAt
 ) {
 
+    /** 요청 DTO의 {@code @AssertTrue} 메시지도 이 상수를 참조해 도메인 예외와 문구가 어긋나지 않게 한다. */
+    public static final String INVALID_ID_FORMAT_MESSAGE = "인스타그램 ID 형식이 올바르지 않습니다.";
+    public static final String ID_WITHOUT_AGREEMENT_MESSAGE = "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.";
+
     private static final int MAX_ID_LENGTH = 30;
     private static final String LEADING_AT = "@";
-    private static final Pattern RAW_ID_PATTERN = Pattern
-            .compile("[A-Za-z0-9._]{1,%d}".formatted(MAX_ID_LENGTH));
+    /**
+     * 대소문자를 모두 허용한다. 소문자 변환은 ASCII로 판정한 뒤에만 하므로 켈빈 기호(U+212A)처럼 소문자 변환 결과가 ASCII가
+     * 되는 문자는 통과하지 못한다.
+     */
     private static final Pattern ID_PATTERN = Pattern
-            .compile("[a-z0-9._]{1,%d}".formatted(MAX_ID_LENGTH));
+            .compile("[A-Za-z0-9._]{1,%d}".formatted(MAX_ID_LENGTH));
 
     public PostInstagramConsent {
-        if (instagramId != null && !agreed) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.");
-        }
-        if (instagramId != null && !ID_PATTERN.matcher(instagramId).matches()) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "인스타그램 ID 형식이 올바르지 않습니다.");
+        if (instagramId != null) {
+            validateIdAgreement(agreed);
+            validateIdFormat(instagramId);
+            validateIdLowerCase(instagramId);
         }
     }
 
@@ -63,16 +64,8 @@ public record PostInstagramConsent(
                     null
             );
         }
-        if (!agreed) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.");
-        }
-        if (!RAW_ID_PATTERN.matcher(candidate).matches()) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "인스타그램 ID 형식이 올바르지 않습니다.");
-        }
+        validateIdAgreement(agreed);
+        validateIdFormat(candidate);
         return new PostInstagramConsent(
                 true,
                 candidate.toLowerCase(Locale.ROOT),
@@ -137,7 +130,7 @@ public record PostInstagramConsent(
      */
     public static boolean isIdFormatValid(String raw) {
         String candidate = withoutLeadingAt(raw);
-        return candidate.isEmpty() || RAW_ID_PATTERN.matcher(candidate).matches();
+        return candidate.isEmpty() || ID_PATTERN.matcher(candidate).matches();
     }
 
     /**
@@ -159,5 +152,29 @@ public record PostInstagramConsent(
             return stripped.substring(LEADING_AT.length());
         }
         return stripped;
+    }
+
+    private static void validateIdAgreement(boolean agreed) {
+        if (!agreed) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    ID_WITHOUT_AGREEMENT_MESSAGE);
+        }
+    }
+
+    private static void validateIdFormat(String id) {
+        if (!ID_PATTERN.matcher(id).matches()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    INVALID_ID_FORMAT_MESSAGE);
+        }
+    }
+
+    private static void validateIdLowerCase(String id) {
+        if (!id.equals(id.toLowerCase(Locale.ROOT))) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    INVALID_ID_FORMAT_MESSAGE);
+        }
     }
 }

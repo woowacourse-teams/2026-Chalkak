@@ -105,7 +105,8 @@ class PostInstagramConsentTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"찰칵", "cha-kak", "cha kak", "@@chalkak", "chalkak!", "cha_kak😀"})
+    @ValueSource(strings = {"찰칵", "cha-kak", "cha kak", "@@chalkak", "chalkak!", "cha_kak😀",
+            "\u212Achalkak", "\u0130d"})
     @DisplayName("허용하지 않는 문자가 있으면 ID를 거부한다")
     void of_idWithDisallowedCharacters_throwsBusinessException(String raw) {
         // When & Then
@@ -330,6 +331,18 @@ class PostInstagramConsentTest {
                 true,
                 "cha-kak",
                 NOW
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("생성자에 대문자가 섞인 ID가 직접 오면 거부한다")
+    void constructor_upperCaseId_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> new PostInstagramConsent(
+                true,
+                "Chalkak",
+                NOW,
+                null
         )).isInstanceOf(BusinessException.class);
     }
 }

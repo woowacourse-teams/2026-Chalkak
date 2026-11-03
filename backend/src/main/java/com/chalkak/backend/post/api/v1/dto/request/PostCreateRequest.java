@@ -92,7 +92,7 @@ public record PostCreateRequest(
      */
     @JsonIgnore
     @Schema(hidden = true)
-    @AssertTrue(message = "인스타그램 ID 형식이 올바르지 않습니다.")
+    @AssertTrue(message = PostInstagramConsent.INVALID_ID_FORMAT_MESSAGE)
     public boolean isInstagramIdFormatValid() {
         return PostInstagramConsent.isIdFormatValid(instagramId);
     }
@@ -103,7 +103,7 @@ public record PostCreateRequest(
      */
     @JsonIgnore
     @Schema(hidden = true)
-    @AssertTrue(message = "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.")
+    @AssertTrue(message = PostInstagramConsent.ID_WITHOUT_AGREEMENT_MESSAGE)
     public boolean isInstagramIdAllowedWithAgreement() {
         return PostInstagramConsent.isIdAllowedWithAgreement(
                 Boolean.TRUE.equals(instagramUploadAgreed),
