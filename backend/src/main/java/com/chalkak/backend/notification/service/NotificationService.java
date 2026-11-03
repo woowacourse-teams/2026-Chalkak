@@ -88,6 +88,22 @@ public class NotificationService {
         ));
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForLikeMilestone(
+            Post post,
+            long milestoneCount,
+            Instant occurredAt
+    ) {
+        User author = post.getAuthor();
+        notificationRepository.save(Notification.likeMilestone(
+                author.getId(),
+                post.getId(),
+                milestoneCount,
+                occurredAt,
+                !author.isDeleted() && author.isLikePushEnabled()
+        ));
+    }
+
     public NotificationListResult getNotifications(
             UUID userId,
             int page,

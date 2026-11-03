@@ -4,9 +4,7 @@ import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.Notification;
-import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
-import com.chalkak.backend.notification.domain.PostLikePushMilestone;
 import com.chalkak.backend.notification.domain.PublishStatus;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.domain.PushDevice;
@@ -14,7 +12,6 @@ import com.chalkak.backend.exception.PushDeliveryRecordException;
 import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.notification.repository.NotificationRepository;
-import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -40,10 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class PushWorkerService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final String TOPIC_PUSH_TITLE = "오늘의 주제";
-    private static final String LIKE_MILESTONE_PUSH_TITLE = "게시물에서 새로운 업적을 달성했어요";
-    private static final String LIKE_MILESTONE_PUSH_BODY = "좋아요 %d개를 받았어요";
     private final NotificationRepository notificationRepository;
-    private final PostLikePushMilestoneRepository milestoneRepository;
     private final TopicRepository topicRepository;
     private final PostRepository postRepository;
     private final ReminderRepository reminderRepository;
@@ -56,7 +50,6 @@ public class PushWorkerService {
 
     public PushWorkerService(
             NotificationRepository notificationRepository,
-            PostLikePushMilestoneRepository milestoneRepository,
             TopicRepository topicRepository,
             PostRepository postRepository,
             ReminderRepository reminderRepository,
@@ -68,7 +61,6 @@ public class PushWorkerService {
             PushDeliveryService deliveryService
     ) {
         this.notificationRepository = notificationRepository;
-        this.milestoneRepository = milestoneRepository;
         this.topicRepository = topicRepository;
         this.postRepository = postRepository;
         this.reminderRepository = reminderRepository;
@@ -391,70 +383,10 @@ public class PushWorkerService {
                     user
             );
         }
-        if (message.type() == NotificationType.POST_LIKE_MILESTONE) {
-            return findLikeMilestoneRequest(
-                    message,
-                    device,
-                    user
-            );
-        }
         return findNotificationRequest(
                 message,
                 device,
                 user
-        );
-    }
-
-    private DevicePushRequest findLikeMilestoneRequest(
-            PushMessage message,
-            PushDevice device,
-            User user
-    ) {
-        if (!message.type().isPushEnabledFor(user)) {
-            return skipRequest(
-                    message,
-                    device.getId(),
-                    "PUSH_DISABLED"
-            );
-        }
-        PostLikePushMilestone milestone = milestoneRepository
-                .findForPushByIdAndUserId(message.eventId(), message.userId())
-                .orElse(null);
-        if (milestone == null) {
-            return skipRequest(
-                    message,
-                    device.getId(),
-                    "LIKE_MILESTONE_UNAVAILABLE"
-            );
-        }
-        if (!matches(message, milestone)) {
-            return skipRequest(
-                    message,
-                    device.getId(),
-                    "MESSAGE_MISMATCH"
-            );
-        }
-        PublishStatus status = milestone.getPublishStatus();
-        if (status != PublishStatus.PENDING && status != PublishStatus.PUBLISHED) {
-            return skipRequest(
-                    message,
-                    device.getId(),
-                    "PUBLICATION_INACTIVE"
-            );
-        }
-        if (postRepository.findVisibleById(message.sourceId()).isEmpty()) {
-            return skipRequest(
-                    message,
-                    device.getId(),
-                    "POST_UNAVAILABLE"
-            );
-        }
-        return new DevicePushRequest(
-                message,
-                device.getFcmToken(),
-                LIKE_MILESTONE_PUSH_TITLE,
-                LIKE_MILESTONE_PUSH_BODY.formatted(milestone.getMilestoneCount()),
-                milestone.getPushExpiresAt()
         );
     }
 
@@ -636,6 +568,14 @@ public class PushWorkerService {
                     "PUBLICATION_INACTIVE"
             );
         }
+        if (message.type() == NotificationType.POST_LIKE_MILESTONE
+                && postRepository.findVisibleById(message.sourceId()).isEmpty()) {
+            return skipRequest(
+                    message,
+                    device.getId(),
+                    "POST_UNAVAILABLE"
+            );
+        }
         return new DevicePushRequest(
                 message,
                 device.getFcmToken(),
@@ -668,10 +608,9 @@ public class PushWorkerService {
         if (!message.type().isSourceOf(message.sourceType())) {
             return false;
         }
-        // 주제·리마인더·좋아요 마일스톤은 알림함 없이 발행하므로 알림 ID가 없다.
+        // 주제·리마인더는 알림함 없이 발행하므로 알림 ID가 없다.
         if (message.type() == NotificationType.TOPIC
-                || message.type() == NotificationType.REMINDER
-                || message.type() == NotificationType.POST_LIKE_MILESTONE) {
+                || message.type() == NotificationType.REMINDER) {
             return message.notificationId() == null
                     && !message.occurredAt().isAfter(clock.instant())
                     && PushDeadlinePolicy.isValidLifetime(message.occurredAt(),
@@ -687,17 +626,6 @@ public class PushWorkerService {
                 && Objects.equals(message.sourceId(), notification.getSourceId())
                 && message.occurredAt().equals(notification.getCreatedAt())
                 && message.expiresAt().equals(notification.getPushExpiresAt());
-    }
-
-    private boolean matches(PushMessage message, PostLikePushMilestone milestone) {
-        return Objects.equals(message.eventId(), milestone.getId())
-                && message.notificationId() == null
-                && message.userId().equals(milestone.getUserId())
-                && message.type() == NotificationType.POST_LIKE_MILESTONE
-                && message.sourceType() == NotificationSourceType.POST
-                && message.sourceId().equals(milestone.getPostId())
-                && message.occurredAt().equals(milestone.getCreatedAt())
-                && message.expiresAt().equals(milestone.getPushExpiresAt());
     }
 
     private void logSkipped(

@@ -15,6 +15,19 @@ public interface PostLikeCounterJpaRepository extends JpaRepository<PostLikeCoun
     @Query("SELECT counter.likeCount FROM PostLikeCounter counter WHERE counter.postId = :postId")
     Optional<Long> findCountByPostId(@Param("postId") UUID postId);
 
+    @Query("SELECT counter.lastMilestoneCount FROM PostLikeCounter counter WHERE counter.postId = :postId")
+    Optional<Long> findLastMilestoneCountByPostId(@Param("postId") UUID postId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE post_like_counts SET last_milestone_count = :milestoneCount
+            WHERE post_id = :postId AND last_milestone_count < :milestoneCount
+            """, nativeQuery = true)
+    int updateLastMilestoneCount(
+            @Param("postId") UUID postId,
+            @Param("milestoneCount") long milestoneCount
+    );
+
     @Query("""
             SELECT new com.chalkak.backend.like.repository.PostLikeCount(
                 counter.postId, counter.likeCount

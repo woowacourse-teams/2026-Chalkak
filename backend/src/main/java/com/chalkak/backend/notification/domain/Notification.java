@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.domain;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.like.domain.LikeMilestonePolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -32,6 +33,8 @@ public class Notification {
     private static final String REJECTED_TITLE = "게시물이 반려되었습니다.";
     private static final String REJECTED_BODY = "반려 사유를 확인해 주세요.";
     private static final int MAX_REJECTION_REASON_LENGTH = 500;
+    private static final String LIKE_MILESTONE_TITLE = "게시물에서 새로운 업적을 달성했어요";
+    private static final String LIKE_MILESTONE_BODY = "좋아요 %d개 이상을 달성했어요";
 
     @Id
     @Generated
@@ -176,6 +179,32 @@ public class Notification {
         notification.type = outcome.getType();
         notification.title = outcome.getTitle();
         notification.body = outcome.getBody();
+        notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
+        return notification;
+    }
+
+    public static Notification likeMilestone(
+            UUID userId,
+            UUID postId,
+            long milestoneCount,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        validateRequired(
+                userId,
+                postId,
+                createdAt
+        );
+        LikeMilestonePolicy.validate(milestoneCount);
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.POST;
+        notification.sourceId = postId;
+        notification.eventKey = PushEventIdPolicy.createForLikeMilestone(postId, milestoneCount);
+        notification.type = NotificationType.POST_LIKE_MILESTONE;
+        notification.title = LIKE_MILESTONE_TITLE;
+        notification.body = LIKE_MILESTONE_BODY.formatted(milestoneCount);
         notification.createdAt = createdAt;
         notification.initializePublication(pushEnabled);
         return notification;

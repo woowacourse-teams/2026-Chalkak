@@ -3,12 +3,9 @@ package com.chalkak.backend.notification.infrastructure.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
 
 import com.chalkak.backend.config.SchedulingConfig;
 import com.chalkak.backend.notification.service.NotificationRelayService;
-import com.chalkak.backend.notification.service.PostLikeMilestoneRelayService;
 import com.chalkak.backend.notification.service.TopicPushService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -38,13 +35,10 @@ class SqsPushConfigurationTest {
             .withUserConfiguration(
                     SqsPushConfiguration.class,
                     NotificationRelayScheduler.class,
-                    PostLikeMilestoneRelayScheduler.class,
                     TopicPushScheduler.class
             )
             .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
             .withBean(NotificationRelayService.class, () -> mock(NotificationRelayService.class))
-            .withBean(PostLikeMilestoneRelayService.class,
-                    () -> mock(PostLikeMilestoneRelayService.class))
             .withBean(TopicPushService.class, () -> mock(TopicPushService.class))
             .withPropertyValues("chalkak.notification.sqs.region=ap-northeast-2");
 
@@ -58,9 +52,7 @@ class SqsPushConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).doesNotHaveBean(NotificationRelayScheduler.class);
-                    assertThat(context).doesNotHaveBean(PostLikeMilestoneRelayScheduler.class);
                     assertThat(context).doesNotHaveBean("notificationRelayTaskScheduler");
-                    assertThat(context).doesNotHaveBean("postLikeMilestoneRelayTaskScheduler");
                     assertThat(context).doesNotHaveBean(TopicPushScheduler.class);
                     assertThat(context).doesNotHaveBean("notificationTopicTaskScheduler");
                 });
@@ -75,24 +67,8 @@ class SqsPushConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(NotificationRelayScheduler.class);
-                    assertThat(context).hasSingleBean(PostLikeMilestoneRelayScheduler.class);
                     assertThat(context).hasBean("notificationRelayTaskScheduler");
-                    assertThat(context).hasBean("postLikeMilestoneRelayTaskScheduler");
                 });
-    }
-
-    @Test
-    @DisplayName("좋아요 마일스톤 Relay는 1초마다 전용 스케줄러로 확인한다")
-    void configuration_likeMilestoneRelay_usesDedicatedOneSecondScheduler()
-            throws NoSuchMethodException {
-        // Given
-        Scheduled scheduled = PostLikeMilestoneRelayScheduler.class
-                .getMethod("publishPendingMilestones")
-                .getAnnotation(Scheduled.class);
-
-        // When & Then
-        assertThat(scheduled.fixedDelay()).isEqualTo(1000L);
-        assertThat(scheduled.scheduler()).isEqualTo("postLikeMilestoneRelayTaskScheduler");
     }
 
     @Test
@@ -161,13 +137,12 @@ class SqsPushConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"relay", "like", "topic"})
+    @ValueSource(strings = {"relay", "topic"})
     @DisplayName("각 발행 작업이 대기해도 공용 작업이 실행되고 전용 스케줄러는 앱 종료 시 종료된다")
     void configuration_publicationBlocked_keepsCommonSchedulerFreeAndClosesExecutor(String kind) {
         // Given
         FakePublicationProbe probe = new FakePublicationProbe();
         NotificationRelayService relay = mock(NotificationRelayService.class);
-        PostLikeMilestoneRelayService likeRelay = mock(PostLikeMilestoneRelayService.class);
         TopicPushService topic = mock(TopicPushService.class);
         String enabledKey = "chalkak.notification.sqs.relay-enabled=true";
         String schedulerName = "notificationRelayTaskScheduler";
@@ -177,19 +152,11 @@ class SqsPushConfigurationTest {
             schedulerName = "notificationTopicTaskScheduler";
             threadPrefix = "notification-topic-";
         }
-        if (kind.equals("like")) {
-            schedulerName = "postLikeMilestoneRelayTaskScheduler";
-            threadPrefix = "post-like-milestone-relay-";
-        }
         String selectedScheduler = schedulerName;
         String selectedPrefix = threadPrefix;
         if (kind.equals("relay")) {
             doAnswer(call -> blockPublication(probe))
                     .when(relay).publishPendingNotifications();
-        }
-        if (kind.equals("like")) {
-            doAnswer(call -> blockPublication(probe))
-                    .when(likeRelay).publishPendingMilestones();
         }
         if (kind.equals("topic")) {
             doAnswer(call -> blockPublication(probe))
@@ -203,13 +170,11 @@ class SqsPushConfigurationTest {
                 .withUserConfiguration(
                         SqsPushConfiguration.class,
                         NotificationRelayScheduler.class,
-                        PostLikeMilestoneRelayScheduler.class,
                         TopicPushScheduler.class,
                         SchedulingConfig.class
                 )
                 .withBean(ObjectMapper.class, () -> JsonMapper.builder().build())
                 .withBean(NotificationRelayService.class, () -> relay)
-                .withBean(PostLikeMilestoneRelayService.class, () -> likeRelay)
                 .withBean(TopicPushService.class, () -> topic)
                 .withBean(FakePublicationProbe.class, () -> probe)
                 .withPropertyValues(
@@ -231,12 +196,6 @@ class SqsPushConfigurationTest {
                     try {
                         assertThat(probe.publicationStarted.await(5, TimeUnit.SECONDS)).isTrue();
                         assertThat(probe.commonTaskRan.await(5, TimeUnit.SECONDS)).isTrue();
-                        if (kind.equals("relay")) {
-                            verify(likeRelay, timeout(5000)).publishPendingMilestones();
-                        }
-                        if (kind.equals("like")) {
-                            verify(relay, timeout(5000)).publishPendingNotifications();
-                        }
                         assertThat(probe.publicationThread.get()).startsWith(selectedPrefix);
                         assertThat(probe.commonThread.get())
                                 .isNotEqualTo(probe.publicationThread.get());

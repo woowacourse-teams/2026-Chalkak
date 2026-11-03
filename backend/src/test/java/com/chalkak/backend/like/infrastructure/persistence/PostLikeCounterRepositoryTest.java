@@ -96,6 +96,58 @@ class PostLikeCounterRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("최고 단계는 증가하며 좋아요 감소·집계 초기화 뒤에도 유지한다")
+    void updateLastMilestoneCount_countChanges_preservesProgress() {
+        // Given
+        jdbcTemplate.update("UPDATE post_like_counts SET like_count = 5 WHERE post_id = ?",
+                POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        repository.updateLastMilestoneCount(POST_ID, 5L);
+        repository.decrement(POST_ID);
+        repository.reset(POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(repository.getCountByPostId(POST_ID)).isZero();
+        assertThat(repository.getLastMilestoneCountByPostId(POST_ID)).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("최고 단계를 같은 값이나 낮은 값으로 갱신하려 하면 무결성 오류로 처리한다")
+    void updateLastMilestoneCount_nonIncreasing_throwsIntegrityException() {
+        // Given
+        repository.updateLastMilestoneCount(POST_ID, 10L);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> repository.updateLastMilestoneCount(POST_ID, 10L))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> repository.updateLastMilestoneCount(POST_ID, 5L))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(repository.getLastMilestoneCountByPostId(POST_ID)).isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("최고 단계 조회·갱신 대상 집계가 없으면 무결성 오류로 처리한다")
+    void milestoneProgress_missingCounter_throwsIntegrityException() {
+        // Given
+        UUID missing = UUID.randomUUID();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThatThrownBy(() -> repository.getLastMilestoneCountByPostId(missing))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> repository.updateLastMilestoneCount(missing, 5L))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     @DisplayName("좋아요가 없는 집계 행은 0으로 조회한다")
     void getCountByPostId_zeroCounter_returnsZero() {
         // Given

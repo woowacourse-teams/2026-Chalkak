@@ -37,15 +37,6 @@ public class SqsPushConfiguration {
         return scheduler;
     }
 
-    @Bean(defaultCandidate = false)
-    @ConditionalOnProperty(prefix = "chalkak.notification.sqs", name = "relay-enabled", havingValue = "true")
-    public ThreadPoolTaskScheduler postLikeMilestoneRelayTaskScheduler() {
-        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("post-like-milestone-relay-");
-        return scheduler;
-    }
-
     @Bean
     public SqsClient notificationSqsClient(SqsPushProperties properties) {
         return SqsClient.builder()

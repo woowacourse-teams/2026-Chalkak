@@ -12,11 +12,10 @@ import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
-import com.chalkak.backend.notification.domain.PostLikePushMilestone;
+import com.chalkak.backend.notification.domain.Notification;
 import com.chalkak.backend.notification.domain.PushDelivery;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.NotificationRepository;
-import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
@@ -30,6 +29,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,8 +50,6 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
 
     @Autowired
     private NotificationRepository notifications;
-    @Autowired
-    private PostLikePushMilestoneRepository milestones;
     @Autowired
     private TopicRepository topics;
     @Autowired
@@ -80,10 +78,10 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
     void setUp() {
         new DatabaseCleaner(jdbcTemplate).clean();
         insertPost();
-        PostLikePushMilestone milestone = savePublishedMilestone(10L);
+        Notification notification = saveNotification(10L);
         message = new PushMessage(
-                milestone.getId(),
-                null,
+                notification.getEventKey(),
+                notification.getId(),
                 USER_ID,
                 NotificationType.POST_LIKE_MILESTONE,
                 NotificationSourceType.POST,
@@ -117,15 +115,16 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
         verify(sender, times(2)).send(requests.capture(), any());
         assertThat(requests.getAllValues()).allSatisfy(request -> {
             assertThat(request.title()).isEqualTo("게시물에서 새로운 업적을 달성했어요");
-            assertThat(request.body()).isEqualTo("좋아요 10개를 받았어요");
+            assertThat(request.body()).isEqualTo("좋아요 10개 이상을 달성했어요");
             assertThat(request.message().eventId()).isEqualTo(message.eventId());
-            assertThat(request.message().notificationId()).isNull();
+            assertThat(request.message().notificationId()).isEqualTo(message.notificationId());
             assertThat(request.message().sourceId()).isEqualTo(POST_ID);
         });
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PUSH_DISABLED", "POST_DELETED", "WITHDRAWN", "NO_DEVICE"})
+    @ValueSource(strings = {"PUSH_DISABLED", "POST_DELETED", "WITHDRAWN", "NO_DEVICE", "READ",
+            "REJECTED", "EXPIRED", "NOT_REQUIRED", "FAILED", "MISSING"})
     @DisplayName("최신 발송 조건을 충족하지 않으면 FCM을 호출하지 않고 완료한다")
     void process_latestConditionUnavailable_completesWithoutSending(String condition) {
         // Given
@@ -141,6 +140,22 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
                     "UPDATE users SET deleted_at = ? WHERE id = ?",
                     Timestamp.from(NOW),
                     USER_ID
+            );
+            case "READ" -> jdbcTemplate.update(
+                    "UPDATE notifications SET read_at = ? WHERE id = ?",
+                    Timestamp.from(NOW),
+                    message.notificationId()
+            );
+            case "REJECTED" -> jdbcTemplate.update(
+                    "UPDATE posts SET moderation_status = 'REJECTED' WHERE id = ?", POST_ID
+            );
+            case "EXPIRED", "NOT_REQUIRED", "FAILED" -> jdbcTemplate.update(
+                    "UPDATE notifications SET sqs_publish_status = ?, next_attempt_at = NULL, sqs_published_at = NULL WHERE id = ?",
+                    condition,
+                    message.notificationId()
+            );
+            case "MISSING" -> jdbcTemplate.update(
+                    "DELETE FROM notifications WHERE id = ?", message.notificationId()
             );
             default -> jdbcTemplate.update("DELETE FROM push_devices WHERE user_id = ?", USER_ID);
         }
@@ -203,7 +218,7 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
         // Given
         PushMessage mismatched = new PushMessage(
                 message.eventId(),
-                null,
+                message.notificationId(),
                 USER_ID,
                 NotificationType.POST_LIKE_MILESTONE,
                 NotificationSourceType.POST,
@@ -223,7 +238,6 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
     private PushWorkerService worker(Instant now) {
         return new PushWorkerService(
                 notifications,
-                milestones,
                 topics,
                 posts,
                 reminders,
@@ -236,17 +250,93 @@ class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
         );
     }
 
-    private PostLikePushMilestone savePublishedMilestone(long count) {
-        return new TransactionTemplate(transactionManager).execute(status -> {
-            PostLikePushMilestone milestone = milestones.save(PostLikePushMilestone.create(
-                    POST_ID,
-                    USER_ID,
-                    count,
-                    NOW
-            ));
-            milestone.markPublished(NOW);
-            return milestone;
+    @Test
+    @DisplayName("좋아요 알림도 수락한 기기는 생략하고 일시 실패한 기기만 다시 보낸다")
+    void process_partialAcceptance_retriesOnlyFailedDevice() {
+        // Given
+        addDevice("retry-like-token");
+        AtomicInteger retryDeviceAttempts = new AtomicInteger();
+        given(sender.send(any(), any())).willAnswer(call -> {
+            DevicePushRequest request = call.getArgument(0);
+            if (request.token().equals("retry-like-token")
+                    && retryDeviceAttempts.incrementAndGet() == 1) {
+                return DevicePushResult.retryable("UNAVAILABLE");
+            }
+            return DevicePushResult.accepted();
         });
+
+        // When
+        PushProcessingResult first = worker(NOW.plusSeconds(1)).process(message);
+        PushProcessingResult second = worker(NOW.plusSeconds(61)).process(message);
+
+        // Then
+        assertThat(first.retryable()).isTrue();
+        assertThat(second.retryable()).isFalse();
+        ArgumentCaptor<DevicePushRequest> requests = ArgumentCaptor
+                .forClass(DevicePushRequest.class);
+        verify(sender, times(3)).send(requests.capture(), any());
+        assertThat(requests.getAllValues())
+                .filteredOn(request -> request.token().equals("like-milestone-token"))
+                .hasSize(1);
+        assertThat(requests.getAllValues())
+                .filteredOn(request -> request.token().equals("retry-like-token"))
+                .hasSize(2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1799L, 1800L, 1801L})
+    @DisplayName("좋아요 알림은 생성 후 30분 정각부터 FCM 요청을 시작하지 않는다")
+    void process_deadlineBoundary_skipsAtThirtyMinutes(long seconds) {
+        // When
+        worker(NOW.plusSeconds(seconds)).process(message);
+
+        // Then
+        if (seconds < 1800) {
+            verify(sender).send(any(), any());
+            return;
+        }
+        verifyNoInteractions(sender);
+    }
+
+    private Notification saveNotification(long count) {
+        return new TransactionTemplate(transactionManager)
+                .execute(status -> notifications.save(Notification.likeMilestone(
+                        USER_ID,
+                        POST_ID,
+                        count,
+                        NOW,
+                        true
+                ))
+                );
+    }
+
+    @Test
+    @DisplayName("기존 Relay가 좋아요 Notification을 알림 ID와 함께 발행하고 Worker가 전송한다")
+    void process_notificationRelay_sendsUsingSharedPipeline() {
+        // Given
+        PushMessagePublisher publisher = mock(PushMessagePublisher.class);
+        given(publisher.publish(any())).willReturn(PushPublicationResult.accepted("sqs-like"));
+        NotificationRelayService relay = new NotificationRelayService(
+                notifications,
+                publisher,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                transactionManager
+        );
+
+        // When
+        relay.publishPendingNotifications();
+
+        // Then
+        ArgumentCaptor<PushMessage> published = ArgumentCaptor.forClass(PushMessage.class);
+        verify(publisher).publish(published.capture());
+        assertThat(published.getValue()).isEqualTo(message);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT sqs_publish_status FROM notifications WHERE id = ?",
+                String.class,
+                message.notificationId()
+        )).isEqualTo("PUBLISHED");
+        worker(NOW.plusSeconds(1)).process(published.getValue());
+        verify(sender).send(any(), any());
     }
 
     private UUID addDevice(String token) {

@@ -8,8 +8,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 
 import com.chalkak.backend.like.infrastructure.persistence.PostLikeCounterRepositoryImpl;
-import com.chalkak.backend.notification.domain.PostLikePushMilestone;
-import com.chalkak.backend.notification.infrastructure.persistence.PostLikePushMilestoneRepositoryImpl;
+import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.notification.infrastructure.persistence.NotificationRepositoryImpl;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
@@ -49,7 +49,7 @@ class PostLikeMilestoneConcurrencyTest extends IntegrationTestSupport {
     private PostLikeCounterRepositoryImpl postLikeCounterRepositorySpy;
 
     @MockitoSpyBean
-    private PostLikePushMilestoneRepositoryImpl postLikePushMilestoneRepositorySpy;
+    private NotificationRepositoryImpl notificationRepositorySpy;
 
     private DatabaseCleaner databaseCleaner;
 
@@ -69,6 +69,7 @@ class PostLikeMilestoneConcurrencyTest extends IntegrationTestSupport {
     @DisplayName("동시 좋아요가 5단계를 통과해도 마일스톤을 한 건만 생성한다")
     void likePost_concurrentLikesReachMilestone_createsOneMilestone() throws Exception {
         // Given
+        insertSeedLike();
         CountDownLatch firstIncremented = new CountDownLatch(1);
         CountDownLatch secondIncrementStarted = new CountDownLatch(1);
         CountDownLatch firstCanContinue = new CountDownLatch(1);
@@ -116,21 +117,21 @@ class PostLikeMilestoneConcurrencyTest extends IntegrationTestSupport {
                 "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
                 Integer.class,
                 POST_ID
-        )).isEqualTo(5);
+        )).isEqualTo(6);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT like_count FROM post_like_counts WHERE post_id = ?",
                 Long.class,
                 POST_ID
-        )).isEqualTo(5L);
+        )).isEqualTo(6L);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM post_like_push_milestones WHERE post_id = ?",
+                "SELECT COUNT(*) FROM notifications WHERE source_id = ? AND type = 'POST_LIKE_MILESTONE'",
                 Integer.class,
                 POST_ID
         )).isOne();
         assertThat(jdbcTemplate.queryForObject(
                 """
-                        SELECT milestone_count
-                        FROM post_like_push_milestones
+                        SELECT last_milestone_count
+                        FROM post_like_counts
                         WHERE post_id = ?
                         """,
                 Long.class,
@@ -144,8 +145,8 @@ class PostLikeMilestoneConcurrencyTest extends IntegrationTestSupport {
         // Given
         insertSeedLike();
         doThrow(new DataIntegrityViolationException("마일스톤 저장 실패"))
-                .when(postLikePushMilestoneRepositorySpy)
-                .save(any(PostLikePushMilestone.class));
+                .when(notificationRepositorySpy)
+                .save(any(Notification.class));
 
         // When & Then
         assertThatThrownBy(() -> postLikeService.likePost(POST_ID, FIRST_LIKER_ID))
@@ -162,10 +163,48 @@ class PostLikeMilestoneConcurrencyTest extends IntegrationTestSupport {
                 POST_ID
         )).isEqualTo(4L);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM post_like_push_milestones WHERE post_id = ?",
+                "SELECT COUNT(*) FROM notifications WHERE source_id = ? AND type = 'POST_LIKE_MILESTONE'",
                 Long.class,
                 POST_ID
         )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT last_milestone_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isZero();
+    }
+
+    @Test
+    @DisplayName("최고 단계 갱신이 실패하면 알림과 좋아요도 함께 롤백한다")
+    void likePost_progressUpdateFails_rollsBackNotificationAndLike() {
+        // Given
+        insertSeedLike();
+        doThrow(new DataIntegrityViolationException("최고 단계 갱신 실패"))
+                .when(postLikeCounterRepositorySpy).updateLastMilestoneCount(POST_ID, 5L);
+
+        // When & Then
+        assertThatThrownBy(() -> postLikeService.likePost(POST_ID, FIRST_LIKER_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT like_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(4L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT last_milestone_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE source_id = ?",
+                Long.class,
+                POST_ID
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(4L);
     }
 
     private void insertFixture() {

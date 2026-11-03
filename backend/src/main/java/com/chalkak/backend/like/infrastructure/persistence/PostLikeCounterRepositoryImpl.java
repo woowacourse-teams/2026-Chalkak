@@ -23,6 +23,21 @@ public class PostLikeCounterRepositoryImpl implements PostLikeCounterRepository 
     }
 
     @Override
+    public long getLastMilestoneCountByPostId(UUID postId) {
+        return postLikeCounterJpaRepository.findLastMilestoneCountByPostId(postId)
+                .orElseThrow(() -> new DataIntegrityViolationException(
+                        "좋아요 집계 행을 찾을 수 없습니다: " + postId));
+    }
+
+    @Override
+    public void updateLastMilestoneCount(UUID postId, long milestoneCount) {
+        validateAffectedRowCount(
+                postLikeCounterJpaRepository.updateLastMilestoneCount(postId, milestoneCount),
+                postId
+        );
+    }
+
+    @Override
     public List<PostLikeCount> getCountsByPostIds(List<UUID> postIds) {
         if (postIds.isEmpty()) {
             return List.of();

@@ -19,7 +19,6 @@ import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
 import com.chalkak.backend.notification.repository.NotificationRepository;
-import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -59,9 +58,6 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
 
     @Autowired
     private NotificationRepository notifications;
-    @Autowired
-    private PostLikePushMilestoneRepository milestones;
-
     @Autowired
     private NoticeRepository notices;
 
@@ -325,7 +321,6 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
     private PushWorkerService worker(Instant now) {
         return new PushWorkerService(
                 notifications,
-                milestones,
                 topics,
                 posts,
                 reminders,

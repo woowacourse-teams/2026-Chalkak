@@ -3,10 +3,10 @@ package com.chalkak.backend.like.service;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.like.domain.LikeMilestonePolicy;
 import com.chalkak.backend.like.repository.PostLikeCounterRepository;
 import com.chalkak.backend.like.repository.PostLikeRepository;
-import com.chalkak.backend.notification.domain.PostLikePushMilestone;
-import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -21,11 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class PostLikeService {
 
-    private static final long MILESTONE_INTERVAL = 5L;
-
     private final PostLikeRepository postLikeRepository;
     private final PostLikeCounterRepository postLikeCounterRepository;
-    private final PostLikePushMilestoneRepository postLikePushMilestoneRepository;
+    private final NotificationService notificationService;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final Clock clock;
@@ -81,24 +79,20 @@ public class PostLikeService {
     }
 
     private void createMilestoneIfRequired(Post post, long likeCount) {
-        if (!post.getAuthor().isLikePushEnabled()) {
+        long candidateCount = LikeMilestonePolicy.calculateCandidate(likeCount);
+        if (candidateCount <= 0) {
             return;
         }
-        long candidateCount = likeCount / MILESTONE_INTERVAL * MILESTONE_INTERVAL;
-        if (candidateCount < MILESTONE_INTERVAL) {
+        long lastMilestoneCount = postLikeCounterRepository
+                .getLastMilestoneCountByPostId(post.getId());
+        if (candidateCount <= lastMilestoneCount) {
             return;
         }
-        long maxMilestoneCount = postLikePushMilestoneRepository
-                .findMaxCountByPostId(post.getId())
-                .orElse(0L);
-        if (candidateCount <= maxMilestoneCount) {
-            return;
-        }
-        postLikePushMilestoneRepository.save(PostLikePushMilestone.create(
-                post.getId(),
-                post.getAuthor().getId(),
+        notificationService.createForLikeMilestone(
+                post,
                 candidateCount,
                 clock.instant()
-        ));
+        );
+        postLikeCounterRepository.updateLastMilestoneCount(post.getId(), candidateCount);
     }
 }
