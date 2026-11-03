@@ -46,7 +46,34 @@ DB 전체 덤프와 운영 게시글·사인 이미지 네 경로를 백업하�
 
 운영 EC2에는 복구 검증용 Docker를 설치하거나 복구 스크립트를 예약 작업에 연결하지 않는다.
 스크립트는 Git 저장소에서 함께 관리하되, 서버에는 역할에 필요한 파일만 설치한다.
-현재 CodeDeploy 배포 묶음에는 `deploy/backup/`이 포함되지 않는다. 아래 절차로 별도 설치한다.
+앱 배포의 AfterInstall에서 `deploy/scripts/install_backup.sh`로 백업 코드도 갱신한다.
+배포 묶음에는 `deploy/backup/`과 `deploy/systemd/`가 함께 포함되어야 한다.
+`/etc/chalkak-backup/backup.env`가 없는 개발 서버 등에서는 아무것도 변경하지 않는다.
+최초 사용자·도구·비밀 설정 준비와 예약 활성화는 아래 절차로 한 번 수행한다.
+
+### 앱 배포 시 방어 장치
+
+백업 실행 코드도 앱 배포의 필수 구성으로 취급한다. 백업을 구성한 서버에서 코드 갱신이 실패하면
+AfterInstall을 실패 처리하고 새 앱 기동·전환 단계로 진행하지 않는다. 기존 앱과 실행 중인 백업은
+이 갱신 스크립트가 중단하지 않는다. 백업 설정이 없는 개발 서버는 설치를 생략한다.
+
+- 실행 중인 백업과 같은 `/var/lib/chalkak-backup/backup.lock`을 사용한다. 잠금을 얻지 못하면
+  기존 백업을 중단하지 않고 종료 코드 75로 배포를 중단한다. 백업 완료 후 재배포한다.
+- 실행 파일 5개만 root 소유로 새 `releases/release.*` 디렉터리에 준비하고 문법을 검사한 뒤
+  `current` 연결을 한 번에 교체한다. 서비스의 실제 작업 디렉터리와 `pwd -P`로 한 회차의
+  실행 파일을 고정한다. 이전 release는 자동 삭제하지 않는다.
+- `backup.env`, `pgpass`, `rclone.conf`, CA 인증서는 복사하거나 수정하지 않는다.
+  앱 `application.env`에도 백업 설정을 추가하지 않는다.
+- 서비스 파일 반영과 `daemon-reload`만 수행한다. 백업·복구 스크립트 실행,
+  Docker 실행, 서비스·타이머의 start/restart/enable을 호출하지 않는다.
+  따라서 앱 배포가 실제 백업을 시작하거나 중지된 예약을 다시 활성화하지 않는다.
+- 타이머 파일은 자동 교체하지 않는다. 예약 시각을 변경할 때는 별도로 검토하고 수동 반영한다.
+  코드 교체 후 서비스 반영이 실패하면 기존 `current`와 서비스 파일을 복구한다.
+
+```bash
+# Linux 임시 경로와 명령 대역으로 배포 안전성 검증. 실제 DB·S3·Docker는 사용하지 않는다.
+bash deploy/scripts/install_backup_test.sh
+```
 
 검증 EC2는 검증할 때만 생성한다. 생성 전에 담당자의 삭제 권한과 비용을 확인하고,
 운영 DB 자격 증명·운영 저장소 쓰기 권한 없이 필요한 보관본만 조회하도록 구성한다.
@@ -160,9 +187,6 @@ sudo install -d -o chalkak-backup -g chalkak-backup -m 700 /var/lib/chalkak-back
 for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh; do
   sudo install -o root -g root -m 644 "deploy/backup/$file" /opt/chalkak-backup/
 done
-sudo install -o root -g root -m 644 deploy/systemd/chalkak-backup.service /etc/systemd/system/
-sudo install -o root -g root -m 644 deploy/systemd/chalkak-backup.timer /etc/systemd/system/
-sudo systemctl daemon-reload
 ```
 
 `backup.env.example`을 참고해 Git 밖에서 실제 `backup.env`, `pgpass`, `rclone.conf`를 준비한다.
@@ -197,7 +221,8 @@ DB 덤프의 기존 5분 상한과 별개다. `backup.sh` 직접 실행에는 �
 한도를 넘으면 프로세스 그룹에 TERM을 보내고 10초 후에도 남으면 KILL한다. 부분 회차는 미완료다.
 
 ```bash
-sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/scheduled-backup.sh \
+sudo /bin/bash deploy/scripts/install_backup.sh
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/scheduled-backup.sh \
   /etc/chalkak-backup/backup.env --check
 # 설정 검사 통과 후, 타이머를 켜기 전에 실제 서비스 수동 실행
 sudo systemctl start chalkak-backup.service
@@ -212,6 +237,8 @@ sudo journalctl -u chalkak-backup.service --since today --no-pager
 ### 3. 예약 활성화와 확인
 
 ```bash
+sudo install -o root -g root -m 644 deploy/systemd/chalkak-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo systemd-analyze verify /etc/systemd/system/chalkak-backup.service /etc/systemd/system/chalkak-backup.timer
 systemd-analyze calendar '*-*-* 02:00:00 Asia/Seoul'
 sudo systemctl enable --now chalkak-backup.timer
@@ -245,7 +272,13 @@ sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup/back
 서비스가 비활성이고 잠금 확인이 성공했는지 확인한 뒤 배포한다. 직접 실행 중인 백업이 있으면
 완료·종료를 확인한다. 배포 중에는 누구도 수동 백업을 시작하지 않는다. 배포 완료·앱 정상 상태를
 확인한 후 `sudo systemctl start chalkak-backup.timer`로 재개한다. 놓친 예약이 있으면 즉시 실행될
-수 있다. 현재 CodeDeploy와의 자동 상호 잠금은 없으며 이 수동 절차를 지켜야 한다.
+수 있다. 파일 갱신 단계에는 자동 잠금이 있지만 앱 배포 전체와 백업의 부하를 분리하는 잠금은
+아니므로 이 수동 절차를 지킨다. 갱신 이후 운영 수동 백업도 아래처럼 현재 release에서 실행한다.
+
+```bash
+sudo -u chalkak-backup /bin/bash -c \
+  'cd /opt/chalkak-backup/current && exec /bin/bash backup.sh /etc/chalkak-backup/backup.env'
+```
 
 ```bash
 # Linux에서 설정·권한 거부, 종료 코드 전달, 실제 프로세스 그룹 시간 초과 검사

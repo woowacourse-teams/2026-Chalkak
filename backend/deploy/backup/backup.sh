@@ -7,10 +7,10 @@ if [[ $# -lt 1 || $# -gt 2 || ! -r "$1" ]]; then
   echo '사용법: bash backup.sh /보호된/backup.env [all|db|images]' >&2
   exit 1
 fi
-config=$(cd -- "$(dirname -- "$1")" && pwd)/$(basename -- "$1")
+config=$(cd -- "$(dirname -- "$1")" && pwd -P)/$(basename -- "$1")
 selection=${2:-all}
 case "$selection" in all|db|images) ;; *) echo '대상은 all, db, images 중 하나입니다.' >&2; exit 1 ;; esac
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 set -a
 # shellcheck source=/dev/null
 source "$config"

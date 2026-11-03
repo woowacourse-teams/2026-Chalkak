@@ -72,7 +72,7 @@ phases:
       - mkdir -p build/codedeploy-bundle/deploy
       - install -m 0644 "${application_jar}" build/codedeploy-bundle/application.jar
       - install -m 0644 deploy/appspec.yml build/codedeploy-bundle/appspec.yml
-      - cp -R deploy/compose.dev.yml deploy/scripts deploy/systemd build/codedeploy-bundle/deploy/
+      - cp -R deploy/compose.dev.yml deploy/scripts deploy/systemd deploy/backup build/codedeploy-bundle/deploy/
       - chmod 0755 build/codedeploy-bundle/deploy/scripts/*.sh
     finally:
       - docker rm --force chalkak-codebuild-postgres 2>/dev/null || true

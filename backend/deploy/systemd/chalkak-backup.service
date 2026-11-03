@@ -7,8 +7,8 @@ After=network-online.target
 Type=oneshot
 User=chalkak-backup
 Group=chalkak-backup
-WorkingDirectory=/opt/chalkak-backup
-ExecStart=/bin/bash /opt/chalkak-backup/scheduled-backup.sh /etc/chalkak-backup/backup.env
+WorkingDirectory=/opt/chalkak-backup/current
+ExecStart=/bin/bash scheduled-backup.sh /etc/chalkak-backup/backup.env
 # 전체 시간 상한은 실측한 BACKUP_MAX_RUNTIME_SECONDS와 GNU timeout으로 적용한다.
 TimeoutStartSec=infinity
 TimeoutStopSec=30s

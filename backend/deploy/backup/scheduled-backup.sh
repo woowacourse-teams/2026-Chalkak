@@ -48,7 +48,7 @@ done
   echo 'PostgreSQL 18 백업 도구가 필요합니다.' >&2; exit 1;
 }
 if [[ "${2:-}" == --check ]]; then echo 'READY: 예약 실행 설정·파일 권한·도구 검사 통과 (연결 검증 아님)'; exit 0; fi
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 stage=scheduled-backup
 result=0
 # oneshot의 RuntimeMaxSec 대신 GNU timeout으로 전체 프로세스 그룹 실행 시간을 제한한다.

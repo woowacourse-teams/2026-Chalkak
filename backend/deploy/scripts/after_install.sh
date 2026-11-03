@@ -42,3 +42,6 @@ chmod 0644 /opt/chalkak/db/compose.dev.yml
 
 systemctl disable --now chalkak-config.service 2>/dev/null || true
 rm -f /run/chalkak/application.env /run/chalkak/postgres.env
+
+# 백업은 설정된 서버에서 파일만 갱신한다. 실행 중이면 잠금 충돌로 배포를 중단한다.
+/bin/bash "$(dirname -- "${BASH_SOURCE[0]}")/install_backup.sh"
