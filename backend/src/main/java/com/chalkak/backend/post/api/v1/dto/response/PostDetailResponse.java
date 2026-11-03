@@ -14,6 +14,7 @@ public record PostDetailResponse(
         @Schema(description = "변환된 게시물 썸네일 URL", nullable = true)
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
+        @Schema(description = "작품 제목. 제목이 없으면 null", nullable = true)
         String title,
         @Schema(description = "작품 설명. 줄바꿈을 포함할 수 있으며 설명이 없으면 null", nullable = true)
         String description,

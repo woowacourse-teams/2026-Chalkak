@@ -63,6 +63,17 @@ class PostOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("user-api 문서는 상세 응답의 제목을 nullable로 표기한다")
+    void userApiDocs_postDetail_marksTitleNullable() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostDetailResponse"
+                        + ".properties.title.type")
+                        .value(containsInAnyOrder("string", "null")));
+    }
+
+    @Test
     @DisplayName("작성자 사진 조회 문서는 UUID·인증·좋아요 응답과 오류 계약을 제공한다")
     void userApiDocs_getAuthorPosts_exposesContract() throws Exception {
         // When & Then
