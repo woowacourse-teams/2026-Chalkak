@@ -1,5 +1,7 @@
 # UI 상태와 내비게이션 설계
 
+관련 경로: feature/**/*ViewModel.kt, feature/**/*Route.kt, feature/**/*UiState.kt, navigation/**
+
 ## 요약
 
 > 사용자 입력은 Screen의 구체적인 람다를 통해 ViewModel로 전달한다. ViewModel은 처리 결과를 재현 가능한
