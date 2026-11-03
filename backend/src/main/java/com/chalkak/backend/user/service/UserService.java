@@ -6,6 +6,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.domain.SignatureImagePolicy;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -31,6 +32,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final PostRepository postRepository;
     private final UserRefreshTokenService userRefreshTokenService;
     private final SocialConnectionRevocationStore socialConnectionRevocationStore;
     private final SignatureImageStorage signatureImageStorage;
@@ -168,6 +170,8 @@ public class UserService {
         }
         userRefreshTokenService.revokeAll(userId);
         user.withdraw();
+        postRepository.findInstagramAgreedByAuthorIdForUpdate(userId)
+                .forEach(post -> post.revokeInstagramConsent(user.getDeletedAt()));
     }
 
     /**

@@ -124,6 +124,22 @@ public record PostInstagramConsent(
     }
 
     /**
+     * 회원 탈퇴로 동의를 철회한다. 동의 중일 때만 동의를 끄고 ID를 지우며 철회 시각을 {@code now}로 기록한다. 동의 시각은 이력으로
+     * 유지한다. 이미 동의하지 않은 상태는 이전 철회 시각까지 그대로 돌려준다.
+     */
+    public PostInstagramConsent revoke(Instant now) {
+        if (!agreed) {
+            return this;
+        }
+        return new PostInstagramConsent(
+                false,
+                null,
+                agreedAt,
+                now
+        );
+    }
+
+    /**
      * 요청 DTO의 빠른 실패용. 예외 대신 판정만 돌려준다. 정규화 후 비어 있으면 ID 없음이므로 허용한다.
      */
     public static boolean isIdFormatValid(String raw) {

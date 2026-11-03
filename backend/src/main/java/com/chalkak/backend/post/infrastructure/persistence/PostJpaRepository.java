@@ -34,6 +34,16 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             SELECT post
             FROM Post post
             WHERE post.author.id = :authorId
+              AND post.instagramConsent.agreed = TRUE
+            ORDER BY post.id
+            """)
+    List<Post> findInstagramAgreedByAuthorIdForUpdate(@Param("authorId") UUID authorId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT post
+            FROM Post post
+            WHERE post.author.id = :authorId
               AND post.topic.id = :topicId
               AND post.moderationStatus <> :excludedStatus
               AND post.deletedAt IS NULL
