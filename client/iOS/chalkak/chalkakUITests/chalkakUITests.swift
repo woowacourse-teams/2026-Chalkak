@@ -10,7 +10,7 @@ import XCTest
 final class chalkakUITests: XCTestCase {
 
     @MainActor
-    func testPhotoUploadConfirmsDiscardFromCloseAndDownwardSwipe() throws {
+    func testPhotoUploadClosesWithoutConfirmationWhenNothingIsSelected() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
@@ -19,34 +19,52 @@ final class chalkakUITests: XCTestCase {
 
         let close = app.buttons["photoUpload.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["photoUpload.next"].isEnabled)
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["작성을 그만둘까요?"].exists)
+    }
+
+    @MainActor
+    func testPhotoUploadMovesToWritingAndConfirmsDiscardFromCloseAndDownwardSwipe() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry", "-test-photo-upload-selected"]
+        app.launch()
+        XCTAssertTrue(app.buttons["추가"].waitForExistence(timeout: 5))
+        app.buttons["추가"].tap()
+
+        // 사진을 고른 상태라 바로 글 쓰기 단계가 열린다.
         let caption = app.textFields["작품 제목"]
         XCTAssertTrue(caption.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["photoUpload.submit"].exists)
         caption.tap()
         caption.typeText("작품 제목")
-        close.tap()
 
+        // 뒤로 가면 사진 고르기 단계로 돌아가고, 다음으로 다시 들어오면 입력이 남아 있다.
+        app.navigationBars["글 쓰기"].buttons.element(boundBy: 0).tap()
+        let close = app.buttons["photoUpload.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        app.buttons["photoUpload.next"].tap()
+        XCTAssertTrue(caption.waitForExistence(timeout: 5))
+        XCTAssertTrue((caption.value as? String)?.contains("작품 제목") == true)
+        app.navigationBars["글 쓰기"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+
+        close.tap()
         let dialogTitle = app.alerts["작성을 그만둘까요?"]
         XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
         dialogTitle.buttons["취소"].tap()
         XCTAssertTrue(dialogTitle.waitForNonExistence(timeout: 3))
-        XCTAssertTrue((caption.value as? String)?.contains("작품 제목") == true)
 
-        // 입력하면서 화면이 조금 스크롤되면 첫 번째 끌기는 맨 위로 돌아가는 데 쓰인다.
-        let imageArea = app.staticTexts["앨범에서 고르거나 지금 찍어요"]
-        for _ in 0..<2 where !dialogTitle.exists {
-            let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 300)))
-            _ = dialogTitle.waitForExistence(timeout: 2)
-        }
+        let imageArea = app.buttons["photoUpload.selectedImage"].exists
+            ? app.buttons["photoUpload.selectedImage"]
+            : app.images["선택한 사진"]
+        XCTAssertTrue(imageArea.waitForExistence(timeout: 5))
+        let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 300)))
         XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
         dialogTitle.buttons["뒤로 가기"].tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
-
-        app.buttons["추가"].tap()
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        close.tap()
-        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
-        XCTAssertFalse(dialogTitle.exists)
     }
 
     override func setUpWithError() throws {

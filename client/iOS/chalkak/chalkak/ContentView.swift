@@ -1132,15 +1132,39 @@ struct ContentView: View {
     ) -> PhotoUploadViewModel {
 #if DEBUG
         if isPhotoUploadEntryUITest {
-            return PhotoUploadViewModel(
+            let viewModel = PhotoUploadViewModel(
                 topicDate: topicDate,
                 repository: PhotoUploadRepository(
                     getCreationTopic: { date in
                         .success(PhotoUploadTopic(id: "ui-test-topic", title: "테스트", date: date))
+                    },
+                    prepareImage: { data in
+                        .success(
+                            PhotoUploadPreparation(
+                                id: UUID(),
+                                sourceData: data,
+                                encodedData: data,
+                                upload: PhotoUploadUploadPolicy(
+                                    uploadID: "ui-test-upload",
+                                    uploadURL: URL(string: "https://example.com/upload")!,
+                                    expiresInSeconds: 600,
+                                    contentType: "image/jpeg",
+                                    maxBytes: Int64(data.count)
+                                ),
+                                uploadURLExpiresAt: .distantFuture
+                            )
+                        )
                     }
                 ),
                 onCameraImageSaveFailure: onCameraImageSaveFailure
             )
+            // 사진 선택 창을 거치지 않고 사진을 고른 상태로 시작해 글 쓰기 단계를 확인한다.
+            if ProcessInfo.processInfo.arguments.contains("-test-photo-upload-selected"),
+               let image = UIImage(named: "preview_photo"),
+               let data = image.jpegData(compressionQuality: 0.8) {
+                viewModel.selectImage(data: data, preview: image)
+            }
+            return viewModel
         }
 #endif
 

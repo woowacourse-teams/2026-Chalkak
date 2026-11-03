@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 
+/// 전시하기 1단계: 사진을 고른다. 사진을 고르면 2단계(글 쓰기)로 넘어간다.
 struct PhotoUploadScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.chalkakShowToast) private var showToast
@@ -10,18 +11,12 @@ struct PhotoUploadScreen: View {
     let onAction: (PhotoUploadAction) -> Void
     let onRetryTopicLoad: () -> Void
 
-    @State private var isCaptionFocused = false
-    @State private var isDescriptionFocused = false
-    @State private var isKeyboardVisible = false
-    @State private var isBackPending = false
-    @State private var captionFrame: CGRect = .zero
-    @State private var descriptionFrame: CGRect = .zero
     @State private var scrollOffset: CGFloat = 0
     @State private var canDismissCurrentDrag: Bool?
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 PhotoUploadImageArea(
                     selectedImage: viewState.selectedImage,
                     topicTitle: viewState.topicTitle,
@@ -31,83 +26,20 @@ struct PhotoUploadScreen: View {
                     onGalleryClick: { onAction(.galleryClicked) },
                     onCameraClick: { onAction(.cameraClicked) }
                 )
-                .simultaneousGesture(
-                    TapGesture().onEnded {
-                        guard isInputFocused || isKeyboardVisible else { return }
-                        isCaptionFocused = false
-                        isDescriptionFocused = false
-                        dismissKeyboard()
-                    }
+
+                PhotoUploadTopicHeader(
+                    topicTitle: viewState.topicTitle,
+                    isLoading: viewState.isTopicLoading,
+                    errorMessage: viewState.topicErrorMessage,
+                    onRetry: onRetryTopicLoad
                 )
-
-                Spacer()
-                    .frame(height: 34)
-
-                VStack(spacing: 0) {
-                    ChalkakTextField(
-                        text: Binding(
-                            get: { viewState.caption },
-                            set: { onAction(.captionChanged($0)) }
-                        ),
-                        label: "작품 제목",
-                        placeholder: "작품 제목은 선택이에요.",
-                        isEnabled: !viewState.isSubmitting,
-                        lineLimit: 1...1,
-                        textFont: theme.typography.subheadline,
-                        maximumCharacterCount: Constants.captionMaxLength,
-                        onFocusChange: { isCaptionFocused = $0 }
-                    )
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named("photoUpload.dismiss"))
-                    } action: { frame in
-                        captionFrame = frame
-                    }
-
-                    ChalkakTextField(
-                        text: Binding(
-                            get: { viewState.postDescription },
-                            set: { onAction(.descriptionChanged($0)) }
-                        ),
-                        label: "작품 설명",
-                        placeholder: "작품 설명은 선택이에요.",
-                        isEnabled: !viewState.isSubmitting,
-                        lineLimit: 4...10,
-                        textFont: theme.typography.subheadline,
-                        maximumCharacterCount: Constants.descriptionMaxLength,
-                        lengthMetric: .unicodeScalars,
-                        onFocusChange: { isDescriptionFocused = $0 }
-                    )
-                    .padding(.top, theme.spacing.lg)
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named("photoUpload.dismiss"))
-                    } action: { frame in
-                        descriptionFrame = frame
-                    }
-
-                    if let topicErrorMessage = viewState.topicErrorMessage {
-                        Text(topicErrorMessage)
-                            .font(theme.typography.footnote)
-                            .foregroundStyle(theme.colors.error)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 8)
-
-                        Button("다시 시도", action: onRetryTopicLoad)
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.actionPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .buttonStyle(.plain)
-                    }
-
-                    Spacer()
-                        .frame(height: 16)
-                }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, Metrics.contentHorizontalPadding)
+                .padding(.top, theme.spacing.xl)
             }
             .padding(.top, theme.spacing.xl)
-            .padding(.bottom, 104)
+            .padding(.bottom, Metrics.bottomButtonSpace)
             .frame(maxWidth: .infinity)
         }
-        .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             max(0, geometry.contentOffset.y + geometry.contentInsets.top)
         } action: { _, offset in
@@ -118,7 +50,7 @@ struct PhotoUploadScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ChalkakCloseButton(action: requestBack)
+                ChalkakCloseButton { onAction(.backClicked) }
                     .disabled(viewState.isSubmitting)
                     .accessibilityLabel("닫기")
                     .accessibilityIdentifier("photoUpload.close")
@@ -127,120 +59,154 @@ struct PhotoUploadScreen: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChalkakButton(
-                title: viewState.isSubmitting ? "전시 중..." : "전시하기",
-                action: { onAction(.submitClicked) },
-                isEnabled: viewState.canSubmit,
+                title: "다음",
+                action: { onAction(.nextClicked) },
+                isEnabled: viewState.selectedImage != nil && !viewState.isSubmitting,
                 fillsWidth: true
             )
-            .padding(.horizontal, 26)
-            .padding(.bottom, 26)
+            .accessibilityIdentifier("photoUpload.next")
+            .padding(.horizontal, Metrics.buttonHorizontalPadding)
+            .padding(.bottom, Metrics.buttonBottomPadding)
         }
         .contentShape(Rectangle())
         .coordinateSpace(name: "photoUpload.dismiss")
         .simultaneousGesture(dismissGesture)
+        .navigationDestination(isPresented: writingBinding) {
+            PhotoUploadWritingScreen(
+                viewState: viewState,
+                onAction: onAction,
+                onRetryTopicLoad: onRetryTopicLoad
+            )
+        }
         .onChange(of: viewState.pendingMessage?.id) { _, messageID in
             guard let messageID,
                   let pendingMessage = viewState.pendingMessage
             else { return }
-            showMessage(pendingMessage.text)
+            showToast(pendingMessage.text)
             onAction(.messageShown(messageID))
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            isKeyboardVisible = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
-            isKeyboardVisible = false
-            completePendingBack()
-        }
-        .onChange(of: isInputFocused) { _, isFocused in
-            guard !isFocused, isBackPending, !isKeyboardVisible else { return }
-            completePendingBack()
-        }
     }
 
-    private var isInputFocused: Bool {
-        isCaptionFocused || isDescriptionFocused
+    private var writingBinding: Binding<Bool> {
+        Binding(
+            get: { viewState.isWriting },
+            set: { isWriting in
+                if !isWriting {
+                    onAction(.writingBackClicked)
+                }
+            }
+        )
     }
 
-    private func requestBack() {
-        guard !isBackPending else { return }
-
-        if isInputFocused || isKeyboardVisible {
-            isBackPending = true
-            dismissKeyboard()
-        } else {
-            onAction(.backClicked)
-        }
-    }
-
+    /// 맨 위에서 아래로 끌면 닫는다. 작성 중인 내용이 있으면 확인을 거친다.
     private var dismissGesture: some Gesture {
         DragGesture(minimumDistance: 20, coordinateSpace: .named("photoUpload.dismiss"))
-            .onChanged { value in
+            .onChanged { _ in
                 guard canDismissCurrentDrag == nil else { return }
-                // 키보드가 드래그 도중 내려가더라도 같은 드래그로 화면을 닫지 않는다.
-                canDismissCurrentDrag = !isInputFocused && !isKeyboardVisible
-                    && !viewState.isSubmitting && scrollOffset <= 1
-                    && !captionFrame.contains(value.startLocation)
-                    && !descriptionFrame.contains(value.startLocation)
+                canDismissCurrentDrag = !viewState.isSubmitting && scrollOffset <= 1
             }
             .onEnded { value in
                 let canDismiss = canDismissCurrentDrag == true
                 canDismissCurrentDrag = nil
                 guard canDismiss, !viewState.isSubmitting,
-                      !isInputFocused, !isKeyboardVisible,
                       value.translation.height > abs(value.translation.width) else { return }
                 if value.translation.height > 80 || value.predictedEndTranslation.height > 140 {
-                    requestBack()
+                    onAction(.backClicked)
                 }
             }
     }
+}
 
-    private func completePendingBack() {
-        guard isBackPending else { return }
-        isBackPending = false
-        onAction(.backClicked)
-    }
+private struct PhotoUploadTopicHeader: View {
+    @Environment(\.chalkakTheme) private var theme
 
-    private func dismissKeyboard() {
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
-    }
+    let topicTitle: String?
+    let isLoading: Bool
+    let errorMessage: String?
+    let onRetry: () -> Void
 
-    private func showMessage(_ text: String) {
-        showToast(text)
-    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spacing.xs) {
+            Text("오늘의 주제")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.textSecondary)
 
-    private enum Constants {
-        static let captionMaxLength = 10
-        static let descriptionMaxLength = 300
+            if let topicTitle {
+                Text(topicTitle)
+                    .font(theme.typography.title3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(theme.colors.textPrimary)
+            } else if isLoading {
+                ProgressView()
+                    .tint(theme.colors.actionPrimary)
+                    .accessibilityLabel("주제를 불러오는 중")
+            }
+
+            if let errorMessage {
+                PhotoUploadTopicError(message: errorMessage, onRetry: onRetry)
+                    .padding(.top, theme.spacing.sm)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
+/// 주제를 불러오지 못하면 전시할 수 없으므로 두 단계 모두에서 다시 시도할 수 있게 보여 준다.
+struct PhotoUploadTopicError: View {
+    @Environment(\.chalkakTheme) private var theme
+
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(message)
+                .font(theme.typography.footnote)
+                .foregroundStyle(theme.colors.error)
+
+            Button("다시 시도", action: onRetry)
+                .font(theme.typography.body)
+                .foregroundStyle(theme.colors.actionPrimary)
+                .frame(minHeight: Metrics.minimumTouchHeight)
+                .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private enum Metrics {
+    static let contentHorizontalPadding: CGFloat = 22
+    static let buttonHorizontalPadding: CGFloat = 26
+    static let buttonBottomPadding: CGFloat = 26
+    static let bottomButtonSpace: CGFloat = 104
+    static let minimumTouchHeight: CGFloat = 44
+}
+
 #Preview("Photo Upload Empty") {
-    PhotoUploadScreen(
-        viewState: PhotoUploadViewState(topicTitle: "틈"),
-        isCameraAvailable: true,
-        onAction: { _ in },
-        onRetryTopicLoad: {}
-    )
+    NavigationStack {
+        PhotoUploadScreen(
+            viewState: PhotoUploadViewState(topicTitle: "틈"),
+            isCameraAvailable: true,
+            onAction: { _ in },
+            onRetryTopicLoad: {}
+        )
+    }
     .chalkakTheme(.light)
 }
 
 #Preview("Photo Upload Selected") {
-    PhotoUploadScreen(
-        viewState: PhotoUploadViewState(
-            selectedImage: UIImage(named: "preview_photo"),
-            selectedImageData: nil,
-            imagePreparationStatus: .ready,
-            topicTitle: "틈"
-        ),
-        isCameraAvailable: true,
-        onAction: { _ in },
-        onRetryTopicLoad: {}
-    )
+    NavigationStack {
+        PhotoUploadScreen(
+            viewState: PhotoUploadViewState(
+                selectedImage: UIImage(named: "preview_photo"),
+                selectedImageData: nil,
+                imagePreparationStatus: .ready,
+                topicTitle: "틈"
+            ),
+            isCameraAvailable: true,
+            onAction: { _ in },
+            onRetryTopicLoad: {}
+        )
+    }
     .chalkakTheme(.light)
 }

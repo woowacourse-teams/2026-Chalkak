@@ -151,6 +151,8 @@ struct PhotoUploadViewState {
     var imagePreparationStatus: PhotoUploadImagePreparationStatus = .idle
     var caption = ""
     var postDescription = ""
+    /// 사진을 고른 뒤 제목과 이야기를 쓰는 두 번째 단계에 있는지.
+    var isWriting = false
     var topicTitle: String?
     var isTopicLoading = false
     var isSubmitting = false
