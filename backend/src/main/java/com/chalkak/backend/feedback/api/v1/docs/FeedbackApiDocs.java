@@ -23,6 +23,18 @@ import org.springdoc.core.annotations.ParameterObject;
 @SecurityRequirement(name = "accessToken")
 public interface FeedbackApiDocs {
 
+    @Operation(summary = "본인 문의 삭제", description = "본인 문의를 소프트 딜리트하여 목록·상세에서 숨깁니다. 정지 회원도 삭제할 수 있습니다. 같은 본인 문의를 다시 삭제해도 204를 반환하며 최초 삭제 시각을 유지합니다. 접수 제한 횟수는 유지합니다. 타인·없는 문의는 같은 404 응답으로 처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "본인 문의 삭제 성공"),
+            @ApiResponse(responseCode = "400", description = "문의 식별자 형식이 올바르지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보 또는 탈퇴한 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "삭제할 수 있는 본인 문의가 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteFeedback(
+            @Parameter(schema = @Schema(type = "string", format = "uuid")) String feedbackId,
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
     @Operation(summary = "본인 문의 상세 조회", description = "로그인한 회원의 삭제되지 않은 문의를 조회합니다. 정지 회원도 조회할 수 있습니다. 타인의 문의, 삭제된 문의, 존재하지 않는 문의는 구분하지 않고 같은 404 응답으로 처리합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "본인 문의 상세 조회 성공", useReturnTypeSchema = true),

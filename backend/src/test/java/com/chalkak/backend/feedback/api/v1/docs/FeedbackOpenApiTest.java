@@ -16,9 +16,27 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
 
     private static final String SUBMIT_PATH = "$.paths['/api/v1/feedbacks'].post";
     private static final String DETAIL_PATH = "$.paths['/api/v1/feedbacks/{feedbackId}'].get";
+    private static final String DELETE_PATH = "$.paths['/api/v1/feedbacks/{feedbackId}'].delete";
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Test
+    @DisplayName("문의 삭제 문서는 본인 인증·ID·204와 오류 응답을 제공한다")
+    void userApiDocs_feedbackDeletion_exposesContract() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(DELETE_PATH + ".security[0].accessToken").exists())
+                .andExpect(jsonPath(DELETE_PATH + ".parameters[0].name").value("feedbackId"))
+                .andExpect(jsonPath(DELETE_PATH + ".parameters[0].required").value(true))
+                .andExpect(jsonPath(DELETE_PATH + ".parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(DELETE_PATH + ".responses['204']").exists())
+                .andExpect(jsonPath(DELETE_PATH + ".responses['204'].content").doesNotExist())
+                .andExpect(jsonPath(DELETE_PATH + ".responses['400']").exists())
+                .andExpect(jsonPath(DELETE_PATH + ".responses['401']").exists())
+                .andExpect(jsonPath(DELETE_PATH + ".responses['404']").exists());
+    }
 
     @Test
     @DisplayName("문의 상세 문서는 본인 인증과 ID·성공·오류 응답 계약을 제공한다")
@@ -69,7 +87,7 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("문의 목록을 제공하며 미구현 수정·삭제 경로는 노출하지 않는다")
+    @DisplayName("문의 목록은 페이지 조건을 제공하며 수정·일괄 삭제 경로는 노출하지 않는다")
     void userApiDocs_feedback_exposesOwnListWithoutMutation() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))

@@ -51,6 +51,13 @@ public class Feedback {
         return feedback;
     }
 
+    public void delete(Instant deletedAt) {
+        if (this.deletedAt != null) {
+            return;
+        }
+        this.deletedAt = deletedAt;
+    }
+
     /**
      * 보관할 형태로 다듬은 내용이 길이 제한 안에 있는지 본다.
      *

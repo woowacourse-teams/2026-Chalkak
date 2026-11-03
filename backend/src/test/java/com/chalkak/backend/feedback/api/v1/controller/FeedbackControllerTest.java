@@ -6,6 +6,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,6 +51,29 @@ class FeedbackControllerTest {
 
     @MockitoBean
     private FeedbackService feedbackService;
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("본인 문의 삭제는 응답 본문 없이 204를 반환한다")
+    void deleteFeedback_validIdentifier_returnsNoContent() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/feedbacks/{feedbackId}", FEEDBACK_ID))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+        verify(feedbackService).deleteFeedback(USER_ID, FEEDBACK_ID);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-id", "1-1-1-1-1"})
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("삭제할 문의 ID 형식이 잘못되면 400을 반환하고 삭제하지 않는다")
+    void deleteFeedback_invalidIdentifier_returnsBadRequest(String feedbackId) throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/feedbacks/{feedbackId}", feedbackId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+        verify(feedbackService, never()).deleteFeedback(any(), any());
+    }
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)

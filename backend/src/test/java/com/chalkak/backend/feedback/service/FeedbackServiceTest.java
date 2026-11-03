@@ -46,6 +46,37 @@ class FeedbackServiceTest {
     private FeedbackService service;
 
     @Test
+    @DisplayName("본인 문의를 잠금 조회한 후 현재 시각으로 삭제한다")
+    void deleteFeedback_ownFeedback_recordsDeletionTime() {
+        // Given
+        UUID feedbackId = UUID.randomUUID();
+        Feedback feedback = Feedback.create(USER_ID, "내 문의");
+        given(feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, USER_ID))
+                .willReturn(Optional.of(feedback));
+        given(clock.instant()).willReturn(NOW);
+
+        // When
+        service.deleteFeedback(USER_ID, feedbackId);
+
+        // Then
+        assertThat(feedback.getDeletedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("삭제할 본인 문의가 없으면 404 예외로 거절한다")
+    void deleteFeedback_unavailableFeedback_throwsNotFound() {
+        // Given
+        UUID feedbackId = UUID.randomUUID();
+        given(feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, USER_ID))
+                .willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> service.deleteFeedback(USER_ID, feedbackId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("문의를 찾을 수 없습니다.");
+    }
+
+    @Test
     @DisplayName("조회 가능한 본인 문의를 상세 결과로 반환한다")
     void getFeedback_visibleOwnFeedback_returnsDetail() {
         // Given

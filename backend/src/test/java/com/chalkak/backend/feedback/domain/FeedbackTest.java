@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,6 +14,37 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FeedbackTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
+
+    @Test
+    @DisplayName("문의 삭제는 원문·작성자를 보존하고 삭제 시각만 기록한다")
+    void delete_activeFeedback_preservesContentAndAuthor() {
+        // Given
+        Feedback feedback = Feedback.create(USER_ID, "문의 원문");
+        Instant deletedAt = Instant.parse("2026-11-03T07:00:00Z");
+
+        // When
+        feedback.delete(deletedAt);
+
+        // Then
+        assertThat(feedback.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(feedback.getContent()).isEqualTo("문의 원문");
+        assertThat(feedback.getUserId()).isEqualTo(USER_ID);
+    }
+
+    @Test
+    @DisplayName("이미 삭제한 문의는 다시 삭제해도 최초 삭제 시각을 유지한다")
+    void delete_alreadyDeletedFeedback_keepsOriginalTime() {
+        // Given
+        Feedback feedback = Feedback.create(USER_ID, "문의 원문");
+        Instant firstDeletedAt = Instant.parse("2026-11-03T07:00:00Z");
+        feedback.delete(firstDeletedAt);
+
+        // When
+        feedback.delete(firstDeletedAt.plusSeconds(60));
+
+        // Then
+        assertThat(feedback.getDeletedAt()).isEqualTo(firstDeletedAt);
+    }
 
     @Test
     @DisplayName("피드백 내용의 앞뒤 공백을 제거해 보관한다")

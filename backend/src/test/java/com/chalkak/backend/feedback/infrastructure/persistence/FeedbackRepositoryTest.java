@@ -64,6 +64,23 @@ class FeedbackRepositoryTest {
     }
 
     @Test
+    @DisplayName("삭제용 잠금 조회는 본인 삭제 이력을 포함하고 타인은 제외한다")
+    void findByIdAndUserIdForUpdate_deletedOwnFeedback_preservesOwnership() {
+        // Given
+        Feedback feedback = feedbackRepository.save(Feedback.create(USER_ID, "삭제된 문의"));
+        UUID feedbackId = feedback.getId();
+        feedback.delete(Instant.parse("2026-11-03T07:00:00Z"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, USER_ID))
+                .get().extracting(Feedback::getContent).isEqualTo("삭제된 문의");
+        assertThat(feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, UUID.randomUUID()))
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("상세 조회는 식별자가 맞아도 작성자가 다르면 반환하지 않는다")
     void findVisibleByIdAndUserId_differentUser_returnsEmpty() {
         // Given

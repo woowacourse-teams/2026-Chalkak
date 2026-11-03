@@ -23,6 +23,16 @@ public class FeedbackService {
     private final UserRepository userRepository;
     private final Clock clock;
 
+    @Transactional
+    public void deleteFeedback(UUID userId, UUID feedbackId) {
+        Feedback feedback = feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, userId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorCode.BUSINESS_ERROR,
+                        "문의를 찾을 수 없습니다."
+                ));
+        feedback.delete(clock.instant());
+    }
+
     @Transactional(readOnly = true)
     public FeedbackDetailResult getFeedback(UUID userId, UUID feedbackId) {
         Feedback feedback = feedbackRepository.findVisibleByIdAndUserId(feedbackId, userId)

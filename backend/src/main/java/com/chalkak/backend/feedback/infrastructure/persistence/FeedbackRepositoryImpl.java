@@ -30,6 +30,11 @@ public class FeedbackRepositoryImpl implements FeedbackRepository {
     }
 
     @Override
+    public Optional<Feedback> findByIdAndUserIdForUpdate(UUID feedbackId, UUID userId) {
+        return feedbackJpaRepository.findByIdAndUserIdForUpdate(feedbackId, userId);
+    }
+
+    @Override
     public FeedbackSlice findByUserId(
             UUID userId,
             int page,
