@@ -50,7 +50,7 @@ public class AdminPostQueryService {
                 createdAtTo,
                 sort == null ? AdminPostSort.CREATED_AT_DESC : sort,
                 instagramConsent,
-                PostInstagramConsent.normalizeSearchKeyword(instagramId)
+                PostInstagramConsent.normalizeId(instagramId)
         );
 
         return AdminPostListResult.from(

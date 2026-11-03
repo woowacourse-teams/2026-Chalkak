@@ -420,13 +420,13 @@ class PostInstagramConsentTest {
 
     @Test
     @DisplayName("검색어는 저장 시와 같은 규칙으로 정규화하고 비면 null을 돌려준다")
-    void normalizeSearchKeyword_appliesStorageNormalization() {
+    void normalizeId_appliesStorageNormalization() {
         // When & Then
-        assertThat(PostInstagramConsent.normalizeSearchKeyword("  @Chalkak_Official "))
+        assertThat(PostInstagramConsent.normalizeId("  @Chalkak_Official "))
                 .isEqualTo("chalkak_official");
-        assertThat(PostInstagramConsent.normalizeSearchKeyword("@@Chalkak"))
+        assertThat(PostInstagramConsent.normalizeId("@@Chalkak"))
                 .isEqualTo("@chalkak");
-        assertThat(PostInstagramConsent.normalizeSearchKeyword(" @ ")).isNull();
-        assertThat(PostInstagramConsent.normalizeSearchKeyword(null)).isNull();
+        assertThat(PostInstagramConsent.normalizeId(" @ ")).isNull();
+        assertThat(PostInstagramConsent.normalizeId(null)).isNull();
     }
 }
