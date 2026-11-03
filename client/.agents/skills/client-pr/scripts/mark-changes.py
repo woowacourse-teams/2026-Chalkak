@@ -208,14 +208,18 @@ def side_by_side(before, after, gutter):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="수정 전·후 캡처의 바뀐 곳에 번호 테두리를 그린다.")
-    parser.add_argument("before")
-    parser.add_argument("after")
-    parser.add_argument("-o", "--out")
-    parser.add_argument("--ignore", type=parse_box, action="append", default=[])
-    parser.add_argument("--threshold", type=int, default=16)
-    parser.add_argument("--gap", type=int, default=12)
-    parser.add_argument("--min-pixels", type=int, default=3)
+    parser = argparse.ArgumentParser(
+        description="수정 전·후 캡처의 바뀐 곳에 번호 테두리를 그린다.",
+        epilog="출력: 결과 이미지 1장 + 표준 출력 JSON {out, mode(marked|side-by-side|same), changed_ratio, regions}",
+    )
+    parser.add_argument("before", help="수정 전 이미지")
+    parser.add_argument("after", help="수정 후 이미지(같은 기기·화면·데이터)")
+    parser.add_argument("-o", "--out", help="결과 이미지 경로 (기본: <after>-marked.png)")
+    parser.add_argument("--ignore", type=parse_box, action="append", default=[], metavar="x,y,w,h",
+                        help="비교에서 뺄 영역. 여러 번 줄 수 있다(예: 늦게 오는 사진 영역)")
+    parser.add_argument("--threshold", type=int, default=16, help="채널 차이가 이보다 커야 바뀐 것으로 봄. mp4 프레임은 32")
+    parser.add_argument("--gap", type=int, default=12, help="이 거리 안의 변화는 한 영역으로 묶음")
+    parser.add_argument("--min-pixels", type=int, default=3, help="바뀐 픽셀이 이보다 적은 영역은 잡음으로 버림")
     args = parser.parse_args()
 
     out = args.out or os.path.splitext(args.after)[0] + "-marked.png"

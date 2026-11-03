@@ -7,7 +7,8 @@ disable-model-invocation: true
 
 # client-pr
 
-먼저 [공통 약속](../client-flow/references/conventions.md), [PR 본문 형식](references/pr-body.md), [화면 확인 자료](references/screen-evidence.md)를 읽는다.
+먼저 [공통 약속](../client-flow/references/conventions.md)과 [PR 본문 형식](references/pr-body.md)을 읽는다.
+화면 확인을 한 작업일 때만 [화면 확인 자료](references/screen-evidence.md)도 읽는다(캡처 업로드와 📸 칸 쓰기).
 문서는 별도 PR 없이 같은 PR에 넣는다.
 
 ## 순서

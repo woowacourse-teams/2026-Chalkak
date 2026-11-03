@@ -34,6 +34,7 @@ while [[ $# -gt 0 && "$1" == --* ]]; do
   case "$1" in
     --create-branch) create_branch=true ;;
     --dry-run) dry_run=true ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "모르는 옵션: $1" >&2; exit 2 ;;
   esac
   shift

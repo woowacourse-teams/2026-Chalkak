@@ -29,6 +29,7 @@
   python3 related-adr.py            # 지금 브랜치에서 바뀐 파일 전체로
 """
 
+import argparse
 import os
 import re
 import subprocess
@@ -99,8 +100,16 @@ def to_repo_relative(path, root):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__.split("\n\n", 1)[0],
+        epilog=__doc__.split("\n\n", 1)[1],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("files", nargs="*", help="바꿀 파일 경로. 없으면 이 브랜치에서 바뀐 파일 전체")
+    args = parser.parse_args()
+
     root = git("rev-parse", "--show-toplevel").strip()
-    targets = [to_repo_relative(p, root) for p in sys.argv[1:]] or changed_files(root)
+    targets = [to_repo_relative(p, root) for p in args.files] or changed_files(root)
 
     adrs = []
     client_dir = os.path.join(root, "client")
