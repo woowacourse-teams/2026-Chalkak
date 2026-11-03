@@ -41,12 +41,22 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("피드백 제출은 조회·수정·삭제를 제공하지 않는다")
-    void userApiDocs_feedback_exposesSubmissionOnly() throws Exception {
+    @DisplayName("문의 목록을 제공하며 미구현 수정·삭제 경로는 노출하지 않는다")
+    void userApiDocs_feedback_exposesOwnListWithoutMutation() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get.security[0].accessToken")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get.responses['200']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get.responses['401']").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/feedbacks'].get.parameters[?(@.name == 'page')]")
+                                .isNotEmpty())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/feedbacks'].get.parameters[?(@.name == 'pageSize')]")
+                        .isNotEmpty())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].delete").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks/me']").doesNotExist());

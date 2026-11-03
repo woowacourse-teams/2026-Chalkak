@@ -4,11 +4,15 @@ import com.chalkak.backend.feedback.domain.Feedback;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface FeedbackJpaRepository extends JpaRepository<Feedback, UUID> {
+
+    Slice<Feedback> findByUserIdAndDeletedAtIsNull(UUID userId, Pageable pageable);
 
     @Query("""
             SELECT feedback.createdAt FROM Feedback feedback

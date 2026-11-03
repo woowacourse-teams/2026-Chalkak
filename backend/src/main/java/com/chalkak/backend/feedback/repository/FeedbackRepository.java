@@ -9,5 +9,11 @@ public interface FeedbackRepository {
 
     Feedback save(Feedback feedback);
 
+    FeedbackSlice findByUserId(
+            UUID userId,
+            int page,
+            int pageSize
+    );
+
     List<Instant> findSubmissionTimesAfter(UUID userId, Instant createdAfter);
 }

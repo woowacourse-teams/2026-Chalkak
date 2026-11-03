@@ -1,6 +1,7 @@
 package com.chalkak.backend.feedback.service;
 
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.domain.FeedbackSubmissionHistory;
@@ -20,6 +21,23 @@ public class FeedbackService {
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
     private final Clock clock;
+
+    @Transactional(readOnly = true)
+    public FeedbackListResult getFeedbacks(
+            UUID userId,
+            int page,
+            int pageSize
+    ) {
+        long offset = ((long) page - 1) * pageSize;
+        if (offset > Integer.MAX_VALUE) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "조회 조건이 올바르지 않습니다.");
+        }
+        return FeedbackListResult.from(feedbackRepository.findByUserId(
+                userId,
+                page,
+                pageSize
+        ));
+    }
 
     @Transactional
     public FeedbackSubmissionResult submit(UUID userId, String content) {

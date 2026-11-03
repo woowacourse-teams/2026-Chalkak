@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,12 +14,16 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.service.FeedbackService;
+import com.chalkak.backend.feedback.service.FeedbackListResult;
 import com.chalkak.backend.feedback.service.FeedbackSubmissionResult;
 import com.chalkak.backend.support.WithMockLoginUser;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -42,6 +47,81 @@ class FeedbackControllerTest {
 
     @MockitoBean
     private FeedbackService feedbackService;
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("본인 문의 목록은 기본 페이지와 공개 필드를 반환한다")
+    void getFeedbacks_defaultPagination_returnsOwnFeedbackContract() throws Exception {
+        // Given
+        given(feedbackService.getFeedbacks(
+                USER_ID,
+                1,
+                20
+        )).willReturn(new FeedbackListResult(
+                1,
+                20,
+                false,
+                List.of(new FeedbackListResult.FeedbackSummary(
+                        FEEDBACK_ID,
+                        "문의합니다",
+                        CREATED_AT
+                ))
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/feedbacks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(1))
+                .andExpect(jsonPath("$.pageSize").value(20))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(FEEDBACK_ID.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].content").value("문의합니다"))
+                .andExpect(jsonPath("$.feedbacks[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].userId").doesNotExist());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"page,0", "page,-1", "pageSize,0", "pageSize,-1", "pageSize,101", "page,wrong"})
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("잘못된 목록 조회 조건은 400으로 거절한다")
+    void getFeedbacks_invalidParameter_returnsBadRequest(String name, String value)
+            throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/feedbacks").param(name, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+        verify(feedbackService, never()).getFeedbacks(
+                any(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()
+        );
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,1", "2,100"})
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("목록 요청 DTO는 페이지당 최소 1건과 최대 100건을 허용한다")
+    void getFeedbacks_pageSizeBoundary_returnsOk(int page, int pageSize) throws Exception {
+        // Given
+        given(feedbackService.getFeedbacks(
+                USER_ID,
+                page,
+                pageSize
+        )).willReturn(new FeedbackListResult(
+                page,
+                pageSize,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/feedbacks")
+                .param("page", String.valueOf(page))
+                .param("pageSize", String.valueOf(pageSize)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(page))
+                .andExpect(jsonPath("$.pageSize").value(pageSize));
+    }
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)

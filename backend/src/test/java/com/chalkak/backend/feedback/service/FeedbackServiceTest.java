@@ -1,6 +1,7 @@
 package com.chalkak.backend.feedback.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import com.chalkak.backend.feedback.repository.FeedbackSlice;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
@@ -40,6 +42,58 @@ class FeedbackServiceTest {
 
     @InjectMocks
     private FeedbackService service;
+
+    @Test
+    @DisplayName("문의가 없으면 페이지 정보와 빈 목록을 반환한다")
+    void getFeedbacks_noFeedback_returnsEmptyPage() {
+        // Given
+        given(feedbackRepository.findByUserId(
+                USER_ID,
+                1,
+                20
+        ))
+                .willReturn(new FeedbackSlice(
+                        List.of(),
+                        1,
+                        20,
+                        false
+                ));
+
+        // When
+        FeedbackListResult result = service.getFeedbacks(
+                USER_ID,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.currentPage()).isEqualTo(1);
+        assertThat(result.pageSize()).isEqualTo(20);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.feedbacks()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("조회 위치가 정수 범위를 넘으면 조회하지 않는다")
+    void getFeedbacks_offsetOverIntegerRange_rejectsBeforeQuery() {
+        // Given
+        int page = Integer.MAX_VALUE;
+        int pageSize = 100;
+
+        // When & Then
+        assertThatThrownBy(() -> service.getFeedbacks(
+                USER_ID,
+                page,
+                pageSize
+        ))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("조회 조건이 올바르지 않습니다.");
+        verify(feedbackRepository, never()).findByUserId(
+                USER_ID,
+                page,
+                pageSize
+        );
+    }
 
     @Test
     @DisplayName("접수 제한 초과 요청은 저장하지 않는다")

@@ -2,10 +2,14 @@ package com.chalkak.backend.feedback.infrastructure.persistence;
 
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import com.chalkak.backend.feedback.repository.FeedbackSlice;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -17,6 +21,32 @@ public class FeedbackRepositoryImpl implements FeedbackRepository {
     @Override
     public Feedback save(Feedback feedback) {
         return feedbackJpaRepository.save(feedback);
+    }
+
+    @Override
+    public FeedbackSlice findByUserId(
+            UUID userId,
+            int page,
+            int pageSize
+    ) {
+        Slice<Feedback> result = feedbackJpaRepository.findByUserIdAndDeletedAtIsNull(
+                userId,
+                PageRequest.of(
+                        page - 1,
+                        pageSize,
+                        Sort.by(
+                                Sort.Direction.DESC,
+                                "createdAt",
+                                "id"
+                        )
+                )
+        );
+        return new FeedbackSlice(
+                result.getContent(),
+                page,
+                pageSize,
+                result.hasNext()
+        );
     }
 
     @Override

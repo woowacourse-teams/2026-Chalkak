@@ -41,6 +41,9 @@ public class Feedback {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     public static Feedback create(UUID userId, String content) {
         Feedback feedback = new Feedback();
         feedback.userId = userId;
