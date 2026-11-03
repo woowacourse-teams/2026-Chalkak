@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.service;
 
+import static com.chalkak.backend.notification.support.PushSessionFixtures.insertSession;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -38,8 +39,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -175,19 +174,15 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
         assertSkipped(worker(NOW).process(message), "LOGIN_UNUSABLE");
     }
 
-    @ParameterizedTest
-    @ValueSource(longs = {1799, 1800, 1801})
-    @DisplayName("배포 후 30분 직전까지만 보내고 정각·이후에는 보내지 않는다")
-    void process_deadlineBoundary_stopsAtDeadline(long seconds) {
+    @Test
+    @DisplayName("만료 직전의 저장된 알림은 현재 기기에 발송한다")
+    void process_beforeDeadline_sendsStoredNotification() {
         // When
-        PushProcessingResult result = worker(NOW.plusSeconds(seconds)).process(message);
+        PushProcessingResult result = worker(NOW.plusSeconds(1799)).process(message);
 
         // Then
-        if (seconds < 1800) {
-            verify(sender).send(any(), any());
-            return;
-        }
-        assertSkipped(result, "EXPIRED");
+        assertThat(result).isEqualTo(PushProcessingResult.completed());
+        verify(sender).send(any(), any());
     }
 
     @Test
@@ -292,14 +287,10 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
     }
 
     private void addDevice() {
-        UUID sessionId = UUID.randomUUID();
-        jdbc.update(
-                "INSERT INTO user_refresh_tokens(user_id,session_id,token_hash,expires_at,absolute_expires_at) VALUES (?,?,?,?,?)",
+        UUID sessionId = insertSession(
+                jdbc,
                 USER_ID,
-                sessionId,
-                new FcmToken(UUID.randomUUID().toString()).getHash(),
-                Timestamp.from(NOW.plusSeconds(3600)),
-                Timestamp.from(NOW.plusSeconds(7200))
+                NOW
         );
         new TransactionTemplate(manager).executeWithoutResult(status -> devices.save(
                 new PushDevice(

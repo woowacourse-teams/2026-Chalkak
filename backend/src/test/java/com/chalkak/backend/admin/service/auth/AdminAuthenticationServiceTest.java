@@ -2,92 +2,71 @@ package com.chalkak.backend.admin.service.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
-import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.domain.token.AccessTokenScope;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
+import com.chalkak.backend.auth.service.token.AccessTokenIssuer;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
-import com.chalkak.backend.support.IntegrationTestSupport;
-import jakarta.persistence.EntityManager;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.util.ReflectionTestUtils;
 
-@Transactional
-class AdminAuthenticationServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class AdminAuthenticationServiceTest {
 
     private static final String USERNAME = "auth-operator";
     private static final String RAW_PASSWORD = "test-password";
     private static final String FAILURE_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다.";
 
-    @Autowired
+    @InjectMocks
     private AdminAuthenticationService service;
 
-    @Autowired
+    @Mock
     private AdminRepository adminRepository;
 
-    @Autowired
-    private JwtAccessTokenProvider accessTokenProvider;
+    @Mock
+    private AccessTokenIssuer accessTokenIssuer;
 
-    @Autowired
-    private EntityManager entityManager;
+    @Mock
+    private AdminRefreshTokenService refreshTokens;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @MockitoSpyBean
-    private PasswordEncoder passwordEncoder;
+    @Spy
+    private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Test
-    @DisplayName("실제 저장된 계정의 비밀번호가 일치하면 검증 가능한 관리자 JWT를 발급한다")
-    void login_validCredentials_returnsAdminAccessToken() {
+    @DisplayName("비밀번호가 일치하면 관리자 scope의 발급 결과를 그대로 반환한다")
+    void login_validCredentials_returnsIssuedTokens() {
         // Given
         Admin admin = persistAdmin(RAW_PASSWORD);
+        givenIssuedTokens(admin);
 
         // When
         AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
-        Jwt jwt = accessTokenProvider.jwtDecoder().decode(result.accessToken().value());
 
         // Then
         assertThat(result.adminId()).isEqualTo(admin.getId());
         assertThat(result.username()).isEqualTo(USERNAME);
-        assertThat(jwt.getSubject()).isEqualTo(admin.getId().toString());
-        assertThat(jwt.getClaimAsString("scope")).isEqualTo("ADMIN");
-    }
-
-    @Test
-    @DisplayName("로그인에 성공하면 리프레시 토큰 계보를 열고 저장소에는 해시만 남긴다")
-    void login_validCredentials_opensRefreshTokenLineage() {
-        // Given
-        Admin admin = persistAdmin(RAW_PASSWORD);
-
-        // When
-        AdminLoginResult result = service.login(USERNAME, RAW_PASSWORD);
-        entityManager.flush();
-
-        // Then
-        String storedTokenHash = jdbcTemplate.queryForObject(
-                """
-                        SELECT token_hash FROM admin_refresh_tokens WHERE admin_id = ?
-                        """,
-                String.class,
-                admin.getId()
-        );
-        assertThat(result.refreshToken().value()).isNotBlank();
-        assertThat(result.refreshToken().expiresIn()).isEqualTo(Duration.ofDays(30));
-        assertThat(storedTokenHash).isNotEqualTo(result.refreshToken().value());
-        assertThat(storedTokenHash).matches("^[0-9a-f]{64}$");
+        assertThat(result.accessToken().value()).isEqualTo("access-token");
+        assertThat(result.refreshToken().value()).isEqualTo("refresh-token");
     }
 
     @Test
@@ -113,7 +92,8 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
     @DisplayName("인증된 관리자 식별자로 DB의 관리자 정보를 조회한다")
     void getCurrentAdmin_existingAdmin_returnsCurrentAdmin() {
         // Given
-        Admin admin = persistAdmin(RAW_PASSWORD);
+        Admin admin = createAdmin(RAW_PASSWORD);
+        given(adminRepository.findById(admin.getId())).willReturn(Optional.of(admin));
 
         // When
         CurrentAdminResult result = service.getCurrentAdmin(admin.getId());
@@ -135,7 +115,8 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
     void login_passwordWithinByteLimit_succeeds(int length) {
         // Given
         String password = "a".repeat(length);
-        persistAdmin(password);
+        Admin admin = persistAdmin(password);
+        givenIssuedTokens(admin);
 
         // When
         AdminLoginResult result = service.login(USERNAME, password);
@@ -157,11 +138,29 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
     }
 
     private Admin persistAdmin(String password) {
-        Admin admin = adminRepository
-                .save(Admin.create(USERNAME, passwordEncoder.encode(password)));
-        entityManager.flush();
-        entityManager.clear();
+        Admin admin = createAdmin(password);
+        given(adminRepository.findByUsername(USERNAME)).willReturn(Optional.of(admin));
         return admin;
+    }
+
+    private Admin createAdmin(String password) {
+        Admin admin = Admin.create(USERNAME, passwordEncoder.encode(password));
+        ReflectionTestUtils.setField(
+                admin,
+                "id",
+                UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b657ac1")
+        );
+        return admin;
+    }
+
+    private void givenIssuedTokens(Admin admin) {
+        given(accessTokenIssuer.issue(admin.getId(), AccessTokenScope.ADMIN))
+                .willReturn(new IssuedAccessToken("access-token", Duration.ofMinutes(30)));
+        given(refreshTokens.issue(admin)).willReturn(new IssuedRefreshToken(
+                "refresh-token",
+                Duration.ofDays(30),
+                UUID.randomUUID()
+        ));
     }
 
     private void assertCommonAuthenticationFailure(Runnable action) {
@@ -171,5 +170,6 @@ class AdminAuthenticationServiceTest extends IntegrationTestSupport {
                         exception -> assertThat(((UnauthorizedException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.UNAUTHORIZED))
                 .hasMessage(FAILURE_MESSAGE);
+        verifyNoInteractions(accessTokenIssuer, refreshTokens);
     }
 }

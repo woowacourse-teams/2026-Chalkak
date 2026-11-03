@@ -10,6 +10,8 @@ import com.chalkak.backend.admin.repository.user.AdminUserSort;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.repository.user.AdminUserSummaryProjection;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.support.DatabaseCleaner;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -22,14 +24,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.transaction.BeforeTransaction;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminUserQueryRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminUserQueryRepositoryTest {
 
     private static final UUID ACTIVE_USER_ID = UUID
@@ -51,6 +49,12 @@ class AdminUserQueryRepositoryTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @BeforeTransaction
+    void cleanCommittedData() {
+        // 다른 실행이 커밋한 회원도 전역 목록에 포함되므로 테스트 트랜잭션 전에 정리한다.
+        new DatabaseCleaner(jdbcTemplate).clean();
+    }
 
     @BeforeEach
     void setUp() {

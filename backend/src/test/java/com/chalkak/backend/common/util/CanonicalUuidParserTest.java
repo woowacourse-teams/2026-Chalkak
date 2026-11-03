@@ -8,6 +8,8 @@ import com.chalkak.backend.exception.ErrorCode;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CanonicalUuidParserTest {
 
@@ -24,13 +26,14 @@ class CanonicalUuidParserTest {
         assertThat(result).isEqualTo(UUID.fromString(value));
     }
 
-    @Test
-    @DisplayName("UUID가 아닌 문자열이면 공통 ID 형식 예외를 발생시킨다")
-    void parse_invalidUuid_throwsBusinessException() {
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-uuid", "1-1-1-1-1"})
+    @DisplayName("잘못되거나 비정규 UUID는 공통 ID 형식 예외로 거절한다")
+    void parse_invalidOrNonCanonicalUuid_throwsBusinessException(String value) {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
-                () -> CanonicalUuidParser.parse("invalid-uuid")
+                () -> CanonicalUuidParser.parse(value)
         );
 
         // Then
@@ -38,17 +41,4 @@ class CanonicalUuidParserTest {
         assertThat(exception).hasMessage("ID 형식이 올바르지 않습니다.");
     }
 
-    @Test
-    @DisplayName("표준 형식이 아닌 UUID 문자열이면 공통 ID 형식 예외를 발생시킨다")
-    void parse_nonCanonicalUuid_throwsBusinessException() {
-        // When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> CanonicalUuidParser.parse("1-1-1-1-1")
-        );
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-        assertThat(exception).hasMessage("ID 형식이 올바르지 않습니다.");
-    }
 }

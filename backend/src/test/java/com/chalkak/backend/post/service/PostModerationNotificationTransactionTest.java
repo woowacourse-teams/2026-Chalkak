@@ -94,7 +94,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "생성 알림"
+                "생성 알림",
+                null
         );
 
         // Then
@@ -118,7 +119,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "콜백 알림"
+                "콜백 알림",
+                null
         ).postId();
 
         // When
@@ -153,7 +155,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "중복 콜백 알림"
+                "중복 콜백 알림",
+                null
         ).postId();
 
         // When
@@ -194,7 +197,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
-                    "롤백 알림"
+                    "롤백 알림",
+                    null
             );
             status.setRollbackOnly();
         });

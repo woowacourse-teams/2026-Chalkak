@@ -82,7 +82,8 @@ public class PostCommandService {
             UUID userId,
             UUID topicId,
             UUID photoUploadId,
-            String title
+            String title,
+            String description
     ) {
         User author = getPostableUser(userId);
         Topic topic = topicRepository.findActiveById(topicId)
@@ -121,7 +122,8 @@ public class PostCommandService {
                 topic,
                 photo,
                 photoUploadId,
-                title
+                title,
+                description
         );
         if (upload.isProcessed()) {
             photo.completeProcessing(
@@ -148,18 +150,22 @@ public class PostCommandService {
     public PostUpdateResult updatePost(
             UUID authorId,
             UUID postId,
-            String title
+            String title,
+            String description
     ) {
         validateUpdatableUser(authorId);
         Post post = getActivePostForUpdate(postId);
-        post.updateTitle(
+        post.updateTitleAndDescription(
                 authorId,
                 title,
+                description,
                 Instant.now()
         );
         return new PostUpdateResult(
                 post.getId(),
-                post.getTitle());
+                post.getTitle(),
+                post.getDescription()
+        );
     }
 
     /**

@@ -2,18 +2,17 @@ package com.chalkak.backend.post.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static com.chalkak.backend.topic.domain.TopicPhase.CLOSED;
-import static com.chalkak.backend.topic.domain.TopicPhase.OPEN;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.photo.domain.Photo;
+import com.chalkak.backend.topic.domain.ParticipationPeriod;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserFixture;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,8 +30,20 @@ class PostTest {
     private static final Instant DELETED_AT = Instant.parse("2026-08-20T01:00:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-08-20T00:30:00Z");
 
-    private final User author = mock(User.class);
-    private final Topic topic = mock(Topic.class);
+    private final User author = UserFixture.create(AUTHOR_ID);
+    private final Topic topic = Topic.create(
+            "게시물 주제",
+            LocalDate.of(
+                    2026,
+                    8,
+                    20
+            ),
+            new ParticipationPeriod(
+                    Instant.parse("2026-08-19T15:00:00Z"),
+                    Instant.parse("2026-08-20T15:00:00Z")
+            ),
+            Instant.parse("2026-08-19T00:00:00Z")
+    );
     private final Photo photo = Photo.createPhoto("chalkak/posts/dev/original/upload-id.png");
 
     @Test
@@ -44,20 +55,55 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "오늘의 기록"
+                "  오늘의  기록  ",
+                null
         );
 
         // Then
         assertThat(post.getAuthor()).isSameAs(author);
         assertThat(post.getTopic()).isSameAs(topic);
         assertThat(post.getPhoto()).isSameAs(photo);
-        assertThat(post.getTitle()).isEqualTo("오늘의 기록");
+        assertThat(post.getTitle()).isEqualTo("오늘의  기록");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.VALIDATING);
+    }
+
+    @Test
+    @DisplayName("입력한 설명을 담아 게시물을 생성한다")
+    void createPost_description_createsPostWithDescription() {
+        // When
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "오늘의 기록",
+                "첫 줄\n둘째 줄"
+        );
+
+        // Then
+        assertThat(post.getDescription()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("설명이 null이면 설명 없는 게시물로 생성한다")
+    void createPost_nullDescription_createsPostWithoutDescription() {
+        // When
+        Post post = Post.createPost(
+                author,
+                topic,
+                photo,
+                UPLOAD_ID,
+                "오늘의 기록",
+                null
+        );
+
+        // Then
+        assertThat(post.getDescription()).isNull();
     }
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"   ", "　　"})
+    @ValueSource(strings = {"   ", "　　", "　　　　　　　　　　　"})
     @DisplayName("null, 빈 문자열, 공백 제목은 제목 없는 게시물로 생성한다")
     void createPost_blankTitle_normalizesTitleToNull(String title) {
         // When
@@ -66,68 +112,12 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                null
         );
 
         // Then
         assertThat(post.getTitle()).isNull();
-    }
-
-    @Test
-    @DisplayName("제목이 10자면 게시물을 생성한다")
-    void createPost_tenCharacterTitle_createsPost() {
-        // Given
-        String title = "1234567890";
-
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo(title);
-    }
-
-    @Test
-    @DisplayName("10자를 넘는 유니코드 공백 제목도 제목 없는 게시물로 생성한다")
-    void createPost_longBlankTitle_normalizesTitleToNull() {
-        // Given
-        String title = "　".repeat(11);
-
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        );
-
-        // Then
-        assertThat(post.getTitle()).isNull();
-    }
-
-    @Test
-    @DisplayName("이모지 제목은 코드 포인트 기준으로 10자까지 허용한다")
-    void createPost_tenCodePointEmojiTitle_createsPost() {
-        // Given
-        String title = "📸".repeat(10);
-
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo(title);
     }
 
     @Test
@@ -142,57 +132,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
-        ))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("제목은 10자 이하여야 합니다.");
-    }
-
-    @Test
-    @DisplayName("제목을 생성할 때 앞뒤 공백은 제거하고 가운데 공백은 유지한다")
-    void createPost_titleWithSurroundingSpaces_normalizesTitle() {
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                "  오늘의  기록  "
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("오늘의  기록");
-    }
-
-    @Test
-    @DisplayName("제목을 생성할 때 앞뒤 공백을 제거한 값이 10자면 허용한다")
-    void createPost_tenCharacterNormalizedTitle_createsPost() {
-        // When
-        Post post = Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                "  1234567890  "
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("1234567890");
-    }
-
-    @Test
-    @DisplayName("제목을 생성할 때 앞뒤 공백을 제거한 값이 Unicode code point 기준 10자를 초과하면 거부한다")
-    void createPost_tooLongNormalizedTitle_throwsBusinessException() {
-        // Given
-        String title = "  " + "📸".repeat(11) + "  ";
-
-        // When & Then
-        assertThatThrownBy(() -> Post.createPost(
-                author,
-                topic,
-                photo,
-                UPLOAD_ID,
-                title
+                title,
+                null
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("제목은 10자 이하여야 합니다.");
@@ -200,42 +141,43 @@ class PostTest {
 
     @Test
     @DisplayName("작성자는 참여 기간 중인 검수 대기 게시물의 제목을 수정한다")
-    void updateTitle_pendingPostDuringOpenPeriod_updatesTitle() {
+    void updateTitleAndDescription_pendingPostDuringOpenPeriod_updatesTitle() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
-        given(topic.phaseAt(UPDATED_AT)).willReturn(OPEN);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "기존 제목"
+                "기존 제목",
+                null
         );
         post.requestModeration();
 
         // When
-        post.updateTitle(
+        post.updateTitleAndDescription(
                 AUTHOR_ID,
-                "수정 제목",
+                "  1234567890  ",
+                null,
                 UPDATED_AT
         );
 
         // Then
-        assertThat(post.getTitle()).isEqualTo("수정 제목");
+        assertThat(post.getTitle()).isEqualTo("1234567890");
         assertThat(post.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
     }
 
     @Test
     @DisplayName("작성자는 참여 기간 중인 승인 게시물의 제목을 수정한다")
-    void updateTitle_approvedPostDuringOpenPeriod_updatesTitle() {
+    void updateTitleAndDescription_approvedPostDuringOpenPeriod_updatesTitle() {
         // Given
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
         post.approve(Instant.parse("2026-08-20T00:10:00Z"));
 
         // When
-        post.updateTitle(
+        post.updateTitleAndDescription(
                 AUTHOR_ID,
                 "수정 제목",
+                null,
                 UPDATED_AT
         );
 
@@ -245,35 +187,19 @@ class PostTest {
         assertThat(post.getModeratedAt()).isEqualTo(Instant.parse("2026-08-20T00:10:00Z"));
     }
 
-    @Test
-    @DisplayName("제목을 수정할 때 앞뒤 공백은 제거하고 가운데 공백은 유지한다")
-    void updateTitle_titleWithSurroundingSpaces_normalizesTitle() {
-        // Given
-        Post post = createPendingPostDuringOpenPeriod("기존 제목");
-
-        // When
-        post.updateTitle(
-                AUTHOR_ID,
-                "  수정 제목  ",
-                UPDATED_AT
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("수정 제목");
-    }
-
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "　　"})
     @DisplayName("null, 빈 문자열, 공백 제목은 제목 없음으로 수정한다")
-    void updateTitle_emptyTitle_normalizesTitleToNull(String title) {
+    void updateTitleAndDescription_emptyTitle_normalizesTitleToNull(String title) {
         // Given
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
 
         // When
-        post.updateTitle(
+        post.updateTitleAndDescription(
                 AUTHOR_ID,
                 title,
+                null,
                 UPDATED_AT
         );
 
@@ -282,32 +208,16 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("제목을 수정할 때 앞뒤 공백을 제거한 값이 10자면 허용한다")
-    void updateTitle_tenCharacterNormalizedTitle_updatesTitle() {
-        // Given
-        Post post = createPendingPostDuringOpenPeriod("기존 제목");
-
-        // When
-        post.updateTitle(
-                AUTHOR_ID,
-                "  1234567890  ",
-                UPDATED_AT
-        );
-
-        // Then
-        assertThat(post.getTitle()).isEqualTo("1234567890");
-    }
-
-    @Test
     @DisplayName("제목을 수정할 때 Unicode code point 기준 10자를 초과하면 거부한다")
-    void updateTitle_tooLongNormalizedTitle_throwsBusinessException() {
+    void updateTitleAndDescription_tooLongNormalizedTitle_throwsBusinessException() {
         // Given
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitle(
+        assertThatThrownBy(() -> post.updateTitleAndDescription(
                 AUTHOR_ID,
                 "  " + "📸".repeat(11) + "  ",
+                null,
                 UPDATED_AT
         ))
                 .isInstanceOf(BusinessException.class)
@@ -316,15 +226,53 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("작성자가 아닌 사용자는 게시물 제목을 수정할 수 없다")
-    void updateTitle_otherUser_throwsForbiddenException() {
+    @DisplayName("제목과 설명을 함께 교체한다")
+    void updateTitleAndDescription_newValues_replacesTitleAndDescription() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목", "기존 설명");
+
+        // When
+        post.updateTitleAndDescription(
+                AUTHOR_ID,
+                "수정 제목",
+                "새 설명",
+                UPDATED_AT
+        );
+
+        // Then
+        assertThat(post.getTitle()).isEqualTo("수정 제목");
+        assertThat(post.getDescription()).isEqualTo("새 설명");
+    }
+
+    @Test
+    @DisplayName("설명을 null로 수정하면 기존 설명을 삭제한다")
+    void updateTitleAndDescription_nullDescription_clearsExistingDescription() {
+        // Given
+        Post post = createPendingPostDuringOpenPeriod("기존 제목", "기존 설명");
+
+        // When
+        post.updateTitleAndDescription(
+                AUTHOR_ID,
+                "기존 제목",
+                null,
+                UPDATED_AT
+        );
+
+        // Then
+        assertThat(post.getDescription()).isNull();
+    }
+
+    @Test
+    @DisplayName("작성자가 아닌 사용자는 게시물을 수정할 수 없다")
+    void updateTitleAndDescription_otherUser_throwsForbiddenException() {
         // Given
         Post post = createPendingPostDuringOpenPeriod("기존 제목");
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitle(
+        assertThatThrownBy(() -> post.updateTitleAndDescription(
                 OTHER_USER_ID,
                 "수정 제목",
+                null,
                 UPDATED_AT
         ))
                 .isInstanceOfSatisfying(ForbiddenException.class,
@@ -336,16 +284,17 @@ class PostTest {
 
     @ParameterizedTest
     @EnumSource(value = ModerationStatus.class, names = {"VALIDATING", "REJECTED"})
-    @DisplayName("수정할 수 없는 검수 상태의 게시물은 제목을 수정할 수 없다")
-    void updateTitle_uneditableStatus_throwsBusinessException(ModerationStatus status) {
+    @DisplayName("수정할 수 없는 검수 상태의 게시물은 수정할 수 없다")
+    void updateTitleAndDescription_uneditableStatus_throwsBusinessException(
+            ModerationStatus status) {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = createPostWithStatus(status);
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitle(
+        assertThatThrownBy(() -> post.updateTitleAndDescription(
                 AUTHOR_ID,
                 "수정 제목",
+                null,
                 UPDATED_AT
         ))
                 .isInstanceOf(BusinessException.class)
@@ -354,24 +303,37 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("주제 참여 기간이 종료되면 게시물 제목을 수정할 수 없다")
-    void updateTitle_closedTopic_throwsBusinessException() {
+    @DisplayName("주제 참여 기간이 종료되면 게시물을 수정할 수 없다")
+    void updateTitleAndDescription_closedTopic_throwsBusinessException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
-        given(topic.phaseAt(UPDATED_AT)).willReturn(CLOSED);
+        Topic topic = Topic.create(
+                "종료된 주제",
+                LocalDate.of(
+                        2026,
+                        8,
+                        20
+                ),
+                new ParticipationPeriod(
+                        Instant.parse("2026-08-19T15:00:00Z"),
+                        UPDATED_AT
+                ),
+                Instant.parse("2026-08-19T00:00:00Z")
+        );
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "기존 제목"
+                "기존 제목",
+                null
         );
         post.requestModeration();
 
         // When & Then
-        assertThatThrownBy(() -> post.updateTitle(
+        assertThatThrownBy(() -> post.updateTitleAndDescription(
                 AUTHOR_ID,
                 "수정 제목",
+                null,
                 UPDATED_AT
         ))
                 .isInstanceOf(BusinessException.class)
@@ -388,7 +350,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When
@@ -408,7 +371,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
@@ -430,7 +394,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         Instant moderatedAt = Instant.parse("2026-08-20T00:00:00Z");
@@ -452,7 +417,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When
@@ -472,7 +438,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -491,7 +458,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -510,7 +478,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -530,7 +499,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -549,7 +519,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         post.reject(Instant.parse("2026-08-20T00:00:00Z"));
@@ -569,7 +540,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -589,7 +561,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -604,13 +577,13 @@ class PostTest {
     @DisplayName("작성자는 검수 대기 게시물을 삭제할 수 있다")
     void deleteByAuthor_pendingPost_softDeletesPost() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -625,13 +598,13 @@ class PostTest {
     @DisplayName("작성자는 승인된 게시물을 사진과 함께 삭제할 수 있다")
     void deleteByAuthor_approvedPost_softDeletesPostAndPhoto() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         post.approve(Instant.parse("2026-08-20T00:00:00Z"));
@@ -648,13 +621,13 @@ class PostTest {
     @DisplayName("작성자가 삭제를 반복해도 최초 삭제 시각을 유지한다")
     void deleteByAuthor_alreadyDeletedPost_keepsFirstDeletionTime() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
         post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
@@ -671,13 +644,13 @@ class PostTest {
     @DisplayName("작성자가 아닌 사용자는 게시물을 삭제할 수 없다")
     void deleteByAuthor_otherUser_throwsForbiddenException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.requestModeration();
 
@@ -695,13 +668,13 @@ class PostTest {
     @DisplayName("작성자는 거절된 게시물을 삭제할 수 없다")
     void deleteByAuthor_rejectedPost_throwsBusinessException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         post.failImageProcessing();
 
@@ -719,13 +692,13 @@ class PostTest {
     @DisplayName("작성자는 이미지 처리 중인 게시물을 삭제할 수 없다")
     void deleteByAuthor_validatingPost_throwsBusinessException() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -762,7 +735,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -793,13 +767,13 @@ class PostTest {
     @DisplayName("작성자 식별자와 같을 때만 작성자로 판단한다")
     void isAuthoredBy_comparesAuthorId() {
         // Given
-        given(author.getId()).willReturn(AUTHOR_ID);
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
 
         // When & Then
@@ -813,7 +787,8 @@ class PostTest {
                 topic,
                 photo,
                 UPLOAD_ID,
-                "제목"
+                "제목",
+                null
         );
         if (status == ModerationStatus.VALIDATING) {
             return post;
@@ -830,14 +805,17 @@ class PostTest {
     }
 
     private Post createPendingPostDuringOpenPeriod(String title) {
-        given(author.getId()).willReturn(AUTHOR_ID);
-        given(topic.phaseAt(UPDATED_AT)).willReturn(OPEN);
+        return createPendingPostDuringOpenPeriod(title, null);
+    }
+
+    private Post createPendingPostDuringOpenPeriod(String title, String description) {
         Post post = Post.createPost(
                 author,
                 topic,
                 photo,
                 UPLOAD_ID,
-                title
+                title,
+                description
         );
         post.requestModeration();
         return post;

@@ -430,10 +430,12 @@ def run_case(case, platform, action, timeout, destination, actor_parent=None):
                 reason = f"{platform} CLI가 설치되어 있지 않습니다"
             elif platform == "claude" and criteria["setup"].get("mock_github"):
                 reason = "모의 GitHub 사례는 현재 Codex의 격리된 shell에서만 지원합니다"
-            elif platform == "claude" and (criteria["setup"].get("conversation") or criteria["setup"].get("java_fixture")):
-                reason = "다중 턴 실제 압축·Java 개발 사례는 현재 Codex 네이티브 격리에서만 지원합니다"
+            elif platform == "claude" and criteria["setup"].get("conversation"):
+                reason = "다중 턴 실제 압축 사례는 현재 Codex 네이티브 격리에서만 지원합니다"
             elif platform == "claude":
-                command, metadata = claude_adapter.build_command(binary, repo, destination)
+                java_options = {"enable_java": True} if criteria["setup"].get("java_fixture") else {}
+                command, metadata = claude_adapter.build_command(binary, repo, destination,
+                                                                **java_options)
                 report.update(metadata)
                 reason = None
             else:

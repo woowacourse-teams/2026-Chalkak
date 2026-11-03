@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.apple.PendingAppleAuthorization;
 import com.chalkak.backend.auth.repository.PendingAppleAuthorizationRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
@@ -12,10 +12,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class PendingAppleAuthorizationRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class PendingAppleAuthorizationRepositoryTest {
 
     private static final String SUBJECT_HMAC = "a".repeat(64);
     private static final String OTHER_SUBJECT_HMAC = "b".repeat(64);

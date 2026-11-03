@@ -398,6 +398,7 @@ class PostControllerTest {
                 "https://cdn.example.com/dev/posts/thumbnail.jpg",
                 "https://cdn.example.com/dev/signatures/signature.png",
                 "오늘의 순간",
+                "퇴근길에 만난 노을\n오래 기억하고 싶다",
                 43L,
                 true
         );
@@ -418,6 +419,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.signatureOriginalImageUrl")
                         .value("https://cdn.example.com/dev/signatures/signature.png"))
                 .andExpect(jsonPath("$.title").value("오늘의 순간"))
+                .andExpect(jsonPath("$.description").value("퇴근길에 만난 노을\n오래 기억하고 싶다"))
                 .andExpect(jsonPath("$.likeCount").value(43L))
                 .andExpect(jsonPath("$.isLiked").value(true));
     }
@@ -434,24 +436,13 @@ class PostControllerTest {
         then(postQueryService).shouldHaveNoInteractions();
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-post-id", "1-1-1-1-1"})
     @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("ID 형식이 올바르지 않으면 400 응답을 반환한다")
-    void getPost_invalidPostId_returnsBadRequest() throws Exception {
+    @DisplayName("잘못되거나 비정규 게시물 ID는 400으로 거절한다")
+    void getPost_invalidOrNonCanonicalUuid_returnsBadRequest(String postId) throws Exception {
         // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", "invalid-post-id"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
-        then(postQueryService).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @WithMockLoginUser(USER_ID_VALUE)
-    @DisplayName("표준 형식이 아닌 UUID이면 400 응답을 반환한다")
-    void getPost_nonCanonicalUuid_returnsBadRequest() throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/v1/posts/{postId}", "1-1-1-1-1"))
+        mockMvc.perform(get("/api/v1/posts/{postId}", postId))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
@@ -520,7 +511,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
         // When & Then
@@ -541,7 +533,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null
         );
     }
 
@@ -553,11 +546,14 @@ class PostControllerTest {
         given(postCommandService.updatePost(
                 USER_ID,
                 POST_ID,
-                "수정한 제목"
+                "수정한 제목",
+                null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
-                        "수정한 제목"));
+                        "수정한 제목",
+                        null
+                ));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
@@ -575,7 +571,8 @@ class PostControllerTest {
         then(postCommandService).should().updatePost(
                 USER_ID,
                 POST_ID,
-                "수정한 제목"
+                "수정한 제목",
+                null
         );
     }
 
@@ -587,11 +584,14 @@ class PostControllerTest {
         given(postCommandService.updatePost(
                 USER_ID,
                 POST_ID,
+                null,
                 null
         ))
                 .willReturn(new PostUpdateResult(
                         POST_ID,
-                        null));
+                        null,
+                        null
+                ));
 
         // When & Then
         mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
@@ -609,8 +609,95 @@ class PostControllerTest {
         then(postCommandService).should().updatePost(
                 USER_ID,
                 POST_ID,
+                null,
                 null
         );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물 수정 응답에 설명을 포함한다")
+    void updatePost_withDescription_returnsDescription() throws Exception {
+        // Given
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                "수정한 설명"
+        ))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목",
+                        "수정한 설명"
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "description": "수정한 설명"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("수정한 설명"));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("설명 필드가 누락되어도 200을 반환하고 설명 없음으로 서비스에 전달한다")
+    void updatePost_missingDescription_passesNullDescription() throws Exception {
+        // Given
+        given(postCommandService.updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                null
+        ))
+                .willReturn(new PostUpdateResult(
+                        POST_ID,
+                        "수정한 제목",
+                        null
+                ));
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value(nullValue()));
+
+        then(postCommandService).should().updatePost(
+                USER_ID,
+                POST_ID,
+                "수정한 제목",
+                null
+        );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("앞뒤 공백을 제거한 설명이 300자를 초과하면 400을 반환한다")
+    void updatePost_tooLongNormalizedDescription_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "description": "%s"
+                        }
+                        """.formatted("가".repeat(301))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("설명은 300자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -644,6 +731,47 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("제목은 10자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 수정할 때 제목에 NUL 문자가 있으면 400을 반환한다")
+    void updatePost_titleWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "가\\u0000나"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("제목에 사용할 수 없는 문자가 포함되어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 수정할 때 설명에 NUL 문자가 있으면 400을 반환한다")
+    void updatePost_descriptionWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "description": "가\\u0000나"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("설명에 사용할 수 없는 문자가 포함되어 있습니다."));
 
         then(postCommandService).shouldHaveNoInteractions();
     }
@@ -824,6 +952,111 @@ class PostControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 설명이 300자를 초과하면 400을 반환한다")
+    void createPost_tooLongDescription_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "description": "%s"
+                        }
+                        """.formatted(
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        "a".repeat(301)
+                )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("설명은 300자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 제목에 NUL 문자가 있으면 400을 반환한다")
+    void createPost_titleWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "가\\u0000나"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("제목에 사용할 수 없는 문자가 포함되어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 설명에 NUL 문자가 있으면 400을 반환한다")
+    void createPost_descriptionWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "description": "가\\u0000나"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("설명에 사용할 수 없는 문자가 포함되어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 설명을 서비스로 전달한다")
+    void createPost_withDescription_passesDescriptionToService() throws Exception {
+        // Given
+        given(postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                "첫 줄\n둘째 줄"
+        )).willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "description": "첫 줄\\n둘째 줄"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").value(POST_ID.toString()));
+
+        then(postCommandService).should().createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                "첫 줄\n둘째 줄"
+        );
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("게시물을 생성할 때 앞뒤 공백을 포함해 10자를 넘어도 제거 후 10자면 서비스로 전달한다")
     void createPost_tenCharacterNormalizedTitle_returnsCreatedPost() throws Exception {
         // Given
@@ -832,7 +1065,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle
+                paddedTitle,
+                null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -856,7 +1090,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                paddedTitle
+                paddedTitle,
+                null
         );
     }
 
@@ -870,7 +1105,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle
+                emojiTitle,
+                null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -895,7 +1131,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                emojiTitle
+                emojiTitle,
+                null
         );
     }
 
@@ -909,7 +1146,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle
+                blankTitle,
+                null
         ))
                 .willReturn(new PostCreationResult(POST_ID, ModerationStatus.VALIDATING));
 
@@ -933,7 +1171,8 @@ class PostControllerTest {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                blankTitle
+                blankTitle,
+                null
         );
     }
 
