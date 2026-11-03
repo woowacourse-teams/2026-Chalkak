@@ -32,6 +32,7 @@ disable-model-invocation: true
    client/.agents/skills/client-pr/scripts/upload-media.sh <이슈번호> "$EVID"/media/compare-*.png ...
    ```
    - 출력된 마크다운을 `$EVID/pr.md`의 `## 📸 화면 확인` 칸에 넣는다.
+   - 올리지 않은 파일은 워크트리를 지울 때 같이 사라진다. 남겨야 할 녹화 원본(`repro.mp4` 등)이 있으면 함께 올린다.
    - 원격에 `client/pr-assets`가 없다고 나오면(종료 코드 3) 만들어도 되는지 묻고, 승인받으면 `--create-branch`를 붙여 다시 실행한다.
 7. **드래프트 PR**:
    ```bash

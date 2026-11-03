@@ -27,7 +27,7 @@ disable-model-invocation: true
    - 보류면 멈춘다.
 7. **승인되면 올리기**:
    ```bash
-   EVID="$(cd "$(git rev-parse --git-common-dir)" && pwd)/client-flow/<번호>"; mkdir -p "$EVID/media"
+   EVID="$(git rev-parse --show-toplevel)/client/.work/<번호>"; mkdir -p "$EVID/media"
    # 승인된 계획을 "$EVID/plan.md"에 저장한 뒤
    gh issue comment <번호> --body-file "$EVID/plan.md"
    ```

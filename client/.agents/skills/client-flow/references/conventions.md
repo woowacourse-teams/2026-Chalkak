@@ -60,11 +60,12 @@
 세션이 끊겨도 이어 갈 수 있게, 커밋하지 않는 기록은 이 폴더에 둔다.
 
 ```bash
-EVID="$(cd "$(git rev-parse --git-common-dir)" && pwd)/client-flow/<이슈번호>"
+EVID="$(git rev-parse --show-toplevel)/client/.work/<이슈번호>"
 mkdir -p "$EVID/media"
 ```
 
-워크트리를 지워도 남도록 공용 `.git` 아래에 둔다. 아무것도 지우지 않는다.
+작업 폴더 안에 두고 git은 무시한다(`client/.gitignore`의 `.work/`). 작업 폴더 밖(공용 `.git` 등)에 두면 워크트리에서 읽고 쓸 때 권한에 막힌다.
+작업 중에는 아무것도 지우지 않는다. 워크트리를 지우면 이 폴더도 같이 지워지므로, 남겨야 할 캡처·녹화는 `client-pr`이 `client/pr-assets`에 올려 보존한다.
 
 | 파일 | 쓰는 커맨드 | 내용 |
 |---|---|---|

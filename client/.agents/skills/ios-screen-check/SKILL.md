@@ -28,7 +28,7 @@ $ARGUMENTS
 `evid`가 없으면 브랜치 이름의 이슈 번호로 정한다. 번호가 없으면 브랜치 이름을 쓴다.
 ```bash
 branch=$(git branch --show-current); num=$(printf '%s' "$branch" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
-EVID="$(cd "$(git rev-parse --git-common-dir)" && pwd)/client-flow/${num:-$(printf '%s' "$branch" | tr '/#' '--')}"; mkdir -p "$EVID/media"
+EVID="$(git rev-parse --show-toplevel)/client/.work/${num:-$(printf '%s' "$branch" | tr '/#' '--')}"; mkdir -p "$EVID/media"
 ```
 
 ## 할 일
