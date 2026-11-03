@@ -268,6 +268,28 @@ class AdminPostControllerTest {
     }
 
     @Test
+    @DisplayName("주제 없이 인기순으로 관리자 게시물 목록을 요청하면 400을 반환한다")
+    void getPosts_likeCountDescWithoutTopic_returnsBadRequest() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                1,
+                20
+        )).willThrow(new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "조회 조건이 올바르지 않습니다."));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("sort", "likeCountDesc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
     @DisplayName("내부 검증 중 상태로 관리자 게시물 목록을 요청하면 400을 반환한다")
     void getPosts_validatingStatus_returnsBadRequest() throws Exception {
         // When & Then
