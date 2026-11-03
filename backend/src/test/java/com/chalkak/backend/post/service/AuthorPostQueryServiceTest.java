@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static com.chalkak.backend.post.support.AuthorPostFixtures.createPost;
 import static com.chalkak.backend.post.support.AuthorPostFixtures.createUser;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -520,6 +521,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 postIds.get(1),
                 authorId
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
 
@@ -581,6 +583,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 postId,
                 viewerId
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         AuthorPostListResult before = postQueryService.getAuthorPosts(
                 authorId,
                 1,
@@ -588,6 +591,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                 viewerId
         );
         jdbcTemplate.update("DELETE FROM post_likes WHERE post_id = ?", postId);
+        synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
 
@@ -633,6 +637,7 @@ class AuthorPostQueryServiceTest extends IntegrationTestSupport {
                     postId,
                     viewerId
             );
+            synchronizeFixtureCounts(jdbcTemplate);
         }
         entityManager.flush();
         entityManager.clear();

@@ -3,14 +3,16 @@ package com.chalkak.backend.notification.infrastructure.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
+import com.chalkak.backend.auth.domain.token.UserRefreshToken;
+import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.notification.domain.FcmToken;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,13 +22,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class PushDeviceJpaRepositoryTest {
 
     @Autowired
-    private UserRefreshTokenService userRefreshTokenService;
+    private UserRefreshTokenRepository userRefreshTokenRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -164,7 +165,15 @@ class PushDeviceJpaRepositoryTest extends IntegrationTestSupport {
 
     private UUID newSession() {
         User user = userRepository.save(UserFixture.create());
-        UUID sessionId = userRefreshTokenService.issue(user).sessionId();
+        UUID sessionId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-10-07T00:00:00Z");
+        userRefreshTokenRepository.save(UserRefreshToken.create(
+                user,
+                sessionId,
+                UUID.randomUUID().toString().replace("-", "").repeat(2),
+                now.plusSeconds(3600),
+                now.plusSeconds(7200)
+        ));
         entityManager.flush();
         entityManager.clear();
         return sessionId;

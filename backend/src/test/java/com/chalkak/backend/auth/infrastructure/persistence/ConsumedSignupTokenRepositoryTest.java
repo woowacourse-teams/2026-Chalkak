@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.signup.ConsumedSignupToken;
 import com.chalkak.backend.auth.repository.ConsumedSignupTokenRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.time.Duration;
 import java.time.Instant;
@@ -12,10 +12,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class ConsumedSignupTokenRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class ConsumedSignupTokenRepositoryTest {
 
     @Autowired
     private ConsumedSignupTokenRepository consumedSignupTokenRepository;

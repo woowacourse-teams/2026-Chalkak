@@ -2,8 +2,8 @@ package com.chalkak.backend.like.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Set;
@@ -12,22 +12,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PostLikeRepositoryImpl.class)
+@PostgresRepositoryTest
 class PostLikeRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
-    private static final UUID SECOND_USER_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
+    private static final UUID SECOND_USER_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a2");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
-    private static final UUID SECOND_POST_ID =
-            UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
+    private static final UUID SECOND_POST_ID = UUID
+            .fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
 
     @Autowired
     private PostLikeRepository postLikeRepository;
@@ -91,31 +86,32 @@ class PostLikeRepositoryTest {
                         CURRENT_TIMESTAMP
                     )
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO posts (
-                    id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
-                ) VALUES
-                    (
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
-                        '오늘의 순간',
-                        'APPROVED',
-                        CURRENT_TIMESTAMP,
-                        CURRENT_TIMESTAMP
-                    ),
-                    (
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
-                        '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
-                        '다른 게시물',
-                        'APPROVED',
-                        CURRENT_TIMESTAMP,
-                        CURRENT_TIMESTAMP
-                    )
-                """);
+        jdbcTemplate
+                .update("""
+                        INSERT INTO posts (
+                            id, user_id, topic_id, photo_id, title, moderation_status, created_at, updated_at
+                        ) VALUES
+                            (
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570d4',
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570a1',
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570c3',
+                                '오늘의 순간',
+                                'APPROVED',
+                                CURRENT_TIMESTAMP,
+                                CURRENT_TIMESTAMP
+                            ),
+                            (
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570e5',
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570a2',
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570b2',
+                                '0198f6c1-62ba-7d30-8b12-0f733b6570c4',
+                                '다른 게시물',
+                                'APPROVED',
+                                CURRENT_TIMESTAMP,
+                                CURRENT_TIMESTAMP
+                            )
+                        """);
 
         entityManager.flush();
         entityManager.clear();
@@ -130,7 +126,7 @@ class PostLikeRepositoryTest {
 
         // Then
         assertThat(createdCount).isEqualTo(1);
-        assertThat(postLikeRepository.countByPostId(POST_ID)).isEqualTo(1L);
+        assertThat(countStoredRelations(POST_ID)).isEqualTo(1L);
     }
 
     @Test
@@ -146,7 +142,7 @@ class PostLikeRepositoryTest {
 
         // Then
         assertThat(createdCount).isZero();
-        assertThat(postLikeRepository.countByPostId(POST_ID)).isEqualTo(1L);
+        assertThat(countStoredRelations(POST_ID)).isEqualTo(1L);
     }
 
     @Test
@@ -162,7 +158,7 @@ class PostLikeRepositoryTest {
 
         // Then
         assertThat(deletedCount).isEqualTo(1);
-        assertThat(postLikeRepository.countByPostId(POST_ID)).isZero();
+        assertThat(countStoredRelations(POST_ID)).isZero();
     }
 
     @Test
@@ -174,7 +170,7 @@ class PostLikeRepositoryTest {
 
         // Then
         assertThat(deletedCount).isZero();
-        assertThat(postLikeRepository.countByPostId(POST_ID)).isZero();
+        assertThat(countStoredRelations(POST_ID)).isZero();
     }
 
     @Test
@@ -194,26 +190,8 @@ class PostLikeRepositoryTest {
 
         // Then
         assertThat(deletedCount).isEqualTo(2);
-        assertThat(postLikeRepository.countByPostId(POST_ID)).isZero();
-        assertThat(postLikeRepository.countByPostId(SECOND_POST_ID)).isOne();
-    }
-
-    @Test
-    @DisplayName("여러 게시물의 좋아요 개수를 한 번에 조회한다")
-    void countByPostIds_postIds_returnsLikeCounts() {
-        // Given
-        UUID postWithoutLikeId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e5");
-        postLikeRepository.createIfAbsent(POST_ID, USER_ID);
-        entityManager.flush();
-        entityManager.clear();
-
-        // When
-        List<PostLikeCount> result = postLikeRepository.countByPostIds(
-                List.of(POST_ID, postWithoutLikeId)
-        );
-
-        // Then
-        assertThat(result).containsExactly(new PostLikeCount(POST_ID, 1L));
+        assertThat(countStoredRelations(POST_ID)).isZero();
+        assertThat(countStoredRelations(SECOND_POST_ID)).isOne();
     }
 
     @Test
@@ -248,5 +226,13 @@ class PostLikeRepositoryTest {
 
         // Then
         assertThat(result).isTrue();
+    }
+
+    private long countStoredRelations(UUID postId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
+                Long.class,
+                postId
+        );
     }
 }

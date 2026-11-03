@@ -400,32 +400,14 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000));
     }
 
-    @Test
-    @DisplayName("소셜 회원가입 요청에 회원가입 토큰이 없으면 400을 반환한다")
-    void socialSignup_missingSignupToken_returnsBadRequest() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"signupToken\":\" \"}"})
+    @DisplayName("회원가입 토큰이 없거나 공백이면 400을 반환한다")
+    void socialSignup_missingOrBlankToken_returnsBadRequest(String body) throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/social-signup")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value(
-                        "회원가입 토큰은 필수입니다."));
-
-        verifyNoInteractions(socialSignupService);
-    }
-
-    @Test
-    @DisplayName("소셜 회원가입 요청의 회원가입 토큰이 비어 있으면 400을 반환한다")
-    void socialSignup_blankSignupToken_returnsBadRequest() throws Exception {
-        // When & Then
-        mockMvc.perform(post("/api/v1/auth/social-signup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {
-                          "signupToken": " "
-                        }
-                        """))
+                .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(
@@ -487,32 +469,14 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.refreshTokenExpiresIn").value(2592000));
     }
 
-    @Test
-    @DisplayName("재발급 요청에 리프레시 토큰이 없으면 400을 반환한다")
-    void refresh_missingRefreshToken_returnsBadRequest() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"refreshToken\":\" \"}"})
+    @DisplayName("리프레시 토큰이 없거나 공백이면 400을 반환한다")
+    void refresh_missingOrBlankToken_returnsBadRequest(String body) throws Exception {
         // When & Then
         mockMvc.perform(post("/api/v1/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value(
-                        "리프레시 토큰은 필수입니다."));
-
-        verifyNoInteractions(userRefreshTokenService);
-    }
-
-    @Test
-    @DisplayName("재발급 요청의 리프레시 토큰이 비어 있으면 400을 반환한다")
-    void refresh_blankRefreshToken_returnsBadRequest() throws Exception {
-        // When & Then
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {
-                          "refreshToken": " "
-                        }
-                        """))
+                .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value(

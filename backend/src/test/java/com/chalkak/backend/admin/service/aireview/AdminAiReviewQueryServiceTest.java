@@ -10,81 +10,94 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.admin.repository.AdminPage;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.Criteria;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.DetailProjection;
+import com.chalkak.backend.admin.repository.aireview.AdminAiReviewQueryRepository.SummaryProjection;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewDetail;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.AiReviewSummary;
 import com.chalkak.backend.admin.service.aireview.AdminAiReviewQueryService.ListResult;
 import com.chalkak.backend.aireview.domain.AiReview.Status;
-import com.chalkak.backend.aireview.service.AiReviewFixture;
+import com.chalkak.backend.aireview.domain.AiReviewResult;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.UserStatus;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.ObjectMapper;
 
-@Transactional
-class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class AdminAiReviewQueryServiceTest {
 
     private static final String THUMBNAIL_STORAGE_KEY = "chalkak/test/ai-review/thumb-original.webp";
     private static final String THUMBNAIL_URL = "https://cdn.example.com/test/ai-review/thumb-original.webp";
     private static final String ORIGINAL_URL = "https://cdn.example.com/test/ai-review/original.webp";
 
-    @Autowired
     private AdminAiReviewQueryService queryService;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    @Mock
+    private AdminAiReviewQueryRepository repository;
 
-    @MockitoBean
+    @Mock
     private ImageUrlProvider imageUrlProvider;
 
-    private UUID promptVersionId;
-    private UUID reviewId;
+    private final UUID promptVersionId = new UUID(0, 1);
+    private final UUID reviewId = new UUID(0, 2);
 
     @BeforeEach
     void setUp() {
-        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
-        fixture.insertPublicPost();
-        promptVersionId = fixture.insertPromptVersion(1);
-        reviewId = fixture.insertReview(promptVersionId, "COMPLETED");
-        jdbcTemplate.update(
-                """
-                        UPDATE ai_reviews SET request_count = 2, input_tokens = 1200,
-                            cached_input_tokens = 200, output_tokens = 300, reasoning_tokens = 100,
-                            latency_ms = 21000
-                        WHERE id = ?
-                        """,
-                reviewId
+        queryService = new AdminAiReviewQueryService(
+                repository,
+                imageUrlProvider,
+                new ObjectMapper()
         );
-        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
-        given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_URL);
     }
 
-    @Test
-    @DisplayName("완료된 리뷰를 점수·프롬프트 버전·게시물 썸네일 URL·작성자·사용량과 함께 조회한다")
-    void getAiReviews_completedReview_returnsSummary() {
+    @ParameterizedTest
+    @CsvSource({"1, true", "100, false"})
+    @DisplayName("페이지 크기 경계에서도 완료 리뷰와 다음 페이지 정보를 반환한다")
+    void getAiReviews_completedReview_returnsSummary(int pageSize, boolean hasNext) {
+        // Given
+        given(repository.findAiReviews(
+                new Criteria(null, null),
+                1,
+                pageSize
+        )).willReturn(new AdminPage<>(
+                List.of(summary(
+                        reviewId,
+                        Status.COMPLETED,
+                        THUMBNAIL_STORAGE_KEY
+                )),
+                1,
+                pageSize,
+                hasNext
+        ));
+        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
+
         // When
         ListResult result = queryService.getAiReviews(
                 null,
                 null,
                 1,
-                20
+                pageSize
         );
 
         // Then
         assertThat(result.currentPage()).isEqualTo(1);
-        assertThat(result.pageSize()).isEqualTo(20);
-        assertThat(result.hasNext()).isFalse();
+        assertThat(result.pageSize()).isEqualTo(pageSize);
+        assertThat(result.hasNext()).isEqualTo(hasNext);
         assertThat(result.aiReviews()).hasSize(1);
         AiReviewSummary summary = result.aiReviews().get(0);
         assertThat(summary.aiReviewId()).isEqualTo(reviewId);
@@ -117,10 +130,23 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("없는 프롬프트 버전 ID로 조회하면 404가 아니라 빈 목록을 반환한다")
     void getAiReviews_unknownPromptVersionId_returnsEmptyList() {
+        // Given
+        UUID unknownVersionId = new UUID(0, 99);
+        given(repository.findAiReviews(
+                new Criteria(null, unknownVersionId),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(),
+                1,
+                20,
+                false
+        ));
+
         // When
         ListResult result = queryService.getAiReviews(
                 null,
-                UUID.randomUUID(),
+                unknownVersionId,
                 1,
                 20
         );
@@ -154,21 +180,22 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("완료되지 않은 리뷰는 점수가 null이고 실패 오류 코드는 그대로 담는다")
     void getAiReviews_nonCompletedReviews_returnsNullScore() {
         // Given
-        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
-        fixture.insertSecondPublicPost();
-        UUID failedId = fixture.insertSecondQueuedReview(
-                promptVersionId,
-                REQUESTED_AT.plusSeconds(60)
-        );
-        jdbcTemplate.update(
-                """
-                        UPDATE ai_reviews SET status = 'FAILED', attempt = 1, round_attempt = 1,
-                            started_at = requested_at, completed_at = requested_at,
-                            error_code = 'TIMEOUT'
-                        WHERE id = ?
-                        """,
-                failedId
-        );
+        UUID failedId = new UUID(0, 3);
+        given(repository.findAiReviews(
+                new Criteria(Status.FAILED, null),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary(
+                        failedId,
+                        Status.FAILED,
+                        THUMBNAIL_STORAGE_KEY
+                )),
+                1,
+                20,
+                false
+        ));
+        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
 
         // When
         ListResult result = queryService.getAiReviews(
@@ -191,7 +218,20 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("썸네일 저장 키가 없으면 썸네일 URL은 null이다")
     void getAiReviews_nullThumbnailKey_returnsNullThumbnailUrl() {
         // Given
-        jdbcTemplate.update("UPDATE photos SET thumbnail_storage_key = NULL");
+        given(repository.findAiReviews(
+                new Criteria(null, null),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary(
+                        reviewId,
+                        Status.COMPLETED,
+                        null
+                )),
+                1,
+                20,
+                false
+        ));
 
         // When
         ListResult result = queryService.getAiReviews(
@@ -207,45 +247,23 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("페이지 크기 경계값 1과 100을 허용하며 hasNext는 남은 리뷰 유무를 따른다")
-    void getAiReviews_pageSizeBoundary_setsHasNext() {
-        // Given
-        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
-        fixture.insertSecondPublicPost();
-        fixture.insertSecondQueuedReview(
-                promptVersionId,
-                REQUESTED_AT.plusSeconds(60)
-        );
-
-        // When
-        ListResult minSize = queryService.getAiReviews(
-                null,
-                null,
-                1,
-                1
-        );
-        ListResult maxSize = queryService.getAiReviews(
-                null,
-                null,
-                1,
-                100
-        );
-
-        // Then
-        assertThat(minSize.aiReviews()).hasSize(1);
-        assertThat(minSize.hasNext()).isTrue();
-        assertThat(maxSize.aiReviews()).hasSize(2);
-        assertThat(maxSize.hasNext()).isFalse();
-    }
-
-    @Test
     @DisplayName("완료된 리뷰를 상세 조회하면 목록 값에 결과·원출력 객체·응답 ID·시도 횟수·시작 시각·원본 이미지 URL을 더해 반환한다")
     void getAiReview_completedReview_returnsDetail() {
         // Given
-        jdbcTemplate.update(
-                "UPDATE ai_reviews SET openai_response_id = 'resp_abc' WHERE id = ?",
-                reviewId
-        );
+        given(repository.findAiReview(reviewId)).willReturn(Optional.of(new DetailProjection(
+                summary(
+                        reviewId,
+                        Status.COMPLETED,
+                        THUMBNAIL_STORAGE_KEY
+                ),
+                "{\"compositionScore\":7.46,\"themeExpressionScore\":8}",
+                "resp_abc",
+                1,
+                REQUESTED_AT,
+                ORIGINAL_STORAGE_KEY
+        )));
+        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
+        given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_URL);
 
         // When
         AiReviewDetail detail = queryService.getAiReview(reviewId);
@@ -270,21 +288,21 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("실패한 리뷰를 상세 조회하면 결과와 원출력이 null이고 오류 코드를 담는다")
     void getAiReview_failedReview_returnsNullResultAndOutput() {
         // Given
-        AiReviewFixture fixture = new AiReviewFixture(jdbcTemplate);
-        fixture.insertSecondPublicPost();
-        UUID failedId = fixture.insertSecondQueuedReview(
-                promptVersionId,
-                REQUESTED_AT.plusSeconds(60)
-        );
-        jdbcTemplate.update(
-                """
-                        UPDATE ai_reviews SET status = 'FAILED', attempt = 1, round_attempt = 1,
-                            started_at = requested_at, completed_at = requested_at,
-                            error_code = 'TIMEOUT'
-                        WHERE id = ?
-                        """,
-                failedId
-        );
+        UUID failedId = new UUID(0, 3);
+        given(repository.findAiReview(failedId)).willReturn(Optional.of(new DetailProjection(
+                summary(
+                        failedId,
+                        Status.FAILED,
+                        THUMBNAIL_STORAGE_KEY
+                ),
+                null,
+                null,
+                1,
+                REQUESTED_AT,
+                ORIGINAL_STORAGE_KEY
+        )));
+        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
+        given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_URL);
 
         // When
         AiReviewDetail detail = queryService.getAiReview(failedId);
@@ -299,7 +317,21 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("숨겨진 리뷰도 상세 조회하고 visibleToAuthor는 false이다")
     void getAiReview_hiddenReview_isReturnedWithVisibleToAuthorFalse() {
         // Given
-        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP");
+        given(repository.findAiReview(reviewId)).willReturn(Optional.of(new DetailProjection(
+                summary(
+                        reviewId,
+                        Status.COMPLETED,
+                        THUMBNAIL_STORAGE_KEY,
+                        true
+                ),
+                "{\"compositionScore\":7.46,\"themeExpressionScore\":8}",
+                "resp_abc",
+                1,
+                REQUESTED_AT,
+                ORIGINAL_STORAGE_KEY
+        )));
+        given(imageUrlProvider.getUrl(THUMBNAIL_STORAGE_KEY)).willReturn(THUMBNAIL_URL);
+        given(imageUrlProvider.getUrl(ORIGINAL_STORAGE_KEY)).willReturn(ORIGINAL_URL);
 
         // When
         AiReviewDetail detail = queryService.getAiReview(reviewId);
@@ -312,9 +344,73 @@ class AdminAiReviewQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("없는 리뷰 ID로 상세 조회하면 404 예외를 던진다")
     void getAiReview_unknownId_throwsNotFound() {
+        // Given
+        given(repository.findAiReview(reviewId)).willReturn(Optional.empty());
+
         // When & Then
-        assertThatThrownBy(() -> queryService.getAiReview(UUID.randomUUID()))
+        assertThatThrownBy(() -> queryService.getAiReview(reviewId))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("AI 리뷰를 찾을 수 없습니다.");
+    }
+
+    private SummaryProjection summary(
+            UUID id,
+            Status status,
+            String thumbnailKey
+    ) {
+        return summary(
+                id,
+                status,
+                thumbnailKey,
+                false
+        );
+    }
+
+    private SummaryProjection summary(
+            UUID id,
+            Status status,
+            String thumbnailKey,
+            boolean postDeleted
+    ) {
+        AiReviewResult result = status == Status.COMPLETED
+                ? new AiReviewResult(
+                        7.5,
+                        List.of(),
+                        false,
+                        new AiReviewResult.Feedback(
+                                "요약",
+                                "강점",
+                                "약점",
+                                "제안"
+                        )
+                )
+                : null;
+        return new SummaryProjection(
+                id,
+                status,
+                status == Status.FAILED ? "TIMEOUT" : null,
+                2,
+                result,
+                promptVersionId,
+                1,
+                MODEL,
+                POST_ID,
+                thumbnailKey,
+                ModerationStatus.APPROVED,
+                postDeleted ? COMPLETED_AT : null,
+                AUTHOR_ID,
+                "ai-review-author@example.com",
+                UserStatus.ACTIVE,
+                null,
+                1200,
+                200,
+                300,
+                100,
+                21000L,
+                REQUESTED_AT,
+                REQUESTED_AT,
+                COMPLETED_AT,
+                !postDeleted
+        );
     }
 }

@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 
+import native_java
+
 
 LIMIT = 1_000_000
 OPERATIONS = {
@@ -44,13 +46,21 @@ TOOLS = [
                             "work": {"type": "object"}}, ["operation"])},
 ]
 
+JAVA_TOOL = {"name": "java_check", "description": "Run the fixture's fixed offline javac, project JavaLayout and JUnit checks. Java runs in a verified OS sandbox with no network, external file access or arbitrary shell. No command or path arguments are accepted.",
+             "inputSchema": schema({}, [])}
+
 
 class FixtureTools:
-    def __init__(self, root, audit):
+    def __init__(self, root, audit, enable_java=False):
         self.root = Path(root).resolve(strict=True)
         self.audit = Path(audit).resolve()
         if not (self.root / ".git").is_dir() or self.audit.is_relative_to(self.root):
             raise ValueError("독립 Git 저장소와 저장소 밖의 도구 기록 경로가 필요합니다")
+        self.enable_java = enable_java
+        self.tools = [dict(tool) for tool in TOOLS]
+        if enable_java:
+            self.tools.append(JAVA_TOOL)
+            self.tools[2] = {**self.tools[2], "description": self.tools[2]["description"] + " Java mode also allows .java source files under backend/src/main/java/ and backend/src/test/java/."}
 
     def path(self, relative):
         if not isinstance(relative, str):
@@ -69,12 +79,18 @@ class FixtureTools:
         return target
 
     def invoke(self, name, arguments):
-        declaration = next((tool for tool in TOOLS if tool["name"] == name), None)
+        declaration = next((tool for tool in self.tools if tool["name"] == name), None)
         if declaration is None or not isinstance(arguments, dict):
             raise ValueError("지원하지 않는 도구 요청입니다")
         expected = declaration["inputSchema"]
         if set(arguments) - set(expected["properties"]) or set(expected["required"]) - set(arguments):
             raise ValueError("도구 인자가 올바르지 않습니다")
+        if name == "java_check":
+            result = native_java.check(self.root, self.audit.parent)
+            text = json.dumps(result, ensure_ascii=False)
+            if result["exit_code"]:
+                raise ValueError(text)
+            return text
         if name == "work_state":
             operation = arguments["operation"]
             script = self.root / "backend/scripts/work_state.py"
@@ -134,7 +150,10 @@ class FixtureTools:
             relative.parts[:1] == ("backend",)
             or relative.parts[:2] == ("docs", "business-rules")
         )
-        if (not relative.parts or not allowed_document or target.suffix.lower() != ".md"
+        allowed_java = (self.enable_java and target.suffix == ".java"
+                        and relative.parts[:4] in (("backend", "src", "main", "java"),
+                                                 ("backend", "src", "test", "java")))
+        if (not relative.parts or not (allowed_document and target.suffix.lower() == ".md" or allowed_java)
                 or any(part.startswith(".") for part in relative.parts)
                 or target.name.lower() in ("agents.md", "claude.md", "claude.local.md")):
             raise ValueError("backend 또는 비즈니스 규칙의 일반 Markdown만 수정할 수 있습니다; 하네스·설정은 보호됩니다")
@@ -160,8 +179,8 @@ class FixtureTools:
         return result
 
 
-def serve(root, audit, input_stream=sys.stdin, output_stream=sys.stdout):
-    fixture = FixtureTools(root, audit)
+def serve(root, audit, input_stream=sys.stdin, output_stream=sys.stdout, enable_java=False):
+    fixture = FixtureTools(root, audit, enable_java=enable_java)
     for line in input_stream:
         request_id = None
         try:
@@ -178,7 +197,7 @@ def serve(root, audit, input_stream=sys.stdin, output_stream=sys.stdout):
                 result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
                           "serverInfo": {"name": "harness-fixture", "version": "1"}}
             elif method == "tools/list":
-                result = {"tools": TOOLS}
+                result = {"tools": fixture.tools}
             elif method == "tools/call":
                 parameters = request.get("params", {})
                 if not isinstance(parameters, dict):
@@ -199,5 +218,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("audit", type=Path)
+    parser.add_argument("--java", action="store_true", help="사전 검사를 통과한 고정 Java 검사 도구 사용")
     options = parser.parse_args()
-    serve(options.root, options.audit)
+    serve(options.root, options.audit, enable_java=options.java)

@@ -1,5 +1,6 @@
 package com.chalkak.backend.post.infrastructure.persistence;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -7,10 +8,13 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -20,17 +24,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PostRepositoryImpl.class)
+@PostgresRepositoryTest
 class PostRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a1");
@@ -107,6 +106,7 @@ class PostRepositoryTest {
                             CURRENT_TIMESTAMP
                         )
                         """);
+        synchronizeFixtureCounts(jdbcTemplate);
 
         entityManager.flush();
         entityManager.clear();
@@ -513,6 +513,128 @@ class PostRepositoryTest {
     }
 
     @Test
+    @DisplayName("이모지와 줄바꿈을 포함한 300자 설명을 저장하고 다시 읽으면 같은 값이다")
+    void save_threeHundredCodePointDescription_storesAndReadsSameValue() {
+        // Given
+        String description = "📸".repeat(150) + "\n" + "가".repeat(149);
+        UUID otherUserId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570a3");
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    id, email, status, signature_original_storage_key, created_at, updated_at
+                ) VALUES (
+                    ?, 'post-description@example.com', 'ACTIVE',
+                    'chalkak/dev/signatures/description.png',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """, otherUserId);
+        User author = entityManager.find(User.class, otherUserId);
+        Topic topic = entityManager.find(Topic.class, TOPIC_ID);
+        PostImageUpload upload = PostImageUpload.createPostImageUpload(author, Instant.now());
+        entityManager.persist(upload);
+        Post post = Post.createPost(
+                author,
+                topic,
+                Photo.createPhoto("chalkak/dev/posts/description-original.png"),
+                upload.getId(),
+                null,
+                description
+        );
+
+        // When
+        UUID savedId = postRepository.save(post).getId();
+        entityManager.clear();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT description FROM posts WHERE id = ?",
+                String.class,
+                savedId
+        )).isEqualTo(description);
+        assertThat(entityManager.find(Post.class, savedId).getDescription())
+                .isEqualTo(description);
+    }
+
+    @Test
+    @DisplayName("설명이 있는 게시물은 문자열 설명으로 복원한다")
+    void findVisibleById_postWithDescription_mapsDescriptionToString() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET description = ? WHERE id = ?",
+                "첫 줄\n둘째 줄",
+                POST_ID
+        );
+        entityManager.clear();
+
+        // When
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // Then
+        assertThat(post.getDescription()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("설명이 없는 게시물은 PostDescription 자체가 null로 복원된다")
+    void findVisibleById_postWithoutDescription_mapsDescriptionToNull() {
+        // When
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // Then
+        assertThat(post.getDescription()).isNull();
+    }
+
+    @Test
+    @DisplayName("설명이 있던 게시물을 설명 없이 수정하면 DB에서 설명이 NULL이 된다")
+    void updateTitleAndDescription_nullDescription_storesNullDescription() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET description = '기존 설명' WHERE id = ?",
+                POST_ID);
+        entityManager.clear();
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // When
+        post.updateTitleAndDescription(
+                USER_ID,
+                "오늘의 순간",
+                null,
+                Instant.parse("2026-08-12T12:00:00Z")
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT description FROM posts WHERE id = ?",
+                String.class,
+                POST_ID
+        )).isNull();
+    }
+
+    @Test
+    @DisplayName("설명을 새 값으로 수정하면 정규화한 설명을 DB에 저장한다")
+    void updateTitleAndDescription_newDescription_storesNormalizedDescription() {
+        // Given
+        Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
+
+        // When
+        post.updateTitleAndDescription(
+                USER_ID,
+                "오늘의 순간",
+                "  첫 줄\n둘째 줄  ",
+                Instant.parse("2026-08-12T12:00:00Z")
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT description FROM posts WHERE id = ?",
+                String.class,
+                POST_ID
+        )).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
     @DisplayName("동시 생성으로 사용자와 주제 유니크 제약을 위반하면 비즈니스 예외로 변환한다")
     void save_duplicateUserAndTopic_throwsBusinessException() {
         // Given
@@ -656,6 +778,7 @@ class PostRepositoryTest {
                 topicId,
                 photoId
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private void insertSecondVisiblePost() {
@@ -700,6 +823,7 @@ class PostRepositoryTest {
                             CURRENT_TIMESTAMP
                         )
                         """);
+        synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
     }
@@ -714,6 +838,7 @@ class PostRepositoryTest {
                 SECOND_POST_ID,
                 USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
     }

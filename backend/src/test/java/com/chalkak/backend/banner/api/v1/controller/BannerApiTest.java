@@ -1,5 +1,6 @@
 package com.chalkak.backend.banner.api.v1.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,12 +70,25 @@ class BannerApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/banners").param("page", "2").param("pageSize", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.banners.length()").value(1))
+                .andExpect(jsonPath("$.currentPage").value(2))
+                .andExpect(jsonPath("$.pageSize").value(2))
                 .andExpect(jsonPath("$.banners[0].id").value(older.getId().toString()))
+                .andExpect(jsonPath("$.banners[0].title").value("old"))
+                .andExpect(jsonPath("$.banners[0].subtitle").value("부제목"))
+                .andExpect(jsonPath("$.banners[0].webViewUrl").value("https://example.com/old"))
+                .andExpect(jsonPath("$.banners[0].thumbnailUrl")
+                        .value("https://example.com/image.png"))
+                .andExpect(jsonPath("$.banners[0].createdAt").value("2026-10-18T00:00:00Z"))
                 .andExpect(jsonPath("$.hasNext").value(false));
         mockMvc.perform(get("/api/v1/banners").param("page", "3").param("pageSize", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.banners").isEmpty())
                 .andExpect(jsonPath("$.hasNext").value(false));
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM banners", Integer.class))
+                .isEqualTo(4);
+        assertThat(
+                jdbcTemplate.queryForObject("SELECT COUNT(*) FROM admin_audit_logs", Integer.class))
+                .isZero();
     }
 
     @Test

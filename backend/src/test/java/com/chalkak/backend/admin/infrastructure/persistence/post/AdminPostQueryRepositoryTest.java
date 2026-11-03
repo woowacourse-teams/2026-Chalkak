@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.infrastructure.persistence.post;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.admin.repository.AdminPage;
@@ -10,6 +11,7 @@ import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import com.chalkak.backend.admin.repository.post.AdminPostSummaryProjection;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
@@ -21,14 +23,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminPostQueryRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminPostQueryRepositoryTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("0198fa00-0000-7000-8000-000000000001");
@@ -884,6 +881,7 @@ class AdminPostQueryRepositoryTest {
                 timestamp(createdAt.plusSeconds(30)),
                 timestamp(deletedAt)
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private Timestamp timestamp(Instant instant) {
@@ -899,10 +897,12 @@ class AdminPostQueryRepositoryTest {
                 PENDING_POST_ID,
                 VALIDATING_USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         jdbcTemplate.update(
                 "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
                 PENDING_POST_ID,
                 APPROVED_USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 }

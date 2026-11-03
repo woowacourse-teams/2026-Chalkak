@@ -4,6 +4,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.like.repository.PostLikeRepository;
+import com.chalkak.backend.like.repository.PostLikeCounterRepository;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.util.UUID;
@@ -17,17 +18,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class PostLikeService {
 
     private final PostLikeRepository postLikeRepository;
+    private final PostLikeCounterRepository postLikeCounterRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
 
     public PostLikeResult likePost(UUID postId, UUID userId) {
         validateUser(userId);
         validatePost(postId);
-        postLikeRepository.createIfAbsent(postId, userId);
+        if (postLikeRepository.createIfAbsent(postId, userId) == 1) {
+            postLikeCounterRepository.increment(postId);
+        }
 
         return new PostLikeResult(
                 postId,
-                postLikeRepository.countByPostId(postId),
+                postLikeCounterRepository.getCountByPostId(postId),
                 true
         );
     }
@@ -35,11 +39,13 @@ public class PostLikeService {
     public PostLikeResult unlikePost(UUID postId, UUID userId) {
         validateUser(userId);
         validatePost(postId);
-        postLikeRepository.deleteByPostIdAndUserId(postId, userId);
+        if (postLikeRepository.deleteByPostIdAndUserId(postId, userId) == 1) {
+            postLikeCounterRepository.decrement(postId);
+        }
 
         return new PostLikeResult(
                 postId,
-                postLikeRepository.countByPostId(postId),
+                postLikeCounterRepository.getCountByPostId(postId),
                 false
         );
     }

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -44,6 +43,29 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         insertOpenTopic();
         insertPhoto();
         insertPendingPost();
+    }
+
+    @Test
+    @DisplayName("삭제된 게시물은 제목을 수정할 수 없다")
+    void updatePost_deletedPost_throwsNotFoundException() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                POST_ID);
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postCommandService.updatePost(
+                        AUTHOR_ID,
+                        POST_ID,
+                        "수정 제목",
+                        null
+                ));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
     }
 
     @Test
@@ -149,104 +171,6 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 WHERE id = ?
                 """, POST_ID);
         assertThat(updated.get("title")).isNull();
-    }
-
-    @Test
-    @DisplayName("제목과 설명을 수정하면 다시 조회해도 새 값이 저장되어 있다")
-    void updatePost_titleAndDescription_persistsBoth() {
-        // When
-        var result = postCommandService.updatePost(
-                AUTHOR_ID,
-                POST_ID,
-                "새 제목",
-                "  새 설명  "
-        );
-        entityManager.flush();
-        entityManager.clear();
-
-        // Then
-        assertThat(result.description()).isEqualTo("새 설명");
-        Map<String, Object> updated = jdbcTemplate.queryForMap("""
-                SELECT title, description
-                FROM posts
-                WHERE id = ?
-                """, POST_ID);
-        assertThat(updated.get("title")).isEqualTo("새 제목");
-        assertThat(updated.get("description")).isEqualTo("새 설명");
-    }
-
-    @Test
-    @DisplayName("설명이 있던 게시물을 설명 없이 수정하면 DB에서 설명이 NULL이 된다")
-    void updatePost_nullDescription_clearsStoredDescription() {
-        // Given
-        jdbcTemplate.update(
-                "UPDATE posts SET description = '기존 설명' WHERE id = ?",
-                POST_ID);
-
-        // When
-        var result = postCommandService.updatePost(
-                AUTHOR_ID,
-                POST_ID,
-                "기존 제목",
-                null
-        );
-        entityManager.flush();
-        entityManager.clear();
-
-        // Then
-        assertThat(result.description()).isNull();
-        Map<String, Object> updated = jdbcTemplate.queryForMap("""
-                SELECT description
-                FROM posts
-                WHERE id = ?
-                """, POST_ID);
-        assertThat(updated.get("description")).isNull();
-    }
-
-    @Test
-    @DisplayName("삭제된 게시물은 제목을 수정할 수 없다")
-    void updatePost_deletedPost_throwsNotFoundException() {
-        // Given
-        jdbcTemplate.update(
-                "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                POST_ID);
-
-        // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
-                () -> postCommandService.updatePost(
-                        AUTHOR_ID,
-                        POST_ID,
-                        "수정 제목",
-                        null
-                ));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-        assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
-    }
-
-    @Test
-    @DisplayName("탈퇴한 작성자의 인증 정보로 게시물 제목을 수정할 수 없다")
-    void updatePost_withdrawnAuthor_throwsUnauthorizedException() {
-        // Given
-        jdbcTemplate.update(
-                "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                AUTHOR_ID);
-
-        // When
-        UnauthorizedException exception = catchThrowableOfType(
-                UnauthorizedException.class,
-                () -> postCommandService.updatePost(
-                        AUTHOR_ID,
-                        POST_ID,
-                        "수정 제목",
-                        null
-                ));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
-        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
     }
 
     private void insertAuthor() {

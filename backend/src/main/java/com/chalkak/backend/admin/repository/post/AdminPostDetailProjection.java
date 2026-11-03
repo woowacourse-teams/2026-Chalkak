@@ -41,6 +41,6 @@ public record AdminPostDetailProjection(
         String uploadRejectionReason,
         Instant uploadCreatedAt,
         Instant uploadUpdatedAt,
-        long likeCount
+        Long likeCount
 ) {
 }

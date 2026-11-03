@@ -28,8 +28,10 @@ class UserTest {
         // Then
         assertThat(user.getEmail()).isNull();
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(storageKeys.originalStorageKey());
-        assertThat(user.getSignatureThumbnailStorageKey()).isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(user.getSignatureOriginalStorageKey())
+                .isEqualTo(storageKeys.originalStorageKey());
+        assertThat(user.getSignatureThumbnailStorageKey())
+                .isEqualTo(storageKeys.thumbnailStorageKey());
         assertThat(user.getPendingSignatureUploadId()).isNull();
         assertThat(user.getSignatureProcessingStatus()).isNull();
         assertThat(user.getSignatureProcessingStartedAt()).isNull();
@@ -60,25 +62,13 @@ class UserTest {
         user.withdraw();
 
         // Then
+        assertThat(user.isDeleted()).isTrue();
         assertThat(user.getEmail()).isEqualTo("withdrawn+" + id + "@chalkak.invalid");
         assertThat(user.getSignatureOriginalStorageKey()).isEqualTo("withdrawn/" + id);
         assertThat(user.getSignatureThumbnailStorageKey()).isNull();
         assertThat(user.getPendingSignatureUploadId()).isNull();
         assertThat(user.getSignatureProcessingStatus()).isNull();
         assertThat(user.getSignatureProcessingStartedAt()).isNull();
-    }
-
-    @Test
-    @DisplayName("탈퇴하면 탈퇴 시각이 기록된다")
-    void withdraw_activeUser_recordsDeletedAt() {
-        // Given
-        User user = UserFixture.create(UUID.randomUUID());
-
-        // When
-        user.withdraw();
-
-        // Then
-        assertThat(user.isDeleted()).isTrue();
     }
 
     @Test
@@ -256,7 +246,8 @@ class UserTest {
         assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(originalStorageKey);
         assertThat(user.getSignatureThumbnailStorageKey()).isEqualTo(thumbnailStorageKey);
         assertThat(user.getPendingSignatureUploadId()).isEqualTo(uploadId);
-        assertThat(user.getSignatureProcessingStatus()).isEqualTo(SignatureProcessingStatus.PROCESSING);
+        assertThat(user.getSignatureProcessingStatus())
+                .isEqualTo(SignatureProcessingStatus.PROCESSING);
         assertThat(user.getSignatureProcessingStartedAt()).isEqualTo(startedAt);
     }
 
@@ -276,8 +267,10 @@ class UserTest {
 
         // Then
         assertThat(completed).isTrue();
-        assertThat(user.getSignatureOriginalStorageKey()).isEqualTo(storageKeys.originalStorageKey());
-        assertThat(user.getSignatureThumbnailStorageKey()).isEqualTo(storageKeys.thumbnailStorageKey());
+        assertThat(user.getSignatureOriginalStorageKey())
+                .isEqualTo(storageKeys.originalStorageKey());
+        assertThat(user.getSignatureThumbnailStorageKey())
+                .isEqualTo(storageKeys.thumbnailStorageKey());
         assertThat(user.getPendingSignatureUploadId()).isNull();
         assertThat(user.getSignatureProcessingStatus()).isNull();
         assertThat(user.getSignatureProcessingStartedAt()).isNull();

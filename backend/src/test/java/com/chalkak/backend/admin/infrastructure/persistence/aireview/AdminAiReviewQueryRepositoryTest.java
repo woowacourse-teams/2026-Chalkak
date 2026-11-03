@@ -11,7 +11,7 @@ import com.chalkak.backend.aireview.domain.AiReview.Status;
 import com.chalkak.backend.aireview.service.AiReviewFixture;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
@@ -27,10 +27,9 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class AdminAiReviewQueryRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class AdminAiReviewQueryRepositoryTest {
 
     private static final UUID ACTIVE_TOPIC_ID = UUID
             .fromString("019a0000-0000-7000-8000-000000069101");

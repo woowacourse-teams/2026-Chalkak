@@ -4,9 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
-import com.chalkak.backend.post.domain.ModerationStatus;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.support.DatabaseCleaner;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -20,10 +21,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.transaction.BeforeTransaction;
 
-@Transactional
-class NotificationRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class NotificationRepositoryTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
@@ -33,6 +34,12 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @BeforeTransaction
+    void cleanCommittedData() {
+        // 다른 실행이 커밋한 수신 동의 회원이 발송 대상에 섞이지 않도록 먼저 정리한다.
+        new DatabaseCleaner(jdbc).clean();
+    }
 
     @ParameterizedTest
     @CsvSource({

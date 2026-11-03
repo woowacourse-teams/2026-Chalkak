@@ -9,6 +9,8 @@ import re
 import subprocess
 import sys
 
+import native_java
+
 
 HERE = Path(__file__).resolve().parent
 MCP_NAMES = ["mcp__fixture__" + name for name in ("read", "list", "write", "git_read", "work_state")]
@@ -92,7 +94,7 @@ def probe_helper(repo, output):
         raise ValueError("Claude fixture MCP 사전 검사 실패")
 
 
-def build_command(binary, repo, output, config_home=None):
+def build_command(binary, repo, output, config_home=None, enable_java=False):
     """명령·메타데이터만 반환한다. 호출자는 명시적 평가 요청 때에만 이 명령을 실행한다."""
     config_home = Path(config_home or os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
     help_result = subprocess.run([binary, "--help"], capture_output=True, text=True, timeout=10)
@@ -103,7 +105,11 @@ def build_command(binary, repo, output, config_home=None):
         raise ValueError("Claude CLI 버전을 확인할 수 없습니다")
     names = inspect_material(repo, config_home)
     probe_helper(repo, output)
+    if enable_java:
+        native_java.preflight(repo, output)
     allowed = ["Skill(" + name + ")" for name in names] + MCP_NAMES
+    if enable_java:
+        allowed.append("mcp__fixture__java_check")
     settings = {
         "permissions": {"allow": allowed, "deny": ["Bash", "Read", "Write", "Edit", "Agent", "Task", "WebFetch", "WebSearch"]},
         "autoMemoryEnabled": False,
@@ -126,6 +132,8 @@ def build_command(binary, repo, output, config_home=None):
                 settings[key] = preference[key]
     mcp = {"mcpServers": {"fixture": {"type": "stdio", "command": sys.executable,
            "args": [str(HERE / "fixture_tools.py"), str(repo), str(output / "fixture-tools.jsonl")]}}}
+    if enable_java:
+        mcp["mcpServers"]["fixture"]["args"].append("--java")
     settings_path, mcp_path = output / "claude-settings.json", output / "claude-mcp.json"
     dump(settings_path, settings)
     dump(mcp_path, mcp)
@@ -136,6 +144,9 @@ def build_command(binary, repo, output, config_home=None):
     metadata = {"cli_version": version.stdout.strip(), "mode": "native print; Skill + 임시 문서 MCP; 개인 도구 설정 제외, 기존 로그인·관리자 정책 유지",
                 "model_settings": {key: settings[key] for key in ("model", "effortLevel") if key in settings},
                 "limitations": "일반 Markdown·고정 작업 기록 사례만 지원; 네이티브 Bash/파일 도구·동적 스킬·추가 에이전트 평가는 포함하지 않음"}
+    if enable_java:
+        metadata.update(mode="native print; Skill + 임시 문서/Java MCP; Java는 검증된 macOS sandbox-exec로 실행",
+                        limitations="고정 오프라인 Java 검사만 지원; 네이티브 Bash/파일 도구·Java 경로 규칙 자동 로딩·동적 스킬·추가 에이전트 평가는 포함하지 않음")
     return command, metadata
 
 
