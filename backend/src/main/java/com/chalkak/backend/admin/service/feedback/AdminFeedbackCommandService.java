@@ -29,7 +29,8 @@ public class AdminFeedbackCommandService {
         Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
                         "문의를 찾을 수 없습니다."));
-        if (feedback.getDeletedAt() != null) {
+        // 이미 삭제한 문의는 감사 로그를 추가하지 않는다.
+        if (feedback.isDeleted()) {
             return;
         }
         AdminAuditSnapshot beforeState = createDeletionState(feedback);

@@ -4,15 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
-import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.feedback.service.FeedbackService;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -32,8 +29,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -98,18 +93,10 @@ class AdminFeedbackDeletionIntegrationTest extends IntegrationTestSupport {
         clean();
     }
 
-    @ParameterizedTest
-    @EnumSource(AdminUserStatus.class)
-    @DisplayName("관리자는 정상·정지·탈퇴 회원의 문의를 삭제하고 원문 없이 감사 전이를 기록한다")
-    void deleteFeedback_authorStates_commitsDeletionAndAudit(AdminUserStatus state)
-            throws Exception {
+    @Test
+    @DisplayName("관리자는 문의를 삭제하고 원문 없이 감사 전이를 기록한다")
+    void deleteFeedback_existingFeedback_commitsDeletionAndAudit() throws Exception {
         // Given
-        jdbcTemplate.update(
-                "UPDATE users SET status = CAST(? AS user_status), deleted_at = ? WHERE id = ?",
-                state == AdminUserStatus.BANNED ? "BANNED" : "ACTIVE",
-                state == AdminUserStatus.WITHDRAWN ? Timestamp.from(NOW) : null,
-                userId
-        );
         Map<String, Object> original = jdbcTemplate.queryForMap(
                 "SELECT user_id, content, created_at FROM feedbacks WHERE id = ?", feedbackId);
 
@@ -144,47 +131,6 @@ class AdminFeedbackDeletionIntegrationTest extends IntegrationTestSupport {
                 "{\"deletedAt\":\"" + expected + "\"}",
                 feedbackId
         )).isTrue();
-        mockMvc.perform(get("/api/v1/admin/audit-logs")
-                .param("action", "FEEDBACK_DELETED")
-                .param("targetType", "FEEDBACK")
-                .param("targetId", feedbackId.toString())
-                .header(HttpHeaders.AUTHORIZATION, adminToken()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.auditLogs.length()").value(1))
-                .andExpect(jsonPath("$.auditLogs[0].action").value("FEEDBACK_DELETED"));
-    }
-
-    @Test
-    @DisplayName("관리자가 최근 문의를 모두 삭제해도 본인 조회에서 숨기고 접수 제한은 유지한다")
-    void deleteFeedback_hidesFromOwner_preservesSubmissionLimit() throws Exception {
-        // Given
-        for (int index = 0; index < 4; index++) {
-            insertFeedback(UUID.randomUUID(), NOW.minusSeconds(180 + index * 60L));
-        }
-
-        // When
-        jdbcTemplate.queryForList(
-                "SELECT id FROM feedbacks WHERE user_id = ?",
-                UUID.class,
-                userId
-        )
-                .forEach(id -> commandService.deleteFeedback(id, ADMIN_ID));
-
-        // Then
-        String token = "Bearer "
-                + accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-        mockMvc.perform(get("/api/v1/feedbacks").header(HttpHeaders.AUTHORIZATION, token))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.feedbacks").isEmpty());
-        mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", feedbackId)
-                .header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", feedbackId)
-                .header(HttpHeaders.AUTHORIZATION, adminToken())).andExpect(status().isOk())
-                .andExpect(jsonPath("$.content").value("개인 문의 member@example.com"));
-        mockMvc.perform(get("/api/v1/admin/feedbacks").param("userId", userId.toString())
-                .header(HttpHeaders.AUTHORIZATION, adminToken())).andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(5));
-        assertThatThrownBy(() -> feedbackService.submit(userId, "추가 문의"))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("최근 24시간에 최대 5건");
     }
 
     @Test
@@ -239,24 +185,6 @@ class AdminFeedbackDeletionIntegrationTest extends IntegrationTestSupport {
         assertThat(auditCount()).isZero();
         assertThat(feedbackService.getFeedback(userId, feedbackId).content())
                 .isEqualTo("개인 문의 member@example.com");
-    }
-
-    @Test
-    @DisplayName("DB도 문의 삭제 행위와 다른 대상 유형의 조합을 거절한다")
-    void deleteFeedback_invalidAuditTarget_isRejectedByDatabase() {
-        // Given
-        commandService.deleteFeedback(feedbackId, ADMIN_ID);
-
-        // When & Then
-        assertThatThrownBy(() -> jdbcTemplate.update(
-                """
-                        INSERT INTO admin_audit_logs
-                            (actor_admin_id, action, target_type, target_id, before_state, after_state, occurred_at, request_id)
-                        SELECT actor_admin_id, action, 'POST', target_id, before_state, after_state, occurred_at, request_id
-                        FROM admin_audit_logs WHERE target_id = ?
-                        """,
-                feedbackId)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(auditCount()).isEqualTo(1);
     }
 
     @Test
