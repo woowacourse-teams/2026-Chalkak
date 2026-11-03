@@ -8,6 +8,7 @@ public record AdminFeedbackSummaryProjection(
         UUID feedbackId,
         String content,
         Instant createdAt,
+        Instant deletedAt,
         UUID authorId,
         String authorEmail,
         UserStatus authorStatus,

@@ -7,7 +7,9 @@ import com.chalkak.backend.admin.api.v1.dto.request.AdminFeedbackListRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminFeedbackListResponse;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
+import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +30,9 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @Valid @ModelAttribute AdminFeedbackListRequest request
     ) {
+        UUID userId = request.userId() == null ? null : CanonicalUuidParser.parse(request.userId());
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
+                userId,
                 request.sort(),
                 request.page(),
                 request.pageSize()

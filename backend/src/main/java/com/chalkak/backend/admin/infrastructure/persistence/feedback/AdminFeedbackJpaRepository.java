@@ -15,6 +15,7 @@ public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID
                 feedback.id,
                 feedback.content,
                 feedback.createdAt,
+                feedback.deletedAt,
                 author.id,
                 author.email,
                 author.status,
@@ -23,8 +24,10 @@ public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID
             )
             FROM Feedback feedback
             JOIN User author ON author.id = feedback.userId
+            WHERE feedback.userId = COALESCE(:userId, feedback.userId)
             """)
     Slice<AdminFeedbackSummaryProjection> findFeedbacks(
+            UUID userId,
             Pageable pageable
     );
 }

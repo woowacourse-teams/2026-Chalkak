@@ -43,6 +43,7 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_withdrawnAuthor_derivesWithdrawnStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -51,6 +52,7 @@ class AdminFeedbackQueryServiceTest {
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -67,6 +69,7 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_bannedAuthor_derivesBannedStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -75,6 +78,7 @@ class AdminFeedbackQueryServiceTest {
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -87,10 +91,11 @@ class AdminFeedbackQueryServiceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0, 20", "1, 0", "1, 101"})
+    @CsvSource({"0, 20", "1, 0", "1, 101", "2147483647, 100"})
     @DisplayName("페이지 조건이 범위를 벗어나면 조회하지 않는다")
     void getFeedbacks_invalidPagination_throwsBusinessException(int page, int pageSize) {
         assertThatThrownBy(() -> adminFeedbackQueryService.getFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 page,
                 pageSize
@@ -101,6 +106,36 @@ class AdminFeedbackQueryServiceTest {
         then(adminFeedbackQueryRepository).shouldHaveNoInteractions();
     }
 
+    @Test
+    @DisplayName("사용자 필터와 요청 페이지 정보를 저장소와 결과에 전달한다")
+    void getFeedbacks_userFilter_preservesFilterAndPagination() {
+        // Given
+        given(adminFeedbackQueryRepository.findFeedbacks(
+                USER_ID,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                2,
+                7
+        )).willReturn(new AdminPage<>(
+                List.of(),
+                2,
+                7,
+                false
+        ));
+
+        // When
+        AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
+                USER_ID,
+                null,
+                2,
+                7
+        );
+
+        // Then
+        assertThat(result.currentPage()).isEqualTo(2);
+        assertThat(result.pageSize()).isEqualTo(7);
+        assertThat(result.feedbacks()).isEmpty();
+    }
+
     private AdminPage<AdminFeedbackSummaryProjection> page(UserStatus userStatus,
             Instant userDeletedAt) {
         return new AdminPage<>(
@@ -108,6 +143,7 @@ class AdminFeedbackQueryServiceTest {
                         FEEDBACK_ID,
                         "사진 업로드가 느려요.",
                         CREATED_AT,
+                        null,
                         USER_ID,
                         "user@example.com",
                         userStatus,

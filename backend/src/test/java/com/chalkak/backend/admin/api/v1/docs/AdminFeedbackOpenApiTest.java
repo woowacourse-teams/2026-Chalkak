@@ -26,6 +26,7 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters[*].name")
                         .value(containsInAnyOrder(
+                                "userId",
                                 "sort",
                                 "page",
                                 "pageSize"
@@ -37,10 +38,23 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.responses['400']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.responses['401']")
+                        .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.responses['403']")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.AdminFeedbackListItem.properties[*]")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'userId')].required").value(containsInAnyOrder(false)))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'userId')].schema.format")
+                        .value(containsInAnyOrder("uuid")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackListItem.properties.deletedAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackListItem.properties.deletedAt.type")
+                        .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.AdminFeedbackListAuthor.properties[*]")
                         .exists());
     }

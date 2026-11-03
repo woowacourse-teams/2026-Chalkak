@@ -4,6 +4,7 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepositor
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ public class AdminFeedbackQueryService {
     private final AdminFeedbackQueryRepository adminFeedbackQueryRepository;
 
     public AdminFeedbackListResult getFeedbacks(
+            UUID userId,
             AdminFeedbackSort sort,
             int page,
             int pageSize
@@ -25,6 +27,7 @@ public class AdminFeedbackQueryService {
         validatePagination(page, pageSize);
         return AdminFeedbackListResult.from(
                 adminFeedbackQueryRepository.findFeedbacks(
+                        userId,
                         sort == null ? AdminFeedbackSort.CREATED_AT_DESC : sort,
                         page,
                         pageSize

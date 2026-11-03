@@ -12,9 +12,15 @@ import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -37,6 +43,11 @@ class AdminFeedbackQueryRepositoryTest {
     private static final Instant MIDDLE_CREATED_AT = Instant.parse("2026-09-15T01:00:00Z");
     private static final Instant NEWEST_CREATED_AT = Instant.parse("2026-09-16T01:00:00Z");
     private static final Instant WITHDRAWN_AT = Instant.parse("2026-09-15T12:00:00Z");
+    private static final Instant DELETED_AT = Instant.parse("2026-11-03T09:00:00Z");
+    private static final UUID TIED_FIRST_ID = UUID
+            .fromString("0198fc10-0000-7000-8000-000000000011");
+    private static final UUID TIED_SECOND_ID = UUID
+            .fromString("0198fc10-0000-7000-8000-000000000012");
 
     @Autowired
     private AdminFeedbackQueryRepository adminFeedbackQueryRepository;
@@ -51,6 +62,11 @@ class AdminFeedbackQueryRepositoryTest {
     void setUp() {
         insertUsers();
         insertFeedbacks();
+        jdbcTemplate.update(
+                "UPDATE feedbacks SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(DELETED_AT),
+                OLDEST_FEEDBACK_ID
+        );
         entityManager.flush();
         entityManager.clear();
     }
@@ -60,6 +76,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtDesc_returnsNewestFirstWithAuthor() {
         // When
         AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -83,6 +100,8 @@ class AdminFeedbackQueryRepositoryTest {
         assertThat(newest.authorStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(newest.authorAppVersion()).isEqualTo("1.2.3");
         assertThat(newest.authorDeletedAt()).isNull();
+        assertThat(newest.deletedAt()).isNull();
+        assertThat(page.items().getLast().deletedAt()).isEqualTo(DELETED_AT);
     }
 
     @Test
@@ -90,6 +109,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtAsc_returnsOldestFirst() {
         // When
         AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -111,12 +131,14 @@ class AdminFeedbackQueryRepositoryTest {
         // When
         AdminPage<AdminFeedbackSummaryProjection> firstPage = adminFeedbackQueryRepository
                 .findFeedbacks(
+                        null,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         2
                 );
         AdminPage<AdminFeedbackSummaryProjection> lastPage = adminFeedbackQueryRepository
                 .findFeedbacks(
+                        null,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         2,
                         2
@@ -138,6 +160,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_bannedAndWithdrawnAuthors_areIncluded() {
         // When
         AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -152,6 +175,133 @@ class AdminFeedbackQueryRepositoryTest {
         AdminFeedbackSummaryProjection withdrawnFeedback = page.items().get(1);
         assertThat(withdrawnFeedback.authorId()).isEqualTo(WITHDRAWN_USER_ID);
         assertThat(withdrawnFeedback.authorDeletedAt()).isEqualTo(WITHDRAWN_AT);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "0198fc00-0000-7000-8000-000000000001",
+            "0198fc00-0000-7000-8000-000000000002",
+            "0198fc00-0000-7000-8000-000000000003"
+    })
+    @DisplayName("정상·정지·탈퇴 회원별 필터는 삭제 여부와 무관하게 해당 회원의 기록만 반환한다")
+    void findFeedbacks_userFilter_returnsOnlySelectedAuthor(String userId) {
+        // Given
+        UUID authorId = UUID.fromString(userId);
+
+        // When
+        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                authorId,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(page.items()).hasSize(1)
+                .allMatch(feedback -> feedback.authorId().equals(authorId));
+        assertThat(page.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("없는 사용자 ID로 필터링하면 빈 목록을 반환한다")
+    void findFeedbacks_unknownUser_returnsEmptyPage() {
+        // When
+        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                UUID.randomUUID(),
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(page.items()).isEmpty();
+        assertThat(page.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @MethodSource("filteredPageOrders")
+    @DisplayName("사용자 필터 후 페이지를 나누고 같은 시각은 ID로 안정적으로 정렬한다")
+    void findFeedbacks_filteredTiedTimes_preservesSortAndPages(
+            AdminFeedbackSort sort,
+            List<UUID> firstIds,
+            UUID lastId
+    ) {
+        // Given
+        insertFeedback(
+                TIED_FIRST_ID,
+                ACTIVE_USER_ID,
+                NEWEST_CREATED_AT
+        );
+        insertFeedback(
+                TIED_SECOND_ID,
+                ACTIVE_USER_ID,
+                NEWEST_CREATED_AT
+        );
+        insertFeedback(
+                UUID.randomUUID(),
+                BANNED_USER_ID,
+                NEWEST_CREATED_AT.plusSeconds(60)
+        );
+
+        // When
+        AdminPage<AdminFeedbackSummaryProjection> first = adminFeedbackQueryRepository
+                .findFeedbacks(
+                        ACTIVE_USER_ID,
+                        sort,
+                        1,
+                        2
+                );
+        AdminPage<AdminFeedbackSummaryProjection> last = adminFeedbackQueryRepository.findFeedbacks(
+                ACTIVE_USER_ID,
+                sort,
+                2,
+                2
+        );
+        AdminPage<AdminFeedbackSummaryProjection> beyond = adminFeedbackQueryRepository
+                .findFeedbacks(
+                        ACTIVE_USER_ID,
+                        sort,
+                        3,
+                        2
+                );
+
+        // Then
+        assertThat(first.items()).extracting(AdminFeedbackSummaryProjection::feedbackId)
+                .containsExactlyElementsOf(firstIds);
+        assertThat(first.hasNext()).isTrue();
+        assertThat(last.items()).extracting(AdminFeedbackSummaryProjection::feedbackId)
+                .containsExactly(lastId);
+        assertThat(last.hasNext()).isFalse();
+        assertThat(beyond.items()).isEmpty();
+        assertThat(beyond.hasNext()).isFalse();
+    }
+
+    private static Stream<Arguments> filteredPageOrders() {
+        return Stream.of(
+                Arguments.of(
+                        AdminFeedbackSort.CREATED_AT_DESC,
+                        List.of(TIED_SECOND_ID, TIED_FIRST_ID),
+                        NEWEST_FEEDBACK_ID
+                ),
+                Arguments.of(
+                        AdminFeedbackSort.CREATED_AT_ASC,
+                        List.of(NEWEST_FEEDBACK_ID, TIED_FIRST_ID),
+                        TIED_SECOND_ID
+                )
+        );
+    }
+
+    private void insertFeedback(
+            UUID feedbackId,
+            UUID userId,
+            Instant createdAt
+    ) {
+        jdbcTemplate.update(
+                "INSERT INTO feedbacks (id, user_id, content, created_at) VALUES (?, ?, '추가 문의', ?)",
+                feedbackId,
+                userId,
+                Timestamp.from(createdAt)
+        );
     }
 
     private void insertUsers() {

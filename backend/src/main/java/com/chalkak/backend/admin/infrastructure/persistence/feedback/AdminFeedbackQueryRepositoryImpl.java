@@ -4,6 +4,7 @@ import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -18,6 +19,7 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
 
     @Override
     public AdminPage<AdminFeedbackSummaryProjection> findFeedbacks(
+            UUID userId,
             AdminFeedbackSort sort,
             int page,
             int pageSize
@@ -27,7 +29,7 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
                 pageSize,
                 toSort(sort)
         );
-        Slice<AdminFeedbackSummaryProjection> result = repository.findFeedbacks(pageable);
+        Slice<AdminFeedbackSummaryProjection> result = repository.findFeedbacks(userId, pageable);
         return new AdminPage<>(
                 result.getContent(),
                 page,

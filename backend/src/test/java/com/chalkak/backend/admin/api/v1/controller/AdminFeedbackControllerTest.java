@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -17,10 +18,14 @@ import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -41,6 +46,7 @@ class AdminFeedbackControllerTest {
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000002");
     private static final UUID FEEDBACK_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000003");
     private static final Instant CREATED_AT = Instant.parse("2026-09-16T01:00:00Z");
+    private static final Instant DELETED_AT = Instant.parse("2026-11-03T09:00:00Z");
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,11 +67,12 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_withoutParameters_usesDefaults() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
         ))
-                .willReturn(listResult());
+                .willReturn(listResult(null));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/feedbacks"))
@@ -76,6 +83,7 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(FEEDBACK_ID.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].content").value("사진 업로드가 느려요."))
                 .andExpect(jsonPath("$.feedbacks[0].createdAt").value("2026-09-16T01:00:00Z"))
+                .andExpect(jsonPath("$.feedbacks[0].deletedAt").value(nullValue()))
                 .andExpect(jsonPath("$.feedbacks[0].author.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].author.email").value("user@example.com"))
                 .andExpect(jsonPath("$.feedbacks[0].author.status").value("ACTIVE"))
@@ -83,6 +91,7 @@ class AdminFeedbackControllerTest {
 
         then(adminFeedbackQueryService).should()
                 .getFeedbacks(
+                        null,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         20
@@ -94,11 +103,12 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_withParameters_passesThemToService() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
+                null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 2,
                 50
         ))
-                .willReturn(listResult());
+                .willReturn(listResult(null));
 
         // When & Then
         mockMvc.perform(get("/api/v1/admin/feedbacks")
@@ -109,10 +119,75 @@ class AdminFeedbackControllerTest {
 
         then(adminFeedbackQueryService).should()
                 .getFeedbacks(
+                        null,
                         AdminFeedbackSort.CREATED_AT_ASC,
                         2,
                         50
                 );
+    }
+
+    @Test
+    @DisplayName("사용자 필터를 전달하고 문의 삭제 시각을 반환한다")
+    void getFeedbacks_userFilter_returnsDeletionTime() throws Exception {
+        // Given
+        given(adminFeedbackQueryService.getFeedbacks(
+                USER_ID,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        )).willReturn(listResult(DELETED_AT));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/feedbacks")
+                .param("userId", USER_ID.toString().toUpperCase(Locale.ROOT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbacks[0].author.userId").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].deletedAt").value(DELETED_AT.toString()));
+        then(adminFeedbackQueryService).should().getFeedbacks(
+                USER_ID,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-id", "1-1-1-1-1", "", " "})
+    @DisplayName("잘못되거나 축약되거나 비어 있는 사용자 ID는 조회 전에 400으로 거절한다")
+    void getFeedbacks_invalidUserId_returnsBadRequest(String userId) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/feedbacks").param("userId", userId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
+        then(adminFeedbackQueryService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,1", "2,100"})
+    @DisplayName("사용자별 목록도 페이지당 최소 1건과 최대 100건을 허용한다")
+    void getFeedbacks_pageSizeBoundary_returnsOk(int page, int pageSize) throws Exception {
+        // Given
+        given(adminFeedbackQueryService.getFeedbacks(
+                USER_ID,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                page,
+                pageSize
+        )).willReturn(new AdminFeedbackListResult(
+                page,
+                pageSize,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/feedbacks")
+                .param("userId", USER_ID.toString())
+                .param("page", String.valueOf(page))
+                .param("pageSize", String.valueOf(pageSize)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPage").value(page))
+                .andExpect(jsonPath("$.pageSize").value(pageSize));
     }
 
     @Test
@@ -137,7 +212,7 @@ class AdminFeedbackControllerTest {
         then(adminFeedbackQueryService).shouldHaveNoInteractions();
     }
 
-    private AdminFeedbackListResult listResult() {
+    private AdminFeedbackListResult listResult(Instant deletedAt) {
         return new AdminFeedbackListResult(
                 1,
                 20,
@@ -146,6 +221,7 @@ class AdminFeedbackControllerTest {
                         FEEDBACK_ID,
                         "사진 업로드가 느려요.",
                         CREATED_AT,
+                        deletedAt,
                         new AdminFeedbackListResult.AuthorSummary(
                                 USER_ID,
                                 "user@example.com",
