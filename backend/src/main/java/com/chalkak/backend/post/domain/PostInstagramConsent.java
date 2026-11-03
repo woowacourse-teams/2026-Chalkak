@@ -25,10 +25,8 @@ public record PostInstagramConsent(
         @Column(name = "instagram_revoked_at") Instant revokedAt
 ) {
 
-    /** 요청 DTO의 {@code @AssertTrue} 메시지도 이 상수를 참조해 도메인 예외와 문구가 어긋나지 않게 한다. */
-    public static final String INVALID_ID_FORMAT_MESSAGE = "인스타그램 ID 형식이 올바르지 않습니다.";
-    public static final String ID_WITHOUT_AGREEMENT_MESSAGE = "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.";
-
+    private static final String INVALID_ID_FORMAT_MESSAGE = "인스타그램 ID 형식이 올바르지 않습니다.";
+    private static final String ID_WITHOUT_AGREEMENT_MESSAGE = "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.";
     private static final int MAX_ID_LENGTH = 30;
     private static final String LEADING_AT = "@";
     /**
