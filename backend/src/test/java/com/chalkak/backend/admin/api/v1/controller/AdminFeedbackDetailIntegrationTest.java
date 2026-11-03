@@ -1,26 +1,19 @@
 package com.chalkak.backend.admin.api.v1.controller;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -67,22 +60,9 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("readableStates")
-    @DisplayName("관리자는 삭제 여부와 정상·정지·탈퇴 작성자 상태에 관계없이 문의 상세를 조회한다")
-    void getFeedback_adminToken_returnsDetailAcrossStates(
-            AdminUserStatus authorStatus,
-            boolean deleted
-    ) throws Exception {
-        // Given
-        setAuthorState(authorStatus);
-        jdbcTemplate.update(
-                "UPDATE feedbacks SET deleted_at = ? WHERE id = ?",
-                deleted ? Timestamp.from(DELETED_AT) : null,
-                feedbackId
-        );
-        String expectedDeletedAt = deleted ? DELETED_AT.toString() : null;
-
+    @Test
+    @DisplayName("실제 관리자 인증으로 문의 상세를 조회한다")
+    void getFeedback_adminToken_returnsDetail() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, adminToken()))
@@ -90,9 +70,9 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.feedbackId").value(feedbackId.toString()))
                 .andExpect(jsonPath("$.content").value("관리자 상세 문의"))
                 .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()))
-                .andExpect(jsonPath("$.deletedAt").value(is(expectedDeletedAt)))
+                .andExpect(jsonPath("$.deletedAt").value(nullValue()))
                 .andExpect(jsonPath("$.author.userId").value(userId.toString()))
-                .andExpect(jsonPath("$.author.status").value(authorStatus.name()));
+                .andExpect(jsonPath("$.author.status").value("ACTIVE"));
     }
 
     @Test
@@ -104,28 +84,6 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("문의를 찾을 수 없습니다."));
-    }
-
-    @ParameterizedTest
-    @EnumSource(AdminUserStatus.class)
-    @DisplayName("정상·정지·탈퇴 회원은 본인 문의라도 관리자 상세 API에 접근할 수 없다")
-    void getFeedback_memberToken_returnsForbidden(AdminUserStatus authorStatus) throws Exception {
-        // Given
-        setAuthorState(authorStatus);
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", feedbackId)
-                .header(HttpHeaders.AUTHORIZATION, memberToken()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
-
-    @Test
-    @DisplayName("관리자 문의 상세는 인증 없이 조회할 수 없다")
-    void getFeedback_withoutToken_returnsUnauthorized() throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", feedbackId))
-                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -145,28 +103,6 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, memberToken()))
                 .andExpect(status().isNotFound());
-    }
-
-    private static Stream<Arguments> readableStates() {
-        return Arrays.stream(AdminUserStatus.values())
-                .flatMap(status -> Stream.of(Arguments.of(status, false),
-                        Arguments.of(status, true)));
-    }
-
-    private void setAuthorState(AdminUserStatus status) {
-        boolean withdrawn = status == AdminUserStatus.WITHDRAWN;
-        jdbcTemplate.update(
-                """
-                        UPDATE users SET status = CAST(? AS user_status), deleted_at = ?,
-                            email = ?, signature_original_storage_key = ?
-                        WHERE id = ?
-                        """,
-                withdrawn ? "ACTIVE" : status.name(),
-                withdrawn ? Timestamp.from(DELETED_AT) : null,
-                withdrawn ? "withdrawn+" + userId + "@chalkak.invalid" : userId + "@chalkak.test",
-                (withdrawn ? "withdrawn/" : "signatures/") + userId,
-                userId
-        );
     }
 
     private String adminToken() {

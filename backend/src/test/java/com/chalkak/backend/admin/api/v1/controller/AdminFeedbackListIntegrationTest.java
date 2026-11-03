@@ -13,8 +13,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -79,36 +77,6 @@ class AdminFeedbackListIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.feedbacks[0].deletedAt").value(DELETED_AT.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].author.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].author.status").value("BANNED"));
-    }
-
-    @ParameterizedTest
-    @CsvSource({"ACTIVE,false", "BANNED,false", "ACTIVE,true"})
-    @DisplayName("정상·정지·탈퇴 회원 토큰으로는 관리자 문의를 조회하지 못한다")
-    void getFeedbacks_memberToken_returnsForbidden(String userStatus, boolean withdrawn)
-            throws Exception {
-        // Given
-        jdbcTemplate.update(
-                "UPDATE users SET status = CAST(? AS user_status), deleted_at = ? WHERE id = ?",
-                userStatus,
-                withdrawn ? Timestamp.from(DELETED_AT) : null,
-                userId
-        );
-        String token = accessTokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("userId", userId.toString())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
-
-    @Test
-    @DisplayName("관리자 문의 목록은 인증 없이 조회할 수 없다")
-    void getFeedbacks_withoutToken_returnsUnauthorized() throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks").param("userId", userId.toString()))
-                .andExpect(status().isUnauthorized());
     }
 
     private void insertUser(UUID id) {

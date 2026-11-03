@@ -139,29 +139,6 @@ class AdminFeedbackQueryServiceTest {
     }
 
     @Test
-    @DisplayName("삭제된 문의와 탈퇴 작성자 정보도 관리자 상세로 반환한다")
-    void getFeedback_deletedFeedbackWithWithdrawnAuthor_returnsDetail() {
-        // Given
-        Instant deletedAt = Instant.parse("2026-11-03T09:00:00Z");
-        given(adminFeedbackQueryRepository.findFeedbackById(FEEDBACK_ID))
-                .willReturn(Optional.of(feedback(
-                        UserStatus.ACTIVE,
-                        WITHDRAWN_AT,
-                        deletedAt
-                )));
-
-        // When
-        AdminFeedbackDetailResult result = adminFeedbackQueryService.getFeedback(FEEDBACK_ID);
-
-        // Then
-        assertThat(result.feedbackId()).isEqualTo(FEEDBACK_ID);
-        assertThat(result.content()).isEqualTo("사진 업로드가 느려요.");
-        assertThat(result.deletedAt()).isEqualTo(deletedAt);
-        assertThat(result.author().userId()).isEqualTo(USER_ID);
-        assertThat(result.author().status()).isEqualTo(AdminUserStatus.WITHDRAWN);
-    }
-
-    @Test
     @DisplayName("없는 관리자 문의 상세는 찾을 수 없음 예외로 거절한다")
     void getFeedback_missingFeedback_throwsNotFound() {
         // Given

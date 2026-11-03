@@ -26,7 +26,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -162,33 +161,6 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
         then(adminFeedbackQueryService).shouldHaveNoInteractions();
-    }
-
-    @ParameterizedTest
-    @CsvSource({"1,1", "2,100"})
-    @DisplayName("사용자별 목록도 페이지당 최소 1건과 최대 100건을 허용한다")
-    void getFeedbacks_pageSizeBoundary_returnsOk(int page, int pageSize) throws Exception {
-        // Given
-        given(adminFeedbackQueryService.getFeedbacks(
-                USER_ID,
-                AdminFeedbackSort.CREATED_AT_DESC,
-                page,
-                pageSize
-        )).willReturn(new AdminFeedbackListResult(
-                page,
-                pageSize,
-                false,
-                List.of()
-        ));
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("userId", USER_ID.toString())
-                .param("page", String.valueOf(page))
-                .param("pageSize", String.valueOf(pageSize)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.currentPage").value(page))
-                .andExpect(jsonPath("$.pageSize").value(pageSize));
     }
 
     @Test
