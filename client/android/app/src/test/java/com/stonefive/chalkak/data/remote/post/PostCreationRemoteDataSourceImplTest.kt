@@ -101,6 +101,7 @@ class PostCreationRemoteDataSourceImplTest {
             topicId = "topic-id",
             photoUploadId = "upload-id",
             title = "📸 바다",
+            description = "퇴근길에\n만난 노을",
         )
         val request = server.takeRequest()
 
@@ -111,13 +112,13 @@ class PostCreationRemoteDataSourceImplTest {
         assertEquals("POST", request.method)
         assertEquals("/api/v1/posts", request.path)
         assertEquals(
-            "{\"topicId\":\"topic-id\",\"photoUploadId\":\"upload-id\",\"title\":\"📸 바다\"}",
+            "{\"topicId\":\"topic-id\",\"photoUploadId\":\"upload-id\",\"title\":\"📸 바다\",\"description\":\"퇴근길에\\n만난 노을\"}",
             request.body.readUtf8(),
         )
     }
 
     @Test
-    fun `제목이 null이면 선택 field를 생략한다`() = runTest {
+    fun `제목과 설명이 null이면 선택 field를 생략한다`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(201)
@@ -129,6 +130,7 @@ class PostCreationRemoteDataSourceImplTest {
             topicId = "topic-id",
             photoUploadId = "upload-id",
             title = null,
+            description = null,
         )
 
         assertEquals(
@@ -168,7 +170,7 @@ class PostCreationRemoteDataSourceImplTest {
                 ),
         )
 
-        val result = dataSource.createPost("topic-id", "upload-id", null)
+        val result = dataSource.createPost("topic-id", "upload-id", null, null)
 
         assertEquals(
             ApiResult.Failure(

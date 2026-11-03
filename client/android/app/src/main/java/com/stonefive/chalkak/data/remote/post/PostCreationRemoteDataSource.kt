@@ -11,5 +11,6 @@ interface PostCreationRemoteDataSource {
         topicId: String,
         photoUploadId: String,
         title: String?,
+        description: String?,
     ): ApiResult<PostCreateResponse>
 }

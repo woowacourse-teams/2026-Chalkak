@@ -58,6 +58,7 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
+import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextLengthMetric
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
@@ -166,6 +167,8 @@ fun PhotoUploadScreen(
 ) {
     val captionScrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
+    var isDescriptionFocused by remember { mutableStateOf(false) }
+    val isInputFocused = isCaptionFocused || isDescriptionFocused
     var isBackPending by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -173,8 +176,8 @@ fun PhotoUploadScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(isCaptionFocused, imeTargetBottom) {
-        if (isCaptionFocused && imeTargetBottom > 0) {
+    LaunchedEffect(isInputFocused, imeTargetBottom) {
+        if (isInputFocused && imeTargetBottom > 0) {
             snapshotFlow { captionScrollState.maxValue }
                 .collectLatest(captionScrollState::scrollTo)
         }
@@ -191,7 +194,7 @@ fun PhotoUploadScreen(
     fun requestBack() {
         if (isBackPending || uiState.isSubmitting) return
 
-        if (isCaptionFocused || imeBottom > 0) {
+        if (isInputFocused || imeBottom > 0) {
             isBackPending = true
             focusManager.clearFocus()
             keyboardController?.hide()
@@ -284,6 +287,24 @@ fun PhotoUploadScreen(
                         textStyle = ChalkakTheme.typography.subheadline,
                         minLines = 3,
                         maxLength = CAPTION_MAX_LENGTH,
+                    )
+
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+
+                    ChalkakTextField(
+                        value = uiState.description,
+                        onValueChange = { onAction(PhotoUploadUiAction.DescriptionChanged(it)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isDescriptionFocused = it.isFocused }
+                            .testTag(PHOTO_UPLOAD_DESCRIPTION_TAG),
+                        placeholder = "작품 설명은 선택이에요.",
+                        enabled = !uiState.isSubmitting,
+                        textStyle = ChalkakTheme.typography.subheadline,
+                        minLines = 4,
+                        maxLength = DESCRIPTION_MAX_LENGTH,
+                        // 서버가 설명 길이를 code point로 검증하므로 같은 단위로 제한한다.
+                        lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
                     )
 
                     uiState.topicErrorMessage?.let { errorMessage ->
@@ -424,8 +445,10 @@ private fun rememberPhotoPickerState(
 
 const val PHOTO_UPLOAD_SUBMIT_BUTTON_TAG = "photoUploadSubmitButton"
 const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
+const val PHOTO_UPLOAD_DESCRIPTION_TAG = "photoUploadDescription"
 
 private const val CAPTION_MAX_LENGTH = 10
+private const val DESCRIPTION_MAX_LENGTH = 300
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
     "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
@@ -457,6 +480,7 @@ private fun PhotoUploadScreenSelectedPreview() {
             uiState = PhotoUploadUiState(
                 selectedImage = drawableResourceUrl(R.drawable.preview_photo),
                 caption = "전선 사이로 빠져나온 하늘",
+                description = "퇴근길에 만난 노을을 담았어요.",
             ),
             onAction = {},
         )

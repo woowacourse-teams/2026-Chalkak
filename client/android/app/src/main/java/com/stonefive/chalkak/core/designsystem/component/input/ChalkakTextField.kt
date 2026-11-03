@@ -24,6 +24,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
+/**
+ * 텍스트 길이를 어떤 단위로 세고 제한할지 정한다.
+ *
+ * 서버 검증 기준과 UI 제한·카운터를 맞추기 위한 값이다. 기본값은 사용자가 눈으로 세는 글자 수(grapheme)이며,
+ * 서버가 다른 단위로 검증하는 화면은 그 단위를 골라 맞춘다.
+ */
+enum class ChalkakTextLengthMetric {
+    /** 사람이 인식하는 글자(grapheme cluster) 수. */
+    CHARACTERS,
+
+    /** Unicode code point 수. 서버가 code point로 길이를 검증할 때 사용한다. */
+    CODE_POINTS,
+}
+
 @Composable
 fun ChalkakTextField(
     value: String,
@@ -37,6 +51,7 @@ fun ChalkakTextField(
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     maxLength: Int? = null,
+    lengthMetric: ChalkakTextLengthMetric = ChalkakTextLengthMetric.CHARACTERS,
     showCharacterCount: Boolean = maxLength != null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -44,7 +59,7 @@ fun ChalkakTextField(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val characterCount = remember(value) { value.graphemeCount() }
+    val characterCount = remember(value, lengthMetric) { value.length(lengthMetric) }
     val resolvedTextStyle = (textStyle ?: ChalkakTheme.typography.body).copy(
         color = if (enabled) {
             ChalkakTheme.colors.textPrimary
@@ -62,7 +77,7 @@ fun ChalkakTextField(
         value = value,
         onValueChange = { changedValue ->
             onValueChange(
-                maxLength?.let(changedValue::takeGraphemes) ?: changedValue,
+                maxLength?.let { changedValue.limited(it, lengthMetric) } ?: changedValue,
             )
         },
         modifier = modifier
@@ -115,6 +130,24 @@ fun ChalkakTextField(
             }
         },
     )
+}
+
+internal fun String.length(metric: ChalkakTextLengthMetric): Int = when (metric) {
+    ChalkakTextLengthMetric.CHARACTERS -> graphemeCount()
+    ChalkakTextLengthMetric.CODE_POINTS -> codePointCount(0, length)
+}
+
+internal fun String.limited(
+    maxLength: Int,
+    metric: ChalkakTextLengthMetric,
+): String = when (metric) {
+    ChalkakTextLengthMetric.CHARACTERS -> takeGraphemes(maxLength)
+    ChalkakTextLengthMetric.CODE_POINTS -> takeCodePoints(maxLength)
+}
+
+private fun String.takeCodePoints(count: Int): String {
+    if (codePointCount(0, length) <= count) return this
+    return substring(0, offsetByCodePoints(0, count))
 }
 
 private fun String.graphemeCount(): Int {

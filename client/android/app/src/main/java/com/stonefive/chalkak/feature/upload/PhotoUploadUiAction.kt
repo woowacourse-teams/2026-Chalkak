@@ -9,5 +9,7 @@ sealed interface PhotoUploadUiAction {
 
     data class CaptionChanged(val caption: String) : PhotoUploadUiAction
 
+    data class DescriptionChanged(val description: String) : PhotoUploadUiAction
+
     data object SubmitClicked : PhotoUploadUiAction
 }

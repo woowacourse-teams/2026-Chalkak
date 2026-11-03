@@ -61,7 +61,7 @@ class PostCreationRepositoryImplTest {
         assertTrue(uploader.calls.isEmpty())
         assertTrue(remote.createdTitles.isEmpty())
 
-        val result = repository.createPost(preparation, "   ", topic)
+        val result = repository.createPost(preparation, "   ", null, topic)
 
         assertEquals(PostCreationTopicResult.Success(topic), topicResult)
         assertEquals(
@@ -86,6 +86,16 @@ class PostCreationRepositoryImplTest {
         )
         assertArrayEquals(byteArrayOf(1, 2, 3), uploader.uploadedBytes)
         assertFalse(encoder.lastFile?.exists() == true)
+    }
+
+    @Test
+    fun `설명은 앞뒤 공백과 줄바꿈을 지워 보내고 공백뿐이면 생략한다`() = runTest {
+        repository.getCreationTopic(requestedDate)
+
+        repository.createPost(prepare(), null, "\n  퇴근길 노을\n두 번째 줄  \n", topic)
+        repository.createPost(prepare(), null, " \n ", topic)
+
+        assertEquals(listOf("퇴근길 노을\n두 번째 줄", null), remote.createdDescriptions)
     }
 
     @Test
@@ -154,7 +164,7 @@ class PostCreationRepositoryImplTest {
         assertFalse(file?.exists() == true)
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.createPost(preparation, "제목", topic),
+            repository.createPost(preparation, "제목", null, topic),
         )
     }
 
@@ -165,7 +175,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.createPost(preparation, "제목", topic),
+            repository.createPost(preparation, "제목", null, topic),
         )
         assertTrue(remote.createdTitles.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -178,7 +188,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ReauthenticationRequired),
-            repository.createPost(preparation, "제목", topic),
+            repository.createPost(preparation, "제목", null, topic),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -195,7 +205,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted),
-            repository.createPost(prepare(), "제목", topic),
+            repository.createPost(prepare(), "제목", null, topic),
         )
     }
 
@@ -211,7 +221,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.TopicNotOpen),
-            repository.createPost(prepare(), "제목", topic),
+            repository.createPost(prepare(), "제목", null, topic),
         )
     }
 
@@ -220,7 +230,7 @@ class PostCreationRepositoryImplTest {
         listOf("VALIDATING", "PENDING").forEach { status ->
             remote.createResult = ApiResult.Success(PostCreateResponse("post-$status", status))
 
-            val result = repository.createPost(prepare(), "제목", topic)
+            val result = repository.createPost(prepare(), "제목", null, topic)
 
             assertTrue(result is PostCreationResult.Success)
             assertEquals(
@@ -237,7 +247,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.createPost(preparation, "제목", topic),
+            repository.createPost(preparation, "제목", null, topic),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -271,7 +281,7 @@ class PostCreationRepositoryImplTest {
         remote.uploadPolicyResults += ApiResult.Success(uploadPolicy(uploadId = "upload-id-2"))
         nowNanos = TimeUnit.SECONDS.toNanos(295)
 
-        val result = repository.createPost(preparation, "제목", topic)
+        val result = repository.createPost(preparation, "제목", null, topic)
 
         assertTrue(result is PostCreationResult.Success)
         assertEquals(2, remote.calls.count { it == "upload-policy" })
@@ -289,7 +299,7 @@ class PostCreationRepositoryImplTest {
         )
         nowNanos = TimeUnit.SECONDS.toNanos(295)
 
-        val result = repository.createPost(preparation, "제목", topic)
+        val result = repository.createPost(preparation, "제목", null, topic)
 
         assertTrue(result is PostCreationResult.Success)
         assertEquals(
@@ -319,7 +329,7 @@ class PostCreationRepositoryImplTest {
         )
         nowNanos = TimeUnit.SECONDS.toNanos(295)
 
-        val result = repository.createPost(preparation, "제목", topic)
+        val result = repository.createPost(preparation, "제목", null, topic)
 
         assertTrue(result is PostCreationResult.Success)
         assertEquals(listOf(edit, edit), encoder.edits)
@@ -330,7 +340,7 @@ class PostCreationRepositoryImplTest {
         uploader.await = CompletableDeferred()
         val preparation = prepare()
         val job = launch {
-            repository.createPost(preparation, "제목", topic)
+            repository.createPost(preparation, "제목", null, topic)
         }
 
         while (uploader.calls.isEmpty()) testScheduler.runCurrent()
@@ -364,6 +374,7 @@ class PostCreationRepositoryImplTest {
 private class FakePostCreationRemoteDataSource(private val events: MutableList<String>) : PostCreationRemoteDataSource {
     val calls = mutableListOf<String>()
     val createdTitles = mutableListOf<String?>()
+    val createdDescriptions = mutableListOf<String?>()
     var uploadPolicyResult: ApiResult<PostImageUploadResponse> = ApiResult.Success(defaultUploadPolicy())
     val uploadPolicyResults = ArrayDeque<ApiResult<PostImageUploadResponse>>()
     var createResult: ApiResult<PostCreateResponse> = ApiResult.Success(PostCreateResponse("post-id", "VALIDATING"))
@@ -378,10 +389,12 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
         topicId: String,
         photoUploadId: String,
         title: String?,
+        description: String?,
     ): ApiResult<PostCreateResponse> {
         calls += "create:$topicId:$photoUploadId:$title"
         events += "create:$topicId:$photoUploadId:$title"
         createdTitles += title
+        createdDescriptions += description
         return createResult
     }
 

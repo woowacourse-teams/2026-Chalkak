@@ -69,6 +69,7 @@ class PhotoUploadViewModelTest {
         )
         original.onImageSelected("content://original")
         original.onAction(PhotoUploadUiAction.CaptionChanged("바다"))
+        original.onAction(PhotoUploadUiAction.DescriptionChanged("파도 소리"))
 
         val snapshot = SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) })
         val restored = PhotoUploadViewModel(
@@ -80,6 +81,7 @@ class PhotoUploadViewModelTest {
 
         assertEquals("content://original", restored.uiState.value.selectedImage)
         assertEquals("바다", restored.uiState.value.caption)
+        assertEquals("파도 소리", restored.uiState.value.description)
         assertEquals(PhotoEdit(), restored.uiState.value.selectedEdit)
         assertEquals(PhotoEdit(), postCreationRepository.preparedEdits.last())
         assertEquals(ImagePreparationStatus.Ready, restored.uiState.value.imagePreparationStatus)
@@ -668,6 +670,18 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
+    fun `설명만 입력해도 뒤로 가기 전에 확인한다`() = runTest {
+        viewModel.onAction(PhotoUploadUiAction.DescriptionChanged(" \n "))
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+        assertEquals(PhotoUploadUiEvent.NavigateBack, viewModel.uiEvent.first())
+
+        viewModel.onAction(PhotoUploadUiAction.DescriptionChanged("노을"))
+        viewModel.onAction(PhotoUploadUiAction.BackClicked)
+
+        assertTrue(viewModel.uiState.value.showsDiscardConfirmation)
+    }
+
+    @Test
     fun `사진이 없으면 제출하지 않는다`() {
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
 
@@ -691,8 +705,14 @@ class PhotoUploadViewModelTest {
         val image = "content://media/photo/1"
         viewModel.selectPhoto(image)
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의 다리"))
+        viewModel.onAction(PhotoUploadUiAction.DescriptionChanged("햇빛이 강물에 부서졌어요."))
 
         viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        assertEquals(
+            listOf<Pair<String?, String?>>("한낮의 다리" to "햇빛이 강물에 부서졌어요."),
+            postCreationRepository.requestedTexts,
+        )
 
         assertEquals(
             PhotoUploadSubmission(
@@ -954,6 +974,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     var prepareCount = 0
     val requestedTopicDates = mutableListOf<LocalDate>()
     val requestedTopics = mutableListOf<Topic>()
+    val requestedTexts = mutableListOf<Pair<String?, String?>>()
     val preparations = mutableListOf<PostImagePreparation>()
     val preparedImageUris = mutableListOf<String>()
     val preparedEdits = mutableListOf<PhotoEdit>()
@@ -988,9 +1009,11 @@ private class FakePostCreationRepository : PostCreationRepository {
     override suspend fun createPost(
         preparation: PostImagePreparation,
         title: String?,
+        description: String?,
         topic: Topic,
     ): PostCreationResult {
         callCount++
+        requestedTexts += title to description
         requestedTopics += topic
         await?.await()
         return if (results.isEmpty()) result else results.removeFirst()

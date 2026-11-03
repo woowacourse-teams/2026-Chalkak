@@ -18,12 +18,14 @@ class PostCreationRemoteDataSourceImpl(
         topicId: String,
         photoUploadId: String,
         title: String?,
+        description: String?,
     ): ApiResult<PostCreateResponse> = requestExecutor.execute {
         postApi.createPost(
             PostCreateRequest(
                 topicId = topicId,
                 photoUploadId = photoUploadId,
                 title = title,
+                description = description,
             ),
         )
     }

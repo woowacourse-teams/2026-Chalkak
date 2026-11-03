@@ -78,6 +78,11 @@ class PhotoUploadViewModel(
                 _uiState.update { it.copy(caption = action.caption) }
             }
 
+            is PhotoUploadUiAction.DescriptionChanged -> {
+                savedStateHandle[KEY_DESCRIPTION] = action.description
+                _uiState.update { it.copy(description = action.description) }
+            }
+
             PhotoUploadUiAction.SubmitClicked -> submit()
         }
     }
@@ -173,6 +178,7 @@ class PhotoUploadViewModel(
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
         savedStateHandle.remove<String>(KEY_CAPTION)
+        savedStateHandle.remove<String>(KEY_DESCRIPTION)
         savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
         savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
@@ -197,6 +203,7 @@ class PhotoUploadViewModel(
         }
         return PhotoUploadUiState(
             caption = savedStateHandle[KEY_CAPTION] ?: "",
+            description = savedStateHandle[KEY_DESCRIPTION] ?: "",
             selectedImage = savedStateHandle[KEY_SELECTED_IMAGE],
             selectedEdit = edit ?: PhotoEdit(),
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
@@ -217,8 +224,6 @@ class PhotoUploadViewModel(
             loadCreationTopic(submitAfterLoad = true)
             return
         }
-        val caption = state.caption
-
         _uiState.update {
             it.copy(
                 isSubmitting = true,
@@ -226,7 +231,7 @@ class PhotoUploadViewModel(
         }
 
         preparedImage?.let { preparation ->
-            submitPreparedImage(preparation, caption, topic)
+            submitPreparedImage(preparation, topic)
             return
         }
         if (preparationJob?.isActive != true) {
@@ -295,7 +300,7 @@ class PhotoUploadViewModel(
                             if (topic == null) {
                                 loadCreationTopic(submitAfterLoad = true)
                             } else {
-                                submitPreparedImage(result.value, _uiState.value.caption, topic)
+                                submitPreparedImage(result.value, topic)
                             }
                         }
                     }
@@ -328,16 +333,25 @@ class PhotoUploadViewModel(
 
     private fun submitPreparedImage(
         preparation: PostImagePreparation,
-        caption: String,
         topic: Topic,
     ) {
         if (preparedImage != preparation || submissionJob?.isActive == true) return
-        val imageUri = _uiState.value.selectedImage ?: return
-        val edit = _uiState.value.selectedEdit
+        val state = _uiState.value
+        val imageUri = state.selectedImage ?: return
+        val edit = state.selectedEdit
+        val caption = state.caption
+        val description = state.description
         preparedImage = null
         submissionJob = viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.createPost(preparation, caption, topic)) {
+                when (
+                    val result = postCreationRepository.createPost(
+                        preparation = preparation,
+                        title = caption,
+                        description = description,
+                        topic = topic,
+                    )
+                ) {
                     is PostCreationResult.Success -> {
                         _uiState.update {
                             it.copy(
@@ -478,6 +492,7 @@ class PhotoUploadViewModel(
 
     companion object {
         private const val KEY_CAPTION = "upload_caption"
+        private const val KEY_DESCRIPTION = "upload_description"
         private const val KEY_SELECTED_IMAGE = "upload_selected_image"
         private const val KEY_SELECTED_EDIT = "upload_selected_edit"
         private const val RESTORED_EDIT_FAILED_MESSAGE = "사진 편집 정보를 복원하지 못했어요. 사진을 다시 선택해 주세요."
