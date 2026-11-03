@@ -330,14 +330,14 @@ struct PhotoUploadSelectionLoaderTests {
 
         do {
             loader.start(
-                load: { try await firstGate.wait() },
+                load: { _ in try await firstGate.wait() },
                 onLoaded: { loadedData.append($0) },
                 onFailure: { failureCount += 1 }
             )
             try await firstGate.waitUntilRequested()
 
             loader.start(
-                load: {
+                load: { _ in
                     // 요청 등록과 결과 전달을 각각 늦춰 두 대기 경로의 회귀를 확인한다.
                     try await Task.sleep(for: schedulingDelay)
                     let data = try await secondGate.wait()
@@ -359,6 +359,70 @@ struct PhotoUploadSelectionLoaderTests {
             loader.cancel()
             await firstGate.cancel()
             await secondGate.cancel()
+            throw error
+        }
+    }
+
+    @Test("사진을 불러오는 동안 진행률을 알리고 끝나면 로딩 상태를 해제한다")
+    func reportsLoadingProgressUntilFinished() async throws {
+        let gate = PhotoUploadSelectionGate()
+        let loader = PhotoUploadSelectionLoader()
+        defer { loader.cancel() }
+        var loadedData: [Data] = []
+
+        do {
+            loader.start(
+                load: { reportProgress in
+                    reportProgress(0.4)
+                    return try await gate.wait()
+                },
+                onLoaded: { loadedData.append($0) },
+                onFailure: {}
+            )
+            try await gate.waitUntilRequested()
+
+            #expect(loader.isLoading)
+            #expect(loader.progress == 0.4)
+
+            await gate.resume(with: Data([0x01]))
+            try await waitUntil { loadedData == [Data([0x01])] }
+
+            #expect(!loader.isLoading)
+            #expect(loader.progress == nil)
+        } catch {
+            loader.cancel()
+            await gate.cancel()
+            throw error
+        }
+    }
+
+    @Test("불러오기를 취소하면 로딩 상태를 해제하고 결과를 반영하지 않는다")
+    func cancelClearsLoadingState() async throws {
+        let gate = PhotoUploadSelectionGate()
+        let loader = PhotoUploadSelectionLoader()
+        var loadedData: [Data] = []
+
+        do {
+            loader.start(
+                load: { reportProgress in
+                    reportProgress(0.7)
+                    return try await gate.wait()
+                },
+                onLoaded: { loadedData.append($0) },
+                onFailure: {}
+            )
+            try await gate.waitUntilRequested()
+
+            loader.cancel()
+
+            #expect(!loader.isLoading)
+            #expect(loader.progress == nil)
+            await gate.resume(with: Data([0x01]))
+            try await Task.sleep(for: .milliseconds(50))
+            #expect(loadedData.isEmpty)
+        } catch {
+            loader.cancel()
+            await gate.cancel()
             throw error
         }
     }
