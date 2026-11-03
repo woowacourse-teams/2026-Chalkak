@@ -11,9 +11,11 @@ struct PhotoUploadScreen: View {
     let onRetryTopicLoad: () -> Void
 
     @State private var isCaptionFocused = false
+    @State private var isDescriptionFocused = false
     @State private var isKeyboardVisible = false
     @State private var isBackPending = false
     @State private var captionFrame: CGRect = .zero
+    @State private var descriptionFrame: CGRect = .zero
     @State private var scrollOffset: CGFloat = 0
     @State private var canDismissCurrentDrag: Bool?
 
@@ -31,8 +33,9 @@ struct PhotoUploadScreen: View {
                 )
                 .simultaneousGesture(
                     TapGesture().onEnded {
-                        guard isCaptionFocused || isKeyboardVisible else { return }
+                        guard isInputFocused || isKeyboardVisible else { return }
                         isCaptionFocused = false
+                        isDescriptionFocused = false
                         dismissKeyboard()
                     }
                 )
@@ -46,7 +49,7 @@ struct PhotoUploadScreen: View {
                             get: { viewState.caption },
                             set: { onAction(.captionChanged($0)) }
                         ),
-                        label: "사진 설명",
+                        label: "작품 제목",
                         placeholder: "작품 제목은 선택이에요.",
                         isEnabled: !viewState.isSubmitting,
                         lineLimit: 3...5,
@@ -58,6 +61,27 @@ struct PhotoUploadScreen: View {
                         proxy.frame(in: .named("photoUpload.dismiss"))
                     } action: { frame in
                         captionFrame = frame
+                    }
+
+                    ChalkakTextField(
+                        text: Binding(
+                            get: { viewState.postDescription },
+                            set: { onAction(.descriptionChanged($0)) }
+                        ),
+                        label: "작품 설명",
+                        placeholder: "작품 설명은 선택이에요.",
+                        isEnabled: !viewState.isSubmitting,
+                        lineLimit: 4...10,
+                        textFont: theme.typography.subheadline,
+                        maximumCharacterCount: Constants.descriptionMaxLength,
+                        lengthMetric: .unicodeScalars,
+                        onFocusChange: { isDescriptionFocused = $0 }
+                    )
+                    .padding(.top, theme.spacing.lg)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named("photoUpload.dismiss"))
+                    } action: { frame in
+                        descriptionFrame = frame
                     }
 
                     if let topicErrorMessage = viewState.topicErrorMessage {
@@ -128,16 +152,20 @@ struct PhotoUploadScreen: View {
             isKeyboardVisible = false
             completePendingBack()
         }
-        .onChange(of: isCaptionFocused) { _, isFocused in
+        .onChange(of: isInputFocused) { _, isFocused in
             guard !isFocused, isBackPending, !isKeyboardVisible else { return }
             completePendingBack()
         }
     }
 
+    private var isInputFocused: Bool {
+        isCaptionFocused || isDescriptionFocused
+    }
+
     private func requestBack() {
         guard !isBackPending else { return }
 
-        if isCaptionFocused || isKeyboardVisible {
+        if isInputFocused || isKeyboardVisible {
             isBackPending = true
             dismissKeyboard()
         } else {
@@ -150,15 +178,16 @@ struct PhotoUploadScreen: View {
             .onChanged { value in
                 guard canDismissCurrentDrag == nil else { return }
                 // 키보드가 드래그 도중 내려가더라도 같은 드래그로 화면을 닫지 않는다.
-                canDismissCurrentDrag = !isCaptionFocused && !isKeyboardVisible
+                canDismissCurrentDrag = !isInputFocused && !isKeyboardVisible
                     && !viewState.isSubmitting && scrollOffset <= 1
                     && !captionFrame.contains(value.startLocation)
+                    && !descriptionFrame.contains(value.startLocation)
             }
             .onEnded { value in
                 let canDismiss = canDismissCurrentDrag == true
                 canDismissCurrentDrag = nil
                 guard canDismiss, !viewState.isSubmitting,
-                      !isCaptionFocused, !isKeyboardVisible,
+                      !isInputFocused, !isKeyboardVisible,
                       value.translation.height > abs(value.translation.width) else { return }
                 if value.translation.height > 80 || value.predictedEndTranslation.height > 140 {
                     requestBack()
@@ -187,6 +216,7 @@ struct PhotoUploadScreen: View {
 
     private enum Constants {
         static let captionMaxLength = 10
+        static let descriptionMaxLength = 300
     }
 }
 

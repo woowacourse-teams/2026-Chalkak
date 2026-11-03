@@ -147,13 +147,15 @@ struct PhotoUploadAPIClient: Sendable {
     func createPost(
         topicID: String,
         photoUploadID: String,
-        title: String?
+        title: String?,
+        description: String?
     ) async throws -> PhotoUploadCreationResponse {
         let body = try encoder.encode(
             PostCreateRequest(
                 topicID: topicID,
                 photoUploadID: photoUploadID,
-                title: title
+                title: title,
+                description: description
             )
         )
         return try await request(
@@ -293,11 +295,13 @@ private struct PostCreateRequest: Encodable {
     let topicID: String
     let photoUploadID: String
     let title: String?
+    let description: String?
 
     enum CodingKeys: String, CodingKey {
         case topicID = "topicId"
         case photoUploadID = "photoUploadId"
         case title
+        case description
     }
 }
 

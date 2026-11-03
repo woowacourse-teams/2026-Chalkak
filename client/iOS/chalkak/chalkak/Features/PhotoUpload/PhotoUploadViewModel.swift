@@ -8,7 +8,7 @@ struct PhotoUploadRepository: Sendable {
     typealias PostCreationHandler =
         @Sendable (
             PhotoUploadPreparation,
-            String?,
+            PhotoUploadPostText,
             PhotoUploadTopic
         ) async -> Result<PhotoUploadCreation, PhotoUploadFailure>
 
@@ -93,6 +93,12 @@ final class PhotoUploadViewModel {
             viewState.editRequest = PhotoUploadEditRequest(session: selectedEditSession)
         case let .captionChanged(caption):
             viewState.caption = caption.limited(to: Constants.captionMaxLength, using: .characters)
+        case let .descriptionChanged(description):
+            // 서버가 설명 길이를 code point로 검증하므로 같은 단위로 제한한다.
+            viewState.postDescription = description.limited(
+                to: Constants.descriptionMaxLength,
+                using: .unicodeScalars
+            )
         case .submitClicked:
             submit()
         case let .messageShown(messageID):
@@ -261,9 +267,10 @@ final class PhotoUploadViewModel {
 
         preparedImage = nil
         let caption = viewState.caption
+        let text = PhotoUploadPostText(title: caption, description: viewState.postDescription)
         let repository = repository
         submissionTask = Task { [weak self] in
-            let result = await repository.createPost(preparation, caption, topic)
+            let result = await repository.createPost(preparation, text, topic)
             guard !Task.isCancelled, let self else { return }
             self.submissionTask = nil
 
@@ -376,6 +383,7 @@ final class PhotoUploadViewModel {
 
     private enum Constants {
         static let captionMaxLength = 10
+        static let descriptionMaxLength = 300
     }
 }
 
@@ -385,6 +393,7 @@ enum PhotoUploadAction: Equatable, Sendable {
     case cameraClicked
     case selectedImageClicked
     case captionChanged(String)
+    case descriptionChanged(String)
     case submitClicked
     case messageShown(Int)
 }

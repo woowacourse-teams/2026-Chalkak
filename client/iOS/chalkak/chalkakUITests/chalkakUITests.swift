@@ -19,7 +19,7 @@ final class chalkakUITests: XCTestCase {
 
         let close = app.buttons["photoUpload.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
-        let caption = app.textFields["사진 설명"]
+        let caption = app.textFields["작품 제목"]
         XCTAssertTrue(caption.waitForExistence(timeout: 5))
         caption.tap()
         caption.typeText("작품 제목")
@@ -31,9 +31,13 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(dialogTitle.waitForNonExistence(timeout: 3))
         XCTAssertTrue((caption.value as? String)?.contains("작품 제목") == true)
 
+        // 입력하면서 화면이 조금 스크롤되면 첫 번째 끌기는 맨 위로 돌아가는 데 쓰인다.
         let imageArea = app.staticTexts["앨범에서 고르거나 지금 찍어요"]
-        let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 300)))
+        for _ in 0..<2 where !dialogTitle.exists {
+            let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 300)))
+            _ = dialogTitle.waitForExistence(timeout: 2)
+        }
         XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
         dialogTitle.buttons["뒤로 가기"].tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))

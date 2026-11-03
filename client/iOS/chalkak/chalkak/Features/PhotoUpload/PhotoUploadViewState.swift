@@ -65,6 +65,12 @@ struct PhotoUploadCreation: Equatable, Sendable {
     let moderationStatus: PhotoUploadModerationStatus
 }
 
+/// 게시물과 함께 보내는 글. 제목과 설명 모두 선택이다.
+struct PhotoUploadPostText: Equatable, Sendable {
+    var title = ""
+    var description = ""
+}
+
 struct PhotoUploadSubmission {
     let id: UUID
     let image: UIImage
@@ -144,6 +150,7 @@ struct PhotoUploadViewState {
     var canEditSelectedImage = false
     var imagePreparationStatus: PhotoUploadImagePreparationStatus = .idle
     var caption = ""
+    var postDescription = ""
     var topicTitle: String?
     var isTopicLoading = false
     var isSubmitting = false
@@ -152,7 +159,9 @@ struct PhotoUploadViewState {
     var pendingMessage: PhotoUploadMessage?
 
     var hasUnsavedDraft: Bool {
-        selectedImage != nil || !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        selectedImage != nil
+            || !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !postDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var canSubmit: Bool {
