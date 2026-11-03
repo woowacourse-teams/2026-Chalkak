@@ -52,7 +52,7 @@ struct PhotoUploadScreen: View {
                         label: "작품 제목",
                         placeholder: "작품 제목은 선택이에요.",
                         isEnabled: !viewState.isSubmitting,
-                        lineLimit: 3...5,
+                        lineLimit: 1...1,
                         textFont: theme.typography.subheadline,
                         maximumCharacterCount: Constants.captionMaxLength,
                         onFocusChange: { isCaptionFocused = $0 }

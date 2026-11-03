@@ -124,8 +124,11 @@ struct PhotoUploadAPIRepository: Sendable {
     }
 
     /// 서버처럼 앞뒤 공백과 줄바꿈을 지우고, 비면 설명 없음으로 보낸다. 가운데 줄바꿈은 유지한다.
+    /// 서버가 거부하는 NUL 문자는 미리 지운다.
     private func normalizedDescription(_ description: String) -> String? {
-        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = description
+            .replacingOccurrences(of: "\u{0}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
