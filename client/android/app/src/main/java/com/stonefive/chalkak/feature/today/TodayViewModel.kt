@@ -304,7 +304,7 @@ class TodayViewModel(
             photos = previousState.photos.map { photo ->
                 if (photo.id == photoId) {
                     photo.copy(
-                        likeCount = photo.likeCount + if (isLiked) 1 else -1,
+                        likeCount = (photo.likeCount + if (isLiked) 1 else -1).coerceAtLeast(0),
                         isLiked = isLiked,
                     )
                 } else {
@@ -389,6 +389,7 @@ class TodayViewModel(
                 } else {
                     state.likedPhotoIds - photoId
                 },
+                pendingMessage = nextToast(LIKE_ERROR_MESSAGE),
             )
         }
     }
@@ -438,3 +439,5 @@ class TodayViewModel(
         text = text,
     )
 }
+
+private const val LIKE_ERROR_MESSAGE = "좋아요를 변경하지 못했어요"

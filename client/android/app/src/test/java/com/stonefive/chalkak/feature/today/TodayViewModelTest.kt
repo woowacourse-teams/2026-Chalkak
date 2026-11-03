@@ -505,7 +505,7 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun `좋아요 실패는 해당 게시물만 복원한다`() = runTest {
+    fun `좋아요 실패는 해당 게시물만 복원하고 토스트를 띄운다`() = runTest {
         val repository = RecordingPostRepository(
             likeResults = ArrayDeque(listOf(HomeResult.Failure(HomeFailure.Network))),
             todayResults = ArrayDeque(
@@ -529,6 +529,7 @@ class TodayViewModelTest {
             viewModel.uiState.value.likedPhotoIds
                 .isEmpty(),
         )
+        assertEquals("좋아요를 변경하지 못했어요", (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
     }
 
     @Test

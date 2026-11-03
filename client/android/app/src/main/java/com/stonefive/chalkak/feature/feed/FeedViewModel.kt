@@ -221,7 +221,7 @@ class FeedViewModel(
         val liked = !content.isLiked
         val previousPost = content.post
         val optimisticPost = previousPost.copy(
-            likeCount = previousPost.likeCount + if (liked) 1 else -1,
+            likeCount = (previousPost.likeCount + if (liked) 1 else -1).coerceAtLeast(0),
             isLiked = liked,
         )
         val generation = ++latestLikeGeneration
@@ -235,8 +235,7 @@ class FeedViewModel(
             )
         }
 
-        // TODO(like): API 연동 시 동일 게시물 좋아요 요청을 직렬화(또는 디바운스)하고
-        //  역순 응답을 무시하도록 보강한다. 현재 generation은 UI 롤백만 막고 서버 쓰기 순서는 보장하지 않는다.
+        // 같은 게시물의 요청 순서는 저장소가 보장한다. generation은 마지막으로 누른 상태만 화면에 남긴다.
         viewModelScope.launch {
             val result = try {
                 repository.updateLike(
@@ -376,7 +375,7 @@ class FeedViewModel(
         content: FeedContentState.Success,
     ) {
         if (generation != latestLikeGeneration) return
-        _uiState.update { it.copy(content = content) }
+        _uiState.update { it.copy(content = content, pendingMessage = nextToast(LIKE_ERROR_MESSAGE)) }
     }
 
     private fun loadFeed() {
@@ -621,3 +620,5 @@ class FeedViewModel(
         text = text,
     )
 }
+
+private const val LIKE_ERROR_MESSAGE = "좋아요를 변경하지 못했어요"

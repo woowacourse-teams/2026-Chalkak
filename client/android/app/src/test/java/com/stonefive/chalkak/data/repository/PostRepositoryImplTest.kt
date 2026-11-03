@@ -33,7 +33,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -47,7 +50,8 @@ import org.junit.Test
 class PostRepositoryImplTest {
     private val remoteDataSource = FakePostRemoteDataSource()
     private val topicRemoteDataSource = FakeHomeTopicRemoteDataSource()
-    private val repository = PostRepositoryImpl(remoteDataSource, topicRemoteDataSource)
+    private val likeRequestScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+    private val repository = PostRepositoryImpl(remoteDataSource, topicRemoteDataSource, likeRequestScope)
     private val query = HomeQuery(
         date = LocalDate.of(2026, 8, 28),
         sort = PostSort.LATEST,
@@ -632,32 +636,54 @@ class PostRepositoryImplTest {
     }
 
     @Test
-    fun `같은 게시물의 늦은 응답은 공유하지 않고 다른 게시물의 변경은 공유한다`() = runTest {
+    fun `같은 게시물은 직전 요청이 끝난 뒤 보내고 마지막 요청의 변경만 공유한다`() = runTest {
         val updates = mutableListOf<PostLikeUpdate>()
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
             repository.likeUpdates.toList(updates)
         }
         val older = CompletableDeferred<ApiResult<PostLikeResponse>>()
-        val newer = CompletableDeferred<ApiResult<PostLikeResponse>>()
         val other = CompletableDeferred<ApiResult<PostLikeResponse>>()
-        remoteDataSource.pendingLikes.addAll(listOf(older, newer, other))
+        val newer = CompletableDeferred<ApiResult<PostLikeResponse>>()
+        remoteDataSource.pendingLikes.addAll(listOf(older, other, newer))
         val olderRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-1", true) }
         val newerRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-1", false) }
         val otherRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-2", true) }
 
-        newer.complete(ApiResult.Success(PostLikeResponse("photo-1", 24, false)))
-        newerRequest.await()
+        assertEquals(listOf("photo-1" to true, "photo-2" to true), remoteDataSource.likeRequests)
+
         other.complete(ApiResult.Success(PostLikeResponse("photo-2", 10, true)))
         otherRequest.await()
         older.complete(ApiResult.Success(PostLikeResponse("photo-1", 25, true)))
         val olderResult = olderRequest.await() as HomeResult.Success
+        assertEquals(
+            listOf("photo-1" to true, "photo-2" to true, "photo-1" to false),
+            remoteDataSource.likeRequests,
+        )
+        newer.complete(ApiResult.Success(PostLikeResponse("photo-1", 24, false)))
+        newerRequest.await()
         yield()
 
         assertEquals(25, olderResult.value.likeCount)
         assertEquals(
-            listOf(PostLikeUpdate("photo-1", 24, false), PostLikeUpdate("photo-2", 10, true)),
+            listOf(PostLikeUpdate("photo-2", 10, true), PostLikeUpdate("photo-1", 24, false)),
             updates,
         )
+    }
+
+    @Test
+    fun `좋아요를 요청한 화면이 닫혀도 대기 중인 마지막 요청을 보낸다`() = runTest {
+        val older = CompletableDeferred<ApiResult<PostLikeResponse>>()
+        val newer = CompletableDeferred<ApiResult<PostLikeResponse>>()
+        remoteDataSource.pendingLikes.addAll(listOf(older, newer))
+        val olderRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-1", true) }
+        val newerRequest = async(start = CoroutineStart.UNDISPATCHED) { repository.updateLike("photo-1", false) }
+
+        olderRequest.cancel()
+        newerRequest.cancel()
+        older.complete(ApiResult.Success(PostLikeResponse("photo-1", 25, true)))
+        yield()
+
+        assertEquals(listOf("photo-1" to true, "photo-1" to false), remoteDataSource.likeRequests)
     }
 
     @Test
@@ -712,6 +738,7 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit)
     var titleUpdateResult: ApiResult<PostTitleUpdateResponse> = ApiResult.Failure(ApiError.Network)
     var updatedTitle: Pair<String, String?>? = null
+    val likeRequests = mutableListOf<Pair<String, Boolean>>()
     val pendingLikes = ArrayDeque<CompletableDeferred<ApiResult<PostLikeResponse>>>()
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
         PostLikeResponse(
@@ -748,7 +775,10 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
-    ): ApiResult<PostLikeResponse> = if (pendingLikes.isEmpty()) likeResult else pendingLikes.removeFirst().await()
+    ): ApiResult<PostLikeResponse> {
+        likeRequests += photoId to isLiked
+        return if (pendingLikes.isEmpty()) likeResult else pendingLikes.removeFirst().await()
+    }
 }
 
 private class FakeHomeTopicRemoteDataSource : TopicRemoteDataSource {

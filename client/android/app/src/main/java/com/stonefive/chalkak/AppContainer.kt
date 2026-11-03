@@ -237,6 +237,7 @@ class AppContainer(context: Context) {
                 requestExecutor = networkModule.apiRequestExecutor,
             ),
             topicRemoteDataSource = topicRemoteDataSource,
+            likeRequestScope = applicationScope,
         )
     }
 

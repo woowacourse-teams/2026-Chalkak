@@ -444,7 +444,7 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun `좋아요 실패 시 이전 게시물 상태를 복원한다`() = runTest {
+    fun `좋아요 실패 시 이전 게시물 상태를 복원하고 토스트를 띄운다`() = runTest {
         repository.failLike = true
 
         viewModel.onLikeClicked()
@@ -452,6 +452,7 @@ class FeedViewModelTest {
         val content = viewModel.uiState.value.content as FeedContentState.Success
         assertFalse(content.isLiked)
         assertEquals(24, content.post.likeCount)
+        assertEquals("좋아요를 변경하지 못했어요", (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
     }
 
     @Test
