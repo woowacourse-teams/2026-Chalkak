@@ -43,9 +43,26 @@ public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID
             )
             FROM Feedback feedback
             JOIN User author ON author.id = feedback.userId
-            WHERE feedback.userId = COALESCE(:userId, feedback.userId)
             """)
-    Slice<AdminFeedbackSummaryProjection> findFeedbacks(
+    Slice<AdminFeedbackSummaryProjection> findFeedbacks(Pageable pageable);
+
+    @Query("""
+            SELECT new com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection(
+                feedback.id,
+                feedback.content,
+                feedback.createdAt,
+                feedback.deletedAt,
+                author.id,
+                author.email,
+                author.status,
+                author.appVersion,
+                author.deletedAt
+            )
+            FROM Feedback feedback
+            JOIN User author ON author.id = feedback.userId
+            WHERE feedback.userId = :userId
+            """)
+    Slice<AdminFeedbackSummaryProjection> findFeedbacksByUserId(
             UUID userId,
             Pageable pageable
     );

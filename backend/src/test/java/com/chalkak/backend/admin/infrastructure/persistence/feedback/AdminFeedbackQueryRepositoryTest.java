@@ -23,6 +23,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.postgresql.PGConnection;
 
 @PostgresRepositoryTest
 class AdminFeedbackQueryRepositoryTest {
@@ -216,6 +218,46 @@ class AdminFeedbackQueryRepositoryTest {
         // Then
         assertThat(page.items()).isEmpty();
         assertThat(page.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("사용자별 조회는 공통 실행 계획에서도 사용자 인덱스 검색 조건을 유지한다")
+    void findFeedbacks_genericPlan_usesUserIndexCondition() {
+        // Given & When
+        String plan = jdbcTemplate.execute((ConnectionCallback<String>) connection -> {
+            PGConnection postgres = connection.unwrap(PGConnection.class);
+            int previousThreshold = postgres.getPrepareThreshold();
+            postgres.setPrepareThreshold(1);
+            try {
+                jdbcTemplate.execute("SET LOCAL plan_cache_mode = force_generic_plan");
+                // 작은 fixture에서도 인덱스 검색 조건을 만들 수 있는지 확인한다.
+                jdbcTemplate.execute("SET LOCAL enable_seqscan = off");
+                adminFeedbackQueryRepository.findFeedbacks(
+                        ACTIVE_USER_ID,
+                        AdminFeedbackSort.CREATED_AT_DESC,
+                        1,
+                        20
+                );
+                String statementName = jdbcTemplate.queryForObject("""
+                        SELECT name FROM pg_prepared_statements
+                        WHERE statement LIKE '%from feedbacks%'
+                          AND statement LIKE '%join users%'
+                          AND statement LIKE '%where%user_id%'
+                          AND statement NOT LIKE '%pg_prepared_statements%'
+                        ORDER BY prepare_time DESC LIMIT 1
+                        """, String.class);
+                return jdbcTemplate.queryForObject(
+                        "EXPLAIN (FORMAT JSON) EXECUTE \"" + statementName + "\" ('"
+                                + ACTIVE_USER_ID + "', 21)",
+                        String.class
+                );
+            } finally {
+                postgres.setPrepareThreshold(previousThreshold);
+            }
+        });
+
+        // Then
+        assertThat(plan).contains("Index Cond", "user_id = $1");
     }
 
     @ParameterizedTest

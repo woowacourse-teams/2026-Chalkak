@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
@@ -35,13 +36,21 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
                 pageSize,
                 toSort(sort)
         );
-        Slice<AdminFeedbackSummaryProjection> result = repository.findFeedbacks(userId, pageable);
+        Slice<AdminFeedbackSummaryProjection> result = findFeedbackSlice(userId, pageable);
         return new AdminPage<>(
                 result.getContent(),
                 page,
                 pageSize,
                 result.hasNext()
         );
+    }
+
+    private Slice<AdminFeedbackSummaryProjection> findFeedbackSlice(UUID userId,
+            Pageable pageable) {
+        if (userId == null) {
+            return repository.findFeedbacks(pageable);
+        }
+        return repository.findFeedbacksByUserId(userId, pageable);
     }
 
     private Sort toSort(AdminFeedbackSort sort) {
