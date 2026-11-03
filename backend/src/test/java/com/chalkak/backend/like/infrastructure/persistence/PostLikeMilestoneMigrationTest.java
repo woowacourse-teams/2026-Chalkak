@@ -31,7 +31,7 @@ class PostLikeMilestoneMigrationTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() throws Exception {
         schema = "like_milestone_migration_" + UUID.randomUUID().toString().replace("-", "");
-        migrate("202611021700");
+        migrate("202611032315");
         connection = dataSource.getConnection();
         previousSchema = connection.getSchema();
         connection.setSchema(schema);
@@ -65,7 +65,7 @@ class PostLikeMilestoneMigrationTest extends IntegrationTestSupport {
         UUID hundred = insertPost(100L);
 
         // When
-        migrate("202611031600");
+        migrate("202611032316");
 
         // Then
         assertThat(progress(three)).isZero();

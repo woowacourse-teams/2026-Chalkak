@@ -177,7 +177,7 @@ class NotificationMigrationTest extends IntegrationTestSupport {
                             """, existingUserId);
 
                     // When
-                    migrate(schema, "202611021700");
+                    migrate(schema, "202611032315");
 
                     // Then
                     assertThat(jdbc.queryForObject(

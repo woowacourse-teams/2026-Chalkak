@@ -90,7 +90,7 @@ Worker는 최신 설정·읽음·기한·메시지 일치·회원·로그인·�
 
 ## 도입·검증과 운영 확인
 
-[설정 마이그레이션](../../src/main/resources/db/migration/V202611021700__add_like_push_setting.sql)과 [알림함 통합 마이그레이션](../../src/main/resources/db/migration/V202611031600__integrate_like_milestone_notifications.sql)을 적용한다. 기존 좋아요가 17개라면 최고 단계만 15로 초기화하며 Notification이나 SQS 메시지를 만들지 않는다. 신규 행은 0부터 시작한다.
+[설정 마이그레이션](../../src/main/resources/db/migration/V202611032315__add_like_push_setting.sql)과 [알림함 통합 마이그레이션](../../src/main/resources/db/migration/V202611032316__integrate_like_milestone_notifications.sql)을 적용한다. 기존 좋아요가 17개라면 최고 단계만 15로 초기화하며 Notification이나 SQS 메시지를 만들지 않는다. 신규 행은 0부터 시작한다.
 
 푸시 전용 초안은 서버에 배포하지 않았으므로 미사용 전용 테이블의 생성·삭제 마이그레이션은 포함하지 않는다. 기존 마일스톤 데이터 이관은 필요하지 않다. 로컬에 초안을 적용한 DB는 별도로 정리하며 공유·운영 DB의 Flyway 이력을 변경하지 않는다. 공통 구버전의 새 타입 조회·메시지 처리 오류를 막기 위해 1차에는 임시 생성 스위치를 추가한다. 개발·운영의 1차 배포·구버전 종료·최고 단계 보정 완료 후 2차에서 조건문과 설정을 제거하며, 제거 코드는 이번에 구현하지 않는다.
 

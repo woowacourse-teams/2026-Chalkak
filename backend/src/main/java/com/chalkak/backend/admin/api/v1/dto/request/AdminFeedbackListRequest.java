@@ -6,6 +6,9 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 public record AdminFeedbackListRequest(
+        @Schema(description = "작성자 ID. 생략하면 전체, 해당 사용자의 문의가 없으면 빈 목록", format = "uuid")
+        String userId,
+
         @Schema(
                 description = "접수 시각 정렬",
                 defaultValue = "createdAtDesc",

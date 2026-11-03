@@ -1,0 +1,10 @@
+# FEEDBACK-004·ADMIN-009 관리자 사용자별 문의 목록
+
+- 결정일: 2026-11-03
+- 상태: 확정
+- 변경 전: 관리자는 전체 피드백 목록을 정렬·페이지 단위로 조회했다. 사용자별 필터와 문의 삭제 시각은 제공하지 않았다.
+- 변경 후: 기존 목록 API에 선택적인 `userId` 필터와 항목의 `deletedAt`을 추가한다. 필터를 생략하면 전체 목록, 전달하면 해당 사용자의 문의만 조회한다. 삭제된 문의와 정지·탈퇴 회원 기록도 포함한다. 문의 삭제 시각은 삭제 전에는 null이며, 사용자에게 보이는 문의 범위는 바꾸지 않는다. 해당 사용자의 문의가 없거나 없는 사용자 ID로 거르면 빈 목록이고, 잘못되거나 축약되거나 비어 있는 UUID는 400으로 거절한다.
+- 변경 이유: 관리자가 접수 순서에 흩어진 한 사용자의 문의를 모아 보고 삭제된 기록도 구분할 수 있게 한다. 기존 관리자 화면의 호출을 유지하기 위해 기존 URI·정렬·페이지 기본값·응답 필드를 유지하고 필터·응답 필드만 추가한다.
+- 영향 범위: `GET /api/v1/admin/feedbacks`의 관리자 조회 계약. 조회는 기존처럼 ADMIN만 허용하고 감사 로그를 만들지 않는다. 본인 문의 API와 앱의 공개 범위는 그대로다. 관리자 상세 조회는 [별도 결정 기록](2026-11-03-admin-feedback-detail.md)과 함께 #904의 [PR #922](https://github.com/woowacourse-teams/2026-Chalkak/pull/922)에 포함한다. 관리자 문의 삭제·감사 로그는 [#921](https://github.com/woowacourse-teams/2026-Chalkak/issues/921), 답변·알림은 #905·#906에서 별도로 추가한다.
+- 관련 규칙: [FEEDBACK-004](../rules/feedback.md#feedback-004-관리자-조회), [ADMIN-001](../rules/admin.md#admin-001-접근-권한), [ADMIN-009](../rules/admin.md#admin-009-피드백-조회)
+- 관련 이슈·PR: [#904](https://github.com/woowacourse-teams/2026-Chalkak/issues/904), 선행 [PR #911](https://github.com/woowacourse-teams/2026-Chalkak/pull/911)
