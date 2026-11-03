@@ -61,8 +61,8 @@ public record PostDetail(
                 return null;
             }
             return new InstagramConsentDetail(
-                    post.getInstagramConsent().agreed(),
-                    post.getInstagramConsent().instagramId()
+                    post.isInstagramUploadAgreed(),
+                    post.getInstagramId()
             );
         }
     }

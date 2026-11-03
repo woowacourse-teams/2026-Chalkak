@@ -72,6 +72,7 @@ public class Post {
     @Embedded
     private PostDescription description;
 
+    @Getter(AccessLevel.PACKAGE)
     @Embedded
     private PostInstagramConsent instagramConsent;
 
@@ -212,6 +213,17 @@ public class Post {
      */
     public String getDescription() {
         return description == null ? null : description.value();
+    }
+
+    public boolean isInstagramUploadAgreed() {
+        return instagramConsent.agreed();
+    }
+
+    /**
+     * 인스타그램 ID 없음을 {@code null}로 돌려준다.
+     */
+    public String getInstagramId() {
+        return instagramConsent.instagramId();
     }
 
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {

@@ -174,8 +174,8 @@ public class PostCommandService {
                 post.getId(),
                 post.getTitle(),
                 post.getDescription(),
-                post.getInstagramConsent().agreed(),
-                post.getInstagramConsent().instagramId()
+                post.isInstagramUploadAgreed(),
+                post.getInstagramId()
         );
     }
 
