@@ -46,7 +46,7 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("삭제된 게시물은 제목을 수정할 수 없다")
+    @DisplayName("삭제된 게시물은 수정할 수 없다")
     void updatePost_deletedPost_throwsNotFoundException() {
         // Given
         jdbcTemplate.update(
@@ -59,7 +59,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
                 () -> postCommandService.updatePost(
                         AUTHOR_ID,
                         POST_ID,
-                        "수정 제목"
+                        "수정 제목",
+                        null
                 ));
 
         // Then
@@ -74,7 +75,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                "  수정 제목  "
+                "  수정 제목  ",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -109,7 +111,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                "승인 제목"
+                "승인 제목",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -133,7 +136,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                "  기존 제목  "
+                "  기존 제목  ",
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -152,7 +156,8 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
         var result = postCommandService.updatePost(
                 AUTHOR_ID,
                 POST_ID,
-                title
+                title,
+                null
         );
         entityManager.flush();
         entityManager.clear();

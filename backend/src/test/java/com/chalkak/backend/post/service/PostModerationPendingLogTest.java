@@ -104,7 +104,8 @@ class PostModerationPendingLogTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "대기 로그"
+                "대기 로그",
+                null
         )
                 .postId();
         assertThat(appender.list).isEmpty();

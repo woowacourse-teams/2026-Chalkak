@@ -8,12 +8,17 @@ public record PostUpdateResponse(
         UUID postId,
 
         @Schema(nullable = true)
-        String title
+        String title,
+
+        @Schema(nullable = true)
+        String description
 ) {
 
     public static PostUpdateResponse from(PostUpdateResult result) {
         return new PostUpdateResponse(
                 result.postId(),
-                result.title());
+                result.title(),
+                result.description()
+        );
     }
 }

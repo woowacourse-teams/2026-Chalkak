@@ -206,6 +206,7 @@ class PostCalendarServiceTest {
                 topic,
                 photo,
                 id,
+                null,
                 null
         );
         post.requestModeration();

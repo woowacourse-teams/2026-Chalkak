@@ -14,6 +14,7 @@ public record PostDetail(
         String thumbnailImageUrl,
         String signatureOriginalImageUrl,
         String title,
+        String description,
         long likeCount,
         boolean isLiked
 ) {
@@ -32,6 +33,7 @@ public record PostDetail(
                 imageUrlProvider.getUrl(post.getPhoto().getThumbnailStorageKey()),
                 imageUrlProvider.getUrl(post.getAuthor().getSignatureOriginalStorageKey()),
                 post.getTitle(),
+                post.getDescription(),
                 likeCount,
                 isLiked
         );

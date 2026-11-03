@@ -156,7 +156,8 @@ class PostTodayStatusConsistencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     PHOTO_UPLOAD_ID,
-                    "제목"
+                    "제목",
+                    null
             );
             return false;
         } catch (BusinessException exception) {

@@ -39,6 +39,7 @@ public record PostListResponse(
             String signatureOriginalImageUrl,
             @Schema(description = "변환된 사인 이미지 썸네일 URL", nullable = true)
             String signatureThumbnailImageUrl,
+            @Schema(description = "작품 제목. 제목이 없으면 null", nullable = true)
             String title,
             Instant submittedAt,
             long likeCount,

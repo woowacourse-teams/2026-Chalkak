@@ -47,6 +47,11 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}'].get"
                         + ".parameters[?(@.name == 'postId')].schema.format")
                         .value(containsInAnyOrder("uuid")))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
+                        + ".properties.description.type")
+                        .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.AdminPostListItem"
+                        + ".properties.description").doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AdminPostListItem"
                         + ".properties.topic['$ref']")
                         .value("#/components/schemas/AdminPostListTopic"))
