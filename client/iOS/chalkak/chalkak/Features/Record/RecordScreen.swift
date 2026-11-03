@@ -284,7 +284,7 @@ struct RecordScreen: View {
         return RecordYearCalendar(
             year: displayedYear,
             latestMonth: state.latestMonth,
-            shownMonth: state.month,
+            recordedMonths: state.availableMonths,
             canGoPreviousYear: displayedYear > state.earliestYear,
             canGoNextYear: displayedYear < state.latestMonth.year,
             postsByMonth: state.yearPosts,

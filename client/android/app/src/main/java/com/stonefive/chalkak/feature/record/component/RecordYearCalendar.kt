@@ -40,17 +40,17 @@ import java.time.YearMonth
 /**
  * 한 해를 한 화면에 보는 연간 달력.
  * - 달마다 날짜를 작은 칸으로 그리고, 기록이 있는 날은 그 사진의 대표색으로 칠한다.
- * - 달을 누르면 그 달의 월간 화면으로 들어간다. 아직 오지 않은 달과 기록이 없는 달은 누를 수 없다.
- *   지금 보고 있던 달은 기록이 없어도 돌아갈 수 있게 남겨 둔다.
+ * - 달을 누르면 그 달의 월간 화면으로 들어간다. 아직 오지 않은 달과 사진이 없는 지난 달은 흐리게 두고 누를 수 없다.
+ *   이번 달([latestMonth])은 사진이 없어도 들어간다. 사진을 올릴 수 있는 달이기 때문이다.
  * - 다른 해는 위의 화살표로 옮겨 간다.
  *
- * @param shownMonth 연간으로 나오기 전에 보던 달.
+ * @param recordedMonths 기록 연월 목록(+이번 달). 여기 없는 지난 달은 받지 않아도 사진이 없는 달로 본다.
  */
 @Composable
 fun RecordYearCalendar(
     year: Int,
     latestMonth: YearMonth,
-    shownMonth: YearMonth,
+    recordedMonths: List<YearMonth>,
     postsByMonth: Map<YearMonth, List<PostCalendarItem>>,
     photoColors: Map<String, PhotoColor>,
     onPreviousYear: () -> Unit,
@@ -99,7 +99,7 @@ fun RecordYearCalendar(
                             posts = postsByMonth[month],
                             photoColors = photoColors,
                             latestMonth = latestMonth,
-                            shownMonth = shownMonth,
+                            isRecorded = month in recordedMonths,
                             onClick = { onSelectMonth(month) },
                             modifier = Modifier.weight(1f),
                         )
@@ -127,7 +127,8 @@ private fun YearButton(
 }
 
 /**
- * @param posts 그 달의 기록. 아직 받지 않은 달은 null이며, 흐리게 하지 않고 누르지만 못하게 둔다(받자마자 깜빡이지 않게).
+ * @param posts 그 달의 기록. 아직 받지 않은 달은 null이며, 기록 연월 목록에 있으면 흐리게 하지 않고 누르지만 못하게 둔다(받자마자 깜빡이지 않게).
+ * @param isRecorded 기록 연월 목록에 있는 달인지. 없으면 받지 않아도 사진이 없는 달이다.
  */
 @Composable
 private fun RecordYearMonthCell(
@@ -135,13 +136,15 @@ private fun RecordYearMonthCell(
     posts: List<PostCalendarItem>?,
     photoColors: Map<String, PhotoColor>,
     latestMonth: YearMonth,
-    shownMonth: YearMonth,
+    isRecorded: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val hasNoRecords = posts?.isEmpty() == true
-    val isAvailable = month <= latestMonth && (!hasNoRecords || month == shownMonth)
-    val canEnter = isAvailable && (!posts.isNullOrEmpty() || month == shownMonth)
+    val isCurrentMonth = month == latestMonth
+    val hasNoRecords = posts?.isEmpty() ?: !isRecorded
+    val isAvailable = month <= latestMonth && (isCurrentMonth || !hasNoRecords)
+    // 이번 달이거나 받아 둔 사진이 있는 지난 달만 누를 수 있다. 아직 받지 못한 달은 받은 뒤에 누를 수 있다.
+    val canEnter = isAvailable && (isCurrentMonth || !posts.isNullOrEmpty())
 
     Column(
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm),
@@ -226,7 +229,7 @@ private fun RecordYearCalendarPreview() {
         RecordYearCalendar(
             year = 2026,
             latestMonth = YearMonth.of(2026, 10),
-            shownMonth = month,
+            recordedMonths = listOf(YearMonth.of(2026, 10), month),
             postsByMonth = mapOf(month to posts, YearMonth.of(2026, 9) to emptyList()),
             photoColors = mapOf("preview-2" to PhotoColor(0.8f, 0.5f, 0.3f)),
             onPreviousYear = {},

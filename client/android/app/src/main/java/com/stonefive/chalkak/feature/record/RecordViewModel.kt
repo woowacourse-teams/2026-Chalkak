@@ -176,12 +176,18 @@ class RecordViewModel(
         saveSelectedDate()
     }
 
-    /** 연간 달력에서 고른 달을 연다. 기록이 없어도 지금 보던 달이면 다시 연다. 이미 받은 달이면 바로 그리고 뒤에서 최신화한다. */
+    /**
+     * 연간 달력에서 고른 달을 연다. 이미 받은 달이면 바로 그리고 뒤에서 최신화한다.
+     * 사진이 없는 달은 이번 달일 때만 연다. 빈 목록으로 받은 지난 달은 무시한다([RecordUiState.canEnterMonth]).
+     */
     fun showMonth(month: YearMonth) {
         val state = _uiState.value
+        val target = minOf(month, state.latestMonth)
+        if (!state.canEnterMonth(target)) return
+
         requestedDate = null
         restoredDate = null
-        loadRecord(minOf(month, state.latestMonth))
+        loadRecord(target)
     }
 
     /** 해당 연도의 기록이 있는 지난 달을 불러오고, 사진 색을 채운다. */

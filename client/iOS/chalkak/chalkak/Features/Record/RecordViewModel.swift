@@ -201,8 +201,10 @@ final class RecordViewModel {
     // MARK: - 연간 달력
 
     /// 연간 달력에서 고른 달을 바로 보여준다. 이미 불러온 달이면 그 게시물로 먼저 그리고, 이어서 최신화한다.
+    /// 사진이 없는 달은 이번 달일 때만 연다. 빈 목록으로 받은 지난 달은 무시한다(`RecordViewState.canEnterMonth`).
     func showMonth(_ month: RecordMonth) {
         let month = min(month, viewState.latestMonth)
+        guard viewState.canEnterMonth(month) else { return }
         generation += 1
         let cached = viewState.yearPosts[month]
         viewState.contentStatus = cached == nil ? .loading : .loaded
@@ -328,9 +330,13 @@ final class RecordViewModel {
         for month in viewState.yearPosts.keys {
             viewState.yearPosts[month]?.removeAll { $0.postId == postID }
         }
-        if viewState.month != monthProvider(),
-           !viewState.posts.contains(where: { viewState.month.contains($0.topicDate) }) {
-            viewState.availableMonths.removeAll { $0 == viewState.month }
+        // availableMonths.removeAll { ... } 은 viewState를 고치는 중이라, 클로저 안에서 viewState.month를 다시 읽으면
+        // Swift 동시 접근 검사(exclusivity)에 걸려 앱이 종료된다(지난 달 마지막 사진 삭제 시). 그래서 달을 먼저 꺼내 둔다.
+        // 근거: 이슈 #931
+        let shownMonth = viewState.month
+        if shownMonth != monthProvider(),
+           !viewState.posts.contains(where: { shownMonth.contains($0.topicDate) }) {
+            viewState.availableMonths.removeAll { $0 == shownMonth }
         }
         viewState.availableMonths = monthsIncludingCurrent(viewState.availableMonths)
         if viewState.selectedPost == nil {
