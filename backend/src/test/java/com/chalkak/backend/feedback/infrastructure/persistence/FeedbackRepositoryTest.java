@@ -21,6 +21,8 @@ class FeedbackRepositoryTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fc30-0000-7000-8000-000000000001");
 
+    private static final Instant CREATED_AT = Instant.parse("2026-11-03T06:00:00Z");
+
     @Autowired
     private FeedbackRepository feedbackRepository;
 
@@ -50,8 +52,16 @@ class FeedbackRepositoryTest {
     @DisplayName("한 회원이 피드백을 여러 번 남길 수 있다")
     void save_repeatedFeedback_storesEverySubmission() {
         // When
-        feedbackRepository.save(Feedback.create(USER_ID, "첫 번째 의견"));
-        feedbackRepository.save(Feedback.create(USER_ID, "두 번째 의견"));
+        feedbackRepository.save(Feedback.create(
+                USER_ID,
+                "첫 번째 의견",
+                CREATED_AT
+        ));
+        feedbackRepository.save(Feedback.create(
+                USER_ID,
+                "두 번째 의견",
+                CREATED_AT
+        ));
         entityManager.flush();
 
         // Then
@@ -67,7 +77,11 @@ class FeedbackRepositoryTest {
     @DisplayName("삭제용 잠금 조회는 본인 삭제 이력을 포함하고 타인은 제외한다")
     void findByIdAndUserIdForUpdate_deletedOwnFeedback_preservesOwnership() {
         // Given
-        Feedback feedback = feedbackRepository.save(Feedback.create(USER_ID, "삭제된 문의"));
+        Feedback feedback = feedbackRepository.save(Feedback.create(
+                USER_ID,
+                "삭제된 문의",
+                CREATED_AT
+        ));
         UUID feedbackId = feedback.getId();
         feedback.delete(Instant.parse("2026-11-03T07:00:00Z"));
         entityManager.flush();
@@ -84,7 +98,11 @@ class FeedbackRepositoryTest {
     @DisplayName("상세 조회는 식별자가 맞아도 작성자가 다르면 반환하지 않는다")
     void findVisibleByIdAndUserId_differentUser_returnsEmpty() {
         // Given
-        Feedback feedback = feedbackRepository.save(Feedback.create(USER_ID, "비공개 문의"));
+        Feedback feedback = feedbackRepository.save(Feedback.create(
+                USER_ID,
+                "비공개 문의",
+                CREATED_AT
+        ));
         UUID feedbackId = feedback.getId();
         entityManager.flush();
         entityManager.clear();
@@ -99,7 +117,11 @@ class FeedbackRepositoryTest {
     @DisplayName("삭제 표시가 있는 문의는 작성자 본인의 상세 조회에서도 제외한다")
     void findVisibleByIdAndUserId_deletedFeedback_returnsEmpty() {
         // Given
-        Feedback feedback = feedbackRepository.save(Feedback.create(USER_ID, "삭제된 문의"));
+        Feedback feedback = feedbackRepository.save(Feedback.create(
+                USER_ID,
+                "삭제된 문의",
+                CREATED_AT
+        ));
         UUID feedbackId = feedback.getId();
         entityManager.flush();
         jdbcTemplate.update("UPDATE feedbacks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",

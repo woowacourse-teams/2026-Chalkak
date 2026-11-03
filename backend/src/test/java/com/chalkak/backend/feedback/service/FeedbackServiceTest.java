@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -50,7 +51,11 @@ class FeedbackServiceTest {
     void deleteFeedback_ownFeedback_recordsDeletionTime() {
         // Given
         UUID feedbackId = UUID.randomUUID();
-        Feedback feedback = Feedback.create(USER_ID, "내 문의");
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "내 문의",
+                NOW
+        );
         given(feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, USER_ID))
                 .willReturn(Optional.of(feedback));
         given(clock.instant()).willReturn(NOW);
@@ -82,7 +87,11 @@ class FeedbackServiceTest {
         // Given
         UUID feedbackId = UUID.randomUUID();
         given(feedbackRepository.findVisibleByIdAndUserId(feedbackId, USER_ID))
-                .willReturn(Optional.of(Feedback.create(USER_ID, "내 문의")));
+                .willReturn(Optional.of(Feedback.create(
+                        USER_ID,
+                        "내 문의",
+                        NOW
+                )));
 
         // When
         FeedbackDetailResult result = service.getFeedback(USER_ID, feedbackId);
@@ -155,6 +164,27 @@ class FeedbackServiceTest {
                 page,
                 pageSize
         );
+    }
+
+    @Test
+    @DisplayName("접수 판단에 사용한 시각을 문의 저장과 응답에도 사용한다")
+    void submit_fixedClock_usesSameTimeForValidationPersistenceAndResult() {
+        // Given
+        given(userRepository.findActiveByIdForUpdate(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(clock.instant()).willReturn(NOW);
+        given(feedbackRepository.findSubmissionTimesAfter(USER_ID, NOW.minusSeconds(86400)))
+                .willReturn(List.of());
+        given(feedbackRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        FeedbackSubmissionResult result = service.submit(USER_ID, "문의합니다");
+
+        // Then
+        ArgumentCaptor<Feedback> saved = ArgumentCaptor.forClass(Feedback.class);
+        verify(feedbackRepository).save(saved.capture());
+        assertThat(saved.getValue().getCreatedAt()).isEqualTo(NOW);
+        assertThat(result.createdAt()).isEqualTo(NOW);
     }
 
     @Test

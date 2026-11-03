@@ -15,11 +15,17 @@ class FeedbackTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
 
+    private static final Instant CREATED_AT = Instant.parse("2026-11-03T06:00:00Z");
+
     @Test
     @DisplayName("문의 삭제는 원문·작성자를 보존하고 삭제 시각만 기록한다")
     void delete_activeFeedback_preservesContentAndAuthor() {
         // Given
-        Feedback feedback = Feedback.create(USER_ID, "문의 원문");
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
         Instant deletedAt = Instant.parse("2026-11-03T07:00:00Z");
 
         // When
@@ -35,7 +41,11 @@ class FeedbackTest {
     @DisplayName("이미 삭제한 문의는 다시 삭제해도 최초 삭제 시각을 유지한다")
     void delete_alreadyDeletedFeedback_keepsOriginalTime() {
         // Given
-        Feedback feedback = Feedback.create(USER_ID, "문의 원문");
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
         Instant firstDeletedAt = Instant.parse("2026-11-03T07:00:00Z");
         feedback.delete(firstDeletedAt);
 
@@ -49,7 +59,11 @@ class FeedbackTest {
     @Test
     @DisplayName("피드백 내용의 앞뒤 공백을 제거해 보관한다")
     void create_contentWithSurroundingWhitespace_storesStrippedContent() {
-        Feedback feedback = Feedback.create(USER_ID, "  사진 업로드가 느려요.\n");
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "  사진 업로드가 느려요.\n",
+                CREATED_AT
+        );
 
         assertThat(feedback.getContent()).isEqualTo("사진 업로드가 느려요.");
         assertThat(feedback.getUserId()).isEqualTo(USER_ID);
@@ -59,7 +73,11 @@ class FeedbackTest {
     @ValueSource(strings = {"", " ", "\n\t"})
     @DisplayName("내용이 비었거나 공백뿐이면 거절한다")
     void create_blankContent_throwsBusinessException(String content) {
-        assertThatThrownBy(() -> Feedback.create(USER_ID, content))
+        assertThatThrownBy(() -> Feedback.create(
+                USER_ID,
+                content,
+                CREATED_AT
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("피드백 내용이 올바르지 않습니다.");
     }
@@ -67,7 +85,11 @@ class FeedbackTest {
     @Test
     @DisplayName("내용이 null이면 거절한다")
     void create_nullContent_throwsBusinessException() {
-        assertThatThrownBy(() -> Feedback.create(USER_ID, null))
+        assertThatThrownBy(() -> Feedback.create(
+                USER_ID,
+                null,
+                CREATED_AT
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("피드백 내용이 올바르지 않습니다.");
     }
@@ -77,7 +99,11 @@ class FeedbackTest {
     void create_contentAtMaxLength_storesContent() {
         String content = "가".repeat(Feedback.MAX_CONTENT_LENGTH);
 
-        Feedback feedback = Feedback.create(USER_ID, "  " + content + "  ");
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "  " + content + "  ",
+                CREATED_AT
+        );
 
         assertThat(feedback.getContent()).isEqualTo(content);
     }
@@ -87,7 +113,11 @@ class FeedbackTest {
     void create_contentOverMaxLength_throwsBusinessException() {
         String content = "가".repeat(Feedback.MAX_CONTENT_LENGTH + 1);
 
-        assertThatThrownBy(() -> Feedback.create(USER_ID, content))
+        assertThatThrownBy(() -> Feedback.create(
+                USER_ID,
+                content,
+                CREATED_AT
+        ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("피드백 내용이 올바르지 않습니다.");
     }
@@ -97,7 +127,11 @@ class FeedbackTest {
     void create_supplementaryCharactersAtMaxLength_storesContent() {
         String content = "😀".repeat(Feedback.MAX_CONTENT_LENGTH);
 
-        Feedback feedback = Feedback.create(USER_ID, content);
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                content,
+                CREATED_AT
+        );
 
         assertThat(feedback.getContent()).isEqualTo(content);
     }

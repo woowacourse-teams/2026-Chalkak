@@ -4,6 +4,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 
@@ -39,10 +40,14 @@ public final class FeedbackSubmissionHistory {
             }
         }
         if (now.isBefore(nextAllowedAt)) {
+            Instant displayedNextAllowedAt = nextAllowedAt.truncatedTo(ChronoUnit.SECONDS);
+            if (nextAllowedAt.getNano() != 0) {
+                displayedNextAllowedAt = displayedNextAllowedAt.plusSeconds(1);
+            }
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. "
-                            + "다음 접수 가능 시각(UTC): " + nextAllowedAt
+                            + "다음 접수 가능 시각(UTC): " + displayedNextAllowedAt
             );
         }
     }

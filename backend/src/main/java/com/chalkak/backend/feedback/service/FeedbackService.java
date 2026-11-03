@@ -62,7 +62,6 @@ public class FeedbackService {
 
     @Transactional
     public FeedbackSubmissionResult submit(UUID userId, String content) {
-        Feedback feedback = Feedback.create(userId, content);
         // 문의 이력이 없는 첫 동시 접수도 같은 회원 행을 잠가 직렬화한다.
         userRepository.findActiveByIdForUpdate(userId)
                 .orElseThrow(() -> new UnauthorizedException(
@@ -70,6 +69,11 @@ public class FeedbackService {
                         "유효하지 않은 인증 정보입니다."
                 ));
         Instant now = clock.instant();
+        Feedback feedback = Feedback.create(
+                userId,
+                content,
+                now
+        );
         FeedbackSubmissionHistory history = new FeedbackSubmissionHistory(
                 feedbackRepository.findSubmissionTimesAfter(userId,
                         FeedbackSubmissionHistory.getWindowStart(now))

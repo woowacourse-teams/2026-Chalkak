@@ -12,7 +12,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
 
 @Entity
@@ -37,17 +36,21 @@ public class Feedback {
     @Column(name = "content", nullable = false, updatable = false, columnDefinition = "TEXT")
     private String content;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    public static Feedback create(UUID userId, String content) {
+    public static Feedback create(
+            UUID userId,
+            String content,
+            Instant createdAt
+    ) {
         Feedback feedback = new Feedback();
         feedback.userId = userId;
         feedback.content = normalizeContent(content);
+        feedback.createdAt = createdAt;
         return feedback;
     }
 

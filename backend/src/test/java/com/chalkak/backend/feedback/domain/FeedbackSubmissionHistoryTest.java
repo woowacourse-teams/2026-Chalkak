@@ -34,7 +34,7 @@ class FeedbackSubmissionHistoryTest {
         assertThatThrownBy(
                 () -> new FeedbackSubmissionHistory(List.of(previous)).validateSubmissionAt(NOW))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining(NOW.plusNanos(1).toString());
+                .hasMessageContaining(NOW.plusSeconds(1).toString());
     }
 
     @ParameterizedTest
@@ -56,7 +56,7 @@ class FeedbackSubmissionHistoryTest {
         // When & Then
         assertThatThrownBy(() -> new FeedbackSubmissionHistory(times).validateSubmissionAt(NOW))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining(NOW.plusNanos(1).toString());
+                .hasMessageContaining(NOW.plusSeconds(1).toString());
     }
 
     @ParameterizedTest
@@ -119,6 +119,21 @@ class FeedbackSubmissionHistoryTest {
         assertThatThrownBy(() -> history.validateSubmissionAt(NOW))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining(NOW.plusSeconds(30).toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1, 123456789, 999999999})
+    @DisplayName("안내 시각은 소수 초가 있을 때만 다음 초로 올린다")
+    void validateSubmissionAt_fractionalNextTime_reportsCeilingSecond(long nanos) {
+        // Given
+        Instant previous = NOW.minusSeconds(30).plusNanos(nanos);
+        Instant expected = NOW.plusSeconds(nanos == 0 ? 30 : 31);
+
+        // When & Then
+        assertThatThrownBy(() -> new FeedbackSubmissionHistory(List.of(previous))
+                .validateSubmissionAt(NOW))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageEndingWith(expected.toString());
     }
 
     private List<Instant> dailyHistory(Instant oldest) {
