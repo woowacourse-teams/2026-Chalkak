@@ -30,6 +30,8 @@ public record AdminFeedbackListResponse(
             UUID feedbackId,
             String content,
             Instant createdAt,
+            @Schema(description = "문의 삭제 시각. 삭제되지 않았으면 null", nullable = true)
+            Instant deletedAt,
             AuthorResponse author
     ) {
 
@@ -38,6 +40,7 @@ public record AdminFeedbackListResponse(
                     feedback.feedbackId(),
                     feedback.content(),
                     feedback.createdAt(),
+                    feedback.deletedAt(),
                     AuthorResponse.from(feedback.author())
             );
         }
@@ -53,7 +56,7 @@ public record AdminFeedbackListResponse(
             String appVersion
     ) {
 
-        private static AuthorResponse from(AdminFeedbackListResult.AuthorSummary author) {
+        static AuthorResponse from(AdminFeedbackListResult.AuthorSummary author) {
             return new AuthorResponse(
                     author.userId(),
                     author.email(),
