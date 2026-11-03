@@ -5,9 +5,9 @@ import java.util.UUID;
 import java.util.Optional;
 public interface AdminFeedbackQueryRepository {
 
-    Optional<AdminFeedbackSummaryProjection> findFeedbackById(UUID feedbackId);
+    Optional<AdminFeedbackProjection> findFeedbackById(UUID feedbackId);
 
-    AdminPage<AdminFeedbackSummaryProjection> findFeedbacks(
+    AdminPage<AdminFeedbackProjection> findFeedbacks(
             UUID userId,
             AdminFeedbackSort sort,
             int page,

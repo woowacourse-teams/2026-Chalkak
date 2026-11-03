@@ -1,6 +1,6 @@
 package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
-import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import com.chalkak.backend.feedback.domain.Feedback;
 import java.util.UUID;
 import java.util.Optional;
@@ -8,62 +8,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID> {
 
-    @Query("""
-            SELECT new com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection(
-                feedback.id,
-                feedback.content,
-                feedback.createdAt,
-                feedback.deletedAt,
-                author.id,
-                author.email,
-                author.status,
-                author.appVersion,
-                author.deletedAt
-            )
-            FROM Feedback feedback
-            JOIN User author ON author.id = feedback.userId
-            WHERE feedback.id = :feedbackId
-            """)
-    Optional<AdminFeedbackSummaryProjection> findFeedbackById(UUID feedbackId);
+    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE feedback.id = :feedbackId")
+    Optional<AdminFeedbackProjection> findFeedbackById(@Param("feedbackId") UUID feedbackId);
 
-    @Query("""
-            SELECT new com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection(
-                feedback.id,
-                feedback.content,
-                feedback.createdAt,
-                feedback.deletedAt,
-                author.id,
-                author.email,
-                author.status,
-                author.appVersion,
-                author.deletedAt
-            )
-            FROM Feedback feedback
-            JOIN User author ON author.id = feedback.userId
-            """)
-    Slice<AdminFeedbackSummaryProjection> findFeedbacks(Pageable pageable);
+    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR)
+    Slice<AdminFeedbackProjection> findFeedbacks(Pageable pageable);
 
-    @Query("""
-            SELECT new com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection(
-                feedback.id,
-                feedback.content,
-                feedback.createdAt,
-                feedback.deletedAt,
-                author.id,
-                author.email,
-                author.status,
-                author.appVersion,
-                author.deletedAt
-            )
-            FROM Feedback feedback
-            JOIN User author ON author.id = feedback.userId
-            WHERE feedback.userId = :userId
-            """)
-    Slice<AdminFeedbackSummaryProjection> findFeedbacksByUserId(
-            UUID userId,
+    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE feedback.userId = :userId")
+    Slice<AdminFeedbackProjection> findFeedbacksByUserId(
+            @Param("userId") UUID userId,
             Pageable pageable
     );
 }

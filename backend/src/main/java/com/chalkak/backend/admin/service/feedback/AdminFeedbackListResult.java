@@ -1,7 +1,7 @@
 package com.chalkak.backend.admin.service.feedback;
 
 import com.chalkak.backend.admin.repository.AdminPage;
-import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import java.time.Instant;
 import java.util.List;
@@ -14,7 +14,7 @@ public record AdminFeedbackListResult(
         List<FeedbackSummary> feedbacks
 ) {
 
-    public static AdminFeedbackListResult from(AdminPage<AdminFeedbackSummaryProjection> page) {
+    public static AdminFeedbackListResult from(AdminPage<AdminFeedbackProjection> page) {
         return new AdminFeedbackListResult(
                 page.currentPage(),
                 page.pageSize(),
@@ -33,7 +33,7 @@ public record AdminFeedbackListResult(
             AuthorSummary author
     ) {
 
-        private static FeedbackSummary from(AdminFeedbackSummaryProjection feedback) {
+        private static FeedbackSummary from(AdminFeedbackProjection feedback) {
             return new FeedbackSummary(
                     feedback.feedbackId(),
                     feedback.content(),
@@ -51,7 +51,7 @@ public record AdminFeedbackListResult(
             String appVersion
     ) {
 
-        static AuthorSummary from(AdminFeedbackSummaryProjection feedback) {
+        static AuthorSummary from(AdminFeedbackProjection feedback) {
             return new AuthorSummary(
                     feedback.authorId(),
                     feedback.authorEmail(),

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
-import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
@@ -77,7 +77,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("피드백 목록은 작성자 정보와 함께 최신순으로 조회한다")
     void findFeedbacks_createdAtDesc_returnsNewestFirstWithAuthor() {
         // When
-        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
                 null,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
@@ -86,7 +86,7 @@ class AdminFeedbackQueryRepositoryTest {
 
         // Then
         assertThat(page.items())
-                .extracting(AdminFeedbackSummaryProjection::feedbackId)
+                .extracting(AdminFeedbackProjection::feedbackId)
                 .containsExactly(
                         NEWEST_FEEDBACK_ID,
                         MIDDLE_FEEDBACK_ID,
@@ -94,7 +94,7 @@ class AdminFeedbackQueryRepositoryTest {
                 );
         assertThat(page.hasNext()).isFalse();
 
-        AdminFeedbackSummaryProjection newest = page.items().getFirst();
+        AdminFeedbackProjection newest = page.items().getFirst();
         assertThat(newest.content()).isEqualTo("사진 업로드가 느려요.");
         assertThat(newest.createdAt()).isEqualTo(NEWEST_CREATED_AT);
         assertThat(newest.authorId()).isEqualTo(ACTIVE_USER_ID);
@@ -110,7 +110,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("오래된 순 정렬을 선택할 수 있다")
     void findFeedbacks_createdAtAsc_returnsOldestFirst() {
         // When
-        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
                 null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
@@ -119,7 +119,7 @@ class AdminFeedbackQueryRepositoryTest {
 
         // Then
         assertThat(page.items())
-                .extracting(AdminFeedbackSummaryProjection::feedbackId)
+                .extracting(AdminFeedbackProjection::feedbackId)
                 .containsExactly(
                         OLDEST_FEEDBACK_ID,
                         MIDDLE_FEEDBACK_ID,
@@ -131,14 +131,14 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("다음 페이지가 남으면 hasNext로 알린다")
     void findFeedbacks_withMorePages_reportsHasNext() {
         // When
-        AdminPage<AdminFeedbackSummaryProjection> firstPage = adminFeedbackQueryRepository
+        AdminPage<AdminFeedbackProjection> firstPage = adminFeedbackQueryRepository
                 .findFeedbacks(
                         null,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         2
                 );
-        AdminPage<AdminFeedbackSummaryProjection> lastPage = adminFeedbackQueryRepository
+        AdminPage<AdminFeedbackProjection> lastPage = adminFeedbackQueryRepository
                 .findFeedbacks(
                         null,
                         AdminFeedbackSort.CREATED_AT_DESC,
@@ -148,11 +148,11 @@ class AdminFeedbackQueryRepositoryTest {
 
         // Then
         assertThat(firstPage.items())
-                .extracting(AdminFeedbackSummaryProjection::feedbackId)
+                .extracting(AdminFeedbackProjection::feedbackId)
                 .containsExactly(NEWEST_FEEDBACK_ID, MIDDLE_FEEDBACK_ID);
         assertThat(firstPage.hasNext()).isTrue();
         assertThat(lastPage.items())
-                .extracting(AdminFeedbackSummaryProjection::feedbackId)
+                .extracting(AdminFeedbackProjection::feedbackId)
                 .containsExactly(OLDEST_FEEDBACK_ID);
         assertThat(lastPage.hasNext()).isFalse();
     }
@@ -161,7 +161,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("정지·탈퇴 회원이 남긴 피드백도 상태와 함께 조회한다")
     void findFeedbacks_bannedAndWithdrawnAuthors_areIncluded() {
         // When
-        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
                 null,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
@@ -169,12 +169,12 @@ class AdminFeedbackQueryRepositoryTest {
         );
 
         // Then
-        AdminFeedbackSummaryProjection bannedFeedback = page.items().getFirst();
+        AdminFeedbackProjection bannedFeedback = page.items().getFirst();
         assertThat(bannedFeedback.authorId()).isEqualTo(BANNED_USER_ID);
         assertThat(bannedFeedback.authorStatus()).isEqualTo(UserStatus.BANNED);
         assertThat(bannedFeedback.authorDeletedAt()).isNull();
 
-        AdminFeedbackSummaryProjection withdrawnFeedback = page.items().get(1);
+        AdminFeedbackProjection withdrawnFeedback = page.items().get(1);
         assertThat(withdrawnFeedback.authorId()).isEqualTo(WITHDRAWN_USER_ID);
         assertThat(withdrawnFeedback.authorDeletedAt()).isEqualTo(WITHDRAWN_AT);
     }
@@ -191,7 +191,7 @@ class AdminFeedbackQueryRepositoryTest {
         UUID authorId = UUID.fromString(userId);
 
         // When
-        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
                 authorId,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
@@ -208,7 +208,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("없는 사용자 ID로 필터링하면 빈 목록을 반환한다")
     void findFeedbacks_unknownUser_returnsEmptyPage() {
         // When
-        AdminPage<AdminFeedbackSummaryProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
                 UUID.randomUUID(),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
@@ -286,20 +286,20 @@ class AdminFeedbackQueryRepositoryTest {
         );
 
         // When
-        AdminPage<AdminFeedbackSummaryProjection> first = adminFeedbackQueryRepository
+        AdminPage<AdminFeedbackProjection> first = adminFeedbackQueryRepository
                 .findFeedbacks(
                         ACTIVE_USER_ID,
                         sort,
                         1,
                         2
                 );
-        AdminPage<AdminFeedbackSummaryProjection> last = adminFeedbackQueryRepository.findFeedbacks(
+        AdminPage<AdminFeedbackProjection> last = adminFeedbackQueryRepository.findFeedbacks(
                 ACTIVE_USER_ID,
                 sort,
                 2,
                 2
         );
-        AdminPage<AdminFeedbackSummaryProjection> beyond = adminFeedbackQueryRepository
+        AdminPage<AdminFeedbackProjection> beyond = adminFeedbackQueryRepository
                 .findFeedbacks(
                         ACTIVE_USER_ID,
                         sort,
@@ -308,10 +308,10 @@ class AdminFeedbackQueryRepositoryTest {
                 );
 
         // Then
-        assertThat(first.items()).extracting(AdminFeedbackSummaryProjection::feedbackId)
+        assertThat(first.items()).extracting(AdminFeedbackProjection::feedbackId)
                 .containsExactlyElementsOf(firstIds);
         assertThat(first.hasNext()).isTrue();
-        assertThat(last.items()).extracting(AdminFeedbackSummaryProjection::feedbackId)
+        assertThat(last.items()).extracting(AdminFeedbackProjection::feedbackId)
                 .containsExactly(lastId);
         assertThat(last.hasNext()).isFalse();
         assertThat(beyond.items()).isEmpty();
@@ -322,7 +322,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("관리자 상세는 삭제된 문의의 원문과 작성자 정보를 조회한다")
     void findFeedbackById_deletedFeedback_returnsContentAndAuthor() {
         // When
-        AdminFeedbackSummaryProjection detail = adminFeedbackQueryRepository
+        AdminFeedbackProjection detail = adminFeedbackQueryRepository
                 .findFeedbackById(OLDEST_FEEDBACK_ID).orElseThrow();
 
         // Then
@@ -338,7 +338,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("관리자 상세는 탈퇴한 작성자의 문의도 제외하지 않는다")
     void findFeedbackById_withdrawnAuthor_returnsFeedback() {
         // When
-        AdminFeedbackSummaryProjection detail = adminFeedbackQueryRepository
+        AdminFeedbackProjection detail = adminFeedbackQueryRepository
                 .findFeedbackById(MIDDLE_FEEDBACK_ID).orElseThrow();
 
         // Then

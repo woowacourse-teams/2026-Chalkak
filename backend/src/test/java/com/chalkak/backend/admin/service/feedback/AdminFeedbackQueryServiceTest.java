@@ -8,7 +8,7 @@ import static org.mockito.BDDMockito.then;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
-import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
@@ -174,7 +174,7 @@ class AdminFeedbackQueryServiceTest {
                 .hasMessage("문의를 찾을 수 없습니다.");
     }
 
-    private AdminPage<AdminFeedbackSummaryProjection> page(UserStatus userStatus,
+    private AdminPage<AdminFeedbackProjection> page(UserStatus userStatus,
             Instant userDeletedAt) {
         return new AdminPage<>(
                 List.of(feedback(
@@ -188,12 +188,12 @@ class AdminFeedbackQueryServiceTest {
         );
     }
 
-    private AdminFeedbackSummaryProjection feedback(
+    private AdminFeedbackProjection feedback(
             UserStatus userStatus,
             Instant userDeletedAt,
             Instant deletedAt
     ) {
-        return new AdminFeedbackSummaryProjection(
+        return new AdminFeedbackProjection(
                 FEEDBACK_ID,
                 "사진 업로드가 느려요.",
                 CREATED_AT,

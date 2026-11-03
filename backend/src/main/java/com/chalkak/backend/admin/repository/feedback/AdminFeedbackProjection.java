@@ -4,7 +4,7 @@ import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.util.UUID;
 
-public record AdminFeedbackSummaryProjection(
+public record AdminFeedbackProjection(
         UUID feedbackId,
         String content,
         Instant createdAt,

@@ -3,7 +3,7 @@ package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
-import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import java.util.UUID;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +20,12 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
     private final AdminFeedbackJpaRepository repository;
 
     @Override
-    public Optional<AdminFeedbackSummaryProjection> findFeedbackById(UUID feedbackId) {
+    public Optional<AdminFeedbackProjection> findFeedbackById(UUID feedbackId) {
         return repository.findFeedbackById(feedbackId);
     }
 
     @Override
-    public AdminPage<AdminFeedbackSummaryProjection> findFeedbacks(
+    public AdminPage<AdminFeedbackProjection> findFeedbacks(
             UUID userId,
             AdminFeedbackSort sort,
             int page,
@@ -36,7 +36,7 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
                 pageSize,
                 toSort(sort)
         );
-        Slice<AdminFeedbackSummaryProjection> result = findFeedbackSlice(userId, pageable);
+        Slice<AdminFeedbackProjection> result = findFeedbackSlice(userId, pageable);
         return new AdminPage<>(
                 result.getContent(),
                 page,
@@ -45,7 +45,7 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
         );
     }
 
-    private Slice<AdminFeedbackSummaryProjection> findFeedbackSlice(UUID userId,
+    private Slice<AdminFeedbackProjection> findFeedbackSlice(UUID userId,
             Pageable pageable) {
         if (userId == null) {
             return repository.findFeedbacks(pageable);
