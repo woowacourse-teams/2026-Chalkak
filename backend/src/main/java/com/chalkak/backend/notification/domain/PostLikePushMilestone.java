@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -23,6 +24,7 @@ import org.hibernate.annotations.Generated;
 public class PostLikePushMilestone {
 
     private static final long MILESTONE_INTERVAL = 5L;
+    private static final Duration PUBLISH_RETRY_DELAY = Duration.ofMinutes(1);
 
     @Id
     @Generated
@@ -75,6 +77,50 @@ public class PostLikePushMilestone {
         return milestone;
     }
 
+    public void markPublished(Instant acceptedAt) {
+        validatePendingPublication();
+        if (acceptedAt == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "SQS 수락 시각이 필요합니다.");
+        }
+        publishStatus = PublishStatus.PUBLISHED;
+        publishedAt = acceptedAt;
+        nextAttemptAt = null;
+    }
+
+    public void retryPublication(Instant attemptedAt) {
+        validatePendingPublication();
+        if (isPushExpired(attemptedAt)) {
+            expirePublication();
+            return;
+        }
+        Instant retryAt = attemptedAt.plus(PUBLISH_RETRY_DELAY);
+        if (retryAt.isBefore(getPushExpiresAt())) {
+            nextAttemptAt = retryAt;
+            return;
+        }
+        nextAttemptAt = getPushExpiresAt();
+    }
+
+    public void expirePublication() {
+        validatePendingPublication();
+        publishStatus = PublishStatus.EXPIRED;
+        nextAttemptAt = null;
+    }
+
+    public void failPublication() {
+        validatePendingPublication();
+        publishStatus = PublishStatus.FAILED;
+        nextAttemptAt = null;
+    }
+
+    public boolean isPushExpired(Instant now) {
+        return PushDeadlinePolicy.isExpiredAt(getPushExpiresAt(), now);
+    }
+
+    public Instant getPushExpiresAt() {
+        return PushDeadlinePolicy.calculateExpiresAt(createdAt);
+    }
+
     private static void validateRequired(Object... requiredValues) {
         for (Object value : requiredValues) {
             if (value == null) {
@@ -91,6 +137,14 @@ public class PostLikePushMilestone {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "좋아요 마일스톤은 5 이상의 5단위여야 합니다.");
+        }
+    }
+
+    private void validatePendingPublication() {
+        if (publishStatus != PublishStatus.PENDING) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "발행 대기 중인 좋아요 마일스톤만 처리할 수 있습니다.");
         }
     }
 }

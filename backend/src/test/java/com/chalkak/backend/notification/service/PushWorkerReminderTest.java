@@ -15,6 +15,7 @@ import com.chalkak.backend.notification.domain.FcmToken;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.domain.ModerationStatus;
@@ -58,6 +59,8 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
 
     @Autowired
     private NotificationRepository notifications;
+    @Autowired
+    private PostLikePushMilestoneRepository milestones;
     @Autowired
     private TopicRepository topics;
     @Autowired
@@ -402,6 +405,7 @@ class PushWorkerReminderTest extends IntegrationTestSupport {
     private PushWorkerService worker() {
         return new PushWorkerService(
                 notifications,
+                milestones,
                 topics,
                 posts,
                 reminders,

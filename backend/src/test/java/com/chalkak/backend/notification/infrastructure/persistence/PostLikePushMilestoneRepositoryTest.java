@@ -156,4 +156,47 @@ class PostLikePushMilestoneRepositoryTest {
                 USER_ID
         )).isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    @DisplayName("발행 시각이 도래한 대기 작업을 다음 시도 시각 순으로 제한해 조회한다")
+    void findDuePublicationIds_duePendingMilestones_returnsOrderedLimitedIds() {
+        // Given
+        UUID first = saveMilestone(5L, CREATED_AT);
+        UUID second = saveMilestone(10L, CREATED_AT.plusSeconds(1));
+        saveMilestone(15L, CREATED_AT.plusSeconds(2));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(milestoneRepository.findDuePublicationIds(CREATED_AT.plusSeconds(2), 2))
+                .containsExactly(first, second);
+    }
+
+    @Test
+    @DisplayName("사건 ID와 작성자가 일치하는 좋아요 마일스톤을 발송용으로 조회한다")
+    void findForPushByIdAndUserId_matchingMilestone_returnsMilestone() {
+        // Given
+        UUID milestoneId = saveMilestone(5L, CREATED_AT);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(milestoneRepository.findForPushByIdAndUserId(milestoneId, USER_ID))
+                .get()
+                .extracting(PostLikePushMilestone::getPostId)
+                .isEqualTo(POST_ID);
+        assertThat(milestoneRepository.findForPushByIdAndUserId(
+                milestoneId,
+                UUID.randomUUID()
+        )).isEmpty();
+    }
+
+    private UUID saveMilestone(long count, Instant createdAt) {
+        return milestoneRepository.save(PostLikePushMilestone.create(
+                POST_ID,
+                USER_ID,
+                count,
+                createdAt
+        )).getId();
+    }
 }

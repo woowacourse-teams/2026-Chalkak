@@ -68,4 +68,83 @@ class PostLikePushMilestoneTest {
                 CREATED_AT
         )).isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    @DisplayName("SQS 수락 시 발행 완료와 수락 시각을 기록한다")
+    void markPublished_pendingMilestone_marksPublished() {
+        // Given
+        PostLikePushMilestone milestone = createMilestone();
+        Instant acceptedAt = CREATED_AT.plusSeconds(1);
+
+        // When
+        milestone.markPublished(acceptedAt);
+
+        // Then
+        assertThat(milestone.getPublishStatus()).isEqualTo(PublishStatus.PUBLISHED);
+        assertThat(milestone.getPublishedAt()).isEqualTo(acceptedAt);
+        assertThat(milestone.getNextAttemptAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("일시 실패는 1분 뒤 재시도하고 30분 기한을 넘기지 않는다")
+    void retryPublication_pendingMilestone_schedulesWithinDeadline() {
+        // Given
+        PostLikePushMilestone milestone = createMilestone();
+
+        // When
+        milestone.retryPublication(CREATED_AT.plusSeconds(1790));
+
+        // Then
+        assertThat(milestone.getPublishStatus()).isEqualTo(PublishStatus.PENDING);
+        assertThat(milestone.getNextAttemptAt()).isEqualTo(CREATED_AT.plusSeconds(1800));
+    }
+
+    @Test
+    @DisplayName("30분 기한에 도달한 재시도는 만료로 종료한다")
+    void retryPublication_atDeadline_expiresMilestone() {
+        // Given
+        PostLikePushMilestone milestone = createMilestone();
+
+        // When
+        milestone.retryPublication(CREATED_AT.plusSeconds(1800));
+
+        // Then
+        assertThat(milestone.getPublishStatus()).isEqualTo(PublishStatus.EXPIRED);
+        assertThat(milestone.getNextAttemptAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("영구 발행 실패는 실패 상태로 종료한다")
+    void failPublication_pendingMilestone_marksFailed() {
+        // Given
+        PostLikePushMilestone milestone = createMilestone();
+
+        // When
+        milestone.failPublication();
+
+        // Then
+        assertThat(milestone.getPublishStatus()).isEqualTo(PublishStatus.FAILED);
+        assertThat(milestone.getNextAttemptAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("발행 대기 상태가 아니면 다시 상태를 바꿀 수 없다")
+    void markPublished_alreadyPublished_throwsBusinessException() {
+        // Given
+        PostLikePushMilestone milestone = createMilestone();
+        milestone.markPublished(CREATED_AT.plusSeconds(1));
+
+        // When & Then
+        assertThatThrownBy(() -> milestone.markPublished(CREATED_AT.plusSeconds(2)))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private PostLikePushMilestone createMilestone() {
+        return PostLikePushMilestone.create(
+                POST_ID,
+                USER_ID,
+                10L,
+                CREATED_AT
+        );
+    }
 }

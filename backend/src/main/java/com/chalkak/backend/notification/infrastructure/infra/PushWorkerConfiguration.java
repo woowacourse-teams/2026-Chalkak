@@ -2,6 +2,7 @@ package com.chalkak.backend.notification.infrastructure.infra;
 
 import com.chalkak.backend.auth.service.token.LoginSessionService;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
@@ -87,6 +88,7 @@ public class PushWorkerConfiguration {
     @Bean
     public PushWorkerService pushWorkerService(
             NotificationRepository notificationRepository,
+            PostLikePushMilestoneRepository milestoneRepository,
             TopicRepository topicRepository,
             PostRepository postRepository,
             ReminderRepository reminderRepository,
@@ -99,6 +101,7 @@ public class PushWorkerConfiguration {
     ) {
         return new PushWorkerService(
                 notificationRepository,
+                milestoneRepository,
                 topicRepository,
                 postRepository,
                 reminderRepository,

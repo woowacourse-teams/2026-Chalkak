@@ -43,6 +43,7 @@ import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.domain.PushDelivery;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.PostLikePushMilestoneRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.post.repository.PostRepository;
@@ -88,6 +89,8 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private static final UUID POST_ID = UUID.randomUUID();
     @Autowired
     private NotificationRepository notifications;
+    @Autowired
+    private PostLikePushMilestoneRepository milestones;
     @Autowired
     private PushDeviceRepository devices;
     @Autowired
@@ -341,6 +344,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         given(unavailable.getTransaction(any())).willThrow(new IllegalStateException("DB failed"));
         PushWorkerService failingWorker = new PushWorkerService(
                 notifications,
+                milestones,
                 topics,
                 posts,
                 reminders,
@@ -1295,6 +1299,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
         PushDeliveryService restartedDelivery = new PushDeliveryService(deliveries, manager);
         PushWorkerService restarted = new PushWorkerService(
                 notifications,
+                milestones,
                 topics,
                 posts,
                 reminders,
@@ -1393,6 +1398,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private PushWorkerService worker(Instant now) {
         return new PushWorkerService(
                 notifications,
+                milestones,
                 topics,
                 posts,
                 reminders,
@@ -1408,6 +1414,7 @@ class PushWorkerServiceTest extends IntegrationTestSupport {
     private PushWorkerService worker(PlatformTransactionManager transactionManager) {
         return new PushWorkerService(
                 notifications,
+                milestones,
                 topics,
                 posts,
                 reminders,
