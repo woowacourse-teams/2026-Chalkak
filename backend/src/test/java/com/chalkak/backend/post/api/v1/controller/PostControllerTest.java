@@ -737,6 +737,47 @@ class PostControllerTest {
 
     @Test
     @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 수정할 때 제목에 NUL 문자가 있으면 400을 반환한다")
+    void updatePost_titleWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "가\\u0000나"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("제목에 사용할 수 없는 문자가 포함되어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 수정할 때 설명에 NUL 문자가 있으면 400을 반환한다")
+    void updatePost_descriptionWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(put("/api/v1/posts/{postId}", POST_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "title": "수정한 제목",
+                          "description": "가\\u0000나"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("설명에 사용할 수 없는 문자가 포함되어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
     @DisplayName("수정할 게시물 ID 형식이 올바르지 않으면 400을 반환한다")
     void updatePost_invalidPostId_returnsBadRequest() throws Exception {
         // When & Then
@@ -931,6 +972,50 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message")
                         .value("설명은 300자 이하여야 합니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 제목에 NUL 문자가 있으면 400을 반환한다")
+    void createPost_titleWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "title": "가\\u0000나"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("제목에 사용할 수 없는 문자가 포함되어 있습니다."));
+
+        then(postCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("게시물을 생성할 때 설명에 NUL 문자가 있으면 400을 반환한다")
+    void createPost_descriptionWithNulCharacter_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "topicId": "%s",
+                          "photoUploadId": "%s",
+                          "description": "가\\u0000나"
+                        }
+                        """.formatted(TOPIC_ID, PHOTO_UPLOAD_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("설명에 사용할 수 없는 문자가 포함되어 있습니다."));
 
         then(postCommandService).shouldHaveNoInteractions();
     }

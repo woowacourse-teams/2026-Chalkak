@@ -28,13 +28,27 @@ public record PostUpdateRequest(
     @Schema(hidden = true)
     @AssertTrue(message = "제목은 10자 이하여야 합니다.")
     public boolean isTitleLengthValid() {
-        return PostTitle.isValid(title);
+        return PostTitle.isLengthValid(title);
     }
 
     @JsonIgnore
     @Schema(hidden = true)
     @AssertTrue(message = "설명은 300자 이하여야 합니다.")
     public boolean isDescriptionLengthValid() {
-        return PostDescription.isValid(description);
+        return PostDescription.isLengthValid(description);
+    }
+
+    @JsonIgnore
+    @Schema(hidden = true)
+    @AssertTrue(message = "제목에 사용할 수 없는 문자가 포함되어 있습니다.")
+    public boolean isTitleCharacterValid() {
+        return PostTitle.isCharacterValid(title);
+    }
+
+    @JsonIgnore
+    @Schema(hidden = true)
+    @AssertTrue(message = "설명에 사용할 수 없는 문자가 포함되어 있습니다.")
+    public boolean isDescriptionCharacterValid() {
+        return PostDescription.isCharacterValid(description);
     }
 }

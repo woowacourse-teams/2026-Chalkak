@@ -37,7 +37,7 @@ public record PostCreateRequest(
     @Schema(hidden = true)
     @AssertTrue(message = "제목은 10자 이하여야 합니다.")
     public boolean isTitleLengthValid() {
-        return PostTitle.isValid(title);
+        return PostTitle.isLengthValid(title);
     }
 
     /**
@@ -48,6 +48,27 @@ public record PostCreateRequest(
     @Schema(hidden = true)
     @AssertTrue(message = "설명은 300자 이하여야 합니다.")
     public boolean isDescriptionLengthValid() {
-        return PostDescription.isValid(description);
+        return PostDescription.isLengthValid(description);
+    }
+
+    /**
+     * 필드 단위 400 응답을 위한 빠른 실패. 판정 기준은 {@link PostTitle}에 위임해 도메인 불변식과 어긋나지 않게 한다.
+     */
+    @JsonIgnore
+    @Schema(hidden = true)
+    @AssertTrue(message = "제목에 사용할 수 없는 문자가 포함되어 있습니다.")
+    public boolean isTitleCharacterValid() {
+        return PostTitle.isCharacterValid(title);
+    }
+
+    /**
+     * 필드 단위 400 응답을 위한 빠른 실패. 판정 기준은 {@link PostDescription}에 위임해 도메인 불변식과 어긋나지 않게
+     * 한다.
+     */
+    @JsonIgnore
+    @Schema(hidden = true)
+    @AssertTrue(message = "설명에 사용할 수 없는 문자가 포함되어 있습니다.")
+    public boolean isDescriptionCharacterValid() {
+        return PostDescription.isCharacterValid(description);
     }
 }

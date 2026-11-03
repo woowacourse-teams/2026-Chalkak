@@ -81,17 +81,17 @@ class PostDescriptionTest {
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "\n", "설명", "a\nb"})
     @DisplayName("null과 공백뿐인 설명과 짧은 설명은 유효하다고 판정한다")
-    void isValid_shortOrBlankDescription_returnsTrue(String raw) {
+    void isLengthValid_shortOrBlankDescription_returnsTrue(String raw) {
         // When & Then
-        assertThat(PostDescription.isValid(raw)).isTrue();
+        assertThat(PostDescription.isLengthValid(raw)).isTrue();
     }
 
     @ParameterizedTest
     @MethodSource("descriptionLengthBoundaries")
     @DisplayName("앞뒤 공백을 제거한 code point 기준 300자까지만 유효하다고 판정한다")
-    void isValid_lengthBoundary_returnsExpected(String raw, boolean expected) {
+    void isLengthValid_lengthBoundary_returnsExpected(String raw, boolean expected) {
         // When & Then
-        assertThat(PostDescription.isValid(raw)).isEqualTo(expected);
+        assertThat(PostDescription.isLengthValid(raw)).isEqualTo(expected);
     }
 
     private static Stream<Arguments> descriptionLengthBoundaries() {
@@ -100,5 +100,41 @@ class PostDescriptionTest {
                 Arguments.of("  \n" + "a".repeat(300) + "\n  ", true),
                 Arguments.of("a".repeat(301), false)
         );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가\u0000나", "\u0000", "  가나\u0000  "})
+    @DisplayName("생성자를 직접 호출할 때 NUL 문자가 포함된 설명은 거부한다")
+    void constructor_descriptionWithNulCharacter_throwsBusinessException(String value) {
+        // When & Then
+        assertThatThrownBy(() -> new PostDescription(value))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("설명에 사용할 수 없는 문자가 포함되어 있습니다.");
+    }
+
+    @Test
+    @DisplayName("NUL 문자가 포함된 설명은 설명 없음으로 보지 않고 거부한다")
+    void from_descriptionWithNulCharacter_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> PostDescription.from("가\u0000나"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("설명에 사용할 수 없는 문자가 포함되어 있습니다.");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "설명", "a\nb", "📸"})
+    @DisplayName("null이거나 NUL 문자가 없는 설명은 줄바꿈이 있어도 문자가 유효하다고 판정한다")
+    void isCharacterValid_descriptionWithoutNulCharacter_returnsTrue(String raw) {
+        // When & Then
+        assertThat(PostDescription.isCharacterValid(raw)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가\u0000나", "\u0000", "  \u0000  "})
+    @DisplayName("NUL 문자가 포함된 설명은 문자가 유효하지 않다고 판정한다")
+    void isCharacterValid_descriptionWithNulCharacter_returnsFalse(String raw) {
+        // When & Then
+        assertThat(PostDescription.isCharacterValid(raw)).isFalse();
     }
 }
