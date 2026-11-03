@@ -26,7 +26,7 @@
 - `./gradlew ktlintCheck lintDebug testDebugUnitTest` → 종료 코드 0
 
 남긴 기록
-- 화면 확인 방법: 작가 프로필 화면 (client/.agents/skills/android-screen-check/references/ProfileScreen.md)
+- ADR: 소개 말줄임 기준 (client/android/docs/architecture/profile-bio-ellipsis.md)
 
 백엔드 전달 필요
 - 소개 글자 수 제한 확인 요청
