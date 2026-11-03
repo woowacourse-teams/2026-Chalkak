@@ -118,7 +118,7 @@ class FeedbackServiceTest {
     @DisplayName("문의가 없어도 요청한 페이지 정보를 빈 목록과 함께 반환한다")
     void getFeedbacks_noFeedback_returnsEmptyPage() {
         // Given
-        given(feedbackRepository.findByUserId(
+        given(feedbackRepository.findVisibleByUserId(
                 USER_ID,
                 3,
                 7

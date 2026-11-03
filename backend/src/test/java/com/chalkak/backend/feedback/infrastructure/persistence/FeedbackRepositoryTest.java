@@ -134,7 +134,7 @@ class FeedbackRepositoryTest {
 
     @Test
     @DisplayName("본인 문의만 최신순으로 페이지를 나누고 같은 시각은 식별자 내림차순으로 정렬한다")
-    void findByUserId_ownFeedbackWithTiedTimes_returnsStablePages() {
+    void findVisibleByUserId_ownFeedbackWithTiedTimes_returnsStablePages() {
         // Given
         Instant createdAt = Instant.parse("2026-11-03T06:00:00Z");
         UUID olderId = UUID.fromString("0198fc30-0000-7000-8000-000000000011");
@@ -164,17 +164,17 @@ class FeedbackRepositoryTest {
         );
 
         // When
-        FeedbackSlice first = feedbackRepository.findByUserId(
+        FeedbackSlice first = feedbackRepository.findVisibleByUserId(
                 USER_ID,
                 1,
                 2
         );
-        FeedbackSlice second = feedbackRepository.findByUserId(
+        FeedbackSlice second = feedbackRepository.findVisibleByUserId(
                 USER_ID,
                 2,
                 2
         );
-        FeedbackSlice beyondLast = feedbackRepository.findByUserId(
+        FeedbackSlice beyondLast = feedbackRepository.findVisibleByUserId(
                 USER_ID,
                 3,
                 2

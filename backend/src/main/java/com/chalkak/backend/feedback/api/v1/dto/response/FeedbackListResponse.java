@@ -10,7 +10,7 @@ public record FeedbackListResponse(
         int currentPage,
         int pageSize,
         boolean hasNext,
-        List<FeedbackResponse> feedbacks
+        List<FeedbackListItem> feedbacks
 ) {
 
     public static FeedbackListResponse from(FeedbackListResult result) {
@@ -18,19 +18,19 @@ public record FeedbackListResponse(
                 result.currentPage(),
                 result.pageSize(),
                 result.hasNext(),
-                result.feedbacks().stream().map(FeedbackResponse::from).toList()
+                result.feedbacks().stream().map(FeedbackListItem::from).toList()
         );
     }
 
     @Schema(name = "FeedbackListItem")
-    public record FeedbackResponse(
+    public record FeedbackListItem(
             UUID feedbackId,
             String content,
             Instant createdAt
     ) {
 
-        private static FeedbackResponse from(FeedbackListResult.FeedbackSummary feedback) {
-            return new FeedbackResponse(
+        private static FeedbackListItem from(FeedbackListResult.FeedbackSummary feedback) {
+            return new FeedbackListItem(
                     feedback.feedbackId(),
                     feedback.content(),
                     feedback.createdAt()

@@ -14,7 +14,7 @@ public interface FeedbackRepository {
 
     Optional<Feedback> findByIdAndUserIdForUpdate(UUID feedbackId, UUID userId);
 
-    FeedbackSlice findByUserId(
+    FeedbackSlice findVisibleByUserId(
             UUID userId,
             int page,
             int pageSize

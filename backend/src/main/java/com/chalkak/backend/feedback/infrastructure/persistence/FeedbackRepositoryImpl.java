@@ -35,7 +35,7 @@ public class FeedbackRepositoryImpl implements FeedbackRepository {
     }
 
     @Override
-    public FeedbackSlice findByUserId(
+    public FeedbackSlice findVisibleByUserId(
             UUID userId,
             int page,
             int pageSize

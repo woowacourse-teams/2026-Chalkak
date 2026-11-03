@@ -105,6 +105,17 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
                         .isNotEmpty())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].get.parameters.length()")
                         .value(2))
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackListResponse.properties.feedbacks.items.$ref")
+                        .value("#/components/schemas/FeedbackListItem"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackListItem.properties.feedbackId.format")
+                        .value("uuid"))
+                .andExpect(jsonPath("$.components.schemas.FeedbackListItem.properties.content.type")
+                        .value("string"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackListItem.properties.createdAt.format")
+                        .value("date-time"))
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].delete").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks/me']").doesNotExist());
