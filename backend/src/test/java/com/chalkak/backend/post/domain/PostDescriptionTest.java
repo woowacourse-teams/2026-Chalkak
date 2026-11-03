@@ -4,28 +4,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.exception.BusinessException;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PostDescriptionTest {
 
-    @Test
-    @DisplayName("null이면 설명 없음으로 보고 null을 돌려준다")
-    void from_null_returnsNull() {
-        // When
-        PostDescription description = PostDescription.from(null);
-
-        // Then
-        assertThat(description).isNull();
-    }
-
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "　　", "\n", " \n\t \r\n "})
-    @DisplayName("빈 문자열, 공백뿐, 줄바꿈뿐인 설명은 설명 없음으로 보고 null을 돌려준다")
+    @DisplayName("null, 빈 문자열, 공백뿐, 줄바꿈뿐인 설명은 설명 없음으로 보고 null을 돌려준다")
     void from_blankDescription_returnsNull(String raw) {
         // When
         PostDescription description = PostDescription.from(raw);
@@ -93,24 +86,19 @@ class PostDescriptionTest {
         assertThat(PostDescription.isValid(raw)).isTrue();
     }
 
-    @Test
-    @DisplayName("300자인 설명은 유효하다고 판정한다")
-    void isValid_threeHundredCharacters_returnsTrue() {
+    @ParameterizedTest
+    @MethodSource("descriptionLengthBoundaries")
+    @DisplayName("앞뒤 공백을 제거한 code point 기준 300자까지만 유효하다고 판정한다")
+    void isValid_lengthBoundary_returnsExpected(String raw, boolean expected) {
         // When & Then
-        assertThat(PostDescription.isValid("a".repeat(300))).isTrue();
+        assertThat(PostDescription.isValid(raw)).isEqualTo(expected);
     }
 
-    @Test
-    @DisplayName("앞뒤 공백을 제거한 값이 300자면 유효하다고 판정한다")
-    void isValid_threeHundredCharactersAfterStrip_returnsTrue() {
-        // When & Then
-        assertThat(PostDescription.isValid("  \n" + "a".repeat(300) + "\n  ")).isTrue();
-    }
-
-    @Test
-    @DisplayName("301자인 설명은 유효하지 않다고 판정한다")
-    void isValid_overThreeHundredCharacters_returnsFalse() {
-        // When & Then
-        assertThat(PostDescription.isValid("a".repeat(301))).isFalse();
+    private static Stream<Arguments> descriptionLengthBoundaries() {
+        return Stream.of(
+                Arguments.of("a".repeat(300), true),
+                Arguments.of("  \n" + "a".repeat(300) + "\n  ", true),
+                Arguments.of("a".repeat(301), false)
+        );
     }
 }

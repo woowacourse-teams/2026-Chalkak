@@ -198,8 +198,9 @@ class PostCommandServiceTest {
     }
 
     @Test
-    @DisplayName("작성 요청의 설명은 앞뒤 공백을 정리한 값으로 저장할 게시물에 담는다")
-    void createPost_descriptionWithSurroundingWhitespace_savesPostWithNormalizedDescription() {
+    @DisplayName("작성 요청의 설명을 저장할 게시물에 담는다")
+    void createPost_description_savesPostWithDescription() {
+        // Given
         User user = UserFixture.create(USER_ID);
         PostImageUpload upload = PostImageUpload.createPostImageUpload(user, Instant.now());
         given(users.findActiveById(USER_ID)).willReturn(Optional.of(user));
@@ -220,14 +221,16 @@ class PostCommandServiceTest {
             return post;
         });
 
+        // When
         PostCreationResult result = service.createPost(
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
-                "  \n첫 줄\n둘째 줄\n  "
+                "첫 줄\n둘째 줄"
         );
 
+        // Then
         assertThat(result.postId()).isEqualTo(POST_ID);
         ArgumentCaptor<Post> saved = ArgumentCaptor.forClass(Post.class);
         verify(posts).save(saved.capture());
@@ -237,17 +240,20 @@ class PostCommandServiceTest {
     @Test
     @DisplayName("작성자가 제목과 설명을 수정하면 게시물에 반영하고 새 값을 반환한다")
     void updatePost_titleAndDescription_updatesPostAndReturnsBoth() {
+        // Given
         Post post = pendingPostInOpenTopic("기존 설명");
         given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
 
+        // When
         PostUpdateResult result = service.updatePost(
                 USER_ID,
                 POST_ID,
                 "새 제목",
-                "  새 설명  "
+                "새 설명"
         );
 
+        // Then
         assertThat(result.postId()).isEqualTo(POST_ID);
         assertThat(result.title()).isEqualTo("새 제목");
         assertThat(result.description()).isEqualTo("새 설명");
@@ -258,10 +264,12 @@ class PostCommandServiceTest {
     @Test
     @DisplayName("설명 없이 수정하면 기존 설명을 지우고 설명 없음으로 반환한다")
     void updatePost_nullDescription_clearsDescription() {
+        // Given
         Post post = pendingPostInOpenTopic("기존 설명");
         given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
 
+        // When
         PostUpdateResult result = service.updatePost(
                 USER_ID,
                 POST_ID,
@@ -269,6 +277,7 @@ class PostCommandServiceTest {
                 null
         );
 
+        // Then
         assertThat(result.description()).isNull();
         assertThat(post.getDescription()).isNull();
     }

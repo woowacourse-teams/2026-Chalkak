@@ -46,7 +46,7 @@ class PostUpdateServiceTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("삭제된 게시물은 제목을 수정할 수 없다")
+    @DisplayName("삭제된 게시물은 수정할 수 없다")
     void updatePost_deletedPost_throwsNotFoundException() {
         // Given
         jdbcTemplate.update(

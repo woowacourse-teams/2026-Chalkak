@@ -68,8 +68,8 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("설명의 앞뒤 공백과 줄바꿈을 제거해 게시물을 생성한다")
-    void createPost_descriptionWithSurroundingWhitespace_normalizesDescription() {
+    @DisplayName("입력한 설명을 담아 게시물을 생성한다")
+    void createPost_description_createsPostWithDescription() {
         // When
         Post post = Post.createPost(
                 author,
@@ -77,7 +77,7 @@ class PostTest {
                 photo,
                 UPLOAD_ID,
                 "오늘의 기록",
-                "  \n첫 줄\n둘째 줄\n  "
+                "첫 줄\n둘째 줄"
         );
 
         // Then
@@ -226,8 +226,8 @@ class PostTest {
     }
 
     @Test
-    @DisplayName("제목과 설명을 함께 교체하며 설명의 앞뒤 공백은 제거하고 가운데 줄바꿈은 유지한다")
-    void updateTitleAndDescription_newValues_replacesBothAndNormalizesDescription() {
+    @DisplayName("제목과 설명을 함께 교체한다")
+    void updateTitleAndDescription_newValues_replacesTitleAndDescription() {
         // Given
         Post post = createPendingPostDuringOpenPeriod("기존 제목", "기존 설명");
 
@@ -235,13 +235,13 @@ class PostTest {
         post.updateTitleAndDescription(
                 AUTHOR_ID,
                 "수정 제목",
-                "  첫 줄\n둘째 줄\n ",
+                "새 설명",
                 UPDATED_AT
         );
 
         // Then
         assertThat(post.getTitle()).isEqualTo("수정 제목");
-        assertThat(post.getDescription()).isEqualTo("첫 줄\n둘째 줄");
+        assertThat(post.getDescription()).isEqualTo("새 설명");
     }
 
     @Test

@@ -583,8 +583,8 @@ class PostRepositoryTest {
     }
 
     @Test
-    @DisplayName("설명이 있던 게시물을 설명 없이 수정하면 DB에서 설명이 NULL이 된다")
-    void updateTitleAndDescription_nullDescription_storesNullDescription() {
+    @DisplayName("설명이 있던 게시물의 설명을 null로 바꾸고 flush하면 DB에서 설명이 NULL이 된다")
+    void flush_descriptionChangedToNull_storesNullDescription() {
         // Given
         jdbcTemplate.update(
                 "UPDATE posts SET description = '기존 설명' WHERE id = ?",
@@ -611,8 +611,8 @@ class PostRepositoryTest {
     }
 
     @Test
-    @DisplayName("설명을 새 값으로 수정하면 정규화한 설명을 DB에 저장한다")
-    void updateTitleAndDescription_newDescription_storesNormalizedDescription() {
+    @DisplayName("설명을 새 값으로 바꾸고 flush하면 DB에 저장한다")
+    void flush_descriptionChanged_storesDescription() {
         // Given
         Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
 
@@ -620,7 +620,7 @@ class PostRepositoryTest {
         post.updateTitleAndDescription(
                 USER_ID,
                 "오늘의 순간",
-                "  첫 줄\n둘째 줄  ",
+                "첫 줄\n둘째 줄",
                 Instant.parse("2026-08-12T12:00:00Z")
         );
         entityManager.flush();
