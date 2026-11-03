@@ -4,10 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.support.IntegrationTestSupport;
 import java.sql.Connection;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.callback.BaseCallback;
+import org.flywaydb.core.api.callback.Context;
+import org.flywaydb.core.api.callback.Event;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +24,96 @@ class FeedbackMigrationTest extends IntegrationTestSupport {
 
     @Autowired
     private DataSource dataSource;
+
+    @Test
+    @DisplayName("전환 트랜잭션 시작 전 문의만 숨기고 정확한 경계와 이후 문의는 보존한다")
+    void migrate_cutoverBoundary_keepsSubmissionsAtOrAfterTransactionStart() throws Exception {
+        // Given
+        String schema = "feedback_cutover_" + UUID.randomUUID().toString().replace("-", "");
+        JdbcTemplate admin = new JdbcTemplate(dataSource);
+        admin.execute("CREATE SCHEMA " + schema);
+        try {
+            migrate(schema, "202611031600");
+            try (Connection connection = dataSource.getConnection()) {
+                String previousSchema = connection.getSchema();
+                connection.setSchema(schema);
+                try {
+                    JdbcTemplate jdbc = new JdbcTemplate(
+                            new SingleConnectionDataSource(connection, true));
+                    UUID userId = UUID.randomUUID();
+                    jdbc.update(
+                            "INSERT INTO users (id, email, signature_original_storage_key) VALUES (?, ?, ?)",
+                            userId,
+                            userId + "@cutover.test",
+                            "signatures/" + userId
+                    );
+                    UUID beforeId = UUID.randomUUID();
+                    UUID boundaryId = UUID.randomUUID();
+                    UUID afterId = UUID.randomUUID();
+                    AtomicReference<Instant> cutover = new AtomicReference<>();
+
+                    // When: 같은 마이그레이션 트랜잭션에서 경계 직전·동일·직후 접수 시각을 준비한다.
+                    Flyway.configure()
+                            .dataSource(dataSource)
+                            .defaultSchema(schema)
+                            .schemas(schema)
+                            .locations("classpath:db/migration")
+                            .target("202611031610")
+                            .callbacks(new BaseCallback() {
+                                @Override
+                                public boolean supports(Event event, Context context) {
+                                    return event == Event.BEFORE_EACH_MIGRATE;
+                                }
+
+                                @Override
+                                public void handle(Event event, Context context) {
+                                    JdbcTemplate migrationJdbc = new JdbcTemplate(
+                                            new SingleConnectionDataSource(context.getConnection(),
+                                                    true));
+                                    Instant start = migrationJdbc.queryForObject(
+                                            "SELECT transaction_timestamp()", Timestamp.class)
+                                            .toInstant();
+                                    cutover.set(start);
+                                    insertFeedbackAt(
+                                            migrationJdbc,
+                                            beforeId,
+                                            userId,
+                                            start.minusNanos(1000)
+                                    );
+                                    insertFeedbackAt(
+                                            migrationJdbc,
+                                            boundaryId,
+                                            userId,
+                                            start
+                                    );
+                                    insertFeedbackAt(
+                                            migrationJdbc,
+                                            afterId,
+                                            userId,
+                                            start.plusNanos(1000)
+                                    );
+                                }
+                            })
+                            .load().migrate();
+
+                    // Then: 백필 시각도 같은 트랜잭션 기준임을 확인해 테스트의 경계를 고정한다.
+                    assertThat(jdbc.queryForObject(
+                            "SELECT deleted_at FROM feedbacks WHERE id = ?",
+                            Timestamp.class,
+                            beforeId
+                    ).toInstant()).isEqualTo(cutover.get());
+                    assertThat(jdbc.queryForList(
+                            "SELECT id FROM feedbacks WHERE deleted_at IS NULL",
+                            UUID.class
+                    )).containsExactlyInAnyOrder(boundaryId, afterId);
+                } finally {
+                    connection.setSchema(previousSchema);
+                }
+            }
+        } finally {
+            admin.execute("DROP SCHEMA " + schema + " CASCADE");
+        }
+    }
 
     @Test
     @DisplayName("기존 피드백은 원문을 보존해 삭제 표시하고 전환 후 문의는 표시하지 않는다")
@@ -98,5 +194,19 @@ class FeedbackMigrationTest extends IntegrationTestSupport {
                 userId
         );
         return feedbackId;
+    }
+
+    private void insertFeedbackAt(
+            JdbcTemplate jdbc,
+            UUID feedbackId,
+            UUID userId,
+            Instant createdAt
+    ) {
+        jdbc.update(
+                "INSERT INTO feedbacks (id, user_id, content, created_at) VALUES (?, ?, '전환 경계 문의', ?)",
+                feedbackId,
+                userId,
+                Timestamp.from(createdAt)
+        );
     }
 }
