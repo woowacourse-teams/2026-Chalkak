@@ -103,12 +103,7 @@ public record PostInstagramConsent(
                     revokedAt
             );
         }
-        return new PostInstagramConsent(
-                false,
-                null,
-                agreedAt,
-                now
-        );
+        return revoke(now);
     }
 
     /**
