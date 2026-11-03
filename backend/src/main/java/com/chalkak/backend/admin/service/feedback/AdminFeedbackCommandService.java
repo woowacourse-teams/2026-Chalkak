@@ -10,7 +10,6 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +33,7 @@ public class AdminFeedbackCommandService {
             return;
         }
         AdminAuditSnapshot beforeState = createDeletionState(feedback);
-        feedback.delete(clock.instant().truncatedTo(ChronoUnit.MICROS));
+        feedback.delete(clock.instant());
         auditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.FEEDBACK_DELETED,

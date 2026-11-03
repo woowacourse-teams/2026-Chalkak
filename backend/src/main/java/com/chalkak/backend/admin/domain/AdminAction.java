@@ -21,12 +21,6 @@ public enum AdminAction {
             AdminAuditTransitionRules::isPostDeleted
     ),
 
-    FEEDBACK_DELETED(
-            AdminTargetType.FEEDBACK,
-            false,
-            AdminAuditTransitionRules::isFeedbackDeleted
-    ),
-
     USER_BANNED(
             AdminTargetType.USER,
             true,
@@ -139,6 +133,12 @@ public enum AdminAction {
             AdminTargetType.APP_VERSION,
             true,
             AdminAuditTransitionRules::isAppVersionUpdated
+    ),
+
+    FEEDBACK_DELETED(
+            AdminTargetType.FEEDBACK,
+            false,
+            AdminAuditTransitionRules::isFeedbackDeleted
     );
 
     private final AdminTargetType targetType;
