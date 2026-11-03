@@ -354,7 +354,7 @@ private fun PhotoUploadWritingContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag(PHOTO_UPLOAD_CAPTION_TAG),
-                        placeholder = "제목은 선택이에요.",
+                        placeholder = "사진의 제목을 적어 주세요. (선택)",
                         enabled = !uiState.isSubmitting,
                         textStyle = ChalkakTheme.typography.title3,
                         singleLine = true,

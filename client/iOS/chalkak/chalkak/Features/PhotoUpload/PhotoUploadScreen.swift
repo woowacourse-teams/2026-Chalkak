@@ -45,7 +45,6 @@ struct PhotoUploadScreen: View {
             scrollOffset = offset
         }
         .background(theme.colors.background)
-        .navigationTitle("전시하기")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

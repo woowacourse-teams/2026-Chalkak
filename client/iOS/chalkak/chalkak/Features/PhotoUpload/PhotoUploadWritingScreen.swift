@@ -23,7 +23,7 @@ struct PhotoUploadWritingScreen: View {
                                 set: { onAction(.captionChanged($0)) }
                             ),
                             label: "작품 제목",
-                            placeholder: "제목은 선택이에요.",
+                            placeholder: "사진의 제목을 적어 주세요. (선택)",
                             isEnabled: !viewState.isSubmitting,
                             lineLimit: 1...1,
                             textFont: theme.typography.title3,
@@ -64,7 +64,6 @@ struct PhotoUploadWritingScreen: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(theme.colors.background)
-        .navigationTitle("글 쓰기")
         .navigationBarTitleDisplayMode(.inline)
         // 전시 중에는 화면을 벗어나지 않도록 뒤로 가기를 막는다.
         .navigationBarBackButtonHidden(viewState.isSubmitting)

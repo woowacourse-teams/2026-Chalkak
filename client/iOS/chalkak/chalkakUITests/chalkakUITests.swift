@@ -41,7 +41,7 @@ final class chalkakUITests: XCTestCase {
         caption.typeText("작품 제목")
 
         // 뒤로 가면 사진 고르기 단계로 돌아간다.
-        app.navigationBars["글 쓰기"].buttons.element(boundBy: 0).tap()
+        app.navigationBars.firstMatch.buttons.element(boundBy: 0).tap()
         let close = app.buttons["photoUpload.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["photoUpload.next"].exists)
@@ -98,7 +98,7 @@ final class chalkakUITests: XCTestCase {
         XCTAssertEqual(display.value as? String, "선택됨")
         drag(from: display, to: settings)
         XCTAssertEqual(settings.value as? String, "선택됨")
-        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+        XCTAssertFalse(app.buttons["photoUpload.close"].exists)
         drag(from: settings, to: today)
         XCTAssertEqual(today.value as? String, "선택됨")
 
@@ -121,7 +121,7 @@ final class chalkakUITests: XCTestCase {
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
         XCTAssertEqual(app.buttons["전시"].value as? String, "선택됨")
-        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+        XCTAssertFalse(app.buttons["photoUpload.close"].exists)
     }
 
     @MainActor
@@ -138,11 +138,11 @@ final class chalkakUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ))
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
-        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+        app.buttons["photoUpload.close"].tap()
         XCTAssertEqual(today.value as? String, "선택됨")
         app.buttons["추가"].tap()
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -174,8 +174,8 @@ final class chalkakUITests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
-        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+        app.buttons["photoUpload.close"].tap()
         XCTAssertEqual(settings.value as? String, "선택됨")
         XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
     }
@@ -302,8 +302,8 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
         uploadButton.tap()
 
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
-        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+        app.buttons["photoUpload.close"].tap()
 
         XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["설정"].value as? String, "선택됨")
