@@ -33,6 +33,7 @@
 ## 기준 브랜치와 플랫폼
 
 - 기준 브랜치는 `client/develop`이다(`develop` 아님). 브랜치는 `origin/client/develop`에서 만들고 PR도 여기로 연다.
+- 작업 브랜치는 `client-issue`가 이슈에 연결된 브랜치로 만든다(`gh issue develop`). 이때 원격에 빈 브랜치가 생기는 것은 묻지 않는다. 코드 push는 push 확인 뒤에만 한다.
 - 플랫폼은 바꿀 파일 경로로 정한다.
 
 | 경로 | 플랫폼 | 라벨 | 브랜치 이름의 플랫폼 자리 |

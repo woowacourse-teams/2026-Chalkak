@@ -26,19 +26,22 @@ disable-model-invocation: true
    gh issue create --title "<제목>" --body-file <본문 파일> --label "<종류>" --label "<플랫폼>" --assignee @me
    ```
    라벨은 종류(`feat` `fix` `refactor` `docs` `chore` `test` `style`) 하나와 플랫폼(`Android` `iOS` `Web`)이다.
-5. **브랜치 만들기**:
+5. **연결 브랜치 만들기**: 이슈 페이지의 Development에 브랜치가 붙도록 GitHub에서 만들고, 지금 작업 폴더에서 그 브랜치로 바꾼다.
    ```bash
    git fetch origin
-   git log --oneline HEAD..origin/client/develop   # 뒤처졌는지
    git branch -a | grep 'client/'                  # 이름 규칙 확인
-   git switch -c client/<종류>/#<번호>-<플랫폼>-<영어 요약> origin/client/develop
+   gh issue develop <번호> --list                  # 이미 연결된 브랜치가 있으면 그걸 쓴다
+   gh issue develop <번호> --base client/develop \
+     --name "client/<종류>/#<번호>-<플랫폼>-<영어 요약>" --checkout
    ```
    - 지금 레포 규칙은 `client/{feature|fix|refactor|chore|docs}/#번호-{android|ios|web}-{요약}`이다.
      종류 자리는 커밋 type과 달리 `feat`가 아니라 `feature`다. 예: `client/feature/#901-android-home-top-redesign`
    - `git branch -a`에서 다른 규칙이 보이면 그쪽을 따른다.
    - 커밋하지 않은 변경이 있으면 브랜치를 바꾸기 전에 알리고 멈춘다.
-   - 원격 브랜치는 만들지 않는다. push는 `client-pr`의 push 확인 뒤에 한다.
+   - 원격에는 `client/develop`과 같은 위치의 빈 브랜치만 생긴다. 코드 push는 `client-pr`의 push 확인 뒤에 한다.
+   - `--base`를 주면 나중에 `gh pr create`의 기준 브랜치도 `client/develop`으로 잡힌다.
+   - 연결 브랜치 만들기가 실패하면 이슈를 다시 만들지 않는다. 이슈 주소와 실패 메시지를 알리고 멈춘다.
 
 ## 알릴 것
 
-이슈 주소와 로컬 브랜치 이름, `확인 필요`로 남긴 항목.
+이슈 주소, 연결 브랜치 이름, `확인 필요`로 남긴 항목.
