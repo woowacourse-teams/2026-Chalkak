@@ -152,6 +152,18 @@ public record PostInstagramConsent(
         return agreed || withoutLeadingAt(raw).isEmpty();
     }
 
+    /**
+     * 관리자 검색어를 저장된 ID와 비교할 수 있게 정규화한다. 저장 시 정규화(앞뒤 공백 제거, 맨 앞 {@code @} 하나 제거, 소문자
+     * 변환)와 같은 규칙이며, 형식 검증은 하지 않는다. 정규화 후 비어 있으면 {@code null}을 돌려준다.
+     */
+    public static String normalizeSearchKeyword(String raw) {
+        String candidate = withoutLeadingAt(raw);
+        if (candidate.isEmpty()) {
+            return null;
+        }
+        return candidate.toLowerCase(Locale.ROOT);
+    }
+
     private static String withoutLeadingAt(String raw) {
         if (raw == null) {
             return "";

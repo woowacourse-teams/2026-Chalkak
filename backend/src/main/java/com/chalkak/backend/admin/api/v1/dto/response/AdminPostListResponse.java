@@ -44,7 +44,11 @@ public record AdminPostListResponse(
             @Schema(nullable = true)
             Instant moderatedAt,
             @Schema(nullable = true)
-            Instant deletedAt
+            Instant deletedAt,
+            @Schema(description = "인스타그램 게시 동의 여부")
+            boolean instagramUploadAgreed,
+            @Schema(description = "태그용 인스타그램 ID. 동의하지 않았거나 ID가 없으면 null", nullable = true)
+            String instagramId
     ) {
 
         private static PostResponse from(AdminPostListResult.PostSummary post) {
@@ -58,7 +62,9 @@ public record AdminPostListResponse(
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
-                    post.deletedAt()
+                    post.deletedAt(),
+                    post.instagramUploadAgreed(),
+                    post.instagramId()
             );
         }
     }

@@ -138,6 +138,8 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
                 null,
                 null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 20
         );
@@ -184,6 +186,8 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
                 null,
                 null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 20
         )).isInstanceOf(DataIntegrityViolationException.class)
@@ -218,6 +222,8 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
                 null,
                 null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 20
         );

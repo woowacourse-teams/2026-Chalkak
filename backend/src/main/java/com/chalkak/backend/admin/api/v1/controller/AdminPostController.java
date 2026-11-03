@@ -49,6 +49,8 @@ public class AdminPostController implements AdminPostApiDocs {
                 request.createdAtFrom(),
                 request.createdAtTo(),
                 request.sort(),
+                request.instagramConsent(),
+                request.instagramId(),
                 request.page(),
                 request.pageSize()
         );

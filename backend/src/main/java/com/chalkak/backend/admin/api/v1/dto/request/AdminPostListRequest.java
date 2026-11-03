@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.api.v1.dto.request;
 
+import com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter;
 import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -39,6 +40,21 @@ public record AdminPostListRequest(
                 allowableValues = {
                         "createdAtDesc", "createdAtAsc"})
         AdminPostSort sort,
+
+        @Schema(
+                description = "인스타그램 게시 동의 상태. 생략하면 전체. "
+                        + "agreed는 현재 동의, notAgreed는 철회한 적 없는 미동의, "
+                        + "revoked는 철회 후 현재 미동의",
+                implementation = String.class,
+                allowableValues = {
+                        "agreed", "notAgreed", "revoked"})
+        AdminPostInstagramConsentFilter instagramConsent,
+
+        @Schema(
+                description = "인스타그램 ID 포함 검색어. 대소문자를 구분하지 않고 "
+                        + "앞뒤 공백과 맨 앞 @ 하나는 무시하며, 비어 있으면 필터하지 않음",
+                example = "chalkak_official")
+        String instagramId,
 
         @Schema(description = "페이지 번호", defaultValue = "1", example = "1")
         @Min(value = 1, message = "조회 조건이 올바르지 않습니다.")
