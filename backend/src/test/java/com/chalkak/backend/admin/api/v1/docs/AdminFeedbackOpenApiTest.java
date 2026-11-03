@@ -21,8 +21,8 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
-    @DisplayName("admin-api 문서는 조회 전용 피드백 계약을 제공한다")
-    void adminApiDocs_exposesReadOnlyFeedbackContract() throws Exception {
+    @DisplayName("admin-api 문서는 기존 피드백 목록 계약을 제공한다")
+    void adminApiDocs_exposesFeedbackListContract() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
@@ -92,6 +92,27 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackDetailResponse.properties.author.$ref")
                         .value("#/components/schemas/AdminFeedbackListAuthor"));
+    }
+
+    @Test
+    @DisplayName("관리자 문의 삭제 문서는 본문 없는 204와 오류·권한 계약을 제공한다")
+    void adminApiDocs_deletion_exposesContract() throws Exception {
+        // Given
+        String path = "$.paths['/api/v1/admin/feedbacks/{feedbackId}'].delete";
+
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(path + ".security[0].adminAccessToken").isArray())
+                .andExpect(jsonPath(path + ".parameters[0].schema.format").value("uuid"))
+                .andExpect(jsonPath(path + ".parameters[0].required").value(true))
+                .andExpect(jsonPath(path + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(path + ".responses['204']").exists())
+                .andExpect(jsonPath(path + ".responses['204'].content").doesNotExist())
+                .andExpect(jsonPath(path + ".responses['400']").exists())
+                .andExpect(jsonPath(path + ".responses['401']").exists())
+                .andExpect(jsonPath(path + ".responses['403']").exists())
+                .andExpect(jsonPath(path + ".responses['404']").exists());
     }
 
     @Test

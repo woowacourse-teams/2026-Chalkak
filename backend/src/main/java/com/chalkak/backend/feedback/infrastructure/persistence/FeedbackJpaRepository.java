@@ -20,6 +20,10 @@ public interface FeedbackJpaRepository extends JpaRepository<Feedback, UUID> {
     Optional<Feedback> findByIdAndUserIdAndDeletedAtIsNull(UUID feedbackId, UUID userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT feedback FROM Feedback feedback WHERE feedback.id = :feedbackId")
+    Optional<Feedback> findByIdForUpdate(@Param("feedbackId") UUID feedbackId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT feedback FROM Feedback feedback WHERE feedback.id = :feedbackId AND feedback.userId = :userId")
     Optional<Feedback> findByIdAndUserIdForUpdate(
             @Param("feedbackId") UUID feedbackId,

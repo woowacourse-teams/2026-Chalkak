@@ -1,6 +1,6 @@
 # 고객센터 문의 접수·내 문의 조회·삭제 연동 안내
 
-로그인한 사용자가 문의를 보내고 본인의 문의 목록·상세를 조회하거나 삭제하는 흐름이다. 정책은 [FEEDBACK-001~003](../rules/feedback.md), 회원 상태는 [회원 규칙](../rules/user.md)을 따른다. [#903](https://github.com/woowacourse-teams/2026-Chalkak/issues/903)·[PR #911](https://github.com/woowacourse-teams/2026-Chalkak/pull/911)의 구현 범위이며, 이 문서의 갱신이 서버 배포 완료를 뜻하지는 않는다.
+로그인한 사용자가 문의를 보내고 본인의 문의 목록·상세를 조회하거나 삭제하는 흐름이다. 정책은 [FEEDBACK-001~003](../rules/feedback.md), 회원 상태는 [회원 규칙](../rules/user.md)을 따른다. 접수·본인 조회·삭제의 기본 계약은 [#903](https://github.com/woowacourse-teams/2026-Chalkak/issues/903)·[PR #911](https://github.com/woowacourse-teams/2026-Chalkak/pull/911)에서 제공한다. 관리자 삭제로 문의가 숨겨지는 범위는 [#921](https://github.com/woowacourse-teams/2026-Chalkak/issues/921)에서 추가한다. 문서 갱신이 서버 배포 완료를 뜻하지는 않는다.
 
 현재 응답은 문의 식별자·문의 내용·접수 시각을 제공한다. **관리자 답변, 답변 여부, 답변 알림함·푸시 계약은 아직 포함하지 않는다.** 답변 본문은 후속 기능에서 상세에 연결하고, 목록에는 답변 본문을 제공하지 않는 방향이다.
 
@@ -121,7 +121,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-목록과 같은 문의 정보의 원문을 제공한다. 목록에서 보였더라도 상세를 열기 전에 삭제되면 `404`가 올 수 있다. 다른 계정의 문의 ID를 알고 있어도 상세를 볼 수 없다. 접수 시각은 UTC `Instant`이며 서버가 KST 문자열로 변환하지 않는다.
+목록과 같은 문의 정보의 원문을 제공한다. 목록에서 보였더라도 상세를 열기 전에 사용자나 관리자가 삭제하면 `404`가 올 수 있다. 관리자 삭제도 사용자 목록·상세에서 숨겨지며, 앱의 기존 404 처리와 목록 갱신 흐름을 따른다. 다른 계정의 문의 ID를 알고 있어도 상세를 볼 수 없다. 접수 시각은 UTC `Instant`이며 서버가 KST 문자열로 변환하지 않는다.
 
 ## 문의 삭제
 

@@ -21,6 +21,12 @@ public enum AdminAction {
             AdminAuditTransitionRules::isPostDeleted
     ),
 
+    FEEDBACK_DELETED(
+            AdminTargetType.FEEDBACK,
+            false,
+            AdminAuditTransitionRules::isFeedbackDeleted
+    ),
+
     USER_BANNED(
             AdminTargetType.USER,
             true,
