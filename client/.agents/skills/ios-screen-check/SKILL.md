@@ -33,7 +33,8 @@ EVID="$(cd "$(git rev-parse --git-common-dir)" && pwd)/client-flow/${num:-$(prin
 
 ## 할 일
 
-- 화면별 가는 길과 재현 조건이 `references/<화면>.md`에 있으면 먼저 읽는다. 어떤 화면을 어떤 순서와 도구로 볼지는 스스로 정한다.
+- 확인할 화면의 `references/<Screen 이름>.md`(예: `ProfileScreen.md`)가 있으면 먼저 읽는다. 가는 길과 재현 조건이 들어 있다.
+  어떤 화면을 어떤 순서와 도구로 볼지는 스스로 정한다.
 - `before`: 항목마다 `before-<n>.png`를 찍는다. 버그면 `repro.mp4`도 녹화한다. 비교는 하지 않는다.
 - `after`: `before`와 **같은 조건**으로 `after-<n>.png`를 찍고, 항목마다 `mark-changes.py`로 `compare-<n>.png`를 만든 뒤 번호마다 판단한다.
 - `adhoc`: 요청대로 찍거나 녹화한다.
@@ -73,11 +74,11 @@ items:
      compare: file:///…/media/compare-1.png (marked)
      ① 의도한 변화 — 소개 문구 영역 추가
      ② 설명 못 함 — 탑바 아래 1px 가로줄
-route: 피드 → 사진 탭 → 작가 이름 탭 (긴 소개: 소개가 4줄 이상인 테스트 작가)
+route: ProfileScreen: 피드 → 사진 탭 → 작가 이름 탭 (긴 소개: 소개가 4줄 이상인 테스트 작가)
 notes: 없음
 ```
 
-`route`는 이번에 화면까지 간 길과 조건이다. `references/<화면>.md`에 없던 내용이면 `client-record`가 화면 확인 방법으로 남긴다.
+`route`는 이번에 화면까지 간 길과 조건이다. 앞에 `<Screen 이름>:`을 붙인다. `references/<Screen 이름>.md`에 없던 내용이면 `client-record`가 화면 확인 방법으로 남긴다.
 
 ## 시뮬레이터 준비
 

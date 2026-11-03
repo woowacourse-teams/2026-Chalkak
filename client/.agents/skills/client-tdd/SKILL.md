@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 1. **화면 확인 대상인지 보기**: 화면 코드(Compose `*Screen`·컴포넌트, SwiftUI View)를 바꾸면 대상이다.
    - 대상이면 **코드를 고치기 전에** 화면 확인 스킬을 `mode: before`로 부른다. Android는 `android-screen-check`, iOS는 `ios-screen-check`.
-     서브에이전트로 돌고 결과만 돌아온다. 넘길 것: `items`(계획의 테스트 밖 확인 항목), `evid`(`$EVID`), `hint`(아는 가는 길·재현 조건).
+     서브에이전트로 돌고 결과만 돌아온다. 넘길 것: `items`(계획의 테스트 밖 확인 항목), `evid`(`$EVID`), `hint`(바뀐 화면의 Screen 이름, 아는 가는 길·재현 조건).
    - 결과의 `blocked`가 `없음`이 아니면 무엇이 막혔는지 사람에게 알리고 멈춘다. 사람이 "기기 확인 없이 진행"이라고 하면 이어 가고, PR에 못 한 이유를 적는다.
    - 결과의 `notes`에 사람에게 물을 것이 있으면 묻는다.
    - 대상이 아니면 기기 확인을 하지 않는다. PR의 📸 칸에는 `없음`을 적는다.

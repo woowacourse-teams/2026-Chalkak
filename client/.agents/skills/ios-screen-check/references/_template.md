@@ -1,6 +1,7 @@
 # <화면 이름> 화면
 
-`client-record`가 화면 확인 방법을 남길 때 이 형식으로 `references/<화면-영어-이름>.md`를 만든다.
+`client-record`가 화면 확인 방법을 남길 때 이 형식으로 `references/<Screen 이름>.md`를 만든다.
+파일 이름은 그 화면의 Screen 이름이다. 예: `AuthorPostsScreen` → `AuthorPostsScreen.md`. 컴포넌트만 바꿨으면 그 컴포넌트가 보이는 화면의 이름을 쓴다.
 
 ```markdown
 # 작가 사진 모아보기 화면
