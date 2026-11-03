@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
@@ -36,6 +37,8 @@ class UserServiceTest {
     private UserRepository users;
     @Mock
     private SocialAccountRepository accounts;
+    @Mock
+    private PostRepository posts;
     @Mock
     private UserRefreshTokenService refreshTokens;
     @Mock

@@ -995,6 +995,38 @@ class PostTest {
         assertThat(post.isAuthoredBy(OTHER_USER_ID)).isFalse();
     }
 
+    @Test
+    @DisplayName("인스타그램 동의를 철회하면 게시물의 동의 정보가 철회 상태가 된다")
+    void revokeInstagramConsent_agreedPost_revokesConsent() {
+        // Given
+        Post post = createAgreedPostWithId();
+
+        // When
+        post.revokeInstagramConsent(DELETED_AT);
+
+        // Then
+        assertThat(post.getInstagramConsent().agreed()).isFalse();
+        assertThat(post.getInstagramConsent().instagramId()).isNull();
+        assertThat(post.getInstagramConsent().agreedAt()).isEqualTo(UPDATED_AT);
+        assertThat(post.getInstagramConsent().revokedAt()).isEqualTo(DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("삭제된 게시물의 인스타그램 동의도 철회한다")
+    void revokeInstagramConsent_deletedPost_revokesConsent() {
+        // Given
+        Post post = createAgreedPostWithId();
+        post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
+
+        // When
+        post.revokeInstagramConsent(DELETED_AT.plusSeconds(60));
+
+        // Then
+        assertThat(post.getInstagramConsent().agreed()).isFalse();
+        assertThat(post.getInstagramConsent().revokedAt()).isEqualTo(DELETED_AT.plusSeconds(60));
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
     private Post createPostWithStatus(ModerationStatus status) {
         Post post = Post.createPost(
                 author,
@@ -1055,37 +1087,5 @@ class PostTest {
         );
         post.requestModeration();
         return post;
-    }
-
-    @Test
-    @DisplayName("인스타그램 동의를 철회하면 게시물의 동의 정보가 철회 상태가 된다")
-    void revokeInstagramConsent_agreedPost_revokesConsent() {
-        // Given
-        Post post = createAgreedPostWithId();
-
-        // When
-        post.revokeInstagramConsent(DELETED_AT);
-
-        // Then
-        assertThat(post.getInstagramConsent().agreed()).isFalse();
-        assertThat(post.getInstagramConsent().instagramId()).isNull();
-        assertThat(post.getInstagramConsent().agreedAt()).isEqualTo(UPDATED_AT);
-        assertThat(post.getInstagramConsent().revokedAt()).isEqualTo(DELETED_AT);
-    }
-
-    @Test
-    @DisplayName("삭제된 게시물의 인스타그램 동의도 철회한다")
-    void revokeInstagramConsent_deletedPost_revokesConsent() {
-        // Given
-        Post post = createAgreedPostWithId();
-        post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
-
-        // When
-        post.revokeInstagramConsent(DELETED_AT.plusSeconds(60));
-
-        // Then
-        assertThat(post.getInstagramConsent().agreed()).isFalse();
-        assertThat(post.getInstagramConsent().revokedAt()).isEqualTo(DELETED_AT.plusSeconds(60));
-        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
     }
 }

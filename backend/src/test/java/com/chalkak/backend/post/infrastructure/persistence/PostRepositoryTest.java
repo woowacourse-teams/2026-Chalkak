@@ -884,6 +884,47 @@ class PostRepositoryTest {
         assertThat(photoCount).isZero();
     }
 
+    @Test
+    @DisplayName("작성자의 동의 중인 게시물만 삭제된 게시물까지 포함해 조회한다")
+    void findInstagramAgreedByAuthorIdForUpdate_mixedPosts_returnsOnlyAuthorAgreedPosts() {
+        // Given
+        UUID authorId = AuthorPostFixtures.createUser(jdbcTemplate);
+        UUID otherAuthorId = AuthorPostFixtures.createUser(jdbcTemplate);
+        UUID agreedPostId = createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-01"),
+                true,
+                false
+        );
+        UUID deletedAgreedPostId = createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-02"),
+                true,
+                true
+        );
+        createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-03"),
+                false,
+                false
+        );
+        createPostWithConsent(
+                otherAuthorId,
+                LocalDate.parse("2026-11-04"),
+                true,
+                false
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        var result = postRepository.findInstagramAgreedByAuthorIdForUpdate(authorId);
+
+        // Then
+        assertThat(result).extracting(Post::getId)
+                .containsExactlyInAnyOrder(agreedPostId, deletedAgreedPostId);
+    }
+
     private void insertPostCreationConflictFixtures(UUID authorId, UUID topicId) {
         UUID photoId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b6");
         jdbcTemplate.update("""
@@ -997,47 +1038,6 @@ class PostRepositoryTest {
         );
         entityManager.flush();
         entityManager.clear();
-    }
-
-    @Test
-    @DisplayName("작성자의 동의 중인 게시물만 삭제된 게시물까지 포함해 조회한다")
-    void findInstagramAgreedByAuthorIdForUpdate_mixedPosts_returnsOnlyAuthorAgreedPosts() {
-        // Given
-        UUID authorId = AuthorPostFixtures.createUser(jdbcTemplate);
-        UUID otherAuthorId = AuthorPostFixtures.createUser(jdbcTemplate);
-        UUID agreedPostId = createPostWithConsent(
-                authorId,
-                LocalDate.parse("2026-11-01"),
-                true,
-                false
-        );
-        UUID deletedAgreedPostId = createPostWithConsent(
-                authorId,
-                LocalDate.parse("2026-11-02"),
-                true,
-                true
-        );
-        createPostWithConsent(
-                authorId,
-                LocalDate.parse("2026-11-03"),
-                false,
-                false
-        );
-        createPostWithConsent(
-                otherAuthorId,
-                LocalDate.parse("2026-11-04"),
-                true,
-                false
-        );
-        entityManager.flush();
-        entityManager.clear();
-
-        // When
-        var result = postRepository.findInstagramAgreedByAuthorIdForUpdate(authorId);
-
-        // Then
-        assertThat(result).extracting(Post::getId)
-                .containsExactlyInAnyOrder(agreedPostId, deletedAgreedPostId);
     }
 
     private UUID createPostWithConsent(
