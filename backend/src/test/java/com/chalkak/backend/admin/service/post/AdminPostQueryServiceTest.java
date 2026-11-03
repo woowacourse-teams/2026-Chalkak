@@ -78,9 +78,6 @@ class AdminPostQueryServiceTest {
                         null,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC
                 ),
                 1,
@@ -98,9 +95,6 @@ class AdminPostQueryServiceTest {
 
         // When
         AdminPostListResult result = adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -125,17 +119,14 @@ class AdminPostQueryServiceTest {
     }
 
     @Test
-    @DisplayName("상태와 주제, 날짜, 작성자, 등록 시각 조건에 맞는 게시물만 조회한다")
+    @DisplayName("상태와 주제, 작성자 조건에 맞는 게시물만 조회한다")
     void getPosts_allFilters_returnsMatchingPost() {
         // Given
         given(repository.findPosts(
                 new AdminPostQueryCriteria(
                         ModerationStatus.REJECTED,
                         SECOND_TOPIC_ID,
-                        SECOND_TOPIC_DATE,
                         SECOND_USER_ID,
-                        Instant.parse("2026-08-13T04:00:00Z"),
-                        Instant.parse("2026-08-13T05:00:00Z"),
                         AdminPostSort.CREATED_AT_DESC
                 ),
                 1,
@@ -151,10 +142,7 @@ class AdminPostQueryServiceTest {
         AdminPostListResult result = adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 SECOND_TOPIC_ID,
-                SECOND_TOPIC_DATE,
                 SECOND_USER_ID,
-                Instant.parse("2026-08-13T04:00:00Z"),
-                Instant.parse("2026-08-13T05:00:00Z"),
                 AdminPostSort.CREATED_AT_DESC,
                 1,
                 20
@@ -177,9 +165,6 @@ class AdminPostQueryServiceTest {
                         null,
                         SECOND_TOPIC_ID,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.LIKE_COUNT_DESC
                 ),
                 1,
@@ -195,9 +180,6 @@ class AdminPostQueryServiceTest {
         AdminPostListResult result = adminPostQueryService.getPosts(
                 null,
                 SECOND_TOPIC_ID,
-                null,
-                null,
-                null,
                 null,
                 AdminPostSort.LIKE_COUNT_DESC,
                 1,
@@ -218,10 +200,7 @@ class AdminPostQueryServiceTest {
                 () -> adminPostQueryService.getPosts(
                         null,
                         null,
-                        null,
                         SECOND_USER_ID,
-                        null,
-                        null,
                         AdminPostSort.LIKE_COUNT_DESC,
                         1,
                         20
@@ -243,9 +222,6 @@ class AdminPostQueryServiceTest {
                         ModerationStatus.VALIDATING,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
                         1,
                         20
@@ -257,37 +233,12 @@ class AdminPostQueryServiceTest {
     }
 
     @Test
-    @DisplayName("등록 시각 시작이 종료보다 늦으면 잘못된 요청 예외를 발생시킨다")
-    void getPosts_createdAtFromAfterCreatedAtTo_throwsBusinessException() {
-        // When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> adminPostQueryService.getPosts(
-                        null,
-                        null,
-                        null,
-                        null,
-                        Instant.parse("2026-08-13T05:00:00Z"),
-                        Instant.parse("2026-08-13T04:00:00Z"),
-                        AdminPostSort.CREATED_AT_DESC,
-                        1,
-                        20
-                ));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-    }
-
-    @Test
     @DisplayName("페이지 오프셋이 정수 범위를 넘으면 잘못된 요청 예외를 발생시킨다")
     void getPosts_pageOffsetOverflow_throwsBusinessException() {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
                 () -> adminPostQueryService.getPosts(
-                        null,
-                        null,
-                        null,
                         null,
                         null,
                         null,

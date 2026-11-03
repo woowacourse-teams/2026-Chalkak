@@ -27,10 +27,7 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder(
                                 "status",
                                 "topicId",
-                                "topicDate",
                                 "userId",
-                                "createdAtFrom",
-                                "createdAtTo",
                                 "sort",
                                 "page",
                                 "pageSize"

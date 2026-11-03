@@ -42,10 +42,7 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
             WHERE post.moderationStatus <> :#{T(com.chalkak.backend.post.domain.ModerationStatus).VALIDATING}
               AND (:#{#criteria.status() == null} = true OR post.moderationStatus = :#{#criteria.status()})
               AND (:#{#criteria.topicId() == null} = true OR topic.id = :#{#criteria.topicId()})
-              AND (:#{#criteria.topicDate() == null} = true OR topic.topicDate = :#{#criteria.topicDate()})
               AND (:#{#criteria.userId() == null} = true OR author.id = :#{#criteria.userId()})
-              AND (:#{#criteria.createdAtFrom() == null} = true OR post.createdAt >= :#{#criteria.createdAtFrom()})
-              AND (:#{#criteria.createdAtTo() == null} = true OR post.createdAt <= :#{#criteria.createdAtTo()})
             """)
     Slice<AdminPostSummaryProjection> findPosts(
             @Param("criteria") AdminPostQueryCriteria criteria,

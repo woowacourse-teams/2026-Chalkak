@@ -5,10 +5,7 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 
 public record AdminPostListRequest(
         @Schema(description = "게시물 검수 상태")
@@ -17,20 +14,8 @@ public record AdminPostListRequest(
         @Schema(description = "주제 ID", format = "uuid")
         UUID topicId,
 
-        @Schema(description = "주제 날짜", example = "2026-08-12")
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-        LocalDate topicDate,
-
         @Schema(description = "작성자 사용자 ID", format = "uuid")
         UUID userId,
-
-        @Schema(description = "등록 시각 조회 시작값(포함)", example = "2026-08-01T00:00:00Z")
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-        Instant createdAtFrom,
-
-        @Schema(description = "등록 시각 조회 종료값(포함)", example = "2026-08-31T23:59:59Z")
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-        Instant createdAtTo,
 
         @Schema(
                 description = "정렬(likeCountDesc는 topicId와 함께만 사용 가능, "

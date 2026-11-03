@@ -8,8 +8,6 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,10 +24,7 @@ public class AdminPostQueryService {
     public AdminPostListResult getPosts(
             ModerationStatus status,
             UUID topicId,
-            LocalDate topicDate,
             UUID userId,
-            Instant createdAtFrom,
-            Instant createdAtTo,
             AdminPostSort sort,
             int page,
             int pageSize
@@ -37,14 +32,10 @@ public class AdminPostQueryService {
         validateStatus(status);
         validatePagination(page, pageSize);
         validatePopularSortTopic(sort, topicId);
-        validateCreatedAtRange(createdAtFrom, createdAtTo);
         AdminPostQueryCriteria criteria = new AdminPostQueryCriteria(
                 status,
                 topicId,
-                topicDate,
                 userId,
-                createdAtFrom,
-                createdAtTo,
                 sort == null ? AdminPostSort.CREATED_AT_DESC : sort
         );
 
@@ -79,16 +70,6 @@ public class AdminPostQueryService {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "조회 조건이 올바르지 않습니다.");
-        }
-    }
-
-    private void validateCreatedAtRange(Instant createdAtFrom, Instant createdAtTo) {
-        if (createdAtFrom != null
-                && createdAtTo != null
-                && createdAtFrom.isAfter(createdAtTo)) {
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_ERROR,
-                    "등록 시각 범위가 올바르지 않습니다.");
         }
     }
 

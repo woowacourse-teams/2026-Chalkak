@@ -182,16 +182,13 @@ class AdminPostQueryRepositoryTest {
     }
 
     @Test
-    @DisplayName("상태·주제·날짜·사용자·등록 시각 필터를 함께 적용한다")
+    @DisplayName("상태·주제·사용자 필터를 함께 적용한다")
     void findPosts_combinedFilters_returnsOnlyMatchingPost() {
         // Given
         AdminPostQueryCriteria criteria = new AdminPostQueryCriteria(
                 ModerationStatus.PENDING,
                 FIRST_TOPIC_ID,
-                FIRST_TOPIC_DATE,
                 PENDING_USER_ID,
-                TIED_CREATED_AT,
-                TIED_CREATED_AT,
                 AdminPostSort.CREATED_AT_ASC
         );
 
@@ -217,9 +214,6 @@ class AdminPostQueryRepositoryTest {
                         ModerationStatus.APPROVED,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC
                 ),
                 1,
@@ -230,22 +224,6 @@ class AdminPostQueryRepositoryTest {
                         null,
                         FIRST_TOPIC_ID,
                         null,
-                        null,
-                        null,
-                        null,
-                        AdminPostSort.CREATED_AT_DESC
-                ),
-                1,
-                20
-        );
-        AdminPage<AdminPostSummaryProjection> topicDateResult = adminPostQueryRepository.findPosts(
-                new AdminPostQueryCriteria(
-                        null,
-                        null,
-                        SECOND_TOPIC_DATE,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC
                 ),
                 1,
@@ -255,56 +233,19 @@ class AdminPostQueryRepositoryTest {
                 new AdminPostQueryCriteria(
                         null,
                         null,
-                        null,
                         REJECTED_USER_ID,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC
                 ),
                 1,
                 20
         );
-        AdminPage<AdminPostSummaryProjection> createdAtFromResult = adminPostQueryRepository
-                .findPosts(
-                        new AdminPostQueryCriteria(
-                                null,
-                                null,
-                                null,
-                                null,
-                                DELETED_CREATED_AT,
-                                null,
-                                AdminPostSort.CREATED_AT_DESC
-                        ),
-                        1,
-                        20
-                );
-        AdminPage<AdminPostSummaryProjection> createdAtToResult = adminPostQueryRepository
-                .findPosts(
-                        new AdminPostQueryCriteria(
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                REJECTED_CREATED_AT,
-                                AdminPostSort.CREATED_AT_DESC
-                        ),
-                        1,
-                        20
-                );
 
         // Then
         assertThat(statusResult.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(DELETED_POST_ID, APPROVED_POST_ID);
         assertThat(topicIdResult.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(PENDING_POST_ID, REJECTED_POST_ID);
-        assertThat(topicDateResult.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(APPROVED_POST_ID);
         assertThat(userIdResult.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(REJECTED_POST_ID);
-        assertThat(createdAtFromResult.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(DELETED_POST_ID);
-        assertThat(createdAtToResult.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(REJECTED_POST_ID);
     }
 
@@ -592,9 +533,6 @@ class AdminPostQueryRepositoryTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 sort
         );
     }
@@ -603,9 +541,6 @@ class AdminPostQueryRepositoryTest {
         return new AdminPostQueryCriteria(
                 null,
                 topicId,
-                null,
-                null,
-                null,
                 null,
                 AdminPostSort.LIKE_COUNT_DESC
         );

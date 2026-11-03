@@ -126,9 +126,6 @@ class AdminPostControllerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
                 20
@@ -152,9 +149,6 @@ class AdminPostControllerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
                 20
@@ -165,8 +159,6 @@ class AdminPostControllerTest {
     @DisplayName("관리자 게시물 목록의 모든 필터와 정렬 및 페이지 조건을 서비스에 전달한다")
     void getPosts_withAllFilters_passesQueryParameters() throws Exception {
         // Given
-        Instant createdAtFrom = Instant.parse("2026-08-01T00:00:00Z");
-        Instant createdAtTo = Instant.parse("2026-08-31T23:59:59Z");
         AdminPostListResult result = new AdminPostListResult(
                 2,
                 50,
@@ -176,10 +168,7 @@ class AdminPostControllerTest {
         given(adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
-                TOPIC_DATE,
                 USER_ID,
-                createdAtFrom,
-                createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 2,
                 50
@@ -189,10 +178,7 @@ class AdminPostControllerTest {
         mockMvc.perform(get("/api/v1/admin/posts")
                 .queryParam("status", "REJECTED")
                 .queryParam("topicId", TOPIC_ID.toString())
-                .queryParam("topicDate", TOPIC_DATE.toString())
                 .queryParam("userId", USER_ID.toString())
-                .queryParam("createdAtFrom", createdAtFrom.toString())
-                .queryParam("createdAtTo", createdAtTo.toString())
                 .queryParam("sort", "createdAtAsc")
                 .queryParam("page", "2")
                 .queryParam("pageSize", "50"))
@@ -205,10 +191,7 @@ class AdminPostControllerTest {
         then(adminPostQueryService).should().getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
-                TOPIC_DATE,
                 USER_ID,
-                createdAtFrom,
-                createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 2,
                 50
@@ -222,9 +205,6 @@ class AdminPostControllerTest {
         given(adminPostQueryService.getPosts(
                 null,
                 TOPIC_ID,
-                null,
-                null,
-                null,
                 null,
                 AdminPostSort.LIKE_COUNT_DESC,
                 1,
@@ -246,10 +226,42 @@ class AdminPostControllerTest {
                 null,
                 TOPIC_ID,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.LIKE_COUNT_DESC,
+                1,
+                20
+        );
+    }
+
+    @Test
+    @DisplayName("제거된 날짜 필터 파라미터는 값이 잘못되어도 무시하고 기본 조건으로 조회한다")
+    void getPosts_removedDateFilters_ignoresParameters() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                1,
+                20
+        )).willReturn(new AdminPostListResult(
+                1,
+                20,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("topicDate", "2026-13-40")
+                .queryParam("createdAtFrom", "invalid-time")
+                .queryParam("createdAtTo", "invalid-time"))
+                .andExpect(status().isOk());
+
+        then(adminPostQueryService).should().getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
                 1,
                 20
         );
@@ -274,10 +286,7 @@ class AdminPostControllerTest {
             "pageSize, 101",
             "status, UNKNOWN",
             "topicId, invalid-uuid",
-            "topicDate, 2026-13-40",
             "userId, invalid-uuid",
-            "createdAtFrom, invalid-time",
-            "createdAtTo, invalid-time",
             "sort, unknownSort"
     })
     @DisplayName("페이지나 필터가 올바르지 않으면 400을 반환하고 서비스를 호출하지 않는다")
@@ -300,9 +309,6 @@ class AdminPostControllerTest {
     void getPosts_pageSizeBoundary_returnsOk(int pageSize) throws Exception {
         // Given
         given(adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,

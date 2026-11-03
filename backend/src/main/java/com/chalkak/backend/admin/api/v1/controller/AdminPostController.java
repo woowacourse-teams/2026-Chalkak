@@ -44,10 +44,7 @@ public class AdminPostController implements AdminPostApiDocs {
         AdminPostListResult result = adminPostQueryService.getPosts(
                 request.moderationStatus(),
                 request.topicId(),
-                request.topicDate(),
                 request.userId(),
-                request.createdAtFrom(),
-                request.createdAtTo(),
                 request.sort(),
                 request.page(),
                 request.pageSize()

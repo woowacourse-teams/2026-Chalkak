@@ -134,9 +134,6 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
                 null,
                 TOPIC_ID,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
                 20
@@ -180,9 +177,6 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
                 null,
                 TOPIC_ID,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
                 20
@@ -213,9 +207,6 @@ class PostLikeCountQueryTest extends IntegrationTestSupport {
         AdminPostListResult result = adminPostQueryService.getPosts(
                 null,
                 TOPIC_ID,
-                null,
-                null,
-                null,
                 null,
                 AdminPostSort.CREATED_AT_DESC,
                 1,
