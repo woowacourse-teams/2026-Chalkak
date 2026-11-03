@@ -401,7 +401,8 @@ class PostControllerTest {
                 "오늘의 순간",
                 "퇴근길에 만난 노을\n오래 기억하고 싶다",
                 43L,
-                true
+                true,
+                null
         );
         given(postQueryService.getPost(POST_ID, USER_ID)).willReturn(detail);
 
@@ -422,7 +423,46 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.title").value("오늘의 순간"))
                 .andExpect(jsonPath("$.description").value("퇴근길에 만난 노을\n오래 기억하고 싶다"))
                 .andExpect(jsonPath("$.likeCount").value(43L))
-                .andExpect(jsonPath("$.isLiked").value(true));
+                .andExpect(jsonPath("$.isLiked").value(true))
+                .andExpect(jsonPath("$.instagramConsent").value(nullValue()));
+    }
+
+    @Test
+    @WithMockLoginUser(USER_ID_VALUE)
+    @DisplayName("본인 게시물 상세 응답은 인스타그램 동의 여부와 ID를 포함한다")
+    void getPost_ownPost_returnsInstagramConsent() throws Exception {
+        // Given
+        PostDetail detail = new PostDetail(
+                POST_ID,
+                USER_ID,
+                new PostDetail.TopicDetail(
+                        TOPIC_ID,
+                        "오늘 가장 기억에 남은 순간",
+                        LocalDate.of(
+                                2026,
+                                8,
+                                12
+                        )
+                ),
+                "https://cdn.example.com/dev/posts/original.jpg",
+                "https://cdn.example.com/dev/posts/thumbnail.jpg",
+                "https://cdn.example.com/dev/signatures/signature.png",
+                null,
+                null,
+                0L,
+                false,
+                new PostDetail.InstagramConsentDetail(
+                        true,
+                        "chalkak"
+                )
+        );
+        given(postQueryService.getPost(POST_ID, USER_ID)).willReturn(detail);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/posts/{postId}", POST_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.instagramConsent.agreed").value(true))
+                .andExpect(jsonPath("$.instagramConsent.instagramId").value("chalkak"));
     }
 
     @Test

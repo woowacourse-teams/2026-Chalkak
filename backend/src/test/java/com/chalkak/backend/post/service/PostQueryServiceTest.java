@@ -17,6 +17,7 @@ import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostInstagramConsent;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
 import com.chalkak.backend.topic.domain.ParticipationPeriod;
@@ -521,8 +522,69 @@ class PostQueryServiceTest {
                 "오늘의 순간",
                 null,
                 1L,
-                true
+                true,
+                new PostDetail.InstagramConsentDetail(
+                        false,
+                        null
+                )
         ));
+    }
+
+    @Test
+    @DisplayName("작성자 본인이 동의한 게시물을 상세 조회하면 동의 여부와 ID를 반환한다")
+    void getPost_ownAgreedPost_returnsInstagramConsent() {
+        // Given
+        ReflectionTestUtils.setField(
+                post,
+                "instagramConsent",
+                PostInstagramConsent.of(
+                        true,
+                        "chalkak",
+                        Instant.parse("2026-08-12T01:00:00Z")
+                )
+        );
+        stubVisiblePostDetail(USER_ID);
+
+        // When
+        PostDetail result = postQueryService.getPost(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result.instagramConsent())
+                .isEqualTo(new PostDetail.InstagramConsentDetail(
+                        true,
+                        "chalkak"
+                ));
+    }
+
+    @Test
+    @DisplayName("작성자가 아닌 사용자가 동의한 게시물을 상세 조회하면 동의 정보를 반환하지 않는다")
+    void getPost_otherUsersAgreedPost_returnsNoInstagramConsent() {
+        // Given
+        UUID otherUserId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570e9");
+        ReflectionTestUtils.setField(
+                post,
+                "instagramConsent",
+                PostInstagramConsent.of(
+                        true,
+                        "chalkak",
+                        Instant.parse("2026-08-12T01:00:00Z")
+                )
+        );
+        stubVisiblePostDetail(otherUserId);
+
+        // When
+        PostDetail result = postQueryService.getPost(POST_ID, otherUserId);
+
+        // Then
+        assertThat(result.instagramConsent()).isNull();
+    }
+
+    private void stubVisiblePostDetail(UUID viewerId) {
+        given(userRepository.findActiveById(viewerId))
+                .willReturn(Optional.of(UserFixture.create(viewerId)));
+        given(postRepository.findVisibleById(POST_ID)).willReturn(Optional.of(post));
+        given(postLikeCounterRepository.getCountByPostId(POST_ID)).willReturn(0L);
+        given(imageUrlProvider.getUrl(anyString())).willReturn(ORIGINAL_IMAGE_URL);
     }
 
     @Test

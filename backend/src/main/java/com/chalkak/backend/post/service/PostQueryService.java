@@ -59,7 +59,8 @@ public class PostQueryService {
                 post,
                 imageUrlProvider,
                 postLikeCounterRepository.getCountByPostId(postId),
-                postLikeRepository.existsByPostIdAndUserId(postId, userId)
+                postLikeRepository.existsByPostIdAndUserId(postId, userId),
+                userId
         );
     }
 

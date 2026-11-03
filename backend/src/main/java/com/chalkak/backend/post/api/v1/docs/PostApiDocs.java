@@ -169,7 +169,7 @@ public interface PostApiDocs {
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(summary = "게시물 상세 조회", description = "authorId는 사진 작성자의 회원 ID이며 작성자의 공개 사진 목록 조회에 사용합니다.")
+    @Operation(summary = "게시물 상세 조회", description = "authorId는 사진 작성자의 회원 ID이며 작성자의 공개 사진 목록 조회에 사용합니다. instagramConsent는 조회자가 작성자 본인일 때만 내려가고 다른 사용자에게는 null입니다.")
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "게시물 상세 조회 성공", useReturnTypeSchema = true),
