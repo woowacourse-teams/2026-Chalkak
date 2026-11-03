@@ -3,6 +3,7 @@ package com.chalkak.backend.feedback.service;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,6 +23,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.ArgumentCaptor;
@@ -139,14 +142,22 @@ class FeedbackServiceTest {
         assertThat(result.feedbacks()).isEmpty();
     }
 
-    @Test
+    @ParameterizedTest
+    @CsvSource({
+            "2026-11-03T06:00:00Z, 2026-11-03T06:00:00Z",
+            "2026-11-03T06:00:00.123456789Z, 2026-11-03T06:00:00.123456Z"
+    })
     @DisplayName("접수 판단에 사용한 시각을 문의 저장과 응답에도 사용한다")
-    void submit_fixedClock_usesSameTimeForValidationPersistenceAndResult() {
+    void submit_fixedClock_usesSameTimeForValidationPersistenceAndResult(
+            String clockTime,
+            String expectedCreatedAt
+    ) {
         // Given
+        Instant expectedTime = Instant.parse(expectedCreatedAt);
         given(userRepository.findActiveByIdForUpdate(USER_ID))
                 .willReturn(Optional.of(UserFixture.create(USER_ID)));
-        given(clock.instant()).willReturn(NOW);
-        given(feedbackRepository.findSubmissionTimesAfter(USER_ID, NOW.minusSeconds(86400)))
+        given(clock.instant()).willReturn(Instant.parse(clockTime));
+        given(feedbackRepository.findSubmissionTimesAfter(eq(USER_ID), any(Instant.class)))
                 .willReturn(List.of());
         given(feedbackRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -156,8 +167,10 @@ class FeedbackServiceTest {
         // Then
         ArgumentCaptor<Feedback> saved = ArgumentCaptor.forClass(Feedback.class);
         verify(feedbackRepository).save(saved.capture());
-        assertThat(saved.getValue().getCreatedAt()).isEqualTo(NOW);
-        assertThat(result.createdAt()).isEqualTo(NOW);
+        assertThat(saved.getValue().getCreatedAt()).isEqualTo(expectedTime);
+        assertThat(result.createdAt()).isEqualTo(expectedTime);
+        verify(feedbackRepository)
+                .findSubmissionTimesAfter(USER_ID, expectedTime.minusSeconds(86400));
     }
 
     @Test

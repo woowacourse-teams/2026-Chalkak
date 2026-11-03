@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,7 +51,7 @@ public class Feedback {
         Feedback feedback = new Feedback();
         feedback.userId = userId;
         feedback.content = normalizeContent(content);
-        feedback.createdAt = createdAt;
+        feedback.createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
         return feedback;
     }
 

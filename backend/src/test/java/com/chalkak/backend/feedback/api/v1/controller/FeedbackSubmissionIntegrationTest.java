@@ -3,12 +3,14 @@ package com.chalkak.backend.feedback.api.v1.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
@@ -47,6 +49,9 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     private JwtAccessTokenProvider accessTokenProvider;
@@ -97,6 +102,45 @@ class FeedbackSubmissionIntegrationTest extends IntegrationTestSupport {
         assertThat(stored.get("id")).isNotNull();
         assertThat(((Timestamp) stored.get("created_at")).toInstant()).isEqualTo(NOW);
         assertThat(stored.get("content")).isEqualTo("사진 업로드가 느려요.");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-01-01T06:00:00.123456001Z, 2026-01-01T06:00:00.123456Z",
+            "2026-01-01T06:00:00.123456789Z, 2026-01-01T06:00:00.123456Z",
+            "2026-01-01T06:00:00.999999999Z, 2026-01-01T06:00:00.999999Z"
+    })
+    @DisplayName("나노초 Clock으로 접수해도 응답·DB·목록·상세 시각은 같은 마이크로초 값이다")
+    void submitFeedback_nanosecondClock_keepsCreatedAtConsistentAcrossReads(
+            String clockTime,
+            String expectedCreatedAt
+    ) throws Exception {
+        // Given
+        given(clock.instant()).willReturn(Instant.parse(clockTime));
+
+        // When
+        mockMvc.perform(post("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"시각 정밀도 문의\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.createdAt").value(expectedCreatedAt));
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> stored = jdbcTemplate.queryForMap(
+                "SELECT id, created_at FROM feedbacks WHERE user_id = ?", userId);
+        assertThat(((Timestamp) stored.get("created_at")).toInstant())
+                .isEqualTo(Instant.parse(expectedCreatedAt));
+        mockMvc.perform(get("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbacks[0].createdAt").value(expectedCreatedAt));
+        mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", stored.get("id"))
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdAt").value(expectedCreatedAt));
     }
 
     @ParameterizedTest
