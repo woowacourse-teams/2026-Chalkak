@@ -21,6 +21,11 @@ user-invocable: false
 - 테스트 밖 확인 항목마다 수정 전·후를 **같은 조건으로** 찍은 캡처(버그면 재현 녹화).
 - 수정 전은 **코드를 고치기 전에** 찍는다.
 - 파일은 `$EVID/media/`에 두고 지우지 않는다. 보고에는 `file://` 절대 경로를 적는다.
+  커맨드 없이 이 스킬만 불렸으면 먼저 폴더를 정한다. 브랜치 이름의 이슈 번호를 쓰고, 없으면 브랜치 이름을 쓴다.
+  ```bash
+  branch=$(git branch --show-current); num=$(printf '%s' "$branch" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+  EVID="$(cd "$(git rev-parse --git-common-dir)" && pwd)/client-flow/${num:-$(printf '%s' "$branch" | tr '/#' '--')}"; mkdir -p "$EVID/media"
+  ```
 
 ## 시뮬레이터 준비
 
