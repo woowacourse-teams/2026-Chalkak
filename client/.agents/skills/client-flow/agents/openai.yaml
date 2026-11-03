@@ -1,0 +1,6 @@
+interface:
+  display_name: "client-flow"
+  short_description: "이슈부터 PR까지 다섯 단계를 순서대로 진행"
+  default_prompt: "Use $client-flow for this Chalkak client task."
+policy:
+  allow_implicit_invocation: false

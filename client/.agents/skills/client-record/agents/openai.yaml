@@ -1,0 +1,6 @@
+interface:
+  display_name: "client-record"
+  short_description: "다음 작업이 저절로 읽을 기록 남기기"
+  default_prompt: "Use $client-record for this Chalkak client task."
+policy:
+  allow_implicit_invocation: false
