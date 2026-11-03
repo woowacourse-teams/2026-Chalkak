@@ -209,6 +209,7 @@ final class FeedViewModel {
                 self.viewState.content = latest
             case .failure:
                 self.viewState.content = rollback
+                self.event = .showLikeFailure
             }
         }
     }

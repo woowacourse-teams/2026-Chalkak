@@ -260,9 +260,14 @@ final class DisplayViewModel {
         else { return }
         likingPhotoIDs.insert(photoID)
         defer { likingPhotoIDs.remove(photoID) }
-        switch await likeHandler(photoID, !photo.isLiked) {
+
+        let isLiked = !photo.isLiked
+        setLike(photoID: photoID, isLiked: isLiked, likeCount: max(0, photo.likeCount + (isLiked ? 1 : -1)))
+
+        switch await likeHandler(photoID, isLiked) {
         case let .success(update):
             guard update.postID == photoID, update.likeCount >= 0 else {
+                setLike(photoID: photoID, isLiked: photo.isLiked, likeCount: photo.likeCount)
                 event = .likeFailed
                 return
             }
@@ -275,8 +280,24 @@ final class DisplayViewModel {
                 displayCache[key] = entry
             }
         case .failure:
+            setLike(photoID: photoID, isLiked: photo.isLiked, likeCount: photo.likeCount)
             event = .likeFailed
         }
+    }
+
+    /// 응답을 기다리는 동안 보이는 화면의 좋아요만 바꾼다. 캐시는 서버 값을 받은 뒤에만 갱신한다.
+    private func setLike(photoID: String, isLiked: Bool, likeCount: Int) {
+        func updated(_ photos: [DisplayPhoto]) -> [DisplayPhoto] {
+            photos.map { photo in
+                guard photo.id == photoID else { return photo }
+                var photo = photo
+                photo.isLiked = isLiked
+                photo.likeCount = likeCount
+                return photo
+            }
+        }
+        viewState.photos = updated(viewState.photos)
+        viewState.featuredPhotos = updated(viewState.featuredPhotos)
     }
 
     private func applyLikeUpdates(to state: inout DisplayViewState, after version: Int) {

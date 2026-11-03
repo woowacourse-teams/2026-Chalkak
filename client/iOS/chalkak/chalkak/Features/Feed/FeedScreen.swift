@@ -618,6 +618,8 @@ struct FeedScreen: View {
             showMessage("제목을 수정했어요")
         case let .showTitleUpdateFailure(error):
             showMessage(error.titleUpdateMessage)
+        case .showLikeFailure:
+            showMessage("좋아요를 변경하지 못했어요")
         }
         viewModel.consumeEvent()
     }

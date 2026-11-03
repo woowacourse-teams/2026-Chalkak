@@ -57,6 +57,7 @@ enum FeedEvent: Equatable, Sendable {
     case showDeleteFailure(FeedError)
     case showTitleUpdateSuccess
     case showTitleUpdateFailure(FeedError)
+    case showLikeFailure
 }
 
 struct FeedPost: Identifiable, Equatable, Sendable {

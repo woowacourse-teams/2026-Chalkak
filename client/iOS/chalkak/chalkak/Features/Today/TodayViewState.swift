@@ -104,6 +104,7 @@ struct TodayLikeUpdate: Equatable, Sendable {
 enum TodayEvent: Equatable, Sendable {
     case openPhotoUpload
     case showGuestLikeMessage
+    case showLikeFailure
     case showRefreshFailure(TodayInitialError)
     case navigateToBottomBar(ChalkakBottomBarItem)
 }

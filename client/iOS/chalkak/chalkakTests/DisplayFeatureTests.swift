@@ -724,8 +724,8 @@ struct DisplayViewModelTests {
         #expect(viewModel.event == nil)
     }
 
-    @Test("좋아요 실패는 현재 상태를 보존하고 실패 이벤트를 낸다")
-    func likeFailureKeepsState() async {
+    @Test("좋아요 실패는 누르기 전 상태로 되돌리고 실패 이벤트를 낸다")
+    func likeFailureRestoresState() async {
         let latestDate = Self.date(2026, 9, 2)
         let photo = Self.photo(id: "photo-1", likeCount: 7, isLiked: false)
         let viewModel = DisplayViewModel(
@@ -770,6 +770,8 @@ struct DisplayViewModelTests {
         await viewModel.toggleLike(photoID: "photo-1")
 
         #expect(gate.requestCount == 1)
+        #expect(viewModel.viewState.photos[0].isLiked)
+        #expect(viewModel.viewState.photos[0].likeCount == 8)
 
         gate.completeRequest(
             at: 0,
