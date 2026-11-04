@@ -137,8 +137,9 @@ final class AdminAuditTransitionRules {
             AdminAuditSnapshot beforeState,
             AdminAuditSnapshot afterState
     ) {
-        Set<String> fields = Set.of("answeredAt");
-        if (!beforeState.hasExactlyFields(fields) || !afterState.hasExactlyFields(fields)) {
+        Set<String> fields = Set.of("answeredAt", "answerDeletedAt");
+        if (!beforeState.hasExactlyFields(fields) || !afterState.hasExactlyFields(fields)
+                || afterState.value("answerDeletedAt") != null) {
             return false;
         }
         Instant after = parseInstant(afterState.value("answeredAt"));
@@ -146,11 +147,12 @@ final class AdminAuditTransitionRules {
             return false;
         }
         Object beforeValue = beforeState.value("answeredAt");
+        Object beforeDeletedAt = beforeState.value("answerDeletedAt");
         if (beforeValue == null) {
-            return true;
+            return beforeDeletedAt == null;
         }
         Instant before = parseInstant(beforeValue);
-        return before != null && after.isAfter(before);
+        return before != null && isInstant(beforeDeletedAt) && after.isAfter(before);
     }
 
     static boolean isFeedbackAnswerDeleted(

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.exception.BusinessException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -53,19 +54,19 @@ class FeedbackAuditTransitionTest {
     }
 
     @Test
-    @DisplayName("문의 답변 감사는 원문 없이 답변 시각의 전이만 기록한다")
-    void create_validAnswer_recordsOnlyAnswerTime() {
+    @DisplayName("문의 답변 감사는 원문 없이 답변 등록·삭제 시각을 기록한다")
+    void create_validAnswer_recordsAnswerTimestamps() {
         AdminAuditLog audit = create(
                 AdminAction.FEEDBACK_ANSWERED,
-                Collections.singletonMap("answeredAt", null),
-                Map.of("answeredAt", DELETED_AT),
+                answerState(null, null),
+                answerState(DELETED_AT, null),
                 AdminTargetType.FEEDBACK
         );
 
         assertThat(audit.getReason()).isNull();
         assertThat(audit.getBeforeState()).containsEntry("answeredAt", null);
         assertThat(audit.getAfterState())
-                .containsExactlyEntriesOf(Map.of("answeredAt", DELETED_AT));
+                .containsExactlyEntriesOf(answerState(DELETED_AT, null));
     }
 
     @ParameterizedTest
@@ -85,8 +86,8 @@ class FeedbackAuditTransitionTest {
     }
 
     private static Stream<Arguments> invalidAnswerTransitions() {
-        Map<String, Object> before = Collections.singletonMap("answeredAt", null);
-        Map<String, Object> after = Map.of("answeredAt", DELETED_AT);
+        Map<String, Object> before = answerState(null, null);
+        Map<String, Object> after = answerState(DELETED_AT, null);
         return Stream.of(
                 Arguments.of(
                         before,
@@ -100,7 +101,7 @@ class FeedbackAuditTransitionTest {
                 ),
                 Arguments.of(
                         before,
-                        Map.of("answeredAt", "invalid"),
+                        answerState("invalid", null),
                         AdminTargetType.FEEDBACK
                 ),
                 Arguments.of(
@@ -114,6 +115,13 @@ class FeedbackAuditTransitionTest {
                         AdminTargetType.FEEDBACK
                 )
         );
+    }
+
+    private static Map<String, Object> answerState(String answeredAt, String answerDeletedAt) {
+        Map<String, Object> state = new HashMap<>();
+        state.put("answeredAt", answeredAt);
+        state.put("answerDeletedAt", answerDeletedAt);
+        return state;
     }
 
     private static Stream<Arguments> invalidTransitions() {

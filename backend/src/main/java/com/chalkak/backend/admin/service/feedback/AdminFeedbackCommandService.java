@@ -75,7 +75,7 @@ public class AdminFeedbackCommandService {
         Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
                         "문의를 찾을 수 없습니다."));
-        AdminAuditSnapshot beforeState = createAnswerDeletionState(feedback);
+        AdminAuditSnapshot beforeState = createAnswerState(feedback);
         if (!feedback.deleteAnswer(expectedAnswerVersion, clock.instant())) {
             return;
         }
@@ -87,7 +87,7 @@ public class AdminFeedbackCommandService {
                 feedbackId,
                 null,
                 beforeState,
-                createAnswerDeletionState(feedback)
+                createAnswerState(feedback)
         ));
     }
 
@@ -115,11 +115,6 @@ public class AdminFeedbackCommandService {
     }
 
     private AdminAuditSnapshot createAnswerState(Feedback feedback) {
-        return AdminAuditSnapshot
-                .from(Collections.singletonMap("answeredAt", feedback.getAnsweredAt()));
-    }
-
-    private AdminAuditSnapshot createAnswerDeletionState(Feedback feedback) {
         Map<String, Object> state = new HashMap<>();
         state.put("answeredAt", feedback.getAnsweredAt());
         state.put("answerDeletedAt", feedback.getAnswerDeletedAt());

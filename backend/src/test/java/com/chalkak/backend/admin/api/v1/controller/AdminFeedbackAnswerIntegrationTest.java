@@ -136,8 +136,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                         SELECT COUNT(*) FROM admin_audit_logs a JOIN feedbacks f ON a.target_id = f.id
                         JOIN notifications n ON n.source_id = f.id AND n.event_key = a.id
                         WHERE a.actor_admin_id = ? AND f.id = ? AND a.action = 'FEEDBACK_ANSWERED'
-                          AND a.before_state = '{"answeredAt":null}'::jsonb
-                          AND a.after_state = jsonb_build_object('answeredAt', a.after_state->>'answeredAt')
+                          AND a.before_state = '{"answeredAt":null,"answerDeletedAt":null}'::jsonb
+                          AND a.after_state = jsonb_build_object('answeredAt', a.after_state->>'answeredAt', 'answerDeletedAt', null)
                           AND (a.after_state->>'answeredAt')::timestamptz = f.answered_at
                         """,
                 Long.class,
