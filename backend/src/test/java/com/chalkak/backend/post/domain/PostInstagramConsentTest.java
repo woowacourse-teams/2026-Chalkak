@@ -417,4 +417,16 @@ class PostInstagramConsentTest {
         assertThat(after.agreedAt()).isEqualTo(CREATED_AT);
         assertThat(after.revokedAt()).isEqualTo(NOW);
     }
+
+    @Test
+    @DisplayName("검색어는 저장 시와 같은 규칙으로 정규화하고 비면 null을 돌려준다")
+    void normalizeId_appliesStorageNormalization() {
+        // When & Then
+        assertThat(PostInstagramConsent.normalizeId("  @Chalkak_Official "))
+                .isEqualTo("chalkak_official");
+        assertThat(PostInstagramConsent.normalizeId("@@Chalkak"))
+                .isEqualTo("@chalkak");
+        assertThat(PostInstagramConsent.normalizeId(" @ ")).isNull();
+        assertThat(PostInstagramConsent.normalizeId(null)).isNull();
+    }
 }

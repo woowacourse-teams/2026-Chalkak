@@ -34,7 +34,9 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
                  WHERE counter.postId = post.id),
                 post.createdAt,
                 post.moderatedAt,
-                post.deletedAt
+                post.deletedAt,
+                post.instagramConsent.agreed,
+                post.instagramConsent.instagramId
             )
             FROM Post post
             JOIN post.topic topic
@@ -47,6 +49,17 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
               AND (:#{#criteria.userId() == null} = true OR author.id = :#{#criteria.userId()})
               AND (:#{#criteria.createdAtFrom() == null} = true OR post.createdAt >= :#{#criteria.createdAtFrom()})
               AND (:#{#criteria.createdAtTo() == null} = true OR post.createdAt <= :#{#criteria.createdAtTo()})
+              AND (:#{#criteria.instagramConsent() == null} = true
+                   OR (:#{#criteria.instagramConsent() == T(com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter).AGREED} = true
+                       AND post.instagramConsent.agreed = true)
+                   OR (:#{#criteria.instagramConsent() == T(com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter).NOT_AGREED} = true
+                       AND post.instagramConsent.agreed = false
+                       AND post.instagramConsent.revokedAt IS NULL)
+                   OR (:#{#criteria.instagramConsent() == T(com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter).REVOKED} = true
+                       AND post.instagramConsent.agreed = false
+                       AND post.instagramConsent.revokedAt IS NOT NULL))
+              AND (:#{#criteria.instagramIdPattern() == null} = true
+                   OR post.instagramConsent.instagramId LIKE :#{#criteria.instagramIdPattern()} ESCAPE '\\')
             """)
     Slice<AdminPostSummaryProjection> findPosts(
             @Param("criteria") AdminPostQueryCriteria criteria,
@@ -89,7 +102,11 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
                 upload.updatedAt,
                 (SELECT counter.likeCount
                  FROM PostLikeCounter counter
-                 WHERE counter.postId = post.id)
+                 WHERE counter.postId = post.id),
+                post.instagramConsent.agreed,
+                post.instagramConsent.instagramId,
+                post.instagramConsent.agreedAt,
+                post.instagramConsent.revokedAt
             )
             FROM Post post
             JOIN post.topic topic

@@ -41,7 +41,9 @@ public record AdminPostListResult(
             long likeCount,
             Instant createdAt,
             Instant moderatedAt,
-            Instant deletedAt
+            Instant deletedAt,
+            boolean instagramUploadAgreed,
+            String instagramId
     ) {
 
         private static PostSummary from(
@@ -71,7 +73,9 @@ public record AdminPostListResult(
                     post.likeCount(),
                     post.createdAt(),
                     post.moderatedAt(),
-                    post.deletedAt()
+                    post.deletedAt(),
+                    post.instagramUploadAgreed(),
+                    post.instagramId()
             );
         }
     }

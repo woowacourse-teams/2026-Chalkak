@@ -20,7 +20,7 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Admin Feedbacks", description = "관리자 고객센터 API")
 public interface AdminFeedbackApiDocs {
 
-    @Operation(summary = "관리자 문의 답변 등록", description = "최초 답변과 사용자 알림함 및 감사 기록을 함께 저장합니다.")
+    @Operation(summary = "관리자 문의 답변 등록", description = "최초 답변 또는 삭제 후 재답변과 사용자 알림함·감사 기록을 함께 저장합니다. 재답변 푸시는 sendPush가 true인 경우에만 발송 대상입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "답변 등록 성공", content = @Content),
             @ApiResponse(responseCode = "400", description = "입력 오류, 삭제·탈퇴·이미 답변한 문의", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -32,6 +32,20 @@ public interface AdminFeedbackApiDocs {
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(schema = @Schema(type = "string", format = "uuid")) String feedbackId,
             AdminFeedbackAnswerRequest request
+    );
+
+    @Operation(summary = "관리자 문의 답변 삭제", description = "상세에서 받은 answerVersion에 해당하는 답변을 삭제하고 알림과 감사 기록을 함께 처리합니다. 같은 답변의 반복 삭제는 204입니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "답변 삭제 성공 또는 같은 답변이 이미 삭제됨", content = @Content),
+            @ApiResponse(responseCode = "400", description = "입력 오류, 삭제된 문의 또는 현재 답변 버전 불일치", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "관리자 인증 필요", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "문의가 존재하지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteFeedbackAnswer(
+            @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
+            @Parameter(schema = @Schema(type = "string", format = "uuid")) String feedbackId,
+            @Parameter(description = "관리자 문의 상세에서 받은 answerVersion 문자열", required = true) String answerVersion
     );
 
     @Operation(summary = "관리자 문의 삭제", description = "문의를 소프트 딜리트하고 감사 기록을 함께 저장합니다. "

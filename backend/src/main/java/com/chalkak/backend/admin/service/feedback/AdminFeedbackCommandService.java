@@ -14,6 +14,8 @@ import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Collections;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +36,8 @@ public class AdminFeedbackCommandService {
     public void answerFeedback(
             UUID feedbackId,
             UUID adminId,
-            String answerContent
+            String answerContent,
+            boolean sendPush
     ) {
         Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
@@ -42,6 +45,7 @@ public class AdminFeedbackCommandService {
         userRepository.findActiveById(feedback.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "탈퇴한 회원의 문의에는 답변할 수 없습니다."));
+        boolean pushEnabled = !feedback.hasAnswerHistory() || sendPush;
         AdminAuditSnapshot beforeState = createAnswerState(feedback);
         feedback.answer(answerContent, clock.instant());
         AdminAuditLog auditLog = auditLogService.createAuditLog(new AdminAuditLogCommand(
@@ -57,8 +61,34 @@ public class AdminFeedbackCommandService {
                 feedback.getUserId(),
                 feedback.getId(),
                 auditLog.getId(),
-                feedback.getAnsweredAt()
+                feedback.getAnsweredAt(),
+                pushEnabled
         );
+    }
+
+    @Transactional
+    public void deleteFeedbackAnswer(
+            UUID feedbackId,
+            UUID adminId,
+            String expectedAnswerVersion
+    ) {
+        Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
+                        "문의를 찾을 수 없습니다."));
+        AdminAuditSnapshot beforeState = createAnswerState(feedback);
+        if (!feedback.deleteAnswer(expectedAnswerVersion, clock.instant())) {
+            return;
+        }
+        notificationService.deleteFeedbackNotifications(feedbackId);
+        auditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId,
+                AdminAction.FEEDBACK_ANSWER_DELETED,
+                AdminTargetType.FEEDBACK,
+                feedbackId,
+                null,
+                beforeState,
+                createAnswerState(feedback)
+        ));
     }
 
     @Transactional
@@ -85,8 +115,10 @@ public class AdminFeedbackCommandService {
     }
 
     private AdminAuditSnapshot createAnswerState(Feedback feedback) {
-        return AdminAuditSnapshot
-                .from(Collections.singletonMap("answeredAt", feedback.getAnsweredAt()));
+        Map<String, Object> state = new HashMap<>();
+        state.put("answeredAt", feedback.getAnsweredAt());
+        state.put("answerDeletedAt", feedback.getAnswerDeletedAt());
+        return AdminAuditSnapshot.from(state);
     }
 
     private AdminAuditSnapshot createDeletionState(Feedback feedback) {

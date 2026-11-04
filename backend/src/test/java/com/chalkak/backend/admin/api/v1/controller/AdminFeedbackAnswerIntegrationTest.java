@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -18,6 +19,8 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.util.UUID;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -41,7 +45,9 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import tools.jackson.databind.ObjectMapper;
 
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=false")
@@ -63,6 +69,9 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     private PlatformTransactionManager transactionManager;
     @Autowired
     private FeedbackRepository feedbackRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private UUID adminId;
     private UUID userId;
@@ -108,7 +117,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
 
         // When
         String answer = "비공개 답변";
-        answer(answer).andExpect(status().isNoContent());
+        answer(answer, false).andExpect(status().isNoContent());
 
         // Then
         assertThat(storedAnswer()).isEqualTo(answer);
@@ -127,8 +136,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                         SELECT COUNT(*) FROM admin_audit_logs a JOIN feedbacks f ON a.target_id = f.id
                         JOIN notifications n ON n.source_id = f.id AND n.event_key = a.id
                         WHERE a.actor_admin_id = ? AND f.id = ? AND a.action = 'FEEDBACK_ANSWERED'
-                          AND a.before_state = '{"answeredAt":null}'::jsonb
-                          AND a.after_state = jsonb_build_object('answeredAt', a.after_state->>'answeredAt')
+                          AND a.before_state = '{"answeredAt":null,"answerDeletedAt":null}'::jsonb
+                          AND a.after_state = jsonb_build_object('answeredAt', a.after_state->>'answeredAt', 'answerDeletedAt', null)
                           AND (a.after_state->>'answeredAt')::timestamptz = f.answered_at
                         """,
                 Long.class,
@@ -162,7 +171,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> commandService.answerFeedback(
                 feedbackId,
                 UUID.randomUUID(),
-                "답변"
+                "답변",
+                false
         )).isInstanceOf(DataIntegrityViolationException.class);
         assertNoAnswerOrNotification();
     }
@@ -178,7 +188,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> commandService.answerFeedback(
                 feedbackId,
                 adminId,
-                "답변"
+                "답변",
+                false
         )).isInstanceOf(DataIntegrityViolationException.class);
         assertNoAnswerOrNotification();
     }
@@ -201,7 +212,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 commandService.answerFeedback(
                         feedbackId,
                         adminId,
-                        "첫 답변"
+                        "첫 답변",
+                        false
                 );
             }));
             try {
@@ -212,7 +224,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                     commandService.answerFeedback(
                             feedbackId,
                             adminId,
-                            "다른 답변"
+                            "다른 답변",
+                            false
                     );
                 }));
                 int waiter = secondPid.get(5, TimeUnit.SECONDS);
@@ -283,6 +296,161 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
     }
 
+    @Test
+    @DisplayName("같은 답변을 반복 삭제하면 원문은 보존하고 알림과 감사 상태는 한 번만 변경한다")
+    void deleteFeedbackAnswer_sameAnswerTwice_hidesAnswerAndDeletesNotification() throws Exception {
+        // Given
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerState").value("UNANSWERED"));
+        answer("비공개 답변").andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerState").value("ANSWERED"));
+        Instant answeredAt = savedAnsweredAt();
+        String answerVersion = currentAnswerVersion();
+        String memberToken = "Bearer "
+                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When
+        deleteAnswer(answerVersion).andExpect(status().isNoContent());
+        deleteAnswer(answerVersion).andExpect(status().isNoContent());
+
+        // Then
+        assertThat(notificationCount()).isZero();
+        assertThat(storedAnswer()).isEqualTo("비공개 답변");
+        assertThat(savedAnsweredAt()).isEqualTo(answeredAt);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'FEEDBACK_ANSWER_DELETED'",
+                Long.class,
+                feedbackId
+        )).isEqualTo(1L);
+        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("비공개 문의"))
+                .andExpect(jsonPath("$.answerContent").value(nullValue()))
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()));
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerContent").value(nullValue()))
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()))
+                .andExpect(jsonPath("$.answerState").value("DELETED"));
+    }
+
+    @Test
+    @DisplayName("관리자 상세에서 받은 이전 버전으로 재답변을 삭제할 수 없다")
+    void deleteFeedbackAnswer_previousVersionAfterReanswer_preservesNewAnswer() throws Exception {
+        // Given
+        answer("이전 답변").andExpect(status().isNoContent());
+        String previousVersion = currentAnswerVersion();
+        deleteAnswer(previousVersion).andExpect(status().isNoContent());
+        answer("새 답변").andExpect(status().isNoContent());
+
+        // When & Then
+        assertThat(currentAnswerVersion()).isNotEqualTo(previousVersion);
+        deleteAnswer(previousVersion).andExpect(status().isBadRequest());
+        assertThat(storedAnswer()).isEqualTo("새 답변");
+        assertThat(notificationCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(3L);
+        assertThat(savedAnswerDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("답변 삭제 감사가 실패하면 삭제 시각과 알림 삭제를 함께 롤백한다")
+    void deleteFeedbackAnswer_auditFailure_rollsBackDeletionAndNotification() throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+        Instant answeredAt = savedAnsweredAt();
+
+        // When & Then
+        assertThatThrownBy(() -> commandService.deleteFeedbackAnswer(
+                feedbackId,
+                UUID.randomUUID(),
+                Feedback.createAnswerVersion(answeredAt)
+        )).isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(notificationCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(1L);
+        assertThat(savedAnswerDeletedAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(booleans = {true, false})
+    @DisplayName("재답변은 알림을 새로 저장하고 true인 경우만 푸시 대기에 넣는다")
+    void answerFeedback_deletedAnswer_createsNewNotificationWithSelectedPush(Boolean sendPush)
+            throws Exception {
+        // Given
+        answer("이전 답변").andExpect(status().isNoContent());
+        Instant previousAnsweredAt = savedAnsweredAt();
+        UUID previousEventKey = jdbc.queryForObject(
+                "SELECT event_key FROM notifications WHERE source_id = ?",
+                UUID.class,
+                feedbackId
+        );
+        deleteAnswer(previousAnsweredAt).andExpect(status().isNoContent());
+
+        // When
+        answer("새 답변", sendPush).andExpect(status().isNoContent());
+
+        // Then
+        assertThat(storedAnswer()).isEqualTo("새 답변");
+        assertThat(savedAnsweredAt()).isAfter(previousAnsweredAt);
+        assertThat(savedAnswerDeletedAt()).isNull();
+        assertThat(notificationCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(3L);
+        assertThat(jdbc.queryForMap(
+                """
+                        SELECT n.event_key, n.sqs_publish_status, a.before_state->>'answeredAt' AS previous_answered_at
+                        FROM notifications n JOIN admin_audit_logs a ON a.id = n.event_key
+                        WHERE n.source_id = ? AND a.action = 'FEEDBACK_ANSWERED'
+                        """,
+                feedbackId
+        )).containsEntry("sqs_publish_status",
+                Boolean.TRUE.equals(sendPush) ? "PENDING" : "NOT_REQUIRED")
+                .containsEntry("previous_answered_at", previousAnsweredAt.toString())
+                .doesNotContainEntry("event_key", previousEventKey);
+    }
+
+    private String currentAnswerVersion() throws Exception {
+        var response = mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerVersion").isString())
+                .andReturn().getResponse();
+        return objectMapper.readTree(response.getContentAsByteArray()).get("answerVersion")
+                .asString();
+    }
+
+    private ResultActions deleteAnswer(Instant answeredAt) throws Exception {
+        return deleteAnswer(Feedback.createAnswerVersion(answeredAt));
+    }
+
+    private ResultActions deleteAnswer(String answerVersion) throws Exception {
+        return mockMvc.perform(delete("/api/v1/admin/feedbacks/{id}/answer", feedbackId)
+                .param("answerVersion", answerVersion)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()));
+    }
+
+    private Instant savedAnsweredAt() {
+        return jdbc.queryForObject(
+                "SELECT answered_at FROM feedbacks WHERE id = ?",
+                OffsetDateTime.class,
+                feedbackId
+        ).toInstant();
+    }
+
+    private OffsetDateTime savedAnswerDeletedAt() {
+        return jdbc.queryForObject(
+                "SELECT answer_deleted_at FROM feedbacks WHERE id = ?",
+                OffsetDateTime.class,
+                feedbackId
+        );
+    }
+
     private void awaitRelease(CountDownLatch release) {
         try {
             assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
@@ -297,10 +465,15 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     }
 
     private ResultActions answer(String content) throws Exception {
+        return answer(content, null);
+    }
+
+    private ResultActions answer(String content, Boolean sendPush) throws Exception {
+        String push = sendPush == null ? "" : ",\"sendPush\":" + sendPush;
         return mockMvc.perform(post("/api/v1/admin/feedbacks/{feedbackId}/answer", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, adminToken())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"answerContent\":\"" + content + "\"}"));
+                .content("{\"answerContent\":\"" + content + "\"" + push + "}"));
     }
 
     private String storedAnswer() {

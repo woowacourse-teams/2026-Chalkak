@@ -353,6 +353,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/feedbacks/" + id),
                 Arguments.of("DELETE", "/api/v1/admin/feedbacks/" + id),
                 Arguments.of("POST", "/api/v1/admin/feedbacks/" + id + "/answer"),
+                Arguments.of("DELETE", "/api/v1/admin/feedbacks/" + id + "/answer"),
                 Arguments.of("GET", "/api/v1/admin/users"),
                 Arguments.of("GET", "/api/v1/admin/users/" + id),
                 Arguments.of("PATCH", "/api/v1/admin/users/" + id + "/status"),
