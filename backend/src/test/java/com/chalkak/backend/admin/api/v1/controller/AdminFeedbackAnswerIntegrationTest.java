@@ -342,15 +342,20 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("이전 답변 시각으로 삭제하면 현재 답변과 알림은 보존한다")
-    void deleteFeedbackAnswer_staleAnsweredAt_preservesCurrentAnswer() throws Exception {
+    @DisplayName("관리자 상세에서 받은 이전 버전으로 재답변을 삭제할 수 없다")
+    void deleteFeedbackAnswer_previousVersionAfterReanswer_preservesNewAnswer() throws Exception {
         // Given
-        answer("비공개 답변").andExpect(status().isNoContent());
+        answer("이전 답변").andExpect(status().isNoContent());
+        String previousVersion = currentAnswerVersion();
+        deleteAnswer(previousVersion).andExpect(status().isNoContent());
+        answer("새 답변").andExpect(status().isNoContent());
 
         // When & Then
-        deleteAnswer(savedAnsweredAt().minusSeconds(1)).andExpect(status().isBadRequest());
+        assertThat(currentAnswerVersion()).isNotEqualTo(previousVersion);
+        deleteAnswer(previousVersion).andExpect(status().isBadRequest());
+        assertThat(storedAnswer()).isEqualTo("새 답변");
         assertThat(notificationCount()).isEqualTo(1L);
-        assertThat(auditCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(3L);
         assertThat(savedAnswerDeletedAt()).isNull();
     }
 
@@ -390,7 +395,6 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
 
         // When
         answer("새 답변", sendPush).andExpect(status().isNoContent());
-        deleteAnswer(previousAnsweredAt).andExpect(status().isBadRequest());
 
         // Then
         assertThat(storedAnswer()).isEqualTo("새 답변");
