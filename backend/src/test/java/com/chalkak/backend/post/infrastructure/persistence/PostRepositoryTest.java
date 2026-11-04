@@ -7,14 +7,18 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.post.support.AuthorPostFixtures;
 import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -417,6 +421,132 @@ class PostRepositoryTest {
     }
 
     @Test
+    @DisplayName("작성자 본인은 승인 대기 게시물을 관계와 함께 조회한다")
+    void findVisibleByIdForViewer_authorPendingPost_returnsPost() {
+        // Given
+        updateModerationStatus("PENDING");
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isPresent();
+        Post post = result.orElseThrow();
+        assertThat(Hibernate.isInitialized(post.getTopic())).isTrue();
+        assertThat(Hibernate.isInitialized(post.getPhoto())).isTrue();
+        assertThat(Hibernate.isInitialized(post.getAuthor())).isTrue();
+    }
+
+    @Test
+    @DisplayName("작성자가 아닌 사용자는 승인 대기 게시물을 조회하지 못한다")
+    void findVisibleByIdForViewer_otherViewerPendingPost_returnsEmpty() {
+        // Given
+        updateModerationStatus("PENDING");
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, SECOND_USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VALIDATING", "REJECTED"})
+    @DisplayName("작성자 본인도 검수 대기 전이거나 거절된 게시물은 조회하지 못한다")
+    void findVisibleByIdForViewer_authorNotPendingOrApprovedPost_returnsEmpty(
+            String moderationStatus
+    ) {
+        // Given
+        updateModerationStatus(moderationStatus);
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("작성자와 다른 사용자 모두 승인된 게시물을 조회한다")
+    void findVisibleByIdForViewer_approvedPost_returnsPostToAnyViewer() {
+        // When & Then
+        assertThat(postRepository.findVisibleByIdForViewer(POST_ID, USER_ID)).isPresent();
+        assertThat(postRepository.findVisibleByIdForViewer(POST_ID, SECOND_USER_ID)).isPresent();
+    }
+
+    @Test
+    @DisplayName("삭제된 승인 대기 게시물은 작성자 본인도 조회하지 못한다")
+    void findVisibleByIdForViewer_authorDeletedPendingPost_returnsEmpty() {
+        // Given
+        updateModerationStatus("PENDING");
+        jdbcTemplate.update(
+                "UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("삭제된 주제의 승인 대기 게시물은 작성자 본인도 조회하지 못한다")
+    void findVisibleByIdForViewer_authorPendingPostWithDeletedTopic_returnsEmpty() {
+        // Given
+        updateModerationStatus("PENDING");
+        jdbcTemplate.update(
+                "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                TOPIC_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("삭제된 사진의 승인 대기 게시물은 작성자 본인도 조회하지 못한다")
+    void findVisibleByIdForViewer_authorPendingPostWithDeletedPhoto_returnsEmpty() {
+        // Given
+        updateModerationStatus("PENDING");
+        jdbcTemplate.update(
+                "UPDATE photos SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                PHOTO_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("삭제된 작성자의 승인 대기 게시물은 조회하지 못한다")
+    void findVisibleByIdForViewer_deletedAuthorPendingPost_returnsEmpty() {
+        // Given
+        updateModerationStatus("PENDING");
+        jdbcTemplate.update(
+                "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        Optional<Post> result = postRepository.findVisibleByIdForViewer(POST_ID, USER_ID);
+
+        // Then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     @DisplayName("삭제된 게시물은 조회하지 않는다")
     void findVisibleById_deletedPost_returnsEmpty() {
         // Given
@@ -537,7 +667,10 @@ class PostRepositoryTest {
                 Photo.createPhoto("chalkak/dev/posts/description-original.png"),
                 upload.getId(),
                 null,
-                description
+                description,
+                false,
+                null,
+                Instant.now()
         );
 
         // When
@@ -593,9 +726,11 @@ class PostRepositoryTest {
         Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 USER_ID,
                 "오늘의 순간",
+                null,
+                false,
                 null,
                 Instant.parse("2026-08-12T12:00:00Z")
         );
@@ -617,10 +752,12 @@ class PostRepositoryTest {
         Post post = postRepository.findVisibleById(POST_ID).orElseThrow();
 
         // When
-        post.updateTitleAndDescription(
+        post.updateContent(
                 USER_ID,
                 "오늘의 순간",
                 "첫 줄\n둘째 줄",
+                false,
+                null,
                 Instant.parse("2026-08-12T12:00:00Z")
         );
         entityManager.flush();
@@ -647,7 +784,10 @@ class PostRepositoryTest {
                 photo,
                 UUID.randomUUID(),
                 null,
-                null
+                null,
+                false,
+                null,
+                Instant.now()
         );
 
         // When & Then
@@ -689,7 +829,10 @@ class PostRepositoryTest {
                 photo,
                 UUID.randomUUID(),
                 null,
-                null
+                null,
+                false,
+                null,
+                Instant.now()
         );
 
         // When & Then
@@ -722,7 +865,10 @@ class PostRepositoryTest {
                             photo,
                             UUID.randomUUID(),
                             null,
-                            null
+                            null,
+                            false,
+                            null,
+                            Instant.now()
                     );
 
                     postRepository.save(duplicatePost);
@@ -736,6 +882,47 @@ class PostRepositoryTest {
                 orphanStorageKey
         ));
         assertThat(photoCount).isZero();
+    }
+
+    @Test
+    @DisplayName("작성자의 동의 중인 게시물만 삭제된 게시물까지 포함해 조회한다")
+    void findInstagramAgreedByAuthorIdForUpdate_mixedPosts_returnsOnlyAuthorAgreedPosts() {
+        // Given
+        UUID authorId = AuthorPostFixtures.createUser(jdbcTemplate);
+        UUID otherAuthorId = AuthorPostFixtures.createUser(jdbcTemplate);
+        UUID agreedPostId = createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-01"),
+                true,
+                false
+        );
+        UUID deletedAgreedPostId = createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-02"),
+                true,
+                true
+        );
+        createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-03"),
+                false,
+                false
+        );
+        createPostWithConsent(
+                otherAuthorId,
+                LocalDate.parse("2026-11-04"),
+                true,
+                false
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        var result = postRepository.findInstagramAgreedByAuthorIdForUpdate(authorId);
+
+        // Then
+        assertThat(result).extracting(Post::getId)
+                .containsExactlyInAnyOrder(agreedPostId, deletedAgreedPostId);
     }
 
     private void insertPostCreationConflictFixtures(UUID authorId, UUID topicId) {
@@ -841,5 +1028,45 @@ class PostRepositoryTest {
         synchronizeFixtureCounts(jdbcTemplate);
         entityManager.flush();
         entityManager.clear();
+    }
+
+    private void updateModerationStatus(String moderationStatus) {
+        jdbcTemplate.update(
+                "UPDATE posts SET moderation_status = ?::moderation_status WHERE id = ?",
+                moderationStatus,
+                POST_ID
+        );
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    private UUID createPostWithConsent(
+            UUID authorId,
+            LocalDate topicDate,
+            boolean agreed,
+            boolean deleted
+    ) {
+        UUID postId = AuthorPostFixtures.createPost(
+                jdbcTemplate,
+                authorId,
+                topicDate,
+                ModerationStatus.APPROVED
+        );
+        jdbcTemplate.update(
+                """
+                        UPDATE posts
+                        SET instagram_upload_agreed = ?,
+                            instagram_id = ?,
+                            instagram_agreed_at = ?,
+                            deleted_at = ?
+                        WHERE id = ?
+                        """,
+                agreed,
+                agreed ? "chalkak" : null,
+                agreed ? Timestamp.from(Instant.parse("2026-11-01T00:00:00Z")) : null,
+                deleted ? Timestamp.from(Instant.parse("2026-11-02T00:00:00Z")) : null,
+                postId
+        );
+        return postId;
     }
 }

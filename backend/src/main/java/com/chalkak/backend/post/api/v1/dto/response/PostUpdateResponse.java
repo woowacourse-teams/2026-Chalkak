@@ -11,14 +11,22 @@ public record PostUpdateResponse(
         String title,
 
         @Schema(nullable = true)
-        String description
+        String description,
+
+        @Schema(description = "공식 인스타그램 게시 동의 여부")
+        boolean instagramUploadAgreed,
+
+        @Schema(description = "정규화해 저장한 태그용 인스타그램 ID. 없으면 null", nullable = true)
+        String instagramId
 ) {
 
     public static PostUpdateResponse from(PostUpdateResult result) {
         return new PostUpdateResponse(
                 result.postId(),
                 result.title(),
-                result.description()
+                result.description(),
+                result.instagramUploadAgreed(),
+                result.instagramId()
         );
     }
 }

@@ -35,7 +35,7 @@ public interface FeedbackApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
-    @Operation(summary = "본인 문의 상세 조회", description = "로그인한 회원의 삭제되지 않은 문의를 조회합니다. 정지 회원도 조회할 수 있습니다. 타인의 문의, 삭제된 문의, 존재하지 않는 문의는 구분하지 않고 같은 404 응답으로 처리합니다.")
+    @Operation(summary = "본인 문의 상세 조회", description = "로그인한 회원의 삭제되지 않은 문의와 현재 답변을 조회합니다. 정지 회원도 조회할 수 있습니다. 타인의 문의, 삭제된 문의, 존재하지 않는 문의는 구분하지 않고 같은 404 응답으로 처리합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "본인 문의 상세 조회 성공", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "400", description = "문의 식별자 형식이 올바르지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),

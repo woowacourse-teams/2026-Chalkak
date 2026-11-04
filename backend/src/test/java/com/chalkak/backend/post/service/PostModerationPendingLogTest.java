@@ -105,6 +105,8 @@ class PostModerationPendingLogTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "대기 로그",
+                null,
+                false,
                 null
         )
                 .postId();

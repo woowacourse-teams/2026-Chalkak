@@ -72,6 +72,10 @@ public class Post {
     @Embedded
     private PostDescription description;
 
+    @Getter(AccessLevel.PACKAGE)
+    @Embedded
+    private PostInstagramConsent instagramConsent;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "moderation_status", nullable = false, columnDefinition = "moderation_status")
@@ -97,7 +101,8 @@ public class Post {
             Photo photo,
             UUID postImageUploadId,
             String title,
-            String description
+            String description,
+            PostInstagramConsent instagramConsent
     ) {
         this.author = author;
         this.topic = topic;
@@ -105,6 +110,7 @@ public class Post {
         this.postImageUploadId = postImageUploadId;
         this.title = PostTitle.from(title);
         this.description = PostDescription.from(description);
+        this.instagramConsent = instagramConsent;
         this.moderationStatus = ModerationStatus.VALIDATING;
     }
 
@@ -114,7 +120,10 @@ public class Post {
             Photo photo,
             UUID postImageUploadId,
             String title,
-            String description
+            String description,
+            boolean instagramUploadAgreed,
+            String instagramId,
+            Instant now
     ) {
         validateRelations(
                 author,
@@ -132,7 +141,12 @@ public class Post {
                 photo,
                 postImageUploadId,
                 title,
-                description
+                description,
+                PostInstagramConsent.of(
+                        instagramUploadAgreed,
+                        instagramId,
+                        now
+                )
         );
     }
 
@@ -164,12 +178,14 @@ public class Post {
     }
 
     /**
-     * 제목과 설명을 함께 교체한다. 설명이 {@code null}이거나 공백이면 설명을 삭제한다.
+     * 제목, 설명과 인스타그램 게시 동의를 함께 교체한다. 설명이 {@code null}이거나 공백이면 설명을 삭제한다.
      */
-    public void updateTitleAndDescription(
+    public void updateContent(
             UUID authorId,
             String title,
             String description,
+            boolean instagramUploadAgreed,
+            String instagramId,
             Instant now
     ) {
         validateAuthor(authorId);
@@ -177,6 +193,11 @@ public class Post {
         validateUpdatePeriod(now);
         this.title = PostTitle.from(title);
         this.description = PostDescription.from(description);
+        this.instagramConsent = instagramConsent.replace(
+                instagramUploadAgreed,
+                instagramId,
+                now
+        );
     }
 
     /**
@@ -194,10 +215,25 @@ public class Post {
         return description == null ? null : description.value();
     }
 
+    public boolean isInstagramUploadAgreed() {
+        return instagramConsent.agreed();
+    }
+
+    /**
+     * 인스타그램 ID 없음을 {@code null}로 돌려준다.
+     */
+    public String getInstagramId() {
+        return instagramConsent.instagramId();
+    }
+
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
         validateAuthor(authorId);
         validateAuthorDeletionStatus();
         deleteIfNotDeleted(deletedAt);
+    }
+
+    public void revokeInstagramConsent(Instant revokedAt) {
+        this.instagramConsent = instagramConsent.revoke(revokedAt);
     }
 
     public void deleteByAdmin(Instant deletedAt) {
@@ -279,6 +315,7 @@ public class Post {
         }
         photo.delete(deletedAt);
         this.deletedAt = deletedAt;
+        this.instagramConsent = instagramConsent.clearInstagramId();
     }
 
     private void decideModeration(ModerationStatus moderationStatus, Instant moderatedAt) {

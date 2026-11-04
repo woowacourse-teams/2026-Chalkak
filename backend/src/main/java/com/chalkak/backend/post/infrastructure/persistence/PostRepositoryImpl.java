@@ -78,6 +78,11 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public List<Post> findInstagramAgreedByAuthorIdForUpdate(UUID authorId) {
+        return postJpaRepository.findInstagramAgreedByAuthorIdForUpdate(authorId);
+    }
+
+    @Override
     public Optional<Post> findByIdForUpdate(UUID postId) {
         return postJpaRepository.findByIdForUpdate(postId);
     }
@@ -85,6 +90,16 @@ public class PostRepositoryImpl implements PostRepository {
     @Override
     public Optional<Post> findVisibleById(UUID postId) {
         return postJpaRepository.findVisibleById(postId, ModerationStatus.APPROVED);
+    }
+
+    @Override
+    public Optional<Post> findVisibleByIdForViewer(UUID postId, UUID viewerId) {
+        return postJpaRepository.findVisibleByIdForViewer(
+                postId,
+                viewerId,
+                ModerationStatus.APPROVED,
+                ModerationStatus.PENDING
+        );
     }
 
     @Override

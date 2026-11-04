@@ -20,6 +20,11 @@ public interface PostRepository {
 
     Optional<Post> findActiveByIdForUpdate(UUID postId);
 
+    /**
+     * 작성자의 인스타그램 동의 중인 게시물을 삭제된 것까지 잠그고 조회한다. 탈퇴 시 동의를 철회할 대상이다.
+     */
+    List<Post> findInstagramAgreedByAuthorIdForUpdate(UUID authorId);
+
     Optional<Post> findByIdForUpdate(UUID postId);
 
     /**
@@ -29,6 +34,11 @@ public interface PostRepository {
     void flush();
 
     Optional<Post> findVisibleById(UUID postId);
+
+    /**
+     * 공개 게시물에 더해 조회자가 작성자 본인이면 승인 대기 게시물도 조회한다. 작성자가 수정 전에 현재 값을 읽을 수 있어야 한다.
+     */
+    Optional<Post> findVisibleByIdForViewer(UUID postId, UUID viewerId);
 
     Optional<Post> findVisibleByIdForShare(UUID postId);
 

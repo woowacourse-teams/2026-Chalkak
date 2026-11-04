@@ -56,20 +56,23 @@ class UserRepositoryTest {
 
     @ParameterizedTest
     @CsvSource({
-            "true, true, true", "true, false, true", "false, true, true", "false, false, true",
-            "true, true, false", "false, false, false"})
-    @DisplayName("주제, 검수, AI 리뷰 수신 설정의 각 필드를 DB에 저장하고 다시 읽는다")
+            "true, true, true, true", "true, false, true, false",
+            "false, true, true, false", "false, false, true, true",
+            "true, true, false, false", "false, false, false, false"})
+    @DisplayName("주제·검수·AI 리뷰·좋아요 수신 설정의 각 필드를 DB에 저장하고 다시 읽는다")
     void findById_savedPushPreferences_returnsStoredValues(
             boolean topic,
             boolean moderation,
-            boolean aiReview
+            boolean aiReview,
+            boolean like
     ) {
         // Given
         User user = userRepository.save(createUser("preferences@example.com"));
         user.updatePushPreferences(
                 topic,
                 moderation,
-                aiReview
+                aiReview,
+                like
         );
         entityManager.flush();
         entityManager.clear();
@@ -81,6 +84,7 @@ class UserRepositoryTest {
         assertThat(found.isTopicPushEnabled()).isEqualTo(topic);
         assertThat(found.isModerationPushEnabled()).isEqualTo(moderation);
         assertThat(found.isAiReviewPushEnabled()).isEqualTo(aiReview);
+        assertThat(found.isLikePushEnabled()).isEqualTo(like);
     }
 
     private User createUser(String email) {

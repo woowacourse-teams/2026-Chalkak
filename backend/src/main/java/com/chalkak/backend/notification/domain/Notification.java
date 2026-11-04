@@ -32,6 +32,8 @@ public class Notification {
     private static final String REJECTED_TITLE = "게시물이 반려되었습니다.";
     private static final String REJECTED_BODY = "반려 사유를 확인해 주세요.";
     private static final int MAX_REJECTION_REASON_LENGTH = 500;
+    private static final String LIKE_MILESTONE_TITLE = "게시물에서 새로운 업적을 달성했어요";
+    private static final String LIKE_MILESTONE_BODY = "좋아요 %d개 이상을 달성했어요";
 
     @Id
     @Generated
@@ -178,6 +180,57 @@ public class Notification {
         notification.body = outcome.getBody();
         notification.createdAt = createdAt;
         notification.initializePublication(pushEnabled);
+        return notification;
+    }
+
+    public static Notification likeMilestone(
+            UUID userId,
+            UUID postId,
+            long milestoneCount,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        validateRequired(
+                userId,
+                postId,
+                createdAt
+        );
+        LikeMilestonePolicy.validate(milestoneCount);
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.POST;
+        notification.sourceId = postId;
+        notification.eventKey = PushEventIdPolicy.createForLikeMilestone(postId, milestoneCount);
+        notification.type = NotificationType.POST_LIKE_MILESTONE;
+        notification.title = LIKE_MILESTONE_TITLE;
+        notification.body = LIKE_MILESTONE_BODY.formatted(milestoneCount);
+        notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
+        return notification;
+    }
+
+    public static Notification feedbackAnswered(
+            UUID userId,
+            UUID feedbackId,
+            UUID eventKey,
+            Instant createdAt
+    ) {
+        validateRequired(
+                userId,
+                feedbackId,
+                eventKey,
+                createdAt
+        );
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.FEEDBACK;
+        notification.sourceId = feedbackId;
+        notification.eventKey = eventKey;
+        notification.type = NotificationType.FEEDBACK_ANSWERED;
+        notification.title = "고객센터 답변이 도착했습니다.";
+        notification.body = "문의 상세에서 답변을 확인해 주세요.";
+        notification.createdAt = createdAt;
+        notification.initializePublication(true);
         return notification;
     }
 

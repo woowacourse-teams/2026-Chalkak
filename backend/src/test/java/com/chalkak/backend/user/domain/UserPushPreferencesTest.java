@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class UserPushPreferencesTest {
 
     @Test
-    @DisplayName("새 회원은 주제·검수·AI 리뷰 푸시를 모두 수신하도록 설정된다")
+    @DisplayName("새 회원은 주제·검수·AI 리뷰·좋아요 푸시를 모두 수신하도록 설정된다")
     void create_newUser_enablesAllPushPreferences() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
@@ -20,10 +20,11 @@ class UserPushPreferencesTest {
         assertThat(user.isTopicPushEnabled()).isTrue();
         assertThat(user.isModerationPushEnabled()).isTrue();
         assertThat(user.isAiReviewPushEnabled()).isTrue();
+        assertThat(user.isLikePushEnabled()).isTrue();
     }
 
     @Test
-    @DisplayName("주제·검수·AI 리뷰 푸시 수신 설정을 독립적으로 변경한다")
+    @DisplayName("주제·검수·AI 리뷰·좋아요 푸시 수신 설정을 독립적으로 변경한다")
     void updatePushPreferences_activeUser_updatesEachPreference() {
         // Given
         User user = UserFixture.create(UUID.randomUUID());
@@ -32,6 +33,7 @@ class UserPushPreferencesTest {
         user.updatePushPreferences(
                 false,
                 true,
+                true,
                 true
         );
 
@@ -39,11 +41,13 @@ class UserPushPreferencesTest {
         assertThat(user.isTopicPushEnabled()).isFalse();
         assertThat(user.isModerationPushEnabled()).isTrue();
         assertThat(user.isAiReviewPushEnabled()).isTrue();
+        assertThat(user.isLikePushEnabled()).isTrue();
 
         // When
         user.updatePushPreferences(
                 true,
                 false,
+                true,
                 true
         );
 
@@ -51,9 +55,25 @@ class UserPushPreferencesTest {
         assertThat(user.isTopicPushEnabled()).isTrue();
         assertThat(user.isModerationPushEnabled()).isFalse();
         assertThat(user.isAiReviewPushEnabled()).isTrue();
+        assertThat(user.isLikePushEnabled()).isTrue();
 
         // When
         user.updatePushPreferences(
+                true,
+                true,
+                false,
+                true
+        );
+
+        // Then
+        assertThat(user.isTopicPushEnabled()).isTrue();
+        assertThat(user.isModerationPushEnabled()).isTrue();
+        assertThat(user.isAiReviewPushEnabled()).isFalse();
+        assertThat(user.isLikePushEnabled()).isTrue();
+
+        // When
+        user.updatePushPreferences(
+                true,
                 true,
                 true,
                 false
@@ -62,7 +82,8 @@ class UserPushPreferencesTest {
         // Then
         assertThat(user.isTopicPushEnabled()).isTrue();
         assertThat(user.isModerationPushEnabled()).isTrue();
-        assertThat(user.isAiReviewPushEnabled()).isFalse();
+        assertThat(user.isAiReviewPushEnabled()).isTrue();
+        assertThat(user.isLikePushEnabled()).isFalse();
     }
 
     @Test
@@ -74,6 +95,7 @@ class UserPushPreferencesTest {
 
         // When & Then
         assertThatThrownBy(() -> user.updatePushPreferences(
+                false,
                 false,
                 false,
                 false

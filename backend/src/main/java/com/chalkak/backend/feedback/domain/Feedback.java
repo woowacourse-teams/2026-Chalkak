@@ -22,6 +22,7 @@ import org.hibernate.annotations.Generated;
 public class Feedback {
 
     public static final int MAX_CONTENT_LENGTH = 1000;
+    public static final int MAX_ANSWER_LENGTH = 3000;
 
     private static final String INVALID_CONTENT_MESSAGE = "피드백 내용이 올바르지 않습니다.";
 
@@ -43,6 +44,12 @@ public class Feedback {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "answer_content", columnDefinition = "TEXT")
+    private String answerContent;
+
+    @Column(name = "answered_at")
+    private Instant answeredAt;
+
     public static Feedback create(
             UUID userId,
             String content,
@@ -55,11 +62,31 @@ public class Feedback {
         return feedback;
     }
 
+    public void answer(String content, Instant answeredAt) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의에는 답변할 수 없습니다.");
+        }
+        if (this.answeredAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 답변한 문의입니다.");
+        }
+        String normalized = content == null ? "" : content.strip();
+        if (normalized.isEmpty() || !isWithinMaxAnswerLength(normalized)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "답변은 1~3,000자로 입력해 주세요.");
+        }
+        this.answerContent = normalized;
+        this.answeredAt = answeredAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
     public void delete(Instant deletedAt) {
-        if (this.deletedAt != null) {
+        if (isDeleted()) {
             return;
         }
-        this.deletedAt = deletedAt;
+        // DB 저장값과 메모리·감사 기록의 삭제 시각을 같은 정밀도로 유지한다.
+        this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     /**
@@ -72,6 +99,11 @@ public class Feedback {
     public static boolean isWithinMaxLength(String content) {
         String normalized = content.strip();
         return normalized.codePointCount(0, normalized.length()) <= MAX_CONTENT_LENGTH;
+    }
+
+    public static boolean isWithinMaxAnswerLength(String content) {
+        String normalized = content.strip();
+        return normalized.codePointCount(0, normalized.length()) <= MAX_ANSWER_LENGTH;
     }
 
     private static String normalizeContent(String content) {

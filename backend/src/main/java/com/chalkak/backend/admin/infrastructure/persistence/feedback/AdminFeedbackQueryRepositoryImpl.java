@@ -1,11 +1,15 @@
 package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
-import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSummaryProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
+import java.util.UUID;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
@@ -17,7 +21,13 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
     private final AdminFeedbackJpaRepository repository;
 
     @Override
-    public AdminPage<AdminFeedbackSummaryProjection> findFeedbacks(
+    public Optional<AdminFeedbackDetailProjection> findFeedbackById(UUID feedbackId) {
+        return repository.findFeedbackById(feedbackId);
+    }
+
+    @Override
+    public AdminPage<AdminFeedbackProjection> findFeedbacks(
+            UUID userId,
             AdminFeedbackSort sort,
             int page,
             int pageSize
@@ -27,13 +37,21 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
                 pageSize,
                 toSort(sort)
         );
-        Slice<AdminFeedbackSummaryProjection> result = repository.findFeedbacks(pageable);
+        Slice<AdminFeedbackProjection> result = findFeedbackSlice(userId, pageable);
         return new AdminPage<>(
                 result.getContent(),
                 page,
                 pageSize,
                 result.hasNext()
         );
+    }
+
+    private Slice<AdminFeedbackProjection> findFeedbackSlice(UUID userId,
+            Pageable pageable) {
+        if (userId == null) {
+            return repository.findFeedbacks(pageable);
+        }
+        return repository.findFeedbacksByUserId(userId, pageable);
     }
 
     private Sort toSort(AdminFeedbackSort sort) {

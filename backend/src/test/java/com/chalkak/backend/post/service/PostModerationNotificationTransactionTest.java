@@ -95,6 +95,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "생성 알림",
+                null,
+                false,
                 null
         );
 
@@ -120,6 +122,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "콜백 알림",
+                null,
+                false,
                 null
         ).postId();
 
@@ -156,6 +160,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "중복 콜백 알림",
+                null,
+                false,
                 null
         ).postId();
 
@@ -198,6 +204,8 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                     TOPIC_ID,
                     UPLOAD_ID,
                     "롤백 알림",
+                    null,
+                    false,
                     null
             );
             status.setRollbackOnly();

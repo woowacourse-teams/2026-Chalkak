@@ -10,12 +10,90 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 
 class FeedbackTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
 
     private static final Instant CREATED_AT = Instant.parse("2026-11-03T06:00:00Z");
+
+    @Test
+    @DisplayName("답변은 공백 제거 후 3000 코드 포인트까지 허용한다")
+    void answer_maxLengthAfterStrip_storesAnswer() {
+        // Given
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+        String content = "😀".repeat(3000);
+
+        // When
+        feedback.answer("  " + content + "  ", CREATED_AT);
+
+        // Then
+        assertThat(feedback.getAnswerContent()).isEqualTo(content);
+        assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\n\t"})
+    @DisplayName("비어 있거나 공백뿐인 답변을 거절한다")
+    void answer_blankContent_rejects(String content) {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+
+        assertThatThrownBy(() -> feedback.answer(content, CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("3000 코드 포인트를 초과하는 답변을 거절한다")
+    void answer_contentOverMaxLength_rejects() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+
+        assertThatThrownBy(() -> feedback.answer("😀".repeat(3001), CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("삭제된 문의에는 답변할 수 없다")
+    void answer_deletedFeedback_rejects() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+        feedback.delete(CREATED_AT);
+
+        assertThatThrownBy(() -> feedback.answer("답변", CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("중복 답변은 최초 답변을 덮어쓰지 않는다")
+    void answer_alreadyAnswered_preservesOriginal() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+        feedback.answer("최초 답변", CREATED_AT);
+
+        assertThatThrownBy(() -> feedback.answer("중복 답변", CREATED_AT.plusSeconds(1)))
+                .isInstanceOf(BusinessException.class);
+        assertThat(feedback.getAnswerContent()).isEqualTo("최초 답변");
+        assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT);
+    }
 
     @Test
     @DisplayName("문의 삭제는 원문·작성자를 보존하고 삭제 시각만 기록한다")
@@ -46,14 +124,34 @@ class FeedbackTest {
                 "문의 원문",
                 CREATED_AT
         );
-        Instant firstDeletedAt = Instant.parse("2026-11-03T07:00:00Z");
+        Instant firstDeletedAt = Instant.parse("2026-11-03T07:00:00.123456789Z");
         feedback.delete(firstDeletedAt);
 
         // When
         feedback.delete(firstDeletedAt.plusSeconds(60));
 
         // Then
-        assertThat(feedback.getDeletedAt()).isEqualTo(firstDeletedAt);
+        assertThat(feedback.getDeletedAt())
+                .isEqualTo(Instant.parse("2026-11-03T07:00:00.123456Z"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-11-03T07:00:00.123456789Z", "2026-11-03T07:00:00.123456001Z"})
+    @DisplayName("삭제 시각은 반올림하지 않고 DB의 마이크로초 정밀도에 맞춰 버린다")
+    void delete_subMicrosecondTime_truncatesToDatabasePrecision(String deletedAt) {
+        // Given
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+
+        // When
+        feedback.delete(Instant.parse(deletedAt));
+
+        // Then
+        assertThat(feedback.getDeletedAt())
+                .isEqualTo(Instant.parse("2026-11-03T07:00:00.123456Z"));
     }
 
     @Test

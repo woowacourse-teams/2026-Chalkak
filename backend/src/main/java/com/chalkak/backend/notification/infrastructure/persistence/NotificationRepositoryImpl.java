@@ -75,7 +75,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
 
     @Override
     public Optional<Notification> findForPushByIdAndUserId(UUID notificationId, UUID userId) {
-        return notificationJpaRepository.findForPushByIdAndUserId(notificationId, userId);
+        return notificationJpaRepository.findForPushByIdAndUserId(
+                notificationId,
+                userId,
+                ModerationStatus.APPROVED
+        );
     }
 
     @Override
@@ -158,6 +162,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
                 readAt,
                 createdFrom
         );
+    }
+
+    @Override
+    public void deleteFeedbackNotifications(UUID feedbackId) {
+        notificationJpaRepository.deleteFeedbackNotifications(feedbackId);
     }
 
     @Override

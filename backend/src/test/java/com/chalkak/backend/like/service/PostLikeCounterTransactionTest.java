@@ -335,6 +335,8 @@ class PostLikeCounterTransactionTest extends IntegrationTestSupport {
                     TOPIC_ID,
                     UPLOAD_ID,
                     "집계 실패",
+                    null,
+                    false,
                     null
             ))
                     .isInstanceOf(DataIntegrityViolationException.class);

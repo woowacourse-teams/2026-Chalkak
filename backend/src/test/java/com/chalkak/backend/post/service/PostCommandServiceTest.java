@@ -133,7 +133,7 @@ class PostCommandServiceTest {
     @DisplayName("활성 조회에서 제외된 작성자는 게시물 생성 전에 거부한다")
     void createPost_unavailableUser_throwsUnauthorizedException() {
         // Given
-        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> service.createPost(
@@ -141,6 +141,8 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
+                null,
+                false,
                 null
         )).isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
@@ -156,7 +158,7 @@ class PostCommandServiceTest {
     @DisplayName("활성 주제가 없으면 업로드를 사용하거나 게시물을 저장하지 않는다")
     void createPost_unavailableTopic_throwsNotFoundException() {
         // Given
-        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.empty());
 
         // When & Then
@@ -165,6 +167,8 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
+                null,
+                false,
                 null
         )).isInstanceOf(NotFoundException.class).hasMessage("게시물을 작성할 주제를 찾을 수 없습니다.");
         verifyNoInteractions(uploads, posts);
@@ -183,7 +187,7 @@ class PostCommandServiceTest {
                 new ParticipationPeriod(start, start.plusSeconds(3600)),
                 start.minusSeconds(3600)
         );
-        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.of(topic));
 
         // When & Then
@@ -192,6 +196,8 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
+                null,
+                false,
                 null
         )).isInstanceOf(BusinessException.class).hasMessage("현재 게시물을 작성할 수 없는 주제입니다.");
         verifyNoInteractions(uploads, posts);
@@ -203,7 +209,7 @@ class PostCommandServiceTest {
         // Given
         User user = UserFixture.create(USER_ID);
         PostImageUpload upload = PostImageUpload.createPostImageUpload(user, Instant.now());
-        given(users.findActiveById(USER_ID)).willReturn(Optional.of(user));
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(user));
         given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.of(openTopic()));
         given(uploads.findStatusByIdAndUserId(UPLOAD_ID, USER_ID))
                 .willReturn(Optional.of(PostImageUploadStatus.ISSUED));
@@ -227,7 +233,9 @@ class PostCommandServiceTest {
                 TOPIC_ID,
                 UPLOAD_ID,
                 "제목",
-                "첫 줄\n둘째 줄"
+                "첫 줄\n둘째 줄",
+                false,
+                null
         );
 
         // Then
@@ -242,7 +250,7 @@ class PostCommandServiceTest {
     void updatePost_titleAndDescription_updatesPostAndReturnsBoth() {
         // Given
         Post post = pendingPostInOpenTopic("기존 설명");
-        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
 
         // When
@@ -250,7 +258,9 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "새 제목",
-                "새 설명"
+                "새 설명",
+                false,
+                null
         );
 
         // Then
@@ -266,7 +276,7 @@ class PostCommandServiceTest {
     void updatePost_nullDescription_clearsDescription() {
         // Given
         Post post = pendingPostInOpenTopic("기존 설명");
-        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
 
         // When
@@ -274,6 +284,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "기존 제목",
+                null,
+                false,
                 null
         );
 
@@ -286,7 +298,7 @@ class PostCommandServiceTest {
     @DisplayName("삭제되거나 없는 게시물은 제목을 수정할 수 없다")
     void updatePost_unavailablePost_throwsNotFoundException() {
         // Given
-        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.empty());
 
         // When & Then
@@ -294,6 +306,8 @@ class PostCommandServiceTest {
                 USER_ID,
                 POST_ID,
                 "수정 제목",
+                null,
+                false,
                 null
         )).isInstanceOf(NotFoundException.class)
                 .hasMessage("게시물을 찾을 수 없습니다.")
@@ -304,13 +318,15 @@ class PostCommandServiceTest {
     @DisplayName("탈퇴한 작성자는 게시물 조회와 수정 전에 거부한다")
     void updatePost_unavailableUser_throwsUnauthorizedException() {
         // Given
-        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
+        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> service.updatePost(
                 USER_ID,
                 POST_ID,
                 "수정 제목",
+                null,
+                false,
                 null
         )).isInstanceOf(UnauthorizedException.class)
                 .hasMessage("유효하지 않은 인증 정보입니다.")
@@ -374,7 +390,10 @@ class PostCommandServiceTest {
                 Photo.createPhoto("chalkak/posts/test/original/" + UPLOAD_ID + ".webp"),
                 UPLOAD_ID,
                 "기존 제목",
-                description
+                description,
+                false,
+                null,
+                Instant.now()
         );
         ReflectionTestUtils.setField(
                 post,
