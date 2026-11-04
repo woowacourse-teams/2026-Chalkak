@@ -284,7 +284,7 @@ class FeedScreenTest {
         composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertIsDisplayed()
         composeRule.onNodeWithTag("ai-review-drag-handle-touch").performClick()
         composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertDoesNotExist()
-        composeRule.runOnIdle { state = state.copy(isUpdatingTitle = true) }
+        composeRule.runOnIdle { state = state.copy(isSavingPostEdit = true) }
         composeRule.onNodeWithText("AI 피드백이 완료되었어요").assertDoesNotExist()
     }
 

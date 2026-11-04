@@ -39,7 +39,7 @@ enum FeedError: Error, Equatable, Sendable {
         }
     }
 
-    var titleUpdateMessage: String {
+    var postUpdateMessage: String {
         switch self {
         case .notFound:
             "게시물을 찾을 수 없어요"
@@ -48,15 +48,15 @@ enum FeedError: Error, Equatable, Sendable {
         case .client:
             "수정할 수 없는 상태이거나 주제 참여 기간이 끝났어요"
         case .invalidResponse, .server, .generic:
-            "게시물 제목을 수정하지 못했어요"
+            "게시물을 수정하지 못했어요"
         }
     }
 }
 
 enum FeedEvent: Equatable, Sendable {
     case showDeleteFailure(FeedError)
-    case showTitleUpdateSuccess
-    case showTitleUpdateFailure(FeedError)
+    case showPostUpdateSuccess
+    case showPostUpdateFailure(FeedError)
     case showLikeFailure
 }
 
@@ -95,9 +95,17 @@ struct FeedViewState: Equatable, Sendable {
     // 상세 조회로 확정되기 전까지 좋아요 동작을 막는다.
     var isLikeEnabled = false
     var isDeleting = false
-    var isUpdatingTitle = false
+    var isSavingPostEdit = false
     var deletedPostID: FeedPost.ID?
-    var titleUpdateVersion = 0
+    // 수정 저장이 성공할 때마다 1씩 오른다. 진행 중이던 상세 조회가 수정 결과를 덮지 않게 비교하는 데 쓴다.
+    var postUpdateVersion = 0
+    // 수정 화면이 열려 있는 동안의 입력값. nil이면 수정 화면이 닫혀 있다.
+    var postEdit: FeedPostEditState?
+}
+
+struct FeedPostEditState: Equatable, Sendable {
+    var title: String
+    var description: String
 }
 
 /// 원본 이미지가 로드되기 전까지 Feed 사진 자리에 보여줄, 출발 화면에 떠 있던 이미지.

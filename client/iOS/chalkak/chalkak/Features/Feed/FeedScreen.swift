@@ -34,8 +34,6 @@ struct FeedScreen: View {
     @State private var showsAIReviewSheet = false
     // AI 피드백 시트가 닫히는 애니메이션까지 끝났는지. 시트 두 개를 겹쳐 띄우지 않으려고 따로 둔다.
     @State private var isAIReviewSheetOnScreen = false
-    @State private var showsTitleEditDialog = false
-    @State private var titleDraft = ""
     @State private var showsSignatureHint = false
     // 코드가 안내 시트를 닫는 중인지. 사용자가 닫은 경우와 구분해, 사용자가 닫았을 때만 다시 띄우지 않도록 기록한다.
     @State private var isHidingSignatureHintByCode = false
@@ -100,19 +98,16 @@ struct FeedScreen: View {
         .overlay(alignment: .top) {
             FeedTopBar(
                 onBack: { close() },
-                onEdit: {
-                    titleDraft = viewModel.viewState.content?.post.title ?? ""
-                    showsTitleEditDialog = true
-                },
+                onEdit: { viewModel.startPostEdit() },
                 onDelete: { showsDeleteDialog = true },
                 isEditVisible: viewModel.viewState.content.map {
                     $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
                 } == true,
                 isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
                 isEditEnabled: !viewModel.viewState.isDeleting &&
-                    !viewModel.viewState.isUpdatingTitle &&
+                    !viewModel.viewState.isSavingPostEdit &&
                     viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
-                isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
+                isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isSavingPostEdit
             )
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
@@ -227,9 +222,6 @@ struct FeedScreen: View {
                 onDeleted(postID)
             }
         }
-        .onChange(of: viewModel.viewState.titleUpdateVersion) { _, _ in
-            showsTitleEditDialog = false
-        }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -248,14 +240,22 @@ struct FeedScreen: View {
         } message: {
             Text("삭제한 게시물은 피드에서 사라지며 다시 복구할 수 없어요.")
         }
-        .alert("게시물 제목 수정", isPresented: $showsTitleEditDialog) {
-            TextField("제목을 입력해 주세요", text: $titleDraft)
-                .textInputAutocapitalization(.never)
-            Button("취소", role: .cancel) { showsTitleEditDialog = false }
-            Button("저장") { viewModel.updatePostTitle(titleDraft) }
-                .disabled(viewModel.viewState.isUpdatingTitle)
-        } message: {
-            Text("새 제목을 입력해 저장하면 게시물에 바로 반영돼요.")
+        // 수정 화면은 뷰모델의 postEdit이 있을 때만 열린다. 아래로 끌어 닫으면 저장하지 않고 닫는다.
+        .fullScreenCover(isPresented: Binding(
+            get: { viewModel.viewState.postEdit != nil },
+            set: { isPresented in if !isPresented { viewModel.cancelPostEdit() } }
+        )) {
+            if let edit = viewModel.viewState.postEdit, let post = viewModel.viewState.content?.post {
+                FeedPostEditScreen(
+                    edit: edit,
+                    imageSource: post.originalImageSource,
+                    isSaving: viewModel.viewState.isSavingPostEdit,
+                    onTitleChange: { viewModel.updatePostEditTitle($0) },
+                    onDescriptionChange: { viewModel.updatePostEditDescription($0) },
+                    onSave: { viewModel.savePostEdit() },
+                    onClose: { viewModel.cancelPostEdit() }
+                )
+            }
         }
     }
 
@@ -614,10 +614,10 @@ struct FeedScreen: View {
         switch event {
         case let .showDeleteFailure(error):
             showMessage(error.deleteMessage)
-        case .showTitleUpdateSuccess:
-            showMessage("제목을 수정했어요")
-        case let .showTitleUpdateFailure(error):
-            showMessage(error.titleUpdateMessage)
+        case .showPostUpdateSuccess:
+            showMessage("게시물을 수정했어요")
+        case let .showPostUpdateFailure(error):
+            showMessage(error.postUpdateMessage)
         case .showLikeFailure:
             showMessage("좋아요를 변경하지 못했어요")
         }
