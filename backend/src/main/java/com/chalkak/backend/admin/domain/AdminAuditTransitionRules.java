@@ -137,11 +137,37 @@ final class AdminAuditTransitionRules {
             AdminAuditSnapshot beforeState,
             AdminAuditSnapshot afterState
     ) {
-        Set<String> fields = Set.of("answeredAt");
+        Set<String> fields = Set.of("answeredAt", "answerDeletedAt");
+        if (!beforeState.hasExactlyFields(fields) || !afterState.hasExactlyFields(fields)
+                || afterState.value("answerDeletedAt") != null) {
+            return false;
+        }
+        Instant after = parseInstant(afterState.value("answeredAt"));
+        if (after == null) {
+            return false;
+        }
+        Object beforeValue = beforeState.value("answeredAt");
+        Object beforeDeletedAt = beforeState.value("answerDeletedAt");
+        if (beforeValue == null) {
+            return beforeDeletedAt == null;
+        }
+        Instant before = parseInstant(beforeValue);
+        return before != null && isInstant(beforeDeletedAt) && after.isAfter(before);
+    }
+
+    static boolean isFeedbackAnswerDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        Set<String> fields = Set.of("answeredAt", "answerDeletedAt");
+        Object answeredAt = beforeState.value("answeredAt");
         return beforeState.hasExactlyFields(fields)
                 && afterState.hasExactlyFields(fields)
-                && beforeState.value("answeredAt") == null
-                && isInstant(afterState.value("answeredAt"));
+                && isInstant(answeredAt)
+                && Objects.equals(answeredAt, afterState.value("answeredAt"))
+                && beforeState.value("answerDeletedAt") == null
+                && isInstant(afterState.value("answerDeletedAt"));
     }
 
     static boolean isFeedbackDeleted(

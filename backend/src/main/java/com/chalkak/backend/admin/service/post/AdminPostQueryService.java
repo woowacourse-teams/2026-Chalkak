@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.service.post;
 
+import com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter;
 import com.chalkak.backend.admin.repository.post.AdminPostQueryCriteria;
 import com.chalkak.backend.admin.repository.post.AdminPostQueryRepository;
 import com.chalkak.backend.admin.repository.post.AdminPostSort;
@@ -8,6 +9,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.PostInstagramConsent;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,8 @@ public class AdminPostQueryService {
             UUID topicId,
             UUID userId,
             AdminPostSort sort,
+            AdminPostInstagramConsentFilter instagramConsent,
+            String instagramId,
             int page,
             int pageSize
     ) {
@@ -36,7 +40,9 @@ public class AdminPostQueryService {
                 status,
                 topicId,
                 userId,
-                sort == null ? AdminPostSort.CREATED_AT_DESC : sort
+                sort == null ? AdminPostSort.CREATED_AT_DESC : sort,
+                instagramConsent,
+                PostInstagramConsent.normalizeId(instagramId)
         );
 
         return AdminPostListResult.from(

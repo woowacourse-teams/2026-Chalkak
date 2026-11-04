@@ -23,6 +23,8 @@ public record AdminPostSummaryProjection(
         Long likeCount,
         Instant createdAt,
         Instant moderatedAt,
-        Instant deletedAt
+        Instant deletedAt,
+        boolean instagramUploadAgreed,
+        String instagramId
 ) {
 }
