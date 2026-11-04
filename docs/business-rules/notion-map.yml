@@ -48,6 +48,7 @@ rule_pages:
       보관과 조회 범위: [FEEDBACK-003]
       관리자 조회: [FEEDBACK-004]
       관리자 문의 삭제: [FEEDBACK-005]
+      관리자 최초 답변: [FEEDBACK-006]
   docs/business-rules/rules/admin.md:
     domain: 관리자
     pages:

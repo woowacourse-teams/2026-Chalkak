@@ -23,6 +23,8 @@ public class Feedback {
 
     public static final int MAX_CONTENT_LENGTH = 1000;
 
+    private static final int MAX_ANSWER_LENGTH = 3000;
+
     private static final String INVALID_CONTENT_MESSAGE = "피드백 내용이 올바르지 않습니다.";
 
     @Id
@@ -59,6 +61,22 @@ public class Feedback {
         feedback.content = normalizeContent(content);
         feedback.createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
         return feedback;
+    }
+
+    public void answer(String content, Instant answeredAt) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의에는 답변할 수 없습니다.");
+        }
+        if (this.answeredAt != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 답변한 문의입니다.");
+        }
+        String normalized = content == null ? "" : content.strip();
+        if (normalized.isEmpty()
+                || normalized.codePointCount(0, normalized.length()) > MAX_ANSWER_LENGTH) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "답변은 1~3,000자로 입력해 주세요.");
+        }
+        this.answerContent = normalized;
+        this.answeredAt = answeredAt.truncatedTo(ChronoUnit.MICROS);
     }
 
     public void delete(Instant deletedAt) {

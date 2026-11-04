@@ -132,6 +132,18 @@ final class AdminAuditTransitionRules {
                 && isInstant(afterState.value("deletedAt"));
     }
 
+    static boolean isFeedbackAnswered(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        Set<String> fields = Set.of("answeredAt");
+        return beforeState.hasExactlyFields(fields)
+                && afterState.hasExactlyFields(fields)
+                && beforeState.value("answeredAt") == null
+                && isInstant(afterState.value("answeredAt"));
+    }
+
     static boolean isFeedbackDeleted(
             UUID actorAdminId,
             AdminAuditSnapshot beforeState,

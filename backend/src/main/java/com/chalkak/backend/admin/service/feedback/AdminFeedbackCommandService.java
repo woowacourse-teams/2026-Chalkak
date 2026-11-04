@@ -5,10 +5,13 @@ import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
+import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import com.chalkak.backend.notification.service.NotificationService;
+import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.UUID;
@@ -22,7 +25,39 @@ public class AdminFeedbackCommandService {
 
     private final FeedbackRepository feedbackRepository;
     private final AdminAuditLogService auditLogService;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
+
+    @Transactional
+    public void answerFeedback(
+            UUID feedbackId,
+            UUID adminId,
+            String answerContent
+    ) {
+        Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
+                        "문의를 찾을 수 없습니다."));
+        userRepository.findActiveByIdForUpdate(feedback.getUserId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "탈퇴한 회원의 문의에는 답변할 수 없습니다."));
+        AdminAuditSnapshot beforeState = createAnswerState(feedback);
+        feedback.answer(answerContent, clock.instant());
+        notificationService.createForFeedbackAnswer(
+                feedback.getUserId(),
+                feedback.getId(),
+                feedback.getAnsweredAt()
+        );
+        auditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId,
+                AdminAction.FEEDBACK_ANSWERED,
+                AdminTargetType.FEEDBACK,
+                feedback.getId(),
+                null,
+                beforeState,
+                createAnswerState(feedback)
+        ));
+    }
 
     @Transactional
     public void deleteFeedback(UUID feedbackId, UUID adminId) {
@@ -44,6 +79,11 @@ public class AdminFeedbackCommandService {
                 beforeState,
                 createDeletionState(feedback)
         ));
+    }
+
+    private AdminAuditSnapshot createAnswerState(Feedback feedback) {
+        return AdminAuditSnapshot
+                .from(Collections.singletonMap("answeredAt", feedback.getAnsweredAt()));
     }
 
     private AdminAuditSnapshot createDeletionState(Feedback feedback) {

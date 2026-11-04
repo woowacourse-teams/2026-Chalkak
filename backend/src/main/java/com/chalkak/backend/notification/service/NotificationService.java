@@ -88,6 +88,19 @@ public class NotificationService {
         ));
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForFeedbackAnswer(
+            UUID userId,
+            UUID feedbackId,
+            Instant answeredAt
+    ) {
+        notificationRepository.save(Notification.feedbackAnswered(
+                userId,
+                feedbackId,
+                answeredAt
+        ));
+    }
+
     public NotificationListResult getNotifications(
             UUID userId,
             int page,

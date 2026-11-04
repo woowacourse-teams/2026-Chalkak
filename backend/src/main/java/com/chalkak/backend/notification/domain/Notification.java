@@ -181,6 +181,29 @@ public class Notification {
         return notification;
     }
 
+    public static Notification feedbackAnswered(
+            UUID userId,
+            UUID feedbackId,
+            Instant createdAt
+    ) {
+        validateRequired(
+                userId,
+                feedbackId,
+                createdAt
+        );
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.FEEDBACK;
+        notification.sourceId = feedbackId;
+        notification.eventKey = UUID.randomUUID();
+        notification.type = NotificationType.FEEDBACK_ANSWERED;
+        notification.title = "고객센터 답변이 도착했습니다.";
+        notification.body = "문의 상세에서 답변을 확인해 주세요.";
+        notification.createdAt = createdAt;
+        notification.initializePublication(false);
+        return notification;
+    }
+
     public void markPublished(Instant acceptedAt) {
         validatePendingPublication();
         if (acceptedAt == null) {
