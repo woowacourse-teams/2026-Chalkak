@@ -199,6 +199,8 @@ class AdminFeedbackControllerTest {
                         FEEDBACK_ID,
                         "문의 원문",
                         CREATED_AT,
+                        null,
+                        null,
                         DELETED_AT,
                         new AdminFeedbackListResult.AuthorSummary(
                                 USER_ID,

@@ -87,6 +87,12 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         "$.components.schemas.AdminFeedbackDetailResponse.properties.createdAt.format")
                         .value("date-time"))
                 .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.answerContent")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.answeredAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackDetailResponse.properties.deletedAt.type")
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath(

@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID> {
 
-    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE feedback.id = :feedbackId")
+    @Query(AdminFeedbackJpql.SELECT_DETAIL_WITH_AUTHOR + " WHERE feedback.id = :feedbackId")
     Optional<AdminFeedbackProjection> findFeedbackById(@Param("feedbackId") UUID feedbackId);
 
     @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR)

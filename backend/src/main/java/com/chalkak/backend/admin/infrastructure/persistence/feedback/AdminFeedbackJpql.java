@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class AdminFeedbackJpql {
 
-    static final String SELECT_WITH_AUTHOR = """
+    private static final String SELECT_PREFIX = """
             SELECT new com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection(
                 feedback.id,
                 feedback.content,
@@ -16,9 +16,16 @@ final class AdminFeedbackJpql {
                 author.email,
                 author.status,
                 author.appVersion,
-                author.deletedAt
+                author.deletedAt,
+            """;
+
+    private static final String FROM_WITH_AUTHOR = """
             )
             FROM Feedback feedback
             JOIN User author ON author.id = feedback.userId
             """;
+    static final String SELECT_WITH_AUTHOR = SELECT_PREFIX + "null, null" + FROM_WITH_AUTHOR;
+
+    static final String SELECT_DETAIL_WITH_AUTHOR = SELECT_PREFIX
+            + "feedback.answerContent, feedback.answeredAt" + FROM_WITH_AUTHOR;
 }

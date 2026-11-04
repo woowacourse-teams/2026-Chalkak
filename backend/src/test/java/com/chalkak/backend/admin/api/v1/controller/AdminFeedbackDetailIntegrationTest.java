@@ -71,6 +71,8 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.content").value("관리자 상세 문의"))
                 .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()))
                 .andExpect(jsonPath("$.deletedAt").value(nullValue()))
+                .andExpect(jsonPath("$.answerContent").value(nullValue()))
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()))
                 .andExpect(jsonPath("$.author.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.author.status").value("ACTIVE"));
     }
@@ -91,7 +93,10 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
     void getFeedback_deletedFeedback_isVisibleOnlyToAdmin() throws Exception {
         // Given
         jdbcTemplate.update(
-                "UPDATE feedbacks SET deleted_at = ? WHERE id = ?",
+                """
+                        UPDATE feedbacks SET deleted_at = ?, answer_content = '관리자 답변',
+                            answered_at = TIMESTAMPTZ '2026-11-04 01:00:00.123456+00' WHERE id = ?
+                        """,
                 Timestamp.from(DELETED_AT),
                 feedbackId
         );
@@ -99,10 +104,20 @@ class AdminFeedbackDetailIntegrationTest extends IntegrationTestSupport {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/feedbacks/{feedbackId}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, adminToken()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerContent").value("관리자 답변"))
+                .andExpect(jsonPath("$.answeredAt").value("2026-11-04T01:00:00.123456Z"));
+        mockMvc.perform(get("/api/v1/admin/feedbacks").param("userId", userId.toString())
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(feedbackId.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].answerContent").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.feedbacks[0].answeredAt").doesNotHaveJsonPath());
         mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, memberToken()))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.answerContent").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.answeredAt").doesNotHaveJsonPath());
     }
 
     private String adminToken() {

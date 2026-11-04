@@ -9,6 +9,8 @@ public record AdminFeedbackDetailResult(
         UUID feedbackId,
         String content,
         Instant createdAt,
+        String answerContent,
+        Instant answeredAt,
         Instant deletedAt,
         AuthorSummary author
 ) {
@@ -18,6 +20,8 @@ public record AdminFeedbackDetailResult(
                 feedback.feedbackId(),
                 feedback.content(),
                 feedback.createdAt(),
+                feedback.answerContent(),
+                feedback.answeredAt(),
                 feedback.deletedAt(),
                 AuthorSummary.from(feedback)
         );

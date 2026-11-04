@@ -43,6 +43,12 @@ public class Feedback {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "answer_content", columnDefinition = "TEXT")
+    private String answerContent;
+
+    @Column(name = "answered_at")
+    private Instant answeredAt;
+
     public static Feedback create(
             UUID userId,
             String content,

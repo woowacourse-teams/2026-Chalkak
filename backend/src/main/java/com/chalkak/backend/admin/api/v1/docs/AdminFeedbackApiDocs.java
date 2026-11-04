@@ -33,7 +33,7 @@ public interface AdminFeedbackApiDocs {
             @Parameter(schema = @Schema(type = "string", format = "uuid")) String feedbackId
     );
 
-    @Operation(summary = "관리자 문의 상세 조회", description = "문의 ID로 내용·접수 시각·삭제 시각과 작성자 정보를 조회합니다. "
+    @Operation(summary = "관리자 문의 상세 조회", description = "문의 ID로 내용·접수 시각·삭제 시각·현재 답변과 작성자 정보를 조회합니다. "
             + "삭제된 문의와 정지·탈퇴 회원이 남긴 문의도 포함하며, 없는 문의는 404로 처리합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "관리자 문의 상세 조회 성공", useReturnTypeSchema = true),
