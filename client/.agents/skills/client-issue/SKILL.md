@@ -40,7 +40,7 @@ disable-model-invocation: true
      종류 자리는 커밋 type과 달리 `feat`가 아니라 `feature`다. 예: `client/feature/#901-android-home-top-redesign`
    - `git branch -a`에서 다른 규칙이 보이면 그쪽을 따른다.
    - 커밋하지 않은 변경이 있으면 브랜치를 바꾸기 전에 알리고 멈춘다.
-   - 원격에는 `client/develop`과 같은 위치의 빈 브랜치만 생긴다. 코드 push는 `client-pr`의 push 확인 뒤에 한다.
+   - 원격에는 `client/develop`과 같은 위치의 빈 브랜치만 생긴다. 코드 push는 `client-pr`에서 한다.
    - `--base`를 주면 나중에 `gh pr create`의 기준 브랜치도 `client/develop`으로 잡힌다.
    - 연결 브랜치 만들기가 실패하면 이슈를 다시 만들지 않는다. 이슈 주소와 실패 메시지를 알리고 멈춘다.
 

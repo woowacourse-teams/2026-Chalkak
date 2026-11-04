@@ -8,7 +8,7 @@ disable-model-invocation: true
 # client-record
 
 먼저 [공통 약속](../client-flow/references/conventions.md)을 읽는다.
-파일만 쓴다. 커밋은 `client-pr`이 한다. 사람이 따로 고르지 않고 push 확인에서 코드와 같이 본다.
+파일만 쓴다. 커밋은 `client-pr`이 한다. 사람이 따로 고르지 않고 드래프트 PR에서 코드와 같이 본다.
 
 ## 무엇을 남기나
 
@@ -36,7 +36,7 @@ disable-model-invocation: true
 
 ## 다시 들어올 때
 
-push 확인이나 리뷰에서 고친 뒤 다시 부르면, 고친 내용 때문에 **바뀐 결정만** 반영한다. 이미 남긴 기록과 어긋나면 그 기록을 고친다.
+PR 리뷰에서 고친 뒤 다시 부르면, 고친 내용 때문에 **바뀐 결정만** 반영한다. 이미 남긴 기록과 어긋나면 그 기록을 고친다.
 
 ## 알릴 것
 
