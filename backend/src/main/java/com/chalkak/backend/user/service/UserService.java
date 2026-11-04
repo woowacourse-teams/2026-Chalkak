@@ -6,6 +6,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.domain.SignatureImagePolicy;
 import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
@@ -31,6 +32,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final PostRepository postRepository;
     private final UserRefreshTokenService userRefreshTokenService;
     private final SocialConnectionRevocationStore socialConnectionRevocationStore;
     private final SignatureImageStorage signatureImageStorage;
@@ -150,13 +152,20 @@ public class UserService {
      * <p>
      * 외부 소셜 연결 폐기를 요청하는 것은 {@link UserWithdrawalService}뿐이므로, 같은 패키지의 해당 서비스만 이
      * 메서드를 호출할 수 있도록 package-private으로 제한한다.
+     *
+     * <p>
+     * 회원 행을 먼저 잠그고 게시물을 잠근다. 겹친 탈퇴 요청은 앞 요청이 커밋된 뒤 탈퇴 회원으로 판정되어 탈퇴·철회 시각을 덮어쓰지 않는다.
+     * 게시물 작성·수정도 회원 행을 공유 잠금으로 먼저 잡으므로, 탈퇴와 겹친 동의 변경은 탈퇴 전에 끝나 철회 대상이 되거나 탈퇴 뒤에 거부된다.
      */
     @Transactional
     void completeWithdrawal(
             UUID userId,
             List<SocialConnectionRevocationSnapshot> revokedConnections
     ) {
-        User user = getActiveUser(userId);
+        User user = userRepository.findActiveByIdForUpdate(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
 
         socialAccountRepository.findByUserId(userId).ifPresent(socialAccount -> {
             socialConnectionRevocationStore.deleteAllIfUnchanged(
@@ -168,6 +177,8 @@ public class UserService {
         }
         userRefreshTokenService.revokeAll(userId);
         user.withdraw();
+        postRepository.findInstagramAgreedByAuthorIdForUpdate(userId)
+                .forEach(post -> post.revokeInstagramConsent(user.getDeletedAt()));
     }
 
     /**

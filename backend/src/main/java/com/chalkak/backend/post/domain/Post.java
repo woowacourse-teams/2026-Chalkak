@@ -232,6 +232,10 @@ public class Post {
         deleteIfNotDeleted(deletedAt);
     }
 
+    public void revokeInstagramConsent(Instant revokedAt) {
+        this.instagramConsent = instagramConsent.revoke(revokedAt);
+    }
+
     public void deleteByAdmin(Instant deletedAt) {
         validateAdminDeletionStatus();
         deleteIfNotDeleted(deletedAt);
