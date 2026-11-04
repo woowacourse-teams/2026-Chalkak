@@ -282,22 +282,19 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.caption == "1234567890")
     }
 
-    @Test("사진을 고르면 글 쓰기 단계로 넘어가고, 뒤로 갔다가 사진을 다시 고르면 입력을 유지한 채 돌아온다")
-    func movesBetweenPhotoAndWritingSteps() {
+    @Test("사진을 다시 고르거나 편집해도 입력한 제목과 이야기를 유지한다")
+    func keepsTextWhenPhotoChanges() {
         let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
-        #expect(viewModel.viewState.isWriting == false)
 
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
-        #expect(viewModel.viewState.isWriting)
-
         viewModel.handle(.captionChanged("한낮의 다리"))
-        viewModel.handle(.writingBackClicked)
-        #expect(viewModel.viewState.isWriting == false)
-        #expect(viewModel.viewState.selectedImage != nil)
+        viewModel.handle(.descriptionChanged("퇴근길에 만난 노을"))
 
         viewModel.selectImage(data: Data([0x02]), preview: Self.image())
-        #expect(viewModel.viewState.isWriting)
+
+        #expect(viewModel.viewState.selectedImageData == Data([0x02]))
         #expect(viewModel.viewState.caption == "한낮의 다리")
+        #expect(viewModel.viewState.postDescription == "퇴근길에 만난 노을")
     }
 
     @Test("이야기 입력은 서버와 같은 code point 기준으로 150개까지 허용한다")
