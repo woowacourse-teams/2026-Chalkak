@@ -517,6 +517,136 @@ class NotificationTest {
                 .isInstanceOf(BusinessException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("좋아요 달성 알림은 개 이상 문구와 수신 설정에 맞는 발행 상태로 생성한다")
+    void likeMilestone_pushPreference_createsInboxNotification(boolean pushEnabled) {
+        // When
+        Notification notification = Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                10L,
+                OCCURRED_AT,
+                pushEnabled
+        );
+
+        // Then
+        assertThat(notification.getUserId()).isEqualTo(USER_ID);
+        assertThat(notification.getType()).isEqualTo(NotificationType.POST_LIKE_MILESTONE);
+        assertThat(notification.getSourceType()).isEqualTo(NotificationSourceType.POST);
+        assertThat(notification.getSourceId()).isEqualTo(POST_ID);
+        assertThat(notification.getTitle()).isEqualTo("게시물에서 새로운 업적을 달성했어요");
+        assertThat(notification.getBody()).isEqualTo("좋아요 10개 이상을 달성했어요");
+        assertThat(notification.getPayload()).isNull();
+        assertThat(notification.getReadAt()).isNull();
+        assertThat(notification.getCreatedAt()).isEqualTo(OCCURRED_AT);
+        assertThat(notification.getPublishStatus()).isEqualTo(pushEnabled
+                ? PublishStatus.PENDING
+                : PublishStatus.NOT_REQUIRED);
+        assertThat(notification.getNextAttemptAt()).isEqualTo(pushEnabled ? OCCURRED_AT : null);
+        assertThat(notification.getPublishedAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-5L, 0L, 4L, 6L, 9L})
+    @DisplayName("좋아요 단계가 5 이상의 5의 배수가 아니면 알림을 만들지 않는다")
+    void likeMilestone_invalidCount_throwsBusinessException(long count) {
+        // When & Then
+        assertThatThrownBy(() -> Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                count,
+                OCCURRED_AT,
+                true
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {5L, 10L, 15L})
+    @DisplayName("좋아요 5개 이상의 각 5단계는 알림을 생성할 수 있다")
+    void likeMilestone_validCount_createsNotification(long count) {
+        // When
+        Notification notification = Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                count,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(notification.getBody()).isEqualTo("좋아요 %d개 이상을 달성했어요".formatted(count));
+    }
+
+    @Test
+    @DisplayName("좋아요 알림의 사건 키는 게시물과 단계로 구분되고 시각과 수신 설정에 영향받지 않는다")
+    void likeMilestone_samePostAndCount_preservesEventKey() {
+        // When
+        Notification first = Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                5L,
+                OCCURRED_AT,
+                true
+        );
+        Notification same = Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                5L,
+                OCCURRED_AT.plusSeconds(1),
+                false
+        );
+        Notification next = Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                10L,
+                OCCURRED_AT,
+                true
+        );
+        Notification other = Notification.likeMilestone(
+                USER_ID,
+                UUID.randomUUID(),
+                5L,
+                OCCURRED_AT,
+                true
+        );
+
+        // Then
+        assertThat(first.getEventKey()).isEqualTo(same.getEventKey());
+        assertThat(next.getEventKey()).isNotEqualTo(first.getEventKey());
+        assertThat(other.getEventKey()).isNotEqualTo(first.getEventKey());
+    }
+
+    @Test
+    @DisplayName("좋아요 알림은 회원·게시물·발생 시각이 없으면 생성하지 않는다")
+    void likeMilestone_missingRequiredValue_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> Notification.likeMilestone(
+                null,
+                POST_ID,
+                5L,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.likeMilestone(
+                USER_ID,
+                null,
+                5L,
+                OCCURRED_AT,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> Notification.likeMilestone(
+                USER_ID,
+                POST_ID,
+                5L,
+                null,
+                true
+        ))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private static Stream<Arguments> missingRequiredValues() {
         return Stream.of(
                 Arguments.of(

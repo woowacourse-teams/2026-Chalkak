@@ -66,6 +66,7 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
                         userId,
                         topicFirst ? false : null,
                         topicFirst ? null : false,
+                        null,
                         null
                 );
                 firstUpdated.countDown();
@@ -79,6 +80,7 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
                         userId,
                         topicFirst ? null : false,
                         topicFirst ? false : null,
+                        null,
                         null
                 );
             }));
@@ -95,6 +97,7 @@ class NotificationSettingsConcurrencyTest extends IntegrationTestSupport {
                     .isEqualTo(new NotificationSettingsResult(
                             false,
                             false,
+                            true,
                             true
                     ));
         } finally {

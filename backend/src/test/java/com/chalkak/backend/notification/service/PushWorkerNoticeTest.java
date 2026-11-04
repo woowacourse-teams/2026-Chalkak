@@ -57,7 +57,6 @@ class PushWorkerNoticeTest extends IntegrationTestSupport {
 
     @Autowired
     private NotificationRepository notifications;
-
     @Autowired
     private NoticeRepository notices;
 
