@@ -125,7 +125,7 @@ class UserServiceTest {
     @DisplayName("활성 회원이 없으면 탈퇴를 부수 효과 없이 거부한다")
     void completeWithdrawal_unavailableUser_throwsUnauthorizedException() {
         // Given
-        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
+        given(users.findActiveByIdForUpdate(USER_ID)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> service.completeWithdrawal(USER_ID, List.of()))
