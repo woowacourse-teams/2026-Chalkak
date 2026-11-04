@@ -47,6 +47,7 @@ rule_pages:
       제출 자격과 내용: [FEEDBACK-001, FEEDBACK-002]
       보관과 조회 범위: [FEEDBACK-003]
       관리자 조회: [FEEDBACK-004]
+      관리자 문의 삭제: [FEEDBACK-005]
   docs/business-rules/rules/admin.md:
     domain: 관리자
     pages:

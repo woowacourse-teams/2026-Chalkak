@@ -133,6 +133,12 @@ public enum AdminAction {
             AdminTargetType.APP_VERSION,
             true,
             AdminAuditTransitionRules::isAppVersionUpdated
+    ),
+
+    FEEDBACK_DELETED(
+            AdminTargetType.FEEDBACK,
+            false,
+            AdminAuditTransitionRules::isFeedbackDeleted
     );
 
     private final AdminTargetType targetType;
