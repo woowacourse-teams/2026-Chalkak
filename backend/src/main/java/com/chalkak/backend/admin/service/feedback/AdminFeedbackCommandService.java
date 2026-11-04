@@ -45,7 +45,7 @@ public class AdminFeedbackCommandService {
         userRepository.findActiveById(feedback.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "탈퇴한 회원의 문의에는 답변할 수 없습니다."));
-        boolean pushEnabled = feedback.getAnsweredAt() == null || sendPush;
+        boolean pushEnabled = !feedback.hasAnswerHistory() || sendPush;
         AdminAuditSnapshot beforeState = createAnswerState(feedback);
         feedback.answer(answerContent, clock.instant());
         AdminAuditLog auditLog = auditLogService.createAuditLog(new AdminAuditLogCommand(
