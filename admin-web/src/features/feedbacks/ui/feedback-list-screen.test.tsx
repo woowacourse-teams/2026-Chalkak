@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { feedbackFixtures, userIds } from "@/mocks/fixtures";
+import { feedbackFixtures, feedbackIds, userIds } from "@/mocks/fixtures";
 import { server } from "@/mocks/server";
 import { QueryProvider } from "@/shared/query/query-provider";
 
@@ -67,6 +67,53 @@ describe("feedback list screen", () => {
     );
     expect(within(withdrawn).getByText("탈퇴")).toBeInTheDocument();
     expect(within(withdrawn).getByText("앱 —")).toBeInTheDocument();
+  });
+
+  it("shows answer badges alongside inquiry deletion badges", async () => {
+    mount();
+    const [unanswered, answered, deleted] = await entries();
+    expect(within(unanswered).getByText("미답변")).toBeInTheDocument();
+    expect(within(answered).getByText("답변 완료")).toBeInTheDocument();
+    expect(within(deleted).getByText("삭제된 문의")).toBeInTheDocument();
+  });
+
+  it("requests combined filters from the server and displays the returned page", async () => {
+    search.value = "inquiryStatus=ANSWERED&bannedAuthorOnly=true&pageSize=1";
+    const requested: URLSearchParams[] = [];
+    const record = ({ request }: { request: Request }) => {
+      if (new URL(request.url).pathname.endsWith("/feedbacks")) requested.push(new URL(request.url).searchParams);
+    };
+    server.events.on("request:start", record);
+    onTestFinished(() => server.events.removeListener("request:start", record));
+    mount();
+    const rows = await entries();
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByRole("link", { name: "paused@example.com" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "답변 완료" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("checkbox", { name: "차단 회원만" })).toBeChecked();
+    expect(requested.at(-1)?.get("inquiryStatus")).toBe("ANSWERED");
+    expect(requested.at(-1)?.get("bannedAuthorOnly")).toBe("true");
+    expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
+  });
+
+  it("resets pagination when changing status and keeps the banned-author condition", async () => {
+    search.value = "page=3&bannedAuthorOnly=true&inquiryStatus=ANSWERED";
+    const user = userEvent.setup();
+    mount();
+    await user.click(screen.getByRole("button", { name: "삭제된 문의" }));
+    expect(pushedParams().get("inquiryStatus")).toBe("INQUIRY_DELETED");
+    expect(pushedParams().get("bannedAuthorOnly")).toBe("true");
+    expect(pushedParams().get("page")).toBe("1");
+  });
+
+  it("resets pagination when toggling the banned-author filter and keeps the selected status", async () => {
+    search.value = "page=3&inquiryStatus=NEEDS_ANSWER";
+    const user = userEvent.setup();
+    mount();
+    await user.click(screen.getByRole("checkbox", { name: "차단 회원만" }));
+    expect(pushedParams().get("inquiryStatus")).toBe("NEEDS_ANSWER");
+    expect(pushedParams().get("bannedAuthorOnly")).toBe("true");
+    expect(pushedParams().get("page")).toBe("1");
   });
 
   it("requests the oldest first when the URL asks for it", async () => {
@@ -141,10 +188,25 @@ describe("feedback list screen", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("관리자 권한이 없습니다."));
   });
 
-  it("offers no way to change or delete feedback", async () => {
+  it("links to the user profile and inquiry detail without a separate history button", async () => {
+    search.value = "sort=createdAtAsc&page=1";
     mount();
-    await entries();
+    const rows = await entries();
+    const newest = rows.at(-1)!;
+    expect(within(newest).getByRole("link", { name: "creator@example.com" })).toHaveAttribute(
+      "href", "/users/" + userIds.active + "?returnTo=%2Ffeedbacks%3Fsort%3DcreatedAtAsc%26page%3D1",
+    );
+    const href = within(newest).getByRole("link", { name: "문의 상세" }).getAttribute("href") ?? "";
+    const detail = new URL(href, "http://localhost");
+    expect(detail.pathname).toBe("/feedbacks/" + feedbackIds.newest);
+    expect(detail.searchParams.get("returnTo")).toBe("/feedbacks?" + search.value);
+    expect(screen.queryByRole("button", { name: "이 사용자의 문의" })).not.toBeInTheDocument();
+  });
 
-    expect(screen.queryByRole("button", { name: /삭제|답변|처리/ })).not.toBeInTheDocument();
+  it("keeps write actions on the detail screen", async () => {
+    mount();
+    const list = await screen.findByRole("list", { name: "사용자 피드백" });
+
+    expect(within(list).queryByRole("button", { name: /삭제|답변|처리/ })).not.toBeInTheDocument();
   });
 });

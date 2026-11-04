@@ -202,11 +202,21 @@ export interface AdminFeedbackAuthor {
   appVersion: string | null;
 }
 
+export type AdminFeedbackAnswerState = "UNANSWERED" | "ANSWERED" | "DELETED";
+
 export interface AdminFeedbackListItem {
   feedbackId: string;
   content: string;
   createdAt: Instant;
+  deletedAt: Instant | null;
+  answerState: AdminFeedbackAnswerState;
   author: AdminFeedbackAuthor;
+}
+
+export interface AdminFeedbackDetail extends AdminFeedbackListItem {
+  answerContent: string | null;
+  answeredAt: Instant | null;
+  answerVersion: string | null;
 }
 
 export interface AdminFeedbackListResponse {

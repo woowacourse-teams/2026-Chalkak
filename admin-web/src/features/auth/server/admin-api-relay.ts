@@ -16,6 +16,9 @@ const AI_PROMPT_PREVIEW_TIMEOUT_MS = 70_000;
 const MAX_SESSION_SECONDS = 7 * 24 * 60 * 60;
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const UUID_PATTERN = new RegExp(`^${UUID}$`);
+const BODYLESS_DELETE_PATH = new RegExp(
+  `^/(?:(?:topic-push-schedules|banners|reminders)/${UUID}|feedbacks/${UUID}(?:/answer)?)$`,
+);
 const ROUTES = [
   { pattern: /^\/app-versions$/, methods: ["GET"] },
   { pattern: /^\/app-versions\/(ANDROID|IOS)$/, methods: ["PUT"] },
@@ -43,6 +46,8 @@ const ROUTES = [
   { pattern: new RegExp(`^/topics/${UUID}$`), methods: ["GET", "PUT", "DELETE"] },
   { pattern: /^\/audit-logs$/, methods: ["GET"] },
   { pattern: /^\/feedbacks$/, methods: ["GET"] },
+  { pattern: new RegExp(`^/feedbacks/${UUID}$`), methods: ["GET", "DELETE"] },
+  { pattern: new RegExp(`^/feedbacks/${UUID}/answer$`), methods: ["POST", "DELETE"] },
   { pattern: /^\/topic-push-schedules$/, methods: ["GET", "POST"] },
   { pattern: new RegExp(`^/topic-push-schedules/${UUID}$`), methods: ["PUT", "DELETE"] },
 ];
@@ -239,7 +244,7 @@ async function upstreamError(response: Response, secrets: string[]) {
 async function forward(request: NextRequest, path: string, token: string | undefined) {
   const isLogin = path === "/auth/login";
   const isLogout = path === "/auth/logout";
-  const isBodylessDelete = request.method === "DELETE" && new RegExp(`^/(topic-push-schedules|banners|reminders)/${UUID}$`).test(path);
+  const isBodylessDelete = request.method === "DELETE" && BODYLESS_DELETE_PATH.test(path);
   const isAiPromptWrite = request.method === "POST" && (path === "/ai-prompt-previews" || path === "/ai-prompt-versions");
   const body = await requestBody(request, isLogout, isLogin, isBodylessDelete, isAiPromptWrite ? MAX_AI_PROMPT_BODY_BYTES : MAX_BODY_BYTES);
   const url = upstreamUrl(path, request.nextUrl.search, request.method);
