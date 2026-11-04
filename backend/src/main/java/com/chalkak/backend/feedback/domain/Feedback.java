@@ -93,6 +93,7 @@ public class Feedback {
         if (isAnswerDeleted()) {
             return false;
         }
+        // 반복 삭제의 대상 확인에 등록 시각을 쓰고, DB의 내용·시각 쌍 제약에 맞춰 재답변 전까지 원문도 유지한다.
         answerDeletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
         return true;
     }
