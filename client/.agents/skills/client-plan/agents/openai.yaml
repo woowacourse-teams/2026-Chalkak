@@ -1,0 +1,6 @@
+interface:
+  display_name: "client-plan"
+  short_description: "관련 결정·가정·TC 계획을 승인받아 이슈에 올리기"
+  default_prompt: "Use $client-plan for this Chalkak client task."
+policy:
+  allow_implicit_invocation: false
