@@ -10,6 +10,10 @@ public record AdminFeedbackDetailResponse(
         UUID feedbackId,
         String content,
         Instant createdAt,
+        @Schema(description = "관리자 답변 내용. 미답변이면 null", nullable = true)
+        String answerContent,
+        @Schema(description = "답변 등록 시각. 미답변이면 null", nullable = true)
+        Instant answeredAt,
         @Schema(description = "문의 삭제 시각. 삭제되지 않았으면 null", nullable = true)
         Instant deletedAt,
         AuthorResponse author
@@ -20,6 +24,8 @@ public record AdminFeedbackDetailResponse(
                 result.feedbackId(),
                 result.content(),
                 result.createdAt(),
+                result.answerContent(),
+                result.answeredAt(),
                 result.deletedAt(),
                 AuthorResponse.from(result.author())
         );

@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
@@ -20,7 +21,7 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
     private final AdminFeedbackJpaRepository repository;
 
     @Override
-    public Optional<AdminFeedbackProjection> findFeedbackById(UUID feedbackId) {
+    public Optional<AdminFeedbackDetailProjection> findFeedbackById(UUID feedbackId) {
         return repository.findFeedbackById(feedbackId);
     }
 

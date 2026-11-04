@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminFeedbackApiDocs;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminFeedbackAnswerRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminFeedbackListRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminFeedbackListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminFeedbackDetailResponse;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +31,21 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
 
     private final AdminFeedbackQueryService adminFeedbackQueryService;
     private final AdminFeedbackCommandService adminFeedbackCommandService;
+
+    @Override
+    @PostMapping("/{feedbackId}/answer")
+    public ResponseEntity<Void> answerFeedback(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String feedbackId,
+            @Valid @RequestBody AdminFeedbackAnswerRequest request
+    ) {
+        adminFeedbackCommandService.answerFeedback(
+                CanonicalUuidParser.parse(feedbackId),
+                authenticatedAdmin.adminId(),
+                request.answerContent()
+        );
+        return ResponseEntity.noContent().build();
+    }
 
     @Override
     @DeleteMapping("/{feedbackId}")

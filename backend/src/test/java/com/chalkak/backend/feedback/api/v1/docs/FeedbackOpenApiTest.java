@@ -62,6 +62,12 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
                                 .exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.FeedbackDetailResponse.properties.createdAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackDetailResponse.properties.answerContent")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackDetailResponse.properties.answeredAt.format")
                         .value("date-time"));
     }
 

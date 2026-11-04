@@ -13,6 +13,7 @@ import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.feedback.repository.FeedbackSlice;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -45,6 +46,9 @@ class FeedbackServiceTest {
 
     @Mock
     private Clock clock;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private FeedbackService service;
