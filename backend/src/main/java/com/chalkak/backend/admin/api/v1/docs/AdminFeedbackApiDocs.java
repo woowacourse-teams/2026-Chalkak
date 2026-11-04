@@ -24,8 +24,8 @@ public interface AdminFeedbackApiDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "답변 등록 성공", content = @Content),
             @ApiResponse(responseCode = "400", description = "입력 오류, 삭제·탈퇴·이미 답변한 문의", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "401", description = "관리자 인증 필요"),
-            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가"),
+            @ApiResponse(responseCode = "401", description = "관리자 인증 필요", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "문의가 존재하지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<Void> answerFeedback(

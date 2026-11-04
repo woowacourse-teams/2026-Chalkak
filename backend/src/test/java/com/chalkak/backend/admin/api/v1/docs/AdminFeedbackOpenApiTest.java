@@ -31,8 +31,12 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(path + ".requestBody.required").value(true))
                 .andExpect(jsonPath(path + ".responses['204'].content").doesNotExist())
                 .andExpect(jsonPath(path + ".responses['400']").exists())
-                .andExpect(jsonPath(path + ".responses['401']").exists())
-                .andExpect(jsonPath(path + ".responses['403']").exists())
+                .andExpect(
+                        jsonPath(path + ".responses['401'].content['application/json'].schema.$ref")
+                                .value("#/components/schemas/ErrorResponse"))
+                .andExpect(
+                        jsonPath(path + ".responses['403'].content['application/json'].schema.$ref")
+                                .value("#/components/schemas/ErrorResponse"))
                 .andExpect(jsonPath(path + ".responses['404']").exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackAnswerRequest.properties.answerContent.type")
