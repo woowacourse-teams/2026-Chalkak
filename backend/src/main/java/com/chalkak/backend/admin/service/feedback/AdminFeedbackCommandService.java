@@ -38,7 +38,7 @@ public class AdminFeedbackCommandService {
         Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
                         "문의를 찾을 수 없습니다."));
-        userRepository.findActiveByIdForUpdate(feedback.getUserId())
+        userRepository.findActiveById(feedback.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "탈퇴한 회원의 문의에는 답변할 수 없습니다."));
         AdminAuditSnapshot beforeState = createAnswerState(feedback);
