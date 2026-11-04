@@ -295,7 +295,15 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     @DisplayName("같은 답변을 반복 삭제하면 원문은 보존하고 알림과 감사 상태는 한 번만 변경한다")
     void deleteFeedbackAnswer_sameAnswerTwice_hidesAnswerAndDeletesNotification() throws Exception {
         // Given
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerState").value("UNANSWERED"));
         answer("비공개 답변").andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerState").value("ANSWERED"));
         Instant answeredAt = savedAnsweredAt();
         String memberToken = "Bearer "
                 + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
@@ -332,7 +340,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, adminToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answerContent").value(nullValue()))
-                .andExpect(jsonPath("$.answeredAt").value(nullValue()));
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()))
+                .andExpect(jsonPath("$.answerState").value("DELETED"));
     }
 
     @Test

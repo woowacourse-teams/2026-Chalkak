@@ -17,6 +17,7 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult.AnswerState;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
@@ -248,6 +249,7 @@ class AdminFeedbackControllerTest {
                         CREATED_AT,
                         null,
                         null,
+                        AnswerState.UNANSWERED,
                         DELETED_AT,
                         new AdminFeedbackListResult.AuthorSummary(
                                 USER_ID,
