@@ -11,6 +11,7 @@ import java.util.UUID;
 public record AdminPostDetailProjection(
         UUID postId,
         String title,
+        String description,
         ModerationStatus moderationStatus,
         Instant createdAt,
         Instant updatedAt,

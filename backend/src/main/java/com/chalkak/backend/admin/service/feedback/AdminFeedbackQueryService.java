@@ -4,6 +4,8 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepositor
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.NotFoundException;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ public class AdminFeedbackQueryService {
     private final AdminFeedbackQueryRepository adminFeedbackQueryRepository;
 
     public AdminFeedbackListResult getFeedbacks(
+            UUID userId,
             AdminFeedbackSort sort,
             int page,
             int pageSize
@@ -25,10 +28,21 @@ public class AdminFeedbackQueryService {
         validatePagination(page, pageSize);
         return AdminFeedbackListResult.from(
                 adminFeedbackQueryRepository.findFeedbacks(
+                        userId,
                         sort == null ? AdminFeedbackSort.CREATED_AT_DESC : sort,
                         page,
                         pageSize
                 ));
+    }
+
+    public AdminFeedbackDetailResult getFeedback(UUID feedbackId) {
+        return AdminFeedbackDetailResult.from(
+                adminFeedbackQueryRepository.findFeedbackById(feedbackId)
+                        .orElseThrow(() -> new NotFoundException(
+                                ErrorCode.BUSINESS_ERROR,
+                                "문의를 찾을 수 없습니다."
+                        ))
+        );
     }
 
     private void validatePagination(int page, int pageSize) {

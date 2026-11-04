@@ -24,7 +24,8 @@ public class NotificationSettingsService {
         return new NotificationSettingsResult(
                 user.isTopicPushEnabled(),
                 user.isModerationPushEnabled(),
-                user.isAiReviewPushEnabled()
+                user.isAiReviewPushEnabled(),
+                user.isLikePushEnabled()
         );
     }
 
@@ -33,7 +34,8 @@ public class NotificationSettingsService {
             UUID userId,
             Boolean topicPushEnabled,
             Boolean moderationPushEnabled,
-            Boolean aiReviewPushEnabled
+            Boolean aiReviewPushEnabled,
+            Boolean likePushEnabled
     ) {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new UnauthorizedException(
@@ -45,7 +47,8 @@ public class NotificationSettingsService {
                         : moderationPushEnabled,
                 aiReviewPushEnabled == null
                         ? user.isAiReviewPushEnabled()
-                        : aiReviewPushEnabled
+                        : aiReviewPushEnabled,
+                likePushEnabled == null ? user.isLikePushEnabled() : likePushEnabled
         );
     }
 }

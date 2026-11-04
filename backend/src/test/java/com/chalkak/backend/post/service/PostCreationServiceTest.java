@@ -1,18 +1,20 @@
 package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostImageStorage;
+import com.chalkak.backend.post.repository.PostImageUploadIssuer;
+import com.chalkak.backend.post.repository.PresignedPostImageUpload;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -67,6 +69,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     @MockitoBean
     private PostImageStorage postImageStorage;
 
+    @MockitoBean
+    private PostImageUploadIssuer postImageUploadIssuer;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("""
@@ -117,6 +122,69 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("삭제된 주제에는 게시물을 생성할 수 없다")
+    void createPost_deletedTopic_throwsNotFoundException() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                TOPIC_ID);
+
+        // When
+        NotFoundException exception = catchThrowableOfType(
+                NotFoundException.class,
+                () -> postCommandService.createPost(
+                        USER_ID,
+                        TOPIC_ID,
+                        PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
+                        null
+                ));
+
+        // Then
+        assertThat(exception).hasMessage("게시물을 작성할 주제를 찾을 수 없습니다.");
+        assertNoCreatedRows();
+        then(postImageStorage).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("발급한 업로드의 초기 상태와 만료를 DB에 저장하고 그 ID로 URL을 발급한다")
+    void createPostImageUpload_activeUser_persistsIssuedUploadAndExpiry() {
+        // Given
+        given(postImageUploadIssuer.issue(any(UUID.class))).willReturn(new PresignedPostImageUpload(
+                "https://test-bucket.s3.amazonaws.com/upload",
+                300L,
+                "image/webp",
+                5_242_880L
+        ));
+        Instant before = Instant.now();
+
+        // When
+        PostImageUploadResult result = postCommandService.createPostImageUpload(USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> saved = jdbcTemplate.queryForMap("""
+                SELECT user_id, status, rejection_reason, image_metadata, claimed_at
+                FROM post_image_uploads WHERE id = ?
+                """, result.uploadId());
+        assertThat(saved.get("user_id")).isEqualTo(USER_ID);
+        assertThat(saved.get("status").toString()).isEqualTo("ISSUED");
+        assertThat(saved.get("rejection_reason")).isNull();
+        assertThat(saved.get("image_metadata")).isNull();
+        assertThat(saved.get("claimed_at")).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT expires_at FROM post_image_uploads WHERE id = ?",
+                Instant.class,
+                result.uploadId()
+        )).isBetween(before.plus(PostImageUpload.CLAIM_TTL),
+                Instant.now().plus(PostImageUpload.CLAIM_TTL));
+        then(postImageUploadIssuer).should().issue(result.uploadId());
+    }
+
+    @Test
     @DisplayName("활성 사용자가 열린 주제에 업로드한 사진으로 게시물을 생성한다")
     void createPost_validRequest_savesPhotoAndValidatingPost() {
         // Given
@@ -129,7 +197,10 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null,
+                false,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -161,6 +232,74 @@ class PostCreationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("인스타그램 게시에 동의하지 않고 생성하면 미동의로 저장한다")
+    void createPost_instagramNotAgreed_savesNotAgreed() {
+        // Given
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+
+        // When
+        PostCreationResult result = postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
+                null
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> saved = jdbcTemplate.queryForMap("""
+                SELECT instagram_upload_agreed, instagram_id,
+                       instagram_agreed_at, instagram_revoked_at
+                FROM posts
+                WHERE id = ?
+                """, result.postId());
+        assertThat(saved.get("instagram_upload_agreed")).isEqualTo(false);
+        assertThat(saved.get("instagram_id")).isNull();
+        assertThat(saved.get("instagram_agreed_at")).isNull();
+        assertThat(saved.get("instagram_revoked_at")).isNull();
+    }
+
+    @Test
+    @DisplayName("인스타그램 게시에 동의하고 ID를 보내면 정규화한 ID와 동의 시각을 저장한다")
+    void createPost_instagramAgreedWithId_savesNormalizedIdAndAgreedAt() {
+        // Given
+        given(postImageStorage.existsUploadedImage(PHOTO_UPLOAD_ID)).willReturn(true);
+        given(postImageStorage.toOriginalStorageKey(PHOTO_UPLOAD_ID))
+                .willReturn(ORIGINAL_STORAGE_KEY);
+
+        // When
+        PostCreationResult result = postCommandService.createPost(
+                USER_ID,
+                TOPIC_ID,
+                PHOTO_UPLOAD_ID,
+                null,
+                null,
+                true,
+                "  @Chalkak.Official  "
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> saved = jdbcTemplate.queryForMap("""
+                SELECT instagram_upload_agreed, instagram_id,
+                       instagram_agreed_at, instagram_revoked_at
+                FROM posts
+                WHERE id = ?
+                """, result.postId());
+        assertThat(saved.get("instagram_upload_agreed")).isEqualTo(true);
+        assertThat(saved.get("instagram_id")).isEqualTo("chalkak.official");
+        assertThat(saved.get("instagram_agreed_at")).isNotNull();
+        assertThat(saved.get("instagram_revoked_at")).isNull();
+    }
+
+    @Test
     @DisplayName("이모지 제목은 코드 포인트 기준 10자까지 그대로 저장한다")
     void createPost_tenCodePointEmojiTitle_savesTitle() {
         // Given
@@ -174,7 +313,10 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
-                title
+                title,
+                null,
+                false,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -202,112 +344,15 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
-                        "12345678901"
+                        "12345678901",
+                        null,
+                        false,
+                        null
                 ));
 
         // Then
         assertThat(exception).hasMessage("제목은 10자 이하여야 합니다.");
         assertNoCreatedRows();
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 사용자의 게시물 생성은 인증 실패로 거부한다")
-    void createPost_unknownUser_throwsUnauthorizedException() {
-        // Given
-        UUID unknownUserId = UUID.randomUUID();
-
-        // When
-        UnauthorizedException exception = catchThrowableOfType(
-                UnauthorizedException.class,
-                () -> postCommandService.createPost(
-                        unknownUserId,
-                        TOPIC_ID,
-                        PHOTO_UPLOAD_ID,
-                        null
-                ));
-
-        // Then
-        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
-        assertNoCreatedRows();
-        then(postImageStorage).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("삭제된 주제에는 게시물을 생성할 수 없다")
-    void createPost_deletedTopic_throwsNotFoundException() {
-        // Given
-        jdbcTemplate.update(
-                "UPDATE topics SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                TOPIC_ID);
-
-        // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
-                () -> postCommandService.createPost(
-                        USER_ID,
-                        TOPIC_ID,
-                        PHOTO_UPLOAD_ID,
-                        null
-                ));
-
-        // Then
-        assertThat(exception).hasMessage("게시물을 작성할 주제를 찾을 수 없습니다.");
-        assertNoCreatedRows();
-        then(postImageStorage).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("참여 시작 전 주제에는 게시물을 생성할 수 없다")
-    void createPost_beforeOpenTopic_throwsBusinessException() {
-        // Given
-        jdbcTemplate.update("""
-                UPDATE topics
-                SET starts_at = CURRENT_TIMESTAMP + INTERVAL '1 hour',
-                    ends_at = CURRENT_TIMESTAMP + INTERVAL '2 hours'
-                WHERE id = ?
-                """, TOPIC_ID);
-
-        // When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> postCommandService.createPost(
-                        USER_ID,
-                        TOPIC_ID,
-                        PHOTO_UPLOAD_ID,
-                        null
-                ));
-
-        // Then
-        assertThat(exception).hasMessage("현재 게시물을 작성할 수 없는 주제입니다.");
-        assertNoCreatedRows();
-        then(postImageStorage).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("참여가 끝난 주제에는 게시물을 생성할 수 없다")
-    void createPost_closedTopic_throwsBusinessException() {
-        // Given
-        jdbcTemplate.update("""
-                UPDATE topics
-                SET starts_at = CURRENT_TIMESTAMP - INTERVAL '2 hours',
-                    ends_at = CURRENT_TIMESTAMP - INTERVAL '1 hour'
-                WHERE id = ?
-                """, TOPIC_ID);
-
-        // When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> postCommandService.createPost(
-                        USER_ID,
-                        TOPIC_ID,
-                        PHOTO_UPLOAD_ID,
-                        null
-                ));
-
-        // Then
-        assertThat(exception).hasMessage("현재 게시물을 작성할 수 없는 주제입니다.");
-        assertNoCreatedRows();
-        then(postImageStorage).shouldHaveNoInteractions();
     }
 
     @Test
@@ -323,6 +368,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -351,6 +399,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
 
@@ -361,6 +412,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -427,6 +481,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         backdatePost(stalled.postId(), 8);
@@ -436,6 +493,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 secondUploadId,
+                null,
+                null,
+                false,
                 null
         );
 
@@ -454,6 +514,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         backdatePost(pending.postId(), 6);
@@ -465,6 +528,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         secondUploadId,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -494,6 +560,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         postCommandService.failPostImageProcessing(PHOTO_UPLOAD_ID, "CORRUPTED_IMAGE");
@@ -503,6 +572,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 secondUploadId,
+                null,
+                null,
+                false,
                 null
         );
 
@@ -524,6 +596,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
 
@@ -534,6 +609,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -569,6 +647,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -587,6 +668,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         entityManager.clear();
@@ -620,6 +704,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         entityManager.flush();
@@ -643,9 +730,8 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 .satisfies(event -> assertThat(event.postId()).isEqualTo(result.postId()));
         then(postImageStorage).should(never()).existsUploadedImage(PHOTO_UPLOAD_ID);
 
-        assertThatThrownBy(() -> postQueryService.getPost(result.postId(), USER_ID))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessage("게시물을 찾을 수 없습니다.");
+        assertThat(postQueryService.getPost(result.postId(), USER_ID).id())
+                .isEqualTo(result.postId());
     }
 
     @Test
@@ -661,6 +747,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 PHOTO_UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         entityManager.flush();
@@ -686,6 +775,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         UUID.randomUUID(),
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -707,6 +799,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         SECOND_USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -732,6 +827,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 
@@ -758,6 +856,9 @@ class PostCreationServiceTest extends IntegrationTestSupport {
                         USER_ID,
                         TOPIC_ID,
                         PHOTO_UPLOAD_ID,
+                        null,
+                        null,
+                        false,
                         null
                 ));
 

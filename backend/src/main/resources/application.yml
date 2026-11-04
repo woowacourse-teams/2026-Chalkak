@@ -29,6 +29,8 @@ spring:
 
 chalkak:
   notification:
+    like-milestone:
+      enabled: ${NOTIFICATION_LIKE_MILESTONE_ENABLED:false}
     fcm:
       worker-enabled: ${NOTIFICATION_WORKER_ENABLED:false}
       project-id: ${NOTIFICATION_FCM_PROJECT_ID:}

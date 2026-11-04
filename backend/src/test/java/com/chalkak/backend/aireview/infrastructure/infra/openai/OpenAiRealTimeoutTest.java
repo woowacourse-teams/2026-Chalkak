@@ -2,6 +2,7 @@ package com.chalkak.backend.aireview.infrastructure.infra.openai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.chalkak.backend.aireview.domain.AiPromptDraft;
 import com.chalkak.backend.aireview.domain.AiPromptParameters;
@@ -17,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +31,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 class OpenAiRealTimeoutTest {
 
-    private static final long RESPONSE_DELAY_MILLIS = 1500;
+    // 응답을 보내기 전 실제 클라이언트 타임아웃을 기다리고, 정리 시 즉시 해제한다.
+    private final CountDownLatch releaseResponse = new CountDownLatch(1);
 
     private HttpServer stub;
 
@@ -37,7 +41,7 @@ class OpenAiRealTimeoutTest {
         stub = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         stub.createContext("/v1/responses", exchange -> {
             try {
-                Thread.sleep(RESPONSE_DELAY_MILLIS);
+                releaseResponse.await(10, TimeUnit.SECONDS);
                 exchange.sendResponseHeaders(200, -1);
             } catch (Exception ignored) {
                 // 클라이언트가 먼저 끊으면 응답할 필요가 없다.
@@ -53,7 +57,7 @@ class OpenAiRealTimeoutTest {
                 exchange.getResponseBody()
                         .write("{\"id\":\"resp_1\",".getBytes(StandardCharsets.UTF_8));
                 exchange.getResponseBody().flush();
-                Thread.sleep(RESPONSE_DELAY_MILLIS);
+                releaseResponse.await(10, TimeUnit.SECONDS);
             } catch (Exception ignored) {
                 // 클라이언트가 먼저 끊으면 응답할 필요가 없다.
             } finally {
@@ -65,6 +69,7 @@ class OpenAiRealTimeoutTest {
 
     @AfterEach
     void tearDown() {
+        releaseResponse.countDown();
         stub.stop(0);
     }
 
@@ -113,15 +118,16 @@ class OpenAiRealTimeoutTest {
         );
 
         // When & Then
-        assertThatThrownBy(() -> generator.generate(
-                new AiReviewGenerationRequest(
-                        draft,
-                        "https://cdn.test/a.jpg",
-                        "노을"
-                )))
-                .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
-                    assertThat(exception.getFailureType()).isEqualTo(FailureType.TIMEOUT);
-                    assertThat(exception.getFailureType().isRetryable()).isTrue();
-                });
+        assertTimeoutPreemptively(Duration.ofSeconds(3),
+                () -> assertThatThrownBy(() -> generator.generate(
+                        new AiReviewGenerationRequest(
+                                draft,
+                                "https://cdn.test/a.jpg",
+                                "노을"
+                        )))
+                        .isInstanceOfSatisfying(AiReviewGenerationException.class, exception -> {
+                            assertThat(exception.getFailureType()).isEqualTo(FailureType.TIMEOUT);
+                            assertThat(exception.getFailureType().isRetryable()).isTrue();
+                        }));
     }
 }

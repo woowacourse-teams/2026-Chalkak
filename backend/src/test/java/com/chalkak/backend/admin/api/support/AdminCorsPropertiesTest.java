@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class AdminCorsPropertiesTest {
 
@@ -28,19 +30,13 @@ class AdminCorsPropertiesTest {
                 .hasMessage("관리자 웹 허용 Origin이 필요합니다.");
     }
 
-    @Test
-    @DisplayName("빈 관리자 웹 Origin을 거부한다")
-    void create_withBlankOrigin_throwsException() {
-        assertThatThrownBy(() -> new AdminCorsProperties(List.of(" ")))
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "https://*.example.com"})
+    @DisplayName("공백 또는 와일드카드 Origin은 정확한 주소가 아니므로 거절한다")
+    void create_invalidOrigin_throwsException(String origin) {
+        assertThatThrownBy(() -> new AdminCorsProperties(List.of(origin)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("관리자 웹 허용 Origin은 정확한 주소여야 합니다.");
     }
 
-    @Test
-    @DisplayName("와일드카드 관리자 웹 Origin을 거부한다")
-    void create_withWildcardOrigin_throwsException() {
-        assertThatThrownBy(() -> new AdminCorsProperties(List.of("https://*.example.com")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("관리자 웹 허용 Origin은 정확한 주소여야 합니다.");
-    }
 }

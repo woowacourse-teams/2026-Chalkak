@@ -39,6 +39,7 @@ final class AdminAuditTransitionRules {
             "moderationStatus",
             "deletedAt");
     private static final Set<String> USER_STATUS_FIELDS = Set.of("status");
+    private static final Set<String> FEEDBACK_DELETION_FIELDS = Set.of("deletedAt");
     private static final Set<String> TOPIC_PUSH_SCHEDULE_FIELDS = Set.of("sendTime");
     private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
             "title",
@@ -127,6 +128,17 @@ final class AdminAuditTransitionRules {
                 && afterState.hasExactlyFields(POST_DELETION_FIELDS)
                 && isModerationStatus(beforeStatus)
                 && Objects.equals(beforeStatus, afterState.value("moderationStatus"))
+                && beforeState.value("deletedAt") == null
+                && isInstant(afterState.value("deletedAt"));
+    }
+
+    static boolean isFeedbackDeleted(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(FEEDBACK_DELETION_FIELDS)
+                && afterState.hasExactlyFields(FEEDBACK_DELETION_FIELDS)
                 && beforeState.value("deletedAt") == null
                 && isInstant(afterState.value("deletedAt"));
     }

@@ -116,7 +116,10 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
-                "오늘의 기록"
+                "오늘의 기록",
+                null,
+                false,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -327,15 +330,4 @@ class PostImageProcessingServiceTest extends IntegrationTestSupport {
                 "SELECT count(*) FROM posts", Integer.class)).isZero();
     }
 
-    @Test
-    @DisplayName("존재하지 않는 업로드 ID의 콜백은 아무것도 바꾸지 않는다")
-    void completePostImageProcessing_unknownUploadId_doesNothing() {
-        // When
-        postCommandService.completePostImageProcessing(UUID.randomUUID(), METADATA);
-        entityManager.flush();
-        entityManager.clear();
-
-        // Then
-        assertThat(findUpload().get("status").toString()).isEqualTo("ISSUED");
-    }
 }

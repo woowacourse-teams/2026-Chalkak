@@ -25,6 +25,9 @@ chalkak:
       # 실제 시각으로 도는 폴러가 테스트 DB의 행을 가져가지 않게 끈다. 테스트는 서비스 메서드를 직접 부른다.
       enabled: false
   notification:
+    like-milestone:
+      # 활성화 이후 동작의 기존 회귀 검증. 1차 OFF·기본값은 별도 테스트에서 확인한다.
+      enabled: true
     fcm:
       worker-enabled: false
     sqs:

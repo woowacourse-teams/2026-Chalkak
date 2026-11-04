@@ -53,13 +53,14 @@ public class PostQueryService {
 
     public PostDetail getPost(UUID postId, UUID userId) {
         validateUser(userId);
-        Post post = getVisiblePost(postId);
+        Post post = getVisiblePost(postId, userId);
 
         return PostDetail.from(
                 post,
                 imageUrlProvider,
                 postLikeCounterRepository.getCountByPostId(postId),
-                postLikeRepository.existsByPostIdAndUserId(postId, userId)
+                postLikeRepository.existsByPostIdAndUserId(postId, userId),
+                userId
         );
     }
 
@@ -301,8 +302,8 @@ public class PostQueryService {
                 || !postProcessingPolicy.isProcessingTimedOut(post.getCreatedAt(), now);
     }
 
-    private Post getVisiblePost(UUID postId) {
-        return postRepository.findVisibleById(postId)
+    private Post getVisiblePost(UUID postId, UUID viewerId) {
+        return postRepository.findVisibleByIdForViewer(postId, viewerId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 찾을 수 없습니다."));

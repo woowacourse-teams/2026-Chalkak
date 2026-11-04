@@ -2,7 +2,7 @@ package com.chalkak.backend.support;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** 트랜잭션 롤백으로 격리할 수 없는 통합 테스트 데이터를 정리한다. */
+/** 테스트 트랜잭션의 롤백으로 격리할 수 없는 커밋된 데이터를 정리한다. */
 public final class DatabaseCleaner {
 
     private static final String TRUNCATE_TEST_TABLES = """

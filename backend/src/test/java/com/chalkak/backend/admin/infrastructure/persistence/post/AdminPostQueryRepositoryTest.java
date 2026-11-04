@@ -11,6 +11,7 @@ import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import com.chalkak.backend.admin.repository.post.AdminPostSummaryProjection;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
@@ -22,14 +23,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminPostQueryRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminPostQueryRepositoryTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("0198fa00-0000-7000-8000-000000000001");
@@ -409,6 +405,35 @@ class AdminPostQueryRepositoryTest {
         assertThat(detail.uploadCreatedAt()).isEqualTo(UPLOAD_CREATED_AT);
         assertThat(detail.uploadUpdatedAt()).isEqualTo(UPLOAD_UPDATED_AT);
         assertThat(detail.likeCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("상세 조회는 저장된 게시물 설명을 줄바꿈 그대로 반환한다")
+    void findPostById_postWithDescription_returnsDescription() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET description = ? WHERE id = ?",
+                "첫 줄\n둘째 줄",
+                APPROVED_POST_ID
+        );
+
+        // When
+        AdminPostDetailProjection detail = adminPostQueryRepository.findPostById(
+                APPROVED_POST_ID).orElseThrow();
+
+        // Then
+        assertThat(detail.description()).isEqualTo("첫 줄\n둘째 줄");
+    }
+
+    @Test
+    @DisplayName("상세 조회는 설명이 없는 게시물의 설명을 null로 반환한다")
+    void findPostById_postWithoutDescription_returnsNullDescription() {
+        // When
+        AdminPostDetailProjection detail = adminPostQueryRepository.findPostById(
+                PENDING_POST_ID).orElseThrow();
+
+        // Then
+        assertThat(detail.description()).isNull();
     }
 
     @Test

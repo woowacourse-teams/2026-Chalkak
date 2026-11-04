@@ -15,6 +15,8 @@ public record AdminPostDetailResponse(
         UUID postId,
         @Schema(nullable = true)
         String title,
+        @Schema(description = "게시물 설명. 줄바꿈을 포함할 수 있으며 설명이 없으면 null", nullable = true)
+        String description,
         @Schema(
                 allowableValues = {
                         "PENDING", "APPROVED", "REJECTED"})
@@ -40,6 +42,7 @@ public record AdminPostDetailResponse(
         return new AdminPostDetailResponse(
                 detail.postId(),
                 detail.title(),
+                detail.description(),
                 detail.moderationStatus(),
                 AuthorResponse.from(detail.author()),
                 TopicResponse.from(detail.topic()),

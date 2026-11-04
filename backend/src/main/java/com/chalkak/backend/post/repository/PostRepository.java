@@ -30,6 +30,11 @@ public interface PostRepository {
 
     Optional<Post> findVisibleById(UUID postId);
 
+    /**
+     * 공개 게시물에 더해 조회자가 작성자 본인이면 승인 대기 게시물도 조회한다. 작성자가 수정 전에 현재 값을 읽을 수 있어야 한다.
+     */
+    Optional<Post> findVisibleByIdForViewer(UUID postId, UUID viewerId);
+
     Optional<Post> findVisibleByIdForShare(UUID postId);
 
     PostSlice findVisibleRecentByAuthorId(

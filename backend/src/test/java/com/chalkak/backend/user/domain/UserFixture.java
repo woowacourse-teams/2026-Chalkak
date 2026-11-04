@@ -34,11 +34,7 @@ public final class UserFixture {
 
     public static User createBanned(UUID id) {
         User user = create(id);
-        setField(
-                user,
-                "status",
-                UserStatus.BANNED
-        );
+        user.ban();
         return user;
     }
 

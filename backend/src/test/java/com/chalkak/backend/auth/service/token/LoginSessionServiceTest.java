@@ -1,149 +1,113 @@
 package com.chalkak.backend.auth.service.token;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.UserRepository;
-import jakarta.persistence.EntityManager;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@Transactional
-class LoginSessionServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class LoginSessionServiceTest {
+
     private static final Instant NOW = Instant.parse("2026-10-07T00:00:00Z");
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b657a02");
+    private static final UUID SESSION_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b657a03");
 
-    @Autowired
-    private LoginSessionService service;
-    @Autowired
-    private UserRepository users;
-    @Autowired
-    private JdbcTemplate jdbc;
-    @Autowired
-    private EntityManager entityManager;
+    @InjectMocks
+    private LoginSessionService loginSessionService;
 
-    private UUID userId;
-    private UUID sessionId;
+    @Mock
+    private UserRepository userRepository;
 
-    @BeforeEach
-    void setUp() {
-        userId = users.save(UserFixture.create()).getId();
-        entityManager.flush();
-        sessionId = UUID.randomUUID();
-        jdbc.update(
-                """
-                        INSERT INTO user_refresh_tokens
-                            (user_id, session_id, token_hash, expires_at, absolute_expires_at)
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                userId,
-                sessionId,
-                "a".repeat(64),
-                Timestamp.from(NOW.plusSeconds(3600)),
-                Timestamp.from(NOW.plusSeconds(7200))
-        );
-    }
+    @Mock
+    private UserRefreshTokenRepository userRefreshTokenRepository;
 
     @ParameterizedTest
-    @ValueSource(strings = {"ACTIVE", "BANNED"})
-    @DisplayName("탈퇴하지 않은 회원의 유효한 로그인은 회원을 반환하고 정지 회원도 허용한다")
-    void findUsableUser_liveSession_returnsUser(String status) {
+    @EnumSource(UserStatus.class)
+    @DisplayName("유효한 로그인은 정상 회원과 정지 회원을 모두 반환한다")
+    void findUsableUser_liveSession_returnsUser(UserStatus status) {
         // Given
-        jdbc.update(
-                "UPDATE users SET status=CAST(? AS user_status) WHERE id=?",
-                status,
-                userId
-        );
-        entityManager.flush();
-        entityManager.clear();
+        User user = status == UserStatus.BANNED
+                ? UserFixture.createBanned(USER_ID)
+                : UserFixture.create(USER_ID);
+        given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+        given(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
+                SESSION_ID,
+                USER_ID,
+                NOW
+        )).willReturn(true);
+
         // When
-        var result = service.findUsableUser(
-                userId,
-                sessionId,
+        Optional<User> result = loginSessionService.findUsableUser(
+                USER_ID,
+                SESSION_ID,
                 NOW
         );
+
         // Then
-        assertThat(result).hasValueSatisfying(user -> assertThat(user.getId()).isEqualTo(userId));
+        assertThat(result).containsSame(user);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"withdrawn", "revoked", "rotated", "expired", "absoluteExpired",
-            "missingToken", "otherOwner", "unknownSession", "missingUser"})
-    @DisplayName("탈퇴·폐기·회전·만료·소유자 불일치와 없는 로그인은 예외 없이 빈 결과를 반환한다")
-    void findUsableUser_unusableSession_returnsEmpty(String state) {
+    @ValueSource(booleans = {true, false})
+    @DisplayName("회원이 없거나 탈퇴했으면 로그인 상태를 조회하지 않고 빈 결과를 반환한다")
+    void findUsableUser_unavailableUser_returnsEmpty(boolean withdrawn) {
         // Given
-        UUID requestedUserId = userId;
-        UUID requestedSessionId = sessionId;
-        if (state.equals("withdrawn")) {
-            jdbc.update(
-                    "UPDATE users SET deleted_at=? WHERE id=?",
-                    Timestamp.from(NOW),
-                    userId
-            );
+        Optional<User> user = Optional.empty();
+        if (withdrawn) {
+            User withdrawnUser = UserFixture.create(USER_ID);
+            withdrawnUser.withdraw();
+            user = Optional.of(withdrawnUser);
         }
-        if (state.equals("revoked")) {
-            jdbc.update(
-                    "UPDATE user_refresh_tokens SET revoked_at=? WHERE session_id=?",
-                    Timestamp.from(NOW),
-                    sessionId
-            );
-        }
-        if (state.equals("rotated")) {
-            jdbc.update(
-                    "UPDATE user_refresh_tokens SET rotated_at=? WHERE session_id=?",
-                    Timestamp.from(NOW),
-                    sessionId
-            );
-        }
-        if (state.equals("expired")) {
-            jdbc.update(
-                    "UPDATE user_refresh_tokens SET expires_at=? WHERE session_id=?",
-                    Timestamp.from(NOW),
-                    sessionId
-            );
-        }
-        if (state.equals("absoluteExpired")) {
-            jdbc.update(
-                    """
-                            UPDATE user_refresh_tokens SET expires_at=?, absolute_expires_at=?
-                            WHERE session_id=?
-                            """,
-                    Timestamp.from(NOW),
-                    Timestamp.from(NOW),
-                    sessionId
-            );
-        }
-        if (state.equals("missingToken")) {
-            jdbc.update("DELETE FROM user_refresh_tokens WHERE session_id=?", sessionId);
-        }
-        if (state.equals("otherOwner")) {
-            User other = users.save(UserFixture.create());
-            entityManager.flush();
-            requestedUserId = other.getId();
-        }
-        if (state.equals("unknownSession")) {
-            requestedSessionId = UUID.randomUUID();
-        }
-        if (state.equals("missingUser")) {
-            requestedUserId = UUID.randomUUID();
-        }
-        entityManager.flush();
-        entityManager.clear();
+        given(userRepository.findById(USER_ID)).willReturn(user);
+
         // When
-        var result = service.findUsableUser(
-                requestedUserId,
-                requestedSessionId,
+        Optional<User> result = loginSessionService.findUsableUser(
+                USER_ID,
+                SESSION_ID,
                 NOW
         );
+
+        // Then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(userRefreshTokenRepository);
+    }
+
+    @Test
+    @DisplayName("사용할 수 없는 로그인은 예외 없이 빈 결과를 반환한다")
+    void findUsableUser_unusableSession_returnsEmpty() {
+        // Given
+        given(userRepository.findById(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
+                SESSION_ID,
+                USER_ID,
+                NOW
+        )).willReturn(false);
+
+        // When
+        Optional<User> result = loginSessionService.findUsableUser(
+                USER_ID,
+                SESSION_ID,
+                NOW
+        );
+
         // Then
         assertThat(result).isEmpty();
     }
