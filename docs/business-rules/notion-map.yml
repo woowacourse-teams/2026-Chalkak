@@ -41,6 +41,7 @@ rule_pages:
       등록과 취소: [LIKE-003]
       표시와 집계: [LIKE-004]
       게시물 삭제 시 처리: [LIKE-005]
+      좋아요 달성 알림: [LIKE-006]
   docs/business-rules/rules/feedback.md:
     domain: 피드백
     pages:
@@ -92,6 +93,7 @@ rule_pages:
       관리자 공지: [NOTIFICATION-012, NOTIFICATION-013]
       관리자 리마인더: [NOTIFICATION-014, NOTIFICATION-016]
       AI 리뷰 결과 알림: [NOTIFICATION-015]
+      좋아요 달성 알림: [NOTIFICATION-017]
   docs/business-rules/rules/ai-review.md:
     domain: AI 리뷰
     pages:
