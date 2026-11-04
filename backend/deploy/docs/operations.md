@@ -80,7 +80,7 @@ Gradle toolchain vendor는 Adoptium이다. CodeBuild에서는 `JAVA_HOME`에 준
 
 ### 두 버전 중복 실행 주의
 
-좋아요 새 알림 종류의 최초 배포는 [1차 호환 배포·2차 활성화 절차](like-milestone-rollout.md)를 따른다. 임시 스위치를 false로 유지하는 1차가 각 환경에서 끝나기 전에 활성화하지 않는다.
+좋아요 알림의 개발·운영 1차 준비는 완료했다. [2차 활성화 절차](like-milestone-rollout.md)에 따라 배포하면 신규 단계부터 자동 생성하며, 추가 초기화 SQL이나 ON 설정은 필요하지 않다. 실제 2차 배포 여부와 기기 수신은 별도로 확인한다.
 
 - 안정화 약 10분(관찰이 연장되면 최대 약 12분) 동안 두 버전이 함께 실행되어 스케줄러와 worker도 둘 다 동작한다. 중복 실행 여부 검토는 후속 작업이다.
 - 알려진 위험: 푸시 Worker(SQS consumer)가 두 컨테이너에서 모두 동작한다. `PushDeliveryLocks`는 JVM 메모리 락이고 토픽 스케줄러의 라운드 기록도 JVM 메모리에 있어, 약 10~12분의 중복 구간에 같은 기기가 FCM 푸시를 중복 수신하거나 같은 이벤트가 큐에 두 번 발행될 수 있다. 배포 후 확인하고 후속 작업(웹과 Worker 분리 또는 JVM 간 발송 소유권 도입)으로 처리한다.
@@ -140,6 +140,8 @@ curl --fail http://127.0.0.1:<활성 포트>/actuator/health
 운영 EC2, RDS, `/etc/chalkak/application.env`가 준비된 뒤 진행한다.
 
 ### 백엔드 릴리스 branch 준비
+
+좋아요 2차 활성화 #944는 [좋아요 전용 선택 릴리스](like-milestone-rollout.md#운영에는-좋아요-변경만-반영)를 따른다. 해당 릴리스에서는 아래의 `backend docs` 전체 교체 명령을 사용하지 않고, 최신 `main`에 #944 최종 변경만 적용해 검증한다. #933 고객센터 답변 알림은 제외한다.
 
 `be/develop`을 `main`에 직접 병합하지 않는다. 릴리스를 Squash로 병합해 두 branch 이력이 이어져 있지 않으므로, 이미 반영된 변경도 충돌로 표시된다. `main`에서 릴리스 branch를 만들고 백엔드 경로만 `be/develop` 기준으로 교체한다.
 
