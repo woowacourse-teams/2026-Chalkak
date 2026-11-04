@@ -2,6 +2,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -18,9 +19,10 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.infrastructure.infra.NotificationCleanupScheduler;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CyclicBarrier;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
@@ -39,6 +41,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.feedback.repository.FeedbackRepository;
 
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=false")
@@ -57,6 +63,11 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     private NotificationRepository notificationRepository;
     @Autowired
     private NotificationCleanupScheduler notificationCleanupScheduler;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+    @Autowired
+    private FeedbackRepository feedbackRepository;
 
     private UUID adminId;
     private UUID userId;
@@ -181,24 +192,54 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     @DisplayName("동시 답변 요청은 한 건만 성공하고 알림과 감사도 한 번만 남긴다")
     void answerFeedback_concurrentRequests_savesOnlyOnce() throws Exception {
         // Given
-        var start = new CyclicBarrier(2);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Integer> firstPid = new CompletableFuture<>();
+        CompletableFuture<Integer> secondPid = new CompletableFuture<>();
+        CountDownLatch releaseFirst = new CountDownLatch(1);
 
         // When
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> {
-                start.await(5, TimeUnit.SECONDS);
-                return answer("첫 답변").andReturn().getResponse().getStatus();
-            });
-            var second = executor.submit(() -> {
-                start.await(5, TimeUnit.SECONDS);
-                return answer("다른 답변").andReturn().getResponse().getStatus();
-            });
+            var first = executor.submit(() -> transaction.executeWithoutResult(status -> {
+                feedbackRepository.findByIdForUpdate(feedbackId).orElseThrow();
+                firstPid.complete(jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class));
+                awaitRelease(releaseFirst);
+                commandService.answerFeedback(
+                        feedbackId,
+                        adminId,
+                        "첫 답변"
+                );
+            }));
+            try {
+                int lockOwner = firstPid.get(5, TimeUnit.SECONDS);
+                var second = executor.submit(() -> transaction.executeWithoutResult(status -> {
+                    secondPid.complete(
+                            jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class));
+                    commandService.answerFeedback(
+                            feedbackId,
+                            adminId,
+                            "다른 답변"
+                    );
+                }));
+                int waiter = secondPid.get(5, TimeUnit.SECONDS);
+                await().atMost(Duration.ofSeconds(5)).until(() -> Boolean.TRUE.equals(
+                        jdbc.queryForObject(
+                                "SELECT ? = ANY(pg_blocking_pids(?))",
+                                Boolean.class,
+                                lockOwner,
+                                waiter
+                        )));
+                releaseFirst.countDown();
+                first.get(10, TimeUnit.SECONDS);
 
-            // Then
-            assertThat(List.of(first.get(10, TimeUnit.SECONDS),
-                    second.get(10, TimeUnit.SECONDS))).containsExactlyInAnyOrder(204, 400);
+                // Then
+                assertThatThrownBy(() -> second.get(10, TimeUnit.SECONDS))
+                        .hasCauseInstanceOf(BusinessException.class)
+                        .hasRootCauseMessage("이미 답변한 문의입니다.");
+            } finally {
+                releaseFirst.countDown();
+            }
         }
-        assertThat(storedAnswer()).isIn("첫 답변", "다른 답변");
+        assertThat(storedAnswer()).isEqualTo("첫 답변");
         assertThat(notificationCount()).isEqualTo(1L);
         assertThat(auditCount()).isEqualTo(1L);
     }
@@ -303,6 +344,15 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").value("비공개 문의"))
                 .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
+    }
+
+    private void awaitRelease(CountDownLatch release) {
+        try {
+            assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private String adminToken() {
