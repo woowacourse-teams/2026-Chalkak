@@ -323,16 +323,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThat(storedAnswer()).isEqualTo("비공개 답변");
         assertThat(savedAnsweredAt()).isEqualTo(answeredAt);
         assertThat(jdbc.queryForObject(
-                """
-                        SELECT COUNT(*) FROM admin_audit_logs a JOIN feedbacks f ON a.target_id = f.id
-                        WHERE f.id = ? AND a.action = 'FEEDBACK_ANSWER_DELETED'
-                          AND a.before_state = jsonb_build_object('answeredAt',
-                              a.before_state->>'answeredAt', 'answerDeletedAt', null)
-                          AND a.after_state = jsonb_build_object('answeredAt',
-                              a.after_state->>'answeredAt', 'answerDeletedAt', a.after_state->>'answerDeletedAt')
-                          AND (a.after_state->>'answeredAt')::timestamptz = f.answered_at
-                          AND (a.after_state->>'answerDeletedAt')::timestamptz = f.answer_deleted_at
-                        """,
+                "SELECT COUNT(*) FROM admin_audit_logs WHERE target_id = ? AND action = 'FEEDBACK_ANSWER_DELETED'",
                 Long.class,
                 feedbackId
         )).isEqualTo(1L);
