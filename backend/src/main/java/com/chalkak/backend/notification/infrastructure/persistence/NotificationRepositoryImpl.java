@@ -161,6 +161,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
+    public void deleteFeedbackNotifications(UUID feedbackId) {
+        notificationJpaRepository.deleteFeedbackNotifications(feedbackId);
+    }
+
+    @Override
     public void deleteExpiredForActiveUsers(Instant createdBefore) {
         notificationJpaRepository.deleteExpiredForActiveUsers(createdBefore);
     }

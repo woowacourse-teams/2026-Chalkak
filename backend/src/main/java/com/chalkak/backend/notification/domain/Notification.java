@@ -200,7 +200,7 @@ public class Notification {
         notification.title = "고객센터 답변이 도착했습니다.";
         notification.body = "문의 상세에서 답변을 확인해 주세요.";
         notification.createdAt = createdAt;
-        notification.initializePublication(false);
+        notification.initializePublication(true);
         return notification;
     }
 

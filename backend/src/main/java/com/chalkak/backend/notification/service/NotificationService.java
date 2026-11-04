@@ -101,6 +101,11 @@ public class NotificationService {
         ));
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void deleteFeedbackNotifications(UUID feedbackId) {
+        notificationRepository.deleteFeedbackNotifications(feedbackId);
+    }
+
     public NotificationListResult getNotifications(
             UUID userId,
             int page,

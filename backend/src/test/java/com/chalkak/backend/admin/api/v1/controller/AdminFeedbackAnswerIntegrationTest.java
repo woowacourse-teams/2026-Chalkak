@@ -2,13 +2,20 @@ package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.notification.infrastructure.infra.NotificationCleanupScheduler;
+import com.chalkak.backend.notification.repository.NotificationRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
@@ -42,6 +49,11 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     private JwtAccessTokenProvider tokenProvider;
     @Autowired
     private AdminFeedbackCommandService commandService;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+    @Autowired
+    private NotificationCleanupScheduler notificationCleanupScheduler;
 
     private UUID adminId;
     private UUID userId;
@@ -96,7 +108,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 """
                         SELECT COUNT(*) FROM notifications
                         WHERE user_id = ? AND source_id = ? AND source_type = 'FEEDBACK'
-                          AND type = 'FEEDBACK_ANSWERED' AND sqs_publish_status = 'NOT_REQUIRED'
+                          AND type = 'FEEDBACK_ANSWERED' AND sqs_publish_status = 'PENDING'
                         """,
                 Long.class,
                 userId,
@@ -180,10 +192,115 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThat(auditCount()).isEqualTo(1L);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("관리자·사용자 문의 삭제는 답변 알림 행을 지우고 발행과 발송 대상에서 제외한다")
+    void deleteFeedback_answeredFeedback_deletesNotification(boolean adminDelete) throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+        UUID notificationId = jdbc.queryForObject(
+                "SELECT id FROM notifications WHERE user_id = ?",
+                UUID.class,
+                userId
+        );
+        String memberToken = "Bearer "
+                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+        Instant dueAt = Instant.now().plusSeconds(60);
+        assertThat(notificationRepository.findDuePublicationIds(dueAt, 100))
+                .contains(notificationId);
+        assertThat(notificationRepository.findForPushByIdAndUserId(notificationId, userId))
+                .isPresent();
+        mockMvc.perform(get("/api/v1/notifications").header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notifications[0].type").value("FEEDBACK_ANSWERED"))
+                .andExpect(jsonPath("$.notifications[0].sourceType").value("FEEDBACK"))
+                .andExpect(jsonPath("$.notifications[0].sourceId").value(feedbackId.toString()));
+
+        // When
+        String path = adminDelete ? "/api/v1/admin/feedbacks/{id}" : "/api/v1/feedbacks/{id}";
+        mockMvc.perform(delete(path, feedbackId).header(
+                HttpHeaders.AUTHORIZATION, adminDelete ? adminToken() : memberToken))
+                .andExpect(status().isNoContent());
+
+        // Then
+        mockMvc.perform(get("/api/v1/notifications").header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notifications").isEmpty());
+        mockMvc.perform(get("/api/v1/notifications/unread-status")
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasUnread").value(false));
+        mockMvc.perform(get("/api/v1/notifications/{id}", notificationId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(patch("/api/v1/notifications/{id}/read", notificationId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isNotFound());
+        assertThat(notificationRepository.findDuePublicationIds(dueAt, 100))
+                .doesNotContain(notificationId);
+        assertThat(notificationRepository.findForPushByIdAndUserId(notificationId, userId))
+                .isEmpty();
+        assertThat(notificationCount()).isZero();
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deletedAt").isNotEmpty())
+                .andExpect(jsonPath("$.content").value("비공개 문의"))
+                .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
+    }
+
+    @Test
+    @DisplayName("문의 삭제 감사 저장이 실패하면 문의와 답변 알림을 모두 보존한다")
+    void deleteFeedback_auditFailure_preservesFeedbackAndNotification() throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+
+        // When & Then
+        assertThatThrownBy(() -> commandService.deleteFeedback(feedbackId, UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(notificationCount()).isEqualTo(1L);
+        String memberToken = "Bearer "
+                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
+    }
+
+    @Test
+    @DisplayName("보관 기간이 지난 답변 알림은 문의를 삭제하지 않아도 정리하며 문의와 답변은 보존한다")
+    void deleteExpiredNotifications_openFeedback_preservesFeedbackAndAnswer() throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+        jdbc.update(
+                "UPDATE notifications SET created_at = CURRENT_TIMESTAMP - INTERVAL '31 days' WHERE user_id = ?",
+                userId
+        );
+
+        // When
+        notificationCleanupScheduler.deleteExpiredNotifications();
+
+        // Then
+        assertThat(notificationCount()).isZero();
+        String memberToken = "Bearer "
+                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("비공개 문의"))
+                .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
+    }
+
+    private String adminToken() {
+        return "Bearer " + tokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
+    }
+
     private ResultActions answer(String content) throws Exception {
         return mockMvc.perform(post("/api/v1/admin/feedbacks/{feedbackId}/answer", feedbackId)
-                .header(HttpHeaders.AUTHORIZATION,
-                        "Bearer " + tokenProvider.issue(adminId, AccessTokenScope.ADMIN).value())
+                .header(HttpHeaders.AUTHORIZATION, adminToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answerContent\":\"" + content + "\"}"));
     }

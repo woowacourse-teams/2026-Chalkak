@@ -311,6 +311,14 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
     @Modifying
     @Query("""
             DELETE FROM Notification notification
+            WHERE notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.FEEDBACK
+                AND notification.sourceId = :feedbackId
+            """)
+    void deleteFeedbackNotifications(@Param("feedbackId") UUID feedbackId);
+
+    @Modifying
+    @Query("""
+            DELETE FROM Notification notification
             WHERE notification.createdAt < :createdBefore
                 AND notification.userId IN (
                     SELECT user.id FROM User user WHERE user.deletedAt IS NULL

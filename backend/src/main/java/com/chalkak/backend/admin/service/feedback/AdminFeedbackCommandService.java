@@ -70,6 +70,7 @@ public class AdminFeedbackCommandService {
         }
         AdminAuditSnapshot beforeState = createDeletionState(feedback);
         feedback.delete(clock.instant());
+        notificationService.deleteFeedbackNotifications(feedbackId);
         auditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.FEEDBACK_DELETED,

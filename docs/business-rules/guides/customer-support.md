@@ -147,10 +147,16 @@ Authorization: Bearer {accessToken}
 
 제출 실패가 명확한 `400`이면 새 문의는 저장되지 않는다. 네트워크 실패·타임아웃은 저장 여부를 단정하지 않는다. 상세·삭제의 문의 ID는 앱이 받은 `feedbackId`를 그대로 사용한다.
 
+## 답변 알림에서 문의 상세 열기
+
+알림함 목록과 푸시에서 `type=FEEDBACK_ANSWERED`, `sourceType=FEEDBACK`이면 `sourceId`를 문의 ID로 사용해 `GET /api/v1/feedbacks/{feedbackId}`를 호출한다. `notificationId`는 알림 읽음 처리에 사용한다. 답변 원문은 문의 상세 응답의 `answerContent`에서 읽는다.
+
+문의가 삭제되면 서버가 관련 알림 행을 즉시 지운다. 질문·답변 원문은 관리자 조회에 보존된다. 이미 받은 푸시를 눌러 상세에서 404가 오면 문의를 더 이상 볼 수 없다고 안내하고 목록을 갱신한다. 알림이 30일 뒤 사라져도 문의 상세에서 답변을 확인할 수 있다.
+
 ## 기존 피드백과 적용 상태
 
 고객센터 도입 전 피드백은 사용자 내역에서 제외한다. 기준은 전환 마이그레이션의 DB 트랜잭션 시작 시각이며, 접수 시각이 그보다 이른 기록만 숨긴다. 기준과 같거나 이후의 문의는 배포 중 이전 앱에서 접수했더라도 신규로 남긴다. 기존 기록이 보이지 않는다고 앱에서 복원하거나 임의의 과거 ID로 다시 등록하지 않는다.
 
-상세 답변 조회와 함께 제공할 관리자 답변 등록 및 사용자 알림 연동은 [#905](https://github.com/woowacourse-teams/2026-Chalkak/issues/905), 답변 삭제·재답변은 [#906](https://github.com/woowacourse-teams/2026-Chalkak/issues/906)의 후속 범위다. 답변 알림을 눌렀을 때 상세로 이동하는 기능도 해당 계약이 추가된 뒤 연결한다.
+답변 삭제·재답변은 [#906](https://github.com/woowacourse-teams/2026-Chalkak/issues/906)의 후속 범위다.
 
 원본 문서 커밋, `be/develop` 병합, 공통 공유본 게시, 서버 배포와 Android 적용은 별개다. [PR #911](https://github.com/woowacourse-teams/2026-Chalkak/pull/911)의 병합·서버 릴리스 상태와 앱이 읽는 공통 문서 버전을 각각 확인한 뒤 연동한다.
