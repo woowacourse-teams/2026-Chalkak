@@ -369,6 +369,18 @@ class AdminPostControllerTest {
         then(adminPostQueryService).shouldHaveNoInteractions();
     }
 
+    @Test
+    @DisplayName("인스타그램 ID 검색어에 NUL 문자가 있으면 400을 반환하고 서비스를 호출하지 않는다")
+    void getPosts_instagramIdWithNul_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("instagramId", "chalkak\u0000user"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostQueryService).shouldHaveNoInteractions();
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {1, 100})
     @DisplayName("관리자 게시물 페이지 크기의 양쪽 경계값을 허용한다")
