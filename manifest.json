@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "source_commit": "c1b08088f4325870dfe0644edad39783461bc098",
-  "version": "623dbf20ef0e90da71560c4dfa23ffff296fbe3d12ab1520eb83d4fe953630c4",
+  "source_commit": "457453583e75b6d506a1a799df50eb17144604dd",
+  "version": "4e1b447a8dba1a5b80eec51987144368631840cb1e52f53b693381ba804f492c",
   "files": {
     ".agents/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
     ".claude/skills/business-rules/SKILL.md": "967c6d50de567d4bb7e7b52dc83b5096fb6bd670f77d697466804acff6181f54",
@@ -64,7 +64,7 @@
     "docs/business-rules/decisions/2026-11-03-feedback-own-detail.md": "93240a61303677d3af1fd08f4dd2c850fdaf266a6d664138c9d3f23f87975419",
     "docs/business-rules/decisions/2026-11-03-feedback-own-list.md": "c99668d9799d188cb11eb5235e3a0ec69c2743ce1c8a6a2501eaf37968621478",
     "docs/business-rules/decisions/2026-11-03-feedback-submission-limits.md": "fb2accabf8029987d7c550e38cb65864d36c0d586f04cb93602c62c0fdb13523",
-    "docs/business-rules/decisions/2026-11-03-instagram-upload-consent.md": "ade43b2a725b464d31fde46470e85d9a78cf760ebb15803da74d1dd1c7df1c46",
+    "docs/business-rules/decisions/2026-11-03-instagram-upload-consent.md": "ad4d2792cfef1ac06d8ca423f1753c3d66e74e226a0e6d2d1e1d246c20832708",
     "docs/business-rules/decisions/2026-11-03-like-milestone-notification.md": "74e2b6adfb93cd1a19fd01c95ff648a74f8b983cf948213c827b108c0b32deed",
     "docs/business-rules/decisions/2026-11-04-feedback-answer-notification.md": "c422a9c493cc33d7dfe2e1b8b61cd5a14159f8e156db49917b34794b457ed523",
     "docs/business-rules/decisions/_template.md": "514528ba4220affec03596503a1efff931d270762c4e9d5790c15f62e23bf467",
@@ -88,9 +88,9 @@
     "docs/business-rules/rules/feedback.md": "62c293caabd1bde9769cfec9848d9898b0ec2145f1121f3fff5188d256de4d9f",
     "docs/business-rules/rules/like.md": "112b766440dfec67169d6bd53044052d386a988cb63677c6c7ba0b0fe0a3171b",
     "docs/business-rules/rules/notification.md": "df9301c061639b29a31f7ab55fdbe4d9c4bfbdb30b945a64228402215a3827dd",
-    "docs/business-rules/rules/post.md": "bab13ce1cb424f98f71fbe81057ffd79f6e859eaee78b1308fb77152b1c6c049",
+    "docs/business-rules/rules/post.md": "50bdb413f7e8f99c7c5846037771c682e3a5f9199917a82fc54f29509f0d89b5",
     "docs/business-rules/rules/sign.md": "3f479382681c77c41654d6d9e21911ed13843e9ebc36db3aaf2a8f36b78b26e2",
     "docs/business-rules/rules/topic.md": "ec62808811531e9fb9efba2eae969c80651d22c798f0d1cf6ea9ebcbd9767a90",
-    "docs/business-rules/rules/user.md": "ee9bcfadbc4d5391ecef1cadf6c9f0b062e00773887cf8caecc64643479cf69b"
+    "docs/business-rules/rules/user.md": "767ab812ec281d8ac6630ff82a89a42782635319c70a71b390e22cca50b99697"
   }
 }
