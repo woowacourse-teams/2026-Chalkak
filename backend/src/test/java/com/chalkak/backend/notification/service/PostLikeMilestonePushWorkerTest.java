@@ -39,11 +39,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@TestPropertySource(properties = "chalkak.notification.like-milestone.enabled=false")
 class PostLikeMilestonePushWorkerTest extends IntegrationTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-11-03T00:00:00Z");
