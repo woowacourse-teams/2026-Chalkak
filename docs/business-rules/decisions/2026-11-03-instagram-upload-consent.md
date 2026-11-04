@@ -5,9 +5,9 @@
 - 변경 전: 게시물에는 사진을 Chalkak 공식 인스타그램에 올려도 되는지에 대한 동의 정보가 없었다. 수정은 제목과 설명만 교체했다.
 - 변경 후: 게시물마다 인스타그램 게시 동의 여부(기본 `false`)와 선택 인스타그램 ID를 받는다. ID는 동의한 경우에만 보낼 수 있고, 앞뒤 공백과 맨 앞 `@` 하나를 제거해 소문자로 저장하며 영문 소문자·숫자·`.`·`_` 1~30자여야 한다. 동의 없이 ID를 보내면 거절한다. 동의 여부와 ID는 게시물 수정에서 제목·설명과 함께 통째로 교체하며 생략하면 `false`·`null`로 교체한다. 동의·철회 시각은 동의 여부가 실제로 바뀔 때만 기록한다. 게시물 상세에서는 작성자 본인에게만 `instagramConsent`를 내려주고, 게시물을 삭제하면 ID를 지운다. 회원이 탈퇴하면 본인 게시물의 동의를 철회하고 ID를 지운다.
 - 변경 이유: 운영진이 승인된 게시물 중에서 사진을 골라 공식 인스타그램에 수동으로 올리려면 작성자의 동의와 태그할 계정이 필요하다. 동의는 작품(게시물) 단위로 받아야 사용자가 사진마다 공개 여부를 정할 수 있고, 회원 단위 기본 설정은 의도하지 않은 게시 위험이 있어 두지 않는다. 별도 동의 변경 API를 만들지 않고 기존 수정 API를 재사용하면 허용 조건(작성자 본인, `PENDING`·`APPROVED`, 주제 `OPEN`, 정지 회원 불가)을 새로 정의하지 않아도 된다. 수정 요청에서 동의 필드를 생략하면 철회로 처리하는 방식은 설명 생략 처리와 같으며, 이전 버전 앱은 동의를 켤 수 없어 잃을 동의가 없으므로 강제 업데이트가 필요 없다. 동의가 의도치 않게 켜지는 방향의 하위 호환 문제는 없다.
-- 영향 범위: `POST /api/v1/posts`·`PUT /api/v1/posts/{postId}` 요청의 `instagramUploadAgreed`·`instagramId`, 수정 응답의 같은 두 필드, `GET /api/v1/posts/{postId}` 응답의 nullable `instagramConsent`, `posts`의 동의·ID·동의 시각·철회 시각 컬럼, 회원 탈퇴 처리의 게시물 동의 철회. Android·iOS의 작성·수정 화면(동의 체크박스, ID 입력, 수정 시 현재 값 재전송)과 본인 게시물 상세 표시가 영향을 받는다. 기존 필드와 수정 조건을 유지하는 필드 추가이므로 v1을 유지한다.
-- 관련 규칙: POST-010, POST-013, USER-004
-- 관련 이슈·PR: [#915](https://github.com/woowacourse-teams/2026-Chalkak/issues/915), [#916](https://github.com/woowacourse-teams/2026-Chalkak/issues/916), [#917](https://github.com/woowacourse-teams/2026-Chalkak/issues/917)
+- 영향 범위: `POST /api/v1/posts`·`PUT /api/v1/posts/{postId}` 요청의 `instagramUploadAgreed`·`instagramId`, 수정 응답의 같은 두 필드, `GET /api/v1/posts/{postId}` 응답의 nullable `instagramConsent`, `posts`의 동의·ID·동의 시각·철회 시각 컬럼, 회원 탈퇴 처리의 게시물 동의 철회. 관리자 게시물 목록의 `instagramConsent`·`instagramId` 필터와 목록·상세의 동의 정보(운영진이 동의한 사진을 찾는 용도, 업로드 기록은 시스템 밖에서 관리), Android·iOS의 작성·수정 화면(동의 체크박스, ID 입력, 수정 시 현재 값 재전송)과 본인 게시물 상세 표시가 영향을 받는다. 기존 필드와 수정 조건을 유지하는 필드 추가이므로 v1을 유지한다.
+- 관련 규칙: POST-010, POST-013, USER-004, ADMIN-004
+- 관련 이슈·PR: [#915](https://github.com/woowacourse-teams/2026-Chalkak/issues/915), [#916](https://github.com/woowacourse-teams/2026-Chalkak/issues/916), [#917](https://github.com/woowacourse-teams/2026-Chalkak/issues/917), [#918](https://github.com/woowacourse-teams/2026-Chalkak/issues/918)
 
 ## 수정 요청에서 동의를 생략할 때
 
