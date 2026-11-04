@@ -9,6 +9,7 @@ import { createAppVersionHandlers, resetAppVersionMocks } from "./app-version-ha
 import type {
   AdminAuditLogResponse,
   TopicPushSchedule,
+  AdminFeedbackDetail,
   AdminFeedbackListResponse,
   AdminPostCounts,
   AdminPostDetailResponse,
@@ -24,6 +25,7 @@ import {
   emptyPostListFixture,
   errorFixtures,
   feedbackFixtures,
+  feedbackIds,
   postDetailFixtures,
   topicDetailFixtures,
   userDetailFixtures,
@@ -37,6 +39,8 @@ let postStore = structuredClone(postDetailFixtures);
 let userStore = structuredClone(userDetailFixtures);
 let topicStore = structuredClone(topicDetailFixtures);
 let auditStore: AdminAuditLogResponse[] = [];
+type FeedbackChanges = Pick<AdminFeedbackDetail, "deletedAt" | "answerContent" | "answeredAt" | "answerState" | "answerVersion">;
+const feedbackChanges = new Map<string, Partial<FeedbackChanges>>();
 const scheduleFixtures: TopicPushSchedule[] = [
   { scheduleId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", sendTime: "09:00:00", createdAt: "2026-10-08T00:00:00Z", updatedAt: "2026-10-08T00:00:00Z" },
   { scheduleId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", sendTime: "18:30:00", createdAt: "2026-10-08T00:00:00Z", updatedAt: "2026-10-08T00:00:00Z" },
@@ -51,6 +55,7 @@ export function resetMockData() {
   resetAiPromptMocks();
   mockAdminSignedIn = false;
   auditStore = [];
+  feedbackChanges.clear();
   scheduleStore = structuredClone(scheduleFixtures);
   postStore = structuredClone(postDetailFixtures);
   userStore = structuredClone(userDetailFixtures);
@@ -100,21 +105,62 @@ function withoutSignature(user: AdminUserDetailResponse) {
   return summary;
 }
 
+function getFeedback(id: string): AdminFeedbackDetail | undefined {
+  const fixture = feedbackFixtures.find((feedback) => feedback.feedbackId === id);
+  if (!fixture) return undefined;
+  const { userId, ...feedback } = fixture;
+  const user = userStore[userId];
+  const answered = id === feedbackIds.middle;
+  return {
+    ...feedback,
+    author: { userId, email: user.email, status: user.status, appVersion: user.appVersion },
+    deletedAt: id === feedbackIds.oldest ? "2026-09-17T01:00:00Z" : null,
+    answerContent: answered ? "이용 제한 사유를 확인했습니다. 계정 상태가 바뀌면 앱에서 확인하실 수 있습니다." : null,
+    answeredAt: answered ? "2026-09-16T02:10:00Z" : null,
+    answerState: answered ? "ANSWERED" : "UNANSWERED",
+    answerVersion: answered ? "demo-initial-answer" : null,
+    ...feedbackChanges.get(id),
+  };
+}
+
+function matchesInquiryStatus(feedback: AdminFeedbackDetail, status: string | null) {
+  switch (status) {
+    case "NEEDS_ANSWER":
+      return !feedback.deletedAt && feedback.author.status !== "WITHDRAWN" && feedback.answerState !== "ANSWERED";
+    case "ANSWERED":
+      return !feedback.deletedAt && feedback.answerState === "ANSWERED";
+    case "INQUIRY_DELETED":
+      return Boolean(feedback.deletedAt);
+    default:
+      return true;
+  }
+}
+
 function listFeedbacks(request: Request): AdminFeedbackListResponse {
   const params = new URL(request.url).searchParams;
   const sort = params.get("sort") ?? "createdAtDesc";
+  const userId = params.get("userId");
+  const inquiryStatus = params.get("inquiryStatus");
+  const bannedAuthorOnly = params.get("bannedAuthorOnly") === "true";
   const page = Math.max(1, Number(params.get("page") ?? 1));
   const pageSize = Math.min(100, Math.max(1, Number(params.get("pageSize") ?? 20)));
-  const feedbacks = [...feedbackFixtures]
+  const feedbacks = feedbackFixtures
+    .filter((feedback) => !userId || feedback.userId === userId)
     .sort((left, right) => sort === "createdAtAsc"
       ? left.createdAt.localeCompare(right.createdAt)
       : right.createdAt.localeCompare(left.createdAt))
-    .map(({ userId, ...feedback }) => {
-      const user = userStore[userId];
-      return {
-        ...feedback,
-        author: { userId, email: user.email, status: user.status, appVersion: user.appVersion },
-      };
+    .flatMap(({ feedbackId }) => {
+      const feedback = getFeedback(feedbackId);
+      if (!feedback || !matchesInquiryStatus(feedback, inquiryStatus)
+        || (bannedAuthorOnly && feedback.author.status !== "BANNED")) return [];
+      return [{
+        feedbackId,
+        content: feedback.content,
+        createdAt: feedback.createdAt,
+        deletedAt: feedback.deletedAt,
+        answerState: feedback.answerState,
+        author: feedback.author,
+      }];
     });
   const start = (page - 1) * pageSize;
   return {
@@ -123,6 +169,10 @@ function listFeedbacks(request: Request): AdminFeedbackListResponse {
     hasNext: start + pageSize < feedbacks.length,
     feedbacks: feedbacks.slice(start, start + pageSize),
   };
+}
+
+function feedbackError(message: string, status = 400) {
+  return HttpResponse.json({ errorCode: "BUSINESS_ERROR", message }, { status });
 }
 
 function listUsers(request: Request): AdminUserListResponse {
@@ -317,6 +367,44 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
   http.get(adminApi + "/feedbacks", ({ request }) => HttpResponse.json(listFeedbacks(request))),
+  http.get(adminApi + "/feedbacks/:id", ({ params }) => {
+    const feedback = getFeedback(String(params.id));
+    return feedback ? HttpResponse.json(feedback) : feedbackError("문의를 찾을 수 없습니다.", 404);
+  }),
+  http.post(adminApi + "/feedbacks/:id/answer", async ({ params, request }) => {
+    const id = String(params.id);
+    const feedback = getFeedback(id);
+    if (!feedback) return feedbackError("문의를 찾을 수 없습니다.", 404);
+    if (feedback.deletedAt || feedback.author.status === "WITHDRAWN" || feedback.answerState === "ANSWERED") {
+      return feedbackError("현재 상태에서는 답변할 수 없습니다.");
+    }
+    const body = await request.json() as { answerContent?: string };
+    const content = body.answerContent?.trim() ?? "";
+    if (!content || Array.from(content).length > 3000) return feedbackError("답변은 1~3,000자로 입력해 주세요.");
+    feedbackChanges.set(id, {
+      ...feedbackChanges.get(id), answerContent: content, answerState: "ANSWERED",
+      answeredAt: new Date().toISOString(), answerVersion: crypto.randomUUID(),
+    });
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.delete(adminApi + "/feedbacks/:id/answer", ({ params, request }) => {
+    const id = String(params.id);
+    const feedback = getFeedback(id);
+    if (!feedback) return feedbackError("문의를 찾을 수 없습니다.", 404);
+    const version = new URL(request.url).searchParams.get("answerVersion");
+    if (feedback.deletedAt || !version || version !== feedback.answerVersion) return feedbackError("삭제할 답변을 다시 확인해 주세요.");
+    feedbackChanges.set(id, {
+      ...feedbackChanges.get(id), answerContent: null, answerState: "DELETED", answeredAt: null, answerVersion: null,
+    });
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.delete(adminApi + "/feedbacks/:id", ({ params }) => {
+    const id = String(params.id);
+    const feedback = getFeedback(id);
+    if (!feedback) return feedbackError("문의를 찾을 수 없습니다.", 404);
+    feedbackChanges.set(id, { ...feedbackChanges.get(id), deletedAt: feedback.deletedAt ?? new Date().toISOString() });
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get(adminApi + "/users", ({ request }) => HttpResponse.json(listUsers(request))),
   http.get(adminApi + "/users/:userId", ({ params }) => {
     const user = userStore[String(params.userId)];

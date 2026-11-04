@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { userIds } from "@/mocks/fixtures";
+import { feedbackFixtures, feedbackIds, userIds } from "@/mocks/fixtures";
 import { QueryProvider } from "@/shared/query/query-provider";
 import { ToastProvider } from "@/shared/ui/toast";
 
@@ -79,6 +79,29 @@ describe("user management screens", () => {
     search.value = "returnTo=%2Ffeedbacks%3Fsort%3DcreatedAtAsc%26page%3D2";
     render(<QueryProvider><ToastProvider><UserDetailScreen userId={userIds.banned} /></ToastProvider></QueryProvider>);
     expect(await screen.findByRole("link", { name: "← 목록과 필터로 돌아가기" })).toHaveAttribute("href", "/feedbacks?sort=createdAtAsc&page=2");
+  });
+
+  it("shows only the profile owner's inquiries and links back to the same history page", async () => {
+    search.value = "returnTo=%2Ffeedbacks&feedbackPage=1";
+    render(<QueryProvider><ToastProvider><UserDetailScreen userId={userIds.active} /></ToastProvider></QueryProvider>);
+    const history = await screen.findByRole("region", { name: "문의 내역" });
+    const entries = await within(history).findAllByRole("listitem");
+    expect(entries).toHaveLength(1);
+    const link = within(entries[0]).getByRole("link");
+    expect(link).toHaveTextContent("사진 업로드 버튼");
+    expect(link).toHaveTextContent("미답변");
+    expect(history).not.toHaveTextContent(feedbackFixtures[1].content);
+    const detail = new URL(link.getAttribute("href")!, "http://localhost");
+    expect(detail.pathname).toBe("/feedbacks/" + feedbackIds.newest);
+    expect(detail.searchParams.get("returnTo")).toBe(
+      "/users/" + userIds.active + "?returnTo=%2Ffeedbacks&feedbackPage=1#feedback-history",
+    );
+  });
+
+  it("keeps deleted inquiries visible in the profile history", async () => {
+    render(<QueryProvider><ToastProvider><UserDetailScreen userId={userIds.withdrawn} /></ToastProvider></QueryProvider>);
+    const history = await screen.findByRole("region", { name: "문의 내역" });
+    expect(await within(history).findByText("삭제된 문의")).toBeInTheDocument();
   });
 
   it("requires an audit reason before banning an active user", async () => {
