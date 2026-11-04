@@ -37,7 +37,8 @@ public class AdminFeedbackCommandService {
     public void answerFeedback(
             UUID feedbackId,
             UUID adminId,
-            String answerContent
+            String answerContent,
+            boolean sendPush
     ) {
         Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
@@ -45,6 +46,7 @@ public class AdminFeedbackCommandService {
         userRepository.findActiveById(feedback.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "탈퇴한 회원의 문의에는 답변할 수 없습니다."));
+        boolean pushEnabled = feedback.getAnsweredAt() == null || sendPush;
         AdminAuditSnapshot beforeState = createAnswerState(feedback);
         feedback.answer(answerContent, clock.instant());
         AdminAuditLog auditLog = auditLogService.createAuditLog(new AdminAuditLogCommand(
@@ -60,7 +62,8 @@ public class AdminFeedbackCommandService {
                 feedback.getUserId(),
                 feedback.getId(),
                 auditLog.getId(),
-                feedback.getAnsweredAt()
+                feedback.getAnsweredAt(),
+                pushEnabled
         );
     }
 

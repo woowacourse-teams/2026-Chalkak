@@ -109,7 +109,8 @@ class AdminFeedbackControllerTest {
         then(adminFeedbackCommandService).should().answerFeedback(
                 FEEDBACK_ID,
                 ADMIN_ID,
-                answer
+                answer,
+                false
         );
     }
 

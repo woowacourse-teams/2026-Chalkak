@@ -44,7 +44,8 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
         adminFeedbackCommandService.answerFeedback(
                 CanonicalUuidParser.parse(feedbackId),
                 authenticatedAdmin.adminId(),
-                request.answerContent()
+                request.answerContent(),
+                Boolean.TRUE.equals(request.sendPush())
         );
         return ResponseEntity.noContent().build();
     }

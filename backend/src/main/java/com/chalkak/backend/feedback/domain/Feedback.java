@@ -69,7 +69,7 @@ public class Feedback {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의에는 답변할 수 없습니다.");
         }
-        if (this.answeredAt != null) {
+        if (this.answeredAt != null && !isAnswerDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 답변한 문의입니다.");
         }
         String normalized = content == null ? "" : content.strip();
@@ -77,7 +77,8 @@ public class Feedback {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "답변은 1~3,000자로 입력해 주세요.");
         }
         this.answerContent = normalized;
-        this.answeredAt = answeredAt.truncatedTo(ChronoUnit.MICROS);
+        this.answeredAt = nextAnsweredAt(answeredAt);
+        this.answerDeletedAt = null;
     }
 
     public boolean deleteAnswer(Instant expectedAnsweredAt, Instant deletedAt) {
@@ -125,6 +126,15 @@ public class Feedback {
     public static boolean isWithinMaxAnswerLength(String content) {
         String normalized = content.strip();
         return normalized.codePointCount(0, normalized.length()) <= MAX_ANSWER_LENGTH;
+    }
+
+    private Instant nextAnsweredAt(Instant now) {
+        Instant normalized = now.truncatedTo(ChronoUnit.MICROS);
+        if (answeredAt != null && !normalized.isAfter(answeredAt)) {
+            // 이전 삭제 요청이 새 답변에 적용되지 않도록 같은 정밀도에서도 새 시각을 보장한다.
+            return answeredAt.plus(1, ChronoUnit.MICROS);
+        }
+        return normalized;
     }
 
     private static String normalizeContent(String content) {

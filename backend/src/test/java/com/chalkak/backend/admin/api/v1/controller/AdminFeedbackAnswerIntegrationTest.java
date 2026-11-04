@@ -30,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -111,7 +112,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
 
         // When
         String answer = "비공개 답변";
-        answer(answer).andExpect(status().isNoContent());
+        answer(answer, false).andExpect(status().isNoContent());
 
         // Then
         assertThat(storedAnswer()).isEqualTo(answer);
@@ -165,7 +166,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> commandService.answerFeedback(
                 feedbackId,
                 UUID.randomUUID(),
-                "답변"
+                "답변",
+                false
         )).isInstanceOf(DataIntegrityViolationException.class);
         assertNoAnswerOrNotification();
     }
@@ -181,7 +183,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> commandService.answerFeedback(
                 feedbackId,
                 adminId,
-                "답변"
+                "답변",
+                false
         )).isInstanceOf(DataIntegrityViolationException.class);
         assertNoAnswerOrNotification();
     }
@@ -204,7 +207,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 commandService.answerFeedback(
                         feedbackId,
                         adminId,
-                        "첫 답변"
+                        "첫 답변",
+                        false
                 );
             }));
             try {
@@ -215,7 +219,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                     commandService.answerFeedback(
                             feedbackId,
                             adminId,
-                            "다른 답변"
+                            "다른 답변",
+                            false
                     );
                 }));
                 int waiter = secondPid.get(5, TimeUnit.SECONDS);
@@ -361,6 +366,65 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThat(savedAnswerDeletedAt()).isNull();
     }
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(booleans = {true, false})
+    @DisplayName("재답변은 알림을 새로 저장하고 true인 경우만 푸시 대기에 넣는다")
+    void answerFeedback_deletedAnswer_createsNewNotificationWithSelectedPush(Boolean sendPush)
+            throws Exception {
+        // Given
+        answer("이전 답변").andExpect(status().isNoContent());
+        Instant previousAnsweredAt = savedAnsweredAt();
+        UUID previousEventKey = jdbc.queryForObject(
+                "SELECT event_key FROM notifications WHERE source_id = ?",
+                UUID.class,
+                feedbackId
+        );
+        deleteAnswer(previousAnsweredAt).andExpect(status().isNoContent());
+
+        // When
+        answer("새 답변", sendPush).andExpect(status().isNoContent());
+        deleteAnswer(previousAnsweredAt).andExpect(status().isBadRequest());
+
+        // Then
+        assertThat(storedAnswer()).isEqualTo("새 답변");
+        assertThat(savedAnsweredAt()).isAfter(previousAnsweredAt);
+        assertThat(savedAnswerDeletedAt()).isNull();
+        assertThat(notificationCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(3L);
+        assertThat(jdbc.queryForMap(
+                """
+                        SELECT n.event_key, n.sqs_publish_status, a.before_state->>'answeredAt' AS previous_answered_at
+                        FROM notifications n JOIN admin_audit_logs a ON a.id = n.event_key
+                        WHERE n.source_id = ? AND a.action = 'FEEDBACK_ANSWERED'
+                        """,
+                feedbackId
+        )).containsEntry("sqs_publish_status",
+                Boolean.TRUE.equals(sendPush) ? "PENDING" : "NOT_REQUIRED")
+                .containsEntry("previous_answered_at", previousAnsweredAt.toString())
+                .doesNotContainEntry("event_key", previousEventKey);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("답변 삭제 뒤 문의가 삭제됐거나 작성자가 탈퇴하면 재답변할 수 없다")
+    void answerFeedback_deletedInquiryOrWithdrawnAuthor_rejectsReanswer(boolean deleteInquiry)
+            throws Exception {
+        // Given
+        answer("이전 답변").andExpect(status().isNoContent());
+        deleteAnswer(savedAnsweredAt()).andExpect(status().isNoContent());
+        if (deleteInquiry) {
+            commandService.deleteFeedback(feedbackId, adminId);
+        } else {
+            jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", userId);
+        }
+
+        // When & Then
+        answer("새 답변", true).andExpect(status().isBadRequest());
+        assertThat(storedAnswer()).isEqualTo("이전 답변");
+        assertThat(notificationCount()).isZero();
+    }
+
     private ResultActions deleteAnswer(Instant answeredAt) throws Exception {
         return mockMvc.perform(delete("/api/v1/admin/feedbacks/{id}/answer", feedbackId)
                 .param("answeredAt", answeredAt.toString())
@@ -397,10 +461,15 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     }
 
     private ResultActions answer(String content) throws Exception {
+        return answer(content, null);
+    }
+
+    private ResultActions answer(String content, Boolean sendPush) throws Exception {
+        String push = sendPush == null ? "" : ",\"sendPush\":" + sendPush;
         return mockMvc.perform(post("/api/v1/admin/feedbacks/{feedbackId}/answer", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, adminToken())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"answerContent\":\"" + content + "\"}"));
+                .content("{\"answerContent\":\"" + content + "\"" + push + "}"));
     }
 
     private String storedAnswer() {

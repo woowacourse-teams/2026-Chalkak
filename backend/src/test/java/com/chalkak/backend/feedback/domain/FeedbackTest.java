@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -17,6 +18,29 @@ class FeedbackTest {
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
 
     private static final Instant CREATED_AT = Instant.parse("2026-11-03T06:00:00Z");
+
+    @Test
+    @DisplayName("같은 마이크로초에 재답변해도 이전 답변과 구분되는 시각을 저장한다")
+    void answer_deletedAnswerAtSameTime_advancesVersion() {
+        // Given
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+        feedback.answer("이전 답변", CREATED_AT);
+        feedback.deleteAnswer(CREATED_AT, CREATED_AT);
+
+        // When
+        feedback.answer("새 답변", CREATED_AT);
+
+        // Then
+        assertThat(feedback.getAnswerContent()).isEqualTo("새 답변");
+        assertThat(feedback.getAnswerDeletedAt()).isNull();
+        assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT.plus(1, ChronoUnit.MICROS));
+        assertThatThrownBy(() -> feedback.deleteAnswer(CREATED_AT, CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
 
     @Test
     @DisplayName("답변은 공백 제거 후 3000 코드 포인트까지 허용한다")

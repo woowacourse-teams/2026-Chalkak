@@ -58,7 +58,10 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         .value("string"))
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackAnswerRequest.properties.answerContent.maxLength")
-                        .value(3000));
+                        .value(3000))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackAnswerRequest.properties.sendPush.default")
+                        .value(false));
     }
 
     @Test

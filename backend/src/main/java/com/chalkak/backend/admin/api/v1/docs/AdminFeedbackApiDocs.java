@@ -21,7 +21,7 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Admin Feedbacks", description = "관리자 고객센터 API")
 public interface AdminFeedbackApiDocs {
 
-    @Operation(summary = "관리자 문의 답변 등록", description = "최초 답변과 사용자 알림함 및 감사 기록을 함께 저장합니다.")
+    @Operation(summary = "관리자 문의 답변 등록", description = "최초 답변 또는 삭제 후 재답변과 사용자 알림함·감사 기록을 함께 저장합니다. 재답변 푸시는 sendPush가 true인 경우에만 발송 대상입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "답변 등록 성공", content = @Content),
             @ApiResponse(responseCode = "400", description = "입력 오류, 삭제·탈퇴·이미 답변한 문의", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
