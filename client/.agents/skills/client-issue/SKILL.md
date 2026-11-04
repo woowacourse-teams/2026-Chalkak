@@ -21,7 +21,18 @@ disable-model-invocation: true
    - 두 플랫폼을 함께 바꾸면 제목을 `클라이언트`로 시작한다. 예: `feat: 클라이언트 알람 모두 읽기 버튼 추가`
    - 모르는 내용은 지어내지 않고 `확인 필요`로 남긴다. 계획 단계에서 채운다.
    - 버그는 재현 방법을 Given / When / Then으로 쓴다.
-   - 이슈 확인 칸에는 `@<gh api user -q .login 결과>`를 넣는다.
+   - 이슈 확인 칸에는 이슈를 만드는 사람 말고, 확인해 줄 팀원을 `- [ ] @<로그인>`으로 넣는다. 자기 자신을 넣지 않는다.
+     - 고르는 법: 내가 만든 지난 이슈 30개의 `👀 이슈 확인` 칸에서 가장 많이 언급한 사람이다. 나 자신과 이 레포에 배정할 수 없는 이름은 뺀다. 그래야 본문의 코드 어노테이션(`@LoginUser` 등)도 걸러진다.
+       ```bash
+       me=$(gh api user -q .login)
+       allowed=$(gh api "repos/{owner}/{repo}/assignees" --paginate -q '.[].login' | tr 'A-Z' 'a-z')
+       REVIEWER=$(gh issue list --state all --search "author:@me" --limit 30 --json body -q '.[].body' \
+         | awk '/^## .*이슈 확인/{f=1;next} /^## /{f=0} f' \
+         | grep -oE '@[A-Za-z0-9-]+' | tr -d '@' | tr 'A-Z' 'a-z' \
+         | grep -vxi "$me" | grep -Fx -f <(printf '%s\n' "$allowed") \
+         | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')
+       ```
+     - `REVIEWER`가 비면(지난 이슈가 없는 팀원 등) 템플릿 그대로 `- [ ] 팀원명`으로 두고, 이슈를 만든 뒤 알릴 때 "이슈 확인 팀원을 채워 주세요"라고 적는다.
 4. **이슈 만들기**:
    ```bash
    gh issue create --title "<제목>" --body-file <본문 파일> --label "<종류>" --label "<플랫폼>" --assignee @me
@@ -46,4 +57,4 @@ disable-model-invocation: true
 
 ## 알릴 것
 
-이슈 주소, 연결 브랜치 이름, `확인 필요`로 남긴 항목.
+이슈 주소, 연결 브랜치 이름, 이슈 확인에 넣은 팀원(못 찾았으면 채워 달라는 말), `확인 필요`로 남긴 항목.
