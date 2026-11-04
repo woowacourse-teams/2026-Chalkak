@@ -323,7 +323,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbackById_deletedFeedback_returnsContentAndAuthor() {
         // When
         AdminFeedbackProjection detail = adminFeedbackQueryRepository
-                .findFeedbackById(OLDEST_FEEDBACK_ID).orElseThrow();
+                .findFeedbackById(OLDEST_FEEDBACK_ID).orElseThrow().feedback();
 
         // Then
         assertThat(detail.feedbackId()).isEqualTo(OLDEST_FEEDBACK_ID);
@@ -339,7 +339,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbackById_withdrawnAuthor_returnsFeedback() {
         // When
         AdminFeedbackProjection detail = adminFeedbackQueryRepository
-                .findFeedbackById(MIDDLE_FEEDBACK_ID).orElseThrow();
+                .findFeedbackById(MIDDLE_FEEDBACK_ID).orElseThrow().feedback();
 
         // Then
         assertThat(detail.authorId()).isEqualTo(WITHDRAWN_USER_ID);

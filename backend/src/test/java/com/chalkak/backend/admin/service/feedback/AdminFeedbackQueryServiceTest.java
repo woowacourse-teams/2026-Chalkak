@@ -179,9 +179,7 @@ class AdminFeedbackQueryServiceTest {
                 "user@example.com",
                 userStatus,
                 "1.2.3",
-                userDeletedAt,
-                null,
-                null
+                userDeletedAt
         );
     }
 }

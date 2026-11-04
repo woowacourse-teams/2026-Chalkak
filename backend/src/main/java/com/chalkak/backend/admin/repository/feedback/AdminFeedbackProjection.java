@@ -13,8 +13,6 @@ public record AdminFeedbackProjection(
         String authorEmail,
         UserStatus authorStatus,
         String authorAppVersion,
-        Instant authorDeletedAt,
-        String answerContent,
-        Instant answeredAt
+        Instant authorDeletedAt
 ) {
 }
