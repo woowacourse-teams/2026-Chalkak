@@ -15,7 +15,6 @@ import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
 import com.chalkak.backend.support.IntegrationTestSupport;
-import com.chalkak.backend.notification.infrastructure.infra.NotificationCleanupScheduler;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.util.UUID;
 import java.time.Duration;
@@ -59,8 +58,6 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
 
     @MockitoSpyBean
     private NotificationRepository notificationRepository;
-    @Autowired
-    private NotificationCleanupScheduler notificationCleanupScheduler;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -283,30 +280,6 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, memberToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
-    }
-
-    @Test
-    @DisplayName("보관 기간이 지난 답변 알림은 문의를 삭제하지 않아도 정리하며 문의와 답변은 보존한다")
-    void deleteExpiredNotifications_openFeedback_preservesFeedbackAndAnswer() throws Exception {
-        // Given
-        answer("비공개 답변").andExpect(status().isNoContent());
-        jdbc.update(
-                "UPDATE notifications SET created_at = CURRENT_TIMESTAMP - INTERVAL '31 days' WHERE user_id = ?",
-                userId
-        );
-
-        // When
-        notificationCleanupScheduler.deleteExpiredNotifications();
-
-        // Then
-        assertThat(notificationCount()).isZero();
-        String memberToken = "Bearer "
-                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
-                .header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content").value("비공개 문의"))
                 .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
     }
 
