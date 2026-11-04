@@ -6,8 +6,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,6 +52,9 @@ public class Feedback {
     @Column(name = "answered_at")
     private Instant answeredAt;
 
+    @Column(name = "answer_deleted_at")
+    private Instant answerDeletedAt;
+
     public static Feedback create(
             UUID userId,
             String content,
@@ -66,7 +71,7 @@ public class Feedback {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의에는 답변할 수 없습니다.");
         }
-        if (this.answeredAt != null) {
+        if (hasAnswerHistory() && !isAnswerDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 답변한 문의입니다.");
         }
         String normalized = content == null ? "" : content.strip();
@@ -74,7 +79,31 @@ public class Feedback {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "답변은 1~3,000자로 입력해 주세요.");
         }
         this.answerContent = normalized;
-        this.answeredAt = answeredAt.truncatedTo(ChronoUnit.MICROS);
+        this.answeredAt = nextAnsweredAt(answeredAt);
+        this.answerDeletedAt = null;
+    }
+
+    public boolean deleteAnswer(String expectedAnswerVersion, Instant deletedAt) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의의 답변은 삭제할 수 없습니다.");
+        }
+        if (answeredAt == null || !createAnswerVersion(answeredAt).equals(expectedAnswerVersion)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "현재 답변을 다시 확인해 주세요.");
+        }
+        if (isAnswerDeleted()) {
+            return false;
+        }
+        // 반복 삭제의 대상 확인에 등록 시각을 쓰고, DB의 내용·시각 쌍 제약에 맞춰 재답변 전까지 원문도 유지한다.
+        answerDeletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+        return true;
+    }
+
+    public boolean hasAnswerHistory() {
+        return answeredAt != null;
+    }
+
+    public boolean isAnswerDeleted() {
+        return answerDeletedAt != null;
     }
 
     public void delete(Instant deletedAt) {
@@ -104,6 +133,20 @@ public class Feedback {
     public static boolean isWithinMaxAnswerLength(String content) {
         String normalized = content.strip();
         return normalized.codePointCount(0, normalized.length()) <= MAX_ANSWER_LENGTH;
+    }
+
+    public static String createAnswerVersion(Instant answeredAt) {
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(answeredAt.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Instant nextAnsweredAt(Instant now) {
+        Instant normalized = now.truncatedTo(ChronoUnit.MICROS);
+        if (answeredAt != null && !normalized.isAfter(answeredAt)) {
+            // 이전 삭제 요청이 새 답변에 적용되지 않도록 같은 정밀도에서도 새 시각을 보장한다.
+            return answeredAt.plus(1, ChronoUnit.MICROS);
+        }
+        return normalized;
     }
 
     private static String normalizeContent(String content) {
