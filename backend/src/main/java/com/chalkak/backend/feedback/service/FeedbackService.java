@@ -8,6 +8,7 @@ import com.chalkak.backend.feedback.domain.FeedbackSubmissionHistory;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.feedback.repository.FeedbackSlice;
 import com.chalkak.backend.user.repository.UserRepository;
+import com.chalkak.backend.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -21,13 +22,18 @@ public class FeedbackService {
 
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     @Transactional
     public void deleteFeedback(UUID userId, UUID feedbackId) {
         Feedback feedback = feedbackRepository.findByIdAndUserIdForUpdate(feedbackId, userId)
                 .orElseThrow(this::createFeedbackNotFoundException);
+        if (feedback.isDeleted()) {
+            return;
+        }
         feedback.delete(clock.instant());
+        notificationService.deleteFeedbackNotifications(feedbackId);
     }
 
     @Transactional(readOnly = true)

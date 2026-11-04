@@ -84,7 +84,9 @@ class FeedbackControllerTest {
                 .willReturn(new FeedbackDetailResult(
                         FEEDBACK_ID,
                         "내 문의",
-                        CREATED_AT
+                        CREATED_AT,
+                        null,
+                        null
                 ));
 
         // When & Then

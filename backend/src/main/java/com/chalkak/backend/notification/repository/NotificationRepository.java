@@ -62,6 +62,8 @@ public interface NotificationRepository {
             Instant createdFrom
     );
 
+    void deleteFeedbackNotifications(UUID feedbackId);
+
     void deleteExpiredForActiveUsers(Instant createdBefore);
 
     void deleteExpiredForWithdrawnUsers(Instant withdrawnBefore);

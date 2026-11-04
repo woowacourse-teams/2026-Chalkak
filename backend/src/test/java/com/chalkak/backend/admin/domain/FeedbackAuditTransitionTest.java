@@ -52,6 +52,70 @@ class FeedbackAuditTransitionTest {
         )).isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    @DisplayName("문의 답변 감사는 원문 없이 답변 시각의 전이만 기록한다")
+    void create_validAnswer_recordsOnlyAnswerTime() {
+        AdminAuditLog audit = create(
+                AdminAction.FEEDBACK_ANSWERED,
+                Collections.singletonMap("answeredAt", null),
+                Map.of("answeredAt", DELETED_AT),
+                AdminTargetType.FEEDBACK
+        );
+
+        assertThat(audit.getReason()).isNull();
+        assertThat(audit.getBeforeState()).containsEntry("answeredAt", null);
+        assertThat(audit.getAfterState())
+                .containsExactlyEntriesOf(Map.of("answeredAt", DELETED_AT));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidAnswerTransitions")
+    @DisplayName("문의 답변 감사는 잘못된 대상·시각·원문 필드를 거절한다")
+    void create_invalidAnswer_rejectsAudit(
+            Map<String, Object> before,
+            Map<String, Object> after,
+            AdminTargetType target
+    ) {
+        assertThatThrownBy(() -> create(
+                AdminAction.FEEDBACK_ANSWERED,
+                before,
+                after,
+                target
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidAnswerTransitions() {
+        Map<String, Object> before = Collections.singletonMap("answeredAt", null);
+        Map<String, Object> after = Map.of("answeredAt", DELETED_AT);
+        return Stream.of(
+                Arguments.of(
+                        before,
+                        after,
+                        AdminTargetType.POST
+                ),
+                Arguments.of(
+                        after,
+                        after,
+                        AdminTargetType.FEEDBACK
+                ),
+                Arguments.of(
+                        before,
+                        Map.of("answeredAt", "invalid"),
+                        AdminTargetType.FEEDBACK
+                ),
+                Arguments.of(
+                        before,
+                        Map.of(
+                                "answeredAt",
+                                DELETED_AT,
+                                "answerContent",
+                                "원문"
+                        ),
+                        AdminTargetType.FEEDBACK
+                )
+        );
+    }
+
     private static Stream<Arguments> invalidTransitions() {
         Map<String, Object> before = Collections.singletonMap("deletedAt", null);
         Map<String, Object> after = Map.of("deletedAt", DELETED_AT);
@@ -99,9 +163,23 @@ class FeedbackAuditTransitionTest {
             Map<String, Object> after,
             AdminTargetType target
     ) {
+        return create(
+                AdminAction.FEEDBACK_DELETED,
+                before,
+                after,
+                target
+        );
+    }
+
+    private AdminAuditLog create(
+            AdminAction action,
+            Map<String, Object> before,
+            Map<String, Object> after,
+            AdminTargetType target
+    ) {
         return AdminAuditLog.create(
                 UUID.randomUUID(),
-                AdminAction.FEEDBACK_DELETED,
+                action,
                 target,
                 UUID.randomUUID(),
                 null,

@@ -69,7 +69,8 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     );
 
     /**
-     * 조건을 바꾸면 관리자 AI 리뷰 조회의 visibleToAuthor(AdminAiReviewJpql)와 상세 조회용 findVisibleByIdForViewer도 함께 고친다.
+     * 조건을 바꾸면 관리자 AI 리뷰 조회의 visibleToAuthor(AdminAiReviewJpql)와 상세 조회용
+     * findVisibleByIdForViewer도 함께 고친다.
      */
     @Query("""
             SELECT post

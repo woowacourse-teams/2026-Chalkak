@@ -21,4 +21,22 @@ final class AdminFeedbackJpql {
             FROM Feedback feedback
             JOIN User author ON author.id = feedback.userId
             """;
+
+    static final String SELECT_DETAIL_WITH_AUTHOR = """
+            SELECT new com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection(
+                feedback.id,
+                feedback.content,
+                feedback.createdAt,
+                feedback.deletedAt,
+                author.id,
+                author.email,
+                author.status,
+                author.appVersion,
+                author.deletedAt,
+                feedback.answerContent,
+                feedback.answeredAt
+            )
+            FROM Feedback feedback
+            JOIN User author ON author.id = feedback.userId
+            """;
 }

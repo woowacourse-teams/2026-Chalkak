@@ -21,6 +21,32 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("관리자 답변 문서는 요청 본문과 본문 없는 204를 제공한다")
+    void adminApiDocs_exposesFeedbackAnswerContract() throws Exception {
+        String path = "$.paths['/api/v1/admin/feedbacks/{feedbackId}/answer'].post";
+
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(path + ".requestBody.required").value(true))
+                .andExpect(jsonPath(path + ".responses['204'].content").doesNotExist())
+                .andExpect(jsonPath(path + ".responses['400']").exists())
+                .andExpect(
+                        jsonPath(path + ".responses['401'].content['application/json'].schema.$ref")
+                                .value("#/components/schemas/ErrorResponse"))
+                .andExpect(
+                        jsonPath(path + ".responses['403'].content['application/json'].schema.$ref")
+                                .value("#/components/schemas/ErrorResponse"))
+                .andExpect(jsonPath(path + ".responses['404']").exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackAnswerRequest.properties.answerContent.type")
+                        .value("string"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackAnswerRequest.properties.answerContent.maxLength")
+                        .value(3000));
+    }
+
+    @Test
     @DisplayName("admin-api 문서는 기존 피드백 목록 계약을 제공한다")
     void adminApiDocs_exposesFeedbackListContract() throws Exception {
         // When & Then
@@ -85,6 +111,12 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         .value("string"))
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackDetailResponse.properties.createdAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.answerContent")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackDetailResponse.properties.answeredAt.format")
                         .value("date-time"))
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackDetailResponse.properties.deletedAt.type")

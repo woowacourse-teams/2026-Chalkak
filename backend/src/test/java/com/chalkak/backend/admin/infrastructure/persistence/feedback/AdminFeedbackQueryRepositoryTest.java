@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -322,7 +323,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("관리자 상세는 삭제된 문의의 원문과 작성자 정보를 조회한다")
     void findFeedbackById_deletedFeedback_returnsContentAndAuthor() {
         // When
-        AdminFeedbackProjection detail = adminFeedbackQueryRepository
+        AdminFeedbackDetailProjection detail = adminFeedbackQueryRepository
                 .findFeedbackById(OLDEST_FEEDBACK_ID).orElseThrow();
 
         // Then
@@ -338,7 +339,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("관리자 상세는 탈퇴한 작성자의 문의도 제외하지 않는다")
     void findFeedbackById_withdrawnAuthor_returnsFeedback() {
         // When
-        AdminFeedbackProjection detail = adminFeedbackQueryRepository
+        AdminFeedbackDetailProjection detail = adminFeedbackQueryRepository
                 .findFeedbackById(MIDDLE_FEEDBACK_ID).orElseThrow();
 
         // Then
