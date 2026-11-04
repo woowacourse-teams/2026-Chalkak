@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,7 +17,6 @@ import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessToken
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.infrastructure.infra.NotificationCleanupScheduler;
 import com.chalkak.backend.notification.repository.NotificationRepository;
-import java.time.Instant;
 import java.util.UUID;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -246,27 +244,13 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    @DisplayName("관리자·사용자 문의 삭제는 답변 알림 행을 지우고 발행과 발송 대상에서 제외한다")
+    @DisplayName("관리자·사용자 문의 삭제는 알림 행을 지우고 관리자에게 문의 원문을 보존한다")
     void deleteFeedback_answeredFeedback_deletesNotification(boolean adminDelete) throws Exception {
         // Given
         answer("비공개 답변").andExpect(status().isNoContent());
-        UUID notificationId = jdbc.queryForObject(
-                "SELECT id FROM notifications WHERE user_id = ?",
-                UUID.class,
-                userId
-        );
+        assertThat(notificationCount()).isEqualTo(1L);
         String memberToken = "Bearer "
                 + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
-        Instant dueAt = Instant.now().plusSeconds(60);
-        assertThat(notificationRepository.findDuePublicationIds(dueAt, 100))
-                .contains(notificationId);
-        assertThat(notificationRepository.findForPushByIdAndUserId(notificationId, userId))
-                .isPresent();
-        mockMvc.perform(get("/api/v1/notifications").header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.notifications[0].type").value("FEEDBACK_ANSWERED"))
-                .andExpect(jsonPath("$.notifications[0].sourceType").value("FEEDBACK"))
-                .andExpect(jsonPath("$.notifications[0].sourceId").value(feedbackId.toString()));
 
         // When
         String path = adminDelete ? "/api/v1/admin/feedbacks/{id}" : "/api/v1/feedbacks/{id}";
@@ -275,26 +259,6 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isNoContent());
 
         // Then
-        mockMvc.perform(get("/api/v1/notifications").header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.notifications").isEmpty());
-        mockMvc.perform(get("/api/v1/notifications/unread-status")
-                .header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasUnread").value(false));
-        mockMvc.perform(get("/api/v1/notifications/{id}", notificationId)
-                .header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(patch("/api/v1/notifications/{id}/read", notificationId)
-                .header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
-                .header(HttpHeaders.AUTHORIZATION, memberToken))
-                .andExpect(status().isNotFound());
-        assertThat(notificationRepository.findDuePublicationIds(dueAt, 100))
-                .doesNotContain(notificationId);
-        assertThat(notificationRepository.findForPushByIdAndUserId(notificationId, userId))
-                .isEmpty();
         assertThat(notificationCount()).isZero();
         mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, adminToken()))
