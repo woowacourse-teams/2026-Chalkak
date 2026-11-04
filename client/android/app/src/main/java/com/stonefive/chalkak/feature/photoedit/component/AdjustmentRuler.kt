@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -44,6 +45,7 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -126,10 +128,17 @@ fun AdjustmentRuler(
     }
 
     // 잔상이 남아 있는 동안만 매 프레임 다시 그리고, 다 가라앉으면 비운다.
-    LaunchedEffect(passedTicks.isEmpty()) {
-        while (passedTicks.isNotEmpty()) {
-            frameNanos = withFrameNanos { it }
-            passedTicks.entries.removeAll { frameNanos - it.value > LIFT_DURATION_NANOS }
+    // 지난 시각(recordPassedTicks)과 같은 시계로 재야 둘의 차이가 실제로 흐른 시간이 된다.
+    // effect 하나가 계속 살아서 비면 다시 찰 때까지 기다린다. isEmpty()를 키로 두면, 비워진 직후
+    // 리컴포지션 전에 새 눈금이 들어올 때 키가 그대로라 effect가 다시 안 돌고 잔상이 멈춘 채 남는다.
+    // 근거: 이슈 #934
+    LaunchedEffect(passedTicks) {
+        while (true) {
+            snapshotFlow { passedTicks.isNotEmpty() }.first { it }
+            while (passedTicks.isNotEmpty()) {
+                frameNanos = withFrameNanos { System.nanoTime() }
+                passedTicks.entries.removeAll { frameNanos - it.value > LIFT_DURATION_NANOS }
+            }
         }
     }
 
@@ -236,13 +245,19 @@ private fun recordPassedTicks(
     }
 }
 
-/** 눈금이 표시선을 지난 직후 1이고 시간이 지나면 0으로 줄어든다. */
-private fun liftAmount(
+/**
+ * 눈금이 표시선을 지난 직후 1이고 [LIFT_DURATION_NANOS] 동안 0으로 줄어든다. 지난 기록이 없으면 0이다.
+ *
+ * [nowNanos]는 마지막으로 그린 프레임의 시각이라, 쉬었다가 다시 밀면 [passedAtNanos]보다 이를 수 있다.
+ * 그래도 1을 넘기지 않아야 눈금이 표시선보다 높이 솟아 눈금자 밖으로 그려지지 않는다.
+ * 예: 10,000ms에 지났는데 지금 시각이 0ms로 남아 있으면 1.
+ */
+internal fun liftAmount(
     passedAtNanos: Long?,
     nowNanos: Long,
 ): Float {
     if (passedAtNanos == null) return 0f
-    return max(0f, 1f - (nowNanos - passedAtNanos).toFloat() / LIFT_DURATION_NANOS)
+    return (1f - (nowNanos - passedAtNanos).toFloat() / LIFT_DURATION_NANOS).coerceIn(0f, 1f)
 }
 
 private const val PERCENT = 100f
