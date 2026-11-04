@@ -343,43 +343,24 @@ class AdminPostControllerTest {
         );
     }
 
-    @Test
-    @DisplayName("제거된 날짜 필터 파라미터는 값이 잘못되어도 무시하고 기본 조건으로 조회한다")
-    void getPosts_removedDateFilters_ignoresParameters() throws Exception {
-        // Given
-        given(adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
-                AdminPostSort.CREATED_AT_DESC,
-                null,
-                null,
-                1,
-                20
-        )).willReturn(new AdminPostListResult(
-                1,
-                20,
-                false,
-                List.of()
-        ));
-
+    @ParameterizedTest
+    @CsvSource({
+            "topicDate, 2026-08-12",
+            "createdAtFrom, 2026-08-01T00:00:00Z",
+            "createdAtTo, 2026-08-31T23:59:59Z"
+    })
+    @DisplayName("제거된 날짜 필터 파라미터를 보내면 무시하지 않고 400을 반환하며 서비스를 호출하지 않는다")
+    void getPosts_removedDateFilter_returnsBadRequest(
+            String parameterName,
+            String parameterValue
+    ) throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/posts")
-                .queryParam("topicDate", "2026-13-40")
-                .queryParam("createdAtFrom", "invalid-time")
-                .queryParam("createdAtTo", "invalid-time"))
-                .andExpect(status().isOk());
+                .queryParam(parameterName, parameterValue))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
 
-        then(adminPostQueryService).should().getPosts(
-                null,
-                null,
-                null,
-                AdminPostSort.CREATED_AT_DESC,
-                null,
-                null,
-                1,
-                20
-        );
+        then(adminPostQueryService).shouldHaveNoInteractions();
     }
 
     @Test
