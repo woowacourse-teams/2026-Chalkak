@@ -1234,10 +1234,131 @@ class RecordViewModelTest {
             (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
+
+    @Test
+    fun `사진 있는 지난 달을 고르면 그 달을 연다`() = runTest {
+        // Given 이번 달이 2026-11이고 2026-10에 post-1이 있으며 연간 기록을 받아 둔 상태
+        val repository = FakePostRepository().apply {
+            recordedMonths = listOf(YearCalendarLastMonth)
+            postsByMonth = mapOf(YearCalendarLastMonth to listOf(recordPost("post-1", YearCalendarLastMonth.atDay(3))))
+        }
+        val viewModel = yearCalendarViewModel(repository, initialMonth = YearCalendarCurrentMonth)
+        advanceUntilIdle()
+        viewModel.loadYear(2026)
+        advanceUntilIdle()
+
+        // When  연간 달력에서 2026-10을 고른다
+        viewModel.showMonth(YearCalendarLastMonth)
+        advanceUntilIdle()
+
+        // Then  보이는 달이 2026-10, 게시물이 post-1
+        assertEquals(YearCalendarLastMonth, viewModel.uiState.value.month)
+        assertEquals(
+            listOf("post-1"),
+            viewModel.uiState.value.posts
+                .map { it.postId },
+        )
+    }
+
+    @Test
+    fun `사진 없는 지난 달은 지금 보던 달이어도 열지 않는다`() = runTest {
+        // Given 2026-09를 보던 중 그 달의 마지막 사진을 지워 2026-09가 비었고, 연간 기록을 받아 둔 상태
+        val repository = FakePostRepository().apply {
+            recordedMonths = listOf(YearCalendarLastMonth, YearCalendarTwoMonthsAgo)
+            postsByMonth = mapOf(
+                YearCalendarTwoMonthsAgo to listOf(recordPost("post-1", YearCalendarTwoMonthsAgo.atDay(3))),
+                YearCalendarLastMonth to listOf(recordPost("post-2", YearCalendarLastMonth.atDay(4))),
+            )
+        }
+        val viewModel = yearCalendarViewModel(repository, initialMonth = YearCalendarTwoMonthsAgo)
+        advanceUntilIdle()
+        viewModel.removeDeletedPost("post-1")
+        viewModel.loadYear(2026)
+        advanceUntilIdle()
+
+        // When  이번 달(2026-11)로 옮긴 뒤 연간 달력에서 2026-09를 고른다
+        viewModel.showMonth(YearCalendarCurrentMonth)
+        advanceUntilIdle()
+        repository.requests.clear()
+        viewModel.showMonth(YearCalendarTwoMonthsAgo)
+        advanceUntilIdle()
+
+        // Then  보이는 달이 2026-11 그대로이고, 2026-09 달력 요청을 보내지 않는다
+        assertEquals(YearCalendarCurrentMonth, viewModel.uiState.value.month)
+        assertEquals(false, YearCalendarTwoMonthsAgo in repository.requests)
+    }
+
+    @Test
+    fun `사진 없는 이번 달은 연다`() = runTest {
+        // Given 이번 달 2026-11에 사진이 없고 2026-10을 보는 중
+        val repository = FakePostRepository().apply {
+            recordedMonths = listOf(YearCalendarLastMonth)
+            postsByMonth = mapOf(YearCalendarLastMonth to listOf(recordPost("post-1", YearCalendarLastMonth.atDay(3))))
+        }
+        val viewModel = yearCalendarViewModel(repository, initialMonth = YearCalendarLastMonth)
+        advanceUntilIdle()
+
+        // When  연간 달력에서 2026-11을 고른다
+        viewModel.showMonth(YearCalendarCurrentMonth)
+        advanceUntilIdle()
+
+        // Then  보이는 달이 2026-11, 게시물이 빈 목록
+        assertEquals(YearCalendarCurrentMonth, viewModel.uiState.value.month)
+        assertEquals(emptyList<PostCalendarItem>(), viewModel.uiState.value.posts)
+    }
+
+    @Test
+    fun `연간 기록을 받지 못한 지난 달은 고르면 다시 불러와 연다`() = runTest {
+        // Given 2026-10 연간 기록 요청이 서버 오류로 한 번 실패해 그 달 기록이 없는 상태
+        val repository = FakePostRepository().apply {
+            recordedMonths = listOf(YearCalendarLastMonth)
+            postsByMonth = mapOf(YearCalendarLastMonth to listOf(recordPost("post-1", YearCalendarLastMonth.atDay(3))))
+            failureMonth = YearCalendarLastMonth
+        }
+        val viewModel = yearCalendarViewModel(repository, initialMonth = YearCalendarCurrentMonth)
+        advanceUntilIdle()
+        viewModel.loadYear(2026)
+        advanceUntilIdle()
+        repository.failureMonth = null
+
+        // When  연간 달력에서 2026-10을 고른다
+        repository.requests.clear()
+        viewModel.showMonth(YearCalendarLastMonth)
+        advanceUntilIdle()
+
+        // Then  보이는 달이 2026-10이고, 2026-10 달력 요청을 다시 보낸다
+        assertEquals(YearCalendarLastMonth, viewModel.uiState.value.month)
+        assertEquals(true, YearCalendarLastMonth in repository.requests)
+    }
+
+    private fun yearCalendarViewModel(
+        repository: FakePostRepository,
+        initialMonth: YearMonth,
+    ) = RecordViewModel(
+        repository = repository,
+        initialMonth = initialMonth,
+        latestMonth = YearCalendarCurrentMonth,
+        currentMonthProvider = { YearCalendarCurrentMonth },
+    )
 }
 
 private val RecordTestMonth = YearMonth.of(2026, 8)
 private val RecordLatestMonth = YearMonth.of(2026, 9)
+
+// 연간 달력 진입 TC용 달. 이번 달은 2026-11이다.
+private val YearCalendarCurrentMonth = YearMonth.of(2026, 11)
+private val YearCalendarLastMonth = YearMonth.of(2026, 10)
+private val YearCalendarTwoMonthsAgo = YearMonth.of(2026, 9)
+
+private fun recordPost(
+    postId: String,
+    topicDate: LocalDate,
+) = PostCalendarItem(
+    postId = postId,
+    topicDate = topicDate,
+    thumbnailImageUrl = "photo-$postId",
+    status = PostStatus.APPROVED,
+)
 
 private class FakePhotoColorRepository : PhotoColorRepository {
     val requests = mutableListOf<String>()
@@ -1274,11 +1395,18 @@ private class FakePostRepository : PostRepository {
     var pendingCalendarResult: CompletableDeferred<HomeResult<PostCalendar>>? = null
     var pendingMonthsResult: CompletableDeferred<HomeResult<List<YearMonth>>>? = null
 
+    // 주면 기본 달력 대신 이 값을 돌려준다. 없는 달은 빈 목록이다.
+    var postsByMonth: Map<YearMonth, List<PostCalendarItem>>? = null
+
+    // 주면 기본 기록 연월 목록 대신 이 값을 돌려준다.
+    var recordedMonths: List<YearMonth>? = null
+
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> {
         requests += month
         pendingCalendarResult?.let { return it.await() }
         if (month == unauthorizedMonth) return HomeResult.Failure(HomeFailure.Unauthorized)
         if (month == failureMonth) return HomeResult.Failure(HomeFailure.Http(400))
+        postsByMonth?.let { return HomeResult.Success(PostCalendar(month = month, posts = it[month].orEmpty())) }
 
         return HomeResult.Success(
             PostCalendar(
@@ -1305,6 +1433,7 @@ private class FakePostRepository : PostRepository {
     }
 
     override suspend fun getPostCalendarMonths(): HomeResult<List<YearMonth>> = pendingMonthsResult?.await()
+        ?: recordedMonths?.let { HomeResult.Success(it) }
         ?: HomeResult.Success(
             listOf(RecordLatestMonth, RecordTestMonth, RecordTestMonth.minusMonths(1)),
         )

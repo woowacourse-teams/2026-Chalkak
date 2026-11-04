@@ -427,6 +427,145 @@ struct RecordViewModelTests {
         #expect(viewModel.viewState.selectedDate == olderPost.topicDate)
     }
 
+    // MARK: - 연간 달력 진입
+
+    @Test("사진 있는 지난 달을 고르면 그 달을 연다")
+    func showsPastMonthWithPhotos() async {
+        // Given 이번 달이 2026-11이고 2026-10에 post-1이 있으며 연간 기록을 받아 둔 상태
+        let post = Self.post(id: "post-1", day: 3, month: Self.lastMonth)
+        let viewModel = Self.yearCalendarViewModel(
+            recordedMonths: [Self.lastMonth],
+            postsByMonth: [Self.lastMonth: [post]]
+        )
+        await viewModel.load()
+        await viewModel.loadYear(2026)
+
+        // When  연간 달력에서 2026-10을 고른다
+        viewModel.showMonth(Self.lastMonth)
+        await viewModel.refreshShownMonth()
+
+        // Then  보이는 달이 2026-10, 게시물이 post-1
+        #expect(viewModel.viewState.month == Self.lastMonth)
+        #expect(viewModel.viewState.posts.map(\.postId) == ["post-1"])
+    }
+
+    @Test("지난 달의 마지막 사진을 지우면 그 달을 기록 연월 목록에서 뺀다")
+    func removingLastPhotoOfPastMonthDropsMonth() async {
+        // Given 2026-10을 보는 중이고 그 달 사진은 post-1 하나뿐
+        let viewModel = Self.yearCalendarViewModel(
+            recordedMonths: [Self.lastMonth],
+            postsByMonth: [Self.lastMonth: [Self.post(id: "post-1", day: 3, month: Self.lastMonth)]]
+        )
+        await viewModel.load()
+        await viewModel.moveToPreviousMonth()
+
+        // When  post-1을 지운다
+        viewModel.removeDeletedPost("post-1")
+
+        // Then  기록 연월 목록이 2026-11 하나만 남는다
+        #expect(viewModel.viewState.availableMonths == [Self.currentMonth])
+    }
+
+    @Test("사진 없는 지난 달은 지금 보던 달이어도 열지 않는다")
+    func ignoresEmptyPastMonthEvenIfShownBefore() async {
+        // Given 2026-09를 보던 중 그 달의 마지막 사진을 지워 2026-09가 비었고, 연간 기록을 받아 둔 상태
+        let log = RecordRequestLog()
+        let viewModel = Self.yearCalendarViewModel(
+            recordedMonths: [Self.lastMonth, Self.twoMonthsAgo],
+            postsByMonth: [
+                Self.twoMonthsAgo: [Self.post(id: "post-1", day: 3, month: Self.twoMonthsAgo)],
+                Self.lastMonth: [Self.post(id: "post-2", day: 4, month: Self.lastMonth)],
+            ],
+            log: log
+        )
+        await viewModel.load()
+        await viewModel.moveToPreviousMonth()
+        await viewModel.moveToPreviousMonth()
+        viewModel.removeDeletedPost("post-1")
+        await viewModel.loadYear(2026)
+
+        // When  이번 달(2026-11)로 옮긴 뒤 연간 달력에서 2026-09를 고른다
+        viewModel.showMonth(Self.currentMonth)
+        await viewModel.refreshShownMonth()
+        log.removeAll()
+        viewModel.showMonth(Self.twoMonthsAgo)
+        await viewModel.refreshShownMonth()
+
+        // Then  보이는 달이 2026-11 그대로이고, 2026-09 달력 요청을 보내지 않는다
+        #expect(viewModel.viewState.month == Self.currentMonth)
+        #expect(!log.months.contains(Self.twoMonthsAgo))
+    }
+
+    @Test("사진 없는 이번 달은 연다")
+    func showsEmptyCurrentMonth() async {
+        // Given 이번 달 2026-11에 사진이 없고 2026-10을 보는 중
+        let viewModel = Self.yearCalendarViewModel(
+            recordedMonths: [Self.lastMonth],
+            postsByMonth: [Self.lastMonth: [Self.post(id: "post-1", day: 3, month: Self.lastMonth)]]
+        )
+        await viewModel.load()
+        await viewModel.moveToPreviousMonth()
+
+        // When  연간 달력에서 2026-11을 고른다
+        viewModel.showMonth(Self.currentMonth)
+        await viewModel.refreshShownMonth()
+
+        // Then  보이는 달이 2026-11, 게시물이 빈 목록
+        #expect(viewModel.viewState.month == Self.currentMonth)
+        #expect(viewModel.viewState.posts.isEmpty)
+    }
+
+    @Test("연간 기록을 받지 못한 지난 달은 고르면 다시 불러와 연다")
+    func reloadsPastMonthThatFailedToLoad() async {
+        // Given 2026-10 연간 기록 요청이 서버 오류로 한 번 실패해 그 달 기록이 없는 상태
+        let log = RecordRequestLog()
+        let post = Self.post(id: "post-1", day: 3, month: Self.lastMonth)
+        let viewModel = Self.yearCalendarViewModel(
+            recordedMonths: [Self.lastMonth],
+            postsByMonth: [Self.lastMonth: [post]],
+            failingOnce: Self.lastMonth,
+            log: log
+        )
+        await viewModel.load()
+        await viewModel.loadYear(2026)
+
+        // When  연간 달력에서 2026-10을 고른다
+        log.removeAll()
+        viewModel.showMonth(Self.lastMonth)
+        await viewModel.refreshShownMonth()
+
+        // Then  보이는 달이 2026-10이고, 2026-10 달력 요청을 다시 보낸다
+        #expect(viewModel.viewState.month == Self.lastMonth)
+        #expect(log.months.contains(Self.lastMonth))
+    }
+
+    // 연간 달력 진입 TC용 달. 이번 달은 2026-11이다.
+    private static let currentMonth = RecordMonth(year: 2026, month: 11)
+    private static let lastMonth = RecordMonth(year: 2026, month: 10)
+    private static let twoMonthsAgo = RecordMonth(year: 2026, month: 9)
+
+    /// 이번 달이 2026-11인 뷰모델. 달력 요청은 `log`에 남고, `failingOnce`는 첫 요청만 서버 오류로 실패한다.
+    private static func yearCalendarViewModel(
+        recordedMonths: [RecordMonth],
+        postsByMonth: [RecordMonth: [RecordPost]],
+        failingOnce: RecordMonth? = nil,
+        log: RecordRequestLog? = nil
+    ) -> RecordViewModel {
+        // 테스트가 `log`를 비워도 실패 한 번은 한 번으로 남도록 요청 기록을 따로 둔다.
+        let history = RecordRequestLog()
+        return RecordViewModel(
+            monthProvider: { currentMonth },
+            monthListHandler: { .success(recordedMonths) },
+            calendarHandler: { month in
+                let isFirstRequest = !history.months.contains(month)
+                history.append(month)
+                log?.append(month)
+                if month == failingOnce, isFirstRequest { return .failure(.generic) }
+                return .success(RecordCalendar(month: month, posts: postsByMonth[month] ?? []))
+            }
+        )
+    }
+
     /// 현재 달을 불러온 뒤 이전 달로 이동한 뷰모델을 만든다. 현재 달 기록은 캐시에 남아 있다.
     private static func viewModelVisitedPreviousMonth(
         currentMonth: RecordMonth,
@@ -461,6 +600,20 @@ struct RecordViewModelTests {
             thumbnailImageSource: .remote(URL(string: "https://example.com/\(id).webp")),
             status: .approved
         )
+    }
+}
+
+/// 뷰모델이 보낸 달력 요청의 달을 차례로 남긴다.
+@MainActor
+private final class RecordRequestLog {
+    private(set) var months: [RecordMonth] = []
+
+    func append(_ month: RecordMonth) {
+        months.append(month)
+    }
+
+    func removeAll() {
+        months.removeAll()
     }
 }
 
