@@ -28,6 +28,8 @@ public interface AdminPostApiDocs {
             description = "승인 대기·승인·거절 게시물과 삭제된 게시물을 필터링해 조회합니다. "
                     + "내부 검증 중 게시물은 노출하지 않습니다. "
                     + "sort=likeCountDesc(인기순)는 topicId를 함께 지정해야 합니다. "
+                    + "인기순은 요청마다 현재 좋아요 수로 다시 정렬하므로, 페이지를 넘기는 사이 좋아요 수가 바뀌면 "
+                    + "게시물이 앞뒤 페이지에 중복되거나 빠질 수 있습니다. 새로고침은 1페이지부터 다시 조회합니다. "
                     + "제거된 날짜 필터(topicDate, createdAtFrom, createdAtTo)를 보내면 400을 반환합니다."
     )
     @ApiResponses({
