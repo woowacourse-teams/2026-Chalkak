@@ -240,20 +240,18 @@ struct FeedScreen: View {
         } message: {
             Text("삭제한 게시물은 피드에서 사라지며 다시 복구할 수 없어요.")
         }
-        // 수정 화면은 뷰모델의 postEdit이 있을 때만 열린다. 아래로 끌어 닫으면 저장하지 않고 닫는다.
-        .fullScreenCover(isPresented: Binding(
+        // 수정 시트는 뷰모델의 postEdit이 있을 때만 열린다. 아래로 내리거나 바깥을 누르면 저장하지 않고 닫는다.
+        .sheet(isPresented: Binding(
             get: { viewModel.viewState.postEdit != nil },
             set: { isPresented in if !isPresented { viewModel.cancelPostEdit() } }
         )) {
-            if let edit = viewModel.viewState.postEdit, let post = viewModel.viewState.content?.post {
-                FeedPostEditScreen(
+            if let edit = viewModel.viewState.postEdit {
+                FeedPostEditSheet(
                     edit: edit,
-                    imageSource: post.originalImageSource,
                     isSaving: viewModel.viewState.isSavingPostEdit,
                     onTitleChange: { viewModel.updatePostEditTitle($0) },
                     onDescriptionChange: { viewModel.updatePostEditDescription($0) },
-                    onSave: { viewModel.savePostEdit() },
-                    onClose: { viewModel.cancelPostEdit() }
+                    onSave: { viewModel.savePostEdit() }
                 )
             }
         }

@@ -66,7 +66,7 @@ import com.stonefive.chalkak.feature.aireview.component.AiReviewResultSheet
 import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.aireview.component.AiReviewStartSheet
 import com.stonefive.chalkak.feature.feed.component.FeedContent
-import com.stonefive.chalkak.feature.feed.component.FeedPostEditDialog
+import com.stonefive.chalkak.feature.feed.component.FeedPostEditSheet
 import com.stonefive.chalkak.feature.feed.component.FeedSignatureHintSheet
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 import java.time.LocalDate
@@ -230,12 +230,9 @@ fun FeedScreen(
         )
     }
 
-    val editingPost = uiState.content?.post
-    if (uiState.postEdit != null && editingPost != null) {
-        FeedPostEditDialog(
+    if (uiState.postEdit != null && uiState.content?.post != null) {
+        FeedPostEditSheet(
             edit = uiState.postEdit,
-            // 썸네일이 없는 예전 사진은 원본으로 보여 준다.
-            thumbnailImageUrl = editingPost.thumbnailImageUrl.ifBlank { editingPost.originalImageUrl },
             onTitleChange = onPostEditTitleChange,
             onDescriptionChange = onPostEditDescriptionChange,
             onSave = onPostEditSave,
