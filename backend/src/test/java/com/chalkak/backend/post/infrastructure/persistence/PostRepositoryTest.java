@@ -7,14 +7,18 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.photo.domain.Photo;
+import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.post.support.AuthorPostFixtures;
 import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.user.domain.User;
 import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import org.hibernate.Hibernate;
@@ -880,6 +884,47 @@ class PostRepositoryTest {
         assertThat(photoCount).isZero();
     }
 
+    @Test
+    @DisplayName("작성자의 동의 중인 게시물만 삭제된 게시물까지 포함해 조회한다")
+    void findInstagramAgreedByAuthorIdForUpdate_mixedPosts_returnsOnlyAuthorAgreedPosts() {
+        // Given
+        UUID authorId = AuthorPostFixtures.createUser(jdbcTemplate);
+        UUID otherAuthorId = AuthorPostFixtures.createUser(jdbcTemplate);
+        UUID agreedPostId = createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-01"),
+                true,
+                false
+        );
+        UUID deletedAgreedPostId = createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-02"),
+                true,
+                true
+        );
+        createPostWithConsent(
+                authorId,
+                LocalDate.parse("2026-11-03"),
+                false,
+                false
+        );
+        createPostWithConsent(
+                otherAuthorId,
+                LocalDate.parse("2026-11-04"),
+                true,
+                false
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        var result = postRepository.findInstagramAgreedByAuthorIdForUpdate(authorId);
+
+        // Then
+        assertThat(result).extracting(Post::getId)
+                .containsExactlyInAnyOrder(agreedPostId, deletedAgreedPostId);
+    }
+
     private void insertPostCreationConflictFixtures(UUID authorId, UUID topicId) {
         UUID photoId = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b6");
         jdbcTemplate.update("""
@@ -993,5 +1038,35 @@ class PostRepositoryTest {
         );
         entityManager.flush();
         entityManager.clear();
+    }
+
+    private UUID createPostWithConsent(
+            UUID authorId,
+            LocalDate topicDate,
+            boolean agreed,
+            boolean deleted
+    ) {
+        UUID postId = AuthorPostFixtures.createPost(
+                jdbcTemplate,
+                authorId,
+                topicDate,
+                ModerationStatus.APPROVED
+        );
+        jdbcTemplate.update(
+                """
+                        UPDATE posts
+                        SET instagram_upload_agreed = ?,
+                            instagram_id = ?,
+                            instagram_agreed_at = ?,
+                            deleted_at = ?
+                        WHERE id = ?
+                        """,
+                agreed,
+                agreed ? "chalkak" : null,
+                agreed ? Timestamp.from(Instant.parse("2026-11-01T00:00:00Z")) : null,
+                deleted ? Timestamp.from(Instant.parse("2026-11-02T00:00:00Z")) : null,
+                postId
+        );
+        return postId;
     }
 }

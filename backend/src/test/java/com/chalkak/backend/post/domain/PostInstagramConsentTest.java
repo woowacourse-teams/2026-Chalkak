@@ -345,4 +345,76 @@ class PostInstagramConsentTest {
                 null
         )).isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    @DisplayName("동의한 상태에서 철회하면 동의를 끄고 ID를 지우며 철회 시각만 기록한다")
+    void revoke_agreedWithId_clearsAgreementAndIdAndRecordsRevokedAt() {
+        // Given
+        PostInstagramConsent before = PostInstagramConsent.of(
+                true,
+                "chalkak",
+                CREATED_AT
+        );
+
+        // When
+        PostInstagramConsent after = before.revoke(NOW);
+
+        // Then
+        assertThat(after.agreed()).isFalse();
+        assertThat(after.instagramId()).isNull();
+        assertThat(after.agreedAt()).isEqualTo(CREATED_AT);
+        assertThat(after.revokedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("이미 동의하지 않은 상태에서 철회해도 이전 철회 시각을 포함해 아무것도 바뀌지 않는다")
+    void revoke_notAgreed_keepsEverything() {
+        // Given
+        PostInstagramConsent neverAgreed = PostInstagramConsent.of(
+                false,
+                null,
+                CREATED_AT
+        );
+        PostInstagramConsent previouslyRevoked = PostInstagramConsent
+                .of(
+                        true,
+                        null,
+                        CREATED_AT
+                )
+                .replace(
+                        false,
+                        null,
+                        NOW
+                );
+
+        // When
+        PostInstagramConsent neverAgreedAfter = neverAgreed.revoke(NOW.plusSeconds(60));
+        PostInstagramConsent previouslyRevokedAfter = previouslyRevoked.revoke(NOW.plusSeconds(60));
+
+        // Then
+        assertThat(neverAgreedAfter).isEqualTo(neverAgreed);
+        assertThat(previouslyRevokedAfter).isEqualTo(previouslyRevoked);
+        assertThat(previouslyRevokedAfter.revokedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("삭제로 ID만 지워진 동의 상태도 철회하면 동의를 끄고 철회 시각을 기록한다")
+    void revoke_agreedWithoutIdAfterDeletion_recordsRevokedAt() {
+        // Given
+        PostInstagramConsent deleted = PostInstagramConsent
+                .of(
+                        true,
+                        "chalkak",
+                        CREATED_AT
+                )
+                .clearInstagramId();
+
+        // When
+        PostInstagramConsent after = deleted.revoke(NOW);
+
+        // Then
+        assertThat(after.agreed()).isFalse();
+        assertThat(after.agreedAt()).isEqualTo(CREATED_AT);
+        assertThat(after.revokedAt()).isEqualTo(NOW);
+    }
 }
