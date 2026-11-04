@@ -2,6 +2,8 @@ package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria.InquiryStatus;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
@@ -30,6 +32,11 @@ import org.postgresql.PGConnection;
 @PostgresRepositoryTest
 class AdminFeedbackQueryRepositoryTest {
 
+    private static final AdminFeedbackQueryCriteria ALL_FEEDBACKS = new AdminFeedbackQueryCriteria(
+            null,
+            InquiryStatus.ALL,
+            false
+    );
     private static final UUID ACTIVE_USER_ID = UUID
             .fromString("0198fc00-0000-7000-8000-000000000001");
     private static final UUID BANNED_USER_ID = UUID
@@ -79,7 +86,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtDesc_returnsNewestFirstWithAuthor() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -112,7 +119,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtAsc_returnsOldestFirst() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -134,14 +141,14 @@ class AdminFeedbackQueryRepositoryTest {
         // When
         AdminPage<AdminFeedbackProjection> firstPage = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        null,
+                        ALL_FEEDBACKS,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         2
                 );
         AdminPage<AdminFeedbackProjection> lastPage = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        null,
+                        ALL_FEEDBACKS,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         2,
                         2
@@ -163,7 +170,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_bannedAndWithdrawnAuthors_areIncluded() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -193,7 +200,11 @@ class AdminFeedbackQueryRepositoryTest {
 
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                authorId,
+                new AdminFeedbackQueryCriteria(
+                        authorId,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -210,7 +221,11 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_unknownUser_returnsEmptyPage() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                UUID.randomUUID(),
+                new AdminFeedbackQueryCriteria(
+                        UUID.randomUUID(),
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -234,7 +249,11 @@ class AdminFeedbackQueryRepositoryTest {
                 // 작은 fixture에서도 인덱스 검색 조건을 만들 수 있는지 확인한다.
                 jdbcTemplate.execute("SET LOCAL enable_seqscan = off");
                 adminFeedbackQueryRepository.findFeedbacks(
-                        ACTIVE_USER_ID,
+                        new AdminFeedbackQueryCriteria(
+                                ACTIVE_USER_ID,
+                                InquiryStatus.ALL,
+                                false
+                        ),
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         20
@@ -289,20 +308,32 @@ class AdminFeedbackQueryRepositoryTest {
         // When
         AdminPage<AdminFeedbackProjection> first = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        ACTIVE_USER_ID,
+                        new AdminFeedbackQueryCriteria(
+                                ACTIVE_USER_ID,
+                                InquiryStatus.ALL,
+                                false
+                        ),
                         sort,
                         1,
                         2
                 );
         AdminPage<AdminFeedbackProjection> last = adminFeedbackQueryRepository.findFeedbacks(
-                ACTIVE_USER_ID,
+                new AdminFeedbackQueryCriteria(
+                        ACTIVE_USER_ID,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 sort,
                 2,
                 2
         );
         AdminPage<AdminFeedbackProjection> beyond = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        ACTIVE_USER_ID,
+                        new AdminFeedbackQueryCriteria(
+                                ACTIVE_USER_ID,
+                                InquiryStatus.ALL,
+                                false
+                        ),
                         sort,
                         3,
                         2

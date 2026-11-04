@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.api.v1.dto.response;
 
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackAnswerState;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
@@ -32,6 +33,8 @@ public record AdminFeedbackListResponse(
             Instant createdAt,
             @Schema(description = "문의 삭제 시각. 삭제되지 않았으면 null", nullable = true)
             Instant deletedAt,
+            @Schema(description = "최초 미답변, 현재 답변 있음, 답변만 삭제됨을 나타냅니다.")
+            AdminFeedbackAnswerState answerState,
             AuthorResponse author
     ) {
 
@@ -41,6 +44,7 @@ public record AdminFeedbackListResponse(
                     feedback.content(),
                     feedback.createdAt(),
                     feedback.deletedAt(),
+                    feedback.answerState(),
                     AuthorResponse.from(feedback.author())
             );
         }

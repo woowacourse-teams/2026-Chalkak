@@ -2,6 +2,7 @@ package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
 import com.chalkak.backend.feedback.domain.Feedback;
 import java.util.UUID;
 import java.util.Optional;
@@ -22,6 +23,20 @@ public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID
     @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE feedback.userId = :userId")
     Slice<AdminFeedbackProjection> findFeedbacksByUserId(
             @Param("userId") UUID userId,
+            Pageable pageable
+    );
+
+    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE " + AdminFeedbackJpql.INQUIRY_FILTERS)
+    Slice<AdminFeedbackProjection> findFilteredFeedbacks(
+            @Param("criteria") AdminFeedbackQueryCriteria criteria,
+            Pageable pageable
+    );
+
+    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR
+            + " WHERE feedback.userId = :#{#criteria.userId()} AND "
+            + AdminFeedbackJpql.INQUIRY_FILTERS)
+    Slice<AdminFeedbackProjection> findFilteredFeedbacksByUserId(
+            @Param("criteria") AdminFeedbackQueryCriteria criteria,
             Pageable pageable
     );
 }
