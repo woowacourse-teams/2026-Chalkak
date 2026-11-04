@@ -50,6 +50,8 @@ rule_pages:
       관리자 조회: [FEEDBACK-004]
       관리자 문의 삭제: [FEEDBACK-005]
       관리자 최초 답변: [FEEDBACK-006]
+      관리자 답변 삭제: [FEEDBACK-007]
+      관리자 재답변과 선택 푸시: [FEEDBACK-008]
   docs/business-rules/rules/admin.md:
     domain: 관리자
     pages:

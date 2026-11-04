@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.exception.BusinessException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -17,6 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class FeedbackAuditTransitionTest {
 
+    private static final String ANSWERED_AT = "2026-11-03T11:00:00Z";
     private static final String DELETED_AT = "2026-11-03T12:00:00Z";
 
     @Test
@@ -53,19 +55,19 @@ class FeedbackAuditTransitionTest {
     }
 
     @Test
-    @DisplayName("문의 답변 감사는 원문 없이 답변 시각의 전이만 기록한다")
-    void create_validAnswer_recordsOnlyAnswerTime() {
+    @DisplayName("문의 답변 감사는 원문 없이 답변 등록·삭제 시각을 기록한다")
+    void create_validAnswer_recordsAnswerTimestamps() {
         AdminAuditLog audit = create(
                 AdminAction.FEEDBACK_ANSWERED,
-                Collections.singletonMap("answeredAt", null),
-                Map.of("answeredAt", DELETED_AT),
+                answerState(null, null),
+                answerState(DELETED_AT, null),
                 AdminTargetType.FEEDBACK
         );
 
         assertThat(audit.getReason()).isNull();
         assertThat(audit.getBeforeState()).containsEntry("answeredAt", null);
         assertThat(audit.getAfterState())
-                .containsExactlyEntriesOf(Map.of("answeredAt", DELETED_AT));
+                .containsExactlyEntriesOf(answerState(DELETED_AT, null));
     }
 
     @ParameterizedTest
@@ -84,9 +86,87 @@ class FeedbackAuditTransitionTest {
         )).isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    @DisplayName("답변 삭제 감사는 같은 답변의 삭제 시각만 추가한다")
+    void create_validAnswerDeletion_recordsDeletionTime() {
+        AdminAuditLog audit = create(
+                AdminAction.FEEDBACK_ANSWER_DELETED,
+                answerState(ANSWERED_AT, null),
+                answerState(ANSWERED_AT, DELETED_AT),
+                AdminTargetType.FEEDBACK
+        );
+
+        assertThat(audit.getAfterState())
+                .containsExactlyEntriesOf(answerState(ANSWERED_AT, DELETED_AT));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidAnswerDeletionTransitions")
+    @DisplayName("답변 삭제 감사에서 다른 답변을 가리키거나 전이가 맞지 않으면 거절한다")
+    void create_invalidAnswerDeletion_rejectsAudit(
+            Map<String, Object> before,
+            Map<String, Object> after
+    ) {
+        assertThatThrownBy(() -> create(
+                AdminAction.FEEDBACK_ANSWER_DELETED,
+                before,
+                after,
+                AdminTargetType.FEEDBACK
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidAnswerDeletionTransitions() {
+        return Stream.of(
+                Arguments.of(answerState(ANSWERED_AT, null), answerState(DELETED_AT, DELETED_AT)),
+                Arguments.of(answerState(ANSWERED_AT, null), answerState(ANSWERED_AT, null)),
+                Arguments.of(answerState(ANSWERED_AT, DELETED_AT),
+                        answerState(ANSWERED_AT, DELETED_AT))
+        );
+    }
+
+    @Test
+    @DisplayName("삭제된 답변의 재답변 감사는 더 늦은 등록 시각과 삭제 해제를 기록한다")
+    void create_validReanswer_recordsNewAnswerState() {
+        String reansweredAt = "2026-11-03T13:00:00Z";
+        AdminAuditLog audit = create(
+                AdminAction.FEEDBACK_ANSWERED,
+                answerState(ANSWERED_AT, DELETED_AT),
+                answerState(reansweredAt, null),
+                AdminTargetType.FEEDBACK
+        );
+
+        assertThat(audit.getAfterState())
+                .containsExactlyEntriesOf(answerState(reansweredAt, null));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidReanswerTransitions")
+    @DisplayName("이전 답변이 삭제되지 않았거나 시각이 증가하지 않으면 재답변 감사를 거절한다")
+    void create_invalidReanswer_rejectsAudit(
+            Map<String, Object> before,
+            Map<String, Object> after
+    ) {
+        assertThatThrownBy(() -> create(
+                AdminAction.FEEDBACK_ANSWERED,
+                before,
+                after,
+                AdminTargetType.FEEDBACK
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidReanswerTransitions() {
+        return Stream.of(
+                Arguments.of(answerState(ANSWERED_AT, null), answerState(DELETED_AT, null)),
+                Arguments.of(answerState(ANSWERED_AT, DELETED_AT), answerState(ANSWERED_AT, null)),
+                Arguments.of(answerState(DELETED_AT, DELETED_AT), answerState(ANSWERED_AT, null)),
+                Arguments.of(answerState(ANSWERED_AT, DELETED_AT),
+                        answerState(DELETED_AT, DELETED_AT))
+        );
+    }
+
     private static Stream<Arguments> invalidAnswerTransitions() {
-        Map<String, Object> before = Collections.singletonMap("answeredAt", null);
-        Map<String, Object> after = Map.of("answeredAt", DELETED_AT);
+        Map<String, Object> before = answerState(null, null);
+        Map<String, Object> after = answerState(DELETED_AT, null);
         return Stream.of(
                 Arguments.of(
                         before,
@@ -100,7 +180,7 @@ class FeedbackAuditTransitionTest {
                 ),
                 Arguments.of(
                         before,
-                        Map.of("answeredAt", "invalid"),
+                        answerState("invalid", null),
                         AdminTargetType.FEEDBACK
                 ),
                 Arguments.of(
@@ -114,6 +194,13 @@ class FeedbackAuditTransitionTest {
                         AdminTargetType.FEEDBACK
                 )
         );
+    }
+
+    private static Map<String, Object> answerState(String answeredAt, String answerDeletedAt) {
+        Map<String, Object> state = new HashMap<>();
+        state.put("answeredAt", answeredAt);
+        state.put("answerDeletedAt", answerDeletedAt);
+        return state;
     }
 
     private static Stream<Arguments> invalidTransitions() {

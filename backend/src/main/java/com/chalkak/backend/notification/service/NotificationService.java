@@ -111,13 +111,15 @@ public class NotificationService {
             UUID userId,
             UUID feedbackId,
             UUID eventKey,
-            Instant answeredAt
+            Instant answeredAt,
+            boolean pushEnabled
     ) {
         notificationRepository.save(Notification.feedbackAnswered(
                 userId,
                 feedbackId,
                 eventKey,
-                answeredAt
+                answeredAt,
+                pushEnabled
         ));
     }
 

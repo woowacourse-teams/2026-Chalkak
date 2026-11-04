@@ -15,6 +15,7 @@ public record AdminFeedbackDetailProjection(
         String authorAppVersion,
         Instant authorDeletedAt,
         String answerContent,
-        Instant answeredAt
+        Instant answeredAt,
+        Instant answerDeletedAt
 ) {
 }

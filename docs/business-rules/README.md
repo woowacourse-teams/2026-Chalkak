@@ -42,7 +42,7 @@
 
 ## 앱 연동 안내
 
-앱 기능을 연결할 때는 현재 규칙과 함께 아래의 해당 연동 문서를 읽는다. 고객센터는 [피드백 규칙](rules/feedback.md)의 FEEDBACK-001~006, [알림 규칙](rules/notification.md)의 NOTIFICATION-018과 고객센터 앱 연동 안내를 함께 확인한다.
+앱 기능을 연결할 때는 현재 규칙과 함께 아래의 해당 연동 문서를 읽는다. 고객센터는 [피드백 규칙](rules/feedback.md)의 FEEDBACK-001~008, [알림 규칙](rules/notification.md)의 NOTIFICATION-018과 고객센터 앱 연동 안내를 함께 확인한다.
 
 | 작업 | 문서 |
 | --- | --- |

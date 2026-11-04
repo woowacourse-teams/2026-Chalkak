@@ -17,8 +17,8 @@ public record FeedbackDetailResult(
                 feedback.getId(),
                 feedback.getContent(),
                 feedback.getCreatedAt(),
-                feedback.getAnswerContent(),
-                feedback.getAnsweredAt()
+                feedback.isAnswerDeleted() ? null : feedback.getAnswerContent(),
+                feedback.isAnswerDeleted() ? null : feedback.getAnsweredAt()
         );
     }
 }

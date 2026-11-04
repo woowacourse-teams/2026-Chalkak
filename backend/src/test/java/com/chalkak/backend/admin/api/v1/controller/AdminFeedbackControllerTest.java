@@ -17,6 +17,7 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult.AnswerState;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -69,6 +71,20 @@ class AdminFeedbackControllerTest {
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
     }
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", " "})
+    @DisplayName("답변 삭제 요청에 답변 버전이 없거나 비어 있으면 서비스 호출 전에 거절한다")
+    void deleteFeedbackAnswer_missingOrBlankVersion_rejects(String answerVersion) throws Exception {
+        var request = delete("/api/v1/admin/feedbacks/{feedbackId}/answer", FEEDBACK_ID);
+        if (answerVersion != null) {
+            request.param("answerVersion", answerVersion);
+        }
+
+        mockMvc.perform(request).andExpect(status().isBadRequest());
+        then(adminFeedbackCommandService).shouldHaveNoInteractions();
+    }
+
     @Test
     @DisplayName("3000 코드 포인트를 넘긴 답변은 서비스에 전달하지 않는다")
     void answerFeedback_overLimit_rejectsBeforeServiceCall() throws Exception {
@@ -94,7 +110,8 @@ class AdminFeedbackControllerTest {
         then(adminFeedbackCommandService).should().answerFeedback(
                 FEEDBACK_ID,
                 ADMIN_ID,
-                answer
+                answer,
+                false
         );
     }
 
@@ -231,6 +248,8 @@ class AdminFeedbackControllerTest {
                         "문의 원문",
                         CREATED_AT,
                         null,
+                        null,
+                        AnswerState.UNANSWERED,
                         null,
                         DELETED_AT,
                         new AdminFeedbackListResult.AuthorSummary(

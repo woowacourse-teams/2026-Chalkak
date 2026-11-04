@@ -33,8 +33,9 @@ final class AdminFeedbackJpql {
                 author.status,
                 author.appVersion,
                 author.deletedAt,
-                feedback.answerContent,
-                feedback.answeredAt
+                CASE WHEN feedback.answerDeletedAt IS NULL THEN feedback.answerContent ELSE null END,
+                CASE WHEN feedback.answerDeletedAt IS NULL THEN feedback.answeredAt ELSE null END,
+                feedback.answerDeletedAt
             )
             FROM Feedback feedback
             JOIN User author ON author.id = feedback.userId
