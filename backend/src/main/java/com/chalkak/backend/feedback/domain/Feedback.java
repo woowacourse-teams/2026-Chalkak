@@ -22,8 +22,7 @@ import org.hibernate.annotations.Generated;
 public class Feedback {
 
     public static final int MAX_CONTENT_LENGTH = 1000;
-
-    private static final int MAX_ANSWER_LENGTH = 3000;
+    public static final int MAX_ANSWER_LENGTH = 3000;
 
     private static final String INVALID_CONTENT_MESSAGE = "피드백 내용이 올바르지 않습니다.";
 
@@ -71,8 +70,7 @@ public class Feedback {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 답변한 문의입니다.");
         }
         String normalized = content == null ? "" : content.strip();
-        if (normalized.isEmpty()
-                || normalized.codePointCount(0, normalized.length()) > MAX_ANSWER_LENGTH) {
+        if (normalized.isEmpty() || !isWithinMaxAnswerLength(normalized)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "답변은 1~3,000자로 입력해 주세요.");
         }
         this.answerContent = normalized;
@@ -101,6 +99,11 @@ public class Feedback {
     public static boolean isWithinMaxLength(String content) {
         String normalized = content.strip();
         return normalized.codePointCount(0, normalized.length()) <= MAX_CONTENT_LENGTH;
+    }
+
+    public static boolean isWithinMaxAnswerLength(String content) {
+        String normalized = content.strip();
+        return normalized.codePointCount(0, normalized.length()) <= MAX_ANSWER_LENGTH;
     }
 
     private static String normalizeContent(String content) {

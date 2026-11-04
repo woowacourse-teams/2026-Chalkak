@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -65,6 +67,35 @@ class AdminFeedbackControllerTest {
     @BeforeEach
     void setUp() {
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
+    }
+
+    @Test
+    @DisplayName("3000 코드 포인트를 넘긴 답변은 서비스에 전달하지 않는다")
+    void answerFeedback_overLimit_rejectsBeforeServiceCall() throws Exception {
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/feedbacks/{feedbackId}/answer", FEEDBACK_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"answerContent\":\"" + "😀".repeat(3001) + "\"}"))
+                .andExpect(status().isBadRequest());
+        then(adminFeedbackCommandService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("앞뒤 공백을 빼고 3000 코드 포인트인 답변은 서비스에 전달한다")
+    void answerFeedback_atLimitAfterStrip_callsService() throws Exception {
+        // Given
+        String answer = "  " + "😀".repeat(3000) + "  ";
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/admin/feedbacks/{feedbackId}/answer", FEEDBACK_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"answerContent\":\"" + answer + "\"}"))
+                .andExpect(status().isNoContent());
+        then(adminFeedbackCommandService).should().answerFeedback(
+                FEEDBACK_ID,
+                ADMIN_ID,
+                answer
+        );
     }
 
     @Test

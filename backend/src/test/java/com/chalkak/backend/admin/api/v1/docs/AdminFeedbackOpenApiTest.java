@@ -36,7 +36,10 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(path + ".responses['404']").exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackAnswerRequest.properties.answerContent.type")
-                        .value("string"));
+                        .value("string"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackAnswerRequest.properties.answerContent.maxLength")
+                        .value(3000));
     }
 
     @Test
