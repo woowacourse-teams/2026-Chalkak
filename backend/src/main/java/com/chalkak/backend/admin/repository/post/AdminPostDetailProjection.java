@@ -41,6 +41,10 @@ public record AdminPostDetailProjection(
         String uploadRejectionReason,
         Instant uploadCreatedAt,
         Instant uploadUpdatedAt,
-        Long likeCount
+        Long likeCount,
+        boolean instagramUploadAgreed,
+        String instagramId,
+        Instant instagramAgreedAt,
+        Instant instagramRevokedAt
 ) {
 }

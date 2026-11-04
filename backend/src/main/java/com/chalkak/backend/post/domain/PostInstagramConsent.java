@@ -66,7 +66,7 @@ public record PostInstagramConsent(
         validateIdFormat(candidate);
         return new PostInstagramConsent(
                 true,
-                candidate.toLowerCase(Locale.ROOT),
+                normalizeId(rawInstagramId),
                 now,
                 null
         );
@@ -150,6 +150,18 @@ public record PostInstagramConsent(
             String raw
     ) {
         return agreed || withoutLeadingAt(raw).isEmpty();
+    }
+
+    /**
+     * 저장과 검색이 함께 쓰는 ID 정규화. 앞뒤 공백 제거, 맨 앞 {@code @} 하나 제거, 소문자 변환 순이며 비어 있으면
+     * {@code null}을 돌려준다. 형식 검증은 하지 않으며, 저장 경로는 소문자 변환 전에 원문 기준으로 형식을 먼저 검사한다.
+     */
+    public static String normalizeId(String raw) {
+        String candidate = withoutLeadingAt(raw);
+        if (candidate.isEmpty()) {
+            return null;
+        }
+        return candidate.toLowerCase(Locale.ROOT);
     }
 
     private static String withoutLeadingAt(String raw) {

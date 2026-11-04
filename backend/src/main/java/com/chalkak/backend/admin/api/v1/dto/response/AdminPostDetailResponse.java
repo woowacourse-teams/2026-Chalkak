@@ -35,7 +35,8 @@ public record AdminPostDetailResponse(
         @Schema(nullable = true)
         String rejectionReason,
         @Schema(nullable = true)
-        Instant deletedAt
+        Instant deletedAt,
+        InstagramConsentResponse instagramConsent
 ) {
 
     public static AdminPostDetailResponse from(AdminPostDetail detail) {
@@ -54,8 +55,33 @@ public record AdminPostDetailResponse(
                 detail.moderatedAt(),
                 detail.moderatedBy(),
                 detail.rejectionReason(),
-                detail.deletedAt()
+                detail.deletedAt(),
+                InstagramConsentResponse.from(detail.instagramConsent())
         );
+    }
+
+    @Schema(name = "AdminPostDetailInstagramConsent")
+    public record InstagramConsentResponse(
+            @Schema(description = "현재 인스타그램 게시 동의 여부")
+            boolean agreed,
+            @Schema(description = "태그용 인스타그램 ID. 동의하지 않았거나 ID가 없으면 null", nullable = true)
+            String instagramId,
+            @Schema(description = "가장 최근 동의 시각. 동의한 적 없으면 null", nullable = true)
+            Instant agreedAt,
+            @Schema(description = "가장 최근 철회 시각. 철회한 적 없으면 null이며 다시 동의해도 유지", nullable = true)
+            Instant revokedAt
+    ) {
+
+        private static InstagramConsentResponse from(
+                AdminPostDetail.InstagramConsentDetail consent
+        ) {
+            return new InstagramConsentResponse(
+                    consent.agreed(),
+                    consent.instagramId(),
+                    consent.agreedAt(),
+                    consent.revokedAt()
+            );
+        }
     }
 
     @Schema(name = "AdminPostDetailAuthor")
