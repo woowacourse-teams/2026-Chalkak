@@ -56,10 +56,15 @@ public class Feedback {
     }
 
     public void delete(Instant deletedAt) {
-        if (this.deletedAt != null) {
+        if (isDeleted()) {
             return;
         }
-        this.deletedAt = deletedAt;
+        // DB 저장값과 메모리·감사 기록의 삭제 시각을 같은 정밀도로 유지한다.
+        this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     /**

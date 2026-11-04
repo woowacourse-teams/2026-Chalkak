@@ -1,0 +1,114 @@
+package com.chalkak.backend.admin.domain;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.chalkak.backend.exception.BusinessException;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+class FeedbackAuditTransitionTest {
+
+    private static final String DELETED_AT = "2026-11-03T12:00:00Z";
+
+    @Test
+    @DisplayName("문의 삭제 감사는 원문 없이 삭제 시각의 전이만 기록한다")
+    void create_validDeletion_recordsOnlyDeletionTime() {
+        // When
+        AdminAuditLog audit = create(
+                Collections.singletonMap("deletedAt", null),
+                Map.of("deletedAt", DELETED_AT),
+                AdminTargetType.FEEDBACK
+        );
+
+        // Then
+        assertThat(audit.getReason()).isNull();
+        assertThat(audit.getBeforeState()).containsOnlyKeys("deletedAt");
+        assertThat(audit.getBeforeState().get("deletedAt")).isNull();
+        assertThat(audit.getAfterState()).containsExactlyEntriesOf(Map.of("deletedAt", DELETED_AT));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidTransitions")
+    @DisplayName("문의 삭제 감사는 잘못된 대상·전이·원문 필드를 거절한다")
+    void create_invalidDeletion_rejectsAudit(
+            Map<String, Object> before,
+            Map<String, Object> after,
+            AdminTargetType target
+    ) {
+        // When & Then
+        assertThatThrownBy(() -> create(
+                before,
+                after,
+                target
+        )).isInstanceOf(BusinessException.class);
+    }
+
+    private static Stream<Arguments> invalidTransitions() {
+        Map<String, Object> before = Collections.singletonMap("deletedAt", null);
+        Map<String, Object> after = Map.of("deletedAt", DELETED_AT);
+        return Stream.of(
+                Arguments.of(
+                        before,
+                        after,
+                        AdminTargetType.POST
+                ),
+                Arguments.of(
+                        after,
+                        after,
+                        AdminTargetType.FEEDBACK
+                ),
+                Arguments.of(
+                        before,
+                        before,
+                        AdminTargetType.FEEDBACK
+                ),
+                Arguments.of(
+                        before,
+                        Map.of("deletedAt", "invalid"),
+                        AdminTargetType.FEEDBACK
+                ),
+                Arguments.of(
+                        Map.of(),
+                        after,
+                        AdminTargetType.FEEDBACK
+                ),
+                Arguments.of(
+                        before,
+                        Map.of(
+                                "deletedAt",
+                                DELETED_AT,
+                                "content",
+                                "원문"
+                        ),
+                        AdminTargetType.FEEDBACK
+                )
+        );
+    }
+
+    private AdminAuditLog create(
+            Map<String, Object> before,
+            Map<String, Object> after,
+            AdminTargetType target
+    ) {
+        return AdminAuditLog.create(
+                UUID.randomUUID(),
+                AdminAction.FEEDBACK_DELETED,
+                target,
+                UUID.randomUUID(),
+                null,
+                AdminAuditSnapshot.from(before),
+                AdminAuditSnapshot.from(after),
+                Instant.now(),
+                UUID.randomUUID()
+        );
+    }
+}

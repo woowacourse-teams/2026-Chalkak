@@ -46,14 +46,34 @@ class FeedbackTest {
                 "문의 원문",
                 CREATED_AT
         );
-        Instant firstDeletedAt = Instant.parse("2026-11-03T07:00:00Z");
+        Instant firstDeletedAt = Instant.parse("2026-11-03T07:00:00.123456789Z");
         feedback.delete(firstDeletedAt);
 
         // When
         feedback.delete(firstDeletedAt.plusSeconds(60));
 
         // Then
-        assertThat(feedback.getDeletedAt()).isEqualTo(firstDeletedAt);
+        assertThat(feedback.getDeletedAt())
+                .isEqualTo(Instant.parse("2026-11-03T07:00:00.123456Z"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-11-03T07:00:00.123456789Z", "2026-11-03T07:00:00.123456001Z"})
+    @DisplayName("삭제 시각은 반올림하지 않고 DB의 마이크로초 정밀도에 맞춰 버린다")
+    void delete_subMicrosecondTime_truncatesToDatabasePrecision(String deletedAt) {
+        // Given
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+
+        // When
+        feedback.delete(Instant.parse(deletedAt));
+
+        // Then
+        assertThat(feedback.getDeletedAt())
+                .isEqualTo(Instant.parse("2026-11-03T07:00:00.123456Z"));
     }
 
     @Test
