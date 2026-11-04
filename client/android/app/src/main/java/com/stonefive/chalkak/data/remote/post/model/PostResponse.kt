@@ -12,6 +12,7 @@ data class PostDetailResponse(
     val thumbnailImageUrl: String,
     val signatureOriginalImageUrl: String,
     val title: String? = null,
+    val description: String? = null,
     val likeCount: Long,
     val isLiked: Boolean,
     val isMine: Boolean = false,
