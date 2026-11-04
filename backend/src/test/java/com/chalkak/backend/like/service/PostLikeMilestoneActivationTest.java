@@ -8,15 +8,19 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
-@TestPropertySource(properties = "chalkak.notification.like-milestone.enabled=false")
-class PostLikeMilestonePreparationTest extends IntegrationTestSupport {
+@TestPropertySource(properties = {
+        "NOTIFICATION_LIKE_MILESTONE_ENABLED=false",
+        "chalkak.notification.like-milestone.enabled=false"
+})
+class PostLikeMilestoneActivationTest extends IntegrationTestSupport {
 
     @Autowired
     private PostLikeService service;
@@ -24,11 +28,17 @@ class PostLikeMilestonePreparationTest extends IntegrationTestSupport {
     @Autowired
     private JdbcTemplate jdbc;
 
-    @Test
-    @DisplayName("1차 OFF 배포에서는 좋아요와 최고 단계를 저장하고 알림은 만들지 않는다")
-    void likePost_preparation_persistsCountAndBaselineWithoutNotification() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("1차 OFF 설정이 남아 있어도 알림을 생성하고 회원 설정에 따라 푸시 발행을 결정한다")
+    void likePost_legacyDisabledSetting_createsNotification(boolean pushEnabled) {
         // Given
         UUID authorId = AuthorPostFixtures.createUser(jdbc);
+        jdbc.update(
+                "UPDATE users SET like_push_enabled = ? WHERE id = ?",
+                pushEnabled,
+                authorId
+        );
         UUID postId = AuthorPostFixtures.createPost(
                 jdbc,
                 authorId,
@@ -38,8 +48,7 @@ class PostLikeMilestonePreparationTest extends IntegrationTestSupport {
 
         // When
         for (int index = 0; index < 6; index++) {
-            UUID likerId = AuthorPostFixtures.createUser(jdbc);
-            service.likePost(postId, likerId);
+            service.likePost(postId, AuthorPostFixtures.createUser(jdbc));
         }
 
         // Then
@@ -59,9 +68,15 @@ class PostLikeMilestonePreparationTest extends IntegrationTestSupport {
                 postId
         )).isEqualTo(5L);
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM notifications WHERE source_id = ?",
+                "SELECT COUNT(*) FROM notifications WHERE source_id = ? AND user_id = ? AND type = 'POST_LIKE_MILESTONE'",
                 Long.class,
+                postId,
+                authorId
+        )).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+                "SELECT sqs_publish_status FROM notifications WHERE source_id = ?",
+                String.class,
                 postId
-        )).isZero();
+        )).isEqualTo(pushEnabled ? "PENDING" : "NOT_REQUIRED");
     }
 }

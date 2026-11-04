@@ -1,7 +1,7 @@
 # 좋아요 달성 알림의 DB와 처리 흐름
 
-- 기준: [이슈 #864](https://github.com/woowacourse-teams/2026-Chalkak/issues/864), [PR #914](https://github.com/woowacourse-teams/2026-Chalkak/pull/914). 기능 구현 `c965cfb7`, 개발 브랜치 통합·검증 `e2d45e3f`
-- 상태: 2026-11-03 로컬 구현·검증 완료. 서버 미배포, 실제 기기 수신·앱 연동 미검증
+- 관련 작업: [1차 PR #914](https://github.com/woowacourse-teams/2026-Chalkak/pull/914), [2차 이슈 #935](https://github.com/woowacourse-teams/2026-Chalkak/issues/935)
+- 적용 상태: 개발·운영 1차 배포와 최고 단계 초기화 완료(사용자 로그 기준). 현재 코드는 2차 활성화용이며 실제 2차 배포·기기 수신·앱 연동은 미확인
 - 정책 원본: [LIKE-006](../../../docs/business-rules/rules/like.md#like-006-좋아요-달성-단계와-중복-생성-방지), [NOTIFICATION-006·017](../../../docs/business-rules/rules/notification.md)
 
 ## 처리한 단계와 발송 상태를 나눠 저장한다
@@ -52,7 +52,7 @@
 
 ## 신규 좋아요부터 푸시까지
 
-아래는 기능 활성화 이후 흐름이다. 현재 1차 버전은 `NOTIFICATION_LIKE_MILESTONE_ENABLED=false`로 최고 단계까지만 갱신하고 알림 생성을 막는다. Worker는 스위치와 무관하게 새 타입을 처리할 수 있다. [1차 배포·2차 활성화 절차](../../deploy/docs/like-milestone-rollout.md)를 따른다.
+2차 코드를 배포하면 아래 흐름이 바로 적용된다. 임시 생성 스위치를 제거했으므로 서버에 예전 `NOTIFICATION_LIKE_MILESTONE_ENABLED=false`가 남아 있어도 알림을 생성한다. 추가 SQL이나 ON 설정은 필요하지 않다. [배포 절차](../../deploy/docs/like-milestone-rollout.md)를 따른다.
 
 ```mermaid
 flowchart LR
@@ -90,11 +90,11 @@ Worker는 최신 설정·읽음·기한·메시지 일치·회원·로그인·�
 
 ## 도입·검증과 운영 확인
 
-[설정 마이그레이션](../../src/main/resources/db/migration/V202611032315__add_like_push_setting.sql)과 [알림함 통합 마이그레이션](../../src/main/resources/db/migration/V202611032316__integrate_like_milestone_notifications.sql)을 적용한다. Flyway는 최고 단계 컬럼을 기본값 0으로 추가하고 제약조건만 적용한다. 구버전 종료 후 [별도 초기화 스크립트](../../deploy/scripts/initialize_like_milestones.sh)를 수동 실행해 기존 개수 기준을 맞춘다. 기존 좋아요 17개는 최고 단계 15로 올리며 Notification이나 SQS 메시지는 만들지 않는다. 이미 높은 단계는 낮추지 않고 신규 행은 0부터 시작한다. 실행 순서·실패 대응은 [배포 절차](../../deploy/docs/like-milestone-rollout.md)를 따른다.
+[설정 마이그레이션](../../src/main/resources/db/migration/V202611032315__add_like_push_setting.sql)과 [알림함 통합 마이그레이션](../../src/main/resources/db/migration/V202611032316__integrate_like_milestone_notifications.sql)은 1차에서 적용했다. Flyway는 최고 단계 컬럼을 기본값 0으로 추가하고 제약조건만 적용한다. 기존 게시물의 기준 단계는 구버전 종료 후 한 번 초기화했다. 개발 0행·운영 1,663행 갱신과 COMMIT을 사용자 로그로 확인했으며, 과거 알림이나 SQS 메시지는 생성하지 않았다.
 
-푸시 전용 초안은 서버에 배포하지 않았으므로 미사용 전용 테이블의 생성·삭제 마이그레이션은 포함하지 않는다. 기존 마일스톤 데이터 이관은 필요하지 않다. 로컬에 초안을 적용한 DB는 별도로 정리하며 공유·운영 DB의 Flyway 이력을 변경하지 않는다. 공통 구버전의 새 타입 조회·메시지 처리 오류를 막기 위해 1차에는 임시 생성 스위치를 추가한다. 개발·운영의 1차 배포·구버전 종료·최고 단계 보정 완료 후 2차에서 조건문과 설정을 제거하며, 제거 코드는 이번에 구현하지 않는다.
+2차에서는 이미 적용한 마이그레이션을 수정하거나 최고 단계를 다시 초기화하지 않는다. 임시 생성 조건·환경변수·일회용 초기화 도구를 제거하고 기존 조건부 UPDATE와 Notification 저장을 연결한다. 파일 정리와 롤백 조건은 [배포 절차](../../deploy/docs/like-milestone-rollout.md)를 따른다.
 
-검증은 로컬 PostgreSQL과 모의 외부 발송으로 수행했다. 기능 구현 시 전체 테스트 3,748개가 통과했고, 개발 브랜치 통합 커밋 `e2d45e3f`에서는 전체 테스트 3,813개·아키텍처 12개·환경변수·컨벤션 검사가 통과했다. 이는 해당 커밋의 검증 결과이며 이후 리뷰 수정의 검증 결과는 PR에서 구분해 기록한다. 관련 테스트는 [단계 정책](../../src/test/java/com/chalkak/backend/notification/domain/LikeMilestonePolicyTest.java), [동시성·롤백](../../src/test/java/com/chalkak/backend/like/service/PostLikeMilestoneConcurrencyTest.java), [최고 단계 초기화](../../src/test/java/com/chalkak/backend/like/infrastructure/persistence/PostLikeMilestoneMigrationTest.java), [Worker](../../src/test/java/com/chalkak/backend/notification/service/PostLikeMilestonePushWorkerTest.java)에서 확인한다.
+검증 코드는 [활성화·예전 OFF 설정 호환](../../src/test/java/com/chalkak/backend/like/service/PostLikeMilestoneActivationTest.java), [단계·설정·기준값 이후 생성](../../src/test/java/com/chalkak/backend/like/service/PostLikeServiceTest.java), [동시성·롤백](../../src/test/java/com/chalkak/backend/like/service/PostLikeMilestoneConcurrencyTest.java), [마이그레이션 제약](../../src/test/java/com/chalkak/backend/like/infrastructure/persistence/PostLikeMilestoneMigrationTest.java), [Worker](../../src/test/java/com/chalkak/backend/notification/service/PostLikeMilestonePushWorkerTest.java)에 있다. 로컬 PostgreSQL과 모의 외부 발송을 사용하는 검증이며 실제 기기 수신 검증과 구분한다.
 
 배포 후에는 새 단계·OFF·읽음 선처리·게시물 삭제·다중 기기를 실제 SQS·FCM과 연결해 확인한다. 기존 [알림 조사 절차](../../deploy/docs/notification-investigation.md)와 [모니터링 안내](../../deploy/docs/notification-monitoring.md)를 따라 공통 Relay 로그·DB 발행 대기·Worker 생략 사유·오류 경보·DLQ를 확인한다. 기존 모니터링 코드를 재사용했다는 사실과 실제 AWS 설정의 검증 완료는 구분한다.
 
@@ -102,9 +102,9 @@ Worker는 최신 설정·읽음·기한·메시지 일치·회원·로그인·�
 
 ## Android·iOS 팀에 수동으로 전달할 문구
 
-아래 계약은 활성화 이후 기준이다. PR #914의 1차 호환 배포에서는 좋아요 알림을 생성하지 않으며, 개발·운영의 1차 완료 후 별도 2차 배포에서 활성화한다. 서버 스위치와 회원별 `likePushEnabled`를 구분하고, 앱의 새 종류·설정 지원을 활성화 전에 준비한다.
+아래 문구는 사람이 전달한다. 팀 채널에 자동 발송하지 않는다.
 
-> #864에서 좋아요 달성 알림을 추가했습니다(LIKE-006, NOTIFICATION-006·017). 알림함·푸시에 `POST_LIKE_MILESTONE`이 올 수 있으며 `sourceType=POST`, `sourceId=게시물 ID`로 게시물 상세에 연결하고 알림 ID로 읽음 처리해 주세요. 설정 GET·PATCH에 `likePushEnabled`를 추가했고 기존·신규 회원 모두 최초 true입니다. 누락·null은 기존 값을 유지하며 전체 설정 토글은 네 필드를 함께 보내야 합니다. 좋아요 푸시를 꺼도 알림함은 생성하고 다시 켜도 지난 알림을 소급 푸시하지 않습니다. 새 종류·설정 화면·부분 수정·기존 앱의 알 수 없는 종류 처리와 실제 기기 수신을 확인해 주세요. [백엔드 PR #914](https://github.com/woowacourse-teams/2026-Chalkak/pull/914), 개발 브랜치 통합 커밋 `e2d45e3f`에서 로컬 검증을 완료했으며 서버 미배포 상태입니다. 리뷰 수정은 진행 중이며 공통 하네스 재배포 버전은 미확인입니다. 앱 연동 계약은 공통 푸시·알림함 안내를 참고해 주세요.
+> 좋아요 달성 알림의 1차 호환 배포와 기준값 초기화는 개발·운영에서 끝났습니다. #935의 2차 배포부터 새 단계 알림이 자동 생성되며 실제 2차 배포·기기 수신은 아직 확인 전입니다. API·메시지 계약은 #914와 같습니다. `POST_LIKE_MILESTONE`은 `sourceType=POST`, `sourceId=게시물 ID`로 상세에 연결하고 `notificationId`로 읽음 처리해 주세요. `likePushEnabled`를 꺼도 알림함은 생성하고 다시 켜도 지난 알림을 소급 푸시하지 않습니다. 전체 설정 토글은 현재 설정 API의 모든 수신 항목을 함께 보내고, 부분 수정에서 누락·null은 기존 값을 유지합니다. 활성화 배포 전에 새 종류·설정 화면·게시물 이동을 준비하고 개발에서 실제 수신·읽음을 확인해 주세요.
 
 ## Notion 수동 반영
 
@@ -116,4 +116,4 @@ Worker는 최신 설정·읽음·기한·메시지 일치·회원·로그인·�
 | 알림함 → 푸시 수신 설정 | 기존 해당 규칙 교체 | [NOTIFICATION-006 전체](../../../docs/business-rules/rules/notification.md#notification-006-본인-푸시-수신-설정-조회수정) |
 | 알림함 → 좋아요 달성 알림 | 새 페이지에 추가 | [NOTIFICATION-017 전체](../../../docs/business-rules/rules/notification.md#notification-017-좋아요-달성-알림함과-푸시) |
 
-좋아요 달성의 서버 미배포 상태도 함께 알린다. Notion·팀 채널에는 자동 반영하거나 발송하지 않았다.
+1차 완료와 2차 활성화 배포 전 상태를 구분해 알린다. Notion·팀 채널에는 자동 반영하거나 발송하지 않았다.

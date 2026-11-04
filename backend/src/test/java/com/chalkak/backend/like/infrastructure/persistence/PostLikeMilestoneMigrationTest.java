@@ -4,9 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.support.IntegrationTestSupport;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -95,74 +92,6 @@ class PostLikeMilestoneMigrationTest extends IntegrationTestSupport {
                 userId,
                 UUID.randomUUID()
         )).hasMessageContaining("ck_notifications_like_milestone_source");
-    }
-
-    @Test
-    @DisplayName("별도 초기화 SQL은 현재 단계까지만 올리고 재실행해도 높은 단계와 알림을 변경하지 않는다")
-    void initialize_existingCounts_advancesBaselineWithoutNotifications() throws Exception {
-        // Given
-        UUID eight = insertPost(8L);
-        UUID seventeen = insertPost(17L);
-        UUID decreased = insertPost(4L);
-        migrate("202611032316");
-        jdbc.update("UPDATE post_like_counts SET last_milestone_count = 10 WHERE post_id = ?",
-                decreased);
-
-        // When
-        initializeBaselines();
-        initializeBaselines();
-
-        // Then
-        assertThat(progress(eight)).isEqualTo(5L);
-        assertThat(progress(seventeen)).isEqualTo(15L);
-        assertThat(progress(decreased)).isEqualTo(10L);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notifications", Long.class)).isZero();
-    }
-
-    @Test
-    @DisplayName("이미 좋아요 알림이 존재하면 초기화를 거부하고 최고 단계를 유지한다")
-    void initialize_existingLikeNotification_rejectsWithoutChanges() {
-        // Given
-        UUID postId = insertPost(17L);
-        migrate("202611032316");
-        jdbc.update(
-                "INSERT INTO notifications (user_id, event_key, type, source_type, source_id, title, body, sqs_publish_status, created_at) VALUES (?, ?, 'POST_LIKE_MILESTONE', 'POST', ?, '제목', '본문', 'NOT_REQUIRED', CURRENT_TIMESTAMP)",
-                userId,
-                UUID.randomUUID(),
-                postId
-        );
-
-        // When & Then
-        assertThatThrownBy(this::initializeBaselines)
-                .hasMessageContaining("Like notifications already exist");
-        assertThat(progress(postId)).isZero();
-    }
-
-    @Test
-    @DisplayName("초기화 SQL이 실패하면 전체 갱신을 롤백한다")
-    void initialize_updateFailure_rollsBack() {
-        // Given
-        UUID eight = insertPost(8L);
-        UUID seventeen = insertPost(17L);
-        migrate("202611032316");
-        jdbc.execute(
-                "ALTER TABLE post_like_counts ADD CONSTRAINT ck_test_baseline_failure CHECK (last_milestone_count < 10)");
-
-        // When & Then
-        assertThatThrownBy(this::initializeBaselines)
-                .hasMessageContaining("ck_test_baseline_failure");
-        assertThat(progress(eight)).isZero();
-        assertThat(progress(seventeen)).isZero();
-    }
-
-    private void initializeBaselines() throws IOException {
-        String sql = Files.readString(Path.of("deploy/scripts/initialize_like_milestones.sql"));
-        try {
-            jdbc.execute(sql);
-        } catch (RuntimeException exception) {
-            jdbc.execute("ROLLBACK");
-            throw exception;
-        }
     }
 
     private long progress(UUID postId) {
