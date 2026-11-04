@@ -73,12 +73,12 @@ class AdminFeedbackControllerTest {
 
     @ParameterizedTest
     @NullSource
-    @ValueSource(strings = {"", "invalid-time"})
-    @DisplayName("답변 삭제 요청에 유효한 답변 등록 시각이 없으면 서비스 호출 전에 거절한다")
-    void deleteFeedbackAnswer_invalidAnsweredAt_rejects(String answeredAt) throws Exception {
+    @ValueSource(strings = {"", " "})
+    @DisplayName("답변 삭제 요청에 답변 버전이 없거나 비어 있으면 서비스 호출 전에 거절한다")
+    void deleteFeedbackAnswer_missingOrBlankVersion_rejects(String answerVersion) throws Exception {
         var request = delete("/api/v1/admin/feedbacks/{feedbackId}/answer", FEEDBACK_ID);
-        if (answeredAt != null) {
-            request.param("answeredAt", answeredAt);
+        if (answerVersion != null) {
+            request.param("answerVersion", answerVersion);
         }
 
         mockMvc.perform(request).andExpect(status().isBadRequest());
@@ -250,6 +250,7 @@ class AdminFeedbackControllerTest {
                         null,
                         null,
                         AnswerState.UNANSWERED,
+                        null,
                         DELETED_AT,
                         new AdminFeedbackListResult.AuthorSummary(
                                 USER_ID,

@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.service.feedback;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult.AuthorSummary;
+import com.chalkak.backend.feedback.domain.Feedback;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -13,6 +14,7 @@ public record AdminFeedbackDetailResult(
         String answerContent,
         Instant answeredAt,
         AnswerState answerState,
+        String answerVersion,
         Instant deletedAt,
         AuthorSummary author
 ) {
@@ -25,6 +27,9 @@ public record AdminFeedbackDetailResult(
                 detail.answerContent(),
                 detail.answeredAt(),
                 AnswerState.from(detail),
+                detail.answeredAt() == null
+                        ? null
+                        : Feedback.createAnswerVersion(detail.answeredAt()),
                 detail.deletedAt(),
                 new AuthorSummary(
                         detail.authorId(),

@@ -45,7 +45,9 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.feedback.domain.Feedback;
 import com.chalkak.backend.feedback.repository.FeedbackRepository;
+import tools.jackson.databind.ObjectMapper;
 
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=false")
@@ -67,6 +69,9 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     private PlatformTransactionManager transactionManager;
     @Autowired
     private FeedbackRepository feedbackRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private UUID adminId;
     private UUID userId;
@@ -305,12 +310,13 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answerState").value("ANSWERED"));
         Instant answeredAt = savedAnsweredAt();
+        String answerVersion = currentAnswerVersion();
         String memberToken = "Bearer "
                 + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
 
         // When
-        deleteAnswer(answeredAt).andExpect(status().isNoContent());
-        deleteAnswer(answeredAt).andExpect(status().isNoContent());
+        deleteAnswer(answerVersion).andExpect(status().isNoContent());
+        deleteAnswer(answerVersion).andExpect(status().isNoContent());
 
         // Then
         assertThat(notificationCount()).isZero();
@@ -368,7 +374,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> commandService.deleteFeedbackAnswer(
                 feedbackId,
                 UUID.randomUUID(),
-                answeredAt
+                Feedback.createAnswerVersion(answeredAt)
         )).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(notificationCount()).isEqualTo(1L);
         assertThat(auditCount()).isEqualTo(1L);
@@ -434,9 +440,23 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThat(notificationCount()).isZero();
     }
 
+    private String currentAnswerVersion() throws Exception {
+        var response = mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerVersion").isString())
+                .andReturn().getResponse();
+        return objectMapper.readTree(response.getContentAsByteArray()).get("answerVersion")
+                .asString();
+    }
+
     private ResultActions deleteAnswer(Instant answeredAt) throws Exception {
+        return deleteAnswer(Feedback.createAnswerVersion(answeredAt));
+    }
+
+    private ResultActions deleteAnswer(String answerVersion) throws Exception {
         return mockMvc.perform(delete("/api/v1/admin/feedbacks/{id}/answer", feedbackId)
-                .param("answeredAt", answeredAt.toString())
+                .param("answerVersion", answerVersion)
                 .header(HttpHeaders.AUTHORIZATION, adminToken()));
     }
 

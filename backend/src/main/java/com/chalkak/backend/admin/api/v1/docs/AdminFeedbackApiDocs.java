@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.time.Instant;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -35,10 +34,10 @@ public interface AdminFeedbackApiDocs {
             AdminFeedbackAnswerRequest request
     );
 
-    @Operation(summary = "관리자 문의 답변 삭제", description = "상세에서 받은 답변 등록 시각에 해당하는 답변을 삭제하고 알림과 감사 기록을 함께 처리합니다. 같은 답변의 반복 삭제는 204입니다.")
+    @Operation(summary = "관리자 문의 답변 삭제", description = "상세에서 받은 answerVersion에 해당하는 답변을 삭제하고 알림과 감사 기록을 함께 처리합니다. 같은 답변의 반복 삭제는 204입니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "답변 삭제 성공 또는 같은 답변이 이미 삭제됨", content = @Content),
-            @ApiResponse(responseCode = "400", description = "입력 오류, 삭제된 문의 또는 현재 답변 시각 불일치", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "입력 오류, 삭제된 문의 또는 현재 답변 버전 불일치", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "관리자 인증 필요", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "문의가 존재하지 않음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
@@ -46,7 +45,7 @@ public interface AdminFeedbackApiDocs {
     ResponseEntity<Void> deleteFeedbackAnswer(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @Parameter(schema = @Schema(type = "string", format = "uuid")) String feedbackId,
-            @Parameter(description = "관리자 문의 상세에서 받은 현재 답변의 등록 시각", required = true) Instant answeredAt
+            @Parameter(description = "관리자 문의 상세에서 받은 answerVersion 문자열", required = true) String answerVersion
     );
 
     @Operation(summary = "관리자 문의 삭제", description = "문의를 소프트 딜리트하고 감사 기록을 함께 저장합니다. "

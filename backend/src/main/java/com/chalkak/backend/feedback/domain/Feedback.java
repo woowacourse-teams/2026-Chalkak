@@ -6,8 +6,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -81,11 +83,11 @@ public class Feedback {
         this.answerDeletedAt = null;
     }
 
-    public boolean deleteAnswer(Instant expectedAnsweredAt, Instant deletedAt) {
+    public boolean deleteAnswer(String expectedAnswerVersion, Instant deletedAt) {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의의 답변은 삭제할 수 없습니다.");
         }
-        if (answeredAt == null || !answeredAt.equals(expectedAnsweredAt)) {
+        if (answeredAt == null || !createAnswerVersion(answeredAt).equals(expectedAnswerVersion)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "현재 답변을 다시 확인해 주세요.");
         }
         if (isAnswerDeleted()) {
@@ -126,6 +128,11 @@ public class Feedback {
     public static boolean isWithinMaxAnswerLength(String content) {
         String normalized = content.strip();
         return normalized.codePointCount(0, normalized.length()) <= MAX_ANSWER_LENGTH;
+    }
+
+    public static String createAnswerVersion(Instant answeredAt) {
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(answeredAt.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private Instant nextAnsweredAt(Instant now) {

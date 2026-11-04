@@ -157,7 +157,7 @@ Authorization: Bearer {accessToken}
 
 관리자 상세의 `answerState`로 최초 답변(`UNANSWERED`), 현재 답변 있음(`ANSWERED`), 답변 삭제됨(`DELETED`)을 구분한다. 재답변의 푸시 발송 선택은 `DELETED`에서 표시한다.
 
-관리자 상세의 `answeredAt` 문자열을 그대로 쿼리 파라미터로 전달해 `DELETE /api/v1/admin/feedbacks/{feedbackId}/answer`를 호출한다. 밀리초만 남기도록 시각을 변환하면 서버의 원래 값과 달라질 수 있다. 204를 받으면 상세를 갱신하고, 400으로 거절되면 최신 상세를 조회해 삭제 대상을 다시 확인한다.
+관리자 상세의 `answerVersion` 문자열을 쿼리 파라미터로 그대로 전달해 `DELETE /api/v1/admin/feedbacks/{feedbackId}/answer`를 호출한다. 현재 답변이 없으면 이 값은 null이다. 화면에는 별도 `answeredAt`을 사용해 등록 시각을 표시한다. 204를 받으면 상세를 갱신하고, 400으로 거절되면 최신 상세를 조회해 삭제 대상을 다시 확인한다.
 
 재답변은 기존 등록 경로 `POST /api/v1/admin/feedbacks/{feedbackId}/answer`에 `answerContent`를 전달한다. 푸시 발송을 선택한 경우에만 `sendPush: true`를 함께 보낸다. 생략하면 알림함에만 저장한다. 최초 답변은 항상 기존 푸시 조건을 따른다. 사용자가 예전 푸시로 문의 상세를 열면 그 시점의 현재 답변을 표시한다.
 

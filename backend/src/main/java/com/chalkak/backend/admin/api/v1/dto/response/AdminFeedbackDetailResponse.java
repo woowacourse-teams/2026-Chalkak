@@ -17,6 +17,8 @@ public record AdminFeedbackDetailResponse(
         Instant answeredAt,
         @Schema(description = "관리자 답변 상태. DELETED인 문의에 재답변할 때 푸시를 선택할 수 있습니다.")
         AnswerState answerState,
+        @Schema(description = "현재 답변을 삭제할 때 그대로 전달하는 문자열. 현재 답변이 없으면 null", nullable = true)
+        String answerVersion,
         @Schema(description = "문의 삭제 시각. 삭제되지 않았으면 null", nullable = true)
         Instant deletedAt,
         AuthorResponse author
@@ -30,6 +32,7 @@ public record AdminFeedbackDetailResponse(
                 result.answerContent(),
                 result.answeredAt(),
                 result.answerState(),
+                result.answerVersion(),
                 result.deletedAt(),
                 AuthorResponse.from(result.author())
         );

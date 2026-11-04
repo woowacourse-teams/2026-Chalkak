@@ -11,8 +11,9 @@ import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
 import jakarta.validation.Valid;
-import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -55,12 +56,15 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
     public ResponseEntity<Void> deleteFeedbackAnswer(
             @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
             @PathVariable String feedbackId,
-            @RequestParam("answeredAt") Instant answeredAt
+            @RequestParam("answerVersion") String answerVersion
     ) {
+        if (answerVersion.isBlank()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "답변 버전이 필요합니다.");
+        }
         adminFeedbackCommandService.deleteFeedbackAnswer(
                 CanonicalUuidParser.parse(feedbackId),
                 authenticatedAdmin.adminId(),
-                answeredAt
+                answerVersion
         );
         return ResponseEntity.noContent().build();
     }

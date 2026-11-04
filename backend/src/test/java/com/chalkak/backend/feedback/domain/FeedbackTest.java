@@ -29,7 +29,7 @@ class FeedbackTest {
                 CREATED_AT
         );
         feedback.answer("이전 답변", CREATED_AT);
-        feedback.deleteAnswer(CREATED_AT, CREATED_AT);
+        feedback.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT);
 
         // When
         feedback.answer("새 답변", CREATED_AT);
@@ -38,7 +38,8 @@ class FeedbackTest {
         assertThat(feedback.getAnswerContent()).isEqualTo("새 답변");
         assertThat(feedback.getAnswerDeletedAt()).isNull();
         assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT.plus(1, ChronoUnit.MICROS));
-        assertThatThrownBy(() -> feedback.deleteAnswer(CREATED_AT, CREATED_AT))
+        assertThatThrownBy(
+                () -> feedback.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT))
                 .isInstanceOf(BusinessException.class);
     }
 
