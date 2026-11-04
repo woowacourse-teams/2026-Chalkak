@@ -58,7 +58,6 @@ class PushWorkerAiReviewTest extends IntegrationTestSupport {
 
     @Autowired
     private NotificationRepository notifications;
-
     @Autowired
     private PushDeviceRepository devices;
 
