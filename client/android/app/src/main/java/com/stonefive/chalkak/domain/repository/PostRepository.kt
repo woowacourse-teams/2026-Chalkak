@@ -9,7 +9,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
@@ -35,10 +35,11 @@ interface PostRepository {
 
     suspend fun deletePost(postId: String): HomeResult<Unit>
 
-    suspend fun updatePostTitle(
+    suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate>
+        description: String?,
+    ): HomeResult<PostUpdate>
 
     suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent>
 
