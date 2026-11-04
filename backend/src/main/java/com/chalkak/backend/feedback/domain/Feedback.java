@@ -50,6 +50,9 @@ public class Feedback {
     @Column(name = "answered_at")
     private Instant answeredAt;
 
+    @Column(name = "answer_deleted_at")
+    private Instant answerDeletedAt;
+
     public static Feedback create(
             UUID userId,
             String content,
@@ -75,6 +78,24 @@ public class Feedback {
         }
         this.answerContent = normalized;
         this.answeredAt = answeredAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean deleteAnswer(Instant expectedAnsweredAt, Instant deletedAt) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의의 답변은 삭제할 수 없습니다.");
+        }
+        if (answeredAt == null || !answeredAt.equals(expectedAnsweredAt)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "현재 답변을 다시 확인해 주세요.");
+        }
+        if (isAnswerDeleted()) {
+            return false;
+        }
+        answerDeletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+        return true;
+    }
+
+    public boolean isAnswerDeleted() {
+        return answerDeletedAt != null;
     }
 
     public void delete(Instant deletedAt) {

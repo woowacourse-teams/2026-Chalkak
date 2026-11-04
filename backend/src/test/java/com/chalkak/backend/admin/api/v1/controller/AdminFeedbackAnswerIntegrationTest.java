@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -18,6 +19,8 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import java.util.UUID;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -281,6 +284,103 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, memberToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answerContent").value("비공개 답변"));
+    }
+
+    @Test
+    @DisplayName("같은 답변을 반복 삭제하면 원문은 보존하고 알림과 감사 상태는 한 번만 변경한다")
+    void deleteFeedbackAnswer_sameAnswerTwice_hidesAnswerAndDeletesNotification() throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+        Instant answeredAt = savedAnsweredAt();
+        String memberToken = "Bearer "
+                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+
+        // When
+        deleteAnswer(answeredAt).andExpect(status().isNoContent());
+        deleteAnswer(answeredAt).andExpect(status().isNoContent());
+
+        // Then
+        assertThat(notificationCount()).isZero();
+        assertThat(storedAnswer()).isEqualTo("비공개 답변");
+        assertThat(savedAnsweredAt()).isEqualTo(answeredAt);
+        assertThat(jdbc.queryForObject(
+                """
+                        SELECT COUNT(*) FROM admin_audit_logs a JOIN feedbacks f ON a.target_id = f.id
+                        WHERE f.id = ? AND a.action = 'FEEDBACK_ANSWER_DELETED'
+                          AND a.before_state = jsonb_build_object('answeredAt',
+                              a.before_state->>'answeredAt', 'answerDeletedAt', null)
+                          AND a.after_state = jsonb_build_object('answeredAt',
+                              a.after_state->>'answeredAt', 'answerDeletedAt', a.after_state->>'answerDeletedAt')
+                          AND (a.after_state->>'answeredAt')::timestamptz = f.answered_at
+                          AND (a.after_state->>'answerDeletedAt')::timestamptz = f.answer_deleted_at
+                        """,
+                Long.class,
+                feedbackId
+        )).isEqualTo(1L);
+        mockMvc.perform(get("/api/v1/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("비공개 문의"))
+                .andExpect(jsonPath("$.answerContent").value(nullValue()))
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()));
+        mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
+                .header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerContent").value(nullValue()))
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("이전 답변 시각으로 삭제하면 현재 답변과 알림은 보존한다")
+    void deleteFeedbackAnswer_staleAnsweredAt_preservesCurrentAnswer() throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+
+        // When & Then
+        deleteAnswer(savedAnsweredAt().minusSeconds(1)).andExpect(status().isBadRequest());
+        assertThat(notificationCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(1L);
+        assertThat(savedAnswerDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("답변 삭제 감사가 실패하면 삭제 시각과 알림 삭제를 함께 롤백한다")
+    void deleteFeedbackAnswer_auditFailure_rollsBackDeletionAndNotification() throws Exception {
+        // Given
+        answer("비공개 답변").andExpect(status().isNoContent());
+        Instant answeredAt = savedAnsweredAt();
+
+        // When & Then
+        assertThatThrownBy(() -> commandService.deleteFeedbackAnswer(
+                feedbackId,
+                UUID.randomUUID(),
+                answeredAt
+        )).isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(notificationCount()).isEqualTo(1L);
+        assertThat(auditCount()).isEqualTo(1L);
+        assertThat(savedAnswerDeletedAt()).isNull();
+    }
+
+    private ResultActions deleteAnswer(Instant answeredAt) throws Exception {
+        return mockMvc.perform(delete("/api/v1/admin/feedbacks/{id}/answer", feedbackId)
+                .param("answeredAt", answeredAt.toString())
+                .header(HttpHeaders.AUTHORIZATION, adminToken()));
+    }
+
+    private Instant savedAnsweredAt() {
+        return jdbc.queryForObject(
+                "SELECT answered_at FROM feedbacks WHERE id = ?",
+                OffsetDateTime.class,
+                feedbackId
+        ).toInstant();
+    }
+
+    private OffsetDateTime savedAnswerDeletedAt() {
+        return jdbc.queryForObject(
+                "SELECT answer_deleted_at FROM feedbacks WHERE id = ?",
+                OffsetDateTime.class,
+                feedbackId
+        );
     }
 
     private void awaitRelease(CountDownLatch release) {

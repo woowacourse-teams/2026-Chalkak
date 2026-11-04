@@ -12,6 +12,7 @@ import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import jakarta.validation.Valid;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -43,6 +45,21 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
                 CanonicalUuidParser.parse(feedbackId),
                 authenticatedAdmin.adminId(),
                 request.answerContent()
+        );
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    @DeleteMapping("/{feedbackId}/answer")
+    public ResponseEntity<Void> deleteFeedbackAnswer(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String feedbackId,
+            @RequestParam("answeredAt") Instant answeredAt
+    ) {
+        adminFeedbackCommandService.deleteFeedbackAnswer(
+                CanonicalUuidParser.parse(feedbackId),
+                authenticatedAdmin.adminId(),
+                answeredAt
         );
         return ResponseEntity.noContent().build();
     }

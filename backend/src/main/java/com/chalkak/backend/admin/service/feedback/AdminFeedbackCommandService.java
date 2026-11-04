@@ -14,6 +14,9 @@ import com.chalkak.backend.feedback.repository.FeedbackRepository;
 import com.chalkak.backend.notification.service.NotificationService;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Collections;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +65,31 @@ public class AdminFeedbackCommandService {
     }
 
     @Transactional
+    public void deleteFeedbackAnswer(
+            UUID feedbackId,
+            UUID adminId,
+            Instant expectedAnsweredAt
+    ) {
+        Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
+                .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
+                        "문의를 찾을 수 없습니다."));
+        AdminAuditSnapshot beforeState = createAnswerDeletionState(feedback);
+        if (!feedback.deleteAnswer(expectedAnsweredAt, clock.instant())) {
+            return;
+        }
+        notificationService.deleteFeedbackNotifications(feedbackId);
+        auditLogService.createAuditLog(new AdminAuditLogCommand(
+                adminId,
+                AdminAction.FEEDBACK_ANSWER_DELETED,
+                AdminTargetType.FEEDBACK,
+                feedbackId,
+                null,
+                beforeState,
+                createAnswerDeletionState(feedback)
+        ));
+    }
+
+    @Transactional
     public void deleteFeedback(UUID feedbackId, UUID adminId) {
         Feedback feedback = feedbackRepository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BUSINESS_ERROR,
@@ -87,6 +115,13 @@ public class AdminFeedbackCommandService {
     private AdminAuditSnapshot createAnswerState(Feedback feedback) {
         return AdminAuditSnapshot
                 .from(Collections.singletonMap("answeredAt", feedback.getAnsweredAt()));
+    }
+
+    private AdminAuditSnapshot createAnswerDeletionState(Feedback feedback) {
+        Map<String, Object> state = new HashMap<>();
+        state.put("answeredAt", feedback.getAnsweredAt());
+        state.put("answerDeletedAt", feedback.getAnswerDeletedAt());
+        return AdminAuditSnapshot.from(state);
     }
 
     private AdminAuditSnapshot createDeletionState(Feedback feedback) {

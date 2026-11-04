@@ -28,6 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -67,6 +68,20 @@ class AdminFeedbackControllerTest {
     @BeforeEach
     void setUp() {
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "invalid-time"})
+    @DisplayName("답변 삭제 요청에 유효한 답변 등록 시각이 없으면 서비스 호출 전에 거절한다")
+    void deleteFeedbackAnswer_invalidAnsweredAt_rejects(String answeredAt) throws Exception {
+        var request = delete("/api/v1/admin/feedbacks/{feedbackId}/answer", FEEDBACK_ID);
+        if (answeredAt != null) {
+            request.param("answeredAt", answeredAt);
+        }
+
+        mockMvc.perform(request).andExpect(status().isBadRequest());
+        then(adminFeedbackCommandService).shouldHaveNoInteractions();
     }
 
     @Test

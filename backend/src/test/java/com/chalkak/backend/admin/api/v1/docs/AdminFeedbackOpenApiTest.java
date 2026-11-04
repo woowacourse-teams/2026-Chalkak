@@ -21,6 +21,21 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("관리자 답변 삭제 문서는 필수 answeredAt과 본문 없는 204를 제공한다")
+    void adminApiDocs_exposesFeedbackAnswerDeletionContract() throws Exception {
+        String path = "$.paths['/api/v1/admin/feedbacks/{feedbackId}/answer'].delete";
+
+        mockMvc.perform(get("/v3/api-docs/admin-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(path + ".parameters[?(@.name == 'answeredAt')].required")
+                        .value(containsInAnyOrder(true)))
+                .andExpect(jsonPath(path + ".parameters[?(@.name == 'answeredAt')].schema.format")
+                        .value(containsInAnyOrder("date-time")))
+                .andExpect(jsonPath(path + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(path + ".responses['204'].content").doesNotExist());
+    }
+
+    @Test
     @DisplayName("관리자 답변 문서는 요청 본문과 본문 없는 204를 제공한다")
     void adminApiDocs_exposesFeedbackAnswerContract() throws Exception {
         String path = "$.paths['/api/v1/admin/feedbacks/{feedbackId}/answer'].post";
