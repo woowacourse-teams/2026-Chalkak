@@ -71,7 +71,7 @@ struct ChalkakTextField: View {
                 : theme.spacing.none
         )
         .padding(theme.spacing.lg)
-        .frame(height: height, alignment: isSingleLine ? .leading : .topLeading)
+        .frame(minHeight: height, alignment: isSingleLine ? .leading : .topLeading)
         .background(
             theme.colors.inputBackground,
             in: RoundedRectangle(cornerRadius: theme.shapes.input)

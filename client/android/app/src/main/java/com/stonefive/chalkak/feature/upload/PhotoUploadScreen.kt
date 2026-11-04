@@ -48,7 +48,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -346,7 +345,6 @@ private fun PhotoUploadSectionLabel(text: String) {
         color = ChalkakTheme.colors.textPrimary,
         style = ChalkakTheme.typography.caption,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.clearAndSetSemantics {},
     )
 }
 
