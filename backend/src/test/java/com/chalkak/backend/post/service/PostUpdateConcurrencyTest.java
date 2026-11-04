@@ -90,6 +90,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                     AUTHOR_ID,
                     POST_ID,
                     "수정 제목",
+                    null,
+                    false,
                     null
             );
             return null;
@@ -160,6 +162,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                         AUTHOR_ID,
                         POST_ID,
                         "수정 제목",
+                        null,
+                        false,
                         null
                 );
                 return "SUCCESS";
@@ -222,6 +226,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                         AUTHOR_ID,
                         POST_ID,
                         "수정 제목",
+                        null,
+                        false,
                         null
                 );
                 return "SUCCESS";
@@ -274,6 +280,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                     AUTHOR_ID,
                     POST_ID,
                     "첫 번째 제목",
+                    null,
+                    false,
                     null
             );
             return null;
@@ -284,6 +292,8 @@ class PostUpdateConcurrencyTest extends IntegrationTestSupport {
                     AUTHOR_ID,
                     POST_ID,
                     "두 번째 제목",
+                    null,
+                    false,
                     null
             );
             return null;

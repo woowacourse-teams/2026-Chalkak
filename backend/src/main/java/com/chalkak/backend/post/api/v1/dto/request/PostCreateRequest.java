@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.api.v1.dto.request;
 
 import com.chalkak.backend.post.domain.PostDescription;
+import com.chalkak.backend.post.domain.PostInstagramConsent;
 import com.chalkak.backend.post.domain.PostTitle;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -27,7 +28,20 @@ public record PostCreateRequest(
                 description = "작품 설명. 앞뒤 공백과 줄바꿈 제거 후 최대 300자입니다. 가운데 줄바꿈은 유지하며 글자 수에 포함합니다. 생략하거나 공백뿐이면 설명 없음으로 저장합니다.",
                 example = "퇴근길에 만난 노을을 담았어요.",
                 nullable = true)
-        String description
+        String description,
+
+        @Schema(
+                description = "공식 인스타그램 게시 동의 여부. 생략하거나 null이면 동의하지 않은 것으로 처리합니다.",
+                example = "true",
+                defaultValue = "false",
+                nullable = true)
+        Boolean instagramUploadAgreed,
+
+        @Schema(
+                description = "태그에 사용할 인스타그램 ID. 동의한 경우에만 보낼 수 있습니다. 앞뒤 공백과 맨 앞 @ 하나를 제거하고 소문자로 저장하며, 이후 영문 소문자·숫자·마침표·밑줄로 1~30자여야 합니다. 생략하거나 비어 있으면 ID 없음으로 저장합니다.",
+                example = "chalkak.official",
+                nullable = true)
+        String instagramId
 ) {
 
     /**
@@ -70,5 +84,36 @@ public record PostCreateRequest(
     @AssertTrue(message = "설명에 사용할 수 없는 문자가 포함되어 있습니다.")
     public boolean isDescriptionCharacterValid() {
         return PostDescription.isCharacterValid(description);
+    }
+
+    /**
+     * 필드 단위 400 응답을 위한 빠른 실패. 판정 기준은 {@link PostInstagramConsent}에 위임해 도메인 불변식과
+     * 어긋나지 않게 한다.
+     */
+    @JsonIgnore
+    @Schema(hidden = true)
+    @AssertTrue(message = "인스타그램 ID 형식이 올바르지 않습니다.")
+    public boolean isInstagramIdFormatValid() {
+        return PostInstagramConsent.isIdFormatValid(instagramId);
+    }
+
+    /**
+     * 필드 단위 400 응답을 위한 빠른 실패. 판정 기준은 {@link PostInstagramConsent}에 위임해 도메인 불변식과
+     * 어긋나지 않게 한다.
+     */
+    @JsonIgnore
+    @Schema(hidden = true)
+    @AssertTrue(message = "인스타그램 게시에 동의하지 않으면 인스타그램 ID를 보낼 수 없습니다.")
+    public boolean isInstagramIdAllowedWithAgreement() {
+        return PostInstagramConsent.isIdAllowedWithAgreement(
+                hasInstagramUploadAgreement(),
+                instagramId
+        );
+    }
+
+    @JsonIgnore
+    @Schema(hidden = true)
+    public boolean hasInstagramUploadAgreement() {
+        return Boolean.TRUE.equals(instagramUploadAgreed);
     }
 }

@@ -138,7 +138,7 @@ class SqsPushConfigurationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"relay", "topic"})
-    @DisplayName("Relay·주제 발행 대기 중에도 공용 작업이 실행되고 전용 스케줄러는 앱 종료 시 종료된다")
+    @DisplayName("각 발행 작업이 대기해도 공용 작업이 실행되고 전용 스케줄러는 앱 종료 시 종료된다")
     void configuration_publicationBlocked_keepsCommonSchedulerFreeAndClosesExecutor(String kind) {
         // Given
         FakePublicationProbe probe = new FakePublicationProbe();
@@ -154,18 +154,14 @@ class SqsPushConfigurationTest {
         }
         String selectedScheduler = schedulerName;
         String selectedPrefix = threadPrefix;
-        doAnswer(call -> {
-            probe.publicationThread.set(Thread.currentThread().getName());
-            probe.publicationStarted.countDown();
-            probe.releasePublication.await(10, TimeUnit.SECONDS);
-            return null;
-        }).when(relay).publishPendingNotifications();
-        doAnswer(call -> {
-            probe.publicationThread.set(Thread.currentThread().getName());
-            probe.publicationStarted.countDown();
-            probe.releasePublication.await(10, TimeUnit.SECONDS);
-            return null;
-        }).when(topic).publishDueTopics();
+        if (kind.equals("relay")) {
+            doAnswer(call -> blockPublication(probe))
+                    .when(relay).publishPendingNotifications();
+        }
+        if (kind.equals("topic")) {
+            doAnswer(call -> blockPublication(probe))
+                    .when(topic).publishDueTopics();
+        }
         AtomicReference<ScheduledExecutorService> publicationExecutor = new AtomicReference<>();
         AtomicReference<ScheduledExecutorService> commonExecutor = new AtomicReference<>();
         // When
@@ -228,6 +224,13 @@ class SqsPushConfigurationTest {
             }
         }
         throw new AssertionError("주제 푸시의 분 단위 예약 작업이 없습니다.");
+    }
+
+    private Void blockPublication(FakePublicationProbe probe) throws InterruptedException {
+        probe.publicationThread.set(Thread.currentThread().getName());
+        probe.publicationStarted.countDown();
+        probe.releasePublication.await(10, TimeUnit.SECONDS);
+        return null;
     }
 
     static class FakePublicationProbe {

@@ -88,6 +88,16 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public Optional<Post> findVisibleByIdForViewer(UUID postId, UUID viewerId) {
+        return postJpaRepository.findVisibleByIdForViewer(
+                postId,
+                viewerId,
+                ModerationStatus.APPROVED,
+                ModerationStatus.PENDING
+        );
+    }
+
+    @Override
     public Optional<Post> findVisibleByIdForShare(UUID postId) {
         return postJpaRepository.findVisibleByIdForShare(postId, ModerationStatus.APPROVED);
     }

@@ -19,7 +19,7 @@ class NotificationSettingsOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
-    @DisplayName("수신 설정 조회 문서는 인증·세 불리언 필드·실제 응답 코드를 제공한다")
+    @DisplayName("수신 설정 조회 문서는 인증·네 불리언 필드·실제 응답 코드를 제공한다")
     void userApiDocs_exposesSettingsQueryContract() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
@@ -44,7 +44,7 @@ class NotificationSettingsOpenApiTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsResponse.properties.length()")
-                        .value(3))
+                        .value(4))
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsResponse.properties.topicPushEnabled.type")
                         .value("boolean"))
@@ -53,6 +53,9 @@ class NotificationSettingsOpenApiTest extends IntegrationTestSupport {
                         .value("boolean"))
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsResponse.properties.aiReviewPushEnabled.type")
+                        .value("boolean"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.NotificationSettingsResponse.properties.likePushEnabled.type")
                         .value("boolean"));
     }
 
@@ -94,7 +97,7 @@ class NotificationSettingsOpenApiTest extends IntegrationTestSupport {
                                 .doesNotExist())
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsUpdateRequest.properties.length()")
-                        .value(3))
+                        .value(4))
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsUpdateRequest.properties.topicPushEnabled.type")
                         .value(containsInAnyOrder("boolean", "null")))
@@ -103,6 +106,9 @@ class NotificationSettingsOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder("boolean", "null")))
                 .andExpect(jsonPath(
                         "$.components.schemas.NotificationSettingsUpdateRequest.properties.aiReviewPushEnabled.type")
+                        .value(containsInAnyOrder("boolean", "null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.NotificationSettingsUpdateRequest.properties.likePushEnabled.type")
                         .value(containsInAnyOrder("boolean", "null")));
     }
 }

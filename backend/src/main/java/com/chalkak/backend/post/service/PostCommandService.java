@@ -83,7 +83,9 @@ public class PostCommandService {
             UUID topicId,
             UUID photoUploadId,
             String title,
-            String description
+            String description,
+            boolean instagramUploadAgreed,
+            String instagramId
     ) {
         User author = getPostableUser(userId);
         Topic topic = topicRepository.findActiveById(topicId)
@@ -123,7 +125,10 @@ public class PostCommandService {
                 photo,
                 photoUploadId,
                 title,
-                description
+                description,
+                instagramUploadAgreed,
+                instagramId,
+                Instant.now()
         );
         if (upload.isProcessed()) {
             photo.completeProcessing(
@@ -151,20 +156,26 @@ public class PostCommandService {
             UUID authorId,
             UUID postId,
             String title,
-            String description
+            String description,
+            boolean instagramUploadAgreed,
+            String instagramId
     ) {
         validateUpdatableUser(authorId);
         Post post = getActivePostForUpdate(postId);
-        post.updateTitleAndDescription(
+        post.updateContent(
                 authorId,
                 title,
                 description,
+                instagramUploadAgreed,
+                instagramId,
                 Instant.now()
         );
         return new PostUpdateResult(
                 post.getId(),
                 post.getTitle(),
-                post.getDescription()
+                post.getDescription(),
+                post.isInstagramUploadAgreed(),
+                post.getInstagramId()
         );
     }
 

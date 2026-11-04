@@ -16,14 +16,16 @@ public record PostDetail(
         String title,
         String description,
         long likeCount,
-        boolean isLiked
+        boolean isLiked,
+        InstagramConsentDetail instagramConsent
 ) {
 
     public static PostDetail from(
             Post post,
             ImageUrlProvider imageUrlProvider,
             long likeCount,
-            boolean isLiked
+            boolean isLiked,
+            UUID viewerId
     ) {
         return new PostDetail(
                 post.getId(),
@@ -35,8 +37,34 @@ public record PostDetail(
                 post.getTitle(),
                 post.getDescription(),
                 likeCount,
-                isLiked
+                isLiked,
+                InstagramConsentDetail.forViewer(
+                        post,
+                        viewerId
+                )
         );
+    }
+
+    public record InstagramConsentDetail(
+            boolean agreed,
+            String instagramId
+    ) {
+
+        /**
+         * 작성자 본인에게만 동의 정보를 내려주고 다른 사용자에게는 {@code null}을 돌려준다.
+         */
+        private static InstagramConsentDetail forViewer(
+                Post post,
+                UUID viewerId
+        ) {
+            if (!post.isAuthoredBy(viewerId)) {
+                return null;
+            }
+            return new InstagramConsentDetail(
+                    post.isInstagramUploadAgreed(),
+                    post.getInstagramId()
+            );
+        }
     }
 
     public record TopicDetail(

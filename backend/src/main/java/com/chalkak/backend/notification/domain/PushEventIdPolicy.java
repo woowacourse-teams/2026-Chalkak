@@ -11,6 +11,12 @@ public final class PushEventIdPolicy {
 
     private static final String OCCURRENCE_NAMESPACE = "chalkak:push-occurrence:v1:";
     private static final String AI_REVIEW_NAMESPACE = "AI_REVIEW:";
+    private static final String LIKE_MILESTONE_NAMESPACE = "chalkak:like-milestone:v1:";
+
+    public static UUID createForLikeMilestone(UUID postId, long milestoneCount) {
+        String key = LIKE_MILESTONE_NAMESPACE + postId + ":" + milestoneCount;
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
+    }
 
     public static UUID createForOccurrence(
             NotificationType type,

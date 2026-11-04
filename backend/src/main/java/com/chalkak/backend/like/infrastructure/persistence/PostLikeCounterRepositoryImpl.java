@@ -23,6 +23,11 @@ public class PostLikeCounterRepositoryImpl implements PostLikeCounterRepository 
     }
 
     @Override
+    public boolean updateLastMilestoneCount(UUID postId, long milestoneCount) {
+        return postLikeCounterJpaRepository.updateLastMilestoneCount(postId, milestoneCount) == 1;
+    }
+
+    @Override
     public List<PostLikeCount> getCountsByPostIds(List<UUID> postIds) {
         if (postIds.isEmpty()) {
             return List.of();

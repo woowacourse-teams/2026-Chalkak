@@ -4,6 +4,7 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
+import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.repository.NotificationDetail;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.NotificationSlice;
@@ -85,6 +86,23 @@ public class NotificationService {
                 outcome,
                 occurredAt,
                 pushEnabled
+        ));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForLikeMilestone(
+            Post post,
+            long milestoneCount,
+            Instant occurredAt
+    ) {
+        User author = post.getAuthor();
+        notificationRepository.save(Notification.likeMilestone(
+                author.getId(),
+                post.getId(),
+                milestoneCount,
+                occurredAt,
+                !author.isDeleted()
+                        && NotificationType.POST_LIKE_MILESTONE.isPushEnabledFor(author)
         ));
     }
 
