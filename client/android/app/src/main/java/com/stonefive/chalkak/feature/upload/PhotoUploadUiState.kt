@@ -12,6 +12,9 @@ data class PhotoUploadUiState(
     val editingPhoto: PhotoEditRequest? = null,
     val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
+    val description: String = "",
+    /** 사진을 고른 뒤 제목과 이야기를 쓰는 두 번째 단계에 있는지. */
+    val isWriting: Boolean = false,
     val showsDiscardConfirmation: Boolean = false,
     val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,
@@ -22,7 +25,7 @@ data class PhotoUploadUiState(
     val pendingMessage: UiMessage? = null,
 ) {
     val hasUnsavedDraft: Boolean
-        get() = selectedImage != null || caption.isNotBlank()
+        get() = selectedImage != null || caption.isNotBlank() || description.isNotBlank()
 
     val canSubmit: Boolean
         get() = selectedImage != null &&

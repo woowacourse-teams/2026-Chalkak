@@ -54,7 +54,7 @@ class PhotoUploadViewModel(
     init {
         loadCreationTopic()
         _uiState.value.selectedImage
-            ?.let { replaceSelectedImage(it, _uiState.value.selectedEdit) }
+            ?.let { replaceSelectedImage(it, _uiState.value.selectedEdit, startsWriting = false) }
     }
 
     fun onAction(action: PhotoUploadUiAction) {
@@ -69,13 +69,22 @@ class PhotoUploadViewModel(
                 }
             }
 
+            PhotoUploadUiAction.WritingBackClicked -> updateWriting(false)
+
             PhotoUploadUiAction.GalleryClicked -> sendUiEvent(PhotoUploadUiEvent.OpenGallery)
 
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
-                savedStateHandle[KEY_CAPTION] = action.caption
-                _uiState.update { it.copy(caption = action.caption) }
+                // 제목은 한 줄이므로 붙여넣은 줄바꿈도 지운다.
+                val caption = action.caption.filterNot { it == '\n' || it == '\r' }
+                savedStateHandle[KEY_CAPTION] = caption
+                _uiState.update { it.copy(caption = caption) }
+            }
+
+            is PhotoUploadUiAction.DescriptionChanged -> {
+                savedStateHandle[KEY_DESCRIPTION] = action.description
+                _uiState.update { it.copy(description = action.description) }
             }
 
             PhotoUploadUiAction.SubmitClicked -> submit()
@@ -125,7 +134,11 @@ class PhotoUploadViewModel(
         val state = _uiState.value
         _uiState.update { it.copy(editingPhoto = null) }
         if (state.isSubmitting) return
-        if (state.selectedImage == image && state.selectedEdit == edit) return
+        // 편집을 바꾸지 않고 마쳐도 글 쓰기 단계로 넘어간다.
+        if (state.selectedImage == image && state.selectedEdit == edit) {
+            updateWriting(true)
+            return
+        }
         replaceSelectedImage(image, edit)
     }
 
@@ -173,6 +186,8 @@ class PhotoUploadViewModel(
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
         savedStateHandle.remove<String>(KEY_CAPTION)
+        savedStateHandle.remove<String>(KEY_DESCRIPTION)
+        savedStateHandle.remove<Boolean>(KEY_WRITING)
         savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
         savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
@@ -197,7 +212,11 @@ class PhotoUploadViewModel(
         }
         return PhotoUploadUiState(
             caption = savedStateHandle[KEY_CAPTION] ?: "",
+            description = savedStateHandle[KEY_DESCRIPTION] ?: "",
             selectedImage = savedStateHandle[KEY_SELECTED_IMAGE],
+            isWriting = edit != null &&
+                savedStateHandle.get<String>(KEY_SELECTED_IMAGE) != null &&
+                savedStateHandle[KEY_WRITING] ?: false,
             selectedEdit = edit ?: PhotoEdit(),
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
             pendingMessage = if (edit == null) nextToast(RESTORED_EDIT_FAILED_MESSAGE) else null,
@@ -217,8 +236,6 @@ class PhotoUploadViewModel(
             loadCreationTopic(submitAfterLoad = true)
             return
         }
-        val caption = state.caption
-
         _uiState.update {
             it.copy(
                 isSubmitting = true,
@@ -226,7 +243,7 @@ class PhotoUploadViewModel(
         }
 
         preparedImage?.let { preparation ->
-            submitPreparedImage(preparation, caption, topic)
+            submitPreparedImage(preparation, topic)
             return
         }
         if (preparationJob?.isActive != true) {
@@ -249,10 +266,18 @@ class PhotoUploadViewModel(
         }
     }
 
+    private fun updateWriting(isWriting: Boolean) {
+        savedStateHandle[KEY_WRITING] = isWriting
+        _uiState.update { it.copy(isWriting = isWriting) }
+    }
+
+    /** 사진을 새로 고르면 바로 글 쓰기 단계로 넘어간다. 저장 상태를 복원할 때는 이전 단계를 유지한다. */
     private fun replaceSelectedImage(
         image: String,
         edit: PhotoEdit,
+        startsWriting: Boolean = true,
     ) {
+        if (startsWriting) updateWriting(true)
         savedStateHandle[KEY_SELECTED_IMAGE] = image
         savedStateHandle[KEY_SELECTED_EDIT] = edit.toSavedState()
         imageGeneration++
@@ -295,7 +320,7 @@ class PhotoUploadViewModel(
                             if (topic == null) {
                                 loadCreationTopic(submitAfterLoad = true)
                             } else {
-                                submitPreparedImage(result.value, _uiState.value.caption, topic)
+                                submitPreparedImage(result.value, topic)
                             }
                         }
                     }
@@ -328,16 +353,25 @@ class PhotoUploadViewModel(
 
     private fun submitPreparedImage(
         preparation: PostImagePreparation,
-        caption: String,
         topic: Topic,
     ) {
         if (preparedImage != preparation || submissionJob?.isActive == true) return
-        val imageUri = _uiState.value.selectedImage ?: return
-        val edit = _uiState.value.selectedEdit
+        val state = _uiState.value
+        val imageUri = state.selectedImage ?: return
+        val edit = state.selectedEdit
+        val caption = state.caption
+        val description = state.description
         preparedImage = null
         submissionJob = viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.createPost(preparation, caption, topic)) {
+                when (
+                    val result = postCreationRepository.createPost(
+                        preparation = preparation,
+                        title = caption,
+                        description = description,
+                        topic = topic,
+                    )
+                ) {
                     is PostCreationResult.Success -> {
                         _uiState.update {
                             it.copy(
@@ -478,6 +512,8 @@ class PhotoUploadViewModel(
 
     companion object {
         private const val KEY_CAPTION = "upload_caption"
+        private const val KEY_DESCRIPTION = "upload_description"
+        private const val KEY_WRITING = "upload_writing"
         private const val KEY_SELECTED_IMAGE = "upload_selected_image"
         private const val KEY_SELECTED_EDIT = "upload_selected_edit"
         private const val RESTORED_EDIT_FAILED_MESSAGE = "사진 편집 정보를 복원하지 못했어요. 사진을 다시 선택해 주세요."

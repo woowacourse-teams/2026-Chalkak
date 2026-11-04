@@ -16,6 +16,7 @@ data class PostCreateRequest(
     val topicId: String,
     val photoUploadId: String,
     val title: String? = null,
+    val description: String? = null,
 )
 
 @Serializable

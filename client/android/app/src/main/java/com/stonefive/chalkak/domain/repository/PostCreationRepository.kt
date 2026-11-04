@@ -23,6 +23,7 @@ interface PostCreationRepository {
     suspend fun createPost(
         preparation: PostImagePreparation,
         title: String?,
+        description: String?,
         topic: Topic,
     ): PostCreationResult
 }

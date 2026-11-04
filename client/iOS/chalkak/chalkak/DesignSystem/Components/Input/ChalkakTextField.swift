@@ -11,6 +11,13 @@ enum ChalkakTextLengthMetric {
     case unicodeScalars
 }
 
+/// 입력칸 모양. `outlined`는 배경과 테두리가 있는 기본 모양이고,
+/// `plain`은 배경·테두리·안쪽 여백 없이 글자와 글자 수만 그려 글 쓰기 화면처럼 넓게 쓴다.
+enum ChalkakTextFieldStyle {
+    case outlined
+    case plain
+}
+
 struct ChalkakTextField: View {
     @Environment(\.chalkakTheme) private var theme
     @FocusState private var isFocused: Bool
@@ -26,28 +33,64 @@ struct ChalkakTextField: View {
     var maximumCharacterCount: Int?
     var lengthMetric: ChalkakTextLengthMetric = .characters
     var showsCharacterCount = true
+    var style: ChalkakTextFieldStyle = .outlined
     var height: CGFloat?
     var onFocusChange: ((Bool) -> Void)? = nil
 
     var body: some View {
-        TextField(
-            label,
-            text: inputBinding,
-            prompt: Text(placeholder)
-                .foregroundStyle(theme.colors.textInactive),
-            axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
-        )
-        .labelsHidden()
-        .lineLimit(lineLimit)
-        .focused($isFocused)
-        .disabled(!isEnabled)
-        .allowsHitTesting(!isReadOnly)
-        .font(textFont ?? theme.typography.body)
-        .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
-        .tint(theme.colors.inputCursor)
+        content
+            .onAppear(perform: synchronizeInputText)
+            .onChange(of: inputText) { _, newValue in
+                guard let newValue else { return }
+                let normalizedValue = normalizedText(newValue)
+                if inputText != normalizedValue {
+                    inputText = normalizedValue
+                }
+                if text != normalizedValue {
+                    text = normalizedValue
+                }
+            }
+            .onChange(of: text) { _, newValue in
+                let normalizedValue = normalizedText(newValue)
+                if inputText != normalizedValue {
+                    inputText = normalizedValue
+                }
+                if text != normalizedValue {
+                    text = normalizedValue
+                }
+            }
+            .onChange(of: isFocused) { _, isFocused in
+                onFocusChange?(isFocused)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch style {
+        case .outlined:
+            outlinedContent
+        case .plain:
+            // 글자 수는 입력 아래 오른쪽에 둔다. 높이를 정하면 남는 공간은 입력이 차지한다.
+            VStack(alignment: .trailing, spacing: theme.spacing.sm) {
+                textField
+                    .frame(maxHeight: height == nil ? nil : .infinity, alignment: .topLeading)
+                characterCount
+            }
+            .frame(height: height, alignment: .topLeading)
+        }
+    }
+
+    private var outlinedContent: some View {
+        // 한 줄 입력은 글자 수를 같은 줄 오른쪽에 두어 한 줄 높이를 유지한다.
+        HStack(alignment: .firstTextBaseline, spacing: theme.spacing.sm) {
+            textField
+            if isSingleLine {
+                characterCount
+            }
+        }
         .padding(
             .bottom,
-            showsCharacterCount && maximumCharacterCount != nil
+            !isSingleLine && showsCharacterCount && maximumCharacterCount != nil
                 ? theme.spacing.xl
                 : theme.spacing.none
         )
@@ -65,38 +108,44 @@ struct ChalkakTextField: View {
                 )
         }
         .overlay(alignment: .bottomTrailing) {
-            if showsCharacterCount, let maximumCharacterCount {
-                Text("\(currentLength) / \(maximumCharacterCount)")
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.textInactive)
+            if !isSingleLine {
+                characterCount
                     .padding(theme.spacing.lg)
-                    .accessibilityHidden(true)
             }
         }
+    }
+
+    private var isSingleLine: Bool {
+        lineLimit.upperBound == 1
+    }
+
+    private var textField: some View {
+        TextField(
+            label,
+            text: inputBinding,
+            prompt: Text(placeholder)
+                .foregroundStyle(theme.colors.textInactive),
+            axis: isSingleLine ? .horizontal : .vertical
+        )
+        .labelsHidden()
+        .lineLimit(lineLimit)
+        .focused($isFocused)
+        .disabled(!isEnabled)
+        .allowsHitTesting(!isReadOnly)
+        .font(textFont ?? theme.typography.body)
+        .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
+        .tint(theme.colors.inputCursor)
         .accessibilityLabel(label)
         .accessibilityValue(accessibilityValue)
-        .onAppear(perform: synchronizeInputText)
-        .onChange(of: inputText) { _, newValue in
-            guard let newValue else { return }
-            let normalizedValue = normalizedText(newValue)
-            if inputText != normalizedValue {
-                inputText = normalizedValue
-            }
-            if text != normalizedValue {
-                text = normalizedValue
-            }
-        }
-        .onChange(of: text) { _, newValue in
-            let normalizedValue = normalizedText(newValue)
-            if inputText != normalizedValue {
-                inputText = normalizedValue
-            }
-            if text != normalizedValue {
-                text = normalizedValue
-            }
-        }
-        .onChange(of: isFocused) { _, isFocused in
-            onFocusChange?(isFocused)
+    }
+
+    @ViewBuilder
+    private var characterCount: some View {
+        if showsCharacterCount, let maximumCharacterCount {
+            Text("\(currentLength) / \(maximumCharacterCount)")
+                .font(style == .plain ? theme.typography.caption : theme.typography.subheadline)
+                .foregroundStyle(theme.colors.textInactive)
+                .accessibilityHidden(true)
         }
     }
 
@@ -155,7 +204,16 @@ extension String {
             return String(prefix(maximum))
         case .unicodeScalars:
             guard unicodeScalars.count > maximum else { return self }
-            return String(String.UnicodeScalarView(unicodeScalars.prefix(maximum)))
+            // 글자 중간에서 자르면 국기·피부색 이모지가 깨지므로, 글자 단위로 담다가 합이 넘기 전에 멈춘다.
+            var result = ""
+            var count = 0
+            for character in self {
+                let size = character.unicodeScalars.count
+                guard count + size <= maximum else { break }
+                count += size
+                result.append(character)
+            }
+            return result
         }
     }
 }

@@ -8,7 +8,7 @@ struct PhotoUploadRepository: Sendable {
     typealias PostCreationHandler =
         @Sendable (
             PhotoUploadPreparation,
-            String?,
+            PhotoUploadPostText,
             PhotoUploadTopic
         ) async -> Result<PhotoUploadCreation, PhotoUploadFailure>
 
@@ -84,6 +84,8 @@ final class PhotoUploadViewModel {
         switch action {
         case .backClicked:
             publish(.navigateBack)
+        case .writingBackClicked:
+            viewState.isWriting = false
         case .galleryClicked:
             publish(.openGallery)
         case .cameraClicked:
@@ -92,7 +94,16 @@ final class PhotoUploadViewModel {
             guard let selectedEditSession else { return }
             viewState.editRequest = PhotoUploadEditRequest(session: selectedEditSession)
         case let .captionChanged(caption):
-            viewState.caption = caption.limited(to: Constants.captionMaxLength, using: .characters)
+            // 제목은 한 줄이므로 붙여넣은 줄바꿈도 지운다.
+            viewState.caption = caption
+                .filter { !$0.isNewline }
+                .limited(to: Constants.captionMaxLength, using: .characters)
+        case let .descriptionChanged(description):
+            // 서버가 설명 길이를 code point로 검증하므로 같은 단위로 제한한다.
+            viewState.postDescription = description.limited(
+                to: Constants.descriptionMaxLength,
+                using: .unicodeScalars
+            )
         case .submitClicked:
             submit()
         case let .messageShown(messageID):
@@ -117,6 +128,8 @@ final class PhotoUploadViewModel {
         viewState.selectedImage = preview
         viewState.selectedImageData = data
         viewState.imagePreparationStatus = .preparing
+        // 사진을 고르면 바로 글 쓰기 단계로 넘어간다.
+        viewState.isWriting = true
         startImagePreparation(data: data, generation: generation)
     }
 
@@ -261,9 +274,10 @@ final class PhotoUploadViewModel {
 
         preparedImage = nil
         let caption = viewState.caption
+        let text = PhotoUploadPostText(title: caption, description: viewState.postDescription)
         let repository = repository
         submissionTask = Task { [weak self] in
-            let result = await repository.createPost(preparation, caption, topic)
+            let result = await repository.createPost(preparation, text, topic)
             guard !Task.isCancelled, let self else { return }
             self.submissionTask = nil
 
@@ -376,15 +390,18 @@ final class PhotoUploadViewModel {
 
     private enum Constants {
         static let captionMaxLength = 10
+        static let descriptionMaxLength = 150
     }
 }
 
 enum PhotoUploadAction: Equatable, Sendable {
     case backClicked
+    case writingBackClicked
     case galleryClicked
     case cameraClicked
     case selectedImageClicked
     case captionChanged(String)
+    case descriptionChanged(String)
     case submitClicked
     case messageShown(Int)
 }

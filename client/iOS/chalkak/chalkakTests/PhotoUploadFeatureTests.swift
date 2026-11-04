@@ -108,8 +108,8 @@ struct PhotoUploadViewModelTests {
             repository: PhotoUploadRepository(
                 getCreationTopic: { _ in .success(topic) },
                 prepareImage: { _ in .success(preparation) },
-                createPost: { _, title, topic in
-                    #expect(title == "작품 제목")
+                createPost: { _, text, topic in
+                    #expect(text == PhotoUploadPostText(title: "작품 제목", description: "퇴근길 노을\n두 번째 줄"))
                     return .success(
                         PhotoUploadCreation(
                             postID: "post-id",
@@ -123,6 +123,7 @@ struct PhotoUploadViewModelTests {
 
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
         viewModel.handle(.captionChanged("작품 제목"))
+        viewModel.handle(.descriptionChanged("퇴근길 노을\n두 번째 줄"))
         try await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
 
         viewModel.handle(.submitClicked)
@@ -279,6 +280,67 @@ struct PhotoUploadViewModelTests {
         viewModel.handle(.captionChanged("12345678901"))
 
         #expect(viewModel.viewState.caption == "1234567890")
+    }
+
+    @Test("사진을 고르면 글 쓰기 단계로 넘어가고, 뒤로 갔다가 사진을 다시 고르면 입력을 유지한 채 돌아온다")
+    func movesBetweenPhotoAndWritingSteps() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+        #expect(viewModel.viewState.isWriting == false)
+
+        viewModel.selectImage(data: Data([0x01]), preview: Self.image())
+        #expect(viewModel.viewState.isWriting)
+
+        viewModel.handle(.captionChanged("한낮의 다리"))
+        viewModel.handle(.writingBackClicked)
+        #expect(viewModel.viewState.isWriting == false)
+        #expect(viewModel.viewState.selectedImage != nil)
+
+        viewModel.selectImage(data: Data([0x02]), preview: Self.image())
+        #expect(viewModel.viewState.isWriting)
+        #expect(viewModel.viewState.caption == "한낮의 다리")
+    }
+
+    @Test("이야기 입력은 서버와 같은 code point 기준으로 150개까지 허용한다")
+    func limitsDescriptionToOneHundredFiftyCodePoints() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+        // 국기 이모지는 한 글자로 보이지만 code point 두 개다.
+        let text = String(repeating: "가", count: 148) + "🇰🇷" + "끝"
+
+        viewModel.handle(.descriptionChanged(text))
+
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 148) + "🇰🇷")
+        #expect(viewModel.viewState.postDescription.unicodeScalars.count == 150)
+    }
+
+    @Test("설명 길이 제한은 이모지 글자 중간을 자르지 않는다")
+    func keepsGraphemesWhenLimitingDescription() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 149) + "🇰🇷"))
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 149))
+
+        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 146) + "👨‍👩‍👧"))
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 146))
+    }
+
+    @Test("제목은 한 줄이라 붙여넣은 줄바꿈을 지운다")
+    func removesNewlinesFromCaption() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.handle(.captionChanged("한낮의\n다리"))
+
+        #expect(viewModel.viewState.caption == "한낮의다리")
+    }
+
+    @Test("설명만 입력해도 작성 중인 내용으로 본다")
+    func treatsDescriptionAsDraft() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.handle(.descriptionChanged("  \n "))
+        #expect(viewModel.viewState.hasUnsavedDraft == false)
+
+        viewModel.handle(.descriptionChanged("노을"))
+        #expect(viewModel.viewState.hasUnsavedDraft)
     }
 
     private static func topic() -> PhotoUploadTopic {
@@ -547,7 +609,8 @@ struct PhotoUploadAPIClientTests {
         let creation = try await client.createPost(
             topicID: topic.id,
             photoUploadID: policy.uploadID,
-            title: "작품 제목"
+            title: "작품 제목",
+            description: "퇴근길에 만난 노을을 담았어요."
         )
 
         #expect(topic.title == "틈")
@@ -563,6 +626,48 @@ struct PhotoUploadAPIClientTests {
         #expect(requests[2].value(forHTTPHeaderField: "Content-Type") == "image/webp")
 
         #expect(requests[3].value(forHTTPHeaderField: "Content-Type") == "application/json")
+        let body = try #require(
+            try JSONSerialization.jsonObject(with: Self.bodyData(of: requests[3])) as? [String: String]
+        )
+        #expect(body == [
+            "topicId": "topic-id",
+            "photoUploadId": "upload-id",
+            "title": "작품 제목",
+            "description": "퇴근길에 만난 노을을 담았어요.",
+        ])
+    }
+
+    @Test("설명이 없으면 description을 요청 본문에 넣지 않는다")
+    func omitsMissingDescription() async throws {
+        let recorder = PhotoUploadRequestRecorder()
+        let client = makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#)
+        }
+
+        _ = try await client.createPost(topicID: "topic-id", photoUploadID: "upload-id", title: nil, description: nil)
+
+        let request = try #require(await recorder.requests.first)
+        let body = try #require(
+            try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? [String: String]
+        )
+        #expect(body == ["topicId": "topic-id", "photoUploadId": "upload-id"])
+    }
+
+    /// URLProtocol에는 본문이 스트림으로 전달될 수 있어 둘 다 읽는다.
+    nonisolated private static func bodyData(of request: URLRequest) -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data
     }
 
     @Test("topics 응답 날짜가 요청 날짜와 다르면 invalidResponse가 된다")
@@ -672,6 +777,69 @@ struct PhotoUploadEntryGateTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadAPIRepositoryTests {
+    @Test(
+        "설명은 앞뒤 공백·줄바꿈과 NUL을 지워 보내고, 비면 생략한다",
+        arguments: [
+            ("\n  퇴근길 노을\n두 번째 줄  \n", Optional("퇴근길 노을\n두 번째 줄")),
+            ("노\u{0}을", Optional("노을")),
+            (" \n ", nil),
+        ]
+    )
+    func normalizesDescription(input: String, expected: String?) async throws {
+        let bodies = PhotoUploadRequestRecorder()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                await bodies.append(request)
+                return Self.response(
+                    for: request,
+                    statusCode: 201,
+                    body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+        let preparation = PhotoUploadPreparation(
+            id: UUID(),
+            sourceData: Data([0x01]),
+            encodedData: Data([0x02]),
+            upload: PhotoUploadUploadPolicy(
+                uploadID: "upload-id",
+                uploadURL: URL(string: "https://example.com/upload")!,
+                expiresInSeconds: 60,
+                contentType: "image/webp",
+                maxBytes: 1_024
+            ),
+            uploadURLExpiresAt: Date().addingTimeInterval(60)
+        )
+
+        _ = await PhotoUploadAPIRepository(apiClient: client).createPost(
+            preparation,
+            text: PhotoUploadPostText(title: "", description: input),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        let request = try #require(await bodies.requests.first)
+        let body = try #require(
+            try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? [String: String]
+        )
+        #expect(body["description"] == expected)
+    }
+
+    nonisolated private static func bodyData(of request: URLRequest) -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
+
     @Test("주제 조회 HTTP 오류는 전시 완료 오류가 아닌 주제 조회 오류로 매핑한다")
     func mapsTopicHTTPFailure() async {
         let client = makeClient { request in
