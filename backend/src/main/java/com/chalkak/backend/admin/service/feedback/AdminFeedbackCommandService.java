@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.service.feedback;
 
 import com.chalkak.backend.admin.domain.AdminAction;
+import com.chalkak.backend.admin.domain.AdminAuditLog;
 import com.chalkak.backend.admin.domain.AdminAuditSnapshot;
 import com.chalkak.backend.admin.domain.AdminTargetType;
 import com.chalkak.backend.admin.service.audit.AdminAuditLogCommand;
@@ -43,12 +44,7 @@ public class AdminFeedbackCommandService {
                         "탈퇴한 회원의 문의에는 답변할 수 없습니다."));
         AdminAuditSnapshot beforeState = createAnswerState(feedback);
         feedback.answer(answerContent, clock.instant());
-        notificationService.createForFeedbackAnswer(
-                feedback.getUserId(),
-                feedback.getId(),
-                feedback.getAnsweredAt()
-        );
-        auditLogService.createAuditLog(new AdminAuditLogCommand(
+        AdminAuditLog auditLog = auditLogService.createAuditLog(new AdminAuditLogCommand(
                 adminId,
                 AdminAction.FEEDBACK_ANSWERED,
                 AdminTargetType.FEEDBACK,
@@ -57,6 +53,12 @@ public class AdminFeedbackCommandService {
                 beforeState,
                 createAnswerState(feedback)
         ));
+        notificationService.createForFeedbackAnswer(
+                feedback.getUserId(),
+                feedback.getId(),
+                auditLog.getId(),
+                feedback.getAnsweredAt()
+        );
     }
 
     @Transactional

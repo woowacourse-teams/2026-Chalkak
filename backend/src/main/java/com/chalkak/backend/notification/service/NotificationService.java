@@ -92,11 +92,13 @@ public class NotificationService {
     public void createForFeedbackAnswer(
             UUID userId,
             UUID feedbackId,
+            UUID eventKey,
             Instant answeredAt
     ) {
         notificationRepository.save(Notification.feedbackAnswered(
                 userId,
                 feedbackId,
+                eventKey,
                 answeredAt
         ));
     }

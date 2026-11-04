@@ -2,6 +2,8 @@ package com.chalkak.backend.admin.api.v1.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -34,6 +36,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -50,7 +53,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     @Autowired
     private AdminFeedbackCommandService commandService;
 
-    @Autowired
+    @MockitoSpyBean
     private NotificationRepository notificationRepository;
     @Autowired
     private NotificationCleanupScheduler notificationCleanupScheduler;
@@ -117,6 +120,7 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         assertThat(jdbc.queryForObject(
                 """
                         SELECT COUNT(*) FROM admin_audit_logs a JOIN feedbacks f ON a.target_id = f.id
+                        JOIN notifications n ON n.source_id = f.id AND n.event_key = a.id
                         WHERE a.actor_admin_id = ? AND f.id = ? AND a.action = 'FEEDBACK_ANSWERED'
                           AND a.before_state = '{"answeredAt":null}'::jsonb
                           AND a.after_state = jsonb_build_object('answeredAt', a.after_state->>'answeredAt')
@@ -155,12 +159,28 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("감사 저장이 실패하면 답변과 이미 삽입한 알림도 롤백한다")
+    @DisplayName("감사 저장이 실패하면 답변을 롤백하고 알림을 남기지 않는다")
     void answerFeedback_auditFailure_rollsBackAnswerAndNotification() {
         // When & Then
         assertThatThrownBy(() -> commandService.answerFeedback(
                 feedbackId,
                 UUID.randomUUID(),
+                "답변"
+        )).isInstanceOf(DataIntegrityViolationException.class);
+        assertNoAnswerOrNotification();
+    }
+
+    @Test
+    @DisplayName("알림 저장이 실패하면 답변과 먼저 저장한 감사도 롤백한다")
+    void answerFeedback_notificationFailure_rollsBackAnswerAndAudit() {
+        // Given
+        doThrow(new DataIntegrityViolationException("알림 저장 실패"))
+                .when(notificationRepository).save(any());
+
+        // When & Then
+        assertThatThrownBy(() -> commandService.answerFeedback(
+                feedbackId,
+                adminId,
                 "답변"
         )).isInstanceOf(DataIntegrityViolationException.class);
         assertNoAnswerOrNotification();
