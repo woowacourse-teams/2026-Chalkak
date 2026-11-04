@@ -371,6 +371,7 @@ class PostRepositoryImpl(
                         ?: "무제 작품 이미지",
                     submittedAt = null,
                     title = title,
+                    description = description?.takeIf(String::isNotBlank),
                     likeCount = mappedLikeCount,
                     isLiked = isLiked,
                     isOwnedByCurrentUser = isMine,
