@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +17,7 @@ import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import java.time.Instant;
 import java.util.List;
@@ -53,6 +55,9 @@ class AdminFeedbackControllerTest {
 
     @MockitoBean
     private AdminFeedbackQueryService adminFeedbackQueryService;
+
+    @MockitoBean
+    private AdminFeedbackCommandService adminFeedbackCommandService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -226,6 +231,17 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("ID 형식이 올바르지 않습니다."));
         then(adminFeedbackQueryService).shouldHaveNoInteractions();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-id", "1-1-1-1-1"})
+    @DisplayName("관리자 삭제의 잘못되거나 축약된 ID는 변경 전에 400으로 거절한다")
+    void deleteFeedback_invalidId_returnsBadRequest(String feedbackId) throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/v1/admin/feedbacks/{feedbackId}", feedbackId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+        then(adminFeedbackCommandService).shouldHaveNoInteractions();
     }
 
     private AdminFeedbackListResult listResult(Instant deletedAt) {
