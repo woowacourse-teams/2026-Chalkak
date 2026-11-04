@@ -12,10 +12,12 @@ import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class PostLikeService {
 
@@ -25,22 +27,6 @@ public class PostLikeService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final Clock clock;
-
-    public PostLikeService(
-            PostLikeRepository postLikeRepository,
-            PostLikeCounterRepository postLikeCounterRepository,
-            NotificationService notificationService,
-            PostRepository postRepository,
-            UserRepository userRepository,
-            Clock clock
-    ) {
-        this.postLikeRepository = postLikeRepository;
-        this.postLikeCounterRepository = postLikeCounterRepository;
-        this.notificationService = notificationService;
-        this.postRepository = postRepository;
-        this.userRepository = userRepository;
-        this.clock = clock;
-    }
 
     public PostLikeResult likePost(UUID postId, UUID userId) {
         validateUser(userId);

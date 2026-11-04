@@ -8,7 +8,7 @@
 - 승인·반려 구현은 [PR #562](https://github.com/woowacourse-teams/2026-Chalkak/pull/562)에 있다. 주제 변경의 PR은 아직 등록하지 않았다. 공지 푸시는 [PR #611](https://github.com/woowacourse-teams/2026-Chalkak/pull/611)에 있고, 삭제된 공지의 발송 생략은 [#612](https://github.com/woowacourse-teams/2026-Chalkak/issues/612)에서 추가한다. 공지의 개발 서버 실제 기기 수신은 아직 확인하지 않았다. AI 리뷰 결과 푸시의 PR은 아직 등록하지 않았고 서버 배포와 실제 기기 수신도 확인하지 않았다. 리마인더 푸시는 [PR #757](https://github.com/woowacourse-teams/2026-Chalkak/pull/757)에 있고 실제 기기 수신은 확인하지 않았다. 실제 AWS·Firebase·기기 수신과 해당 서버 배포는 아직 확인하지 않았다.
 - 이 안내는 현재 구현을 설명하며 푸시 메시지의 필드 구조는 유지한다. 종류별 `type`과 설정 API 항목의 추가는 아래 예시와 알림 설정 규칙(NOTIFICATION-006)을 따른다.
 - 연동 준비와 토큰 등록은 [푸시 기기 등록 안내](push-device-registration.md), 알림함 조회는 [알림함 안내](notification-inbox.md)를 함께 읽는다.
-- 좋아요 달성의 개발·운영 1차 호환 배포와 기준값 초기화는 완료했다. #935의 2차 배포부터 신규 단계 알림을 자동 생성한다. 실제 2차 배포·공통 하네스 재배포·Android·iOS 구현·기기 수신 완료는 아직 확인하지 않았다. 메시지 필드는 유지하고 `type`에 `POST_LIKE_MILESTONE`, 설정 API에 `likePushEnabled`를 추가한다(NOTIFICATION-006·017).
+- 좋아요 달성은 `type=POST_LIKE_MILESTONE`, 설정 API의 `likePushEnabled`를 사용한다. 메시지의 기존 필드 형식은 유지한다(NOTIFICATION-006·017). 적용·배포 기록은 [결정 기록](../decisions/2026-11-03-like-milestone-notification.md)에서 확인한다.
 
 ## 1. 서버가 구성하는 메시지
 

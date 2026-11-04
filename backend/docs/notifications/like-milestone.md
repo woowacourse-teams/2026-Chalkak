@@ -94,9 +94,9 @@ Worker는 최신 설정·읽음·기한·메시지 일치·회원·로그인·�
 
 2차에서는 이미 적용한 마이그레이션을 수정하거나 최고 단계를 다시 초기화하지 않는다. 임시 생성 조건·환경변수·일회용 초기화 도구를 제거하고 기존 조건부 UPDATE와 Notification 저장을 연결한다. 파일 정리와 롤백 조건은 [배포 절차](../../deploy/docs/like-milestone-rollout.md)를 따른다.
 
-검증 코드는 [활성화·예전 OFF 설정 호환](../../src/test/java/com/chalkak/backend/like/service/PostLikeMilestoneActivationTest.java), [단계·설정·기준값 이후 생성](../../src/test/java/com/chalkak/backend/like/service/PostLikeServiceTest.java), [동시성·롤백](../../src/test/java/com/chalkak/backend/like/service/PostLikeMilestoneConcurrencyTest.java), [마이그레이션 제약](../../src/test/java/com/chalkak/backend/like/infrastructure/persistence/PostLikeMilestoneMigrationTest.java), [Worker](../../src/test/java/com/chalkak/backend/notification/service/PostLikeMilestonePushWorkerTest.java)에 있다. 로컬 PostgreSQL과 모의 외부 발송을 사용하는 검증이며 실제 기기 수신 검증과 구분한다.
+검증 코드는 [단계·설정·기준값 이후 생성](../../src/test/java/com/chalkak/backend/like/service/PostLikeServiceTest.java), [동시성·롤백](../../src/test/java/com/chalkak/backend/like/service/PostLikeMilestoneConcurrencyTest.java), [마이그레이션 제약](../../src/test/java/com/chalkak/backend/like/infrastructure/persistence/PostLikeMilestoneMigrationTest.java), [Worker](../../src/test/java/com/chalkak/backend/notification/service/PostLikeMilestonePushWorkerTest.java)에 있다. 로컬 PostgreSQL과 모의 외부 발송을 사용하는 검증이며 실제 기기 수신 검증과 구분한다.
 
-배포 후에는 새 단계·OFF·읽음 선처리·게시물 삭제·다중 기기를 실제 SQS·FCM과 연결해 확인한다. 기존 [알림 조사 절차](../../deploy/docs/notification-investigation.md)와 [모니터링 안내](../../deploy/docs/notification-monitoring.md)를 따라 공통 Relay 로그·DB 발행 대기·Worker 생략 사유·오류 경보·DLQ를 확인한다. 기존 모니터링 코드를 재사용했다는 사실과 실제 AWS 설정의 검증 완료는 구분한다.
+개발 서버에 먼저 배포한 뒤 앱 팀이 새 단계·OFF·읽음 선처리·게시물 삭제·다중 기기를 실제 SQS·FCM과 연결해 확인한다. 앱 지원 버전 준비·검증 후 운영에는 #944의 최종 좋아요 변경만 선택 반영한다. #933 고객센터 답변 알림은 이번 운영 릴리스에 포함하지 않는다. 기존 [알림 조사 절차](../../deploy/docs/notification-investigation.md)와 [모니터링 안내](../../deploy/docs/notification-monitoring.md)를 따라 공통 Relay 로그·DB 발행 대기·Worker 생략 사유·오류 경보·DLQ를 확인한다. 기존 모니터링 코드를 재사용했다는 사실과 실제 AWS 설정의 검증 완료는 구분한다.
 
 새 종류의 알림이 저장된 뒤 이전 enum이 없는 서버 코드로 되돌리면 조회가 실패할 수 있으므로 롤백 전에 DB·큐의 새 타입 호환성을 확인한다. 앱은 [푸시 계약](../../../docs/business-rules/guides/notification-push-contract.md)의 `POST_LIKE_MILESTONE`과 `likePushEnabled`, 게시물 이동·읽음을 함께 처리해야 한다.
 
@@ -104,7 +104,7 @@ Worker는 최신 설정·읽음·기한·메시지 일치·회원·로그인·�
 
 아래 문구는 사람이 전달한다. 팀 채널에 자동 발송하지 않는다.
 
-> 좋아요 달성 알림의 1차 호환 배포와 기준값 초기화는 개발·운영에서 끝났습니다. #935의 2차 배포부터 새 단계 알림이 자동 생성되며 실제 2차 배포·기기 수신은 아직 확인 전입니다. API·메시지 계약은 #914와 같습니다. `POST_LIKE_MILESTONE`은 `sourceType=POST`, `sourceId=게시물 ID`로 상세에 연결하고 `notificationId`로 읽음 처리해 주세요. `likePushEnabled`를 꺼도 알림함은 생성하고 다시 켜도 지난 알림을 소급 푸시하지 않습니다. 전체 설정 토글은 현재 설정 API의 모든 수신 항목을 함께 보내고, 부분 수정에서 누락·null은 기존 값을 유지합니다. 활성화 배포 전에 새 종류·설정 화면·게시물 이동을 준비하고 개발에서 실제 수신·읽음을 확인해 주세요.
+> 좋아요 달성 알림의 1차 호환 배포와 기준값 초기화는 개발·운영에서 끝났습니다. #935의 2차 배포부터 새 단계 알림이 자동 생성되며 실제 2차 배포·기기 수신은 아직 확인 전입니다. API·메시지 계약은 #914와 같습니다. `POST_LIKE_MILESTONE`은 `sourceType=POST`, `sourceId=게시물 ID`로 상세에 연결하고 `notificationId`로 읽음 처리해 주세요. `likePushEnabled`를 꺼도 알림함은 생성하고 다시 켜도 지난 알림을 소급 푸시하지 않습니다. 전체 설정 토글은 현재 설정 API의 모든 수신 항목을 함께 보내고, 부분 수정에서 누락·null은 기존 값을 유지합니다. 개발 서버에 먼저 활성화한 뒤 앱에서 새 종류·설정 화면·게시물 이동을 구현하고 실제 수신·읽음을 확인해 주세요. 앱 지원 준비와 검증이 끝난 뒤 운영에는 좋아요 변경만 선택 반영합니다.
 
 ## Notion 수동 반영
 

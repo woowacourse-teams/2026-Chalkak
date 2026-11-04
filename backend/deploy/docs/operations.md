@@ -141,6 +141,8 @@ curl --fail http://127.0.0.1:<활성 포트>/actuator/health
 
 ### 백엔드 릴리스 branch 준비
 
+좋아요 2차 활성화 #944는 [좋아요 전용 선택 릴리스](like-milestone-rollout.md#운영에는-좋아요-변경만-반영)를 따른다. 해당 릴리스에서는 아래의 `backend docs` 전체 교체 명령을 사용하지 않고, 최신 `main`에 #944 최종 변경만 적용해 검증한다. #933 고객센터 답변 알림은 제외한다.
+
 `be/develop`을 `main`에 직접 병합하지 않는다. 릴리스를 Squash로 병합해 두 branch 이력이 이어져 있지 않으므로, 이미 반영된 변경도 충돌로 표시된다. `main`에서 릴리스 branch를 만들고 백엔드 경로만 `be/develop` 기준으로 교체한다.
 
 `hotfix/*` branch는 만들지 않는다. 운영 긴급 수정도 코드와 migration 모두 `be/develop`에 PR로 병합한 뒤 같은 릴리스 절차로 `main`에 반영한다. `main`에만 들어간 수정은 다음 릴리스의 백엔드 경로 교체로 사라질 수 있다.
