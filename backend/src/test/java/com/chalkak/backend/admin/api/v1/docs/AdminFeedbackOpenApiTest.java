@@ -107,6 +107,14 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                         + "[?(@.name == 'inquiryStatus')].required")
                         .value(containsInAnyOrder(false)))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'inquiryStatus')].schema.enum")
+                        .value(containsInAnyOrder(containsInAnyOrder(
+                                "ALL",
+                                "NEEDS_ANSWER",
+                                "ANSWERED",
+                                "INQUIRY_DELETED"
+                        ))))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
                         + "[?(@.name == 'bannedAuthorOnly')].required")
                         .value(containsInAnyOrder(false)))
                 .andExpect(jsonPath(

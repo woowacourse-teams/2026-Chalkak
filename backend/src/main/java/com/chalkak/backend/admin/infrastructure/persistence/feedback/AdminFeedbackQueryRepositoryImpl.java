@@ -49,14 +49,9 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
 
     private Slice<AdminFeedbackProjection> findFeedbackSlice(AdminFeedbackQueryCriteria criteria,
             Pageable pageable) {
-        if (!criteria.hasInquiryFilters()) {
-            return criteria.userId() == null
-                    ? repository.findFeedbacks(pageable)
-                    : repository.findFeedbacksByUserId(criteria.userId(), pageable);
-        }
         return criteria.userId() == null
-                ? repository.findFilteredFeedbacks(criteria, pageable)
-                : repository.findFilteredFeedbacksByUserId(criteria, pageable);
+                ? repository.findFeedbacks(criteria, pageable)
+                : repository.findFeedbacksByUserId(criteria, pageable);
     }
 
     private Sort toSort(AdminFeedbackSort sort) {

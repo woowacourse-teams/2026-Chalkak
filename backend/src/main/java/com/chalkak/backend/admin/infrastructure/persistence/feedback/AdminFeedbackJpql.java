@@ -34,7 +34,7 @@ final class AdminFeedbackJpql {
                     AND feedback.deletedAt IS NULL
                     AND feedback.answeredAt IS NOT NULL
                     AND feedback.answerDeletedAt IS NULL)
-                OR (:#{#criteria.inquiryStatus().name()} = 'DELETED' AND feedback.deletedAt IS NOT NULL))
+                OR (:#{#criteria.inquiryStatus().name()} = 'INQUIRY_DELETED' AND feedback.deletedAt IS NOT NULL))
             AND (:#{#criteria.bannedAuthorOnly()} = false
                 OR (author.deletedAt IS NULL AND author.status = :#{T(com.chalkak.backend.user.domain.UserStatus).BANNED}))
             """;

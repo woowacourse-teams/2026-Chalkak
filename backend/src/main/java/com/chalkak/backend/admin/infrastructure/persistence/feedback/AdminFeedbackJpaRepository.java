@@ -17,17 +17,8 @@ public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID
     @Query(AdminFeedbackJpql.SELECT_DETAIL_WITH_AUTHOR + " WHERE feedback.id = :feedbackId")
     Optional<AdminFeedbackDetailProjection> findFeedbackById(@Param("feedbackId") UUID feedbackId);
 
-    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR)
-    Slice<AdminFeedbackProjection> findFeedbacks(Pageable pageable);
-
-    @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE feedback.userId = :userId")
-    Slice<AdminFeedbackProjection> findFeedbacksByUserId(
-            @Param("userId") UUID userId,
-            Pageable pageable
-    );
-
     @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR + " WHERE " + AdminFeedbackJpql.INQUIRY_FILTERS)
-    Slice<AdminFeedbackProjection> findFilteredFeedbacks(
+    Slice<AdminFeedbackProjection> findFeedbacks(
             @Param("criteria") AdminFeedbackQueryCriteria criteria,
             Pageable pageable
     );
@@ -35,7 +26,7 @@ public interface AdminFeedbackJpaRepository extends JpaRepository<Feedback, UUID
     @Query(AdminFeedbackJpql.SELECT_WITH_AUTHOR
             + " WHERE feedback.userId = :#{#criteria.userId()} AND "
             + AdminFeedbackJpql.INQUIRY_FILTERS)
-    Slice<AdminFeedbackProjection> findFilteredFeedbacksByUserId(
+    Slice<AdminFeedbackProjection> findFeedbacksByUserId(
             @Param("criteria") AdminFeedbackQueryCriteria criteria,
             Pageable pageable
     );

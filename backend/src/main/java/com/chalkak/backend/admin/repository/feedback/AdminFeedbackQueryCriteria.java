@@ -8,11 +8,7 @@ public record AdminFeedbackQueryCriteria(
         boolean bannedAuthorOnly
 ) {
 
-    public boolean hasInquiryFilters() {
-        return inquiryStatus != InquiryStatus.ALL || bannedAuthorOnly;
-    }
-
     public enum InquiryStatus {
-        ALL, NEEDS_ANSWER, ANSWERED, DELETED
+        ALL, NEEDS_ANSWER, ANSWERED, INQUIRY_DELETED
     }
 }

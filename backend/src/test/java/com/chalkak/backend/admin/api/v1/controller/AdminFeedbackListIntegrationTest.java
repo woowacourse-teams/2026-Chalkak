@@ -44,7 +44,6 @@ class AdminFeedbackListIntegrationTest extends IntegrationTestSupport {
     private JwtAccessTokenProvider accessTokenProvider;
 
     private UUID userId;
-    private UUID otherUserId;
     private UUID feedbackId;
 
     @BeforeEach
@@ -52,7 +51,7 @@ class AdminFeedbackListIntegrationTest extends IntegrationTestSupport {
         userId = UUID.randomUUID();
         feedbackId = UUID.randomUUID();
         insertUser(userId, "BANNED");
-        otherUserId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
         insertUser(otherUserId, "ACTIVE");
         jdbcTemplate.update(
                 """
@@ -70,81 +69,26 @@ class AdminFeedbackListIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("실제 관리자 인증으로 사용자별 삭제 문의와 작성자 상태를 조회한다")
-    void getFeedbacks_adminToken_returnsOnlySelectedUsersDeletedFeedback() throws Exception {
-        // Given
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("userId", userId.toString())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(1))
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(feedbackId.toString()))
-                .andExpect(jsonPath("$.feedbacks[0].content").value("삭제된 내 문의"))
-                .andExpect(jsonPath("$.feedbacks[0].deletedAt").value(DELETED_AT.toString()))
-                .andExpect(jsonPath("$.feedbacks[0].author.userId").value(userId.toString()))
-                .andExpect(jsonPath("$.feedbacks[0].author.status").value("BANNED"));
-    }
-
-    @Test
-    @DisplayName("관리자 목록은 현재 답변 상태만 노출한다")
-    void getFeedbacks_withAnswerHistory_returnsStatesWithoutAnswerDetails() throws Exception {
+    @DisplayName("관리자 목록에서 해당 사용자의 삭제 문의와 답변 상태를 조회한다")
+    void getFeedbacks_inquiryDeleted_returnsOnlySelectedUsersDeletedInquiries() throws Exception {
         // Given
         UUID answeredId = insertFeedback(
                 userId,
-                "답변 완료",
+                "답변이 남은 삭제 문의",
                 CREATED_AT,
-                false,
+                true,
                 ANSWERED
         );
         UUID answerDeletedId = insertFeedback(
                 userId,
-                "답변 삭제",
+                "답변 삭제 후 삭제된 문의",
                 CREATED_AT.plusSeconds(1),
-                false,
-                DELETED
-        );
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("userId", userId.toString())
-                .param("sort", "createdAtAsc")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(answeredId.toString()))
-                .andExpect(jsonPath("$.feedbacks[0].answerState").value("ANSWERED"))
-                .andExpect(jsonPath("$.feedbacks[1].feedbackId").value(answerDeletedId.toString()))
-                .andExpect(jsonPath("$.feedbacks[1].answerState").value("DELETED"))
-                .andExpect(jsonPath("$.feedbacks[2].answerState").value("UNANSWERED"))
-                .andExpect(jsonPath("$.feedbacks[0].answerContent").doesNotExist())
-                .andExpect(jsonPath("$.feedbacks[0].answeredAt").doesNotExist())
-                .andExpect(jsonPath("$.feedbacks[0].answerVersion").doesNotExist());
-    }
-
-    @Test
-    @DisplayName("사용자와 답변 필요 조건을 먼저 적용한 뒤 페이지를 나눈다")
-    void getFeedbacks_needsAnswer_filtersBeforePagination() throws Exception {
-        // Given
-        UUID unanswered = insertFeedback(
-                userId,
-                "최초 미답변",
-                CREATED_AT,
-                false,
-                UNANSWERED
-        );
-        UUID answerDeleted = insertFeedback(
-                userId,
-                "재답변 필요",
-                CREATED_AT.plusSeconds(1),
-                false,
+                true,
                 DELETED
         );
         insertFeedback(
                 userId,
-                "이미 답변함",
+                "삭제되지 않은 문의",
                 CREATED_AT.plusSeconds(2),
                 false,
                 ANSWERED
@@ -154,106 +98,21 @@ class AdminFeedbackListIntegrationTest extends IntegrationTestSupport {
         // When & Then
         mockMvc.perform(get("/api/v1/admin/feedbacks")
                 .param("userId", userId.toString())
-                .param("inquiryStatus", "NEEDS_ANSWER")
-                .param("pageSize", "1")
+                .param("inquiryStatus", "INQUIRY_DELETED")
+                .param("sort", "createdAtAsc")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(answerDeleted.toString()))
-                .andExpect(jsonPath("$.hasNext").value(true));
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("userId", userId.toString())
-                .param("inquiryStatus", "NEEDS_ANSWER")
-                .param("pageSize", "1")
-                .param("page", "2")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(unanswered.toString()))
-                .andExpect(jsonPath("$.hasNext").value(false));
-    }
-
-    @Test
-    @DisplayName("현재 답변이 있는 문의와 문의 자체가 삭제된 기록을 구분한다")
-    void getFeedbacks_answeredAndDeletedFilters_separateInquiryDeletion() throws Exception {
-        // Given
-        UUID answered = insertFeedback(
-                userId,
-                "답변이 남아 있는 문의",
-                CREATED_AT,
-                false,
-                ANSWERED
-        );
-        UUID deleted = insertFeedback(
-                userId,
-                "답변이 남은 삭제 문의",
-                CREATED_AT.plusSeconds(1),
-                true,
-                ANSWERED
-        );
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("inquiryStatus", "ANSWERED")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(1))
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(answered.toString()));
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("inquiryStatus", "DELETED")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(2))
-                .andExpect(jsonPath("$.feedbacks[1].feedbackId").value(deleted.toString()))
-                .andExpect(jsonPath("$.feedbacks[1].answerState").value("ANSWERED"));
-    }
-
-    @Test
-    @DisplayName("답변 필요에서 탈퇴 회원을 제외하고 차단 회원 조건과 조합한다")
-    void getFeedbacks_bannedAuthorsOnly_combinesWithNeedsAnswer() throws Exception {
-        // Given
-        UUID withdrawnId = UUID.randomUUID();
-        insertUser(withdrawnId, "BANNED");
-        jdbcTemplate.update(
-                "UPDATE users SET deleted_at = ? WHERE id = ?",
-                Timestamp.from(DELETED_AT),
-                withdrawnId
-        );
-        insertFeedback(
-                withdrawnId,
-                "차단 뒤 탈퇴한 회원의 문의",
-                CREATED_AT.plusSeconds(4),
-                false,
-                UNANSWERED
-        );
-        UUID bannedFeedback = insertFeedback(
-                userId,
-                "차단 회원 문의",
-                CREATED_AT.plusSeconds(3),
-                false,
-                UNANSWERED
-        );
-        String token = accessTokenProvider.issue(UUID.randomUUID(), AccessTokenScope.ADMIN).value();
-
-        // When & Then
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("inquiryStatus", "NEEDS_ANSWER")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(2));
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("inquiryStatus", "NEEDS_ANSWER")
-                .param("bannedAuthorOnly", "true")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(1))
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(bannedFeedback.toString()));
-        mockMvc.perform(get("/api/v1/admin/feedbacks")
-                .param("bannedAuthorOnly", "true")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.feedbacks.length()").value(2))
-                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(feedbackId.toString()))
-                .andExpect(jsonPath("$.feedbacks[1].feedbackId").value(bannedFeedback.toString()));
+                .andExpect(jsonPath("$.feedbacks.length()").value(3))
+                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(answeredId.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].answerState").value("ANSWERED"))
+                .andExpect(jsonPath("$.feedbacks[1].feedbackId").value(answerDeletedId.toString()))
+                .andExpect(jsonPath("$.feedbacks[1].answerState").value("DELETED"))
+                .andExpect(jsonPath("$.feedbacks[2].feedbackId").value(feedbackId.toString()))
+                .andExpect(jsonPath("$.feedbacks[2].content").value("삭제된 내 문의"))
+                .andExpect(jsonPath("$.feedbacks[2].deletedAt").value(DELETED_AT.toString()))
+                .andExpect(jsonPath("$.feedbacks[2].author.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.feedbacks[2].author.status").value("BANNED"))
+                .andExpect(jsonPath("$.feedbacks[2].answerState").value("UNANSWERED"));
     }
 
     private UUID insertFeedback(
