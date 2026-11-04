@@ -57,6 +57,21 @@ struct FeedAPIClientTests {
         #expect(content.post.authorID == "author-1")
     }
 
+    @Test("상세 응답의 description을 작품 설명으로 매핑하고 비어 있으면 nil로 둔다", arguments: [
+        (#""description":"첫 줄\n둘째 줄","#, Optional("첫 줄\n둘째 줄")),
+        (#""description":"  ","#, nil),
+        (#""description":null,"#, nil),
+        ("", nil)
+    ])
+    func mapsDescriptionFromPostDetail(descriptionField: String, expected: String?) throws {
+        let body = #"{"id":"post-1","topic":{"title":"하늘","topicDate":"2026-09-01"},"originalImageUrl":"https://example.com/original.webp","signatureOriginalImageUrl":"https://example.com/signature.webp","title":"제목","#
+            + descriptionField
+            + #""likeCount":1,"isLiked":false,"isMine":false}"#
+        let response = try JSONDecoder().decode(FeedPostDetailResponse.self, from: Data(body.utf8))
+
+        #expect(try response.toFeedContent().post.description == expected)
+    }
+
     @Test("게시물 제목 수정은 PUT과 정규화된 제목을 전송한다")
     func updatesPostTitleWithNormalizedBody() async throws {
         let recorder = FeedAPIRequestRecorder()

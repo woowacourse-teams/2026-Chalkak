@@ -13,7 +13,8 @@ enum FeedPreviewData {
             title: "안녕하세요 감사합니다.",
             likeCount: 24,
             isLiked: false,
-            isOwnedByCurrentUser: true
+            isOwnedByCurrentUser: true,
+            description: "노을 지는 퇴근길에 찍었어요."
         )
     )
 

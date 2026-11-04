@@ -71,6 +71,8 @@ struct FeedPost: Identifiable, Equatable, Sendable {
     var isOwnedByCurrentUser: Bool
     // 사진 작성자의 회원 ID. 사인을 눌러 작가 사진 목록을 열 때 쓰며, 응답에 없으면 nil이다.
     var authorID: String? = nil
+    // 작품 설명. 줄바꿈을 포함할 수 있고, 없으면 nil이라 Feed에 표시하지 않는다.
+    var description: String? = nil
 }
 
 enum FeedSignatureTapAction: Equatable, Sendable {

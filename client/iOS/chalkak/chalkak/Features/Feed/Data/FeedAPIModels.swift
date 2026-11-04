@@ -11,6 +11,7 @@ struct FeedPostDetailResponse: Decodable {
     let originalImageURL: String
     let signatureOriginalImageURL: String
     let title: String?
+    let description: String?
     let likeCount: Int
     let isLiked: Bool
     let isMine: Bool?
@@ -23,6 +24,7 @@ struct FeedPostDetailResponse: Decodable {
         case originalImageURL = "originalImageUrl"
         case signatureOriginalImageURL = "signatureOriginalImageUrl"
         case title
+        case description
         case likeCount
         case isLiked
         case isMine
@@ -58,7 +60,8 @@ struct FeedPostDetailResponse: Decodable {
                 likeCount: likeCount,
                 isLiked: isLiked,
                 isOwnedByCurrentUser: isMine ?? false,
-                authorID: authorID
+                authorID: authorID,
+                description: description.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
             )
         )
     }
