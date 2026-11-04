@@ -6,6 +6,8 @@ struct HomeHeroCard: View {
     let topic: String
     var onOpenPhotoUpload: () -> Void
     var onRetry: () -> Void
+    // 내 사진은 피드처럼 원본 비율(height / width)로 보여 준다. 비율을 알기 전과 다른 상태는 기본 비율을 쓴다.
+    @State private var photoRatio: CGFloat?
 
     var body: some View {
         ZStack {
@@ -42,12 +44,21 @@ struct HomeHeroCard: View {
                 }
             case let .photo(photo):
                 PhotoHeroContent(photo: photo)
+                    .task(id: photo.imageSource) {
+                        photoRatio = await ImageRatioLoader.ratio(for: photo.imageSource)
+                    }
             }
         }
-        .aspectRatio(Metrics.aspectRatio, contentMode: .fit)
+        .aspectRatio(aspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
         .accessibilityIdentifier(accessibilityIdentifier)
     }
+
+    private var aspectRatio: CGFloat {
+        guard case .photo = hero, let photoRatio, photoRatio > 0 else { return Metrics.aspectRatio }
+        return 1 / photoRatio
+    }
+
     private var accessibilityIdentifier: String {
         switch hero {
         case .loading: "home-loading"

@@ -23,6 +23,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.component.image.aspectRatioForSize
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.home.HomeHeroState
 
@@ -49,9 +54,11 @@ fun HomeHeroCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 내 사진은 피드처럼 원본 비율로 보여 준다. 비율을 알기 전과 다른 상태는 기본 비율을 쓴다.
+    var photoAspectRatio by remember((hero as? HomeHeroState.Photo)?.imageUrl) { mutableStateOf<Float?>(null) }
     Box(
         modifier = modifier
-            .aspectRatio(HERO_ASPECT_RATIO)
+            .aspectRatio(photoAspectRatio?.takeIf { hero is HomeHeroState.Photo } ?: HERO_ASPECT_RATIO)
             .clip(ChalkakTheme.shapes.photoCard)
             .testTag(HOME_HERO_TEST_TAG),
     ) {
@@ -85,6 +92,7 @@ fun HomeHeroCard(
 
             is HomeHeroState.Photo -> PhotoHeroContent(
                 hero = hero,
+                onImageAspectRatioAvailable = { photoAspectRatio = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -94,6 +102,7 @@ fun HomeHeroCard(
 @Composable
 private fun PhotoHeroContent(
     hero: HomeHeroState.Photo,
+    onImageAspectRatioAvailable: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -110,6 +119,14 @@ private fun PhotoHeroContent(
             thumbnailImageModel = hero.thumbnailUrl,
             thumbnailSignatureModel = hero.signatureThumbnailUrl,
             contentScale = ContentScale.Crop,
+            onImageSuccess = { state ->
+                aspectRatioForSize(state.result.image.width, state.result.image.height)
+                    ?.let(onImageAspectRatioAvailable)
+            },
+            onThumbnailImageSuccess = { state ->
+                aspectRatioForSize(state.result.image.width, state.result.image.height)
+                    ?.let(onImageAspectRatioAvailable)
+            },
             modifier = Modifier.fillMaxSize(),
             signatureModifier = Modifier.size(width = HeroSignatureWidth, height = HeroSignatureHeight),
         )
