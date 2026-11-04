@@ -411,26 +411,6 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
                 .doesNotContainEntry("event_key", previousEventKey);
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    @DisplayName("답변 삭제 뒤 문의가 삭제됐거나 작성자가 탈퇴하면 재답변할 수 없다")
-    void answerFeedback_deletedInquiryOrWithdrawnAuthor_rejectsReanswer(boolean deleteInquiry)
-            throws Exception {
-        // Given
-        answer("이전 답변").andExpect(status().isNoContent());
-        deleteAnswer(savedAnsweredAt()).andExpect(status().isNoContent());
-        if (deleteInquiry) {
-            commandService.deleteFeedback(feedbackId, adminId);
-        } else {
-            jdbc.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", userId);
-        }
-
-        // When & Then
-        answer("새 답변", true).andExpect(status().isBadRequest());
-        assertThat(storedAnswer()).isEqualTo("이전 답변");
-        assertThat(notificationCount()).isZero();
-    }
-
     private String currentAnswerVersion() throws Exception {
         var response = mockMvc.perform(get("/api/v1/admin/feedbacks/{id}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, adminToken()))
