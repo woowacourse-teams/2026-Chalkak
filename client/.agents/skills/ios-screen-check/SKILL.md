@@ -83,6 +83,8 @@ notes: 없음
 
 ## 시뮬레이터 준비
 
+`$UDID`는 [공통 약속](../client-flow/references/conventions.md)의 명령어 아래 고르는 법을 따른다(로컬 `CHALKAK_IOS_UDID`가 먼저).
+
 ```bash
 xcrun simctl list devices booted               # 켜진 시뮬레이터가 있으면 그대로 쓴다
 xcrun simctl list devices available | grep iPhone
@@ -116,6 +118,9 @@ xcrun simctl status_bar "$UDID" clear
 
 - 같은 시뮬레이터 기종, 같은 계정, 같은 데이터, 같은 화면 위치(스크롤)에서 찍는다.
 - 시뮬레이터에는 애니메이션을 끄는 명령이 없다. 전환이 끝난 뒤(1초 정도 기다린 뒤) 찍는다.
+- 비교할 때 상태 표시줄은 뺀다(`mark-changes.py --skip-top`). 앱 화면이 아니어서 바뀌어도 판단할 것이 없다.
+  - iPhone 17 Pro(1206x2622)는 `186`(62pt × 3).
+  - 다른 기종이면 수정 전 캡처 위쪽을 잘라 보고, 시계·배터리 아래이면서 앱의 첫 글자보다 위인 값으로 정한다.
 
 ## 화면까지 이동
 
@@ -133,4 +138,4 @@ xcrun simctl io "$UDID" recordVideo --codec h264 "$EVID/media/ios-repro.mp4"   #
 pkill -INT -f "simctl io .*recordVideo"                                     # INT로 멈춰야 파일이 닫힌다
 ```
 
-수정 후에는 같은 조건으로 `ios-after-<n>.png`를 찍고 `mark-changes.py`로 비교한다([화면 확인 자료](../client-pr/references/screen-evidence.md)).
+수정 후에는 같은 조건으로 `ios-after-<n>.png`를 찍고 `mark-changes.py --skip-top <상태 표시줄 높이>`로 비교한다([화면 확인 자료](../client-pr/references/screen-evidence.md)).

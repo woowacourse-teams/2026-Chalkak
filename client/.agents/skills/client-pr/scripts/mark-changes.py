@@ -13,6 +13,8 @@
   -o, --out              결과 이미지 경로 (기본: <after 이름>-marked.png)
   --ignore x,y,w,h       비교에서 뺄 영역. 여러 번 줄 수 있다. 서버에서 늦게 오는 사진처럼
                          찍을 때마다 달라지는 곳을 뺀다. 좌표는 before 이미지 픽셀 기준.
+  --skip-top N           맨 위 N픽셀(상태 표시줄)을 비교에서 뺀다. 앱 화면이 아니라 표시하지도 않는다.
+                         고정해 둔 시계도 데모 모드를 다시 켜면 글자 위치가 몇 픽셀 움직여서 번호가 붙는다.
   --threshold N          채널 차이가 N 넘는 픽셀만 바뀐 것으로 본다 (기본 16).
                          mp4에서 뽑은 프레임은 압축 잡음이 있어 32 정도로 올린다.
   --gap N                이 픽셀 거리 안의 변화는 한 영역으로 묶는다 (기본 12).
@@ -34,6 +36,7 @@
 예시
   python3 mark-changes.py before-1.png after-1.png -o compare-1.png
   python3 mark-changes.py b.png a.png --ignore 0,600,1179,900      # 사진 영역 제외
+  python3 mark-changes.py b.png a.png --skip-top 63                 # 상태 표시줄 제외(Android 1080x2400)
   ffmpeg -ss 1.20 -i before.mp4 -frames:v 1 b-1.20.png             # 움직임 버그는 같은 시점 프레임 쌍으로
 """
 
@@ -217,6 +220,8 @@ def main():
     parser.add_argument("-o", "--out", help="결과 이미지 경로 (기본: <after>-marked.png)")
     parser.add_argument("--ignore", type=parse_box, action="append", default=[], metavar="x,y,w,h",
                         help="비교에서 뺄 영역. 여러 번 줄 수 있다(예: 늦게 오는 사진 영역)")
+    parser.add_argument("--skip-top", type=int, default=0, metavar="N",
+                        help="맨 위 N픽셀(상태 표시줄)을 비교에서 뺌. 테두리도 그리지 않음")
     parser.add_argument("--threshold", type=int, default=16, help="채널 차이가 이보다 커야 바뀐 것으로 봄. mp4 프레임은 32")
     parser.add_argument("--gap", type=int, default=12, help="이 거리 안의 변화는 한 영역으로 묶음")
     parser.add_argument("--min-pixels", type=int, default=3, help="바뀐 픽셀이 이보다 적은 영역은 잡음으로 버림")
@@ -225,6 +230,7 @@ def main():
     out = args.out or os.path.splitext(args.after)[0] + "-marked.png"
     before, after = load_pair(args.before, args.after)
     mask = changed_mask(before, after, args.threshold, args.ignore)
+    mask[:max(args.skip_top, 0), :] = False  # 상태 표시줄은 앱 화면이 아니다
     regions = find_regions(mask, args.gap, args.min_pixels)
     ratio = union_ratio(regions, before.size)
 

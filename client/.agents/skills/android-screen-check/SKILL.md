@@ -125,6 +125,11 @@ $ADB shell settings put global animator_duration_scale 0
 
 - 같은 계정, 같은 데이터, 같은 화면 위치(스크롤)에서 찍는다.
 - 끝나면 되돌린다: `... -e command exit`, 애니메이션 세 값은 `1`.
+- 시계를 고정해도 데모 모드를 다시 켜면 시계 글자가 몇 픽셀 옆으로 움직인다(#931). 그래서 비교할 때 상태 표시줄은 아래 높이만큼 뺀다.
+  ```bash
+  # 상태 표시줄 높이(px). 1080x2400 에뮬레이터는 63
+  SB=$($ADB shell dumpsys window | grep -m1 -oE 'type=statusBars frame=\[0,0\]\[[0-9]+,[0-9]+\]' | grep -oE '[0-9]+\]$' | tr -d ']')
+  ```
 
 ## 화면까지 이동
 
@@ -147,4 +152,4 @@ $ADB shell pkill -INT screenrecord                          # 일찍 끝낼 때 
 $ADB pull /sdcard/android-repro.mp4 "$EVID/media/android-repro.mp4"
 ```
 
-수정 후에는 같은 조건으로 `android-after-<n>.png`를 찍고 `mark-changes.py`로 비교한다([화면 확인 자료](../client-pr/references/screen-evidence.md)).
+수정 후에는 같은 조건으로 `android-after-<n>.png`를 찍고 `mark-changes.py`로 비교한다([화면 확인 자료](../client-pr/references/screen-evidence.md)). 상태 표시줄은 `--skip-top "$SB"`로 뺀다.

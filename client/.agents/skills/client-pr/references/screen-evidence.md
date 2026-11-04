@@ -33,7 +33,8 @@ AI가 놓치는 건 의도하지 않은 변화다(#814의 탑바 아래 그림�
 
 ```bash
 python3 client/.agents/skills/client-pr/scripts/mark-changes.py \
-  "$EVID/media/android-before-1.png" "$EVID/media/android-after-1.png" -o "$EVID/media/android-compare-1.png"
+  "$EVID/media/android-before-1.png" "$EVID/media/android-after-1.png" -o "$EVID/media/android-compare-1.png" \
+  --skip-top "$SB"   # 상태 표시줄 높이. 구하는 법은 화면 확인 스킬의 "같은 조건 맞추기"
 ```
 
 - 필요한 것: `python3 -m pip install --user pillow numpy`
@@ -42,6 +43,7 @@ python3 client/.agents/skills/client-pr/scripts/mark-changes.py \
   - `side-by-side`: 바뀐 영역이 화면 절반을 넘었다. 번호 없이 나란히 두고 "화면 전체 변경"이라고 적는다.
   - `same`: 바뀐 곳이 없다. 의도한 변화가 있어야 하는 항목이면 이상이다.
 - 비교 조건 맞추기는 화면 확인 스킬이 한다(상태 표시줄 고정, 애니메이션 끄기, 같은 데이터).
+- 상태 표시줄은 항상 `--skip-top`으로 뺀다. 앱 화면이 아니라서 번호를 붙여도 리뷰어가 볼 것이 없다.
 - 서버에서 늦게 오는 사진처럼 찍을 때마다 달라지는 영역은 `--ignore x,y,w,h`로 뺀다. 뺀 영역은 회색 테두리로 남는다.
 - mp4에서 뽑은 프레임은 압축 잡음이 있으니 `--threshold 32`.
 

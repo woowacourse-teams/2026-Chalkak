@@ -55,7 +55,19 @@
 | push 전 전체 검사 | `./gradlew ktlintCheck lintDebug testDebugUnitTest` | `xcodebuild test -project chalkak.xcodeproj -scheme chalkak -destination "platform=iOS Simulator,id=$UDID" -only-testing:chalkakTests` |
 
 - 두 플랫폼을 바꾸면 전체 검사도 둘 다 돌리고, 둘 다 종료 코드 0이어야 통과다.
-- iOS의 `$UDID`는 `xcrun simctl list devices available`에서 고른 iPhone 시뮬레이터다.
+- iOS의 `$UDID`는 앱이 지원하는 범위(iPhone, iOS 18.0 이상)의 시뮬레이터다. 기종은 하네스가 정하지 않고 개발자가 자기 로컬에서 정한다. 팀원마다 설치된 기종이 다르기 때문이다.
+  - 로컬 환경 변수 `CHALKAK_IOS_UDID`가 있으면 그것을 쓴다(예: 셸 설정에 `export CHALKAK_IOS_UDID=<UDID>`).
+  - 없으면 켜 둔 iPhone 시뮬레이터를, 그것도 없으면 가장 새 iOS의 iPhone을 고른다.
+  ```bash
+  UDID="${CHALKAK_IOS_UDID:-}"
+  [ -n "$UDID" ] || UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys,re
+  d=json.load(sys.stdin)["devices"]
+  c=[(tuple(map(int,re.findall(r"iOS-(\d+)-(\d+)",k)[0])),x["state"]=="Booted",x["udid"]) for k,v in d.items() if "iOS-" in k for x in v if x["name"].startswith("iPhone")]
+  c=[x for x in c if x[0]>=(18,0)]
+  print(max(c,key=lambda x:(x[1],x[0]))[2] if c else "")')
+  ```
+  - 기록에는 고른 기종과 iOS 버전을 적는다.
+  - iPhone 17(Pro 아님)에서는 기존 `FeedPhotoRatioTests` 1건이 이번 변경과 상관없이 실패한다(#931). 그것만 실패하면 다른 iPhone에서 다시 돌리고, 두 결과를 기록에 적는다.
 - 통과 여부는 종료 코드로 정한다. 출력을 훑어보고 "통과한 것 같다"고 쓰지 않는다.
 
 ## 작업 기록 폴더
@@ -78,6 +90,10 @@ mkdir -p "$EVID/media"
 | `route-<플랫폼>.md` | `client-tdd` | 수정 전 화면 확인 결과의 `route`. 수정 후에 같은 길·조건으로 찍을 때 `hint`로 넘긴다 |
 
 플랫폼은 `android` 또는 `ios`, `n`은 계획의 테스트 밖 확인 항목 번호다. 사용자에게 보고할 때는 `file://` 절대 경로로 적는다.
+
+## GitHub에 올리는 글
+
+이슈 본문, 계획 댓글, PR 본문에는 `~`를 쓰지 않는다. 한 줄에 `~`가 두 개면 그 사이가 취소선이 된다. 범위는 `1–8월`처럼 `–`로 쓴다.
 
 ## 커밋 메시지
 
