@@ -36,7 +36,7 @@ class PostOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas.PostResponse.properties.authorId.format")
                         .value("uuid"))
                 .andExpect(jsonPath("$.components.schemas.PostDetailResponse.properties")
-                        .value(aMapWithSize(10)))
+                        .value(aMapWithSize(11)))
                 .andExpect(
                         jsonPath("$.components.schemas.PostDetailResponse.properties.authorId.type")
                                 .value("string"))
@@ -60,6 +60,18 @@ class PostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.PostResponse"
                         + ".properties.description").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("user-api 문서는 상세 응답에만 nullable 인스타그램 동의 정보를 제공한다")
+    void userApiDocs_postDetail_exposesInstagramConsentOnlyOnDetail() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.PostDetailResponse"
+                        + ".properties.instagramConsent").exists())
+                .andExpect(jsonPath("$.components.schemas.PostResponse"
+                        + ".properties.instagramConsent").doesNotExist());
     }
 
     @Test

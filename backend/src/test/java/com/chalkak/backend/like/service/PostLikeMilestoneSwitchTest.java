@@ -67,7 +67,10 @@ class PostLikeMilestoneSwitchTest {
                 Photo.createPhoto("post/like-switch.webp"),
                 UUID.randomUUID(),
                 "사진",
-                null
+                null,
+                false,
+                null,
+                NOW
         );
         ReflectionTestUtils.setField(
                 post,
