@@ -141,7 +141,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @MethodSource("protectedAdminMemberEndpoints")
-    @DisplayName("모든 관리자 API는 회원을 거절하고 주제 푸시 설정·공지·리마인더는 정상·정지·탈퇴 회원을 거절한다")
+    @DisplayName("관리자 API는 회원을 거절하고 상태 검증 대상은 정지·탈퇴 회원도 거절한다")
     void adminEndpoints_memberState_returnsForbidden(
             String method,
             String path,
@@ -349,6 +349,9 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("GET", "/api/v1/admin/posts/" + id),
                 Arguments.of("PUT", "/api/v1/admin/posts/" + id + "/moderation"),
                 Arguments.of("DELETE", "/api/v1/admin/posts/" + id),
+                Arguments.of("GET", "/api/v1/admin/feedbacks"),
+                Arguments.of("GET", "/api/v1/admin/feedbacks/" + id),
+                Arguments.of("DELETE", "/api/v1/admin/feedbacks/" + id),
                 Arguments.of("GET", "/api/v1/admin/users"),
                 Arguments.of("GET", "/api/v1/admin/users/" + id),
                 Arguments.of("PATCH", "/api/v1/admin/users/" + id + "/status"),
@@ -391,7 +394,8 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
             Object[] values = endpoint.get();
             List<String> states = List.of("ACTIVE");
             String path = (String) values[1];
-            if (path.startsWith("/api/v1/admin/topic-push-schedules")
+            if (path.startsWith("/api/v1/admin/feedbacks")
+                    || path.startsWith("/api/v1/admin/topic-push-schedules")
                     || path.startsWith("/api/v1/admin/ai-prompt-previews")
                     || path.startsWith("/api/v1/admin/ai-prompt-versions")
                     || path.startsWith("/api/v1/admin/ai-reviews")

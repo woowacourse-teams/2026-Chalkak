@@ -81,7 +81,10 @@ public class PostController implements PostApiDocs {
                 userId,
                 request.topicId(),
                 request.photoUploadId(),
-                request.title()
+                request.title(),
+                request.description(),
+                request.hasInstagramUploadAgreement(),
+                request.instagramId()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -100,7 +103,10 @@ public class PostController implements PostApiDocs {
         PostUpdateResult result = postCommandService.updatePost(
                 loginUser.userId(),
                 parsedPostId,
-                request.title()
+                request.title(),
+                request.description(),
+                request.hasInstagramUploadAgreement(),
+                request.instagramId()
         );
 
         return ResponseEntity.ok(PostUpdateResponse.from(result));

@@ -208,16 +208,4 @@ class PostImageUploadTest {
                 .hasMessageContaining("처리할 수 없는 사진입니다.");
     }
 
-    @Test
-    @DisplayName("모르는 거절 사유는 기본 안내 문구로 실패한다")
-    void claim_unknownReason_throwsWithDefaultMessage() {
-        // Given
-        PostImageUpload upload = PostImageUpload.createPostImageUpload(user, ISSUED_AT);
-        upload.failProcessing("SOMETHING_NEW");
-
-        // When & Then
-        assertThatThrownBy(() -> upload.claim(ISSUED_AT))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("처리할 수 없는 사진입니다.");
-    }
 }

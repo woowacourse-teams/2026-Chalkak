@@ -119,8 +119,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     @Test
-    @DisplayName("처리 완료된 서명 이미지로 소셜 회원가입하면 회원과 소셜 계정을 저장한다")
-    void signup_completedSignature_savesUserAndSocialAccount() {
+    @DisplayName("회원가입은 회원과 소셜 계정을 저장하고 같은 회원과 로그인 ID의 JWT를 발급한다")
+    void signup_completedSignature_persistsIdentityAndIssuesMatchingTokens() {
         // Given
         UUID uploadId = UUID.randomUUID();
         SignatureStorageKeys storageKeys = new SignatureStorageKeys(
@@ -134,7 +134,8 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         given(signatureImageStorage.toStorageKeys(uploadId)).willReturn(storageKeys);
 
         // When
-        UUID userId = socialSignupService.signup(SIGNUP_TOKEN).userId();
+        SocialSignupResult result = socialSignupService.signup(SIGNUP_TOKEN);
+        UUID userId = result.userId();
         entityManager.flush();
         entityManager.clear();
 
@@ -159,6 +160,13 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         );
         assertThat(storedHashes).hasSize(1);
         assertThat(storedHashes.getFirst()).matches("^[0-9a-f]{64}$");
+
+        Jwt jwt = accessTokenProvider.jwtDecoder()
+                .decode(result.accessToken().value());
+        assertThat(jwt.getSubject()).isEqualTo(result.userId().toString());
+        assertThat(jwt.getClaimAsString("session_id"))
+                .isEqualTo(result.refreshToken().sessionId().toString());
+        assertThat(result.accessToken().expiresIn()).isPositive();
     }
 
     @Test
@@ -580,31 +588,6 @@ class SocialSignupServiceTest extends IntegrationTestSupport {
         // Then
         User user = userRepository.findById(userId).orElseThrow();
         assertThat(user.getEmail()).isNull();
-    }
-
-    @Test
-    @DisplayName("소셜 회원가입을 완료하면 새 회원 식별자를 담은 액세스 토큰을 발급한다")
-    void signup_completedSignature_issuesAccessToken() {
-        // Given
-        UUID uploadId = UUID.randomUUID();
-        given(socialSignupTokenVerifier.verify(SIGNUP_TOKEN))
-                .willReturn(verifiedSignupToken(uploadId, EMAIL));
-        given(signatureImageStorage.toStorageKeys(uploadId))
-                .willReturn(storageKeys(uploadId));
-        given(signatureImageStorage.findUploadedImage(uploadId))
-                .willReturn(Optional.of(new StoredImageMetadata("image/png", 1024L)));
-        given(signatureImageStorage.isProcessingCompleted(uploadId)).willReturn(true);
-
-        // When
-        SocialSignupResult result = socialSignupService.signup(SIGNUP_TOKEN);
-
-        // Then
-        Jwt jwt = accessTokenProvider.jwtDecoder()
-                .decode(result.accessToken().value());
-        assertThat(jwt.getSubject()).isEqualTo(result.userId().toString());
-        assertThat(jwt.getClaimAsString("session_id"))
-                .isEqualTo(result.refreshToken().sessionId().toString());
-        assertThat(result.accessToken().expiresIn()).isPositive();
     }
 
     @Test

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.notification.repository.DistributableNotice;
 import com.chalkak.backend.notification.repository.NoticeRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -13,10 +13,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class NoticeRepositoryImplTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class NoticeRepositoryImplTest {
 
     private static final Instant SCHEDULED_AT = Instant.parse("2026-10-13T00:00:00Z");
 

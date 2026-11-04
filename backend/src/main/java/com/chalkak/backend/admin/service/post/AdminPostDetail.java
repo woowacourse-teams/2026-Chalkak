@@ -16,6 +16,7 @@ import java.util.UUID;
 public record AdminPostDetail(
         UUID postId,
         String title,
+        String description,
         ModerationStatus moderationStatus,
         AuthorDetail author,
         TopicDetail topic,
@@ -43,6 +44,7 @@ public record AdminPostDetail(
         return new AdminPostDetail(
                 post.postId(),
                 post.title(),
+                post.description(),
                 post.moderationStatus(),
                 new AuthorDetail(
                         post.authorId(),

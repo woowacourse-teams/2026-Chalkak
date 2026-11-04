@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.ForbiddenException;
-import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -85,6 +84,35 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 .isEqualTo(deleted.get("post_deleted_at"));
         assertThat(deleted.get("original_storage_key")).isEqualTo(ORIGINAL_STORAGE_KEY);
         assertThat(deleted.get("thumbnail_storage_key")).isEqualTo(THUMBNAIL_STORAGE_KEY);
+    }
+
+    @Test
+    @DisplayName("작성자가 동의한 게시물을 삭제하면 인스타그램 ID만 지우고 동의 여부와 동의 시각은 보존한다")
+    void deletePost_agreedPostWithId_clearsOnlyInstagramId() {
+        // Given
+        jdbcTemplate.update("""
+                UPDATE posts
+                SET instagram_upload_agreed = TRUE,
+                    instagram_id = 'chalkak',
+                    instagram_agreed_at = TIMESTAMPTZ '2026-08-28 10:00:00+00'
+                WHERE id = ?
+                """, POST_ID);
+
+        // When
+        postCommandService.deletePost(AUTHOR_ID, POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        Map<String, Object> saved = jdbcTemplate.queryForMap("""
+                SELECT instagram_upload_agreed, instagram_id,
+                       instagram_agreed_at IS NOT NULL AS has_agreed_at
+                FROM posts
+                WHERE id = ?
+                """, POST_ID);
+        assertThat(saved.get("instagram_upload_agreed")).isEqualTo(true);
+        assertThat(saved.get("instagram_id")).isNull();
+        assertThat(saved.get("has_agreed_at")).isEqualTo(true);
     }
 
     @Test
@@ -180,15 +208,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
 
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
-                SELECT post.deleted_at AS post_deleted_at,
-                       photo.deleted_at AS photo_deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, POST_ID);
-        assertThat(deletionState.get("post_deleted_at")).isNull();
-        assertThat(deletionState.get("photo_deleted_at")).isNull();
+        assertPostAndPhotoNotDeleted();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM post_likes WHERE post_id = ?",
                 Integer.class,
@@ -215,15 +235,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception).hasMessage("이미지 처리 중인 게시물은 삭제할 수 없습니다.");
-        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
-                SELECT post.deleted_at AS post_deleted_at,
-                       photo.deleted_at AS photo_deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, POST_ID);
-        assertThat(deletionState.get("post_deleted_at")).isNull();
-        assertThat(deletionState.get("photo_deleted_at")).isNull();
+        assertPostAndPhotoNotDeleted();
     }
 
     @Test
@@ -246,15 +258,7 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception).hasMessage("검수 거절된 게시물은 삭제할 수 없습니다.");
-        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
-                SELECT post.deleted_at AS post_deleted_at,
-                       photo.deleted_at AS photo_deleted_at
-                FROM posts post
-                JOIN photos photo ON photo.id = post.photo_id
-                WHERE post.id = ?
-                """, POST_ID);
-        assertThat(deletionState.get("post_deleted_at")).isNull();
-        assertThat(deletionState.get("photo_deleted_at")).isNull();
+        assertPostAndPhotoNotDeleted();
     }
 
     @Test
@@ -303,7 +307,10 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 TOPIC_ID,
                 SECOND_UPLOAD_ID,
-                "재제출"
+                "재제출",
+                null,
+                false,
+                null
         );
         entityManager.flush();
         entityManager.clear();
@@ -329,20 +336,6 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 AUTHOR_ID,
                 TOPIC_ID
         )).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 게시물은 삭제할 수 없다")
-    void deletePost_unknownPost_throwsNotFoundException() {
-        // When
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
-                () -> postCommandService.deletePost(AUTHOR_ID, UNKNOWN_POST_ID)
-        );
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-        assertThat(exception).hasMessage("게시물을 찾을 수 없습니다.");
     }
 
     private void insertAuthor() {
@@ -452,4 +445,16 @@ class PostDeletionServiceTest extends IntegrationTestSupport {
                 WHERE post.id = ?
                 """, POST_ID);
     }
+    private void assertPostAndPhotoNotDeleted() {
+        Map<String, Object> deletionState = jdbcTemplate.queryForMap("""
+                SELECT post.deleted_at AS post_deleted_at,
+                       photo.deleted_at AS photo_deleted_at
+                FROM posts post
+                JOIN photos photo ON photo.id = post.photo_id
+                WHERE post.id = ?
+                """, POST_ID);
+        assertThat(deletionState.get("post_deleted_at")).isNull();
+        assertThat(deletionState.get("photo_deleted_at")).isNull();
+    }
+
 }

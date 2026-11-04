@@ -13,6 +13,7 @@ import com.chalkak.backend.admin.repository.audit.AdminAuditLogQueryCriteria;
 import com.chalkak.backend.admin.repository.audit.AdminAuditLogRepository;
 import com.chalkak.backend.admin.repository.audit.AdminAuditLogSort;
 import com.chalkak.backend.admin.repository.audit.AdminAuditLogSummaryProjection;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
@@ -21,15 +22,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminAuditLogRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminAuditLogQueryRepositoryTest {
 
     private static final String PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
@@ -42,6 +39,7 @@ class AdminAuditLogQueryRepositoryTest {
     private EntityManager entityManager;
 
     @Test
+    @DisplayName("복합 필터는 기간 양 끝을 포함하고 삭제된 대상의 감사 이력도 조회한다")
     void findAuditLogs_combinedFiltersAndInclusiveBoundary_returnsMatchingDeletedTargetHistory() {
         Admin actor = persistAdmin("audit-reader");
         Admin otherActor = persistAdmin("other-reader");
@@ -86,6 +84,7 @@ class AdminAuditLogQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("발생 시각이 같은 이력은 ID 정렬로 페이지 경계를 유지한다")
     void findAuditLogs_sameOccurredAt_usesIdForStablePagination() {
         Admin actor = persistAdmin("stable-reader");
         List<UUID> ids = List.of(
@@ -136,6 +135,7 @@ class AdminAuditLogQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("감사 이력이 있는 관리자는 외래키 제약으로 삭제할 수 없다")
     void deleteActor_withAuditHistory_isRejectedToPreserveActorIdentity() {
         Admin actor = persistAdmin("protected-reader");
         persistApproved(

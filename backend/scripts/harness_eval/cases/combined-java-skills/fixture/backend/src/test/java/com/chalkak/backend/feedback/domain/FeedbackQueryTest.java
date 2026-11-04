@@ -16,7 +16,11 @@ class FeedbackQueryTest {
     // Given
     Clock clock = Clock.fixed(Instant.parse("2026-10-08T15:00:00Z"), ZoneOffset.UTC);
     FeedbackQuery query = new FeedbackQuery(clock);
-    LocalDate queryDate = LocalDate.of(2026, 10, 7);
+    LocalDate queryDate = LocalDate.of(
+        2026,
+        10,
+        7
+    );
 
     // When
     LocalDate result = query.getQueryDate(queryDate);

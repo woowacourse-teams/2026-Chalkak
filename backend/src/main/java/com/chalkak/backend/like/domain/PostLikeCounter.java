@@ -20,4 +20,7 @@ public class PostLikeCounter {
 
     @Column(name = "like_count", nullable = false)
     private long likeCount;
+
+    @Column(name = "last_milestone_count", nullable = false)
+    private long lastMilestoneCount;
 }

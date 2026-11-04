@@ -36,6 +36,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -101,8 +103,8 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
     private EntityManager entityManager;
 
     @Test
-    @DisplayName("등록된 소셜 계정으로 로그인하면 기존 회원 식별자를 반환한다")
-    void login_existingSocialAccount_returnsLoginSuccess() {
+    @DisplayName("기존 계정 로그인은 회원 JWT와 해시만 저장한 리프레시 토큰을 발급한다")
+    void login_existingSocialAccount_issuesPersistedTokenPair() {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
@@ -126,32 +128,13 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
         assertThat(result.userId()).isEqualTo(user.getId());
-    }
 
-    @Test
-    @DisplayName("로그인에 성공하면 리프레시 토큰 계보를 하나 남기고 평문은 저장하지 않는다")
-    void login_existingSocialAccount_issuesRefreshToken() {
-        // Given
-        willReturn(identity())
-                .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN, RAW_NONCE);
-        User user = userRepository.save(UserFixture.create());
-        socialAccountRepository.save(SocialAccount.create(
-                user,
-                SocialProvider.GOOGLE,
-                subjectHmac()
-        ));
-        flushAndClear();
-
-        // When
-        SocialLoginResult result = socialLoginService.login(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                RAW_NONCE,
-                null
-        );
-
-        // Then
+        Jwt jwt = accessTokenProvider.jwtDecoder()
+                .decode(result.accessToken().value());
+        assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());
+        assertThat(jwt.getClaimAsString("session_id"))
+                .isEqualTo(result.refreshToken().sessionId().toString());
+        assertThat(result.accessToken().expiresIn()).isPositive();
         assertThat(result.refreshToken().value()).isNotBlank();
         List<String> storedHashes = jdbcTemplate.queryForList(
                 "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
@@ -183,11 +166,13 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         // Then
         assertThat(result.status()).isEqualTo(SocialLoginStatus.SIGN_UP_REQUIRED);
         assertThat(result.userId()).isNull();
+        assertThat(result.accessToken()).isNull();
     }
 
-    @Test
-    @DisplayName("탈퇴한 회원이 동일한 소셜 계정으로 로그인하면 회원가입 필요 상태를 반환한다")
-    void login_withdrawnUser_returnsSignUpRequired() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("일반 탈퇴 회원은 소셜 연결이 남은 과거 데이터에서도 가입 필요 상태를 반환한다")
+    void login_withdrawnUser_returnsSignUpRequired(boolean legacyLinkRemains) {
         // Given
         willReturn(identity())
                 .given(googleIdTokenVerifier)
@@ -198,7 +183,11 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
                 SocialProvider.GOOGLE,
                 subjectHmac()
         ));
-        userWithdrawalService.withdraw(user.getId());
+        if (legacyLinkRemains) {
+            user.withdraw();
+        } else {
+            userWithdrawalService.withdraw(user.getId());
+        }
         flushAndClear();
 
         // When
@@ -273,56 +262,6 @@ class SocialLoginServiceTest extends IntegrationTestSupport {
         assertThat(result.status()).isEqualTo(SocialLoginStatus.LOGIN_SUCCESS);
         assertThat(result.userId()).isEqualTo(user.getId());
         assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());
-    }
-
-    @Test
-    @DisplayName("등록된 소셜 계정으로 로그인하면 회원 식별자를 담은 액세스 토큰을 발급한다")
-    void login_existingSocialAccount_issuesAccessToken() {
-        // Given
-        willReturn(identity())
-                .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN, RAW_NONCE);
-        User user = userRepository.save(UserFixture.create());
-        socialAccountRepository.save(SocialAccount.create(
-                user,
-                SocialProvider.GOOGLE,
-                subjectHmac()
-        ));
-        flushAndClear();
-
-        // When
-        SocialLoginResult result = socialLoginService.login(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                RAW_NONCE,
-                null
-        );
-
-        // Then
-        Jwt jwt = accessTokenProvider.jwtDecoder()
-                .decode(result.accessToken().value());
-        assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());
-        assertThat(result.accessToken().expiresIn()).isPositive();
-    }
-
-    @Test
-    @DisplayName("회원가입이 필요한 소셜 계정에는 액세스 토큰을 발급하지 않는다")
-    void login_newSocialAccount_doesNotIssueAccessToken() {
-        // Given
-        willReturn(identity())
-                .given(googleIdTokenVerifier)
-                .verify(ID_TOKEN, RAW_NONCE);
-
-        // When
-        SocialLoginResult result = socialLoginService.login(
-                SocialProvider.GOOGLE,
-                ID_TOKEN,
-                RAW_NONCE,
-                null
-        );
-
-        // Then
-        assertThat(result.accessToken()).isNull();
     }
 
     @Test

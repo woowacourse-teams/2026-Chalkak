@@ -5,9 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.like.repository.PostLikeCount;
 import com.chalkak.backend.like.repository.PostLikeCounterRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
-import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Transactional
-class PostLikeCounterRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class PostLikeCounterRepositoryTest {
 
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
 
@@ -93,6 +92,62 @@ class PostLikeCounterRepositoryTest extends IntegrationTestSupport {
                         )
                         """);
         jdbcTemplate.update("INSERT INTO post_like_counts (post_id) VALUES (?)", POST_ID);
+    }
+
+    @Test
+    @DisplayName("최고 단계는 증가하며 좋아요 감소·집계 초기화 뒤에도 유지한다")
+    void updateLastMilestoneCount_countChanges_preservesProgress() {
+        // Given
+        jdbcTemplate.update("UPDATE post_like_counts SET like_count = 5 WHERE post_id = ?",
+                POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        boolean updated = repository.updateLastMilestoneCount(POST_ID, 5L);
+        repository.decrement(POST_ID);
+        repository.reset(POST_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then
+        assertThat(repository.getCountByPostId(POST_ID)).isZero();
+        assertThat(updated).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT last_milestone_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("최고 단계를 같은 값이나 낮은 값으로 갱신하려 하면 false를 반환하고 보존한다")
+    void updateLastMilestoneCount_nonIncreasing_returnsFalse() {
+        // Given
+        repository.updateLastMilestoneCount(POST_ID, 10L);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(repository.updateLastMilestoneCount(POST_ID, 10L)).isFalse();
+        assertThat(repository.updateLastMilestoneCount(POST_ID, 5L)).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT last_milestone_count FROM post_like_counts WHERE post_id = ?",
+                Long.class,
+                POST_ID
+        )).isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("최고 단계를 갱신할 집계가 없으면 false를 반환한다")
+    void updateLastMilestoneCount_missingCounter_returnsFalse() {
+        // Given
+        UUID missing = UUID.randomUUID();
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(repository.updateLastMilestoneCount(missing, 5L)).isFalse();
     }
 
     @Test

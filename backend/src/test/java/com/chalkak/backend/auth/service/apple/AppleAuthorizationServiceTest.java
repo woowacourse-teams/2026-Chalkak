@@ -1,125 +1,108 @@
 package com.chalkak.backend.auth.service.apple;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.auth.domain.apple.AppleAuthorization;
 import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.repository.AppleAuthorizationRepository;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
-import com.chalkak.backend.auth.service.identity.SocialIdentityFingerprintEncoder;
-import com.chalkak.backend.support.IntegrationTestSupport;
-import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
-import com.chalkak.backend.user.repository.UserRepository;
-import jakarta.persistence.EntityManager;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
-@Transactional
-class AppleAuthorizationServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class AppleAuthorizationServiceTest {
 
-    private static final String SUBJECT = "apple-subject";
+    private static final UUID USER_ID = UUID.fromString("0198fc00-0000-7000-8000-000000000001");
+    private static final UUID ACCOUNT_ID = UUID.fromString("0198fc00-0000-7000-8000-000000000002");
+    private static final UUID AUTHORIZATION_ID = UUID
+            .fromString("0198fc00-0000-7000-8000-000000000003");
 
-    @Autowired
-    private AppleAuthorizationService appleAuthorizationService;
-
-    @Autowired
+    @Mock
     private AppleAuthorizationRepository appleAuthorizationRepository;
 
-    @Autowired
+    @Mock
     private SocialAccountRepository socialAccountRepository;
 
-    @Autowired
-    private SocialIdentityFingerprintEncoder fingerprintEncoder;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private EntityManager entityManager;
+    @InjectMocks
+    private AppleAuthorizationService service;
 
     @Test
-    @DisplayName("Apple 회원의 인증 정보 스냅샷을 조회한다")
+    @DisplayName("소셜 계정의 실제 인증 객체에서 ID와 암호문 스냅샷을 만든다")
     void findAuthorizationSnapshots_appleUser_returnsSnapshot() {
         // Given
-        User user = userRepository.save(UserFixture.create());
-        SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.APPLE);
-        AppleAuthorization authorization = appleAuthorizationRepository.save(
-                AppleAuthorization.create(
-                        socialAccount,
-                        "encrypted-refresh-token"));
-        flushAndClear();
+        SocialAccount account = account(SocialProvider.APPLE);
+        AppleAuthorization authorization = AppleAuthorization.create(account,
+                "encrypted-refresh-token");
+        ReflectionTestUtils.setField(
+                authorization,
+                "id",
+                AUTHORIZATION_ID
+        );
+        given(socialAccountRepository.findByUserId(USER_ID)).willReturn(Optional.of(account));
+        given(appleAuthorizationRepository.findAllBySocialAccountId(ACCOUNT_ID))
+                .willReturn(List.of(authorization));
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
-                .findAuthorizationSnapshots(user.getId());
+        List<AppleAuthorizationSnapshot> result = service.findAuthorizationSnapshots(USER_ID);
 
         // Then
-        assertThat(snapshots).containsExactly(new AppleAuthorizationSnapshot(
-                authorization.getId(),
-                "encrypted-refresh-token"));
+        assertThat(result).containsExactly(
+                new AppleAuthorizationSnapshot(AUTHORIZATION_ID, "encrypted-refresh-token"));
     }
 
     @Test
-    @DisplayName("Apple이 아닌 소셜 회원은 폐기할 인증 정보가 없다")
+    @DisplayName("Apple이 아닌 소셜 계정에 인증 정보가 없으면 빈 목록을 반환한다")
     void findAuthorizationSnapshots_nonAppleUser_returnsEmpty() {
         // Given
-        User user = userRepository.save(UserFixture.create());
-        saveSocialAccount(user, SocialProvider.GOOGLE);
-        flushAndClear();
+        given(socialAccountRepository.findByUserId(USER_ID))
+                .willReturn(Optional.of(account(SocialProvider.GOOGLE)));
+        given(appleAuthorizationRepository.findAllBySocialAccountId(ACCOUNT_ID))
+                .willReturn(List.of());
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
-                .findAuthorizationSnapshots(user.getId());
+        List<AppleAuthorizationSnapshot> result = service.findAuthorizationSnapshots(USER_ID);
 
         // Then
-        assertThat(snapshots).isEmpty();
+        assertThat(result).isEmpty();
     }
 
     @Test
-    @DisplayName("소셜 계정이 없는 회원은 폐기할 인증 정보가 없다")
-    void findAuthorizationSnapshots_userWithoutSocialAccount_returnsEmpty() {
+    @DisplayName("회원 존재 여부와 관계없이 소셜 계정이 없으면 인증 정보를 조회하지 않는다")
+    void findAuthorizationSnapshots_noSocialAccount_returnsEmpty() {
         // Given
-        User user = userRepository.save(UserFixture.create());
-        flushAndClear();
+        given(socialAccountRepository.findByUserId(USER_ID)).willReturn(Optional.empty());
 
         // When
-        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
-                .findAuthorizationSnapshots(user.getId());
+        List<AppleAuthorizationSnapshot> result = service.findAuthorizationSnapshots(USER_ID);
 
         // Then
-        assertThat(snapshots).isEmpty();
+        assertThat(result).isEmpty();
+        then(appleAuthorizationRepository).shouldHaveNoInteractions();
     }
 
-    @Test
-    @DisplayName("존재하지 않는 회원은 폐기할 인증 정보가 없다")
-    void findAuthorizationSnapshots_notExistingUser_returnsEmpty() {
-        // Given
-        UUID notExistingId = UUID.randomUUID();
-
-        // When
-        List<AppleAuthorizationSnapshot> snapshots = appleAuthorizationService
-                .findAuthorizationSnapshots(notExistingId);
-
-        // Then
-        assertThat(snapshots).isEmpty();
-    }
-
-    private SocialAccount saveSocialAccount(User user, SocialProvider provider) {
-        return socialAccountRepository.save(SocialAccount.create(
-                user,
+    private SocialAccount account(SocialProvider provider) {
+        SocialAccount account = SocialAccount.create(
+                UserFixture.create(USER_ID),
                 provider,
-                fingerprintEncoder.encode(provider, SUBJECT)
-        ));
-    }
-
-    private void flushAndClear() {
-        entityManager.flush();
-        entityManager.clear();
+                "a".repeat(64)
+        );
+        ReflectionTestUtils.setField(
+                account,
+                "id",
+                ACCOUNT_ID
+        );
+        return account;
     }
 }

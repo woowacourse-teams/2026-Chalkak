@@ -35,7 +35,7 @@ class PostTitleTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"   ", "　　"})
+    @ValueSource(strings = {"   ", "　　", "　　　　　　　　　　　"})
     @DisplayName("null, 빈 문자열, 공백뿐인 제목은 제목 없음으로 보고 null을 돌려준다")
     void from_blankTitle_returnsNull(String raw) {
         // When
@@ -96,7 +96,7 @@ class PostTitleTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "   ", "　　"})
+    @ValueSource(strings = {"", "   ", "　　", "　　　　　　　　　　　"})
     @DisplayName("생성자를 직접 호출할 때 공백뿐인 제목은 거부한다")
     void constructor_blankTitle_throwsBusinessException(String value) {
         // When & Then
@@ -118,16 +118,52 @@ class PostTitleTest {
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "오늘의 기록", "1234567890", "  1234567890  "})
     @DisplayName("공백 제거 후 10자 이하인 제목은 유효하다고 판정한다")
-    void isValid_titleWithinMaxLength_returnsTrue(String raw) {
+    void isLengthValid_titleWithinMaxLength_returnsTrue(String raw) {
         // When & Then
-        assertThat(PostTitle.isValid(raw)).isTrue();
+        assertThat(PostTitle.isLengthValid(raw)).isTrue();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"12345678901", "  12345678901  "})
     @DisplayName("공백 제거 후 10자를 초과하는 제목은 유효하지 않다고 판정한다")
-    void isValid_titleExceedingMaxLength_returnsFalse(String raw) {
+    void isLengthValid_titleExceedingMaxLength_returnsFalse(String raw) {
         // When & Then
-        assertThat(PostTitle.isValid(raw)).isFalse();
+        assertThat(PostTitle.isLengthValid(raw)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가\u0000나", "\u0000", "  가나\u0000  "})
+    @DisplayName("생성자를 직접 호출할 때 NUL 문자가 포함된 제목은 거부한다")
+    void constructor_titleWithNulCharacter_throwsBusinessException(String value) {
+        // When & Then
+        assertThatThrownBy(() -> new PostTitle(value))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("제목에 사용할 수 없는 문자가 포함되어 있습니다.");
+    }
+
+    @Test
+    @DisplayName("NUL 문자가 포함된 제목은 제목 없음으로 보지 않고 거부한다")
+    void from_titleWithNulCharacter_throwsBusinessException() {
+        // When & Then
+        assertThatThrownBy(() -> PostTitle.from("가\u0000나"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("제목에 사용할 수 없는 문자가 포함되어 있습니다.");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "오늘의 기록", "📸"})
+    @DisplayName("null이거나 NUL 문자가 없는 제목은 문자가 유효하다고 판정한다")
+    void isCharacterValid_titleWithoutNulCharacter_returnsTrue(String raw) {
+        // When & Then
+        assertThat(PostTitle.isCharacterValid(raw)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가\u0000나", "\u0000", "  \u0000  "})
+    @DisplayName("NUL 문자가 포함된 제목은 문자가 유효하지 않다고 판정한다")
+    void isCharacterValid_titleWithNulCharacter_returnsFalse(String raw) {
+        // When & Then
+        assertThat(PostTitle.isCharacterValid(raw)).isFalse();
     }
 }

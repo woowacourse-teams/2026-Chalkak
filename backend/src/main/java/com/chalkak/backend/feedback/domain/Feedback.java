@@ -7,12 +7,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
 
 @Entity
@@ -37,15 +37,34 @@ public class Feedback {
     @Column(name = "content", nullable = false, updatable = false, columnDefinition = "TEXT")
     private String content;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public static Feedback create(UUID userId, String content) {
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    public static Feedback create(
+            UUID userId,
+            String content,
+            Instant createdAt
+    ) {
         Feedback feedback = new Feedback();
         feedback.userId = userId;
         feedback.content = normalizeContent(content);
+        feedback.createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
         return feedback;
+    }
+
+    public void delete(Instant deletedAt) {
+        if (isDeleted()) {
+            return;
+        }
+        // DB 저장값과 메모리·감사 기록의 삭제 시각을 같은 정밀도로 유지한다.
+        this.deletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
     /**
