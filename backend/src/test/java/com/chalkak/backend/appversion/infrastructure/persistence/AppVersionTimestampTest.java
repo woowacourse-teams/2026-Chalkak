@@ -6,7 +6,7 @@ import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.appversion.domain.AppVersion;
 import com.chalkak.backend.appversion.domain.MinimumSupportedVersion;
 import com.chalkak.backend.appversion.domain.StoreUrl;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,10 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class AppVersionTimestampTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class AppVersionTimestampTest {
 
     @Autowired
     private EntityManager entityManager;

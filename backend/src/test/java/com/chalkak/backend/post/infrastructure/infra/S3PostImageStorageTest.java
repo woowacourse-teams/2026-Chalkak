@@ -13,6 +13,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -80,8 +82,8 @@ class S3PostImageStorageTest {
         UUID uploadId = UUID.randomUUID();
         given(s3Client.headObject(anyHeadRequest()))
                 .willReturn(HeadObjectResponse.builder().build());
-        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor =
-                ArgumentCaptor.forClass(Consumer.class);
+        ArgumentCaptor<Consumer<HeadObjectRequest.Builder>> requestCaptor = ArgumentCaptor
+                .forClass(Consumer.class);
 
         // When
         boolean exists = postImageStorage.existsUploadedImage(uploadId);
@@ -107,23 +109,13 @@ class S3PostImageStorageTest {
         assertThat(postImageStorage.existsUploadedImage(UUID.randomUUID())).isFalse();
     }
 
-    @Test
-    @DisplayName("HeadObject가 404를 반환하면 업로드 이미지가 존재하지 않는다")
-    void existsUploadedImage_notFound_returnsFalse() {
+    @ParameterizedTest
+    @CsvSource({"404, Not Found", "403, Forbidden"})
+    @DisplayName("HeadObject의 403과 404는 업로드 이미지 없음으로 처리한다")
+    void existsUploadedImage_notFoundOrForbidden_returnsFalse(int statusCode, String message) {
         // Given
         given(s3Client.headObject(anyHeadRequest()))
-                .willThrow(S3Exception.builder().statusCode(404).message("Not Found").build());
-
-        // When & Then
-        assertThat(postImageStorage.existsUploadedImage(UUID.randomUUID())).isFalse();
-    }
-
-    @Test
-    @DisplayName("ListBucket 권한이 없어 403이 와도 업로드 이미지가 존재하지 않는다")
-    void existsUploadedImage_accessDenied_returnsFalse() {
-        // Given
-        given(s3Client.headObject(anyHeadRequest()))
-                .willThrow(S3Exception.builder().statusCode(403).message("Forbidden").build());
+                .willThrow(S3Exception.builder().statusCode(statusCode).message(message).build());
 
         // When & Then
         assertThat(postImageStorage.existsUploadedImage(UUID.randomUUID())).isFalse();

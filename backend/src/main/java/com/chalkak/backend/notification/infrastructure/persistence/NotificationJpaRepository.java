@@ -144,6 +144,9 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             SELECT notification FROM Notification notification
             LEFT JOIN Post post ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.POST
                 AND post.id = notification.sourceId
+            LEFT JOIN post.topic topic
+            LEFT JOIN post.photo photo
+            LEFT JOIN post.author author
             LEFT JOIN Notice notice ON notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.NOTICE
                 AND notice.id = notification.sourceId
             WHERE notification.id = :notificationId AND notification.userId = :userId
@@ -157,10 +160,20 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
                     OR notification.sourceType <> com.chalkak.backend.notification.domain.NotificationSourceType.NOTICE
                     OR (notice.id IS NOT NULL AND notice.deletedAt IS NULL)
                 )
+                AND (
+                    notification.type <> com.chalkak.backend.notification.domain.NotificationType.POST_LIKE_MILESTONE
+                    OR (
+                        post.moderationStatus = :approvedStatus
+                        AND topic.deletedAt IS NULL
+                        AND photo.deletedAt IS NULL
+                        AND author.deletedAt IS NULL
+                    )
+                )
             """)
     Optional<Notification> findForPushByIdAndUserId(
             @Param("notificationId") UUID notificationId,
-            @Param("userId") UUID userId
+            @Param("userId") UUID userId,
+            @Param("approvedStatus") ModerationStatus approvedStatus
     );
 
     @Query("""
@@ -307,6 +320,14 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
             @Param("readAt") Instant readAt,
             @Param("createdFrom") Instant createdFrom
     );
+
+    @Modifying
+    @Query("""
+            DELETE FROM Notification notification
+            WHERE notification.sourceType = com.chalkak.backend.notification.domain.NotificationSourceType.FEEDBACK
+                AND notification.sourceId = :feedbackId
+            """)
+    void deleteFeedbackNotifications(@Param("feedbackId") UUID feedbackId);
 
     @Modifying
     @Query("""

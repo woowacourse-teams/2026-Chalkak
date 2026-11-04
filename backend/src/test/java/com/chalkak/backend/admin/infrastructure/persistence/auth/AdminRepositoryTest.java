@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.admin.domain.Admin;
 import com.chalkak.backend.admin.repository.auth.AdminRepository;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.SQLException;
 import java.util.Optional;
@@ -12,14 +13,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminRepositoryTest {
 
     private static final String PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";

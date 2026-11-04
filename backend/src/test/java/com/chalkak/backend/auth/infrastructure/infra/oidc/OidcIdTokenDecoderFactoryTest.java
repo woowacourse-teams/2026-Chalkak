@@ -32,6 +32,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,13 +52,17 @@ class OidcIdTokenDecoderFactoryTest {
     private static final String JWK_SET_URI = "https://www.googleapis.com/oauth2/v3/certs";
     private static final String KEY_ID = "signing-key";
 
-    private RSAKey signingKey;
+    private static RSAKey signingKey;
     private CountingResourceRetriever resourceRetriever;
     private JwtDecoder jwtDecoder;
 
-    @BeforeEach
-    void setUp() throws JOSEException {
+    @BeforeAll
+    static void createSigningKey() throws JOSEException {
         signingKey = new RSAKeyGenerator(2048).keyID(KEY_ID).generate();
+    }
+
+    @BeforeEach
+    void setUp() {
         resourceRetriever = new CountingResourceRetriever(
                 new JWKSet(signingKey.toPublicJWK()).toString());
         jwtDecoder = OidcIdTokenDecoderFactory.createDecoder(

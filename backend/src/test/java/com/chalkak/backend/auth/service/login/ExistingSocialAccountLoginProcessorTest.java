@@ -2,220 +2,143 @@ package com.chalkak.backend.auth.service.login;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.domain.identity.SocialAccount;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.auth.domain.identity.VerifiedSocialIdentity;
-import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
+import com.chalkak.backend.auth.domain.token.IssuedAccessToken;
+import com.chalkak.backend.auth.domain.token.IssuedRefreshToken;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.identity.SocialIdentityFingerprintEncoder;
+import com.chalkak.backend.auth.service.token.AccessTokenIssuer;
+import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.ForbiddenException;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
-import com.chalkak.backend.user.repository.UserRepository;
-import com.chalkak.backend.user.service.UserWithdrawalService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import java.util.List;
+import com.chalkak.backend.user.domain.UserStatus;
+import java.time.Duration;
 import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@Transactional
-class ExistingSocialAccountLoginProcessorTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class ExistingSocialAccountLoginProcessorTest {
 
+    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b657a02");
     private static final String SUBJECT = "social-subject";
+    private static final String SUBJECT_HMAC = "0".repeat(64);
+    private static final VerifiedSocialIdentity IDENTITY = new VerifiedSocialIdentity(
+            SocialProvider.GOOGLE,
+            SUBJECT,
+            "user@chalkak.test"
+    );
 
-    @Autowired
-    private ExistingSocialAccountLoginProcessor existingSocialAccountLoginProcessor;
+    @InjectMocks
+    private ExistingSocialAccountLoginProcessor processor;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private SocialAccountRepository socialAccountRepository;
-
-    @Autowired
-    private UserWithdrawalService userWithdrawalService;
-
-    @Autowired
+    @Mock
     private SocialIdentityFingerprintEncoder fingerprintEncoder;
 
-    @Autowired
-    private JwtAccessTokenProvider accessTokenProvider;
+    @Mock
+    private SocialAccountRepository socialAccountRepository;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    @Mock
+    private AccessTokenIssuer accessTokenIssuer;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    @Mock
+    private UserRefreshTokenService refreshTokenService;
 
-    @Test
-    @DisplayName("연결된 소셜 계정이 없으면 빈 값을 반환한다")
-    void processIfExists_noSocialAccount_returnsEmpty() {
+    @BeforeEach
+    void setUp() {
+        given(fingerprintEncoder.encode(SocialProvider.GOOGLE, SUBJECT)).willReturn(SUBJECT_HMAC);
+    }
+
+    @ParameterizedTest
+    @EnumSource(UserStatus.class)
+    @DisplayName("탈퇴하지 않은 정상 회원과 정지 회원은 같은 로그인 ID의 토큰 발급 결과를 반환한다")
+    void processIfExists_liveUser_returnsIssuedTokenPair(UserStatus status) {
+        // Given
+        User user = status == UserStatus.BANNED
+                ? UserFixture.createBanned(USER_ID)
+                : UserFixture.create(USER_ID);
+        givenAccount(user);
+        IssuedRefreshToken refreshToken = new IssuedRefreshToken(
+                "refresh-token",
+                Duration.ofDays(30),
+                UUID.randomUUID()
+        );
+        IssuedAccessToken accessToken = new IssuedAccessToken("access-token",
+                Duration.ofMinutes(15));
+        given(refreshTokenService.issue(user)).willReturn(refreshToken);
+        given(accessTokenIssuer.issueForSession(USER_ID, refreshToken.sessionId()))
+                .willReturn(accessToken);
+
         // When
-        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.GOOGLE));
+        SocialLoginSuccess result = processor.processIfExists(IDENTITY).orElseThrow();
 
         // Then
-        assertThat(result).isEmpty();
+        assertThat(result.userId()).isEqualTo(USER_ID);
+        assertThat(result.accessToken()).isSameAs(accessToken);
+        assertThat(result.refreshToken()).isSameAs(refreshToken);
     }
 
     @Test
-    @DisplayName("탈퇴한 일반 회원의 소셜 계정이 남아 있으면 빈 값을 반환한다")
-    void processIfExists_withdrawnUser_returnsEmpty() {
+    @DisplayName("연결된 소셜 계정이 없으면 빈 결과를 반환하고 토큰을 발급하지 않는다")
+    void processIfExists_noSocialAccount_returnsEmptyWithoutTokens() {
         // Given
-        User user = createUserWithSocialAccount(SocialProvider.GOOGLE);
-        userWithdrawalService.withdraw(user.getId());
-        flushAndClear();
-
-        // When
-        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.GOOGLE));
-
-        // Then
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    @DisplayName("탈퇴한 차단 회원의 소셜 계정이면 로그인을 거부한다")
-    void processIfExists_withdrawnBannedUser_throwsForbiddenException() {
-        // Given
-        User user = createUserWithSocialAccount(SocialProvider.GOOGLE);
-        user.ban();
-        userWithdrawalService.withdraw(user.getId());
-        flushAndClear();
+        given(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.GOOGLE, SUBJECT_HMAC)).willReturn(Optional.empty());
 
         // When & Then
-        assertThatThrownBy(() -> existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.GOOGLE)))
+        assertThat(processor.processIfExists(IDENTITY)).isEmpty();
+        verifyNoInteractions(accessTokenIssuer, refreshTokenService);
+    }
+
+    @Test
+    @DisplayName("일반 탈퇴 회원의 소셜 연결이 남아 있어도 빈 결과를 반환하고 토큰을 발급하지 않는다")
+    void processIfExists_withdrawnUser_returnsEmptyWithoutTokens() {
+        // Given
+        User user = UserFixture.create(USER_ID);
+        user.withdraw();
+        givenAccount(user);
+
+        // When & Then
+        assertThat(processor.processIfExists(IDENTITY)).isEmpty();
+        verifyNoInteractions(accessTokenIssuer, refreshTokenService);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 차단 회원의 소셜 연결은 거절하고 토큰을 발급하지 않는다")
+    void processIfExists_withdrawnBannedUser_throwsWithoutTokens() {
+        // Given
+        User user = UserFixture.createBanned(USER_ID);
+        user.withdraw();
+        givenAccount(user);
+
+        // When & Then
+        assertThatThrownBy(() -> processor.processIfExists(IDENTITY))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("탈퇴한 차단 소셜 계정입니다.");
+        verifyNoInteractions(accessTokenIssuer, refreshTokenService);
     }
 
-    @Test
-    @DisplayName("탈퇴하지 않은 차단 회원은 로그인에 성공한다")
-    void processIfExists_bannedUser_returnsLoginSuccess() {
-        // Given
-        User user = UserFixture.create();
-        user.ban();
-        userRepository.save(user);
-        saveSocialAccount(user, SocialProvider.GOOGLE);
-        flushAndClear();
-
-        // When
-        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.GOOGLE));
-
-        // Then
-        assertThat(result).isPresent();
-        assertThat(result.orElseThrow().userId()).isEqualTo(user.getId());
-    }
-
-    @Test
-    @DisplayName("정상 회원이면 회원 식별자를 담은 액세스 토큰과 리프레시 토큰을 발급한다")
-    void processIfExists_activeUser_issuesAccessTokenAndRefreshToken() {
-        // Given
-        User user = createUserWithSocialAccount(SocialProvider.GOOGLE);
-        flushAndClear();
-
-        // When
-        SocialLoginSuccess success = existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.GOOGLE))
-                .orElseThrow();
-
-        // Then
-        Jwt jwt = accessTokenProvider.jwtDecoder().decode(success.accessToken().value());
-        assertThat(success.userId()).isEqualTo(user.getId());
-        assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());
-        assertThat(jwt.getClaimAsString("session_id"))
-                .isEqualTo(success.refreshToken().sessionId().toString());
-        assertThat(success.refreshToken().value()).isNotBlank();
-        assertThat(storedRefreshTokenHashes(user)).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("같은 subject라도 다른 제공자에 연결된 계정은 찾지 않는다")
-    void processIfExists_sameSubjectOtherProvider_returnsEmpty() {
-        // Given
-        createUserWithSocialAccount(SocialProvider.GOOGLE);
-        flushAndClear();
-
-        // When
-        Optional<SocialLoginSuccess> result = existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.APPLE));
-
-        // Then
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    @DisplayName("연결된 계정이 없으면 리프레시 토큰을 남기지 않는다")
-    void processIfExists_noSocialAccount_doesNotIssueRefreshToken() {
-        // Given
-        User user = userRepository.save(UserFixture.create());
-        flushAndClear();
-
-        // When
-        existingSocialAccountLoginProcessor.processIfExists(identity(SocialProvider.GOOGLE));
-
-        // Then
-        assertThat(storedRefreshTokenHashes(user)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("탈퇴한 차단 회원의 로그인을 거부하면 리프레시 토큰을 남기지 않는다")
-    void processIfExists_withdrawnBannedUser_doesNotIssueRefreshToken() {
-        // Given
-        User user = createUserWithSocialAccount(SocialProvider.GOOGLE);
-        user.ban();
-        userWithdrawalService.withdraw(user.getId());
-        flushAndClear();
-
-        // When & Then
-        assertThatThrownBy(() -> existingSocialAccountLoginProcessor
-                .processIfExists(identity(SocialProvider.GOOGLE)))
-                .isInstanceOf(ForbiddenException.class);
-        assertThat(storedRefreshTokenHashes(user)).isEmpty();
-    }
-
-    private User createUserWithSocialAccount(SocialProvider provider) {
-        User user = userRepository.save(UserFixture.create());
-        saveSocialAccount(user, provider);
-        return user;
-    }
-
-    private void saveSocialAccount(User user, SocialProvider provider) {
-        socialAccountRepository.save(SocialAccount.create(
+    private void givenAccount(User user) {
+        SocialAccount account = SocialAccount.create(
                 user,
-                provider,
-                fingerprintEncoder.encode(provider, SUBJECT)
-        ));
-    }
-
-    private List<String> storedRefreshTokenHashes(User user) {
-        return jdbcTemplate.queryForList(
-                "SELECT token_hash FROM user_refresh_tokens WHERE user_id = ?",
-                String.class,
-                user.getId()
+                SocialProvider.GOOGLE,
+                SUBJECT_HMAC
         );
-    }
-
-    private VerifiedSocialIdentity identity(SocialProvider provider) {
-        return new VerifiedSocialIdentity(
-                provider,
-                SUBJECT,
-                "user@chalkak.test"
-        );
-    }
-
-    private void flushAndClear() {
-        entityManager.flush();
-        entityManager.clear();
+        given(socialAccountRepository.findByProviderAndSubjectHmac(
+                SocialProvider.GOOGLE, SUBJECT_HMAC)).willReturn(Optional.of(account));
     }
 }

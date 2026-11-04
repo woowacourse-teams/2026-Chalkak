@@ -1,0 +1,80 @@
+package com.chalkak.backend.post.domain;
+
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+import java.util.Objects;
+
+/**
+ * 게시물 설명의 정규화·길이 규칙을 한곳에 모은 값 객체. 생성·요청 검증이 모두 이 클래스에 위임해, 같은 규칙이 여러 벌로 복제되어
+ * 어긋나는 일을 막는다.
+ *
+ * <p>
+ * 설명 없음은 {@code PostDescription} 자체가 {@code null}인 것으로만 표현한다. 값이 {@code null}인
+ * 인스턴스를 허용하면 {@code posts.description}이 컬럼 하나뿐이라 두 상태를 구분해 저장할 수 없고, 조회 시
+ * Hibernate가 임베디드 필드를 {@code null}로 복원해 저장 직후 객체와 조회한 객체의 모양이 달라진다.
+ */
+@Embeddable
+public record PostDescription(
+        @Column(name = "description", length = PostDescription.MAX_LENGTH) String value) {
+
+    private static final int MAX_LENGTH = 300;
+
+    public PostDescription {
+        Objects.requireNonNull(value, "PostDescription은 값 없이 만들 수 없다. 설명 없음은 null로 표현한다.");
+        value = value.strip();
+        if (value.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "설명 없음은 PostDescription이 아니라 null로 표현해야 합니다.");
+        }
+        if (exceedsMaxLength(value)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "설명은 %d자 이하여야 합니다.".formatted(MAX_LENGTH));
+        }
+        if (!isCharacterValid(value)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "설명에 사용할 수 없는 문자가 포함되어 있습니다.");
+        }
+    }
+
+    /**
+     * 앞뒤 공백과 줄바꿈을 제거하고 가운데 공백과 줄바꿈은 유지한다. 제거 후 빈 문자열이면 설명 없음이므로 {@code null}을 돌려준다.
+     */
+    public static PostDescription from(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw.isBlank()) {
+            return null;
+        }
+        return new PostDescription(raw);
+    }
+
+    /**
+     * 요청 DTO의 빠른 실패용. 예외 대신 판정만 돌려준다. 공백뿐인 설명은 설명 없음으로 정규화되므로 길이를 재지 않는다.
+     */
+    public static boolean isLengthValid(String raw) {
+        return raw == null || !exceedsMaxLength(raw.strip());
+    }
+
+    /**
+     * 요청 DTO의 빠른 실패용. PostgreSQL 문자열 타입은 NUL(U+0000)을 저장할 수 없어, 통과시키면 저장 시점에 500이
+     * 되므로 미리 거른다. 줄바꿈 같은 다른 제어 문자는 허용한다.
+     */
+    public static boolean isCharacterValid(String raw) {
+        return raw == null || raw.indexOf('\u0000') < 0;
+    }
+
+    /**
+     * 이모지 한 글자는 UTF-16 code unit 두 칸을 쓰므로 {@code String.length()}로 세면 사용자가 입력한 글자
+     * 수보다 길게 계산된다. {@code posts.description}이 code point를 세는
+     * {@code VARCHAR(300)}이므로 길이도 code point로 판정한다.
+     */
+    private static boolean exceedsMaxLength(String value) {
+        return value.codePointCount(0, value.length()) > MAX_LENGTH;
+    }
+}

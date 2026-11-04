@@ -1,179 +1,171 @@
 package com.chalkak.backend.admin.service.topic;
 
-import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
+import com.chalkak.backend.admin.repository.AdminPage;
+import com.chalkak.backend.admin.repository.topic.AdminTopicProjection;
+import com.chalkak.backend.admin.repository.topic.AdminTopicQueryCriteria;
+import com.chalkak.backend.admin.repository.topic.AdminTopicQueryRepository;
+import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.topic.domain.TopicPhase;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@Transactional
-class AdminTopicQueryServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class AdminTopicQueryServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-08-28T03:00:00Z");
-    private static final UUID BEFORE_TOPIC_ID = UUID
-            .fromString("0198fd20-0000-7000-8000-000000000011");
-    private static final UUID OPEN_TOPIC_ID = UUID
-            .fromString("0198fd20-0000-7000-8000-000000000012");
-    private static final UUID CLOSED_TOPIC_ID = UUID
-            .fromString("0198fd20-0000-7000-8000-000000000013");
-    private static final UUID DELETED_TOPIC_ID = UUID
-            .fromString("0198fd20-0000-7000-8000-000000000014");
-    private static final UUID USER_ID = UUID.fromString("0198fd20-0000-7000-8000-000000000021");
-    private static final UUID PHOTO_ID = UUID.fromString("0198fd20-0000-7000-8000-000000000022");
-    private static final UUID POST_ID = UUID.fromString("0198fd20-0000-7000-8000-000000000023");
+    private static final Instant STARTS_AT = Instant.parse("2026-08-27T15:00:00Z");
+    private static final Instant ENDS_AT = Instant.parse("2026-08-28T15:00:00Z");
+    private static final UUID TOPIC_ID = UUID.fromString("0198fd20-0000-7000-8000-000000000012");
 
-    @Autowired
-    private AdminTopicQueryService adminTopicQueryService;
+    @Mock
+    private AdminTopicQueryRepository repository;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @MockitoBean
-    private Clock clock;
+    private AdminTopicQueryService service;
 
     @BeforeEach
     void setUp() {
-        given(clock.instant()).willReturn(NOW);
-        given(clock.getZone()).willReturn(ZoneOffset.UTC);
-        insertTopic(
-                BEFORE_TOPIC_ID,
-                "공개 전 주제",
-                LocalDate.of(
-                        2026,
-                        8,
-                        30
-                ),
-                Instant.parse("2026-08-29T15:00:00Z"),
-                Instant.parse("2026-08-30T15:00:00Z"),
-                null
-        );
-        insertTopic(
-                OPEN_TOPIC_ID,
-                "참여 중 주제",
-                LocalDate.of(
-                        2026,
-                        8,
-                        28
-                ),
-                Instant.parse("2026-08-27T15:00:00Z"),
-                Instant.parse("2026-08-28T15:00:00Z"),
-                null
-        );
-        insertTopic(
-                CLOSED_TOPIC_ID,
-                "종료된 주제",
-                LocalDate.of(
-                        2026,
-                        8,
-                        26
-                ),
-                Instant.parse("2026-08-25T15:00:00Z"),
-                Instant.parse("2026-08-26T15:00:00Z"),
-                null
-        );
-        insertTopic(
-                DELETED_TOPIC_ID,
-                "삭제된 주제",
-                LocalDate.of(
-                        2026,
-                        9,
-                        1
-                ),
-                Instant.parse("2026-08-31T15:00:00Z"),
-                Instant.parse("2026-09-01T15:00:00Z"),
-                NOW
-        );
-        insertOpenTopicPost();
+        service = new AdminTopicQueryService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
-    @DisplayName("관리자 목록은 삭제 주제를 제외하고 Clock 기준 phase와 날짜 필터를 적용한다")
+    @DisplayName("상태와 날짜 필터에 고정 Clock 시각을 함께 전달하고 조회 결과를 반환한다")
     void getTopics_phaseAndDateFilters_returnsMatchingActiveTopics() {
-        AdminTopicListResult result = adminTopicQueryService.getTopics(
-                TopicPhase.BEFORE_OPEN,
-                LocalDate.of(
-                        2026,
-                        8,
-                        29
+        // Given
+        LocalDate from = LocalDate.of(
+                2026,
+                8,
+                27
+        );
+        LocalDate to = LocalDate.of(
+                2026,
+                8,
+                29
+        );
+        given(repository.findTopics(
+                new AdminTopicQueryCriteria(
+                        TopicPhase.OPEN,
+                        from,
+                        to,
+                        AdminTopicSort.TOPIC_DATE_DESC,
+                        NOW
                 ),
-                LocalDate.of(
-                        2026,
-                        8,
-                        31
-                ),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(topic()),
+                1,
+                20,
+                false
+        ));
+
+        // When
+        AdminTopicListResult result = service.getTopics(
+                TopicPhase.OPEN,
+                from,
+                to,
                 AdminTopicSort.TOPIC_DATE_DESC,
                 1,
                 20
         );
 
-        assertThat(result.topics()).singleElement().satisfies(topic -> {
-            assertThat(topic.topicId()).isEqualTo(BEFORE_TOPIC_ID);
-            assertThat(topic.phase()).isEqualTo(TopicPhase.BEFORE_OPEN);
+        // Then
+        assertThat(result.topics()).singleElement().satisfies(item -> {
+            assertThat(item.topicId()).isEqualTo(TOPIC_ID);
+            assertThat(item.phase()).isEqualTo(TopicPhase.OPEN);
         });
         assertThat(result.hasNext()).isFalse();
     }
 
-    @Test
-    @DisplayName("phase 경계에서 시작 시각은 OPEN이고 종료 시각은 CLOSED다")
-    void getTopic_phaseBoundaries_derivesFromClock() {
-        given(clock.instant()).willReturn(Instant.parse("2026-08-27T15:00:00Z"));
-        assertThat(adminTopicQueryService.getTopic(OPEN_TOPIC_ID).phase())
-                .isEqualTo(TopicPhase.OPEN);
+    @ParameterizedTest
+    @CsvSource({"2026-08-27T15:00:00Z, OPEN", "2026-08-28T15:00:00Z, CLOSED"})
+    @DisplayName("상세는 Clock의 시작 시각을 OPEN, 종료 시각을 CLOSED로 반환한다")
+    void getTopic_phaseBoundaries_derivesFromClock(Instant now, TopicPhase expected) {
+        // Given
+        service = new AdminTopicQueryService(repository, Clock.fixed(now, ZoneOffset.UTC));
+        given(repository.findActiveTopicById(TOPIC_ID)).willReturn(Optional.of(topic()));
 
-        given(clock.instant()).willReturn(Instant.parse("2026-08-28T15:00:00Z"));
-        assertThat(adminTopicQueryService.getTopic(OPEN_TOPIC_ID).phase())
-                .isEqualTo(TopicPhase.CLOSED);
+        // When
+        AdminTopicDetail result = service.getTopic(TOPIC_ID);
+
+        // Then
+        assertThat(result.phase()).isEqualTo(expected);
     }
 
     @Test
-    @DisplayName("주제 상세은 게시물 검수 상태별 통계를 함께 반환한다")
+    @DisplayName("조회된 주제 상세에 게시물 검수 상태별 통계를 담는다")
     void getTopic_existingPosts_returnsModerationCounts() {
-        AdminTopicDetail result = adminTopicQueryService.getTopic(OPEN_TOPIC_ID);
+        // Given
+        given(repository.findActiveTopicById(TOPIC_ID)).willReturn(Optional.of(topic()));
 
-        assertThat(result.postCounts()).isEqualTo(
-                new AdminTopicDetail.PostCounts(
-                        1,
-                        0,
-                        0
-                ));
+        // When
+        AdminTopicDetail result = service.getTopic(TOPIC_ID);
+
+        // Then
+        assertThat(result.postCounts()).isEqualTo(new AdminTopicDetail.PostCounts(
+                1,
+                0,
+                0
+        ));
     }
 
     @Test
-    @DisplayName("삭제된 주제 상세은 찾을 수 없음으로 응답한다")
+    @DisplayName("삭제 등으로 조회할 수 없는 주제는 찾을 수 없음 예외를 반환한다")
     void getTopic_deletedTopic_throwsNotFoundException() {
-        NotFoundException exception = catchThrowableOfType(
-                NotFoundException.class,
-                () -> adminTopicQueryService.getTopic(DELETED_TOPIC_ID));
+        // Given
+        given(repository.findActiveTopicById(TOPIC_ID)).willReturn(Optional.empty());
 
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        // When & Then
+        assertThatThrownBy(() -> service.getTopic(TOPIC_ID))
+                .isInstanceOfSatisfying(NotFoundException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.BUSINESS_ERROR));
     }
 
     @ParameterizedTest
     @CsvSource({"21474836, 100", "21474837, 100"})
-    @DisplayName("허용되는 최대 페이지와 그 직전 페이지는 빈 목록을 반환한다")
+    @DisplayName("허용되는 최대 페이지와 그 직전 페이지는 조회 결과를 반환한다")
     void getTopics_offsetWithinIntegerRange_returnsEmptyPage(int page, int pageSize) {
-        // Given & When
-        AdminTopicListResult result = adminTopicQueryService.getTopics(
+        // Given
+        given(repository.findTopics(
+                new AdminTopicQueryCriteria(
+                        null,
+                        null,
+                        null,
+                        AdminTopicSort.TOPIC_DATE_DESC,
+                        NOW
+                ),
+                page,
+                pageSize
+        )).willReturn(new AdminPage<>(
+                List.of(),
+                page,
+                pageSize,
+                false
+        ));
+
+        // When
+        AdminTopicListResult result = service.getTopics(
                 null,
                 null,
                 null,
@@ -190,72 +182,39 @@ class AdminTopicQueryServiceTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @CsvSource({"21474838, 100", "2147483647, 100", "42949674, 100"})
-    @DisplayName("페이지 offset이 정수 범위를 넘으면 잘못된 조회 조건으로 거절한다")
+    @DisplayName("페이지 offset이 정수 범위를 넘으면 조회하지 않고 거절한다")
     void getTopics_offsetExceedsIntegerRange_throwsBusinessException(int page, int pageSize) {
-        // Given & When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> adminTopicQueryService.getTopics(
-                        null,
-                        null,
-                        null,
-                        AdminTopicSort.TOPIC_DATE_DESC,
-                        page,
-                        pageSize
-                ));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-        assertThat(exception.getMessage()).isEqualTo("관리자 주제 요청이 올바르지 않습니다.");
+        // When & Then
+        assertThatThrownBy(() -> service.getTopics(
+                null,
+                null,
+                null,
+                AdminTopicSort.TOPIC_DATE_DESC,
+                page,
+                pageSize
+        )).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+            assertThat(exception.getMessage()).isEqualTo("관리자 주제 요청이 올바르지 않습니다.");
+        });
+        then(repository).shouldHaveNoInteractions();
     }
 
-    private void insertTopic(
-            UUID id,
-            String title,
-            LocalDate topicDate,
-            Instant startsAt,
-            Instant endsAt,
-            Instant deletedAt
-    ) {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO topics (
-                            id, title, topic_date, starts_at, ends_at,
-                            created_at, updated_at, deleted_at
-                        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-                        """,
-                id,
-                title,
-                topicDate,
-                Timestamp.from(startsAt),
-                Timestamp.from(endsAt),
-                deletedAt == null ? null : Timestamp.from(deletedAt)
-        );
-    }
-
-    private void insertOpenTopicPost() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, 'topic-count-author@example.com', 'ACTIVE',
-                    'signatures/topic-count-author', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, USER_ID);
-        jdbcTemplate.update("""
-                INSERT INTO photos (id, original_storage_key, created_at, updated_at)
-                VALUES (?, 'posts/topic-count-original', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, PHOTO_ID);
-        jdbcTemplate.update(
-                """
-                        INSERT INTO posts (
-                            id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """,
-                POST_ID,
-                USER_ID,
-                OPEN_TOPIC_ID,
-                PHOTO_ID
+    private AdminTopicProjection topic() {
+        return new AdminTopicProjection(
+                TOPIC_ID,
+                "참여 중 주제",
+                LocalDate.of(
+                        2026,
+                        8,
+                        28
+                ),
+                STARTS_AT,
+                ENDS_AT,
+                STARTS_AT,
+                STARTS_AT,
+                1,
+                0,
+                0
         );
     }
 }

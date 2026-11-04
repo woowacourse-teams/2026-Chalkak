@@ -7,6 +7,7 @@ import com.chalkak.backend.admin.repository.topic.AdminTopicProjection;
 import com.chalkak.backend.admin.repository.topic.AdminTopicQueryCriteria;
 import com.chalkak.backend.admin.repository.topic.AdminTopicQueryRepository;
 import com.chalkak.backend.admin.repository.topic.AdminTopicSort;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.topic.domain.TopicPhase;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
@@ -22,14 +23,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(AdminTopicQueryRepositoryImpl.class)
+@PostgresRepositoryTest
 class AdminTopicQueryRepositoryTest {
 
     private static final Instant NOW = Instant.parse("2026-08-20T00:00:00Z");
@@ -200,6 +196,30 @@ class AdminTopicQueryRepositoryTest {
         assertThat(topic.rejectedPostCount()).isZero();
         assertThat(repository.findActiveTopicById(DELETED_ID)).isEmpty();
         assertThat(repository.findActiveTopicById(new UUID(0, 99))).isEmpty();
+        jdbcTemplate
+                .update("""
+                        INSERT INTO users (id, email, status, signature_original_storage_key, created_at, updated_at)
+                        VALUES ('0198fd20-0000-7000-8000-000000000021', 'topic-count-author@example.com',
+                            'ACTIVE', 'signatures/topic-count-author', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """);
+        jdbcTemplate.update("""
+                INSERT INTO photos (id, original_storage_key, created_at, updated_at)
+                VALUES ('0198fd20-0000-7000-8000-000000000022', 'posts/topic-count-original',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO posts (id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at)
+                        VALUES ('0198fd20-0000-7000-8000-000000000023',
+                            '0198fd20-0000-7000-8000-000000000021', ?,
+                            '0198fd20-0000-7000-8000-000000000022', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                OPEN_ID
+        );
+        AdminTopicProjection withPost = repository.findActiveTopicById(OPEN_ID).orElseThrow();
+        assertThat(withPost.pendingPostCount()).isEqualTo(1);
+        assertThat(withPost.approvedPostCount()).isZero();
+        assertThat(withPost.rejectedPostCount()).isZero();
     }
 
     private static Stream<Arguments> sortCases() {

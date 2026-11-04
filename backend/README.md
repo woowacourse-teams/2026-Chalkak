@@ -10,7 +10,7 @@
 - [자주 사용하는 명령](#자주-사용하는-명령)
 - [프로필](#프로필)
 - [API 문서](#api-문서)
-- [임시 인증](#임시-인증)
+- [인증과 인가](#인증과-인가)
 - [이미지 저장소](#이미지-저장소)
 - [DB 스키마](#db-스키마)
 - [테스트](#테스트)
@@ -186,6 +186,10 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | `internal-api` | `/internal/v1/**` |
 
 운영 환경에서는 API 문서 JSON과 Swagger UI를 모두 비활성화한다.
+
+Android·iOS 연동은 [공통 비즈니스 규칙 목차](../docs/business-rules/README.md)에서 해당 도메인의 규칙과 앱 연동 안내를 함께 확인한다.
+고객센터의 접수·본인 목록·상세·삭제·답변 알림 연결은 [고객센터 앱 연동 안내](../docs/business-rules/guides/customer-support.md)를 참고한다.
+공유 문서 갱신과 실제 서버 배포는 별개이므로, 연동 대상 서버의 적용 버전을 확인한다.
 
 게시물 생성 API는 임시 인증을 사용하는 동안 로컬·개발 환경의 `user-api`
 그룹에만 표시한다. 생성 전용 `PostCreationApiDocs`를 기존 공개 조회용

@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.service.post;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.within;
@@ -118,6 +119,7 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
                 POST_ID,
                 USER_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
 
         // When
         adminPostCommandService.deletePost(
@@ -333,6 +335,7 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
     private void cleanUp() {
         jdbcTemplate.update("DELETE FROM admin_audit_logs WHERE target_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM post_likes WHERE post_id = ?", POST_ID);
+        jdbcTemplate.update("DELETE FROM post_like_counts WHERE post_id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE id = ?", POST_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE id = ?", PHOTO_ID);
         jdbcTemplate.update("DELETE FROM post_image_uploads WHERE id = ?", UPLOAD_ID);
@@ -449,6 +452,7 @@ class AdminPostCommandDeletionTest extends IntegrationTestSupport {
                 moderationStatus.name(),
                 timestamp(moderatedAt)
         );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private Timestamp timestamp(Instant instant) {

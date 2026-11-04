@@ -1,42 +1,44 @@
 package com.chalkak.backend.admin.service.post;
 
-import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
 
+import com.chalkak.backend.admin.repository.AdminPage;
+import com.chalkak.backend.admin.repository.post.AdminPostDetailProjection;
+import com.chalkak.backend.admin.repository.post.AdminPostQueryCriteria;
+import com.chalkak.backend.admin.repository.post.AdminPostQueryRepository;
+import com.chalkak.backend.admin.repository.post.AdminPostSort;
+import com.chalkak.backend.admin.repository.post.AdminPostSummaryProjection;
 import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
-import com.chalkak.backend.support.IntegrationTestSupport;
-import java.sql.Timestamp;
+import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@Transactional
-class AdminPostQueryServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class AdminPostQueryServiceTest {
 
-    private static final UUID USER_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b658101");
     private static final UUID SECOND_USER_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b658102");
-    private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b658201");
     private static final UUID SECOND_TOPIC_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b658202");
-    private static final UUID PHOTO_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b658301");
     private static final UUID SECOND_PHOTO_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b658302");
-    private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b658401");
     private static final UUID SECOND_POST_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b658402");
     private static final UUID SECOND_POST_IMAGE_UPLOAD_ID = UUID
@@ -44,11 +46,6 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     private static final UUID UNKNOWN_POST_ID = UUID
             .fromString("0198f6c1-62ba-7d30-8b12-0f733b658499");
 
-    private static final LocalDate TOPIC_DATE = LocalDate.of(
-            2026,
-            8,
-            12
-    );
     private static final LocalDate SECOND_TOPIC_DATE = LocalDate.of(
             2026,
             8,
@@ -62,33 +59,37 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     private static final String SECOND_ORIGINAL_IMAGE_URL = "https://cdn.example.com/dev/admin-posts/original-2.webp";
     private static final String SECOND_THUMBNAIL_IMAGE_URL = "https://cdn.example.com/dev/admin-posts/thumbnail-2.webp";
 
-    @Autowired
+    @InjectMocks
     private AdminPostQueryService adminPostQueryService;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    @Mock
+    private AdminPostQueryRepository repository;
 
-    @MockitoBean
+    @Mock
     private ImageUrlProvider imageUrlProvider;
-
-    @BeforeEach
-    void setUp() {
-        insertUsers();
-        insertTopics();
-        insertPhotos();
-        insertPostImageUpload();
-        insertPosts();
-        jdbcTemplate.update(
-                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
-                SECOND_POST_ID,
-                USER_ID
-        );
-    }
 
     @Test
     @DisplayName("필터가 없으면 내부 검증 중을 제외하고 삭제된 게시물도 최신순으로 조회한다")
     void getPosts_withoutFilters_returnsVisibleStatusesIncludingDeleted() {
         // Given
+        given(repository.findPosts(
+                new AdminPostQueryCriteria(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        AdminPostSort.CREATED_AT_DESC
+                ),
+                1,
+                1
+        )).willReturn(new AdminPage<>(
+                List.of(summary()),
+                1,
+                1,
+                true
+        ));
         given(imageUrlProvider.getUrl(SECOND_ORIGINAL_STORAGE_KEY))
                 .willReturn(SECOND_ORIGINAL_IMAGE_URL);
         given(imageUrlProvider.getUrl(SECOND_THUMBNAIL_STORAGE_KEY))
@@ -125,6 +126,26 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("상태와 주제, 날짜, 작성자, 등록 시각 조건에 맞는 게시물만 조회한다")
     void getPosts_allFilters_returnsMatchingPost() {
+        // Given
+        given(repository.findPosts(
+                new AdminPostQueryCriteria(
+                        ModerationStatus.REJECTED,
+                        SECOND_TOPIC_ID,
+                        SECOND_TOPIC_DATE,
+                        SECOND_USER_ID,
+                        Instant.parse("2026-08-13T04:00:00Z"),
+                        Instant.parse("2026-08-13T05:00:00Z"),
+                        AdminPostSort.CREATED_AT_DESC
+                ),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary()),
+                1,
+                20,
+                false
+        ));
+
         // When
         AdminPostListResult result = adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
@@ -217,6 +238,7 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     @DisplayName("삭제된 거절 게시물도 작성자와 주제, 사진 메타데이터를 포함해 상세 조회한다")
     void getPost_deletedRejectedPost_returnsAdminDetail() {
         // Given
+        given(repository.findPostById(SECOND_POST_ID)).willReturn(Optional.of(detail()));
         given(imageUrlProvider.getUrl(SECOND_ORIGINAL_STORAGE_KEY))
                 .willReturn(SECOND_ORIGINAL_IMAGE_URL);
         given(imageUrlProvider.getUrl(SECOND_THUMBNAIL_STORAGE_KEY))
@@ -250,6 +272,9 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("존재하지 않는 관리자 게시물 상세를 조회하면 찾을 수 없음 예외를 발생시킨다")
     void getPost_unknownPost_throwsNotFoundException() {
+        // Given
+        given(repository.findPostById(UNKNOWN_POST_ID)).willReturn(Optional.empty());
+
         // When
         NotFoundException exception = catchThrowableOfType(
                 NotFoundException.class,
@@ -259,120 +284,72 @@ class AdminPostQueryServiceTest extends IntegrationTestSupport {
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
     }
 
-    private void insertUsers() {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO users (
-                            id, email, status, signature_original_storage_key,
-                            signature_thumbnail_storage_key, created_at, updated_at
-                        ) VALUES (
-                            ?, 'admin-post-user-1@example.com', 'ACTIVE',
-                            'chalkak/dev/admin-posts/signature-1.webp',
-                            'chalkak/dev/admin-posts/signature-thumbnail-1.webp',
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        ), (
-                            ?, 'admin-post-user-2@example.com', 'BANNED',
-                            'chalkak/dev/admin-posts/signature-2.webp',
-                            'chalkak/dev/admin-posts/signature-thumbnail-2.webp',
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                        """,
-                USER_ID,
-                SECOND_USER_ID
-        );
-    }
-
-    private void insertTopics() {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO topics (
-                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                        ) VALUES (
-                            ?, '첫 번째 관리자 조회 주제', ?,
-                            '2026-08-12T00:00:00Z', '2026-08-13T00:00:00Z',
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        ), (
-                            ?, '두 번째 관리자 조회 주제', ?,
-                            '2026-08-13T00:00:00Z', '2026-08-14T00:00:00Z',
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                        """,
-                TOPIC_ID,
-                TOPIC_DATE,
+    private AdminPostSummaryProjection summary() {
+        return new AdminPostSummaryProjection(
+                SECOND_POST_ID,
+                "거절 게시물",
+                ModerationStatus.REJECTED,
                 SECOND_TOPIC_ID,
-                SECOND_TOPIC_DATE
-        );
-    }
-
-    private void insertPhotos() {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO photos (
-                            id, original_storage_key, thumbnail_storage_key, metadata,
-                            created_at, updated_at
-                        ) VALUES (
-                            ?, 'chalkak/dev/admin-posts/original-1.webp',
-                            'chalkak/dev/admin-posts/thumbnail-1.webp',
-                            CAST('{"width": 1024, "height": 768}' AS jsonb),
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        ), (
-                            ?, ?, ?, CAST('{"width":2048,"height":1536,"byteSize":812345,
-                            "location":{"latitude":37.5665,"longitude":126.978},
-                            "capturedAt":"2026-08-13T11:02:31+09:00",
-                            "metaAttributes":{"cameraModel":"private-device"}}' AS jsonb),
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                        """,
-                PHOTO_ID,
+                "두 번째 주제",
+                SECOND_TOPIC_DATE,
+                SECOND_USER_ID,
+                "second-author@example.com",
+                UserStatus.ACTIVE,
+                null,
                 SECOND_PHOTO_ID,
                 SECOND_ORIGINAL_STORAGE_KEY,
-                SECOND_THUMBNAIL_STORAGE_KEY
+                SECOND_THUMBNAIL_STORAGE_KEY,
+                1L,
+                SECOND_POST_CREATED_AT,
+                null,
+                SECOND_POST_DELETED_AT
         );
     }
 
-    private void insertPosts() {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO posts (
-                            id, user_id, topic_id, photo_id, post_image_upload_id,
-                            title, moderation_status,
-                            moderated_at, created_at, updated_at, deleted_at
-                        ) VALUES (
-                            ?, ?, ?, ?, NULL, '검수 대기', 'PENDING', NULL,
-                            '2026-08-12T03:30:00Z', '2026-08-12T03:30:00Z', NULL
-                        ), (
-                            ?, ?, ?, ?, ?, '삭제된 작품', 'REJECTED',
-                            '2026-08-13T05:00:00Z', ?, '2026-08-13T05:00:00Z', ?
-                        )
-                        """,
-                POST_ID,
-                USER_ID,
-                TOPIC_ID,
-                PHOTO_ID,
+    private AdminPostDetailProjection detail() {
+        return new AdminPostDetailProjection(
                 SECOND_POST_ID,
+                "거절 게시물",
+                null,
+                ModerationStatus.REJECTED,
+                SECOND_POST_CREATED_AT,
+                SECOND_POST_CREATED_AT,
+                null,
+                null,
+                "검수 반려",
+                SECOND_POST_DELETED_AT,
                 SECOND_USER_ID,
+                "second-author@example.com",
+                UserStatus.ACTIVE,
+                null,
                 SECOND_TOPIC_ID,
+                "두 번째 주제",
+                SECOND_TOPIC_DATE,
+                Instant.parse("2026-08-12T15:00:00Z"),
+                Instant.parse("2026-08-13T15:00:00Z"),
+                null,
                 SECOND_PHOTO_ID,
+                SECOND_ORIGINAL_STORAGE_KEY,
+                SECOND_THUMBNAIL_STORAGE_KEY,
+                Map.of(
+                        "width",
+                        2048,
+                        "location",
+                        "private",
+                        "capturedAt",
+                        "private",
+                        "metaAttributes",
+                        Map.of("private", true)
+                ),
+                SECOND_POST_CREATED_AT,
+                SECOND_POST_CREATED_AT,
+                null,
                 SECOND_POST_IMAGE_UPLOAD_ID,
-                Timestamp.from(SECOND_POST_CREATED_AT),
-                Timestamp.from(SECOND_POST_DELETED_AT)
-        );
-    }
-
-    private void insertPostImageUpload() {
-        jdbcTemplate.update(
-                """
-                        INSERT INTO post_image_uploads (
-                            id, user_id, status, rejection_reason, image_metadata,
-                            expires_at, claimed_at, created_at, updated_at
-                        ) VALUES (
-                            ?, ?, 'REJECTED', 'CORRUPTED_IMAGE', NULL,
-                            '2026-08-13T05:30:00Z', '2026-08-13T04:30:00Z',
-                            '2026-08-13T04:00:00Z', '2026-08-13T04:20:00Z'
-                        )
-                        """,
-                SECOND_POST_IMAGE_UPLOAD_ID,
-                SECOND_USER_ID
+                PostImageUploadStatus.REJECTED,
+                "CORRUPTED_IMAGE",
+                SECOND_POST_CREATED_AT,
+                SECOND_POST_CREATED_AT,
+                1L
         );
     }
 }

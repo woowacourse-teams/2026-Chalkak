@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.chalkak.backend.auth.domain.token.UserRefreshToken;
 import com.chalkak.backend.auth.repository.UserRefreshTokenRepository;
-import com.chalkak.backend.support.IntegrationTestSupport;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
@@ -13,11 +13,12 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
-class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class UserRefreshTokenRepositoryTest {
 
     private static final Instant NOW = Instant.parse("2026-09-02T00:00:00Z");
 
@@ -254,6 +255,50 @@ class UserRefreshTokenRepositoryTest extends IntegrationTestSupport {
         assertThat(existsByTokenHash(expiringNowTokenHash)).isTrue();
         assertThat(existsByTokenHash(justRevokedTokenHash)).isTrue();
         assertThat(existsByTokenHash(liveTokenHash)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"live", "revoked", "rotated", "expired", "absoluteExpired",
+            "missingToken", "otherOwner", "unknownSession"})
+    @DisplayName("세션과 회원이 일치하고 회전, 폐기, 만료되지 않은 토큰만 사용 가능하다")
+    void existsUsableBySessionIdAndUserId_tokenState_returnsUsability(String state) {
+        // Given
+        User user = userRepository.save(createUser());
+        UUID sessionId = UUID.randomUUID();
+        Instant expiresAt = state.equals("expired") ? NOW : NOW.plusSeconds(3600);
+        Instant absoluteExpiresAt = state.equals("absoluteExpired") ? NOW : NOW.plusSeconds(7200);
+        UserRefreshToken token = UserRefreshToken.create(
+                user,
+                sessionId,
+                createTokenHash(),
+                state.equals("absoluteExpired") ? NOW : expiresAt,
+                absoluteExpiresAt
+        );
+        if (state.equals("revoked")) {
+            token.revoke(NOW);
+        }
+        if (state.equals("rotated")) {
+            token.rotate(NOW);
+        }
+        if (!state.equals("missingToken")) {
+            userRefreshTokenRepository.save(token);
+        }
+        UUID requestedUserId = state.equals("otherOwner")
+                ? userRepository.save(createUser()).getId()
+                : user.getId();
+        UUID requestedSessionId = state.equals("unknownSession") ? UUID.randomUUID() : sessionId;
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        boolean usable = userRefreshTokenRepository.existsUsableBySessionIdAndUserId(
+                requestedSessionId,
+                requestedUserId,
+                NOW
+        );
+
+        // Then
+        assertThat(usable).isEqualTo(state.equals("live"));
     }
 
     private void saveRefreshToken(

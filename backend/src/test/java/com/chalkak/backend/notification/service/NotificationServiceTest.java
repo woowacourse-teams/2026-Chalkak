@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.service;
 
+import static com.chalkak.backend.like.support.PostLikeCountFixtures.synchronizeFixtureCounts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -80,6 +81,95 @@ class NotificationServiceTest extends IntegrationTestSupport {
     void setUp() {
         given(clock.instant()).willReturn(NOW);
         insertFixtures();
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0, 1})
+    @DisplayName("좋아요 알림도 30일 경계를 목록·상세·미읽음·읽음에 동일하게 적용한다")
+    void likeMilestoneInbox_retentionBoundary_appliesToEveryOperation(long offsetSeconds) {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE notifications SET type = 'POST_LIKE_MILESTONE', payload = NULL, title = '게시물에서 새로운 업적을 달성했어요', body = '좋아요 5개 이상을 달성했어요', created_at = ? WHERE id = ?",
+                Timestamp.from(CREATED_FROM.plusSeconds(offsetSeconds)),
+                NOTIFICATION_ID
+        );
+        entityManager.flush();
+        entityManager.clear();
+        boolean visible = offsetSeconds >= 0;
+
+        // When
+        NotificationListResult result = notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.notifications()).hasSize(visible ? 1 : 0);
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isEqualTo(visible);
+        if (visible) {
+            assertThat(result.notifications().getFirst().type())
+                    .isEqualTo(NotificationType.POST_LIKE_MILESTONE);
+            assertThat(result.notifications().getFirst().sourceId()).isEqualTo(POST_ID);
+            assertThat(notificationService.getNotification(USER_ID, NOTIFICATION_ID).body())
+                    .isEqualTo("좋아요 5개 이상을 달성했어요");
+            notificationService.markRead(USER_ID, NOTIFICATION_ID);
+            assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+        }
+        if (!visible) {
+            assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
+                    .isInstanceOf(NotFoundException.class);
+            assertThatThrownBy(() -> notificationService.markRead(USER_ID, NOTIFICATION_ID))
+                    .isInstanceOf(NotFoundException.class);
+        }
+        jdbcTemplate.update("UPDATE notifications SET read_at = NULL WHERE id = ?",
+                NOTIFICATION_ID);
+        entityManager.clear();
+        notificationService.markAllRead(USER_ID);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT read_at IS NOT NULL FROM notifications WHERE id = ?",
+                Boolean.class,
+                NOTIFICATION_ID
+        )).isEqualTo(visible);
+    }
+
+    @Test
+    @DisplayName("삭제된 게시물의 좋아요 알림은 모든 알림함 기능에서 숨기고 기록은 유지한다")
+    void likeMilestoneInbox_deletedPost_hidesWithoutDeletingNotification() {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE notifications SET type = 'POST_LIKE_MILESTONE', payload = NULL WHERE id = ?",
+                NOTIFICATION_ID);
+        jdbcTemplate.update(
+                "UPDATE posts SET deleted_at = ? WHERE id = ?",
+                Timestamp.from(NOW),
+                POST_ID
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When & Then
+        assertThat(notificationService.getNotifications(
+                USER_ID,
+                1,
+                20
+        ).notifications()).isEmpty();
+        assertThat(notificationService.hasUnreadNotification(USER_ID)).isFalse();
+        assertThatThrownBy(() -> notificationService.getNotification(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> notificationService.markRead(USER_ID, NOTIFICATION_ID))
+                .isInstanceOf(NotFoundException.class);
+        notificationService.markAllRead(USER_ID);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT read_at IS NULL FROM notifications WHERE id = ?",
+                Boolean.class,
+                NOTIFICATION_ID
+        )).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notifications WHERE id = ?",
+                Long.class,
+                NOTIFICATION_ID
+        )).isOne();
     }
 
     @Test
@@ -755,6 +845,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 TOPIC_ID,
                 PHOTO_ID
         );
+        synchronizeFixtureCounts(jdbcTemplate);
         jdbcTemplate.update(
                 """
                         INSERT INTO admin_audit_logs (

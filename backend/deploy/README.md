@@ -25,6 +25,7 @@ Pull Request
 | [서버 구축](docs/infrastructure-setup.md) | EC2를 처음 준비하거나 서버 설정을 변경할 때 | 공용 AWS 리소스, Java, CodeDeploy Agent, Docker, 환경변수, IAM·S3 |
 | [CI/CD 파이프라인 구축](docs/pipeline-setup.md) | AWS 파이프라인을 처음 만들거나 재구성할 때 | CodeBuild, CodeDeploy application·group, 개발·운영 CodePipeline |
 | [배포 운영 런북](docs/operations.md) | PR 병합, 배포 확인, 장애 대응 시 | GitHub Ruleset, 개발·운영 배포, Flyway 규칙, 장애 확인 |
+| [좋아요 집계 첫 전환](docs/like-count-migration.md) | 즉시 집계를 처음 배포할 때 | 기존 스크립트 유지, 일회성 전체 점검·수동 전환·복구·자동 배포 재개 |
 | [CloudWatch 모니터링 구축](docs/monitoring.md) | 로그·지표·알람·대시보드를 처음 만들거나 알람에 대응할 때 | CloudWatch Agent, 로그 그룹·메트릭 필터·알람·SNS·알림 Lambda 콘솔 구축, 대시보드, 알람 대응, 비용 점검 |
 | [알림 SQS 준비](docs/notification-sqs-setup.md) | 승인·반려·주제 푸시 연동을 준비할 때 | 환경별 큐·DLQ, EC2 권한, Relay·Worker·주제 설정과 연동 검증 |
 | [알림 지표·경보](docs/notification-monitoring.md) | 알림 CloudWatch를 설정할 때 | 발행 대기 관측·필터·경보·기존 Slack 경로 |

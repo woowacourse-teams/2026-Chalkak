@@ -20,7 +20,7 @@ public record AdminPostSummaryProjection(
         UUID photoId,
         String originalStorageKey,
         String thumbnailStorageKey,
-        long likeCount,
+        Long likeCount,
         Instant createdAt,
         Instant moderatedAt,
         Instant deletedAt

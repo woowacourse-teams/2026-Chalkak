@@ -11,6 +11,7 @@ import java.util.UUID;
 public record AdminPostDetailProjection(
         UUID postId,
         String title,
+        String description,
         ModerationStatus moderationStatus,
         Instant createdAt,
         Instant updatedAt,
@@ -40,6 +41,6 @@ public record AdminPostDetailProjection(
         String uploadRejectionReason,
         Instant uploadCreatedAt,
         Instant uploadUpdatedAt,
-        long likeCount
+        Long likeCount
 ) {
 }

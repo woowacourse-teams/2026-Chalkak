@@ -1,97 +1,90 @@
 package com.chalkak.backend.post.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.photo.domain.Photo;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
-import com.chalkak.backend.support.IntegrationTestSupport;
-import java.sql.Timestamp;
+import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.topic.domain.ParticipationPeriod;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.user.domain.UserFixture;
+import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
-@Transactional
-class PostCalendarServiceTest extends IntegrationTestSupport {
+@ExtendWith(MockitoExtension.class)
+class PostCalendarServiceTest {
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
     private static final UUID APPROVED_POST_ID = UUID
             .fromString("00000000-0000-0000-0000-000000000301");
     private static final UUID PENDING_POST_ID = UUID
             .fromString("00000000-0000-0000-0000-000000000302");
-    private static final String APPROVED_THUMBNAIL_KEY = "chalkak/dev/posts/thumbnail/approved.webp";
-    private static final String PENDING_THUMBNAIL_KEY = "chalkak/dev/posts/thumbnail/pending.webp";
+    private static final YearMonth MONTH = YearMonth.of(2026, 8);
+    private static final String APPROVED_KEY = "chalkak/dev/posts/thumbnail/approved.webp";
+    private static final String PENDING_KEY = "chalkak/dev/posts/thumbnail/pending.webp";
 
-    @Autowired
-    private PostQueryService postQueryService;
+    @Mock
+    private UserRepository users;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    @Mock
+    private PostRepository posts;
 
-    @MockitoBean
+    @Mock
     private ImageUrlProvider imageUrlProvider;
 
-    @MockitoBean
-    private RandomSeedGenerator randomSeedGenerator;
-
-    @BeforeEach
-    void setUp() {
-        jdbcTemplate.update("""
-                INSERT INTO users (
-                    id, email, status, signature_original_storage_key, created_at, updated_at
-                ) VALUES (
-                    ?, 'calendar-service@example.com', 'ACTIVE',
-                    'chalkak/dev/signatures/calendar-service.png',
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                """, USER_ID);
-        insertPost(
-                APPROVED_POST_ID,
-                LocalDate.of(
-                        2026,
-                        8,
-                        1
-                ),
-                ModerationStatus.APPROVED,
-                APPROVED_THUMBNAIL_KEY
-        );
-        insertPost(
-                PENDING_POST_ID,
-                LocalDate.of(
-                        2026,
-                        8,
-                        31
-                ),
-                ModerationStatus.PENDING,
-                PENDING_THUMBNAIL_KEY
-        );
-    }
+    @InjectMocks
+    private PostQueryService service;
 
     @Test
-    @DisplayName("본인의 월별 승인 대기·승인 게시물의 사진과 상태를 반환한다")
+    @DisplayName("월의 양 끝 날짜로 조회하고 승인 대기와 승인 게시물의 사진 및 상태를 반환한다")
     void getMyPostCalendar_validYearMonth_returnsCalendarResult() {
         // Given
-        given(imageUrlProvider.getUrl(APPROVED_THUMBNAIL_KEY))
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(posts.findCalendarPostsByAuthorIdAndTopicDateBetween(
+                USER_ID,
+                MONTH.atDay(1),
+                MONTH.atEndOfMonth()
+        )).willReturn(List.of(
+                post(
+                        APPROVED_POST_ID,
+                        MONTH.atDay(1),
+                        ModerationStatus.APPROVED,
+                        APPROVED_KEY
+                ),
+                post(
+                        PENDING_POST_ID,
+                        MONTH.atEndOfMonth(),
+                        ModerationStatus.PENDING,
+                        PENDING_KEY
+                )
+        ));
+        given(imageUrlProvider.getUrl(APPROVED_KEY))
                 .willReturn("https://cdn.example.com/posts/approved.webp");
-        given(imageUrlProvider.getUrl(PENDING_THUMBNAIL_KEY))
+        given(imageUrlProvider.getUrl(PENDING_KEY))
                 .willReturn("https://cdn.example.com/posts/pending.webp");
 
         // When
-        PostCalendarResult result = postQueryService.getMyPostCalendar(
-                USER_ID,
-                YearMonth.of(2026, 8));
+        PostCalendarResult result = service.getMyPostCalendar(USER_ID, MONTH);
 
         // Then
         assertThat(result).isEqualTo(new PostCalendarResult(
@@ -99,161 +92,135 @@ class PostCalendarServiceTest extends IntegrationTestSupport {
                 8,
                 List.of(
                         new PostCalendarResult.PostSummary(
-                                LocalDate.of(
-                                        2026,
-                                        8,
-                                        1
-                                ),
+                                MONTH.atDay(1),
                                 APPROVED_POST_ID,
                                 "https://cdn.example.com/posts/approved.webp",
                                 ModerationStatus.APPROVED
                         ),
                         new PostCalendarResult.PostSummary(
-                                LocalDate.of(
-                                        2026,
-                                        8,
-                                        31
-                                ),
+                                MONTH.atEndOfMonth(),
                                 PENDING_POST_ID,
                                 "https://cdn.example.com/posts/pending.webp",
                                 ModerationStatus.PENDING
-                        ))
+                        )
+                )
         ));
     }
 
     @Test
-    @DisplayName("작성한 게시물이 없는 연월은 빈 캘린더 결과를 반환한다")
+    @DisplayName("월별 조회 결과가 없으면 요청한 연월의 빈 목록을 반환한다")
     void getMyPostCalendar_noPosts_returnsEmptyResult() {
-        // When
-        PostCalendarResult result = postQueryService.getMyPostCalendar(
+        // Given
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(posts.findCalendarPostsByAuthorIdAndTopicDateBetween(
                 USER_ID,
-                YearMonth.of(2026, 7));
+                MONTH.atDay(1),
+                MONTH.atEndOfMonth()
+        )).willReturn(List.of());
+
+        // When
+        PostCalendarResult result = service.getMyPostCalendar(USER_ID, MONTH);
 
         // Then
         assertThat(result).isEqualTo(new PostCalendarResult(
                 2026,
-                7,
+                8,
                 List.of()
         ));
     }
 
     @Test
-    @DisplayName("유효하지 않은 사용자의 캘린더 조회는 인증 예외를 발생시킨다")
+    @DisplayName("인증할 수 없는 사용자의 월별 조회는 게시물을 조회하지 않고 거절한다")
     void getMyPostCalendar_unknownUser_throwsUnauthorizedException() {
         // Given
-        UUID unknownUserId = UUID.fromString("00000000-0000-0000-0000-0000000000bf");
+        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
 
-        // When
-        UnauthorizedException exception = catchThrowableOfType(
-                UnauthorizedException.class,
-                () -> postQueryService.getMyPostCalendar(
-                        unknownUserId,
-                        YearMonth.of(2026, 8)));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
-        assertThat(exception).hasMessage("유효하지 않은 인증 정보입니다.");
-    }
-
-    private void insertPost(
-            UUID postId,
-            LocalDate topicDate,
-            ModerationStatus moderationStatus,
-            String thumbnailStorageKey
-    ) {
-        UUID topicId = UUID.nameUUIDFromBytes(("service-topic-" + topicDate).getBytes());
-        UUID photoId = UUID.nameUUIDFromBytes(("service-photo-" + postId).getBytes());
-        ZoneId kst = ZoneId.of("Asia/Seoul");
-        jdbcTemplate.update(
-                """
-                        INSERT INTO topics (
-                            id, title, topic_date, starts_at, ends_at, created_at, updated_at
-                        ) VALUES (
-                            ?, '캘린더 서비스 주제', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                        """,
-                topicId,
-                topicDate,
-                Timestamp.from(topicDate.atStartOfDay(kst).toInstant()),
-                Timestamp.from(topicDate.plusDays(1).atStartOfDay(kst).toInstant())
-        );
-        jdbcTemplate.update(
-                """
-                        INSERT INTO photos (
-                            id, original_storage_key, thumbnail_storage_key, created_at, updated_at
-                        ) VALUES (
-                            ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                        """,
-                photoId,
-                "chalkak/dev/posts/original/" + postId + ".webp",
-                thumbnailStorageKey
-        );
-        jdbcTemplate.update(
-                """
-                        INSERT INTO posts (
-                            id, user_id, topic_id, photo_id, moderation_status, created_at, updated_at
-                        ) VALUES (
-                            ?, ?, ?, ?, ?::moderation_status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                        """,
-                postId,
-                USER_ID,
-                topicId,
-                photoId,
-                moderationStatus.name()
-        );
+        // When & Then
+        assertThatThrownBy(() -> service.getMyPostCalendar(USER_ID, MONTH))
+                .isInstanceOfSatisfying(UnauthorizedException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED))
+                .hasMessage("유효하지 않은 인증 정보입니다.");
+        then(posts).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("본인의 캘린더 기록 연월을 조회한다")
+    @DisplayName("조회된 기록 연월을 순서대로 반환한다")
     void getMyPostCalendarMonths_validUser_returnsRecordedMonths() {
+        // Given
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(posts.findCalendarMonthsByAuthorId(USER_ID)).willReturn(List.of(MONTH));
+
         // When
-        List<YearMonth> result = postQueryService.getMyPostCalendarMonths(USER_ID);
+        List<YearMonth> result = service.getMyPostCalendarMonths(USER_ID);
 
         // Then
-        assertThat(result).containsExactly(YearMonth.of(2026, 8));
+        assertThat(result).containsExactly(MONTH);
     }
 
     @Test
-    @DisplayName("캘린더 기록이 없으면 현재 달을 추가하지 않고 빈 목록을 반환한다")
+    @DisplayName("기록이 없으면 현재 달을 추가하지 않고 빈 연월 목록을 반환한다")
     void getMyPostCalendarMonths_noPosts_returnsEmpty() {
         // Given
-        jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = ?",
-                USER_ID);
+        given(users.findActiveById(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(posts.findCalendarMonthsByAuthorId(USER_ID)).willReturn(List.of());
 
         // When
-        List<YearMonth> result = postQueryService.getMyPostCalendarMonths(USER_ID);
+        List<YearMonth> result = service.getMyPostCalendarMonths(USER_ID);
 
         // Then
         assertThat(result).isEmpty();
     }
 
     @Test
-    @DisplayName("존재하지 않는 사용자의 연월 조회는 인증 예외를 발생시킨다")
-    void getMyPostCalendarMonths_unknownUser_throwsUnauthorizedException() {
-        // When
-        UnauthorizedException exception = catchThrowableOfType(
-                UnauthorizedException.class,
-                () -> postQueryService.getMyPostCalendarMonths(UUID.randomUUID()));
+    @DisplayName("미존재 또는 탈퇴로 조회할 수 없는 사용자의 연월 요청을 거절한다")
+    void getMyPostCalendarMonths_unavailableUser_throwsUnauthorizedException() {
+        // Given
+        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
 
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+        // When & Then
+        assertThatThrownBy(() -> service.getMyPostCalendarMonths(USER_ID))
+                .isInstanceOfSatisfying(UnauthorizedException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.UNAUTHORIZED));
+        then(posts).shouldHaveNoInteractions();
     }
 
-    @Test
-    @DisplayName("탈퇴한 사용자의 연월 조회는 빈 목록 대신 인증 예외를 발생시킨다")
-    void getMyPostCalendarMonths_deletedUser_throwsUnauthorizedException() {
-        // Given
-        jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-                USER_ID);
-
-        // When
-        UnauthorizedException exception = catchThrowableOfType(
-                UnauthorizedException.class,
-                () -> postQueryService.getMyPostCalendarMonths(USER_ID));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+    private Post post(
+            UUID id,
+            LocalDate date,
+            ModerationStatus status,
+            String thumbnailKey
+    ) {
+        Instant startsAt = date.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+        Topic topic = Topic.create(
+                "캘린더 주제",
+                date,
+                new ParticipationPeriod(startsAt, startsAt.plusSeconds(86400)),
+                startsAt.minusSeconds(1)
+        );
+        Photo photo = Photo.createPhoto("posts/original/" + id);
+        photo.completeProcessing(thumbnailKey, null);
+        Post post = Post.createPost(
+                UserFixture.create(USER_ID),
+                topic,
+                photo,
+                id,
+                null,
+                null,
+                false,
+                null,
+                Instant.now()
+        );
+        post.requestModeration();
+        if (status == ModerationStatus.APPROVED) {
+            post.approve(startsAt);
+        }
+        ReflectionTestUtils.setField(
+                post,
+                "id",
+                id
+        );
+        return post;
     }
 }

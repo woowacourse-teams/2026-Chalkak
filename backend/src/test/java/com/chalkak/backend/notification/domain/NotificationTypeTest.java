@@ -49,6 +49,7 @@ class NotificationTypeTest {
         user.updatePushPreferences(
                 topicPushEnabled,
                 moderationPushEnabled,
+                true,
                 true
         );
 
@@ -75,7 +76,8 @@ class NotificationTypeTest {
         user.updatePushPreferences(
                 topicPushEnabled,
                 moderationPushEnabled,
-                aiReviewPushEnabled
+                aiReviewPushEnabled,
+                true
         );
 
         // When & Then
@@ -88,6 +90,7 @@ class NotificationTypeTest {
         // Given
         User user = UserFixture.create();
         user.updatePushPreferences(
+                false,
                 false,
                 false,
                 false

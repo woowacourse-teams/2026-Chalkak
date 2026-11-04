@@ -29,9 +29,9 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
                 photo.id,
                 photo.originalStorageKey,
                 photo.thumbnailStorageKey,
-                (SELECT COUNT(postLike)
-                 FROM PostLike postLike
-                 WHERE postLike.postId = post.id),
+                (SELECT counter.likeCount
+                 FROM PostLikeCounter counter
+                 WHERE counter.postId = post.id),
                 post.createdAt,
                 post.moderatedAt,
                 post.deletedAt
@@ -57,6 +57,7 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
             SELECT new com.chalkak.backend.admin.repository.post.AdminPostDetailProjection(
                 post.id,
                 post.title.value,
+                post.description.value,
                 post.moderationStatus,
                 post.createdAt,
                 post.updatedAt,
@@ -86,9 +87,9 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
                 upload.rejectionReason,
                 upload.createdAt,
                 upload.updatedAt,
-                (SELECT COUNT(postLike)
-                 FROM PostLike postLike
-                 WHERE postLike.postId = post.id)
+                (SELECT counter.likeCount
+                 FROM PostLikeCounter counter
+                 WHERE counter.postId = post.id)
             )
             FROM Post post
             JOIN post.topic topic

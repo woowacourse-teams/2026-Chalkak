@@ -103,6 +103,11 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
     }
 
     private void cleanUp() {
+        jdbcTemplate.update(
+                """
+                        DELETE FROM post_like_counts WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?)
+                        """,
+                USER_ID);
         jdbcTemplate.update("DELETE FROM posts WHERE user_id = ?", USER_ID);
         jdbcTemplate.update("DELETE FROM photos WHERE original_storage_key = ?",
                 ORIGINAL_STORAGE_KEY);
@@ -120,6 +125,9 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
+                    null,
+                    null,
+                    false,
                     null
             );
             return null;
@@ -145,6 +153,9 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
+                    null,
+                    null,
+                    false,
                     null
             );
             return null;
@@ -181,6 +192,9 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         Callable<Void> completeCallback = () -> {
@@ -217,6 +231,9 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                 USER_ID,
                 TOPIC_ID,
                 UPLOAD_ID,
+                null,
+                null,
+                false,
                 null
         );
         jdbcTemplate.update(
@@ -244,6 +261,9 @@ class PostImageUploadConcurrencyTest extends IntegrationTestSupport {
                     USER_ID,
                     TOPIC_ID,
                     UPLOAD_ID,
+                    null,
+                    null,
+                    false,
                     null
             );
             return null;

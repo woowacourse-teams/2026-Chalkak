@@ -1,12 +1,14 @@
 package com.chalkak.backend.notification.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.chalkak.backend.notification.domain.AiReviewOutcome;
 import com.chalkak.backend.notification.domain.Notification;
-import com.chalkak.backend.post.domain.ModerationStatus;
-import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.support.DatabaseCleaner;
+import com.chalkak.backend.support.PostgresRepositoryTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -20,10 +22,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.context.transaction.BeforeTransaction;
 
-@Transactional
-class NotificationRepositoryTest extends IntegrationTestSupport {
+@PostgresRepositoryTest
+class NotificationRepositoryTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
@@ -33,6 +36,39 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @BeforeTransaction
+    void cleanCommittedData() {
+        // 다른 실행이 커밋한 수신 동의 회원이 발송 대상에 섞이지 않도록 먼저 정리한다.
+        new DatabaseCleaner(jdbc).clean();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"POST,true", ",false"})
+    @DisplayName("답변 알림의 문의 대상이 없거나 다른 유형이면 DB가 거절한다")
+    void insert_feedbackAnswerWithInvalidSource_rejects(
+            String sourceType,
+            boolean withSourceId
+    ) {
+        // Given
+        UUID userId = insertUser();
+        UUID sourceId = withSourceId ? UUID.randomUUID() : null;
+
+        // When & Then
+        assertThatThrownBy(() -> jdbc.update(
+                """
+                        INSERT INTO notifications (user_id, source_type, source_id, event_key, type,
+                            title, body, created_at, sqs_publish_status)
+                        VALUES (?, ?, ?, ?, 'FEEDBACK_ANSWERED', '답변 알림', '문의 상세 확인',
+                            CURRENT_TIMESTAMP, 'NOT_REQUIRED')
+                        """,
+                userId,
+                sourceType,
+                sourceId,
+                UUID.randomUUID()
+        )).isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_notifications_feedback_answer_source");
+    }
 
     @ParameterizedTest
     @CsvSource({

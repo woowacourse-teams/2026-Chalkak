@@ -42,48 +42,21 @@ class AiPromptParametersTest {
     }
 
     @Test
-    @DisplayName("생성_imageDetail이 null이면_HIGH로 정한다")
-    void create_nullImageDetail_defaultsToHigh() {
+    @DisplayName("생략한 AI 옵션은 기본값으로 채우고 추론 노력은 비워 둔다")
+    void create_omittedOptions_appliesDefaults() {
         // When
         AiPromptParameters parameters = new AiPromptParameters(
                 null,
-                500,
+                null,
                 null,
                 null
         );
 
         // Then
         assertThat(parameters.imageDetail()).isEqualTo(ImageDetail.HIGH);
-    }
-
-    @Test
-    @DisplayName("생성_maxOutputTokens가 null이면_8000으로 정한다")
-    void create_nullMaxOutputTokens_defaultsToEightThousand() {
-        // When
-        AiPromptParameters parameters = new AiPromptParameters(
-                null,
-                null,
-                null,
-                null
-        );
-
-        // Then
         assertThat(parameters.maxOutputTokens()).isEqualTo(8000);
-    }
-
-    @Test
-    @DisplayName("생성_distinctivePerspectiveThreshold가 null이면_7.0으로 정한다")
-    void create_nullThreshold_defaultsToSeven() {
-        // When
-        AiPromptParameters parameters = new AiPromptParameters(
-                null,
-                500,
-                null,
-                null
-        );
-
-        // Then
         assertThat(parameters.distinctivePerspectiveThreshold()).isEqualTo(7.0);
+        assertThat(parameters.reasoningEffort()).isNull();
     }
 
     @ParameterizedTest
@@ -114,18 +87,4 @@ class AiPromptParametersTest {
                 .isInstanceOf(BusinessException.class);
     }
 
-    @Test
-    @DisplayName("생성_reasoningEffort가 null이면_허용한다")
-    void create_nullReasoningEffort_isAllowed() {
-        // When
-        AiPromptParameters parameters = new AiPromptParameters(
-                ImageDetail.HIGH,
-                500,
-                null,
-                null
-        );
-
-        // Then
-        assertThat(parameters.reasoningEffort()).isNull();
-    }
 }
