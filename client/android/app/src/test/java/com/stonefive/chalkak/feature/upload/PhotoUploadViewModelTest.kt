@@ -670,26 +670,21 @@ class PhotoUploadViewModelTest {
     }
 
     @Test
-    fun `사진을 고르면 글 쓰기 단계로 넘어가고 뒤로 갔다가 다시 편집하면 입력을 유지한 채 돌아온다`() {
-        assertFalse(viewModel.uiState.value.isWriting)
-
+    fun `사진을 고른 뒤 다시 편집해도 제목과 이야기를 유지한다`() {
         viewModel.selectPhoto("content://media/photo/1")
-        assertTrue(viewModel.uiState.value.isWriting)
-
         viewModel.onAction(PhotoUploadUiAction.CaptionChanged("한낮의 다리"))
-        viewModel.onAction(PhotoUploadUiAction.WritingBackClicked)
-        assertFalse(viewModel.uiState.value.isWriting)
-        assertEquals("content://media/photo/1", viewModel.uiState.value.selectedImage)
+        viewModel.onAction(PhotoUploadUiAction.DescriptionChanged("퇴근길에 만난 노을"))
 
-        // 편집을 바꾸지 않고 마쳐도 글 쓰기로 넘어간다.
         viewModel.onPhotoClick()
         viewModel.onEditConfirmed("content://media/photo/1", PhotoEdit())
-        assertTrue(viewModel.uiState.value.isWriting)
+
+        assertEquals("content://media/photo/1", viewModel.uiState.value.selectedImage)
         assertEquals("한낮의 다리", viewModel.uiState.value.caption)
+        assertEquals("퇴근길에 만난 노을", viewModel.uiState.value.description)
     }
 
     @Test
-    fun `저장 상태를 복원하면 마지막 단계를 유지한다`() {
+    fun `저장 상태를 복원하면 사진과 제목과 이야기를 유지한다`() {
         val handle = SavedStateHandle()
         val original = PhotoUploadViewModel(
             postCreationRepository,
@@ -698,7 +693,8 @@ class PhotoUploadViewModelTest {
             savedStateHandle = handle,
         )
         original.onImageSelected("content://original")
-        original.onAction(PhotoUploadUiAction.WritingBackClicked)
+        original.onAction(PhotoUploadUiAction.CaptionChanged("한낮의 다리"))
+        original.onAction(PhotoUploadUiAction.DescriptionChanged("퇴근길에 만난 노을"))
 
         val restored = PhotoUploadViewModel(
             postCreationRepository,
@@ -708,7 +704,8 @@ class PhotoUploadViewModelTest {
         )
 
         assertEquals("content://original", restored.uiState.value.selectedImage)
-        assertFalse(restored.uiState.value.isWriting)
+        assertEquals("한낮의 다리", restored.uiState.value.caption)
+        assertEquals("퇴근길에 만난 노을", restored.uiState.value.description)
     }
 
     @Test

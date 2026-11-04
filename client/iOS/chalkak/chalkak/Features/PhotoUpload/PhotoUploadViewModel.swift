@@ -84,8 +84,6 @@ final class PhotoUploadViewModel {
         switch action {
         case .backClicked:
             publish(.navigateBack)
-        case .writingBackClicked:
-            viewState.isWriting = false
         case .galleryClicked:
             publish(.openGallery)
         case .cameraClicked:
@@ -128,8 +126,6 @@ final class PhotoUploadViewModel {
         viewState.selectedImage = preview
         viewState.selectedImageData = data
         viewState.imagePreparationStatus = .preparing
-        // 사진을 고르면 바로 글 쓰기 단계로 넘어간다.
-        viewState.isWriting = true
         startImagePreparation(data: data, generation: generation)
     }
 
@@ -396,7 +392,6 @@ final class PhotoUploadViewModel {
 
 enum PhotoUploadAction: Equatable, Sendable {
     case backClicked
-    case writingBackClicked
     case galleryClicked
     case cameraClicked
     case selectedImageClicked

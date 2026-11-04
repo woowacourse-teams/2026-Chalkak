@@ -39,7 +39,6 @@ class PhotoUploadScreenTest {
             PhotoUploadUiState(
                 selectedImage = PREVIEW_PHOTO_URI,
                 caption = "작품 제목",
-                isWriting = true,
                 showsDiscardConfirmation = true,
             ),
         )
@@ -79,30 +78,27 @@ class PhotoUploadScreenTest {
     }
 
     @Test
-    fun backFromWritingReturnsToPhotoStep() {
+    fun backWithSelectedPhotoRequestsDiscardConfirmation() {
         val actions = mutableListOf<PhotoUploadUiAction>()
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI, isWriting = true),
+                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
                     onAction = actions::add,
                 )
             }
         }
 
-        composeRule.onNodeWithText("글 쓰기").assertIsDisplayed()
         pressBack()
         composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
 
         composeRule.runOnIdle {
-            assertTrue(
-                actions == listOf(PhotoUploadUiAction.WritingBackClicked, PhotoUploadUiAction.WritingBackClicked),
-            )
+            assertTrue(actions == listOf(PhotoUploadUiAction.BackClicked, PhotoUploadUiAction.BackClicked))
         }
     }
 
     @Test
-    fun photoStepHasNoBottomButton() {
+    fun submitIsDisabledUntilPhotoIsSelected() {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
@@ -112,8 +108,9 @@ class PhotoUploadScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertDoesNotExist()
-        composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertExists()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_DESCRIPTION_TAG).assertExists()
         assertTrue(
             composeRule
                 .onAllNodesWithText("오늘의 주제에 맞는 한 장")
@@ -190,7 +187,7 @@ class PhotoUploadScreenTest {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI, isWriting = true),
+                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
                     onAction = actions::add,
                 )
             }
@@ -208,7 +205,6 @@ class PhotoUploadScreenTest {
                 PhotoUploadScreen(
                     uiState = PhotoUploadUiState(
                         selectedImage = PREVIEW_PHOTO_URI,
-                        isWriting = true,
                         isSubmitting = true,
                     ),
                     onAction = {},
@@ -229,7 +225,6 @@ class PhotoUploadScreenTest {
                 PhotoUploadScreen(
                     uiState = PhotoUploadUiState(
                         selectedImage = PREVIEW_PHOTO_URI,
-                        isWriting = true,
                     ),
                     onAction = {},
                 )
@@ -246,7 +241,7 @@ class PhotoUploadScreenTest {
             ChalkakTheme {
                 Box(modifier = Modifier.size(width = 390.dp, height = 400.dp)) {
                     PhotoUploadScreen(
-                        uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI, isWriting = true),
+                        uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
                         onAction = {},
                     )
                 }
@@ -266,7 +261,7 @@ class PhotoUploadScreenTest {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI, isWriting = true),
+                    uiState = PhotoUploadUiState(),
                     onAction = {},
                 )
             }
@@ -277,7 +272,7 @@ class PhotoUploadScreenTest {
             .performClick()
             .assertIsFocused()
 
-        composeRule.onNodeWithText("글 쓰기").performTouchInput {
+        composeRule.onNodeWithText("앨범에서 고르거나 지금 찍어요").performTouchInput {
             click()
         }
 
