@@ -17,6 +17,7 @@ disable-model-invocation: true
 ## 순서
 
 1. **전제 확인**: 마지막 push 전 전체 검사가 통과한 뒤로 코드가 바뀌지 않았는지 본다. 바뀌었으면 전체 검사부터 다시 한다.
+   - 하네스 작업이면 전체 검사 대신 문서 검사(`evidence-harness.md`)와 측정(`metrics.md`)을 본다. 고친 스킬은 시험 전에 이미 커밋·push했으니, 그 뒤 바뀐 것만 커밋한다.
 2. **커밋**:
    - 코드 커밋: `feat: 작가 프로필 소개 표시 (#123)`. 코드 옆 함정 주석은 코드 커밋에 같이 넣는다.
    - 문서 커밋: ADR은 따로 `docs: 프로필 소개 말줄임 기준 기록 (#123)`.
@@ -30,14 +31,16 @@ disable-model-invocation: true
    - 출력된 마크다운을 `$EVID/pr.md`의 `## 📸 화면 확인` 칸에 넣는다.
    - 올리지 않은 파일은 워크트리를 지울 때 같이 사라진다. 남겨야 할 녹화 원본(`android-repro.mp4` 등)이 있으면 함께 올린다.
    - 원격에 `client/pr-assets`가 없다고 나오면(종료 코드 3) 만들어도 되는지 묻고, 승인받으면 `--create-branch`를 붙여 다시 실행한다.
-6. **드래프트 PR**:
+6. **드래프트 PR**: 기준 브랜치는 보통 `client/develop`이고, 하네스 시험 브랜치면 그 하네스 브랜치다.
    ```bash
-   gh pr create --draft --base client/develop --title "<type>: <내용>" --body-file "$EVID/pr.md" \
+   BASE=$(git config "branch.$(git branch --show-current).gh-merge-base" || echo client/develop)
+   gh pr create --draft --base "$BASE" --title "<type>: <내용>" --body-file "$EVID/pr.md" \
      --label "<종류>" --label "<플랫폼>" --assignee @me   # 두 플랫폼이면 --label Android --label iOS
    ```
    - PR 제목 끝에는 `(#이슈번호)`를 붙이지 않는다. 커밋 제목과 달리 레포의 PR 제목에는 번호가 없고, 이슈는 본문 `close #번호`로 이어진다.
      예: 커밋 `fix: 조정 눈금자 눈금이 튀는 문제 수정 (#934)` → PR `fix: 조정 눈금자 눈금이 튀는 문제 수정`
    - 드래프트를 풀지 않는다(`gh pr ready` 금지).
+   - 기준이 하네스 브랜치면 본문 🛠️ Technical Concerns에 `하네스 시험 PR이에요. #<하네스 이슈> PR이 머지되면 기준을 client/develop으로 바꿔요.`를 적는다.
 
 ## 리뷰에서 지적받았을 때
 

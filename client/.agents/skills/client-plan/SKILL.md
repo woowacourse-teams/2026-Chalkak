@@ -14,6 +14,8 @@ disable-model-invocation: true
 
 1. **이슈 읽기**: `gh issue view <번호> --comments`. `확인 필요`로 남은 칸을 본다.
 2. **바꿀 코드 찾기**: 플랫폼 `AGENTS.md`를 따르며 바꿀 파일 후보를 찾는다.
+   - 바꿀 파일이 공통 약속 경로 표의 하네스 경로뿐이면 하네스 작업이다. [계획 형식](references/plan-format.md)의 "하네스 작업의 계획"으로 쓴다.
+   - 하네스 경로와 Android·iOS·Web 경로가 섞이면 계획을 쓰지 않는다. `하네스와 <플랫폼> 코드는 이슈를 나눠 주세요`와 나눌 경계(파일 목록)를 알리고 멈춘다.
 3. **관련 ADR 고르기**: 바꿀 파일 후보를 스크립트에 넣는다. 모든 ADR을 읽지 않는다.
    ```bash
    python3 client/.agents/skills/client-plan/scripts/related-adr.py <바꿀 파일>...

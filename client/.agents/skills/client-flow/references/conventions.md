@@ -17,13 +17,14 @@ push, 캡처 업로드, 드래프트 PR은 묻지 않는다. 사람은 터미널
 - TDD 중 TC가 틀렸다고 판단했을 때(계획을 다시 승인받는다)
 - 같은 검사가 4번 연속 실패했을 때(아래 "멈춤 규칙")
 - 원격에 새 브랜치를 처음 만들 때(`client/pr-assets`)
+- 하네스 작업에서 시험 이슈를 새 세션으로 돌려야 할 때(`client-tdd`의 "하네스 작업일 때")
 
 멈춘 곳에서는 같은 대화에서 묻고, 답을 받으면 이어 간다. 커맨드를 다시 부르는 건 세션이 끊겼을 때만이다.
 
 ## 멈춤 규칙
 
 같은 검사가 고친 뒤에도 **4번 연속** 실패하면 더 고치지 않고 멈춘다.
-검사 하나는 Red 만들기, Green 만들기, push 전 전체 검사, 수정 후 화면 확인 중 하나다.
+검사 하나는 Red 만들기, Green 만들기, push 전 전체 검사, 수정 후 화면 확인, 하네스 문서 검사 중 하나다.
 통과하면 횟수를 0으로 되돌린다.
 
 멈출 때 알리는 것:
@@ -35,6 +36,7 @@ push, 캡처 업로드, 드래프트 PR은 묻지 않는다. 사람은 터미널
 ## 기준 브랜치와 플랫폼
 
 - 기준 브랜치는 `client/develop`이다(`develop` 아님). 브랜치는 `origin/client/develop`에서 만들고 PR도 여기로 연다.
+  - 예외: 하네스 시험 브랜치는 하네스 브랜치에서 따고 PR도 거기로 연다. 브랜치의 `gh-merge-base` 설정(`git config branch.<브랜치>.gh-merge-base`)에 기준 브랜치가 있다.
 - 작업 브랜치는 `client-issue`가 이슈에 연결된 브랜치로 만든다(`gh issue develop`). 이때 원격에 빈 브랜치가 생기는 것은 묻지 않는다. 코드 push는 `client-pr`에서 push 전 전체 검사를 통과한 뒤에만 한다.
 - 플랫폼은 바꿀 파일 경로로 정한다.
 
@@ -43,13 +45,18 @@ push, 캡처 업로드, 드래프트 PR은 묻지 않는다. 사람은 터미널
 | `client/android/` | Android | `Android` | `android` |
 | `client/iOS/` | iOS | `iOS` | `ios` |
 | `client/web/` | Web | `Web` | `web` |
+| `client/.agents/`, `client/.claude/skills/`, `client/.codex/` | 하네스 | `Android` `iOS` | 뺌(예: `client/chore/#952-harness-verify-step`) |
 
-- Android와 iOS를 함께 바꾸면 라벨을 둘 다 달고, 제목은 `클라이언트`로 시작하고, 브랜치 이름에서 플랫폼 자리를 뺀다(예: `client/refactor/#907-like-logic-update`). 검증은 `client-tdd`의 "두 플랫폼을 함께 바꿀 때"를 따른다.
+- Android와 iOS를 함께 바꾸면 라벨을 둘 다 달고, 제목은 `클라이언트`로 시작하고, 브랜치 이름에서 플랫폼 자리를 뺀다(예: `client/refactor/#907-like-logic-update`). 검증은 `client-tdd`대로 플랫폼별 서브에이전트가 동시에 한다.
 - Web은 이슈·계획·PR만 쓴다. TDD, Gradle·xcodebuild 검사, 기기 확인은 하지 않는다.
+- 하네스는 두 플랫폼 작업 모두에 쓰여서 라벨을 둘 다 단다(#898 선례). TDD 대신 문서 검사 → 실제 이슈로 시험 → v0 대비 측정을 한다(`client-tdd`의 "하네스 작업일 때"). 계획 칸도 다르다(`client-plan`의 계획 형식).
+  - 하네스와 Android·iOS·Web 코드를 한 이슈에서 같이 바꾸지 않는다. 섞이면 계획을 쓰지 말고 이슈를 나눠 달라고 알리고 멈춘다. 시험으로 하네스 효과를 재는데, 앱 코드가 섞이면 무엇의 효과인지 알 수 없기 때문이다.
 - 루트의 `.claude/`, `AGENTS.md`, `CLAUDE.md`는 백엔드 영역이라 고치지 않는다.
 - 서비스 정책은 `business-rules`를 읽기만 한다. 정책이 없거나 서버와 다르면 백엔드에 전달할 문구로 남긴다.
 
 ## 명령어
+
+하네스 문서 검사: `python3 client/.agents/skills/client-flow/scripts/check-harness.py` (레포 맨 위에서)
 
 | 하는 일 | Android (`client/android`에서) | iOS (`client/iOS/chalkak`에서) |
 |---|---|---|
@@ -87,11 +94,24 @@ mkdir -p "$EVID/media"
 | 파일 | 쓰는 커맨드 | 내용 |
 |---|---|---|
 | `plan.md` | `client-plan` | 승인된 계획(이슈 댓글과 같은 내용) |
-| `evidence.md` | `client-tdd` | 플랫폼마다 TC의 Red 메시지 한 줄과 Green 통과, 전체 검사 결과 |
+| `evidence-<플랫폼>.md` | `client-tdd`의 플랫폼 서브에이전트 | 그 플랫폼 TC의 Red 메시지 한 줄과 Green 통과, 전체 검사 결과. 플랫폼 서브에이전트가 동시에 쓰므로 파일을 나눈다 |
+| `evidence-harness.md` | `client-tdd`(하네스) | 문서 검사 명령과 종료 코드 |
+| `trial.md` | `client-tdd`(하네스) | 시험 이슈, 시험 브랜치, 하네스 브랜치·커밋, 확인할 TC 번호 |
+| `metrics.md` | `client-tdd`(하네스) | 측정 표, TC마다 시험에서 확인됨/안 됨과 근거 |
 | `media/` | 화면 확인 스킬 | `android-before-<n>.png`, `ios-after-<n>.png`, `android-compare-<n>.png`, `ios-repro.mp4` 등 |
 | `route-<플랫폼>.md` | `client-tdd` | 수정 전 화면 확인 결과의 `route`. 수정 후에 같은 길·조건으로 찍을 때 `hint`로 넘긴다 |
 
 플랫폼은 `android` 또는 `ios`, `n`은 계획의 테스트 밖 확인 항목 번호다. 사용자에게 보고할 때는 `file://` 절대 경로로 적는다.
+
+## 서브에이전트 모델
+
+| 누가 | Claude | Codex |
+|---|---|---|
+| 메인 대화 | 사람이 고른 모델 | 사람이 고른 모델 |
+| 플랫폼 TDD 서브에이전트 | 지정 안 함(메인과 같음) | 지정 안 함(메인과 같음) |
+| 화면 확인 서브에이전트 | `sonnet` (스킬 머리말 `model`) | `gpt-6.1-terra`, 추론 `medium` (`client/.codex/agents/chalkak-screen-check.toml`) |
+
+코드를 고치는 일은 고른 모델로 하고, 찍고 비교하는 화면 확인만 가벼운 모델로 돌린다. Codex가 레포의 에이전트 정의를 못 읽어 `agent_type`을 거부하면 지정 없이 띄우고, 그 사실을 PR의 Technical Concerns에 적는다.
 
 ## GitHub에 올리는 글
 
