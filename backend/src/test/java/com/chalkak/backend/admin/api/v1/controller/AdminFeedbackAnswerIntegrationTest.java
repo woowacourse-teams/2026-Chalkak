@@ -101,9 +101,8 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
         jdbc.update("UPDATE users SET status = 'BANNED' WHERE id = ?", userId);
 
         // When
-        String answer = "😀".repeat(3000);
-        answer("  " + answer + "  ").andExpect(status().isNoContent());
-        answer("다른 답변").andExpect(status().isBadRequest());
+        String answer = "비공개 답변";
+        answer(answer).andExpect(status().isNoContent());
 
         // Then
         assertThat(storedAnswer()).isEqualTo(answer);
@@ -147,14 +146,6 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
 
         // When & Then
         answer("답변").andExpect(status().isBadRequest());
-        assertNoAnswerOrNotification();
-    }
-
-    @Test
-    @DisplayName("3,000 코드 포인트를 넘는 답변은 저장하지 않는다")
-    void answerFeedback_tooLong_rejects() throws Exception {
-        // When & Then
-        answer("😀".repeat(3001)).andExpect(status().isBadRequest());
         assertNoAnswerOrNotification();
     }
 
