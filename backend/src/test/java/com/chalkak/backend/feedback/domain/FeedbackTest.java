@@ -7,17 +7,34 @@ import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class FeedbackTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
 
     private static final Instant CREATED_AT = Instant.parse("2026-11-03T06:00:00Z");
+
+    @ParameterizedTest(name = "{0}: {1}")
+    @MethodSource("feedbacksByCurrentAnswer")
+    @DisplayName("미답변·답변·답변 삭제·재답변에 따라 현재 답변 여부를 판정한다")
+    void hasCurrentAnswer_answerState_returnsCurrentAnswer(Feedback feedback, boolean expected) {
+        // Given: 미답변·답변·답변 삭제·재답변 상태는 MethodSource에서 준비한다.
+
+        // When
+        boolean actual = feedback.hasCurrentAnswer();
+
+        // Then
+        assertThat(actual).isEqualTo(expected);
+    }
 
     @Test
     @DisplayName("답변한 적 없는 문의에서는 답변을 삭제할 수 없다")
@@ -302,5 +319,32 @@ class FeedbackTest {
         );
 
         assertThat(feedback.getContent()).isEqualTo(content);
+    }
+
+    private static Stream<Arguments> feedbacksByCurrentAnswer() {
+        Feedback unanswered = createFeedback();
+        Feedback answered = createFeedback();
+        answered.answer("답변", CREATED_AT);
+        Feedback deletedAnswer = createFeedback();
+        deletedAnswer.answer("삭제할 답변", CREATED_AT);
+        deletedAnswer.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT);
+        Feedback reanswered = createFeedback();
+        reanswered.answer("이전 답변", CREATED_AT);
+        reanswered.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT);
+        reanswered.answer("재답변", CREATED_AT);
+        return Stream.of(
+                Arguments.of(Named.of("미답변", unanswered), false),
+                Arguments.of(Named.of("현재 답변 있음", answered), true),
+                Arguments.of(Named.of("답변 삭제", deletedAnswer), false),
+                Arguments.of(Named.of("재답변", reanswered), true)
+        );
+    }
+
+    private static Feedback createFeedback() {
+        return Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
     }
 }

@@ -29,14 +29,16 @@ public record FeedbackListResult(
     public record FeedbackSummary(
             UUID feedbackId,
             String content,
-            Instant createdAt
+            Instant createdAt,
+            boolean hasAnswer
     ) {
 
         private static FeedbackSummary from(Feedback feedback) {
             return new FeedbackSummary(
                     feedback.getId(),
                     feedback.getContent(),
-                    feedback.getCreatedAt()
+                    feedback.getCreatedAt(),
+                    feedback.hasCurrentAnswer()
             );
         }
     }
