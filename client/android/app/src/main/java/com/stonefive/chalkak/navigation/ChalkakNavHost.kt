@@ -52,7 +52,6 @@ import com.stonefive.chalkak.core.legal.LegalDocumentDialog
 import com.stonefive.chalkak.core.legal.LegalDocumentLauncher
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.core.ui.UiMessageEffect
-import com.stonefive.chalkak.domain.model.NotificationFailure
 import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostSort
@@ -66,6 +65,8 @@ import com.stonefive.chalkak.feature.authorposts.AuthorPostsRoute
 import com.stonefive.chalkak.feature.display.DisplayRoute
 import com.stonefive.chalkak.feature.feed.FeedContentState
 import com.stonefive.chalkak.feature.feed.FeedRoute
+import com.stonefive.chalkak.feature.feedback.FeedbackDetailRoute
+import com.stonefive.chalkak.feature.feedback.FeedbackListRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.home.HomeViewModel
@@ -224,11 +225,8 @@ fun ChalkakNavHost(
         if (push.type == TOPIC) {
             application.appContainer.pendingNotificationNavigation
                 .consume(push)
-            navController.openNotificationTarget(
-                type = push.type,
-                sourceType = push.sourceType,
-                sourceId = push.sourceId,
-                notificationId = push.notificationId,
+            navController.openPushNotificationTarget(
+                notificationTargetOf(push.type, push.sourceType, push.sourceId, push.notificationId),
             )
             return@LaunchedEffect
         }
@@ -245,31 +243,23 @@ fun ChalkakNavHost(
             is NotificationResult.Success -> {
                 application.appContainer.pendingNotificationNavigation
                     .consume(push)
-                navController.openNotificationTarget(
-                    type = push.type,
-                    sourceType = push.sourceType,
-                    sourceId = push.sourceId,
-                    notificationId = notificationId,
+                navController.openPushNotificationTarget(
+                    notificationTargetOf(push.type, push.sourceType, push.sourceId, notificationId),
                 )
             }
 
             is NotificationResult.Failure -> {
                 application.appContainer.pendingNotificationNavigation
                     .consume(push)
-                if (result.reason == NotificationFailure.Network) {
-                    showToast("읽음 상태를 저장하지 못했어요. 네트워크 연결을 확인해 주세요.")
-                    navController.openNotificationTarget(
-                        type = push.type,
-                        sourceType = push.sourceType,
-                        sourceId = push.sourceId,
-                        notificationId = notificationId,
-                    )
-                } else {
-                    showToast("알림이 만료되었거나 현재 계정에서 확인할 수 없어요.")
-                    if ((result.reason as? NotificationFailure.Http)?.statusCode == 404) {
-                        navController.navigate(Notifications) { launchSingleTop = true }
-                    }
-                }
+                val handling = pushReadFailureHandlingOf(
+                    type = push.type,
+                    sourceType = push.sourceType,
+                    sourceId = push.sourceId,
+                    notificationId = notificationId,
+                    failure = result.reason,
+                )
+                handling.message?.let(showToast)
+                handling.target?.let(navController::openPushNotificationTarget)
             }
         }
     }
@@ -811,7 +801,7 @@ fun ChalkakNavHost(
                     },
                     onOpenFeedback = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         if (sessionState is UserSessionState.Authenticated) {
-                            navController.navigate(Feedback)
+                            navController.navigate(FeedbackList) { launchSingleTop = true }
                         } else {
                             showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                         }
@@ -821,6 +811,31 @@ fun ChalkakNavHost(
                     },
                     onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                     onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                )
+            }
+
+            composable<FeedbackList> { backStackEntry ->
+                val refreshRequested by backStackEntry.savedStateHandle
+                    .getStateFlow(FEEDBACK_LIST_REFRESH_KEY, false)
+                    .collectAsStateWithLifecycle()
+
+                FeedbackListRoute(
+                    refreshRequested = refreshRequested,
+                    onRefreshConsumed = {
+                        backStackEntry.savedStateHandle[FEEDBACK_LIST_REFRESH_KEY] = false
+                    },
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
+                    onComposeClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.navigate(Feedback) { launchSingleTop = true }
+                    },
+                    onInquiryClick = { feedbackId ->
+                        if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                            navController.navigate(FeedbackDetail(feedbackId)) { launchSingleTop = true }
+                        }
+                    },
+                    onReauthenticationRequired = navigateToLogin,
                 )
             }
 
@@ -839,8 +854,24 @@ fun ChalkakNavHost(
                     },
                     onSubmitted = {
                         showToast(FEEDBACK_SUBMITTED_MESSAGE)
+                        navController.returnToFeedbackList<Feedback>()
+                    },
+                    onReauthenticationRequired = navigateToLogin,
+                )
+            }
+
+            composable<FeedbackDetail> { backStackEntry ->
+                val detail = backStackEntry.toRoute<FeedbackDetail>()
+                FeedbackDetailRoute(
+                    feedbackId = detail.feedbackId,
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.popBackStack()
                     },
+                    onNotFound = { message ->
+                        showToast(message)
+                        navController.returnToFeedbackList<FeedbackDetail>()
+                    },
+                    onDeleted = { navController.returnToFeedbackList<FeedbackDetail>() },
                     onReauthenticationRequired = navigateToLogin,
                 )
             }
@@ -952,67 +983,96 @@ internal fun NavHostController.openNotificationTarget(
     sourceId: String?,
     notificationId: String?,
 ) {
-    when {
-        type == TOPIC -> {
+    openNotificationTarget(notificationTargetOf(type, sourceType, sourceId, notificationId))
+}
+
+/**
+ * 푸시로 [target]을 연다. 쌓을 화면 순서는 [pushNotificationRouteOf]가 정한다.
+ * 예: 답변 푸시면 고객센터 목록 → 문의 상세(F)를 차례로 쌓는다.
+ */
+internal fun NavHostController.openPushNotificationTarget(target: NotificationTarget) {
+    pushNotificationRouteOf(target).forEach(::openNotificationTarget)
+}
+
+/** [NotificationTarget]을 실제 목적지로 옮긴다. 열 곳의 결정은 [notificationTargetOf]가 한다. */
+private fun NavHostController.openNotificationTarget(target: NotificationTarget) {
+    when (target) {
+        NotificationTarget.TodayHome -> {
             navigate(Home) {
                 popUpTo<Home>()
                 launchSingleTop = true
             }
         }
 
-        (type == POST_APPROVED || type == POST_LIKE_MILESTONE) &&
-            sourceType == POST_SOURCE_TYPE && sourceId != null && isNotificationPostId(sourceId) -> {
-            navigate(
-                FeedById(
-                    postId = sourceId,
-                    isOwnedByCurrentUser = true,
-                ),
-            ) { launchSingleTop = true }
-        }
-
-        (type == AI_REVIEW_COMPLETED || type == AI_REVIEW_FAILED) &&
-            sourceType == POST_SOURCE_TYPE && sourceId != null && isNotificationPostId(sourceId) -> {
+        is NotificationTarget.Post -> if (target.openAiReviewResult) {
             val samePostFeedId = currentBackStackEntry
-                ?.takeIf { it.feedPostId() == sourceId }
+                ?.takeIf { it.feedPostId() == target.postId }
                 ?.destination
                 ?.id
             navigate(
                 FeedById(
-                    postId = sourceId,
+                    postId = target.postId,
                     isOwnedByCurrentUser = true,
                     openAiReviewResult = true,
                 ),
             ) {
                 if (samePostFeedId != null) popUpTo(samePostFeedId) { inclusive = true }
             }
+        } else {
+            navigate(
+                FeedById(
+                    postId = target.postId,
+                    isOwnedByCurrentUser = true,
+                ),
+            ) { launchSingleTop = true }
         }
 
-        (type == POST_REJECTED || type == NOTICE) && !notificationId.isNullOrBlank() -> {
-            navigate(NotificationDetail(notificationId)) { launchSingleTop = true }
+        is NotificationTarget.NotificationDetail ->
+            navigate(NotificationDetail(target.notificationId)) { launchSingleTop = true }
+
+        is NotificationTarget.FeedbackInquiry ->
+            navigate(FeedbackDetail(target.feedbackId)) { launchSingleTop = true }
+
+        // 이미 고객센터 목록을 보고 있으면 하나 더 쌓지 않고, 상세에서 돌아왔을 때 답변 여부가 바뀌어 있게 새로고침을 걸어 둔다.
+        // 새로 쌓은 목록은 처음 그려질 때 첫 페이지부터 불러온다.
+        NotificationTarget.FeedbackList -> {
+            val shownList = currentBackStackEntry?.takeIf { it.destination.hasRoute<FeedbackList>() }
+            if (shownList != null) {
+                shownList.savedStateHandle[FEEDBACK_LIST_REFRESH_KEY] = true
+            } else {
+                navigate(FeedbackList) {
+                    popUpTo<FeedbackList> { inclusive = true }
+                }
+            }
         }
 
-        else -> navigate(Notifications) { launchSingleTop = true }
+        NotificationTarget.NotificationList -> navigate(Notifications) { launchSingleTop = true }
     }
 }
 
-// API 경로에 그대로 들어가는 값이라 UUID 형식만 받는다.
-internal fun isNotificationPostId(value: String): Boolean = NOTIFICATION_POST_ID_PATTERN.matches(value)
+/**
+ * 문의 작성·상세([T])를 닫고 고객센터 목록을 첫 페이지부터 다시 불러오게 한다.
+ * 백스택에 목록이 있으면 그 목록으로 돌아가고, 답변 푸시로 상세에 바로 들어와 목록이 없으면 [T]를 목록으로 바꾼다.
+ * 그래서 목록에서 뒤로 가면 푸시를 누르기 전 화면이다.
+ */
+private inline fun <reified T : Any> NavHostController.returnToFeedbackList() {
+    val listEntry = runCatching { getBackStackEntry<FeedbackList>() }.getOrNull()
+    if (listEntry != null) {
+        listEntry.savedStateHandle[FEEDBACK_LIST_REFRESH_KEY] = true
+        popBackStack<FeedbackList>(inclusive = false)
+    } else {
+        navigate(FeedbackList) {
+            popUpTo<T> { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+}
 
 private fun NavBackStackEntry.feedPostId(): String? = when {
     destination.hasRoute<Feed>() -> toRoute<Feed>().postId
     destination.hasRoute<FeedById>() -> toRoute<FeedById>().postId
     else -> null
 }
-
-private val NOTIFICATION_POST_ID_PATTERN = Regex("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
-private const val POST_APPROVED = "POST_APPROVED"
-private const val POST_LIKE_MILESTONE = "POST_LIKE_MILESTONE"
-private const val POST_REJECTED = "POST_REJECTED"
-private const val NOTICE = "NOTICE"
-private const val POST_SOURCE_TYPE = "POST"
-private const val TOPIC = "TOPIC"
-private const val AI_REVIEW_COMPLETED = "AI_REVIEW_COMPLETED"
-private const val AI_REVIEW_FAILED = "AI_REVIEW_FAILED"
 
 private fun NavHostController.navigateToBottomBar(
     item: ChalkakBottomBarItem,
@@ -1082,6 +1142,8 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
     hasRoute<NotificationSettings>() -> NotificationSettingsAnalyticsScreen
     hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
+    hasRoute<FeedbackList>() -> AnalyticsScreen(name = "customer_support", screenClass = "FeedbackList")
+    hasRoute<FeedbackDetail>() -> AnalyticsScreen(name = "feedback_detail", screenClass = "FeedbackDetail")
     hasRoute<PhotoUpload>() -> AnalyticsScreen(name = "photo_upload", screenClass = "PhotoUpload")
     hasRoute<PhotoUploadSuccess>() -> AnalyticsScreen(name = "photo_upload_success", screenClass = "PhotoUploadSuccess")
     else -> null
@@ -1124,6 +1186,7 @@ private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 private const val FEEDBACK_LOGIN_REQUIRED_MESSAGE = "피드백을 보내려면 로그인이 필요해요"
 private const val FEEDBACK_SUBMITTED_MESSAGE = "피드백을 보내주셔서 감사해요."
+private const val FEEDBACK_LIST_REFRESH_KEY = "feedback_list_refresh"
 private const val PUSH_PERMISSION_PROMPT_PREFS = "push_notification_permission_prompt"
 private const val PUSH_PERMISSION_REQUESTED_KEY = "requested"
 
