@@ -15,7 +15,7 @@ fun SettingsFeedbackCard(
 ) {
     SettingsCard(modifier = modifier) {
         SettingsRow(
-            text = "피드백 보내기",
+            text = "고객센터",
             onClick = onFeedbackClick,
             modifier = Modifier.fillMaxWidth(),
             trailingContent = { SettingsArrowIcon() },

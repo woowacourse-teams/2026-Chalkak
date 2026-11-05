@@ -3,9 +3,12 @@ package com.stonefive.chalkak.feature.feedback
 import androidx.lifecycle.SavedStateHandle
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.FeedbackInquiryDetail
+import com.stonefive.chalkak.domain.model.FeedbackInquiryPage
 import com.stonefive.chalkak.domain.model.FeedbackSubmissionException
 import com.stonefive.chalkak.domain.model.FeedbackSubmissionFailure
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -114,7 +117,7 @@ class FeedbackViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            "피드백을 보내지 못했어요. 다시 시도해 주세요.",
+            "보내지 못했을 수 있어요. 내 문의에서 확인한 뒤 다시 보내 주세요.",
             (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
@@ -160,6 +163,86 @@ class FeedbackViewModelTest {
         assertEquals("", handle.get<String>("feedback_content"))
     }
 
+    @Test
+    fun `제출 중 보내기를 다시 눌러도 제출은 한 번이다`() = runTest {
+        // Given  첫 제출이 아직 응답하지 않음
+        val submitGate = CompletableDeferred<Unit>()
+        feedbackRepository.submitGate = submitGate
+        val viewModel = createViewModel()
+        viewModel.updateContent("피드백")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        // When   보내기를 한 번 더 누른다
+        viewModel.submit()
+        advanceUntilIdle()
+
+        // Then   제출 요청 1회
+        submitGate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, feedbackRepository.submitCount)
+    }
+
+    @Test
+    fun `제출이 네트워크 오류면 다시 보내지 않고 목록 확인을 안내한다`() = runTest {
+        // Given  제출이 네트워크 오류(타임아웃 포함)
+        feedbackRepository.error = FeedbackSubmissionException(FeedbackSubmissionFailure.NETWORK)
+        val viewModel = createViewModel()
+        viewModel.updateContent("피드백")
+
+        // When   보낸다
+        viewModel.submit()
+        advanceUntilIdle()
+
+        // Then   제출 요청 1회, 토스트 "보내지 못했을 수 있어요. 내 문의에서 확인한 뒤 다시 보내 주세요."
+        assertEquals(1, feedbackRepository.submitCount)
+        assertEquals(
+            "보내지 못했을 수 있어요. 내 문의에서 확인한 뒤 다시 보내 주세요.",
+            (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
+        )
+    }
+
+    @Test
+    fun `제출이 400이면 서버 메시지를 그대로 안내한다`() = runTest {
+        // Given  400 / BUSINESS_ERROR, message=접수 제한 안내
+        val serverMessage = "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): 2026-11-03T06:01:00Z"
+        feedbackRepository.error = FeedbackSubmissionException(
+            reason = FeedbackSubmissionFailure.INVALID_CONTENT,
+            serverMessage = serverMessage,
+        )
+        val viewModel = createViewModel()
+        viewModel.updateContent("피드백")
+
+        // When   보낸다
+        viewModel.submit()
+        advanceUntilIdle()
+
+        // Then   토스트가 그 message 그대로 (message가 없으면 기존 문구: `잘못된 내용 실패면 Toast 메시지를 보낸다`)
+        assertEquals(serverMessage, (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun `글자 수는 code point로 세어 이모지 1,000자까지 보낼 수 있다`() = runTest {
+        // Given  "😀" 1,000개(UTF-16 2,000자) / 1,001개
+        val thousandEmoji = "😀".repeat(1_000)
+        val overLimitEmoji = "😀".repeat(1_001)
+        val viewModel = createViewModel()
+        val overLimitViewModel = createViewModel()
+
+        // When   보내기 가능 여부를 묻고 제출한다
+        viewModel.updateContent(thousandEmoji)
+        overLimitViewModel.updateContent(overLimitEmoji)
+        val canSubmitThousand = viewModel.uiState.value.canSubmit
+        val canSubmitOverLimit = overLimitViewModel.uiState.value.canSubmit
+        viewModel.submit()
+        advanceUntilIdle()
+
+        // Then   1,000개는 보내기 가능·제출 요청됨, 1,001개는 보내기 불가
+        assertTrue(canSubmitThousand)
+        assertEquals(thousandEmoji, feedbackRepository.submittedContent)
+        assertFalse(canSubmitOverLimit)
+    }
+
     private fun createViewModel() = FeedbackViewModel(
         feedbackRepository = feedbackRepository,
     )
@@ -168,9 +251,19 @@ class FeedbackViewModelTest {
 private class FakeFeedbackRepository : FeedbackRepository {
     var submittedContent: String? = null
     var error: Throwable? = null
+    var submitCount = 0
+    var submitGate: CompletableDeferred<Unit>? = null
 
     override suspend fun submitFeedback(content: String) {
+        submitCount++
         submittedContent = content
+        submitGate?.await()
         error?.let { throw it }
     }
+
+    override suspend fun getFeedbacks(page: Int): FeedbackInquiryPage = error("사용하지 않음")
+
+    override suspend fun getFeedbackDetail(feedbackId: String): FeedbackInquiryDetail = error("사용하지 않음")
+
+    override suspend fun deleteFeedback(feedbackId: String) = Unit
 }

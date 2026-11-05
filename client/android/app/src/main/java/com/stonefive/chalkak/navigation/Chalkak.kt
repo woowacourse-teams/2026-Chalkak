@@ -94,8 +94,17 @@ data object Record
 @Serializable
 data object Settings
 
+/** 문의 작성 화면. */
 @Serializable
 data object Feedback
+
+/** 고객센터(내 문의 목록). */
+@Serializable
+data object FeedbackList
+
+/** 문의 상세. 목록이나 답변 알림(알림함·푸시)에서 연다. */
+@Serializable
+data class FeedbackDetail(val feedbackId: String)
 
 @Serializable
 data class PhotoUpload(val topicDate: String)
