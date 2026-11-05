@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 설정 → 고객센터. 위에 "문의하기" 버튼, 아래에 내가 보낸 문의 목록(내용 2줄 + 접수 시각)을 보여준다.
+/// 설정 → 고객센터. 내가 보낸 문의 목록과 하단 고정 "문의하기" 버튼(내용 2줄 + 접수 시각)을 보여준다.
 struct FeedbackListScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Bindable var viewModel: FeedbackListViewModel
@@ -14,16 +14,18 @@ struct FeedbackListScreen: View {
         VStack(spacing: 0) {
             FeedbackTopBar(title: "고객센터", onBackClick: onBackClick)
 
-            ChalkakButton(title: "문의하기", action: onCompose, fillsWidth: true)
-                .padding(.horizontal, theme.spacing.screenHorizontal)
-                .padding(.top, theme.spacing.sm)
-                .padding(.bottom, theme.spacing.lg)
-                .accessibilityIdentifier("feedbackList.compose")
-
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.colors.background)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            ChalkakButton(title: "문의하기", action: onCompose, fillsWidth: true)
+                .padding(.horizontal, theme.spacing.screenHorizontal)
+                .padding(.top, theme.spacing.sm)
+                .padding(.bottom, theme.spacing.lg)
+                .background(theme.colors.background)
+                .accessibilityIdentifier("feedbackList.compose")
+        }
         .task {
             await viewModel.refresh()
         }
@@ -126,11 +128,6 @@ private struct FeedbackListEmptyView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: theme.spacing.sm) {
-                Image(systemName: "bubble.left.and.text.bubble.right")
-                    .font(.system(size: Metrics.emptyIconSize))
-                    .foregroundStyle(theme.colors.iconSecondary)
-                    .accessibilityHidden(true)
-
                 Text("아직 보낸 문의가 없어요")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.textSecondary)
@@ -198,7 +195,6 @@ private struct FeedbackListPaginationView: View {
 
 private enum Metrics {
     static let dividerHeight: CGFloat = 1
-    static let emptyIconSize: CGFloat = 34
     static let emptyTopPadding: CGFloat = 120
     static let minimumTouchHeight: CGFloat = 44
     static let minimumRowHeight: CGFloat = 44
