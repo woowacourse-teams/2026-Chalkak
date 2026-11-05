@@ -117,7 +117,7 @@ struct ContentView: View {
                                 FeedScreen(
                                     viewModel: makeFeedViewModel(FeedTarget(
                                         postID: postID,
-                                        isOwnedByCurrentUser: destination != .approved(postID)
+                                        isOwnedByCurrentUser: true
                                     )),
                                     usesPhotoTransition: false,
                                     opensAIReviewOnEntry: destination == .aiReview(postID),
