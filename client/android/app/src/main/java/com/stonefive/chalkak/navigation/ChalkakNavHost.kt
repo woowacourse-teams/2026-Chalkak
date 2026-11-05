@@ -76,6 +76,7 @@ import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.record.RecordViewModel
 import com.stonefive.chalkak.feature.record.component.RecordPhotoStackStyle
+import com.stonefive.chalkak.feature.settings.NotificationSettingsRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
@@ -815,8 +816,19 @@ fun ChalkakNavHost(
                             showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                         }
                     },
+                    onOpenNotificationSettings = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.navigate(NotificationSettings) { launchSingleTop = true }
+                    },
                     onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                     onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                )
+            }
+
+            composable<NotificationSettings> { backStackEntry ->
+                NotificationSettingsRoute(
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                 )
             }
 
@@ -948,7 +960,8 @@ internal fun NavHostController.openNotificationTarget(
             }
         }
 
-        type == POST_APPROVED && sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
+        (type == POST_APPROVED || type == POST_LIKE_MILESTONE) &&
+            sourceType == POST_SOURCE_TYPE && sourceId != null && isNotificationPostId(sourceId) -> {
             navigate(
                 FeedById(
                     postId = sourceId,
@@ -958,7 +971,7 @@ internal fun NavHostController.openNotificationTarget(
         }
 
         (type == AI_REVIEW_COMPLETED || type == AI_REVIEW_FAILED) &&
-            sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
+            sourceType == POST_SOURCE_TYPE && sourceId != null && isNotificationPostId(sourceId) -> {
             val samePostFeedId = currentBackStackEntry
                 ?.takeIf { it.feedPostId() == sourceId }
                 ?.destination
@@ -982,13 +995,18 @@ internal fun NavHostController.openNotificationTarget(
     }
 }
 
+// API 경로에 그대로 들어가는 값이라 UUID 형식만 받는다.
+internal fun isNotificationPostId(value: String): Boolean = NOTIFICATION_POST_ID_PATTERN.matches(value)
+
 private fun NavBackStackEntry.feedPostId(): String? = when {
     destination.hasRoute<Feed>() -> toRoute<Feed>().postId
     destination.hasRoute<FeedById>() -> toRoute<FeedById>().postId
     else -> null
 }
 
+private val NOTIFICATION_POST_ID_PATTERN = Regex("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 private const val POST_APPROVED = "POST_APPROVED"
+private const val POST_LIKE_MILESTONE = "POST_LIKE_MILESTONE"
 private const val POST_REJECTED = "POST_REJECTED"
 private const val NOTICE = "NOTICE"
 private const val POST_SOURCE_TYPE = "POST"
@@ -1062,6 +1080,7 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
+    hasRoute<NotificationSettings>() -> NotificationSettingsAnalyticsScreen
     hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
     hasRoute<PhotoUpload>() -> AnalyticsScreen(name = "photo_upload", screenClass = "PhotoUpload")
     hasRoute<PhotoUploadSuccess>() -> AnalyticsScreen(name = "photo_upload_success", screenClass = "PhotoUploadSuccess")
@@ -1089,6 +1108,11 @@ private val OnboardingSignaturePreviewAnalyticsScreen = AnalyticsScreen(
 private val ChangeSignaturePreviewAnalyticsScreen = AnalyticsScreen(
     name = "change_signature_preview",
     screenClass = "ChangeSignaturePreview",
+)
+
+private val NotificationSettingsAnalyticsScreen = AnalyticsScreen(
+    name = "notification_settings",
+    screenClass = "NotificationSettings",
 )
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"

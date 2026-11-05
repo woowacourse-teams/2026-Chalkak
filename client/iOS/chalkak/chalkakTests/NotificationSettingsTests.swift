@@ -44,15 +44,118 @@ struct NotificationTogglePermissionActionTests {
 }
 
 @MainActor
+struct LikePushMigrationTests {
+    private func settings(
+        _ topic: Bool, _ moderation: Bool, _ aiReview: Bool, like: Bool
+    ) -> NotificationSettings {
+        .init(
+            topicPushEnabled: topic, moderationPushEnabled: moderation,
+            aiReviewPushEnabled: aiReview, likePushEnabled: like
+        )
+    }
+
+    private func withDefaults(_ body: (UserDefaults) async throws -> Void) async throws {
+        let name = "LikePushMigrationTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        try await body(defaults)
+    }
+
+    @Test("기존 알림이 모두 꺼져 있으면 좋아요 알림을 끈다")
+    func turnsLikeOffWhenAllOff() async throws {
+        try await withDefaults { defaults in
+            var saved: [Bool] = []
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(false, false, false, like: true) },
+                save: { saved.append($0) }
+            )
+            #expect(saved == [false])
+        }
+    }
+
+    @Test("기존 알림이 하나라도 켜져 있으면 좋아요 알림을 켠다",
+          arguments: [(true, false, false), (false, true, false), (false, false, true)])
+    func turnsLikeOnWhenAnyOn(values: (Bool, Bool, Bool)) async throws {
+        try await withDefaults { defaults in
+            var saved: [Bool] = []
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(values.0, values.1, values.2, like: false) },
+                save: { saved.append($0) }
+            )
+            #expect(saved == [true])
+        }
+    }
+
+    @Test("이미 맞는 값이면 저장하지 않고 다시 실행하지 않는다")
+    func skipsSaveWhenAlreadyMatched() async throws {
+        try await withDefaults { defaults in
+            var loads = 0
+            var saves = 0
+            for _ in 0..<2 {
+                await LikePushMigration.run(
+                    userID: "user", defaults: defaults,
+                    load: { loads += 1; return settings(true, false, false, like: true) },
+                    save: { _ in saves += 1 }
+                )
+            }
+            #expect(loads == 1)
+            #expect(saves == 0)
+        }
+    }
+
+    @Test("다른 회원은 따로 실행한다")
+    func runsPerUser() async throws {
+        try await withDefaults { defaults in
+            var loads = 0
+            for userID in ["first", "second", "first"] {
+                await LikePushMigration.run(
+                    userID: userID, defaults: defaults,
+                    load: { loads += 1; return settings(true, true, true, like: true) },
+                    save: { _ in }
+                )
+            }
+            #expect(loads == 2)
+        }
+    }
+
+    @Test("조회나 저장이 실패하면 다음에 다시 시도한다")
+    func retriesAfterFailure() async throws {
+        try await withDefaults { defaults in
+            var attempts = 0
+            var saved: [Bool] = []
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { throw SettingsAPIError.network },
+                save: { saved.append($0) }
+            )
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(false, false, false, like: true) },
+                save: { _ in attempts += 1; throw SettingsAPIError.network }
+            )
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(false, false, false, like: true) },
+                save: { saved.append($0) }
+            )
+            #expect(attempts == 1)
+            #expect(saved == [false])
+        }
+    }
+}
+
+@MainActor
 struct NotificationSettingsViewModelTests {
-    @Test("최초 안내의 허용·거부는 세 설정을 한 요청으로 저장한다")
+    @Test("최초 안내의 허용·거부는 네 설정을 한 요청으로 저장한다")
     func savesInitialChoiceForAllCategories() async {
         for enabled in [true, false] {
-            var saved: (Bool?, Bool?, Bool?)?
+            var saved: (Bool?, Bool?, Bool?, Bool?)?
             var saves = 0
             let model = NotificationSettingsViewModel(
-                saveSettings: { topic, moderation, aiReview in
-                    saved = (topic, moderation, aiReview)
+                saveSettings: { topic, moderation, aiReview, like in
+                    saved = (topic, moderation, aiReview, like)
                     saves += 1
                 }
             )
@@ -62,8 +165,9 @@ struct NotificationSettingsViewModelTests {
             #expect(saved?.0 == enabled)
             #expect(saved?.1 == enabled)
             #expect(saved?.2 == enabled)
+            #expect(saved?.3 == enabled)
             #expect(model.viewState.settings == .init(
-                topicPushEnabled: enabled, moderationPushEnabled: enabled, aiReviewPushEnabled: enabled
+                topicPushEnabled: enabled, moderationPushEnabled: enabled, aiReviewPushEnabled: enabled, likePushEnabled: enabled
             ))
         }
     }
@@ -71,7 +175,7 @@ struct NotificationSettingsViewModelTests {
     @Test("최초 안내 선택 저장 실패는 성공으로 처리하지 않는다")
     func initialChoiceReportsSaveFailure() async {
         let model = NotificationSettingsViewModel(
-            saveSettings: { _, _, _ in throw SettingsAPIError.network }
+            saveSettings: { _, _, _, _ in throw SettingsAPIError.network }
         )
         let succeeded = await model.setAllPushEnabled(false)
         #expect(!succeeded)
@@ -81,48 +185,114 @@ struct NotificationSettingsViewModelTests {
 
     @Test("오늘 주제 알림 변경은 주제 설정만 부분 수정한다")
     func updatesTopicPreferenceOnly() async {
-        var saved: (Bool?, Bool?, Bool?)?
+        var saved: (Bool?, Bool?, Bool?, Bool?)?
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { topic, moderation, aiReview in saved = (topic, moderation, aiReview) }
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { topic, moderation, aiReview, like in saved = (topic, moderation, aiReview, like) }
         )
         await model.setTopicPushEnabled(false)
         #expect(saved?.0 == false)
         #expect(saved?.1 == nil)
         #expect(saved?.2 == nil)
-        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true))
+        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true))
     }
 
     @Test("승인·반려 알림 변경은 검수 설정만 부분 수정한다")
     func updatesModerationPreferenceOnly() async {
-        var saved: (Bool?, Bool?, Bool?)?
+        var saved: (Bool?, Bool?, Bool?, Bool?)?
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { topic, moderation, aiReview in saved = (topic, moderation, aiReview) }
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { topic, moderation, aiReview, like in saved = (topic, moderation, aiReview, like) }
         )
         await model.setModerationPushEnabled(false)
         #expect(saved?.0 == nil)
         #expect(saved?.1 == false)
         #expect(saved?.2 == nil)
-        #expect(model.viewState.settings == .init(topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: true))
+        #expect(model.viewState.settings == .init(topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true))
     }
 
     @Test("AI 피드백 알림 변경은 AI 설정만 부분 수정한다")
     func updatesAIReviewPreferenceOnly() async {
-        var saved: (Bool?, Bool?, Bool?)?
+        var saved: (Bool?, Bool?, Bool?, Bool?)?
         let model = NotificationSettingsViewModel(
             initialState: .init(settings: .init(
-                topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: true
+                topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true
             )),
-            saveSettings: { topic, moderation, aiReview in saved = (topic, moderation, aiReview) }
+            saveSettings: { topic, moderation, aiReview, like in saved = (topic, moderation, aiReview, like) }
         )
         await model.setAIReviewPushEnabled(false)
         #expect(saved?.0 == nil)
         #expect(saved?.1 == nil)
         #expect(saved?.2 == false)
         #expect(model.viewState.settings == .init(
-            topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: false
+            topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: false, likePushEnabled: true
         ))
+    }
+
+    @Test("좋아요 알림 변경은 좋아요 설정만 부분 수정한다")
+    func updatesLikePreferenceOnly() async {
+        var saved: (Bool?, Bool?, Bool?, Bool?)?
+        let model = NotificationSettingsViewModel(
+            initialState: .init(settings: .init(
+                topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true
+            )),
+            saveSettings: { topic, moderation, aiReview, like in saved = (topic, moderation, aiReview, like) }
+        )
+        await model.setLikePushEnabled(false)
+        #expect(saved?.0 == nil)
+        #expect(saved?.1 == nil)
+        #expect(saved?.2 == nil)
+        #expect(saved?.3 == false)
+        #expect(model.viewState.settings == .init(
+            topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: false
+        ))
+    }
+
+    @Test("좋아요 저장 실패는 좋아요 설정만 되돌리고 중복 저장을 막는다")
+    func rollsBackOnlyLikePreference() async {
+        let gate = AsyncGate()
+        var likeSaves = 0
+        let model = NotificationSettingsViewModel(
+            initialState: .init(settings: .init(
+                topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true
+            )),
+            saveSettings: { _, _, _, like in
+                if like != nil {
+                    likeSaves += 1
+                    await gate.wait()
+                    throw SettingsAPIError.network
+                }
+            }
+        )
+        let task = Task { await model.setLikePushEnabled(false) }
+        while !model.viewState.isSavingLike { await Task.yield() }
+        #expect(model.viewState.settings?.likePushEnabled == false)
+        #expect(model.viewState.isLikeDisabled)
+        #expect(!model.viewState.isTopicDisabled)
+        await model.setLikePushEnabled(true)
+        await model.setTopicPushEnabled(true)
+        await gate.open()
+        await task.value
+        #expect(likeSaves == 1)
+        #expect(model.viewState.settings == .init(
+            topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true
+        ))
+        #expect(!model.viewState.isSaving)
+        #expect(model.saveErrorMessage != nil)
+    }
+
+    @Test("첫 조회 결과가 나오기 전에만 대기 상태이고 실패하면 대기를 끝낸다")
+    func awaitsFirstLoadUntilResultArrives() async {
+        let model = NotificationSettingsViewModel(loadSettings: { throw SettingsAPIError.network })
+        #expect(model.viewState.isAwaitingFirstLoad)
+        await model.load()
+        #expect(!model.viewState.isAwaitingFirstLoad)
+        let loaded = NotificationSettingsViewModel(
+            initialState: .init(settings: .init(
+                topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true
+            ))
+        )
+        #expect(!loaded.viewState.isAwaitingFirstLoad)
     }
 
     @Test("AI 저장 실패는 성공한 다른 설정을 유지하고 중복 저장을 막는다")
@@ -131,9 +301,9 @@ struct NotificationSettingsViewModelTests {
         var aiSaves = 0
         let model = NotificationSettingsViewModel(
             initialState: .init(settings: .init(
-                topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true
+                topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true
             )),
-            saveSettings: { _, _, aiReview in
+            saveSettings: { _, _, aiReview, _ in
                 if aiReview != nil {
                     aiSaves += 1
                     await gate.wait()
@@ -154,7 +324,7 @@ struct NotificationSettingsViewModelTests {
         await task.value
         #expect(aiSaves == 1)
         #expect(model.viewState.settings == .init(
-            topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true
+            topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true
         ))
         #expect(!model.viewState.isSaving)
         #expect(model.saveErrorMessage != nil)
@@ -165,8 +335,8 @@ struct NotificationSettingsViewModelTests {
         let gate = AsyncGate()
         var saves = 0
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in saves += 1; await gate.wait() }
+            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in saves += 1; await gate.wait() }
         )
         let task = Task { await model.setTopicPushEnabled(true) }
         while !model.viewState.isSaving { await Task.yield() }
@@ -182,8 +352,8 @@ struct NotificationSettingsViewModelTests {
         let gate = AsyncGate()
         var saveCount = 0
         let viewModel = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in
                 saveCount += 1
                 await gate.wait()
             }
@@ -200,8 +370,8 @@ struct NotificationSettingsViewModelTests {
     func keepsOtherToggleEnabledDuringTopicSave() async {
         let gate = AsyncGate()
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { topic, _, _ in
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { topic, _, _, _ in
                 if topic != nil { await gate.wait() }
             }
         )
@@ -212,7 +382,7 @@ struct NotificationSettingsViewModelTests {
         await model.setModerationPushEnabled(false)
         await gate.open()
         await first.value
-        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true))
+        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true))
         #expect(!model.viewState.isSaving)
     }
 
@@ -220,8 +390,8 @@ struct NotificationSettingsViewModelTests {
     func keepsTopicToggleEnabledDuringModerationSave() async {
         let gate = AsyncGate()
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in await gate.wait() }
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in await gate.wait() }
         )
         let first = Task { await model.setModerationPushEnabled(false) }
         while !model.viewState.isSavingModeration { await Task.yield() }
@@ -235,11 +405,11 @@ struct NotificationSettingsViewModelTests {
     @Test("저장 실패 시 기존 토글로 복구하고 토스트용 오류를 전달한다")
     func keepsStateAfterSaveFailure() async {
         let viewModel = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in throw SettingsAPIError.network }
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in throw SettingsAPIError.network }
         )
         await viewModel.setTopicPushEnabled(false)
-        #expect(viewModel.viewState.settings == .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true))
+        #expect(viewModel.viewState.settings == .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true))
         #expect(viewModel.viewState.errorMessage == nil)
         #expect(viewModel.saveErrorMessage != nil)
         viewModel.consumeSaveError()
@@ -251,8 +421,8 @@ struct NotificationSettingsViewModelTests {
     func updatesTopicOptimistically() async {
         let gate = AsyncGate()
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in await gate.wait() }
+            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in await gate.wait() }
         )
         let task = Task { await model.setTopicPushEnabled(true) }
         while !model.viewState.isSavingTopic { await Task.yield() }
@@ -266,8 +436,8 @@ struct NotificationSettingsViewModelTests {
     func rollsBackOnlyFailedModerationPreference() async {
         let gate = AsyncGate()
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true)),
-            saveSettings: { _, moderation, _ in
+            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, moderation, _, _ in
                 if moderation != nil { await gate.wait(); throw SettingsAPIError.network }
             }
         )
@@ -278,15 +448,15 @@ struct NotificationSettingsViewModelTests {
         await model.setAIReviewPushEnabled(false)
         await gate.open()
         await task.value
-        #expect(model.viewState.settings == .init(topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: false))
+        #expect(model.viewState.settings == .init(topicPushEnabled: true, moderationPushEnabled: false, aiReviewPushEnabled: false, likePushEnabled: true))
     }
 
     @Test("주제 저장 실패도 검수 토글의 성공한 변경을 유지한다")
     func rollsBackOnlyFailedTopicPreference() async {
         let gate = AsyncGate()
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true)),
-            saveSettings: { topic, _, _ in
+            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { topic, _, _, _ in
                 if topic != nil { await gate.wait(); throw SettingsAPIError.network }
             }
         )
@@ -295,22 +465,22 @@ struct NotificationSettingsViewModelTests {
         await model.setModerationPushEnabled(true)
         await gate.open()
         await task.value
-        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true))
+        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true))
     }
 
     @Test("저장 취소는 토글을 복구하되 오류 토스트를 표시하지 않는다")
     func restoresCancelledSaveWithoutToast() async {
         let gate = AsyncGate()
         let model = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in await gate.wait() }
+            initialState: .init(settings: .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in await gate.wait() }
         )
         let task = Task { await model.setTopicPushEnabled(true) }
         while !model.viewState.isSavingTopic { await Task.yield() }
         task.cancel()
         await gate.open()
         await task.value
-        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true))
+        #expect(model.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true))
         #expect(model.saveErrorMessage == nil)
         #expect(!model.viewState.isSaving)
     }
@@ -320,7 +490,7 @@ struct NotificationSettingsViewModelTests {
         let gate = AsyncGate()
         let viewModel = NotificationSettingsViewModel(loadSettings: {
             await gate.wait()
-            return .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)
+            return .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)
         })
         let task = Task { await viewModel.load() }
         while !viewModel.viewState.isLoading { await Task.yield() }
@@ -334,8 +504,8 @@ struct NotificationSettingsViewModelTests {
     func ignoresLateSaveAfterReset() async {
         let gate = AsyncGate()
         let viewModel = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
-            saveSettings: { _, _, _ in await gate.wait() }
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
+            saveSettings: { _, _, _, _ in await gate.wait() }
         )
         let task = Task { await viewModel.setTopicPushEnabled(false) }
         while !viewModel.viewState.isSaving { await Task.yield() }
@@ -349,9 +519,9 @@ struct NotificationSettingsViewModelTests {
     func disablesStaleSettingsAfterReloadFailure() async {
         var saved = false
         let viewModel = NotificationSettingsViewModel(
-            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true)),
+            initialState: .init(settings: .init(topicPushEnabled: true, moderationPushEnabled: true, aiReviewPushEnabled: true, likePushEnabled: true)),
             loadSettings: { throw SettingsAPIError.network },
-            saveSettings: { _, _, _ in saved = true }
+            saveSettings: { _, _, _, _ in saved = true }
         )
         await viewModel.load()
         await viewModel.setTopicPushEnabled(false)
@@ -365,13 +535,13 @@ struct NotificationSettingsViewModelTests {
         let viewModel = NotificationSettingsViewModel(loadSettings: {
             attempts += 1
             if attempts == 1 { throw SettingsAPIError.network }
-            return .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true)
+            return .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true)
         })
         await viewModel.load()
         #expect(viewModel.viewState.settings == nil)
         #expect(viewModel.viewState.errorMessage != nil)
         await viewModel.retry()
-        #expect(viewModel.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true))
+        #expect(viewModel.viewState.settings == .init(topicPushEnabled: false, moderationPushEnabled: false, aiReviewPushEnabled: true, likePushEnabled: true))
     }
 }
 
@@ -382,12 +552,13 @@ struct NotificationSettingsAPIClientTests {
         let recorder = NotificationSettingsRequestRecorder()
         let client = makeClient { request in
             await recorder.append(request)
-            return response(request, body: #"{"topicPushEnabled":true,"moderationPushEnabled":false,"aiReviewPushEnabled":true}"#)
+            return response(request, body: #"{"topicPushEnabled":true,"moderationPushEnabled":false,"aiReviewPushEnabled":true,"likePushEnabled":false}"#)
         }
         let result = try await client.fetch()
         #expect(result.topicPushEnabled)
         #expect(!result.moderationPushEnabled)
         #expect(result.aiReviewPushEnabled)
+        #expect(!result.likePushEnabled)
         let request = try #require(await recorder.requests.first)
         #expect(request.httpMethod == "GET")
         #expect(request.url?.path == "/api/v1/notification-settings")
@@ -435,10 +606,24 @@ struct NotificationSettingsAPIClientTests {
         #expect(json == ["aiReviewPushEnabled": false])
     }
 
+    @Test("좋아요 알림 PATCH는 좋아요 설정만 보낸다")
+    func updatesLikeFlagOnly() async throws {
+        let recorder = NotificationSettingsRequestRecorder()
+        let client = makeClient { request in
+            await recorder.append(request)
+            return response(request, statusCode: 204, body: "")
+        }
+        try await client.update(likePushEnabled: false)
+        let request = try #require(await recorder.requests.first)
+        #expect(request.httpMethod == "PATCH")
+        let json = try #require(JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Bool])
+        #expect(json == ["likePushEnabled": false])
+    }
+
     @Test("GET에서 꺼진 AI 설정을 그대로 불러온다")
     func fetchesDisabledAIReviewPreference() async throws {
         let client = makeClient { request in
-            response(request, body: #"{"topicPushEnabled":true,"moderationPushEnabled":true,"aiReviewPushEnabled":false}"#)
+            response(request, body: #"{"topicPushEnabled":true,"moderationPushEnabled":true,"aiReviewPushEnabled":false,"likePushEnabled":true}"#)
         }
         let settings = try await client.fetch()
         #expect(!settings.aiReviewPushEnabled)
@@ -460,7 +645,7 @@ struct NotificationSettingsAPIClientTests {
 
     @Test("GET에서 필드가 없거나 null이면 invalidResponse다")
     func rejectsIncompleteGetResponse() async {
-        for body in [#"{"topicPushEnabled":true}"#, #"{"topicPushEnabled":null,"moderationPushEnabled":true,"aiReviewPushEnabled":true}"#, #"{"topicPushEnabled":true,"moderationPushEnabled":true}"#, #"{"topicPushEnabled":true,"moderationPushEnabled":true,"aiReviewPushEnabled":null}"#] {
+        for body in [#"{"topicPushEnabled":true}"#, #"{"topicPushEnabled":null,"moderationPushEnabled":true,"aiReviewPushEnabled":true,"likePushEnabled":true}"#, #"{"topicPushEnabled":true,"moderationPushEnabled":true,"likePushEnabled":true}"#, #"{"topicPushEnabled":true,"moderationPushEnabled":true,"aiReviewPushEnabled":null,"likePushEnabled":true}"#, #"{"topicPushEnabled":true,"moderationPushEnabled":true,"aiReviewPushEnabled":true}"#, #"{"topicPushEnabled":true,"moderationPushEnabled":true,"aiReviewPushEnabled":true,"likePushEnabled":null}"#] {
             let client = makeClient { request in response(request, body: body) }
             await #expect(throws: SettingsAPIError.invalidResponse) { try await client.fetch() }
         }

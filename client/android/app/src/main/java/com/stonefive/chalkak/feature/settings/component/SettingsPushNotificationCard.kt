@@ -18,6 +18,8 @@ fun SettingsPushNotificationCard(
     modifier: Modifier = Modifier,
     onAiReviewPushChanged: (Boolean) -> Unit = {},
     isAiReviewSaving: Boolean = false,
+    onLikePushChanged: (Boolean) -> Unit = {},
+    isLikeSaving: Boolean = false,
 ) {
     SettingsCard(modifier = modifier) {
         SettingsPushToggleRow(
@@ -39,6 +41,13 @@ fun SettingsPushNotificationCard(
             checked = settings?.aiReviewPushEnabled == true,
             enabled = settings != null && !isAiReviewSaving,
             onCheckedChange = onAiReviewPushChanged,
+        )
+        SettingsDivider(modifier = Modifier.fillMaxWidth())
+        SettingsPushToggleRow(
+            text = "좋아요 알림",
+            checked = settings?.likePushEnabled == true,
+            enabled = settings != null && !isLikeSaving,
+            onCheckedChange = onLikePushChanged,
         )
     }
 }
