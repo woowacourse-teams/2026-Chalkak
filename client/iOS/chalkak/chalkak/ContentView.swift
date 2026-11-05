@@ -138,6 +138,8 @@ struct ContentView: View {
                             }
                         }
                 }
+                // 백 스와이프로 드러난 아래 화면이 눌리지 않게 Feed가 떠 있는 동안 터치를 막는다.
+                .allowsHitTesting(selectedFeed == nil)
                 // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
                 .overlay {
                     if let target = selectedFeed {
