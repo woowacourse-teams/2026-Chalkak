@@ -22,6 +22,7 @@ import {
 import {
   formatFileSize,
   formatInstant,
+  getInstagramConsentDisplay,
   getPostDisplayStatus,
   getPostErrorMessage,
 } from "../model/post-display";
@@ -85,6 +86,7 @@ export function PostDetailScreen({ postId }: { postId: string }) {
   const post = postQuery.data;
 
   const status = getPostDisplayStatus(post);
+  const consent = getInstagramConsentDisplay(post.instagramConsent);
   const canModerate =
     post.moderationStatus === "PENDING" && post.deletedAt === null;
   const canDelete = post.deletedAt === null;
@@ -193,6 +195,13 @@ export function PostDetailScreen({ postId }: { postId: string }) {
               <dt>등록 시각</dt>
               <dd>{formatInstant(post.createdAt)}</dd>
             </div>
+          </dl>
+          <h4 className={styles.infoSubtitle}>인스타그램 업로드 동의</h4>
+          <dl className={styles.detailMeta}>
+            <div><dt>동의 여부</dt><dd>{consent.label}</dd></div>
+            <div><dt>인스타그램 ID</dt><dd>{post.instagramConsent.instagramId ? "@" + post.instagramConsent.instagramId : "—"}</dd></div>
+            <div><dt>동의 시각</dt><dd>{formatInstant(post.instagramConsent.agreedAt)}</dd></div>
+            <div><dt>철회 시각</dt><dd>{formatInstant(post.instagramConsent.revokedAt)}</dd></div>
           </dl>
           <details className={styles.extraInfo}>
             <summary>추가 정보</summary>

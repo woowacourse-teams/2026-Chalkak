@@ -1,5 +1,6 @@
 import type {
   AdminPostDetailResponse,
+  AdminPostInstagramConsent,
   AdminPostListResponse,
   AdminTopicDetailResponse,
   AdminUserDetailResponse,
@@ -44,6 +45,8 @@ export const postListFixture = {
           "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=640",
       },
       likeCount: 12,
+      instagramUploadAgreed: true,
+      instagramId: "chalkak_creator",
       createdAt: "2026-08-28T04:10:00Z",
       moderatedAt: null,
       deletedAt: null,
@@ -61,6 +64,8 @@ export const postListFixture = {
           "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=640",
       },
       likeCount: 34,
+      instagramUploadAgreed: false,
+      instagramId: null,
       createdAt: "2026-08-27T11:20:00Z",
       moderatedAt: "2026-08-27T12:00:00Z",
       deletedAt: null,
@@ -78,6 +83,8 @@ export const postListFixture = {
           "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=640",
       },
       likeCount: 2,
+      instagramUploadAgreed: false,
+      instagramId: null,
       createdAt: "2026-08-26T08:30:00Z",
       moderatedAt: "2026-08-26T09:00:00Z",
       deletedAt: null,
@@ -95,6 +102,8 @@ export const postListFixture = {
           "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=640",
       },
       likeCount: 0,
+      instagramUploadAgreed: true,
+      instagramId: null,
       createdAt: "2026-08-25T01:20:00Z",
       moderatedAt: "2026-08-25T02:00:00Z",
       deletedAt: "2026-08-25T03:00:00Z",
@@ -108,6 +117,14 @@ export const emptyPostListFixture = {
   hasNext: false,
   posts: [],
 } satisfies AdminPostListResponse;
+
+// 동의함(승인) / 철회함 / 동의한 적 없음 / 삭제된 게시물(동의 유지, ID 제거)
+const instagramConsents: Record<string, AdminPostInstagramConsent> = {
+  [postIds.pending]: { agreed: true, instagramId: "chalkak_creator", agreedAt: "2026-08-28T04:10:00Z", revokedAt: null },
+  [postIds.approved]: { agreed: false, instagramId: null, agreedAt: "2026-08-27T11:20:00Z", revokedAt: "2026-08-29T01:00:00Z" },
+  [postIds.rejected]: { agreed: false, instagramId: null, agreedAt: null, revokedAt: null },
+  [postIds.deleted]: { agreed: true, instagramId: null, agreedAt: "2026-08-25T01:20:00Z", revokedAt: null },
+};
 
 export const postDetailFixtures: Record<string, AdminPostDetailResponse> =
   Object.fromEntries(
@@ -143,6 +160,7 @@ export const postDetailFixtures: Record<string, AdminPostDetailResponse> =
           createdAt: post.createdAt,
           updatedAt: post.createdAt,
         },
+        instagramConsent: instagramConsents[post.postId],
         updatedAt: post.moderatedAt ?? post.createdAt,
         moderatedBy: post.moderatedAt
           ? "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"

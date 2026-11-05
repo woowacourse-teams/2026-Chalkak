@@ -1,7 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { server } from "@/mocks/server";
 import { QueryProvider } from "@/shared/query/query-provider";
 
 import { PostListScreen } from "./post-list-screen";
@@ -111,5 +113,98 @@ describe("PostListScreen", () => {
     expect(screen.getByRole("link", { name: "← 사용자·주제로 돌아가기" })).toHaveAttribute("href", "/users?status=BANNED");
     await user.click(screen.getByRole("button", { name: "필터 적용" }));
     expect(routerPush).toHaveBeenCalledWith(expect.stringContaining("userId=abababab-abab-4bab-8bab-abababababab"));
+  });
+
+  it("shows Instagram consent and ID in each row", async () => {
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    const row = (await screen.findAllByRole("row")).find((candidate) => within(candidate).queryByText("한강의 노을"));
+    expect(row).toBeDefined();
+    expect(within(row as HTMLElement).getByText("인스타 동의")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("@chalkak_creator")).toBeInTheDocument();
+  });
+
+  it("marks posts without consent and omits a missing ID", async () => {
+    search.value = "status=REJECTED&page=1";
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    const row = (await screen.findAllByRole("row")).find((candidate) => within(candidate).queryByText("흐린 골목"));
+    expect(within(row as HTMLElement).getByText("인스타 미동의")).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByText(/^@/)).not.toBeInTheDocument();
+  });
+
+  it("applies Instagram consent and ID filters to the URL", async () => {
+    const user = userEvent.setup();
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    await user.click(screen.getByText("필터"));
+    await user.selectOptions(screen.getByRole("combobox", { name: "인스타 동의" }), "revoked");
+    await user.type(screen.getByRole("textbox", { name: "인스타그램 ID" }), "  @Chalkak ");
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+
+    const url = routerPush.mock.calls.at(-1)?.[0] as string;
+    const params = new URLSearchParams(url.split("?")[1]);
+    expect(params.get("instagramConsent")).toBe("revoked");
+    expect(params.get("instagramId")).toBe("@Chalkak");
+    for (const name of ["topicDate", "createdAtFrom", "createdAtTo"]) {
+      expect(params.has(name)).toBe(false);
+    }
+  });
+
+  it("restores Instagram filters from the URL and marks the filter as applied", async () => {
+    search.value = "status=APPROVED&instagramConsent=agreed&instagramId=chalkak&topicDate=2026-08-28";
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    expect(await screen.findByText("필터 · 적용 중")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "인스타 동의" })).toHaveValue("agreed");
+    expect(screen.getByRole("textbox", { name: "인스타그램 ID" })).toHaveValue("chalkak");
+    expect(screen.queryByLabelText("주제 날짜")).not.toBeInTheDocument();
+  });
+
+  it("enables popularity sort only while a topic is selected", async () => {
+    const user = userEvent.setup();
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    await user.click(screen.getByText("필터"));
+    const topic = screen.getByRole("combobox", { name: "주제" });
+    const popular = await screen.findByRole("option", { name: "인기순 (좋아요 많은 순)" });
+    expect(popular).toBeDisabled();
+    expect(screen.getByText("인기순은 주제를 선택해야 사용할 수 있습니다.")).toBeInTheDocument();
+
+    await screen.findByRole("option", { name: /오늘의 빛/ });
+    await user.selectOptions(topic, "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc");
+    expect(popular).toBeEnabled();
+    await user.selectOptions(screen.getByRole("combobox", { name: "정렬" }), "likeCountDesc");
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+    expect(routerPush).toHaveBeenLastCalledWith(expect.stringContaining("sort=likeCountDesc"));
+  });
+
+  it("resets the sort select to latest order when the topic is cleared under popularity sort", async () => {
+    search.value = "status=PENDING&topicId=bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc&sort=likeCountDesc";
+    const user = userEvent.setup();
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    await user.click(screen.getByText("필터 · 적용 중"));
+    expect(screen.getByText(/순위가 바뀔 수 있습니다/)).toBeInTheDocument();
+    const sort = screen.getByRole("combobox", { name: "정렬" });
+    expect(sort).toHaveValue("likeCountDesc");
+    await user.selectOptions(screen.getByRole("combobox", { name: "주제" }), "");
+    expect(sort).toHaveValue("createdAtDesc");
+    expect(screen.getByRole("option", { name: "최신 등록순" })).toHaveProperty("selected", true);
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+    const params = new URLSearchParams((routerPush.mock.calls.at(-1)?.[0] as string).split("?")[1]);
+    expect(params.has("topicId")).toBe(false);
+    expect(params.get("sort")).toBe("createdAtDesc");
+  });
+
+  it("never requests popularity sort without a topic, including the filter-option query", async () => {
+    search.value = "status=PENDING&topicId=bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc&sort=likeCountDesc";
+    const requested: URL[] = [];
+    server.use(http.get("*/api/v1/admin/posts", ({ request }) => {
+      requested.push(new URL(request.url));
+      return HttpResponse.json({ currentPage: 1, pageSize: 20, hasNext: false, posts: [] });
+    }));
+    render(<QueryProvider><PostListScreen /></QueryProvider>);
+    await waitFor(() => expect(requested.length).toBeGreaterThanOrEqual(2));
+    const popular = requested.filter((url) => url.searchParams.get("sort") === "likeCountDesc");
+    expect(popular.length).toBeGreaterThan(0);
+    expect(requested.some((url) => !url.searchParams.has("topicId"))).toBe(true);
+    for (const url of popular) {
+      expect(url.searchParams.get("topicId")).toBeTruthy();
+    }
   });
 });
