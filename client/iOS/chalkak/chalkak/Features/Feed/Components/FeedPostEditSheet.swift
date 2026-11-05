@@ -97,6 +97,8 @@ struct FeedPostEditSheet: View {
 
     /// 인스타그램 묶음이 없던 때의 높이에 묶음 위 여백과 잰 묶음 높이를 더한다.
     /// 스위치를 켜 ID 칸과 안내가 펼쳐지면 잰 높이가 늘어 시트도 그만큼 높아진다.
+    /// 시트 높이(`presentationDetents`의 값)는 `withAnimation` 안에서 바꿔도 한 프레임 만에 바뀐다(iOS 26.5 화면 확인).
+    /// 그래서 스위치를 켜고 끌 때 ID 칸은 서서히 나타나고 사라지지만 시트 높이는 바로 바뀐다. 사람이 이대로 두기로 정했다(#939 리뷰).
     /// 예: 스위치 꺼짐(제목 2줄 행 44) → 360 + 16 + 44, 켜짐 → 여기에 ID 칸과 안내 줄 높이가 더해진다.
     private var sheetHeight: CGFloat {
         Metrics.sheetHeightWithoutInstagramConsent + theme.spacing.lg + instagramConsentHeight
