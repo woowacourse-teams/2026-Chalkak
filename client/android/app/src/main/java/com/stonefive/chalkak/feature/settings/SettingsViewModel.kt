@@ -8,13 +8,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.core.ui.UiMessage
-import com.stonefive.chalkak.domain.model.NotificationPushSettingsUpdate
-import com.stonefive.chalkak.domain.model.NotificationResult
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AuthRepository
-import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -28,7 +25,6 @@ class SettingsViewModel(
     private val authRepository: AuthRepository,
     private val userRepository: UserRepository,
     versionName: String,
-    private val notificationRepository: NotificationRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         SettingsUiState(
@@ -39,10 +35,6 @@ class SettingsViewModel(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private var nextMessageId = 0L
     private var signatureLoadJob: Job? = null
-
-    init {
-        loadPushSettings()
-    }
 
     fun startLogin() {
         viewModelScope.launch {
@@ -66,18 +58,6 @@ class SettingsViewModel(
                 pendingMessage = pendingMessage,
             )
         }
-    }
-
-    fun updateTopicPushEnabled(enabled: Boolean) {
-        updatePushSettings(NotificationPushSettingsUpdate(topicPushEnabled = enabled))
-    }
-
-    fun updateModerationPushEnabled(enabled: Boolean) {
-        updatePushSettings(NotificationPushSettingsUpdate(moderationPushEnabled = enabled))
-    }
-
-    fun updateAiReviewPushEnabled(enabled: Boolean) {
-        updatePushSettings(NotificationPushSettingsUpdate(aiReviewPushEnabled = enabled))
     }
 
     fun dismissAccountDialog() {
@@ -191,95 +171,6 @@ class SettingsViewModel(
         }
     }
 
-    private fun loadPushSettings() {
-        val repository = notificationRepository ?: return
-        if (authRepository.sessionState.value !is UserSessionState.Authenticated) return
-
-        _uiState.update { it.copy(isPushSettingsLoading = true) }
-        viewModelScope.launch {
-            when (val result = repository.getPushSettings()) {
-                is NotificationResult.Success -> _uiState.update {
-                    it.copy(pushSettings = result.value, isPushSettingsLoading = false)
-                }
-
-                is NotificationResult.Failure -> {
-                    val pendingMessage = nextToast("푸시 알림 설정을 불러오지 못했어요.")
-                    _uiState.update {
-                        it.copy(isPushSettingsLoading = false, pendingMessage = pendingMessage)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun updatePushSettings(update: NotificationPushSettingsUpdate) {
-        val repository = notificationRepository ?: return
-        val previous = _uiState.value.pushSettings ?: return
-        val isTopicUpdate = update.topicPushEnabled != null
-        val isModerationUpdate = update.moderationPushEnabled != null
-        val isAiReviewUpdate = update.aiReviewPushEnabled != null
-        val isSaving = when {
-            isTopicUpdate -> _uiState.value.isTopicPushSaving
-            isModerationUpdate -> _uiState.value.isModerationPushSaving
-            else -> _uiState.value.isAiReviewPushSaving
-        }
-        if (isSaving) return
-
-        val optimistic = previous.copy(
-            topicPushEnabled = update.topicPushEnabled ?: previous.topicPushEnabled,
-            moderationPushEnabled = update.moderationPushEnabled ?: previous.moderationPushEnabled,
-            aiReviewPushEnabled = update.aiReviewPushEnabled ?: previous.aiReviewPushEnabled,
-        )
-        _uiState.update {
-            it.copy(
-                pushSettings = optimistic,
-                isTopicPushSaving = if (isTopicUpdate) true else it.isTopicPushSaving,
-                isModerationPushSaving = if (isModerationUpdate) true else it.isModerationPushSaving,
-                isAiReviewPushSaving = if (isAiReviewUpdate) true else it.isAiReviewPushSaving,
-            )
-        }
-        viewModelScope.launch {
-            when (repository.updatePushSettings(update)) {
-                is NotificationResult.Success -> _uiState.update {
-                    it.copy(
-                        isTopicPushSaving = if (isTopicUpdate) false else it.isTopicPushSaving,
-                        isModerationPushSaving = if (isModerationUpdate) false else it.isModerationPushSaving,
-                        isAiReviewPushSaving = if (isAiReviewUpdate) false else it.isAiReviewPushSaving,
-                    )
-                }
-
-                is NotificationResult.Failure -> {
-                    val pendingMessage = nextToast("푸시 알림 설정을 저장하지 못했어요.")
-                    _uiState.update {
-                        it.copy(
-                            pushSettings = it.pushSettings?.copy(
-                                topicPushEnabled = if (isTopicUpdate) {
-                                    previous.topicPushEnabled
-                                } else {
-                                    it.pushSettings.topicPushEnabled
-                                },
-                                moderationPushEnabled = if (isModerationUpdate) {
-                                    previous.moderationPushEnabled
-                                } else {
-                                    it.pushSettings.moderationPushEnabled
-                                },
-                                aiReviewPushEnabled = if (isAiReviewUpdate) {
-                                    previous.aiReviewPushEnabled
-                                } else {
-                                    it.pushSettings.aiReviewPushEnabled
-                                },
-                            ),
-                            isTopicPushSaving = if (isTopicUpdate) false else it.isTopicPushSaving,
-                            isModerationPushSaving = if (isModerationUpdate) false else it.isModerationPushSaving,
-                            isAiReviewPushSaving = if (isAiReviewUpdate) false else it.isAiReviewPushSaving,
-                            pendingMessage = pendingMessage,
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     companion object {
         val Factory = viewModelFactory {
             initializer {
@@ -288,7 +179,6 @@ class SettingsViewModel(
                     authRepository = application.appContainer.authRepository,
                     userRepository = application.appContainer.userRepository,
                     versionName = BuildConfig.VERSION_NAME,
-                    notificationRepository = application.appContainer.notificationRepository,
                 )
             }
         }

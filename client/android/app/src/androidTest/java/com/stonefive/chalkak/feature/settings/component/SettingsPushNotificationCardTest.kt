@@ -65,6 +65,15 @@ class SettingsPushNotificationCardTest(
     }
 
     @Test
+    fun likeRowOnlyChangesLikeSetting() {
+        val likeChanges = mutableListOf<Boolean>()
+        setCardContent(onLikePushChanged = likeChanges::add)
+        assertSwitch("좋아요 알림", true)
+        composeRule.onNodeWithText("좋아요 알림").performClick()
+        assertEquals(listOf(false), likeChanges)
+    }
+
+    @Test
     fun switchesOnlyChangeTheirOwnSetting() {
         val topicChanges = mutableListOf<Boolean>()
         val moderationChanges = mutableListOf<Boolean>()
@@ -116,7 +125,8 @@ class SettingsPushNotificationCardTest(
         when (label) {
             "주제 알림" -> 0
             "승인·반려 알림" -> 1
-            else -> 2
+            "AI 피드백 알림" -> 2
+            else -> 3
         },
     ]
 
@@ -131,6 +141,7 @@ class SettingsPushNotificationCardTest(
         onTopicPushChanged: (Boolean) -> Unit = {},
         onModerationPushChanged: (Boolean) -> Unit = {},
         onAiReviewPushChanged: (Boolean) -> Unit = {},
+        onLikePushChanged: (Boolean) -> Unit = {},
         isTopicSaving: Boolean = false,
         isModerationSaving: Boolean = false,
     ) {
@@ -143,6 +154,7 @@ class SettingsPushNotificationCardTest(
                     onTopicPushChanged = onTopicPushChanged,
                     onModerationPushChanged = onModerationPushChanged,
                     onAiReviewPushChanged = onAiReviewPushChanged,
+                    onLikePushChanged = onLikePushChanged,
                 )
             }
         }

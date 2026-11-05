@@ -34,6 +34,9 @@ data class WebPage(
 data object Notifications
 
 @Serializable
+data object NotificationSettings
+
+@Serializable
 data class NotificationDetail(val notificationId: String)
 
 @Serializable

@@ -41,6 +41,20 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun memberOpensNotificationSettingsFromSingleEntry() {
+        var clickCount = 0
+        setSettingsContent(
+            uiState = SettingsUiState(isLoggedIn = true, versionName = "1.0"),
+            onNotificationSettingsClick = { clickCount++ },
+        )
+
+        composeRule.onAllNodesWithText("주제 알림").assertCountEquals(0)
+        composeRule.onNodeWithText("알림 설정").performClick()
+
+        assertEquals(1, clickCount)
+    }
+
+    @Test
     fun tappingChangeSignatureInvokesChangeCallback() {
         var changeClicked = false
         setSettingsContent(
@@ -96,6 +110,7 @@ class SettingsScreenTest {
         composeRule.onAllNodesWithText("로그아웃").assertCountEquals(0)
         composeRule.onAllNodesWithText("회원탈퇴").assertCountEquals(0)
         composeRule.onAllNodesWithText("기기 알림 설정").assertCountEquals(0)
+        composeRule.onAllNodesWithText("알림 설정").assertCountEquals(0)
     }
 
     @Test
@@ -168,8 +183,7 @@ class SettingsScreenTest {
         onTermsClick: () -> Unit = {},
         onAccountDialogConfirm: () -> Unit = {},
         onAccountDialogDismiss: () -> Unit = {},
-        onTopicPushChanged: (Boolean) -> Unit = {},
-        onModerationPushChanged: (Boolean) -> Unit = {},
+        onNotificationSettingsClick: () -> Unit = {},
     ) {
         composeRule.setContent {
             ChalkakTheme {
@@ -186,8 +200,7 @@ class SettingsScreenTest {
                     onAccountDialogDismiss = onAccountDialogDismiss,
                     onNavigateToBottomBar = {},
                     onAddClick = {},
-                    onTopicPushChanged = onTopicPushChanged,
-                    onModerationPushChanged = onModerationPushChanged,
+                    onNotificationSettingsClick = onNotificationSettingsClick,
                 )
             }
         }

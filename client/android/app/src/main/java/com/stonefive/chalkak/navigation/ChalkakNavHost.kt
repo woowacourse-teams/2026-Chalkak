@@ -75,6 +75,7 @@ import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.record.RecordViewModel
 import com.stonefive.chalkak.feature.record.component.RecordPhotoStackStyle
+import com.stonefive.chalkak.feature.settings.NotificationSettingsRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
@@ -806,8 +807,19 @@ fun ChalkakNavHost(
                             showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                         }
                     },
+                    onOpenNotificationSettings = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.navigate(NotificationSettings) { launchSingleTop = true }
+                    },
                     onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                     onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                )
+            }
+
+            composable<NotificationSettings> { backStackEntry ->
+                NotificationSettingsRoute(
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                 )
             }
 
@@ -1053,6 +1065,7 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
+    hasRoute<NotificationSettings>() -> NotificationSettingsAnalyticsScreen
     hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
     hasRoute<PhotoUpload>() -> AnalyticsScreen(name = "photo_upload", screenClass = "PhotoUpload")
     hasRoute<PhotoUploadSuccess>() -> AnalyticsScreen(name = "photo_upload_success", screenClass = "PhotoUploadSuccess")
@@ -1080,6 +1093,11 @@ private val OnboardingSignaturePreviewAnalyticsScreen = AnalyticsScreen(
 private val ChangeSignaturePreviewAnalyticsScreen = AnalyticsScreen(
     name = "change_signature_preview",
     screenClass = "ChangeSignaturePreview",
+)
+
+private val NotificationSettingsAnalyticsScreen = AnalyticsScreen(
+    name = "notification_settings",
+    screenClass = "NotificationSettings",
 )
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
