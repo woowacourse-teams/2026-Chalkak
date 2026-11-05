@@ -990,7 +990,7 @@ internal fun NavHostController.openNotificationTarget(
  * 푸시로 [target]을 연다. 쌓을 화면 순서는 [pushNotificationRouteOf]가 정한다.
  * 예: 답변 푸시면 고객센터 목록 → 문의 상세(F)를 차례로 쌓는다.
  */
-private fun NavHostController.openPushNotificationTarget(target: NotificationTarget) {
+internal fun NavHostController.openPushNotificationTarget(target: NotificationTarget) {
     pushNotificationRouteOf(target).forEach(::openNotificationTarget)
 }
 
@@ -1040,7 +1040,9 @@ private fun NavHostController.openNotificationTarget(target: NotificationTarget)
             if (shownList != null) {
                 shownList.savedStateHandle[FEEDBACK_LIST_REFRESH_KEY] = true
             } else {
-                navigate(FeedbackList)
+                navigate(FeedbackList) {
+                    popUpTo<FeedbackList> { inclusive = true }
+                }
             }
         }
 
