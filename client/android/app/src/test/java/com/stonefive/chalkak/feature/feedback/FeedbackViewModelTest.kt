@@ -8,9 +8,13 @@ import com.stonefive.chalkak.domain.model.FeedbackInquiryPage
 import com.stonefive.chalkak.domain.model.FeedbackSubmissionException
 import com.stonefive.chalkak.domain.model.FeedbackSubmissionFailure
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -203,22 +207,52 @@ class FeedbackViewModelTest {
     }
 
     @Test
-    fun `제출이 400이면 서버 메시지를 그대로 안내한다`() = runTest {
-        // Given  400 / BUSINESS_ERROR, message=접수 제한 안내
-        val serverMessage = "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): 2026-11-03T06:01:00Z"
-        feedbackRepository.error = FeedbackSubmissionException(
-            reason = FeedbackSubmissionFailure.INVALID_CONTENT,
-            serverMessage = serverMessage,
-        )
-        val viewModel = createViewModel()
-        viewModel.updateContent("피드백")
+    fun `접수 제한이면 다음 접수 가능 시각을 짧게 안내한다`() = runTest {
+        // Given  지금 2026-11-06T07:00:00Z(서울 16:00), 400 / BUSINESS_ERROR,
+        //        message="문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): 2026-11-06T08:30:22Z"
+        val now = Instant.parse("2026-11-06T07:00:00Z")
+        val limitMessage = "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): "
+        val noTimeMessage = "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다."
 
         // When   보낸다
+        val limited = submitWithInvalidContent(now, limitMessage + "2026-11-06T08:30:22Z")
+        val onTheMinute = submitWithInvalidContent(now, limitMessage + "2026-11-06T08:30:00Z")
+        val fractionalSecond = submitWithInvalidContent(now, limitMessage + "2026-11-06T08:30:00.5Z")
+        val tomorrow = submitWithInvalidContent(now, limitMessage + "2026-11-06T15:10:00Z")
+        val later = submitWithInvalidContent(now, limitMessage + "2026-11-07T15:10:00Z")
+        val withoutTime = submitWithInvalidContent(now, noTimeMessage)
+        val withoutMessage = submitWithInvalidContent(now, null)
+
+        // Then   토스트 "지금은 문의를 보낼 수 없어요.\n오늘 17:31부터 다시 보낼 수 있어요."
+        //        (초·나노초가 있으면 분을 올림, 서울 기준 다음 날이면 "내일 HH:mm", 그 밖은 "M월 d일 HH:mm")
+        //        message에 UTC 시각이 없으면 그 문구 그대로, message가 없으면 기존 "피드백은 1자 이상 1000자 이하로 입력해 주세요."
+        assertEquals("지금은 문의를 보낼 수 없어요.\n오늘 17:31부터 다시 보낼 수 있어요.", limited)
+        assertEquals("지금은 문의를 보낼 수 없어요.\n오늘 17:30부터 다시 보낼 수 있어요.", onTheMinute)
+        assertEquals("지금은 문의를 보낼 수 없어요.\n오늘 17:31부터 다시 보낼 수 있어요.", fractionalSecond)
+        assertEquals("지금은 문의를 보낼 수 없어요.\n내일 00:10부터 다시 보낼 수 있어요.", tomorrow)
+        assertEquals("지금은 문의를 보낼 수 없어요.\n11월 8일 00:10부터 다시 보낼 수 있어요.", later)
+        assertEquals(noTimeMessage, withoutTime)
+        assertEquals("피드백은 1자 이상 1000자 이하로 입력해 주세요.", withoutMessage)
+    }
+
+    private fun TestScope.submitWithInvalidContent(
+        now: Instant,
+        serverMessage: String?,
+    ): String {
+        val repository = FakeFeedbackRepository().apply {
+            error = FeedbackSubmissionException(
+                reason = FeedbackSubmissionFailure.INVALID_CONTENT,
+                serverMessage = serverMessage,
+            )
+        }
+        val viewModel = FeedbackViewModel(
+            feedbackRepository = repository,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+        viewModel.updateContent("피드백")
         viewModel.submit()
         advanceUntilIdle()
-
-        // Then   토스트가 그 message 그대로 (message가 없으면 기존 문구: `잘못된 내용 실패면 Toast 메시지를 보낸다`)
-        assertEquals(serverMessage, (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
+        return (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text
     }
 
     @Test

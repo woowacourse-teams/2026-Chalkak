@@ -149,9 +149,10 @@ class FeedbackRepositoryImplTest {
     }
 
     @Test
-    fun `제출이 400이면 서버 메시지를 그대로 안내한다`() = runTest {
-        // Given  400 / BUSINESS_ERROR, message=접수 제한 안내
-        val serverMessage = "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): 2026-11-03T06:01:00Z"
+    fun `접수 제한이면 다음 접수 가능 시각을 짧게 안내한다`() = runTest {
+        // Given  400 / BUSINESS_ERROR,
+        //        message="문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): 2026-11-06T08:30:22Z"
+        val serverMessage = "문의는 1분에 1건, 최근 24시간에 최대 5건 접수할 수 있습니다. 다음 접수 가능 시각(UTC): 2026-11-06T08:30:22Z"
         server.enqueue(
             MockResponse()
                 .setResponseCode(400)
@@ -161,7 +162,7 @@ class FeedbackRepositoryImplTest {
         // When   보낸다
         val error = runCatching { remoteRepository.submitFeedback("피드백") }.exceptionOrNull()
 
-        // Then   잘못된 내용 실패에 서버 message를 담는다
+        // Then   잘못된 내용 실패에 서버 message를 그대로 담는다(시각 읽기·문구는 화면 계층: FeedbackViewModelTest)
         val submissionError = error as FeedbackSubmissionException
         assertEquals(FeedbackSubmissionFailure.INVALID_CONTENT, submissionError.reason)
         assertEquals(serverMessage, submissionError.serverMessage)
