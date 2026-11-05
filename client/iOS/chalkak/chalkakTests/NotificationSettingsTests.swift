@@ -44,6 +44,109 @@ struct NotificationTogglePermissionActionTests {
 }
 
 @MainActor
+struct LikePushMigrationTests {
+    private func settings(
+        _ topic: Bool, _ moderation: Bool, _ aiReview: Bool, like: Bool
+    ) -> NotificationSettings {
+        .init(
+            topicPushEnabled: topic, moderationPushEnabled: moderation,
+            aiReviewPushEnabled: aiReview, likePushEnabled: like
+        )
+    }
+
+    private func withDefaults(_ body: (UserDefaults) async throws -> Void) async throws {
+        let name = "LikePushMigrationTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        try await body(defaults)
+    }
+
+    @Test("기존 알림이 모두 꺼져 있으면 좋아요 알림을 끈다")
+    func turnsLikeOffWhenAllOff() async throws {
+        try await withDefaults { defaults in
+            var saved: [Bool] = []
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(false, false, false, like: true) },
+                save: { saved.append($0) }
+            )
+            #expect(saved == [false])
+        }
+    }
+
+    @Test("기존 알림이 하나라도 켜져 있으면 좋아요 알림을 켠다",
+          arguments: [(true, false, false), (false, true, false), (false, false, true)])
+    func turnsLikeOnWhenAnyOn(values: (Bool, Bool, Bool)) async throws {
+        try await withDefaults { defaults in
+            var saved: [Bool] = []
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(values.0, values.1, values.2, like: false) },
+                save: { saved.append($0) }
+            )
+            #expect(saved == [true])
+        }
+    }
+
+    @Test("이미 맞는 값이면 저장하지 않고 다시 실행하지 않는다")
+    func skipsSaveWhenAlreadyMatched() async throws {
+        try await withDefaults { defaults in
+            var loads = 0
+            var saves = 0
+            for _ in 0..<2 {
+                await LikePushMigration.run(
+                    userID: "user", defaults: defaults,
+                    load: { loads += 1; return settings(true, false, false, like: true) },
+                    save: { _ in saves += 1 }
+                )
+            }
+            #expect(loads == 1)
+            #expect(saves == 0)
+        }
+    }
+
+    @Test("다른 회원은 따로 실행한다")
+    func runsPerUser() async throws {
+        try await withDefaults { defaults in
+            var loads = 0
+            for userID in ["first", "second", "first"] {
+                await LikePushMigration.run(
+                    userID: userID, defaults: defaults,
+                    load: { loads += 1; return settings(true, true, true, like: true) },
+                    save: { _ in }
+                )
+            }
+            #expect(loads == 2)
+        }
+    }
+
+    @Test("조회나 저장이 실패하면 다음에 다시 시도한다")
+    func retriesAfterFailure() async throws {
+        try await withDefaults { defaults in
+            var attempts = 0
+            var saved: [Bool] = []
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { throw SettingsAPIError.network },
+                save: { saved.append($0) }
+            )
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(false, false, false, like: true) },
+                save: { _ in attempts += 1; throw SettingsAPIError.network }
+            )
+            await LikePushMigration.run(
+                userID: "user", defaults: defaults,
+                load: { settings(false, false, false, like: true) },
+                save: { saved.append($0) }
+            )
+            #expect(attempts == 1)
+            #expect(saved == [false])
+        }
+    }
+}
+
+@MainActor
 struct NotificationSettingsViewModelTests {
     @Test("최초 안내의 허용·거부는 네 설정을 한 요청으로 저장한다")
     func savesInitialChoiceForAllCategories() async {

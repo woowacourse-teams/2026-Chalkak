@@ -15,6 +15,7 @@ import com.stonefive.chalkak.core.network.ConnectivityObserver
 import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
 import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
+import com.stonefive.chalkak.data.local.notification.LikePushMigrationStore
 import com.stonefive.chalkak.data.local.notification.PushNotificationManager
 import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
@@ -24,6 +25,7 @@ import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
 import com.stonefive.chalkak.data.remote.config.FirebaseAppConfigRepository
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSource
 import com.stonefive.chalkak.data.remote.feedback.FeedbackDataSourceImpl
+import com.stonefive.chalkak.data.remote.notification.LikePushMigrator
 import com.stonefive.chalkak.data.remote.notification.NotificationRemoteDataSourceImpl
 import com.stonefive.chalkak.data.remote.notification.NotificationRepositoryImpl
 import com.stonefive.chalkak.data.remote.notification.PushDeviceRegistrationCoordinator
@@ -136,6 +138,10 @@ class AppContainer(context: Context) {
 
     val notificationRepository: NotificationRepository by lazy {
         NotificationRepositoryImpl(notificationRemoteDataSource)
+    }
+
+    private val likePushMigrator by lazy {
+        LikePushMigrator(notificationRepository, LikePushMigrationStore(applicationContext))
     }
 
     private val pushDeviceRegistrationCoordinator by lazy {
@@ -262,7 +268,10 @@ class AppContainer(context: Context) {
                 }.distinctUntilChanged()
                 .collectLatest { userId ->
                     pushDeviceRegistrationCoordinator.onSessionChanged(userId)
-                    if (userId != null) syncPushDevice(userId)
+                    if (userId != null) {
+                        syncPushDevice(userId)
+                        likePushMigrator.run(userId)
+                    }
                 }
         }
     }

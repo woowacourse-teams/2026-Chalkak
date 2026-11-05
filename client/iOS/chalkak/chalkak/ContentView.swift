@@ -317,6 +317,7 @@ struct ContentView: View {
         }
         .task(id: route) {
             await handleNotificationPermissionAtHomeEntry()
+            await migrateLikePushIfNeeded()
         }
         .task(id: NotificationUnreadRefreshID(
             modelID: ObjectIdentifier(notificationInboxViewModel), isHome: route == .main
@@ -351,6 +352,19 @@ struct ContentView: View {
     }
 
     @MainActor
+    private func migrateLikePushIfNeeded() async {
+        guard route == .main, let userID = KeychainSessionStore.userID() else { return }
+        let client = NotificationSettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        await LikePushMigration.run(
+            userID: userID,
+            load: { try await client.fetch() },
+            save: { try await client.update(likePushEnabled: $0) }
+        )
+    }
+
     private func handleNotificationPermissionAtHomeEntry() async {
         guard route == .main,
               KeychainSessionStore.hasAuthenticatedSession(),
