@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 문의 한 건. 문의 내용·접수 시각 아래에 답변(또는 "아직 답변이 없어요")을 두고, 맨 아래에 삭제 버튼을 둔다.
+/// 내 문의와 답변을 메신저형으로 보여 주고, 맨 아래에 삭제 버튼을 둔다.
 struct FeedbackDetailScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @State private var viewModel: FeedbackDetailViewModel
@@ -13,19 +13,22 @@ struct FeedbackDetailScreen: View {
     let onDelete: () -> Void
     /// 404로 문의를 찾을 수 없을 때. 호출부가 목록을 1페이지부터 다시 불러온다.
     let onNotFound: () -> Void
+    let returnsToListOnNotFound: Bool
 
     init(
         viewModel: FeedbackDetailViewModel,
         isDeleting: Bool,
         onBackClick: @escaping () -> Void,
         onDelete: @escaping () -> Void,
-        onNotFound: @escaping () -> Void
+        onNotFound: @escaping () -> Void,
+        returnsToListOnNotFound: Bool = false
     ) {
         _viewModel = State(initialValue: viewModel)
         self.isDeleting = isDeleting
         self.onBackClick = onBackClick
         self.onDelete = onDelete
         self.onNotFound = onNotFound
+        self.returnsToListOnNotFound = returnsToListOnNotFound
     }
 
     var body: some View {
@@ -42,8 +45,13 @@ struct FeedbackDetailScreen: View {
                     content(detail)
                 }
             case .notFound:
-                placeholder(message: viewModel.viewState.message ?? FeedbackMessages.notFound)
-                    .accessibilityIdentifier("feedbackDetail.notFound")
+                if returnsToListOnNotFound {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    placeholder(message: viewModel.viewState.message ?? FeedbackMessages.notFound)
+                        .accessibilityIdentifier("feedbackDetail.notFound")
+                }
             case .failed:
                 placeholder(message: "문의를 불러오지 못했어요") {
                     ChalkakOutlinedButton(title: "다시 시도") {
@@ -76,41 +84,35 @@ struct FeedbackDetailScreen: View {
     }
 
     private func content(_ detail: FeedbackDetail) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: theme.spacing.xl) {
-                section(
-                    label: "문의 내용",
-                    text: detail.content,
-                    date: detail.createdAt,
-                    identifier: "feedbackDetail.content"
-                )
-
-                Rectangle()
-                    .fill(theme.colors.border)
-                    .frame(height: Metrics.dividerHeight)
-                    .accessibilityHidden(true)
-
-                if let answer = detail.answer {
-                    section(
-                        label: "답변",
-                        text: answer.content,
-                        date: answer.answeredAt,
-                        identifier: "feedbackDetail.answer"
+        GeometryReader { geometry in
+            let maximumWidth = max(0, geometry.size.width - 2 * theme.spacing.screenHorizontal) * Metrics.bubbleWidthRatio
+            ScrollView {
+                VStack(alignment: .leading, spacing: theme.spacing.xl) {
+                    FeedbackMessageBubble(
+                        text: detail.content, date: detail.createdAt, isAnswer: false,
+                        maximumWidth: maximumWidth,
+                        identifier: "feedbackDetail.content"
                     )
-                } else {
-                    VStack(alignment: .leading, spacing: theme.spacing.sm) {
-                        sectionLabel("답변")
-
-                        Text("아직 답변이 없어요")
+                    if let answer = detail.answer {
+                        FeedbackMessageBubble(
+                            text: answer.content, date: answer.answeredAt, isAnswer: true,
+                            maximumWidth: maximumWidth,
+                            identifier: "feedbackDetail.answer"
+                        )
+                    } else {
+                        Text("아직 답변이 오지 않았어요, 답변이 오면 알림으로 알려드릴게요.")
                             .font(theme.typography.subheadline)
                             .foregroundStyle(theme.colors.textMuted)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, theme.spacing.sm)
                             .accessibilityIdentifier("feedbackDetail.noAnswer")
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, theme.spacing.screenHorizontal)
+                .padding(.vertical, theme.spacing.lg)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, theme.spacing.screenHorizontal)
-            .padding(.vertical, theme.spacing.lg)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ChalkakOutlinedButton(
@@ -125,30 +127,6 @@ struct FeedbackDetailScreen: View {
             .background(theme.colors.background)
             .accessibilityIdentifier("feedbackDetail.delete")
         }
-    }
-
-    private func section(label: String, text: String, date: Date, identifier: String) -> some View {
-        VStack(alignment: .leading, spacing: theme.spacing.sm) {
-            sectionLabel(label)
-
-            Text(text)
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-                .accessibilityIdentifier(identifier)
-
-            Text(ChalkakTimestampFormatter.string(from: date))
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.textInactive)
-        }
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(theme.typography.caption)
-            .foregroundStyle(theme.colors.textSecondary)
-            .accessibilityAddTraits(.isHeader)
     }
 
     private func placeholder(
@@ -169,7 +147,7 @@ struct FeedbackDetailScreen: View {
 }
 
 private enum Metrics {
-    static let dividerHeight: CGFloat = 1
+    static let bubbleWidthRatio: CGFloat = 0.82
 }
 
 #Preview("Answered Feedback") {

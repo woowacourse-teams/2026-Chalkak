@@ -205,13 +205,15 @@ private struct FeedbackSummaryResponse: Decodable {
     let feedbackId: String
     let content: String
     let createdAt: String
+    let hasAnswer: Bool?
 
     func summary() throws -> FeedbackSummary {
         guard UUID(uuidString: feedbackId) != nil else { throw FeedbackAPIError.invalidResponse }
         return FeedbackSummary(
             id: feedbackId,
             content: content,
-            createdAt: try FeedbackDate.parse(createdAt)
+            createdAt: try FeedbackDate.parse(createdAt),
+            hasAnswer: hasAnswer
         )
     }
 }

@@ -107,16 +107,26 @@ private struct FeedbackListRow: View {
     let item: FeedbackSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacing.sm) {
-            Text(item.content)
-                .font(theme.typography.subheadline)
-                .foregroundStyle(theme.colors.textPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+        HStack(spacing: theme.spacing.md) {
+            VStack(alignment: .leading, spacing: theme.spacing.sm) {
+                Text(item.content)
+                    .font(theme.typography.subheadline)
+                    .foregroundStyle(theme.colors.textPrimary)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(ChalkakTimestampFormatter.string(from: item.createdAt))
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.textInactive)
+                Text(FeedbackTimestampFormatter.string(from: item.createdAt))
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.textInactive)
+            }
+            if let hasAnswer = item.hasAnswer {
+                Text(hasAnswer ? "답변 완료" : "답변 대기")
+                    .font(theme.typography.caption)
+                    .fontWeight(hasAnswer ? .bold : .regular)
+                    .foregroundStyle(hasAnswer ? theme.colors.textPrimary : theme.colors.textInactive)
+                    .fixedSize()
+            }
         }
         .frame(maxWidth: .infinity, minHeight: Metrics.minimumRowHeight, alignment: .leading)
         .padding(.vertical, theme.spacing.lg)

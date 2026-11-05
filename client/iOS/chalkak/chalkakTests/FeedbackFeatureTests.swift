@@ -233,6 +233,29 @@ struct FeedbackAPIClientTests {
         #expect(await recorder.requests.isEmpty)
     }
 
+    @Test("목록의 hasAnswer를 현재 답변 상태로 담고 누락·null은 상태 없음으로 둔다")
+    func decodesAnswerStateWithoutDetailRequests() async throws {
+        // Given 현재 API의 true·false·누락·null 목록 항목
+        // When 목록 API를 한 번 불러온다
+        // Then 네 상태를 보존하며 항목별 상세 요청을 하지 않는다
+        let recorder = FeedbackRequestRecorder()
+        let client = makeClient { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: """
+            {"currentPage":1,"pageSize":20,"hasNext":false,"feedbacks":[
+              {"feedbackId":"\(Self.feedbackA)","content":"완료","createdAt":"2026-11-03T06:00:00Z","hasAnswer":true},
+              {"feedbackId":"\(Self.feedbackB)","content":"대기","createdAt":"2026-11-03T06:00:00Z","hasAnswer":false},
+              {"feedbackId":"\(Self.feedbackA)","content":"누락","createdAt":"2026-11-03T06:00:00Z"},
+              {"feedbackId":"\(Self.feedbackB)","content":"null","createdAt":"2026-11-03T06:00:00Z","hasAnswer":null}
+            ]}
+            """)
+        }
+        let page = try await client.fetchFeedbacks(page: 1)
+        #expect(page.items.map(\.hasAnswer) == [true, false, nil, nil])
+        #expect(await recorder.requests.count == 1)
+        #expect(await recorder.requests.first?.url?.path == "/api/v1/feedbacks")
+    }
+
     @Test("내 문의 목록은 첫 페이지를 20건 단위로 인증해 요청한다")
     func fetchesFirstFeedbackPage() async throws {
         // Given 로그인한 회원

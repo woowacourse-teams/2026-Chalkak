@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var signatureAnalyticsScreen: AnalyticsScreen?
     @AppStorage("record.photoStackStyle") private var recordStackStyle: RecordPhotoStackStyle = .pillars
     @State private var notificationPath: [NotificationRoute] = []
+    @State private var feedbackPushNavigation = FeedbackPushNavigation()
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
     @State private var notificationInboxViewModel = Self.makeNotificationInboxViewModel()
@@ -144,8 +145,13 @@ struct ContentView: View {
                                     onBackClick: { closeNotificationDestination(destination) },
                                     onDelete: { deleteFeedback(feedbackID, from: destination) },
                                     onNotFound: {
+                                        if let result = feedbackPushNavigation.missingDetail(path: notificationPath, feedbackID: feedbackID) {
+                                            notificationPath = result.path
+                                            showMessage(result.message)
+                                        }
                                         Task { await feedbackListViewModel.refresh() }
-                                    }
+                                    },
+                                    returnsToListOnNotFound: feedbackPushNavigation.hidesPreviousOverlays
                                 )
                                 .id(feedbackID)
                                 .toolbar(.hidden, for: .navigationBar)
@@ -180,6 +186,9 @@ struct ContentView: View {
                         .id(target.id)
                         .transition(.identity)
                         .accessibilityAddTraits(.isModal)
+                        .opacity(feedbackPushNavigation.hidesPreviousOverlays ? 0 : 1)
+                        .allowsHitTesting(!feedbackPushNavigation.hidesPreviousOverlays)
+                        .accessibilityHidden(feedbackPushNavigation.hidesPreviousOverlays)
                     }
                 }
                 // 피드 위에 작가 사진 목록을 새 층으로 띄운다. 닫으면 아래 피드가 그대로 남아 있다.
@@ -195,6 +204,9 @@ struct ContentView: View {
                         .id(ObjectIdentifier(authorPostsViewModel))
                         .transition(.identity)
                         .accessibilityAddTraits(.isModal)
+                        .opacity(feedbackPushNavigation.hidesPreviousOverlays ? 0 : 1)
+                        .allowsHitTesting(!feedbackPushNavigation.hidesPreviousOverlays)
+                        .accessibilityHidden(feedbackPushNavigation.hidesPreviousOverlays)
                     }
                 }
                 // 목록에서 연 피드는 목록 위의 또 다른 층이다. 닫으면 목록이 스크롤 위치 그대로 보인다.
@@ -219,10 +231,13 @@ struct ContentView: View {
                         .id(target.id)
                         .transition(.identity)
                         .accessibilityAddTraits(.isModal)
+                        .opacity(feedbackPushNavigation.hidesPreviousOverlays ? 0 : 1)
+                        .allowsHitTesting(!feedbackPushNavigation.hidesPreviousOverlays)
+                        .accessibilityHidden(feedbackPushNavigation.hidesPreviousOverlays)
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if selectedFeed != nil {
+                    if selectedFeed != nil && !feedbackPushNavigation.hidesPreviousOverlays {
                         bottomBar
                             .opacity(feedZoomRegistry.sourceBarOpacity)
                             .allowsHitTesting(false)
@@ -296,6 +311,9 @@ struct ContentView: View {
         }
         .onChange(of: canOpenPushDestination) { _, _ in
             handlePendingPushTap()
+        }
+        .onChange(of: notificationPath) { _, path in
+            feedbackPushNavigation.pathChanged(path)
         }
         .onChange(of: selectedFeed) { previousFeed, currentFeed in
             guard previousFeed != nil, currentFeed == nil else { return }
@@ -769,10 +787,13 @@ struct ContentView: View {
             let canNavigate = await inbox.readForNavigation(
                 notificationID, allowsMissingNotification: allowsMissingNotification
             )
-            guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
-                  KeychainSessionStore.hasAuthenticatedSession() else { return }
-            guard canNavigate else {
-                if let message = inbox.message { showMessage(message) }
+            guard FeedbackPushNavigation.permitsNavigation(
+                cancelled: Task.isCancelled, sameAccount: inbox === notificationInboxViewModel,
+                authenticated: KeychainSessionStore.hasAuthenticatedSession(),
+                mainRoute: route == .main, readAllowed: canNavigate
+            ) else {
+                if !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
+                   KeychainSessionStore.hasAuthenticatedSession(), let message = inbox.message { showMessage(message) }
                 return
             }
             openNotificationDestination(tap, fromInbox: false)
@@ -810,28 +831,31 @@ struct ContentView: View {
     }
 
     private func openNotificationDestination(_ tap: PushNotificationTap, fromInbox: Bool) {
+        if case let .feedbackAnswered(feedbackID, _) = tap {
+            if fromInbox {
+                feedbackPushNavigation.reset()
+                selectedFeed = nil
+                selectedAuthorPosts = nil
+                selectedAuthorFeed = nil
+            }
+            withAnimation {
+                notificationPath = fromInbox
+                    ? FeedbackPushNavigation.inboxPath(feedbackID: feedbackID)
+                    : feedbackPushNavigation.open(feedbackID: feedbackID, path: notificationPath)
+            }
+            return
+        }
+        feedbackPushNavigation.reset()
         selectedFeed = nil
         selectedAuthorPosts = nil
         selectedAuthorFeed = nil
         withAnimation {
-            notificationPath = fromInbox ? [.inbox] : []
-            switch tap {
-            case .topic:
+            notificationPath = FeedbackPushNavigation.destinationPath(for: tap, fromInbox: fromInbox)
+            if tap == .topic {
                 // 주제 푸시는 클릭한 날의 오늘 주제가 보이는 홈으로 이동한다.
-                notificationPath = []
                 selectedTab = .home
                 homeViewModel.scrollToTop()
                 Task { await homeViewModel.refresh() }
-            case let .postApproved(postID, _):
-                notificationPath.append(.approved(postID))
-            case let .aiReview(postID, _):
-                notificationPath.append(.aiReview(postID))
-            case let .postRejected(notificationID):
-                notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
-            case let .notice(notificationID):
-                notificationPath.append(.notice(NotificationDetailTarget(id: notificationID)))
-            case let .feedbackAnswered(feedbackID, _):
-                notificationPath.append(.feedbackDetail(feedbackID))
             }
         }
     }
@@ -1001,6 +1025,7 @@ struct ContentView: View {
     }
 
     private func resetMainState() {
+        feedbackPushNavigation.reset()
         notificationNavigationTask?.cancel()
         notificationNavigationTask = nil
         notificationNavigationID = nil
@@ -1449,17 +1474,6 @@ private struct NotificationUnreadRefreshID: Hashable {
     let isHome: Bool
 }
 
-private enum NotificationRoute: Hashable {
-    case inbox
-    case approved(String)
-    case aiReview(String)
-    case rejected(NotificationDetailTarget)
-    case notice(NotificationDetailTarget)
-    /// 설정 → 고객센터의 내 문의 목록.
-    case customerSupport
-    /// 문의 UUID로 여는 문의 상세. 고객센터 목록과 답변 알림(알림함·푸시)에서 연다.
-    case feedbackDetail(String)
-}
 
 
 enum NotificationPermissionPromptAction: Equatable {

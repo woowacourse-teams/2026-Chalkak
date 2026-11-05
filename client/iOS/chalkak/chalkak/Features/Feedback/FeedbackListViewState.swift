@@ -1,12 +1,21 @@
 import Foundation
 
-/// 내 문의 목록의 한 줄. 서버는 문의 원문을 주고, 목록은 화면에서 2줄로 줄여 보여준다.
+/// 내 문의 목록의 한 줄. 서버는 문의 원문을 주고, 목록은 화면에서 1줄로 줄여 보여준다.
 struct FeedbackSummary: Identifiable, Equatable, Sendable {
     /// 문의 UUID(`feedbackId`). 상세·삭제 경로에 그대로 쓴다.
     let id: String
     let content: String
     /// 서버가 UTC로 준 접수 시각.
     let createdAt: Date
+    /// 현재 목록 응답의 답변 여부. 누락·null은 상태 표시를 하지 않는다.
+    let hasAnswer: Bool?
+
+    init(id: String, content: String, createdAt: Date, hasAnswer: Bool? = nil) {
+        self.id = id
+        self.content = content
+        self.createdAt = createdAt
+        self.hasAnswer = hasAnswer
+    }
 }
 
 /// `GET /feedbacks?page=&pageSize=` 한 페이지.
