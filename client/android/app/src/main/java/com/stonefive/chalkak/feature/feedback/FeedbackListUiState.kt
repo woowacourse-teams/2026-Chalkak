@@ -35,10 +35,22 @@ data class FeedbackListUiState(
 )
 
 /**
- * 목록 한 줄. [timeText]는 접수 시각을 알림함과 같은 "M월 d일 HH:mm"(Asia/Seoul)으로 바꾼 값이다.
+ * 목록 한 줄. [timeText]는 접수 시각을 고객센터 시각 문구(오늘 "HH:mm" / "어제 HH:mm" / "M월 d일 HH:mm")로 바꾼 값이다.
+ *
+ * @property answerStatus 행 오른쪽 상태 글자. null이면(서버가 답변 여부를 주지 않음) 글자를 숨긴다.
  */
 data class FeedbackListItemUiState(
     val id: String,
     val content: String,
     val timeText: String,
+    val answerStatus: FeedbackAnswerStatus? = null,
 )
+
+/** 목록 행의 답변 상태. */
+enum class FeedbackAnswerStatus {
+    /** "답변 완료" */
+    Answered,
+
+    /** "답변 대기" */
+    Waiting,
+}

@@ -76,4 +76,36 @@ class NotificationTargetTest {
             postPush,
         )
     }
+
+    @Test
+    fun `답변 푸시는 고객센터 목록을 거쳐 문의 상세를 연다`() {
+        // Given  답변 푸시(F, N), 읽음 처리 성공
+        val feedbackTarget = notificationTargetOf(
+            type = "FEEDBACK_ANSWERED",
+            sourceType = "FEEDBACK",
+            sourceId = "F",
+            notificationId = "N",
+        )
+        val postTarget = notificationTargetOf(
+            type = "POST_APPROVED",
+            sourceType = "POST",
+            sourceId = "P",
+            notificationId = "N",
+        )
+
+        // When   푸시 이동 경로를 정한다
+        val feedbackPushRoute = pushNotificationRouteOf(feedbackTarget)
+        val postPushRoute = pushNotificationRouteOf(postTarget)
+
+        // Then   고객센터 목록 → 문의 상세(F) 순서. 알림함 항목에서 누르면 문의 상세(F) 하나, 다른 종류 푸시는 기존 그대로
+        assertEquals(
+            listOf(NotificationTarget.FeedbackList, NotificationTarget.FeedbackInquiry(feedbackId = "F")),
+            feedbackPushRoute,
+        )
+        assertEquals(NotificationTarget.FeedbackInquiry(feedbackId = "F"), feedbackTarget)
+        assertEquals(
+            listOf(NotificationTarget.Post(postId = "P", openAiReviewResult = false)),
+            postPushRoute,
+        )
+    }
 }

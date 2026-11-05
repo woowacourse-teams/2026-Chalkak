@@ -85,6 +85,28 @@ class FeedbackRepositoryImplTest {
     }
 
     @Test
+    fun `목록 항목의 답변 여부를 답변 완료·답변 대기로 담는다`() = runTest {
+        // Given  항목 A hasAnswer=true, B hasAnswer=false, C 필드 없음
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"currentPage":1,"pageSize":20,"hasNext":false,"feedbacks":[
+                  {"feedbackId":"A","content":"문의 A","createdAt":"2026-11-03T06:00:00Z","hasAnswer":true},
+                  {"feedbackId":"B","content":"문의 B","createdAt":"2026-11-03T06:00:00Z","hasAnswer":false},
+                  {"feedbackId":"C","content":"문의 C","createdAt":"2026-11-03T06:00:00Z"}
+                ]}
+                """.trimIndent(),
+            ),
+        )
+
+        // When   목록을 불러온다
+        val page = remoteRepository.getFeedbacks(page = 1)
+
+        // Then   A 답변 완료, B 답변 대기, C 상태 없음(null)
+        assertEquals(listOf(true, false, null), page.inquiries.map { it.hasAnswer })
+    }
+
+    @Test
     fun `답변이 있으면 상세 상태에 답변 내용과 시각을 담는다`() = runTest {
         // Given  answerContent="확인했어요", answeredAt="2026-11-04T01:00:00Z"
         server.enqueue(

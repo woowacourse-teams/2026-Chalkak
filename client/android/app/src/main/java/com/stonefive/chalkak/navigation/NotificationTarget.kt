@@ -22,6 +22,9 @@ internal sealed interface NotificationTarget {
     /** 고객센터 답변 알림. 문의 상세를 연다. */
     data class FeedbackInquiry(val feedbackId: String) : NotificationTarget
 
+    /** 고객센터(내 문의 목록). 답변 푸시로 문의 상세를 열 때 그 아래에 둔다. */
+    data object FeedbackList : NotificationTarget
+
     /** 열 곳을 알 수 없으면 알림함으로 간다. */
     data object NotificationList : NotificationTarget
 }
@@ -54,6 +57,20 @@ internal fun notificationTargetOf(
         NotificationTarget.FeedbackInquiry(feedbackId = sourceId)
 
     else -> NotificationTarget.NotificationList
+}
+
+/**
+ * 푸시를 눌렀을 때 [target]까지 차례로 쌓을 화면들. `ChalkakNavHost`가 앞에서부터 순서대로 연다.
+ *
+ * - 답변 알림: [NotificationTarget.FeedbackList] → [NotificationTarget.FeedbackInquiry].
+ *   상세에서 뒤로 가면 고객센터 목록(첫 페이지부터 새로 불러와 "답변 완료"), 한 번 더 뒤로 가면 푸시 전 화면이다.
+ * - 그 밖: [target] 하나.
+ *
+ * 알림함 항목을 눌렀을 때는 이 함수를 쓰지 않고 [notificationTargetOf] 하나만 연다(뒤로 가면 알림함).
+ */
+internal fun pushNotificationRouteOf(target: NotificationTarget): List<NotificationTarget> = when (target) {
+    is NotificationTarget.FeedbackInquiry -> listOf(NotificationTarget.FeedbackList, target)
+    else -> listOf(target)
 }
 
 /**

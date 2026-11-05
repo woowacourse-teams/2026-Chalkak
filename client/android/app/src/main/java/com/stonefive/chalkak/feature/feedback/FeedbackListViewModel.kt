@@ -135,6 +135,11 @@ private fun FeedbackInquiry.toUiState(): FeedbackListItemUiState = FeedbackListI
     id = id,
     content = content,
     timeText = createdAt.toFeedbackTimeText(),
+    answerStatus = when (hasAnswer) {
+        true -> FeedbackAnswerStatus.Answered
+        false -> FeedbackAnswerStatus.Waiting
+        null -> null
+    },
 )
 
 private const val FIRST_PAGE = 1

@@ -283,10 +283,28 @@ private const val LOAD_MORE_THRESHOLD = 4
 private val previewItems = listOf(
     FeedbackListItemUiState(
         id = "1",
-        content = "사진 업로드 후 화면이 멈춰요. 업로드 버튼을 누르면 한참 동안 아무 반응이 없다가 앱이 꺼져요.",
-        timeText = "11월 3일 15:00",
+        content = "전시한 사진이 피드에 안 보여요. 전시하기를 눌렀는데 피드에서 찾을 수가 없어요.",
+        timeText = "09:30",
+        answerStatus = FeedbackAnswerStatus.Waiting,
     ),
-    FeedbackListItemUiState(id = "2", content = "알림이 늦게 와요.", timeText = "11월 2일 09:12"),
+    FeedbackListItemUiState(
+        id = "2",
+        content = "사진 업로드 후 화면이 멈춰요. 업로드 버튼을 누르면 한참 동안 아무 반응이 없다가 앱이 꺼져요.",
+        timeText = "11월 3일 14:20",
+        answerStatus = FeedbackAnswerStatus.Answered,
+    ),
+    FeedbackListItemUiState(
+        id = "3",
+        content = "알림이 늦게 와요. 주제 알림이 하루 지나서 도착했어요.",
+        timeText = "11월 1일 09:12",
+        answerStatus = FeedbackAnswerStatus.Waiting,
+    ),
+    FeedbackListItemUiState(
+        id = "4",
+        content = "사인을 바꾸고 싶은데 어디서 바꾸나요?",
+        timeText = "10월 28일 21:40",
+        answerStatus = FeedbackAnswerStatus.Answered,
+    ),
 )
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)

@@ -223,11 +223,8 @@ fun ChalkakNavHost(
         if (push.type == TOPIC) {
             application.appContainer.pendingNotificationNavigation
                 .consume(push)
-            navController.openNotificationTarget(
-                type = push.type,
-                sourceType = push.sourceType,
-                sourceId = push.sourceId,
-                notificationId = push.notificationId,
+            navController.openPushNotificationTarget(
+                notificationTargetOf(push.type, push.sourceType, push.sourceId, push.notificationId),
             )
             return@LaunchedEffect
         }
@@ -244,11 +241,8 @@ fun ChalkakNavHost(
             is NotificationResult.Success -> {
                 application.appContainer.pendingNotificationNavigation
                     .consume(push)
-                navController.openNotificationTarget(
-                    type = push.type,
-                    sourceType = push.sourceType,
-                    sourceId = push.sourceId,
-                    notificationId = notificationId,
+                navController.openPushNotificationTarget(
+                    notificationTargetOf(push.type, push.sourceType, push.sourceId, notificationId),
                 )
             }
 
@@ -263,7 +257,7 @@ fun ChalkakNavHost(
                     failure = result.reason,
                 )
                 handling.message?.let(showToast)
-                handling.target?.let(navController::openNotificationTarget)
+                handling.target?.let(navController::openPushNotificationTarget)
             }
         }
     }
@@ -971,6 +965,14 @@ internal fun NavHostController.openNotificationTarget(
     openNotificationTarget(notificationTargetOf(type, sourceType, sourceId, notificationId))
 }
 
+/**
+ * 푸시로 [target]을 연다. 쌓을 화면 순서는 [pushNotificationRouteOf]가 정한다.
+ * 예: 답변 푸시면 고객센터 목록 → 문의 상세(F)를 차례로 쌓는다.
+ */
+private fun NavHostController.openPushNotificationTarget(target: NotificationTarget) {
+    pushNotificationRouteOf(target).forEach(::openNotificationTarget)
+}
+
 /** [NotificationTarget]을 실제 목적지로 옮긴다. 열 곳의 결정은 [notificationTargetOf]가 한다. */
 private fun NavHostController.openNotificationTarget(target: NotificationTarget) {
     when (target) {
@@ -1009,6 +1011,17 @@ private fun NavHostController.openNotificationTarget(target: NotificationTarget)
 
         is NotificationTarget.FeedbackInquiry ->
             navigate(FeedbackDetail(target.feedbackId)) { launchSingleTop = true }
+
+        // 이미 고객센터 목록을 보고 있으면 하나 더 쌓지 않고, 상세에서 돌아왔을 때 답변 여부가 바뀌어 있게 새로고침을 걸어 둔다.
+        // 새로 쌓은 목록은 처음 그려질 때 첫 페이지부터 불러온다.
+        NotificationTarget.FeedbackList -> {
+            val shownList = currentBackStackEntry?.takeIf { it.destination.hasRoute<FeedbackList>() }
+            if (shownList != null) {
+                shownList.savedStateHandle[FEEDBACK_LIST_REFRESH_KEY] = true
+            } else {
+                navigate(FeedbackList)
+            }
+        }
 
         NotificationTarget.NotificationList -> navigate(Notifications) { launchSingleTop = true }
     }

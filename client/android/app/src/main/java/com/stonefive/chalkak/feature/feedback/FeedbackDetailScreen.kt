@@ -10,11 +10,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DividerDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,8 +21,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +30,8 @@ import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDi
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.feature.feedback.component.FeedbackChatBubble
+import com.stonefive.chalkak.feature.feedback.component.FeedbackChatBubbleSide
 import com.stonefive.chalkak.feature.feedback.component.FeedbackTopBar
 import com.stonefive.chalkak.feature.feedback.component.FeedbackTopBarPadding
 
@@ -80,7 +77,10 @@ fun FeedbackDetailRoute(
     )
 }
 
-/** 문의 상세 화면. 문의 내용·접수 시각, 그 아래 답변(또는 "아직 답변이 없어요"), 맨 아래 삭제 버튼. */
+/**
+ * 문의 상세 화면(메신저형). 내 문의는 왼쪽 말풍선, 답변은 오른쪽 말풍선이고 각 시각은 말풍선 바깥 아래에 둔다.
+ * 답변이 없으면 내 말풍선 아래에 안내 문구를 둔다. 맨 아래 "문의 삭제"는 목록의 "문의하기"와 같은 자리다.
+ */
 @Composable
 fun FeedbackDetailScreen(
     uiState: FeedbackDetailUiState,
@@ -170,64 +170,30 @@ private fun FeedbackDetailContent(
         modifier = modifier
             .verticalScroll(rememberScrollState())
             .padding(horizontal = ChalkakTheme.spacing.screenHorizontal, vertical = ChalkakTheme.spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.xl),
+        verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
     ) {
-        FeedbackDetailSection(label = "문의 내용", text = detail.content, timeText = detail.createdAtText)
-
-        HorizontalDivider(
+        FeedbackChatBubble(
+            text = detail.content,
+            timeText = detail.createdAtText,
+            side = FeedbackChatBubbleSide.Mine,
             modifier = Modifier.fillMaxWidth(),
-            thickness = DividerDefaults.Thickness,
-            color = ChalkakTheme.colors.border,
         )
 
         if (detail.answerContent != null) {
-            FeedbackDetailSection(label = "답변", text = detail.answerContent, timeText = detail.answeredAtText)
+            FeedbackChatBubble(
+                text = detail.answerContent,
+                timeText = detail.answeredAtText.orEmpty(),
+                side = FeedbackChatBubbleSide.Answer,
+                modifier = Modifier.fillMaxWidth(),
+            )
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm)) {
-                FeedbackDetailSectionLabel(text = "답변")
-                Text(
-                    text = "아직 답변이 없어요",
-                    style = ChalkakTheme.typography.subheadline,
-                    color = ChalkakTheme.colors.textMuted,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun FeedbackDetailSection(
-    label: String,
-    text: String,
-    timeText: String?,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm)) {
-        FeedbackDetailSectionLabel(text = label)
-        SelectionContainer {
             Text(
-                text = text,
-                style = ChalkakTheme.typography.body,
-                color = ChalkakTheme.colors.textPrimary,
-            )
-        }
-        timeText?.let {
-            Text(
-                text = it,
-                style = ChalkakTheme.typography.caption,
-                color = ChalkakTheme.colors.textInactive,
+                text = "아직 답변이 오지 않았어요, 답변이 오면 알림으로 알려드릴게요.",
+                style = ChalkakTheme.typography.footnote,
+                color = ChalkakTheme.colors.textMuted,
             )
         }
     }
-}
-
-@Composable
-private fun FeedbackDetailSectionLabel(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier.semantics { heading() },
-        style = ChalkakTheme.typography.caption,
-        color = ChalkakTheme.colors.textSecondary,
-    )
 }
 
 @Composable
@@ -258,10 +224,10 @@ private fun FeedbackDetailScreenAnsweredPreview() {
             uiState = FeedbackDetailUiState(
                 status = FeedbackDetailStatus.Content,
                 detail = FeedbackDetailContentUiState(
-                    content = "사진 업로드 후 화면이 멈춰요.",
-                    createdAtText = "11월 3일 15:00",
-                    answerContent = "확인했어요. 다음 업데이트에서 고칠게요.",
-                    answeredAtText = "11월 4일 10:00",
+                    content = "전시한 사진이 피드에 안 보여요. 전시하기를 눌렀는데 피드에서 찾을 수가 없어요.",
+                    createdAtText = "09:30",
+                    answerContent = "안녕하세요. 알려 주신 문제를 확인했어요. 다음 업데이트에서 고칠게요.",
+                    answeredAtText = "16:12",
                 ),
             ),
             onBackClick = {},
@@ -278,7 +244,10 @@ private fun FeedbackDetailScreenUnansweredPreview() {
         FeedbackDetailScreen(
             uiState = FeedbackDetailUiState(
                 status = FeedbackDetailStatus.Content,
-                detail = FeedbackDetailContentUiState(content = "알림이 늦게 와요.", createdAtText = "11월 3일 15:00"),
+                detail = FeedbackDetailContentUiState(
+                    content = "전시한 사진이 피드에 안 보여요. 전시하기를 눌렀는데 피드에서 찾을 수가 없어요.",
+                    createdAtText = "09:30",
+                ),
             ),
             onBackClick = {},
             onRetryClick = {},

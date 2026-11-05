@@ -91,6 +91,7 @@ private fun FeedbackSummaryResponse.toDomain(): FeedbackInquiry = FeedbackInquir
     id = feedbackId,
     content = content,
     createdAt = createdAt,
+    hasAnswer = hasAnswer,
 )
 
 // 답변 내용과 시각이 모두 있을 때만 답변으로 본다. 미답변·답변 삭제는 둘 다 null이다.

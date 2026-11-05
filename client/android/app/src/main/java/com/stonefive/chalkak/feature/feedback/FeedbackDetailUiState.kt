@@ -36,7 +36,7 @@ data class FeedbackDetailUiState(
 )
 
 /**
- * 화면에 그릴 문의 한 건. 시각은 "M월 d일 HH:mm"(Asia/Seoul) 문자열이다.
+ * 화면에 그릴 문의 한 건. 시각은 고객센터 시각 문구(오늘 "HH:mm" / "어제 HH:mm" / "M월 d일 HH:mm", Asia/Seoul)다.
  * 답변이 없으면 [answerContent]·[answeredAtText]가 둘 다 null이다.
  */
 data class FeedbackDetailContentUiState(

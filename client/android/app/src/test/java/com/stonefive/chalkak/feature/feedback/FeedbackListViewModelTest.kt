@@ -103,6 +103,31 @@ class FeedbackListViewModelTest {
         )
     }
 
+    @Test
+    fun `목록 항목의 답변 여부를 답변 완료·답변 대기로 담는다`() = runTest {
+        // Given  항목 A hasAnswer=true, B hasAnswer=false, C 필드 없음
+        repository.pages[1] = FeedbackInquiryPage(
+            currentPage = 1,
+            hasNext = false,
+            inquiries = listOf(
+                FeedbackInquiry(id = "A", content = "문의 A", createdAt = "2026-11-03T06:00:00Z", hasAnswer = true),
+                FeedbackInquiry(id = "B", content = "문의 B", createdAt = "2026-11-03T06:00:00Z", hasAnswer = false),
+                FeedbackInquiry(id = "C", content = "문의 C", createdAt = "2026-11-03T06:00:00Z", hasAnswer = null),
+            ),
+        )
+
+        // When   목록을 불러온다
+        val viewModel = FeedbackListViewModel(repository)
+        advanceUntilIdle()
+
+        // Then   A 답변 완료, B 답변 대기, C 상태 없음(null)
+        assertEquals(
+            listOf(FeedbackAnswerStatus.Answered, FeedbackAnswerStatus.Waiting, null),
+            viewModel.uiState.value.items
+                .map { it.answerStatus },
+        )
+    }
+
     private fun page(
         currentPage: Int,
         hasNext: Boolean,

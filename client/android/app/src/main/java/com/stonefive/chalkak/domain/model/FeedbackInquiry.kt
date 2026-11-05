@@ -11,13 +11,17 @@ data class FeedbackInquiryPage(
 )
 
 /**
- * 내 문의 목록의 항목. 목록 응답에는 답변 정보가 없다.
+ * 내 문의 목록의 항목. 답변 내용은 없고 답변이 있는지만 안다.
  * [createdAt]은 서버가 준 UTC ISO-8601 문자열 그대로다(예: "2026-11-03T06:00:00Z").
+ *
+ * @property hasAnswer 지금 답변이 있으면 true, 없으면(미답변·답변 삭제) false.
+ *   서버가 이 필드를 주지 않으면(아직 배포 전) null이고, 화면은 답변 상태를 숨긴다.
  */
 data class FeedbackInquiry(
     val id: String,
     val content: String,
     val createdAt: String,
+    val hasAnswer: Boolean? = null,
 )
 
 /**
