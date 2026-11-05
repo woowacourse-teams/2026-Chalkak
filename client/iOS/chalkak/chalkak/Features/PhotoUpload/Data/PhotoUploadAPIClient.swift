@@ -148,14 +148,16 @@ struct PhotoUploadAPIClient: Sendable {
         topicID: String,
         photoUploadID: String,
         title: String?,
-        description: String?
+        description: String?,
+        instagramConsent: InstagramConsent = .notAgreed
     ) async throws -> PhotoUploadCreationResponse {
         let body = try encoder.encode(
             PostCreateRequest(
                 topicID: topicID,
                 photoUploadID: photoUploadID,
                 title: title,
-                description: description
+                description: description,
+                instagramConsent: instagramConsent
             )
         )
         return try await request(
@@ -291,17 +293,39 @@ private struct PostImageUploadResponse: Decodable {
     }
 }
 
+/// 게시물 작성 요청. 값이 없는 필드는 본문에서 뺀다.
+/// 인스타그램 동의는 동의했을 때만 `instagramUploadAgreed: true`와 ID를 싣는다. 서버는 빠진 동의를 동의 안 함으로 저장한다(POST-013).
+/// 예: 동의 + ID 없음 → `{"topicId":…,"photoUploadId":…,"instagramUploadAgreed":true}`
 private struct PostCreateRequest: Encodable {
     let topicID: String
     let photoUploadID: String
     let title: String?
     let description: String?
+    let instagramUploadAgreed: Bool?
+    let instagramID: String?
+
+    init(
+        topicID: String,
+        photoUploadID: String,
+        title: String?,
+        description: String?,
+        instagramConsent: InstagramConsent
+    ) {
+        self.topicID = topicID
+        self.photoUploadID = photoUploadID
+        self.title = title
+        self.description = description
+        self.instagramUploadAgreed = instagramConsent.isAgreed ? true : nil
+        self.instagramID = instagramConsent.isAgreed ? instagramConsent.instagramID : nil
+    }
 
     enum CodingKeys: String, CodingKey {
         case topicID = "topicId"
         case photoUploadID = "photoUploadId"
         case title
         case description
+        case instagramUploadAgreed
+        case instagramID = "instagramId"
     }
 }
 

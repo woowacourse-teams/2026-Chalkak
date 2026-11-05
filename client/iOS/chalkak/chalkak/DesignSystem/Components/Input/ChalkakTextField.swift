@@ -27,6 +27,8 @@ struct ChalkakTextField: View {
     var lengthMetric: ChalkakTextLengthMetric = .characters
     var showsCharacterCount = true
     var height: CGFloat?
+    /// 입력 앞에 붙여 보여 주는 고정 글자. 입력값에는 들어가지 않는다. 예: 인스타그램 ID 칸의 "@"
+    var leadingText: String? = nil
     var onFocusChange: ((Bool) -> Void)? = nil
 
     var body: some View {
@@ -59,7 +61,15 @@ struct ChalkakTextField: View {
     private var content: some View {
         // 한 줄 입력은 글자 수를 같은 줄 오른쪽에 두어 한 줄 높이를 유지한다.
         HStack(alignment: .firstTextBaseline, spacing: theme.spacing.sm) {
-            textField
+            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.xs) {
+                if let leadingText {
+                    Text(leadingText)
+                        .font(textFont ?? theme.typography.body)
+                        .foregroundStyle(theme.colors.textMuted)
+                        .accessibilityHidden(true)
+                }
+                textField
+            }
             if isSingleLine {
                 characterCount
             }

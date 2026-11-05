@@ -3,7 +3,8 @@ import SwiftUI
 /// 피드 상세의 '수정'으로 여는 게시물 수정 시트 내용.
 ///
 /// 맨 위 줄 왼쪽에 '게시물 수정', 오른쪽에 '저장'을 두고, 그 아래 '제목'(한 줄)과 '이야기'(3–8줄) 칸으로 제목과 설명을 함께 고친다.
-/// 입력값은 `edit`으로 받기만 하고, 바뀐 글은 `onTitleChange`·`onDescriptionChange`로 뷰모델에 올린다.
+/// 이야기 칸 아래에는 작성 화면과 같은 인스타그램 게시 동의 스위치와 ID 칸을 현재 값으로 둔다.
+/// 입력값은 `edit`으로 받기만 하고, 바뀐 값은 `onTitleChange`·`onDescriptionChange`·`onInstagramUploadAgreedChange`·`onInstagramIDChange`로 뷰모델에 올린다.
 /// `.sheet { FeedPostEditSheet(...) }`처럼 시트 안에 넣는다. 시트 높이·손잡이·배경은 이 뷰가 정한다.
 /// 아래로 쓸어내리거나 바깥을 누르면 저장하지 않고 닫힌다(닫기 처리는 `.sheet`의 바인딩이 한다).
 /// 저장 중(`isSaving`)에는 입력과 닫기를 막는다. 응답이 오기 전에 닫으면 결과를 볼 곳이 없기 때문이다.
@@ -11,11 +12,15 @@ import SwiftUI
 /// 예: 제목 "제목", 설명 "이야기"인 게시물이면 두 칸에 그 글이 채워진 채 올라온다.
 struct FeedPostEditSheet: View {
     @Environment(\.chalkakTheme) private var theme
+    // 인스타그램 스위치·ID 칸·안내를 그린 실제 높이. 문구 줄 수와 스위치 켬/끔에 따라 달라져 재서 시트 높이에 더한다.
+    @State private var instagramConsentHeight = Metrics.instagramConsentFallbackHeight
 
     let edit: FeedPostEditState
     let isSaving: Bool
     let onTitleChange: (String) -> Void
     let onDescriptionChange: (String) -> Void
+    let onInstagramUploadAgreedChange: (Bool) -> Void
+    let onInstagramIDChange: (String) -> Void
     let onSave: () -> Void
 
     var body: some View {
@@ -52,6 +57,21 @@ struct FeedPostEditSheet: View {
                         lengthMetric: .unicodeScalars
                     )
                     .accessibilityIdentifier("feed.postEdit.description")
+
+                    ChalkakInstagramConsentField(
+                        isAgreed: edit.instagramConsent.isAgreed,
+                        instagramID: edit.instagramConsent.instagramID,
+                        errorMessage: edit.instagramConsent.errorMessage,
+                        isEnabled: !isSaving,
+                        onAgreedChange: onInstagramUploadAgreedChange,
+                        onInstagramIDChange: onInstagramIDChange
+                    )
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        instagramConsentHeight = height
+                    }
+                    .padding(.top, theme.spacing.lg)
                 }
                 .padding(.horizontal, theme.spacing.xl)
                 .padding(.bottom, theme.spacing.xl)
@@ -60,7 +80,7 @@ struct FeedPostEditSheet: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.top, Metrics.topPadding)
-        .presentationDetents([.height(Metrics.sheetHeight)])
+        .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
         // 저장 중에는 아래로 끌거나 바깥을 눌러 닫지 못하게 한다.
         .interactiveDismissDisabled(isSaving)
@@ -73,6 +93,13 @@ struct FeedPostEditSheet: View {
                 .presentationCornerRadius(theme.shapes.sheet)
                 .presentationBackground(theme.colors.surfaceElevated)
         }
+    }
+
+    /// 인스타그램 묶음이 없던 때의 높이에 묶음 위 여백과 잰 묶음 높이를 더한다.
+    /// 스위치를 켜 ID 칸과 안내가 펼쳐지면 잰 높이가 늘어 시트도 그만큼 높아진다.
+    /// 예: 스위치 꺼짐(제목 2줄 행 44) → 360 + 16 + 44, 켜짐 → 여기에 ID 칸과 안내 줄 높이가 더해진다.
+    private var sheetHeight: CGFloat {
+        Metrics.sheetHeightWithoutInstagramConsent + theme.spacing.lg + instagramConsentHeight
     }
 
     /// 맨 위 줄: 왼쪽 '게시물 수정', 오른쪽 '저장'. 저장 중에는 "저장 중..."으로 바꾸고 누를 수 없게 한다.
@@ -115,9 +142,11 @@ struct FeedPostEditSheet: View {
 }
 
 private enum Metrics {
-    // 손잡이 아래 제목 줄 + 제목 칸 + 이야기 칸(3줄) + 아래 여백이 들어가는 높이.
-    // 키보드가 올라와 시트가 그 위로 밀려도 두 칸과 '저장'이 다 보이는 값으로 화면 확인에서 정했다.
-    static let sheetHeight: CGFloat = 360
+    // 손잡이 아래 제목 줄 + 제목 칸 + 이야기 칸(3줄) + 아래 여백이 들어가는 높이(인스타그램 묶음이 없던 #938 때 화면 확인으로 정한 값).
+    // 키보드가 올라와 시트가 그 위로 밀려도 칸들과 '저장'이 다 보이는 값이다. 인스타그램 묶음은 재서 따로 더한다.
+    static let sheetHeightWithoutInstagramConsent: CGFloat = 360
+    // 묶음 높이를 재기 전 첫 그림에 쓰는 값. 스위치 행의 최소 터치 높이와 같다.
+    static let instagramConsentFallbackHeight: CGFloat = 44
     static let topPadding: CGFloat = 20
     static let headerHeight: CGFloat = 52
     static let touchSize: CGFloat = 44
@@ -127,10 +156,16 @@ private enum Metrics {
     Color.clear
         .sheet(isPresented: .constant(true)) {
             FeedPostEditSheet(
-                edit: FeedPostEditState(title: "늦은 오후의 골목", description: "퇴근길에 빛이 벽을 타고 내려오는 걸 보고 멈춰 섰어요."),
+                edit: FeedPostEditState(
+                    title: "늦은 오후의 골목",
+                    description: "퇴근길에 빛이 벽을 타고 내려오는 걸 보고 멈춰 섰어요.",
+                    instagramConsent: InstagramConsentInput(isAgreed: true, instagramID: "chalkak.daily")
+                ),
                 isSaving: false,
                 onTitleChange: { _ in },
                 onDescriptionChange: { _ in },
+                onInstagramUploadAgreedChange: { _ in },
+                onInstagramIDChange: { _ in },
                 onSave: {}
             )
         }
