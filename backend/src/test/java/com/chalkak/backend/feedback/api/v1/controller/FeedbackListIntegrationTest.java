@@ -56,6 +56,7 @@ class FeedbackListIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.feedbacks.length()").value(1))
                 .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(ownFeedbackId.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].content").value("내 문의"))
+                .andExpect(jsonPath("$.feedbacks[0].hasAnswer").value(false))
                 .andExpect(jsonPath("$.hasNext").value(false));
     }
 

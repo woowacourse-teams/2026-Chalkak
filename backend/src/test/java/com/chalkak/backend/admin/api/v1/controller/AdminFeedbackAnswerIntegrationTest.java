@@ -110,6 +110,21 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("본인 문의 목록은 답변 등록·삭제·재답변에 따라 현재 답변 여부를 반환한다")
+    void getFeedbacks_answerLifecycle_reflectsCurrentAnswer() throws Exception {
+        // Given
+        assertUserListHasAnswer(false);
+
+        // When & Then
+        answer("최초 답변").andExpect(status().isNoContent());
+        assertUserListHasAnswer(true);
+        deleteAnswer(currentAnswerVersion()).andExpect(status().isNoContent());
+        assertUserListHasAnswer(false);
+        answer("재답변").andExpect(status().isNoContent());
+        assertUserListHasAnswer(true);
+    }
+
+    @Test
     @DisplayName("정지 회원 문의에도 답변·감사·알림을 한 번 저장한다")
     void answerFeedback_bannedAuthor_savesAnswerAuditAndNotificationOnce() throws Exception {
         // Given
@@ -458,6 +473,19 @@ class AdminFeedbackAnswerIntegrationTest extends IntegrationTestSupport {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
         }
+    }
+
+    private void assertUserListHasAnswer(boolean expected) throws Exception {
+        String memberToken = "Bearer "
+                + tokenProvider.issueForSession(userId, UUID.randomUUID()).value();
+        mockMvc.perform(get("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbacks.length()").value(1))
+                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(feedbackId.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].hasAnswer").value(expected))
+                .andExpect(jsonPath("$.feedbacks[0].answerContent").doesNotExist())
+                .andExpect(jsonPath("$.feedbacks[0].answeredAt").doesNotExist());
     }
 
     private String adminToken() {
