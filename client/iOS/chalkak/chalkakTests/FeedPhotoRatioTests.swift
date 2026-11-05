@@ -30,8 +30,9 @@ struct FeedPhotoRatioTests {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
 
-        try await Task.sleep(for: .milliseconds(1500))
-        let fitted = host.sizeThatFits(in: CGSize(width: 402, height: 2000))
-        #expect(abs(fitted.height - 536) < 2)
+        // 전체 테스트를 병렬로 돌리면 이미지 로딩이 늦어질 수 있어 고정 시간 대신 결과를 기다린다.
+        try await waitUntil(timeout: .seconds(10)) {
+            abs(host.sizeThatFits(in: CGSize(width: 402, height: 2000)).height - 536) < 2
+        }
     }
 }
