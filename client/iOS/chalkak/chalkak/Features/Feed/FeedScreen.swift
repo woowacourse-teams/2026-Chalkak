@@ -251,6 +251,8 @@ struct FeedScreen: View {
                     isSaving: viewModel.viewState.isSavingPostEdit,
                     onTitleChange: { viewModel.updatePostEditTitle($0) },
                     onDescriptionChange: { viewModel.updatePostEditDescription($0) },
+                    onInstagramUploadAgreedChange: { viewModel.updatePostEditInstagramUploadAgreed($0) },
+                    onInstagramIDChange: { viewModel.updatePostEditInstagramID($0) },
                     onSave: { viewModel.savePostEdit() }
                 )
             }
@@ -616,6 +618,8 @@ struct FeedScreen: View {
             showMessage("게시물을 수정했어요")
         case let .showPostUpdateFailure(error):
             showMessage(error.postUpdateMessage)
+        case .showPostEditUnavailable:
+            showMessage(FeedEvent.postEditUnavailableMessage)
         case .showLikeFailure:
             showMessage("좋아요를 변경하지 못했어요")
         }
