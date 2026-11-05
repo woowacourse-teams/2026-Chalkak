@@ -12,8 +12,9 @@ import SwiftUI
 /// 예: 제목 "제목", 설명 "이야기"인 게시물이면 두 칸에 그 글이 채워진 채 올라온다.
 struct FeedPostEditSheet: View {
     @Environment(\.chalkakTheme) private var theme
-    // 인스타그램 스위치·ID 칸·안내를 그린 실제 높이. 문구 줄 수와 스위치 켬/끔에 따라 달라져 재서 시트 높이에 더한다.
-    @State private var instagramConsentHeight = Metrics.instagramConsentFallbackHeight
+    // 인스타그램 묶음을 스위치 끔·켬 두 모양으로 그렸을 때의 높이. 문구 줄 수에 따라 달라져 미리 재서 시트 높이에 더한다.
+    @State private var instagramConsentOffHeight = Metrics.instagramConsentFallbackHeight
+    @State private var instagramConsentOnHeight = Metrics.instagramConsentFallbackHeight
 
     let edit: FeedPostEditState
     let isSaving: Bool
@@ -66,11 +67,7 @@ struct FeedPostEditSheet: View {
                         onAgreedChange: onInstagramUploadAgreedChange,
                         onInstagramIDChange: onInstagramIDChange
                     )
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.height
-                    } action: { height in
-                        instagramConsentHeight = height
-                    }
+                    .background(alignment: .top) { instagramConsentHeightProbe }
                     .padding(.top, theme.spacing.lg)
                 }
                 .padding(.horizontal, theme.spacing.xl)
@@ -80,7 +77,7 @@ struct FeedPostEditSheet: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.top, Metrics.topPadding)
-        .presentationDetents([.height(sheetHeight)])
+        .presentationDetents(Set([offDetent, onDetent]), selection: detentSelection)
         .presentationDragIndicator(.visible)
         // 저장 중에는 아래로 끌거나 바깥을 눌러 닫지 못하게 한다.
         .interactiveDismissDisabled(isSaving)
@@ -95,13 +92,53 @@ struct FeedPostEditSheet: View {
         }
     }
 
-    /// 인스타그램 묶음이 없던 때의 높이에 묶음 위 여백과 잰 묶음 높이를 더한다.
-    /// 스위치를 켜 ID 칸과 안내가 펼쳐지면 잰 높이가 늘어 시트도 그만큼 높아진다.
-    /// 시트 높이(`presentationDetents`의 값)는 `withAnimation` 안에서 바꿔도 한 프레임 만에 바뀐다(iOS 26.5 화면 확인).
-    /// 그래서 스위치를 켜고 끌 때 ID 칸은 서서히 나타나고 사라지지만 시트 높이는 바로 바뀐다. 사람이 이대로 두기로 정했다(#939 리뷰).
-    /// 예: 스위치 꺼짐(제목 2줄 행 44) → 360 + 16 + 44, 켜짐 → 여기에 ID 칸과 안내 줄 높이가 더해진다.
-    private var sheetHeight: CGFloat {
-        Metrics.sheetHeightWithoutInstagramConsent + theme.spacing.lg + instagramConsentHeight
+    /// 시트 높이는 스위치 끔·켬 두 칸으로 고정해 두고, 스위치에 맞는 칸을 고른다.
+    /// 높이 값 자체를 바꾸면(`presentationDetents`에 새 값) `withAnimation` 안에서도 시트가 한 프레임 만에 바뀐다(iOS 26.5 화면 확인, #939 리뷰).
+    /// 고른 칸(`selection`)을 바꾸는 것은 시트가 애니메이션으로 움직이므로, 두 높이를 미리 재서 칸은 그대로 두고 고르기만 바꾼다.
+    /// 예: 스위치 꺼짐(제목 2줄 행 44) → 360 + 16 + 44 칸, 켜짐 → 360 + 16 + (44 + ID 칸 + 안내) 칸.
+    private var offDetent: PresentationDetent {
+        .height(Metrics.sheetHeightWithoutInstagramConsent + theme.spacing.lg + instagramConsentOffHeight)
+    }
+
+    private var onDetent: PresentationDetent {
+        .height(Metrics.sheetHeightWithoutInstagramConsent + theme.spacing.lg + instagramConsentOnHeight)
+    }
+
+    /// 스위치 값으로 고를 칸을 정한다. 사람이 시트를 끌어 다른 칸으로 옮긴 값은 받지 않는다(스위치가 기준).
+    private var detentSelection: Binding<PresentationDetent> {
+        Binding(
+            get: { edit.instagramConsent.isAgreed ? onDetent : offDetent },
+            set: { _ in }
+        )
+    }
+
+    /// 인스타그램 묶음을 스위치 끔·켬 두 모양으로 보이지 않게 그려 높이만 잰다.
+    /// 지금 보이는 모양만 재면 반대 모양의 높이를 몰라, 스위치를 바꿀 때 칸 높이를 새로 바꿔야 해서다(위 `offDetent`).
+    /// 오류 문구는 줄 수가 달라질 수 있어 지금 값을 넘긴다. ID는 한 줄 고정 높이라 비워 둔다.
+    private var instagramConsentHeightProbe: some View {
+        ZStack(alignment: .top) {
+            instagramConsentProbe(isAgreed: false) { instagramConsentOffHeight = $0 }
+            instagramConsentProbe(isAgreed: true) { instagramConsentOnHeight = $0 }
+        }
+        .hidden()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func instagramConsentProbe(isAgreed: Bool, onHeightChange: @escaping (CGFloat) -> Void) -> some View {
+        ChalkakInstagramConsentField(
+            isAgreed: isAgreed,
+            instagramID: "",
+            errorMessage: edit.instagramConsent.errorMessage,
+            onAgreedChange: { _ in },
+            onInstagramIDChange: { _ in }
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            onHeightChange(height)
+        }
     }
 
     /// 맨 위 줄: 왼쪽 '게시물 수정', 오른쪽 '저장'. 저장 중에는 "저장 중..."으로 바꾸고 누를 수 없게 한다.

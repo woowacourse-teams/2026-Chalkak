@@ -1,6 +1,8 @@
 package com.stonefive.chalkak.feature.instagramconsent.component
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,6 +29,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntSize
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
 import com.stonefive.chalkak.core.designsystem.component.toggle.ChalkakSwitch
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -43,6 +46,8 @@ import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
  * - 스위치가 꺼지면 ID 칸과 안내를 감춘다. 쓰던 ID는 상태에 남는다.
  *   켜고 끌 때 ID 칸과 안내는 위에서부터 펼쳐지고 접히며 서서히 나타나고 사라진다. 묶음 높이가 매 프레임 바뀌므로
  *   아래 내용과 이 묶음을 담은 바텀시트의 높이도 함께 따라 움직인다(한 번에 툭 튀어나오지 않게).
+ *   움직임은 기본 스프링 대신 정해진 시간([INSTAGRAM_CONSENT_REVEAL_MILLIS])의 감속 곡선이다. 스프링은 처음 몇 프레임에 크게 움직여,
+ *   시트 높이가 같이 바뀌면 프레임이 하나만 밀려도 시트가 뚝 끊겨 보였다(#939 리뷰).
  *
  * 입력은 [state]로 받기만 하고, 바뀐 값은 [onAgreedChange]·[onInstagramIdChange]로 올린다.
  * ID 칸 포커스는 [onInstagramIdFocusChange]로 알려, 맨 아래 칸일 때 부모가 스크롤을 따라 내릴 수 있게 한다.
@@ -56,6 +61,8 @@ fun InstagramConsentSection(
     enabled: Boolean = true,
     onInstagramIdFocusChange: (Boolean) -> Unit = {},
 ) {
+    val sizeSpec = tween<IntSize>(INSTAGRAM_CONSENT_REVEAL_MILLIS, easing = FastOutSlowInEasing)
+    val fadeSpec = tween<Float>(INSTAGRAM_CONSENT_REVEAL_MILLIS)
     Column(modifier = modifier) {
         InstagramConsentToggleRow(
             checked = state.agreed,
@@ -65,8 +72,8 @@ fun InstagramConsentSection(
         )
         AnimatedVisibility(
             visible = state.agreed,
-            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+            enter = expandVertically(sizeSpec, expandFrom = Alignment.Top) + fadeIn(fadeSpec),
+            exit = shrinkVertically(sizeSpec, shrinkTowards = Alignment.Top) + fadeOut(fadeSpec),
         ) {
             InstagramConsentIdInput(
                 state = state,
@@ -200,6 +207,9 @@ private fun InstagramConsentSectionErrorPreview() {
         )
     }
 }
+
+// 스위치를 켜고 끌 때 ID 칸·안내가 펼쳐지고 접히는 시간. iOS 작성·수정 화면과 같은 0.3초.
+private const val INSTAGRAM_CONSENT_REVEAL_MILLIS = 300
 
 const val INSTAGRAM_CONSENT_SWITCH_TAG = "instagram_consent_switch"
 const val INSTAGRAM_CONSENT_ID_TAG = "instagram_consent_id"
