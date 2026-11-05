@@ -61,7 +61,7 @@ final class FeedbackViewModel {
             if statusCode == 401 {
                 publish(.reauthenticationRequired)
             } else if statusCode == 400 {
-                publish(.showMessage(message ?? Self.invalidContentMessage))
+                publish(.showMessage(FeedbackErrorMessageFormatter.string(from: message ?? Self.invalidContentMessage)))
             } else {
                 publish(.showMessage(Self.genericErrorMessage))
             }
