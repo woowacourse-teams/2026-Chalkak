@@ -91,7 +91,7 @@ struct HomeViewModelTests {
         await viewModel.resume()
 
         #expect(viewModel.viewState.isAuthenticated == false)
-        #expect(viewModel.viewState.hero == .empty)
+        #expect(viewModel.viewState.hero == .loginRequired)
         #expect(viewModel.viewState.recordsStatus == .ready)
         #expect(loader.calendarRequests.isEmpty)
         #expect(loader.detailRequests.isEmpty)

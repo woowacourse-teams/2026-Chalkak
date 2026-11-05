@@ -95,6 +95,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onLoadMoreBanners: () -> Unit = {},
     onOpenRecordDate: (LocalDate) -> Unit = {},
+    onNavigateToLogin: () -> Unit = {},
     onDismissFeedbackMessage: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
@@ -171,6 +172,7 @@ fun HomeScreen(
                 HomeContent(
                     uiState = uiState,
                     onOpenPhotoUpload = onOpenPhotoUpload,
+                    onNavigateToLogin = onNavigateToLogin,
                     onOpenRecord = onOpenRecord,
                     onOpenRecordDate = onOpenRecordDate,
                     onOpenDisplay = onOpenDisplay,
@@ -297,6 +299,7 @@ private suspend fun LazyListState.animateScrollToTopSmoothly() {
 private fun HomeContent(
     uiState: HomeUiState,
     onOpenPhotoUpload: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     onOpenRecord: () -> Unit,
     onOpenDisplay: (LocalDate) -> Unit,
     onOpenFeed: (Post) -> Unit,
@@ -367,18 +370,16 @@ private fun HomeContent(
                         ),
                 )
             }
-            // 항목 순서가 바뀌지 않도록 업로드 전에도 자리는 유지하고 내용만 비운다.
             item {
-                if (!uiState.showsUploadEntry) {
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
-                    HomeHeroCard(
-                        hero = uiState.hero,
-                        topic = uiState.topic,
-                        onOpenPhotoUpload = onOpenPhotoUpload,
-                        onRetry = onRetry,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
-                    )
-                }
+                Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
+                HomeHeroCard(
+                    hero = uiState.hero,
+                    topic = uiState.topic,
+                    onOpenPhotoUpload = onOpenPhotoUpload,
+                    onLogin = onNavigateToLogin,
+                    onRetry = onRetry,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                )
             }
             if (uiState.showsFeedback) {
                 item {
@@ -394,22 +395,24 @@ private fun HomeContent(
                     )
                 }
             }
-            item {
-                Spacer(
-                    modifier = Modifier.height(
-                        if (uiState.showsFeedback) ChalkakTheme.spacing.xl else ChalkakTheme.spacing.xxl,
-                    ),
-                )
-                HomeWeeklyRecord(
-                    days = uiState.week,
-                    status = uiState.recordsStatus,
-                    onOpenRecord = onOpenRecord,
-                    onOpenRecordDate = onOpenRecordDate,
-                    onRetry = onRetry,
-                    uploadEntryDate = uiState.date.takeIf { uiState.showsUploadEntry },
-                    onOpenPhotoUpload = onOpenPhotoUpload,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
-                )
+            if (uiState.showsWeeklyRecord) {
+                item {
+                    Spacer(
+                        modifier = Modifier.height(
+                            if (uiState.showsFeedback) ChalkakTheme.spacing.xl else ChalkakTheme.spacing.xxl,
+                        ),
+                    )
+                    HomeWeeklyRecord(
+                        days = uiState.week,
+                        status = uiState.recordsStatus,
+                        onOpenRecord = onOpenRecord,
+                        onOpenRecordDate = onOpenRecordDate,
+                        onRetry = onRetry,
+                        uploadEntryDate = uiState.date.takeIf { uiState.showsUploadEntry },
+                        onOpenPhotoUpload = onOpenPhotoUpload,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                    )
+                }
             }
             item {
                 Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xxl))

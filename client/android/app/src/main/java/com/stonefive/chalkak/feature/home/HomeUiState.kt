@@ -40,9 +40,13 @@ val HomeUiState.isInitialLoadComplete: Boolean
         yesterday.status != HomeSectionStatus.Loading &&
         trending.status != HomeSectionStatus.Loading
 
-// 오늘 사진을 올리기 전에는 히어로 카드 대신 이번 주 기록의 오늘 칸이 업로드 진입점이 된다.
+// 오늘 사진을 올리기 전에는 히어로 카드와 함께 이번 주 기록의 오늘 칸도 업로드 진입점이 된다.
 val HomeUiState.showsUploadEntry: Boolean
     get() = hero == HomeHeroState.Empty
+
+// 비로그인 상태에는 기록이 없으므로 이번 주 기록 영역을 숨긴다.
+val HomeUiState.showsWeeklyRecord: Boolean
+    get() = hero != HomeHeroState.LoginRequired
 
 // 피드백 카드는 오늘 올린 사진이 검수를 통과(승인)했을 때만 보인다. 검수 대기 사진과 사진이 없는 상태에서는 숨긴다.
 val HomeUiState.showsFeedback: Boolean
@@ -61,6 +65,8 @@ sealed interface HomeHeroState {
     data object Loading : HomeHeroState
 
     data object Empty : HomeHeroState
+
+    data object LoginRequired : HomeHeroState
 
     data object NoOpenTopic : HomeHeroState
 

@@ -321,7 +321,7 @@ class HomeViewModel(
         authenticated: Boolean,
     ) {
         if (!authenticated) {
-            _uiState.update { it.copy(hero = HomeHeroState.Empty, recordsStatus = HomeSectionStatus.Ready) }
+            _uiState.update { it.copy(hero = HomeHeroState.LoginRequired, recordsStatus = HomeSectionStatus.Ready) }
             return
         }
         val dates = homeWeekDates(date)
