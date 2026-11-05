@@ -10,8 +10,6 @@ import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.PostInstagramConsent;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,10 +26,7 @@ public class AdminPostQueryService {
     public AdminPostListResult getPosts(
             ModerationStatus status,
             UUID topicId,
-            LocalDate topicDate,
             UUID userId,
-            Instant createdAtFrom,
-            Instant createdAtTo,
             AdminPostSort sort,
             AdminPostInstagramConsentFilter instagramConsent,
             String instagramId,
@@ -40,14 +35,11 @@ public class AdminPostQueryService {
     ) {
         validateStatus(status);
         validatePagination(page, pageSize);
-        validateCreatedAtRange(createdAtFrom, createdAtTo);
+        validatePopularSortTopic(sort, topicId);
         AdminPostQueryCriteria criteria = new AdminPostQueryCriteria(
                 status,
                 topicId,
-                topicDate,
                 userId,
-                createdAtFrom,
-                createdAtTo,
                 sort == null ? AdminPostSort.CREATED_AT_DESC : sort,
                 instagramConsent,
                 PostInstagramConsent.normalizeId(instagramId)
@@ -79,13 +71,11 @@ public class AdminPostQueryService {
                 "게시물 조회 상태가 올바르지 않습니다.");
     }
 
-    private void validateCreatedAtRange(Instant createdAtFrom, Instant createdAtTo) {
-        if (createdAtFrom != null
-                && createdAtTo != null
-                && createdAtFrom.isAfter(createdAtTo)) {
+    private void validatePopularSortTopic(AdminPostSort sort, UUID topicId) {
+        if (sort == AdminPostSort.LIKE_COUNT_DESC && topicId == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "등록 시각 범위가 올바르지 않습니다.");
+                    "조회 조건이 올바르지 않습니다.");
         }
     }
 

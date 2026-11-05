@@ -79,6 +79,12 @@ class AdminPostQueryRepositoryTest {
             .fromString("0198fa50-0000-7000-8000-000000000004");
     private static final UUID DELETED_POST_ID = UUID
             .fromString("0198fa50-0000-7000-8000-000000000005");
+    private static final UUID TIE_POST_ID = UUID
+            .fromString("0198fa50-0000-7000-8000-000000000000");
+    private static final UUID TIE_USER_ID = UUID
+            .fromString("0198fa10-0000-7000-8000-000000000006");
+    private static final UUID TIE_PHOTO_ID = UUID
+            .fromString("0198fa30-0000-7000-8000-000000000006");
 
     private static final LocalDate FIRST_TOPIC_DATE = LocalDate.of(
             2026,
@@ -181,16 +187,13 @@ class AdminPostQueryRepositoryTest {
     }
 
     @Test
-    @DisplayName("상태·주제·날짜·사용자·등록 시각 필터를 함께 적용한다")
+    @DisplayName("상태·주제·사용자 필터를 함께 적용한다")
     void findPosts_combinedFilters_returnsOnlyMatchingPost() {
         // Given
         AdminPostQueryCriteria criteria = new AdminPostQueryCriteria(
                 ModerationStatus.PENDING,
                 FIRST_TOPIC_ID,
-                FIRST_TOPIC_DATE,
                 PENDING_USER_ID,
-                TIED_CREATED_AT,
-                TIED_CREATED_AT,
                 AdminPostSort.CREATED_AT_ASC,
                 null,
                 null
@@ -218,9 +221,6 @@ class AdminPostQueryRepositoryTest {
                         ModerationStatus.APPROVED,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
                         null,
                         null
@@ -233,24 +233,6 @@ class AdminPostQueryRepositoryTest {
                         null,
                         FIRST_TOPIC_ID,
                         null,
-                        null,
-                        null,
-                        null,
-                        AdminPostSort.CREATED_AT_DESC,
-                        null,
-                        null
-                ),
-                1,
-                20
-        );
-        AdminPage<AdminPostSummaryProjection> topicDateResult = adminPostQueryRepository.findPosts(
-                new AdminPostQueryCriteria(
-                        null,
-                        null,
-                        SECOND_TOPIC_DATE,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
                         null,
                         null
@@ -262,10 +244,7 @@ class AdminPostQueryRepositoryTest {
                 new AdminPostQueryCriteria(
                         null,
                         null,
-                        null,
                         REJECTED_USER_ID,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
                         null,
                         null
@@ -273,51 +252,13 @@ class AdminPostQueryRepositoryTest {
                 1,
                 20
         );
-        AdminPage<AdminPostSummaryProjection> createdAtFromResult = adminPostQueryRepository
-                .findPosts(
-                        new AdminPostQueryCriteria(
-                                null,
-                                null,
-                                null,
-                                null,
-                                DELETED_CREATED_AT,
-                                null,
-                                AdminPostSort.CREATED_AT_DESC,
-                                null,
-                                null
-                        ),
-                        1,
-                        20
-                );
-        AdminPage<AdminPostSummaryProjection> createdAtToResult = adminPostQueryRepository
-                .findPosts(
-                        new AdminPostQueryCriteria(
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                REJECTED_CREATED_AT,
-                                AdminPostSort.CREATED_AT_DESC,
-                                null,
-                                null
-                        ),
-                        1,
-                        20
-                );
 
         // Then
         assertThat(statusResult.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(DELETED_POST_ID, APPROVED_POST_ID);
         assertThat(topicIdResult.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(PENDING_POST_ID, REJECTED_POST_ID);
-        assertThat(topicDateResult.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(APPROVED_POST_ID);
         assertThat(userIdResult.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(REJECTED_POST_ID);
-        assertThat(createdAtFromResult.items()).extracting(AdminPostSummaryProjection::postId)
-                .containsExactly(DELETED_POST_ID);
-        assertThat(createdAtToResult.items()).extracting(AdminPostSummaryProjection::postId)
                 .containsExactly(REJECTED_POST_ID);
     }
 
@@ -376,6 +317,101 @@ class AdminPostQueryRepositoryTest {
         assertThat(ascendingFirst.hasNext()).isTrue();
         assertThat(ascendingSecond.hasNext()).isFalse();
         assertThat(ascendingSecond.currentPage()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("주제별 인기순은 저장된 좋아요 수가 많은 순으로 정렬하고 좋아요가 없는 게시물도 포함한다")
+    void findPosts_likeCountDescWithTopic_ordersByStoredLikeCountAndPaginates() {
+        // Given
+        insertLike(REJECTED_POST_ID, VALIDATING_USER_ID);
+        insertLike(REJECTED_POST_ID, APPROVED_USER_ID);
+        insertLike(REJECTED_POST_ID, PENDING_USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+        AdminPostQueryCriteria firstTopic = popularCriteria(FIRST_TOPIC_ID);
+        AdminPostQueryCriteria secondTopic = popularCriteria(SECOND_TOPIC_ID);
+
+        // When
+        AdminPage<AdminPostSummaryProjection> firstPage = adminPostQueryRepository.findPosts(
+                firstTopic,
+                1,
+                1
+        );
+        AdminPage<AdminPostSummaryProjection> secondPage = adminPostQueryRepository.findPosts(
+                firstTopic,
+                2,
+                1
+        );
+        AdminPage<AdminPostSummaryProjection> zeroLikeTopic = adminPostQueryRepository.findPosts(
+                secondTopic,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(firstPage.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(REJECTED_POST_ID);
+        assertThat(firstPage.items().getFirst().likeCount()).isEqualTo(3);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(PENDING_POST_ID);
+        assertThat(secondPage.hasNext()).isFalse();
+        assertThat(zeroLikeTopic.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(APPROVED_POST_ID);
+        assertThat(zeroLikeTopic.items().getFirst().likeCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("주제별 인기순에서 좋아요 수가 같으면 등록 시각 내림차순, ID 오름차순으로 정렬한다")
+    void findPosts_likeCountDescTie_ordersByCreatedAtDescThenIdAsc() {
+        // Given
+        insertUser(
+                TIE_USER_ID,
+                "tie@example.com",
+                "ACTIVE",
+                null
+        );
+        insertPhoto(
+                TIE_PHOTO_ID,
+                "tie",
+                "{}",
+                PHOTO_CREATED_AT,
+                PHOTO_CREATED_AT,
+                null
+        );
+        insertPost(
+                TIE_POST_ID,
+                TIE_USER_ID,
+                FIRST_TOPIC_ID,
+                TIE_PHOTO_ID,
+                null,
+                "동률",
+                "APPROVED",
+                MODERATED_AT,
+                TIED_CREATED_AT,
+                null
+        );
+        insertLike(TIE_POST_ID, VALIDATING_USER_ID);
+        insertLike(TIE_POST_ID, APPROVED_USER_ID);
+        insertLike(REJECTED_POST_ID, VALIDATING_USER_ID);
+        insertLike(REJECTED_POST_ID, APPROVED_USER_ID);
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AdminPage<AdminPostSummaryProjection> result = adminPostQueryRepository.findPosts(
+                popularCriteria(FIRST_TOPIC_ID),
+                1,
+                10
+        );
+
+        // Then
+        assertThat(result.items()).extracting(AdminPostSummaryProjection::postId)
+                .containsExactly(
+                        TIE_POST_ID,
+                        PENDING_POST_ID,
+                        REJECTED_POST_ID
+                );
     }
 
     @Test
@@ -610,9 +646,6 @@ class AdminPostQueryRepositoryTest {
                                 ModerationStatus.APPROVED,
                                 null,
                                 null,
-                                null,
-                                null,
-                                null,
                                 AdminPostSort.CREATED_AT_DESC,
                                 AdminPostInstagramConsentFilter.AGREED,
                                 null
@@ -626,9 +659,6 @@ class AdminPostQueryRepositoryTest {
                                 null,
                                 FIRST_TOPIC_ID,
                                 null,
-                                null,
-                                null,
-                                null,
                                 AdminPostSort.CREATED_AT_DESC,
                                 AdminPostInstagramConsentFilter.AGREED,
                                 null
@@ -641,10 +671,7 @@ class AdminPostQueryRepositoryTest {
                         new AdminPostQueryCriteria(
                                 null,
                                 null,
-                                null,
                                 APPROVED_USER_ID,
-                                null,
-                                null,
                                 AdminPostSort.CREATED_AT_DESC,
                                 null,
                                 "user"
@@ -738,9 +765,6 @@ class AdminPostQueryRepositoryTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 instagramConsent,
                 instagramId
@@ -752,13 +776,30 @@ class AdminPostQueryRepositoryTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 sort,
                 null,
                 null
         );
+    }
+
+    private AdminPostQueryCriteria popularCriteria(UUID topicId) {
+        return new AdminPostQueryCriteria(
+                null,
+                topicId,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null
+        );
+    }
+
+    private void insertLike(UUID postId, UUID userId) {
+        jdbcTemplate.update(
+                "INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)",
+                postId,
+                userId
+        );
+        synchronizeFixtureCounts(jdbcTemplate);
     }
 
     private AdminPostSummaryProjection summaryOf(

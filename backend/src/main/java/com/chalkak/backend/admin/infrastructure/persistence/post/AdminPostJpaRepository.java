@@ -29,9 +29,7 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
                 photo.id,
                 photo.originalStorageKey,
                 photo.thumbnailStorageKey,
-                (SELECT counter.likeCount
-                 FROM PostLikeCounter counter
-                 WHERE counter.postId = post.id),
+                counter.likeCount,
                 post.createdAt,
                 post.moderatedAt,
                 post.deletedAt,
@@ -42,13 +40,11 @@ public interface AdminPostJpaRepository extends JpaRepository<Post, UUID> {
             JOIN post.topic topic
             JOIN post.author author
             JOIN post.photo photo
+            LEFT JOIN PostLikeCounter counter ON counter.postId = post.id
             WHERE post.moderationStatus <> :#{T(com.chalkak.backend.post.domain.ModerationStatus).VALIDATING}
               AND (:#{#criteria.status() == null} = true OR post.moderationStatus = :#{#criteria.status()})
               AND (:#{#criteria.topicId() == null} = true OR topic.id = :#{#criteria.topicId()})
-              AND (:#{#criteria.topicDate() == null} = true OR topic.topicDate = :#{#criteria.topicDate()})
               AND (:#{#criteria.userId() == null} = true OR author.id = :#{#criteria.userId()})
-              AND (:#{#criteria.createdAtFrom() == null} = true OR post.createdAt >= :#{#criteria.createdAtFrom()})
-              AND (:#{#criteria.createdAtTo() == null} = true OR post.createdAt <= :#{#criteria.createdAtTo()})
               AND (:#{#criteria.instagramConsent() == null} = true
                    OR (:#{#criteria.instagramConsent() == T(com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter).AGREED} = true
                        AND post.instagramConsent.agreed = true)

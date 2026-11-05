@@ -133,9 +133,6 @@ class AdminPostControllerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 null,
                 null,
@@ -163,9 +160,6 @@ class AdminPostControllerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 null,
                 null,
@@ -178,8 +172,6 @@ class AdminPostControllerTest {
     @DisplayName("관리자 게시물 목록의 모든 필터와 정렬 및 페이지 조건을 서비스에 전달한다")
     void getPosts_withAllFilters_passesQueryParameters() throws Exception {
         // Given
-        Instant createdAtFrom = Instant.parse("2026-08-01T00:00:00Z");
-        Instant createdAtTo = Instant.parse("2026-08-31T23:59:59Z");
         AdminPostListResult result = new AdminPostListResult(
                 2,
                 50,
@@ -189,10 +181,7 @@ class AdminPostControllerTest {
         given(adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
-                TOPIC_DATE,
                 USER_ID,
-                createdAtFrom,
-                createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 null,
                 null,
@@ -204,10 +193,7 @@ class AdminPostControllerTest {
         mockMvc.perform(get("/api/v1/admin/posts")
                 .queryParam("status", "REJECTED")
                 .queryParam("topicId", TOPIC_ID.toString())
-                .queryParam("topicDate", TOPIC_DATE.toString())
                 .queryParam("userId", USER_ID.toString())
-                .queryParam("createdAtFrom", createdAtFrom.toString())
-                .queryParam("createdAtTo", createdAtTo.toString())
                 .queryParam("sort", "createdAtAsc")
                 .queryParam("page", "2")
                 .queryParam("pageSize", "50"))
@@ -220,10 +206,7 @@ class AdminPostControllerTest {
         then(adminPostQueryService).should().getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
-                TOPIC_DATE,
                 USER_ID,
-                createdAtFrom,
-                createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
                 null,
                 null,
@@ -248,9 +231,6 @@ class AdminPostControllerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 expected,
                 "@Chalkak_User",
@@ -270,9 +250,6 @@ class AdminPostControllerTest {
                 .andExpect(status().isOk());
 
         then(adminPostQueryService).should().getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -329,6 +306,88 @@ class AdminPostControllerTest {
     }
 
     @Test
+    @DisplayName("관리자 게시물 목록의 인기순 정렬 값을 서비스에 전달한다")
+    void getPosts_likeCountDescSort_passesPopularSort() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        )).willReturn(new AdminPostListResult(
+                1,
+                20,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("topicId", TOPIC_ID.toString())
+                .queryParam("sort", "likeCountDesc"))
+                .andExpect(status().isOk());
+
+        then(adminPostQueryService).should().getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        );
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "topicDate, 2026-08-12",
+            "createdAtFrom, 2026-08-01T00:00:00Z",
+            "createdAtTo, 2026-08-31T23:59:59Z"
+    })
+    @DisplayName("제거된 날짜 필터 파라미터를 보내면 무시하지 않고 400을 반환하며 서비스를 호출하지 않는다")
+    void getPosts_removedDateFilter_returnsBadRequest(
+            String parameterName,
+            String parameterValue
+    ) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam(parameterName, parameterValue))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostQueryService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("주제 없이 인기순으로 관리자 게시물 목록을 요청하면 400을 반환한다")
+    void getPosts_likeCountDescWithoutTopic_returnsBadRequest() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        )).willThrow(new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "조회 조건이 올바르지 않습니다."));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("sort", "likeCountDesc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
     @DisplayName("내부 검증 중 상태로 관리자 게시물 목록을 요청하면 400을 반환한다")
     void getPosts_validatingStatus_returnsBadRequest() throws Exception {
         // When & Then
@@ -347,10 +406,7 @@ class AdminPostControllerTest {
             "pageSize, 101",
             "status, UNKNOWN",
             "topicId, invalid-uuid",
-            "topicDate, 2026-13-40",
             "userId, invalid-uuid",
-            "createdAtFrom, invalid-time",
-            "createdAtTo, invalid-time",
             "sort, unknownSort",
             "instagramConsent, unknown",
             "instagramConsent, not_agreed"
@@ -387,9 +443,6 @@ class AdminPostControllerTest {
     void getPosts_pageSizeBoundary_returnsOk(int pageSize) throws Exception {
         // Given
         given(adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,

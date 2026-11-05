@@ -27,10 +27,7 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder(
                                 "status",
                                 "topicId",
-                                "topicDate",
                                 "userId",
-                                "createdAtFrom",
-                                "createdAtTo",
                                 "sort",
                                 "instagramConsent",
                                 "instagramId",
@@ -68,6 +65,15 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                                         "PENDING",
                                         "APPROVED",
                                         "REJECTED"
+                                )
+                        )))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get"
+                        + ".parameters[?(@.name == 'sort')].schema.enum")
+                        .value(containsInAnyOrder(
+                                containsInAnyOrder(
+                                        "createdAtDesc",
+                                        "createdAtAsc",
+                                        "likeCountDesc"
                                 )
                         )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}'].get"

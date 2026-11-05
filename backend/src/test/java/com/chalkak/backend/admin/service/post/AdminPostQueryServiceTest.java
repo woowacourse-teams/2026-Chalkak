@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.service.post;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.post.AdminPostDetailProjection;
@@ -81,9 +82,6 @@ class AdminPostQueryServiceTest {
                         null,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
                         null,
                         null
@@ -103,9 +101,6 @@ class AdminPostQueryServiceTest {
 
         // When
         AdminPostListResult result = adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -132,17 +127,14 @@ class AdminPostQueryServiceTest {
     }
 
     @Test
-    @DisplayName("상태와 주제, 날짜, 작성자, 등록 시각 조건에 맞는 게시물만 조회한다")
+    @DisplayName("상태와 주제, 작성자 조건에 맞는 게시물만 조회한다")
     void getPosts_allFilters_returnsMatchingPost() {
         // Given
         given(repository.findPosts(
                 new AdminPostQueryCriteria(
                         ModerationStatus.REJECTED,
                         SECOND_TOPIC_ID,
-                        SECOND_TOPIC_DATE,
                         SECOND_USER_ID,
-                        Instant.parse("2026-08-13T04:00:00Z"),
-                        Instant.parse("2026-08-13T05:00:00Z"),
                         AdminPostSort.CREATED_AT_DESC,
                         null,
                         null
@@ -160,10 +152,7 @@ class AdminPostQueryServiceTest {
         AdminPostListResult result = adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 SECOND_TOPIC_ID,
-                SECOND_TOPIC_DATE,
                 SECOND_USER_ID,
-                Instant.parse("2026-08-13T04:00:00Z"),
-                Instant.parse("2026-08-13T05:00:00Z"),
                 AdminPostSort.CREATED_AT_DESC,
                 null,
                 null,
@@ -199,9 +188,6 @@ class AdminPostQueryServiceTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 AdminPostInstagramConsentFilter.AGREED,
                 expectedKeyword
@@ -219,9 +205,6 @@ class AdminPostQueryServiceTest {
 
         // When
         AdminPostListResult result = adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -248,9 +231,6 @@ class AdminPostQueryServiceTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
                 null,
                 null
@@ -268,9 +248,6 @@ class AdminPostQueryServiceTest {
 
         // When
         AdminPostListResult result = adminPostQueryService.getPosts(
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -302,6 +279,68 @@ class AdminPostQueryServiceTest {
     }
 
     @Test
+    @DisplayName("주제가 지정되면 인기순 조건으로 게시물을 조회한다")
+    void getPosts_likeCountDescWithTopic_queriesPopularSort() {
+        // Given
+        given(repository.findPosts(
+                new AdminPostQueryCriteria(
+                        null,
+                        SECOND_TOPIC_ID,
+                        null,
+                        AdminPostSort.LIKE_COUNT_DESC,
+                        null,
+                        null
+                ),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary()),
+                1,
+                20,
+                false
+        ));
+
+        // When
+        AdminPostListResult result = adminPostQueryService.getPosts(
+                null,
+                SECOND_TOPIC_ID,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.posts()).singleElement()
+                .satisfies(post -> assertThat(post.postId()).isEqualTo(SECOND_POST_ID));
+    }
+
+    @Test
+    @DisplayName("주제 없이 인기순으로 조회하면 잘못된 요청 예외를 발생시키고 조회하지 않는다")
+    void getPosts_likeCountDescWithoutTopic_throwsBusinessException() {
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminPostQueryService.getPosts(
+                        null,
+                        null,
+                        SECOND_USER_ID,
+                        AdminPostSort.LIKE_COUNT_DESC,
+                        null,
+                        null,
+                        1,
+                        20
+                ));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("조회 조건이 올바르지 않습니다.");
+        then(repository).shouldHaveNoInteractions();
+    }
+
+    @Test
     @DisplayName("내부 검증 중 상태는 관리자 게시물 조회 조건으로 요청할 수 없다")
     void getPosts_validatingStatus_throwsBusinessException() {
         // When
@@ -309,9 +348,6 @@ class AdminPostQueryServiceTest {
                 BusinessException.class,
                 () -> adminPostQueryService.getPosts(
                         ModerationStatus.VALIDATING,
-                        null,
-                        null,
-                        null,
                         null,
                         null,
                         AdminPostSort.CREATED_AT_DESC,
@@ -327,39 +363,12 @@ class AdminPostQueryServiceTest {
     }
 
     @Test
-    @DisplayName("등록 시각 시작이 종료보다 늦으면 잘못된 요청 예외를 발생시킨다")
-    void getPosts_createdAtFromAfterCreatedAtTo_throwsBusinessException() {
-        // When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> adminPostQueryService.getPosts(
-                        null,
-                        null,
-                        null,
-                        null,
-                        Instant.parse("2026-08-13T05:00:00Z"),
-                        Instant.parse("2026-08-13T04:00:00Z"),
-                        AdminPostSort.CREATED_AT_DESC,
-                        null,
-                        null,
-                        1,
-                        20
-                ));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
-    }
-
-    @Test
     @DisplayName("페이지 오프셋이 정수 범위를 넘으면 잘못된 요청 예외를 발생시킨다")
     void getPosts_pageOffsetOverflow_throwsBusinessException() {
         // When
         BusinessException exception = catchThrowableOfType(
                 BusinessException.class,
                 () -> adminPostQueryService.getPosts(
-                        null,
-                        null,
-                        null,
                         null,
                         null,
                         null,

@@ -4,7 +4,8 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 
 public enum AdminPostSort {
-    CREATED_AT_DESC("createdAtDesc"), CREATED_AT_ASC("createdAtAsc");
+    CREATED_AT_DESC("createdAtDesc"), CREATED_AT_ASC("createdAtAsc"), LIKE_COUNT_DESC(
+            "likeCountDesc");
 
     private final String queryValue;
 
