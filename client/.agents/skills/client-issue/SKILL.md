@@ -37,7 +37,7 @@ disable-model-invocation: true
    ```bash
    gh issue create --title "<제목>" --body-file <본문 파일> --label "<종류>" --label "<플랫폼>" --assignee @me
    ```
-   라벨은 종류(`feat` `fix` `refactor` `docs` `chore` `test` `style`) 하나와 바꿀 플랫폼(`Android` `iOS` `Web`)마다 하나씩이다. 두 플랫폼이면 `--label Android --label iOS`.
+   라벨은 종류(`feat` `fix` `refactor` `docs` `chore` `test` `style`) 하나와 바꿀 플랫폼(`Android` `iOS` `Web`)마다 하나씩이다. 두 플랫폼이면 `--label Android --label iOS`. 하네스(공통 약속의 경로 표)도 `--label Android --label iOS`다.
 5. **연결 브랜치 만들기**: 이슈 페이지의 Development에 브랜치가 붙도록 GitHub에서 만들고, 지금 작업 폴더에서 그 브랜치로 바꾼다.
    ```bash
    git fetch origin
@@ -48,6 +48,7 @@ disable-model-invocation: true
    ```
    - 지금 레포 규칙은 `client/{feature|fix|refactor|chore|docs}/#번호-{android|ios|web}-{요약}`이다.
      두 플랫폼을 함께 바꾸면 플랫폼 자리를 뺀다. 예: `client/refactor/#907-like-logic-update`
+     하네스도 플랫폼 자리를 뺀다. 예: `client/chore/#952-harness-verify-step`
      종류 자리는 커밋 type과 달리 `feat`가 아니라 `feature`다. 예: `client/feature/#901-android-home-top-redesign`
    - `git branch -a`에서 다른 규칙이 보이면 그쪽을 따른다.
    - 커밋하지 않은 변경이 있으면 브랜치를 바꾸기 전에 알리고 멈춘다.

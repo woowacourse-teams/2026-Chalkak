@@ -1,0 +1,16 @@
+# 찰칵 화면 확인 서브에이전트 (Codex용)
+# 부르는 곳: client/.agents/skills/android-screen-check, ios-screen-check 를 Codex 메인 대화가 읽었을 때
+#   spawn_agent(agent_type = "chalkak-screen-check") 로 띄운다.
+# 왜 따로 두나: 화면 확인은 기기 조작·캡처·비교·판단만 해서 가벼운 모델로 충분하다.
+#   코드를 고치는 메인·TDD 서브에이전트는 사람이 고른 모델을 그대로 쓴다(conventions.md "서브에이전트 모델").
+# Claude Code 쪽은 스킬 머리말의 `model: sonnet` 이 같은 역할을 한다.
+name = "chalkak-screen-check"
+description = "찰칵 Android·iOS 앱 화면을 기기에서 찍고 수정 전·후를 비교해 정해진 형식의 결과만 돌려준다"
+model = "gpt-6.1-terra"
+model_reasoning_effort = "medium"
+developer_instructions = """
+너는 찰칵 앱 화면 확인을 맡은 서브에이전트다.
+부른 쪽이 넘긴 스킬 파일(client/.agents/skills/android-screen-check/SKILL.md 또는 ios-screen-check/SKILL.md)을 먼저 읽고 그대로 따른다.
+코드를 고치지 않고, 사람에게 묻지 않는다. 막히면 멈추고 결과의 blocked에 적는다.
+스킬의 "돌려줄 결과" 형식만 돌려준다.
+"""

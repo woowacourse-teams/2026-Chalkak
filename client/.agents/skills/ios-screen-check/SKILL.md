@@ -1,8 +1,9 @@
 ---
 name: ios-screen-check
-description: 찰칵 iOS 앱 화면을 시뮬레이터에서 직접 확인할 때 쓴다. 화면 코드를 바꾼 작업의 수정 전·후 캡처, 버그 재현 녹화, 사람이 요청한 화면 캡처·녹화에 쓴다. 앱 설치·실행, 화면 이동, 상태 표시줄 고정, 전·후 비교 이미지 만들기를 포함하고 결과만 돌려준다.
+description: 찰칵 iOS 앱 화면을 시뮬레이터에서 직접 찍을 때 쓴다. 사람이 캡처·녹화를 요청했을 때(버그 재현 녹화 포함)만 쓴다. 화면 코드를 바꾼 작업의 확인은 사람이 PR 리뷰에서 하므로 이 스킬을 부르지 않는다(#960). 앱 설치·실행, 화면 이동, 상태 표시줄 고정, 전·후 비교 이미지 만들기를 포함하고 결과만 돌려준다.
 user-invocable: false
 context: fork
+model: sonnet
 ---
 
 # ios-screen-check
@@ -10,7 +11,9 @@ context: fork
 이 본문은 **화면 확인을 맡은 서브에이전트**가 실행한다. 기기 조작·화면 덤프·스크린샷은 서브에이전트 안에서만 쌓이고, 부른 쪽에는 아래 "돌려줄 결과"만 돌아간다.
 
 - Claude Code는 `context: fork`로 자동으로 따로 떨어져 실행된다.
+- Claude Code는 머리말의 `model: sonnet`으로 가벼운 모델에서 돈다. 찍고 비교하고 판단만 하는 일이라서다(공통 약속의 "서브에이전트 모델").
 - 메인 대화에서 이 본문을 직접 읽었다면(Codex 등): 직접 하지 말고 서브에이전트를 만들어 이 파일 경로와 입력을 넘기고 결과만 받는다. 서브에이전트를 만들 수 없을 때만 직접 하되, 결과 형식은 같게 한다.
+  - Codex는 `spawn_agent`의 `agent_type`을 `chalkak-screen-check`로 준다(`client/.codex/agents/chalkak-screen-check.toml`, `gpt-6.1-terra` 추론 `medium`). 그 이름을 모른다고 거부되면 `agent_type` 없이 만들고, 부른 쪽은 그 사실을 PR의 Technical Concerns에 적는다.
 
 ## 받는 입력
 
