@@ -3,7 +3,7 @@ package com.stonefive.chalkak.feature.notification.component
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -29,7 +29,11 @@ fun NotificationTopBar(
     onMarkAllReadClick: (() -> Unit)? = null,
     isMarkAllReadEnabled: Boolean = false,
 ) {
-    Box(modifier = modifier.height(notificationTopBarHeight)) {
+    Box(
+        modifier = modifier
+            .heightIn(min = notificationTopBarHeight)
+            .padding(bottom = notificationTopBarContentBottom),
+    ) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -59,7 +63,7 @@ fun NotificationTopBar(
                     top = notificationTopBarContentTop,
                     start = notificationTitleSideInset,
                     end = notificationTitleSideInset,
-                ).height(notificationTopBarTouchSize),
+                ).heightIn(min = notificationTopBarTouchSize),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -78,7 +82,7 @@ fun NotificationTopBar(
                     .padding(
                         top = notificationTopBarContentTop,
                         end = ChalkakTheme.spacing.screenHorizontal - ChalkakTheme.spacing.sm,
-                    ).height(notificationTopBarTouchSize)
+                    ).heightIn(min = notificationTopBarTouchSize)
                     .clickable(
                         enabled = isMarkAllReadEnabled,
                         role = Role.Button,
@@ -115,6 +119,7 @@ private fun NotificationTopBarPreview() {
 
 // 피드·사진 업로드·고객센터 탑바와 같은 값: 위 10dp, 터치 영역 44dp, 아래 8dp, 아이콘 24dp, 왼쪽 8dp.
 private val notificationTopBarContentTop = 10.dp
+private val notificationTopBarContentBottom = 8.dp
 private val notificationTopBarTouchSize = 44.dp
 private val notificationTopBarHeight = 62.dp
 private val notificationBackButtonStart = 8.dp
