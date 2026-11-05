@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.upload
 import androidx.compose.runtime.Immutable
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 import java.time.LocalDate
 
 @Immutable
@@ -13,8 +14,7 @@ data class PhotoUploadUiState(
     val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
     val description: String = "",
-    /** 사진을 고른 뒤 제목과 이야기를 쓰는 두 번째 단계에 있는지. */
-    val isWriting: Boolean = false,
+    val instagramConsent: InstagramConsentInputState = InstagramConsentInputState(),
     val showsDiscardConfirmation: Boolean = false,
     val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,

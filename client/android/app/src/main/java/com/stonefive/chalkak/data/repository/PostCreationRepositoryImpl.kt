@@ -4,12 +4,14 @@ import com.stonefive.chalkak.data.post.PostImageEncodeResult
 import com.stonefive.chalkak.data.post.PostImageEncoder
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.INVALID_INSTAGRAM_ID_MESSAGE
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.PostImageUploadResult
 import com.stonefive.chalkak.data.remote.post.PostImageUploader
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -109,6 +111,7 @@ class PostCreationRepositoryImpl(
         title: String?,
         description: String?,
         topic: Topic,
+        instagramConsent: InstagramConsent,
     ): PostCreationResult {
         if (topic.id.isBlank() || topic.title.isBlank()) {
             discardPreparedImage(preparation)
@@ -175,6 +178,8 @@ class PostCreationRepositoryImpl(
                     photoUploadId = upload.uploadId,
                     title = title.normalizedTitle(),
                     description = description.normalizedDescription(),
+                    instagramUploadAgreed = instagramConsent.agreed,
+                    instagramId = instagramConsent.instagramId,
                 )
             ) {
                 is ApiResult.Success -> result.value
@@ -297,6 +302,7 @@ class PostCreationRepositoryImpl(
             statusCode == HTTP_UNAUTHORIZED -> PostCreationFailure.ReauthenticationRequired
             message == ALREADY_SUBMITTED_MESSAGE -> PostCreationFailure.AlreadySubmitted
             message == TOPIC_NOT_OPEN_MESSAGE -> PostCreationFailure.TopicNotOpen
+            message == INVALID_INSTAGRAM_ID_MESSAGE -> PostCreationFailure.InvalidInstagramId
             else -> PostCreationFailure.PostCreationRejected
         }
     }

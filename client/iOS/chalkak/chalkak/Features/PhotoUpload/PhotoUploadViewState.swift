@@ -65,10 +65,11 @@ struct PhotoUploadCreation: Equatable, Sendable {
     let moderationStatus: PhotoUploadModerationStatus
 }
 
-/// 게시물과 함께 보내는 글. 제목과 설명 모두 선택이다.
+/// 게시물과 함께 보내는 글과 공식 인스타그램 게시 동의. 제목과 설명 모두 선택이고, 동의는 기본이 동의 안 함이다.
 struct PhotoUploadPostText: Equatable, Sendable {
     var title = ""
     var description = ""
+    var instagramConsent: InstagramConsent = .notAgreed
 }
 
 struct PhotoUploadSubmission {
@@ -107,6 +108,7 @@ enum PhotoUploadFailure: Error, Equatable, Sendable {
     case topicNotOpen
     case topicLoadFailed
     case invalidResponse
+    case invalidInstagramID
 
     var message: String {
         switch self {
@@ -128,6 +130,8 @@ enum PhotoUploadFailure: Error, Equatable, Sendable {
             "주제를 불러오지 못했어요. 다시 시도해 주세요."
         case .invalidResponse:
             "전시를 완료하지 못했어요. 다시 시도해 주세요."
+        case .invalidInstagramID:
+            InstagramConsentInput.invalidInstagramIDMessage
         }
     }
 }
@@ -151,8 +155,7 @@ struct PhotoUploadViewState {
     var imagePreparationStatus: PhotoUploadImagePreparationStatus = .idle
     var caption = ""
     var postDescription = ""
-    /// 사진을 고른 뒤 제목과 이야기를 쓰는 두 번째 단계에 있는지.
-    var isWriting = false
+    var instagramConsent = InstagramConsentInput()
     var topicTitle: String?
     var isTopicLoading = false
     var isSubmitting = false

@@ -6,11 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,15 +43,6 @@ enum class ChalkakTextLengthMetric {
     CODE_POINTS,
 }
 
-/**
- * 입력칸 모양. [OUTLINED]는 배경과 테두리가 있는 기본 모양이고,
- * [PLAIN]은 배경·테두리·안쪽 여백 없이 글자와 글자 수만 그려 글 쓰기 화면처럼 넓게 쓴다.
- */
-enum class ChalkakTextFieldStyle {
-    OUTLINED,
-    PLAIN,
-}
-
 @Composable
 fun ChalkakTextField(
     value: String,
@@ -69,10 +58,10 @@ fun ChalkakTextField(
     maxLength: Int? = null,
     lengthMetric: ChalkakTextLengthMetric = ChalkakTextLengthMetric.CHARACTERS,
     showCharacterCount: Boolean = maxLength != null,
-    style: ChalkakTextFieldStyle = ChalkakTextFieldStyle.OUTLINED,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    prefix: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -97,20 +86,15 @@ fun ChalkakTextField(
                 maxLength?.let { changedValue.limited(it, lengthMetric) } ?: changedValue,
             )
         },
-        modifier = when (style) {
-            ChalkakTextFieldStyle.OUTLINED ->
-                modifier
-                    .background(
-                        color = ChalkakTheme.colors.inputBackground,
-                        shape = ChalkakTheme.shapes.input,
-                    ).border(
-                        width = 1.dp,
-                        color = borderColor,
-                        shape = ChalkakTheme.shapes.input,
-                    ).padding(16.dp)
-
-            ChalkakTextFieldStyle.PLAIN -> modifier
-        },
+        modifier = modifier
+            .background(
+                color = ChalkakTheme.colors.inputBackground,
+                shape = ChalkakTheme.shapes.input,
+            ).border(
+                width = 1.dp,
+                color = borderColor,
+                shape = ChalkakTheme.shapes.input,
+            ).padding(16.dp),
         enabled = enabled,
         readOnly = readOnly,
         textStyle = resolvedTextStyle,
@@ -123,8 +107,8 @@ fun ChalkakTextField(
         interactionSource = interactionSource,
         cursorBrush = SolidColor(ChalkakTheme.colors.inputCursor),
         decorationBox = { innerTextField ->
-            val inputContent: @Composable (Modifier) -> Unit = { inputModifier ->
-                Box(modifier = inputModifier) {
+            val textArea: @Composable (Modifier) -> Unit = { areaModifier ->
+                Box(modifier = areaModifier) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
                             text = placeholder,
@@ -137,29 +121,34 @@ fun ChalkakTextField(
                     innerTextField()
                 }
             }
+            val inputContent: @Composable (Modifier) -> Unit = { inputModifier ->
+                if (prefix == null) {
+                    textArea(inputModifier)
+                } else {
+                    // 입력값에 들어가지 않는 고정 글자(예: 인스타그램 ID 앞의 "@")를 입력 앞에 둔다.
+                    Row(modifier = inputModifier) {
+                        Text(
+                            text = prefix,
+                            color = ChalkakTheme.colors.textMuted,
+                            style = resolvedTextStyle,
+                            maxLines = 1,
+                        )
+                        textArea(Modifier.weight(1f))
+                    }
+                }
+            }
             val counter: @Composable (Modifier) -> Unit = { counterModifier ->
                 if (showCharacterCount && maxLength != null) {
                     Text(
                         text = "$characterCount / $maxLength",
                         modifier = counterModifier,
                         color = ChalkakTheme.colors.textInactive,
-                        style = if (style == ChalkakTextFieldStyle.PLAIN) {
-                            ChalkakTheme.typography.caption
-                        } else {
-                            ChalkakTheme.typography.subheadline
-                        },
+                        style = ChalkakTheme.typography.subheadline,
                     )
                 }
             }
 
-            if (style == ChalkakTextFieldStyle.PLAIN) {
-                // 글자 수는 입력 아래 오른쪽에 둔다.
-                Column(horizontalAlignment = Alignment.End) {
-                    inputContent(Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
-                    counter(Modifier)
-                }
-            } else if (singleLine) {
+            if (singleLine) {
                 // 한 줄 입력은 글자 수를 같은 줄 오른쪽에 두어 한 줄 높이를 유지한다.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     inputContent(Modifier.weight(1f))

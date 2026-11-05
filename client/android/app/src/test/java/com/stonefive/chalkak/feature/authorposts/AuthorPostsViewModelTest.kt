@@ -7,13 +7,14 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -621,10 +622,12 @@ class AuthorPostsViewModelTest {
 
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("Unused")
 
-        override suspend fun updatePostTitle(
+        override suspend fun updatePost(
             postId: String,
             title: String?,
-        ): HomeResult<PostTitleUpdate> = error("Unused")
+            description: String?,
+            instagramConsent: InstagramConsent,
+        ): HomeResult<PostUpdate> = error("Unused")
 
         override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("Unused")
 

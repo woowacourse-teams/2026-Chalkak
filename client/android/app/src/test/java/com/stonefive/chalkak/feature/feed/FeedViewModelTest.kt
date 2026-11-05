@@ -8,6 +8,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
@@ -15,12 +16,13 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.SignatureHintRepository
+import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
@@ -592,12 +594,16 @@ class FeedViewModelTest {
     @Test
     fun `내 게시물 제목 수정 성공 시 화면 제목과 완료 상태를 갱신한다`() = runTest {
         repository.titleUpdateResult = HomeResult.Success(
-            PostTitleUpdate(PHOTO_ID, "수정한 제목"),
+            PostUpdate(PHOTO_ID, "수정한 제목", null),
         )
         val ownedPost = feedContent()
             .photos
             .single()
             .copy(isOwnedByCurrentUser = true)
+        // 본인 동의 정보는 상세 조회로만 받으므로, 수정하려면 상세 조회가 성공해 있어야 한다(#939).
+        repository.detailResult = HomeResult.Success(
+            PostDetail(ownedPost, "하늘하늘하늘", TEST_DATE, InstagramConsent.NotAgreed),
+        )
         val selectedViewModel = FeedViewModel(
             repository = repository,
             aiReviewRepository = FakeAiReviewRepository(),
@@ -612,7 +618,9 @@ class FeedViewModelTest {
             dateProvider = { TEST_DATE },
         )
 
-        selectedViewModel.updatePostTitle("  수정한 제목  ")
+        selectedViewModel.startPostEdit()
+        selectedViewModel.updatePostEditTitle("  수정한 제목  ")
+        selectedViewModel.savePostEdit()
         advanceUntilIdle()
 
         assertEquals(PHOTO_ID to "  수정한 제목  ", repository.updatedTitle)
@@ -622,10 +630,10 @@ class FeedViewModelTest {
                 ?.post
                 ?.title,
         )
-        assertEquals(PHOTO_ID, selectedViewModel.uiState.value.titleUpdateSuccessPostId)
-        assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+        assertEquals(null, selectedViewModel.uiState.value.postEdit)
+        assertFalse(selectedViewModel.uiState.value.isSavingPostEdit)
         assertEquals(
-            "제목을 수정했어요",
+            "게시물을 수정했어요",
             (selectedViewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
@@ -650,16 +658,18 @@ class FeedViewModelTest {
             dateProvider = { TEST_DATE },
         )
 
-        selectedViewModel.updatePostTitle("수정 시도")
+        selectedViewModel.startPostEdit()
+        selectedViewModel.savePostEdit()
         advanceUntilIdle()
 
         assertEquals(null, repository.updatedTitle)
-        assertFalse(selectedViewModel.uiState.value.isTitleEditable)
+        assertFalse(selectedViewModel.uiState.value.isPostEditable)
     }
 
     @Test
     fun `다른 사용자 게시물은 제목 수정 요청을 보내지 않는다`() = runTest {
-        viewModel.updatePostTitle("수정 시도")
+        viewModel.startPostEdit()
+        viewModel.savePostEdit()
         advanceUntilIdle()
 
         assertEquals(null, repository.updatedTitle)
@@ -689,13 +699,335 @@ class FeedViewModelTest {
         )
 
         assertTrue(selectedViewModel.uiState.value.isRefreshing)
-        selectedViewModel.updatePostTitle("수정 시도")
+        selectedViewModel.startPostEdit()
+        selectedViewModel.savePostEdit()
 
         assertEquals(null, selectedRepository.updatedTitle)
-        assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+        assertFalse(selectedViewModel.uiState.value.isSavingPostEdit)
 
         detailRequest.complete(HomeResult.Failure(HomeFailure.Network))
         advanceUntilIdle()
+    }
+
+    @Test
+    fun `수정을 시작하면 지금 제목과 설명이 입력칸에 채워진다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 "회사 앞 육교에서 찍었어요"인 내 게시물
+        val editViewModel = ownedPostViewModel(
+            title = "퇴근길 노을",
+            description = "회사 앞 육교에서 찍었어요",
+        )
+
+        // When  수정을 누른다
+        editViewModel.startPostEdit()
+
+        // Then  수정 입력의 제목 "퇴근길 노을", 설명 "회사 앞 육교에서 찍었어요"
+        assertEquals(
+            FeedPostEditState(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요"),
+            editViewModel.uiState.value.postEdit,
+        )
+    }
+
+    @Test
+    fun `저장하면 제목과 설명을 한 요청에 보낸다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 없음인 내 게시물
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = null)
+        editViewModel.startPostEdit()
+
+        // When  설명을 "회사 앞 육교에서 찍었어요"로 쓰고 저장한다
+        editViewModel.updatePostEditDescription("회사 앞 육교에서 찍었어요")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  요청이 title "퇴근길 노을", description "회사 앞 육교에서 찍었어요"
+        assertEquals(
+            Triple(PHOTO_ID, "퇴근길 노을", "회사 앞 육교에서 찍었어요"),
+            repository.updatedPost,
+        )
+    }
+
+    @Test
+    fun `제목만 고쳐도 기존 설명을 지우지 않는다`() = runTest {
+        // Given 설명 "회사 앞 육교에서 찍었어요"인 내 게시물
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // When  제목만 "퇴근길"로 바꾸고 저장한다
+        editViewModel.updatePostEditTitle("퇴근길")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  요청의 description "회사 앞 육교에서 찍었어요"
+        assertEquals(
+            Triple(PHOTO_ID, "퇴근길", "회사 앞 육교에서 찍었어요"),
+            repository.updatedPost,
+        )
+    }
+
+    @Test
+    fun `저장에 성공하면 상세의 제목·설명이 응답 값으로 바뀐다`() = runTest {
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // Given 저장 응답이 title "퇴근길", description "회사 앞 육교에서\n찍었어요"
+        repository.titleUpdateResult = HomeResult.Success(
+            PostUpdate(PHOTO_ID, "퇴근길", "회사 앞 육교에서\n찍었어요"),
+        )
+
+        // When  저장이 끝난다
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  상세 제목 "퇴근길", 설명 "회사 앞 육교에서\n찍었어요", 수정 화면 닫힘, 안내 "게시물을 수정했어요"
+        val state = editViewModel.uiState.value
+        assertEquals(
+            "퇴근길",
+            state.content
+                ?.post
+                ?.title,
+        )
+        assertEquals(
+            "회사 앞 육교에서\n찍었어요",
+            state.content
+                ?.post
+                ?.description,
+        )
+        assertEquals(null, state.postEdit)
+        assertEquals("게시물을 수정했어요", (state.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun `저장 중에 다시 저장해도 요청은 한 번만 간다`() = runTest {
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // Given 저장 요청이 아직 끝나지 않음
+        val pendingRequest = CompletableDeferred<HomeResult<PostUpdate>>()
+        repository.updatePostRequest = pendingRequest
+        editViewModel.savePostEdit()
+        runCurrent()
+
+        // When  저장을 한 번 더 누른다
+        editViewModel.savePostEdit()
+        runCurrent()
+
+        // Then  수정 요청 횟수 1
+        assertEquals(1, repository.updatePostCalls)
+
+        pendingRequest.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `저장이 실패하면 입력이 남고 상세 값은 그대로다`() = runTest {
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // Given 수정 요청이 서버 오류(500)로 실패한다
+        repository.titleUpdateResult = HomeResult.Failure(HomeFailure.Http(500))
+
+        // When  설명을 "새 설명"으로 바꾸고 저장한다
+        editViewModel.updatePostEditDescription("새 설명")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 화면이 열린 채 설명 입력 "새 설명", 상세 설명 "회사 앞 육교에서 찍었어요", 실패 안내 표시
+        val state = editViewModel.uiState.value
+        assertEquals("새 설명", state.postEdit?.description)
+        assertEquals(
+            "회사 앞 육교에서 찍었어요",
+            state.content
+                ?.post
+                ?.description,
+        )
+        assertEquals("게시물을 수정하지 못했어요", (state.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun `수정을 닫으면 저장하지 않고 입력이 사라진다`() = runTest {
+        // Given 설명을 "새 설명"으로 고친 수정 입력
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+        editViewModel.updatePostEditDescription("새 설명")
+
+        // When  닫기(뒤로)를 누른다
+        editViewModel.cancelPostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 입력이 없고, 요청 횟수 0, 상세 설명 "회사 앞 육교에서 찍었어요"
+        val state = editViewModel.uiState.value
+        assertEquals(null, state.postEdit)
+        assertEquals(0, repository.updatePostCalls)
+        assertEquals(
+            "회사 앞 육교에서 찍었어요",
+            state.content
+                ?.post
+                ?.description,
+        )
+    }
+
+    @Test
+    fun `수정을 시작하면 현재 동의와 ID가 채워진다`() = runTest {
+        // Given 본인 게시물 상세의 동의 true, ID "chalkak.daily"
+        val editViewModel = ownedPostViewModel(
+            title = "퇴근길 노을",
+            description = null,
+            instagramConsent = InstagramConsent(agreed = true, instagramId = "chalkak.daily"),
+        )
+
+        // When  수정
+        editViewModel.startPostEdit()
+
+        // Then  수정 상태의 동의가 켜짐, ID가 "chalkak.daily"
+        assertEquals(
+            InstagramConsentInputState(agreed = true, instagramId = "chalkak.daily"),
+            editViewModel.uiState.value.postEdit
+                ?.instagramConsent,
+        )
+    }
+
+    @Test
+    fun `수정에서 동의를 끄고 저장하면 제목·설명과 함께 철회를 보낸다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 "육교에서", 동의 true, ID "chalkak.daily"인 본인 게시물의 수정 상태
+        val editViewModel = ownedPostViewModel(
+            title = "퇴근길 노을",
+            description = "육교에서",
+            instagramConsent = InstagramConsent(agreed = true, instagramId = "chalkak.daily"),
+        )
+        editViewModel.startPostEdit()
+        assertEquals(
+            true,
+            editViewModel.uiState.value.postEdit
+                ?.instagramConsent
+                ?.agreed,
+        )
+
+        // When  스위치를 끄고 저장
+        editViewModel.updatePostEditInstagramUploadAgreed(false)
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 요청이 title "퇴근길 노을", description "육교에서", instagramUploadAgreed false, instagramId null
+        assertEquals(Triple(PHOTO_ID, "퇴근길 노을", "육교에서"), repository.updatedPost)
+        assertEquals(InstagramConsent(agreed = false, instagramId = null), repository.updatedConsent)
+    }
+
+    @Test
+    fun `제목만 고쳐도 동의와 ID를 지우지 않는다`() = runTest {
+        // Given 동의 true, ID "chalkak.daily"인 본인 게시물의 수정 상태
+        val editViewModel = ownedPostViewModel(
+            title = "퇴근길 노을",
+            description = null,
+            instagramConsent = InstagramConsent(agreed = true, instagramId = "chalkak.daily"),
+        )
+        editViewModel.startPostEdit()
+
+        // When  제목만 "새 제목"으로 바꾸고 저장
+        editViewModel.updatePostEditTitle("새 제목")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        assertEquals(InstagramConsent(agreed = true, instagramId = "chalkak.daily"), repository.updatedConsent)
+    }
+
+    @Test
+    fun `수정 저장에서 서버가 ID 형식을 거절하면 시트에 오류를 보여 준다`() = runTest {
+        // Given 수정 상태에서 동의 켜짐, ID "chalkak-daily", 수정 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        val savedConsent = InstagramConsent(agreed = true, instagramId = "chalkak.daily")
+        val editViewModel = ownedPostViewModel(
+            title = "퇴근길 노을",
+            description = null,
+            instagramConsent = savedConsent,
+        )
+        editViewModel.startPostEdit()
+        editViewModel.updatePostEditInstagramId("chalkak-daily")
+        repository.titleUpdateResult = HomeResult.Failure(HomeFailure.InvalidInstagramId)
+
+        // When  저장
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 시트가 열린 채 ID 오류가 "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요", 상세의 동의·ID는 그대로
+        val state = editViewModel.uiState.value
+        assertEquals(
+            InstagramConsentInputState(
+                agreed = true,
+                instagramId = "chalkak-daily",
+                instagramIdError = "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요",
+            ),
+            state.postEdit?.instagramConsent,
+        )
+        assertEquals(savedConsent, state.instagramConsent)
+        assertFalse(state.isSavingPostEdit)
+    }
+
+    @Test
+    fun `본인 동의 정보를 못 불러왔으면 수정을 열지 않는다`() = runTest {
+        // Given 피드 목록에서 들어와 상세 조회가 네트워크 오류로 끝난 본인 게시물(동의 정보 없음)
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(isOwnedByCurrentUser = true)
+        repository.detailResult = HomeResult.Failure(HomeFailure.Network)
+        val editViewModel = FeedViewModel(
+            repository = repository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 28일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+                topicDate = TEST_DATE,
+            ),
+            postId = ownedPost.id,
+            dateProvider = { TEST_DATE },
+        )
+        advanceUntilIdle()
+
+        // When  수정
+        editViewModel.startPostEdit()
+
+        // Then  수정 상태가 열리지 않고 안내 "게시물을 불러오지 못해 수정할 수 없어요"
+        val state = editViewModel.uiState.value
+        assertEquals(null, state.postEdit)
+        assertEquals("게시물을 불러오지 못해 수정할 수 없어요", (state.pendingMessage as UiMessage.Toast).text)
+    }
+
+    /**
+     * 오늘 주제에 올린 내 게시물 상세를 연 ViewModel. 수정 TC들이 같은 시작 상태를 쓴다.
+     * 본인 동의 정보는 상세 조회로만 받으므로 상세 조회가 [instagramConsent]와 함께 성공한 상태로 만든다(#939).
+     */
+    private fun ownedPostViewModel(
+        title: String?,
+        description: String?,
+        postRepository: FakePostRepository = repository,
+        instagramConsent: InstagramConsent = InstagramConsent.NotAgreed,
+    ): FeedViewModel {
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(
+                title = title,
+                description = description,
+                isOwnedByCurrentUser = true,
+            )
+        postRepository.detailResult = HomeResult.Success(
+            PostDetail(ownedPost, "하늘하늘하늘", TEST_DATE, instagramConsent),
+        )
+        return FeedViewModel(
+            repository = postRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 28일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+                topicDate = TEST_DATE,
+            ),
+            dateProvider = { TEST_DATE },
+        )
     }
 
     @Test
@@ -855,10 +1187,14 @@ private class FakePostRepository : PostRepository {
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
     var deleteResult: HomeResult<Unit> = HomeResult.Success(Unit)
     var deletedPostId: String? = null
-    var titleUpdateResult: HomeResult<PostTitleUpdate> = HomeResult.Success(
-        PostTitleUpdate(PHOTO_ID, "수정한 제목"),
+    var titleUpdateResult: HomeResult<PostUpdate> = HomeResult.Success(
+        PostUpdate(PHOTO_ID, "수정한 제목", null),
     )
     var updatedTitle: Pair<String, String?>? = null
+    var updatedPost: Triple<String, String?, String?>? = null
+    var updatedConsent: InstagramConsent? = null
+    var updatePostCalls = 0
+    var updatePostRequest: CompletableDeferred<HomeResult<PostUpdate>>? = null
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
@@ -869,12 +1205,17 @@ private class FakePostRepository : PostRepository {
         return deleteResult
     }
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> {
+        description: String?,
+        instagramConsent: InstagramConsent,
+    ): HomeResult<PostUpdate> {
+        updatePostCalls++
         updatedTitle = postId to title
-        return titleUpdateResult
+        updatedPost = Triple(postId, title, description)
+        updatedConsent = instagramConsent
+        return updatePostRequest?.await() ?: titleUpdateResult
     }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -920,10 +1261,12 @@ private class ControlledPostRepository : PostRepository {
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = error("unused")
+        description: String?,
+        instagramConsent: InstagramConsent,
+    ): HomeResult<PostUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 

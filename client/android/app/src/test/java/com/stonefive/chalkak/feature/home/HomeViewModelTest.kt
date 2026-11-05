@@ -9,6 +9,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.NotificationDetail
 import com.stonefive.chalkak.domain.model.NotificationFailure
 import com.stonefive.chalkak.domain.model.NotificationPage
@@ -23,7 +24,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -836,10 +837,12 @@ private class FakeHomeRepository :
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = error("unused")
+        description: String?,
+        instagramConsent: InstagramConsent,
+    ): HomeResult<PostUpdate> = error("unused")
 
     override suspend fun updateLike(
         photoId: String,
