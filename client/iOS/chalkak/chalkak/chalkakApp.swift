@@ -25,6 +25,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // 1.0.0 이전 빌드가 매일 반복으로 예약한 로컬 알림은 앱이 지우지 않으면 계속 울린다.
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["daily-topic-reminder"]
+        )
         FirebaseApp.configure()
         UNUserNotificationCenter.current().delegate = self
         Messaging.messaging().delegate = self
