@@ -7,4 +7,8 @@ interface AnalyticsTracker {
     )
 
     fun trackBottomNavigationSelection(destination: String)
+
+    fun trackHomeIssueLayoutExposed(isIssueOnTop: Boolean)
+
+    fun trackHomeInteraction(interaction: HomeInteraction)
 }
