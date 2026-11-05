@@ -26,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.stonefive.chalkak.MainActivity
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.analytics.HomeInteraction
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.home.HOME_CONTENT_TEST_TAG
 import com.stonefive.chalkak.feature.home.HomeViewModel
@@ -239,6 +240,10 @@ class ChalkakNavHostTest {
             }
 
             override fun trackBottomNavigationSelection(destination: String) = Unit
+
+            override fun trackHomeIssueLayoutExposed(isIssueOnTop: Boolean) = Unit
+
+            override fun trackHomeInteraction(interaction: HomeInteraction) = Unit
         }
         composeRule.activity.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
@@ -293,6 +298,10 @@ class ChalkakNavHostTest {
             }
 
             override fun trackBottomNavigationSelection(destination: String) = Unit
+
+            override fun trackHomeIssueLayoutExposed(isIssueOnTop: Boolean) = Unit
+
+            override fun trackHomeInteraction(interaction: HomeInteraction) = Unit
         }
 
         composeRule.activity.setContent {
@@ -1008,4 +1017,8 @@ private object NoOpAnalyticsTracker : AnalyticsTracker {
     ) = Unit
 
     override fun trackBottomNavigationSelection(destination: String) = Unit
+
+    override fun trackHomeIssueLayoutExposed(isIssueOnTop: Boolean) = Unit
+
+    override fun trackHomeInteraction(interaction: HomeInteraction) = Unit
 }

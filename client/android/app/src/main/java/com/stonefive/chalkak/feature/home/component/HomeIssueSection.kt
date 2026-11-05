@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakImage
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -31,6 +32,7 @@ fun HomeIssueSection(
     onIssueClick: (title: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
     showHeader: Boolean = true,
+    textMaxLines: Int = Int.MAX_VALUE,
 ) {
     Column(
         modifier = modifier,
@@ -57,6 +59,7 @@ fun HomeIssueSection(
                 issue = banner,
                 onClick = { onIssueClick("ISSUE", banner.webViewUrl) },
                 modifier = Modifier.fillMaxWidth(),
+                textMaxLines = textMaxLines,
             )
         }
     }
@@ -67,6 +70,7 @@ private fun HomeIssueCard(
     issue: Banner,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    textMaxLines: Int = Int.MAX_VALUE,
 ) {
     Column(
         modifier = modifier
@@ -99,17 +103,21 @@ private fun HomeIssueCard(
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.subheadline,
             fontWeight = FontWeight.Bold,
+            overflow = TextOverflow.Ellipsis,
+            maxLines = textMaxLines,
         )
         Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
         Text(
             text = issue.subtitle,
             color = ChalkakTheme.colors.textSecondary,
             style = ChalkakTheme.typography.caption,
+            overflow = TextOverflow.Ellipsis,
+            maxLines = textMaxLines,
         )
     }
 }
 
-private const val ISSUE_IMAGE_ASPECT_RATIO = 1672f / 941f
+internal const val ISSUE_IMAGE_ASPECT_RATIO = 1672f / 941f
 
 @Preview(showBackground = true, widthDp = 402)
 @Composable
