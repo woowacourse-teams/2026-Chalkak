@@ -66,9 +66,12 @@ prepare_case() {
   done
   printf '[production]\ntype = alias\nremote = %s/source\n[backup]\ntype = alias\nremote = %s/target\n' \
     "$case_dir" "$case_dir" > "$case_dir/rclone.conf"
+  mkdir -p "$case_dir/locks"
+  touch "$case_dir/locks/backup.lock"
+  chmod 660 "$case_dir/locks/backup.lock"
   cat > "$case_dir/backup.env" <<EOF
 RCLONE_CONFIG=$case_dir/rclone.conf
-BACKUP_LOCK_FILE=$case_dir/backup.lock
+BACKUP_LOCK_FILE=$case_dir/locks/backup.lock
 IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 IMAGE_BACKUP_TEMP_ROOT=$case_dir/work

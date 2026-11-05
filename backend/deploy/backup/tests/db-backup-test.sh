@@ -54,9 +54,9 @@ MOCK
 # 실제 timeout을 사용하되 시험에서는 1초 제한으로 바꿔 기다리는 시간을 줄인다.
 cat > "$TEST_ROOT/bin/timeout" <<'WRAPPER'
 #!/usr/bin/env bash
-[[ "$1" == --kill-after=10s && "$2" == 5m && "$3" == pg_dump ]] || exit 8
-shift 2
-exec "$REAL_TIMEOUT" --kill-after=1s 1s "$@"
+[[ "$1" == --foreground && "$2" == --kill-after=10s && "$3" == 5m && "$4" == pg_dump ]] || exit 8
+shift 3
+exec "$REAL_TIMEOUT" --foreground --kill-after=1s 1s "$@"
 WRAPPER
 chmod +x "$TEST_ROOT/bin/timeout"
 chmod +x "$TEST_ROOT/bin/pg_dump" "$TEST_ROOT/bin/pg_restore" "$TEST_ROOT/bin/rclone"
@@ -71,9 +71,12 @@ prepare_case() {
   touch "$case_dir/ca.pem"
   printf 'unused:5432:fixture:fixture:SECRET_SENTINEL\n' > "$case_dir/pgpass"
   printf '[backup]\ntype = alias\nremote = %s/remote\n' "$case_dir" > "$case_dir/rclone.conf"
+  mkdir -p "$case_dir/locks"
+  touch "$case_dir/locks/backup.lock"
+  chmod 660 "$case_dir/locks/backup.lock"
   cat > "$case_dir/backup.env" <<EOF
 PGHOST=unused
-BACKUP_LOCK_FILE=$case_dir/backup.lock
+BACKUP_LOCK_FILE=$case_dir/locks/backup.lock
 PGPORT=5432
 PGDATABASE=fixture
 PGUSER=fixture

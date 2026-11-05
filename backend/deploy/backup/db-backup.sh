@@ -70,7 +70,8 @@ printf '%s STARTED run=%s\n' "$(date -u +%FT%TZ)" "$run_id"
 
 # 외부 도구의 원문 오류에는 접속 정보가 포함될 수 있어 공개 로그에 보내지 않는다.
 stage=dump
-timeout --kill-after=10s 5m pg_dump --format=custom --no-owner --no-privileges --no-password --lock-wait-timeout=10s \
+# 내부 timeout이 별도 그룹을 만들지 않아야 전체 시간 제한의 TERM/KILL도 pg_dump에 전달된다.
+timeout --foreground --kill-after=10s 5m pg_dump --format=custom --no-owner --no-privileges --no-password --lock-wait-timeout=10s \
   --file="$work_dir/database.dump" > /dev/null 2> "$work_dir/diagnostic"
 [[ -s "$work_dir/database.dump" ]] || exit 1
 stage=archive-list

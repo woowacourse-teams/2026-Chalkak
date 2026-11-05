@@ -50,6 +50,16 @@ DB 전체 덤프와 운영 게시글·사인 이미지 네 경로를 백업하�
 배포 묶음에는 `deploy/backup/`과 `deploy/systemd/`가 함께 포함되어야 한다.
 `/etc/chalkak-backup/backup.env`가 없는 개발 서버 등에서는 아무것도 변경하지 않는다.
 최초 사용자·도구·비밀 설정 준비와 예약 활성화는 아래 절차로 한 번 수행한다.
+최초 설치와 이후 앱 배포 모두 같은 설치기를 사용하며 실행 파일은 `current` 아래에서 사용한다.
+
+```text
+/opt/chalkak-backup/
+├── releases/release.고유문자열/   # 해당 배포의 백업 실행 파일 6개
+└── current → releases/release.고유문자열/
+```
+
+`/etc/chalkak-backup/`의 비밀번호·접속 설정과 `/var/lib/chalkak-backup/`의 실행 결과는
+이 코드 폴더와 분리한다. `/opt/chalkak-backup/` 바로 아래에 실행 파일을 따로 복사하지 않는다.
 
 ### 앱 배포 시 방어 장치
 
@@ -57,7 +67,7 @@ DB 전체 덤프와 운영 게시글·사인 이미지 네 경로를 백업하�
 AfterInstall을 실패 처리하고 새 앱 기동·전환 단계로 진행하지 않는다. 기존 앱과 실행 중인 백업은
 이 갱신 스크립트가 중단하지 않는다. 백업 설정이 없는 개발 서버는 설치를 생략한다.
 
-- 실행 중인 백업과 같은 `/var/lib/chalkak-backup/backup.lock`을 사용한다. 잠금을 얻지 못하면
+- 실행 중인 백업과 같은 `/var/lib/chalkak-backup-lock/backup.lock`을 사용한다. 잠금을 얻지 못하면
   기존 백업을 중단하지 않고 종료 코드 75로 배포를 중단한다. 백업 완료 후 재배포한다.
 - 실행 파일 6개만 root 소유로 새 `releases/release.*` 디렉터리에 준비하고 문법을 검사한 뒤
   `current` 연결을 한 번에 교체한다. 서비스의 실제 작업 디렉터리와 `pwd -P`로 한 회차의
@@ -106,17 +116,19 @@ PGPASSWORD나 명령 인자로 비밀번호를 전달하지 않는다. 소스·�
 기존 백업·복구·전송 기능은 각 도구를 그대로 호출해 재사용한다. 복구 도구는 호출하지 않는다.
 
 운영 설치 시 실행 사용자 소유의 `/var/lib/chalkak-backup`을 mode 700으로 미리 준비한다.
-`BACKUP_STATE_DIRECTORY`는 이 로컬 결과 보관 위치다. `BACKUP_LOCK_FILE`은 같은 보호 경로
-안의 고정 파일이며, 예약·수동·개별 실행에서 모두 같은 경로를 사용한다.
+`BACKUP_STATE_DIRECTORY`는 이 로컬 결과 보관 위치다. `BACKUP_LOCK_FILE`은 별도 root 관리
+경로 `/var/lib/chalkak-backup-lock/backup.lock`이다. 디렉터리는 root:chalkak-backup·750,
+파일은 root:chalkak-backup·660으로 설치기가 준비한다. 백업 사용자는 잠금을 사용할 수 있지만
+파일 이름·소유권을 바꿀 수 없다. 예약·수동·개별·배포에서 모두 같은 경로를 사용한다.
 `BACKUP_RUN_DESTINATION`은 팀 버킷의 `remote:bucket/prefix/runs` 형식 결과 보관 경로다.
 이 세 항목은 백업 전용 설정이며 앱 `application.env`나 CD 필수 키에 추가하지 않는다.
 
 ```bash
-# 일별 실행과 수동 전체 실행
-bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env
+# 운영 서버 설치 후 수동 전체 실행 (예약 실행은 systemd 서비스 사용)
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/backup.sh /etc/chalkak-backup/backup.env
 # 실패한 대상만 새 회차로 재시도 (전체 실행 성공을 대신하지 않는다)
-bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env db
-bash deploy/backup/backup.sh /etc/chalkak-backup/backup.env images
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/backup.sh /etc/chalkak-backup/backup.env db
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/backup.sh /etc/chalkak-backup/backup.env images
 ```
 
 실행마다 고유한 `chalkak-backup-...` 디렉터리에 `RESULT`, `db.log`, `image.log`를 남긴다.
@@ -184,9 +196,6 @@ fi
 sudo install -d -o root -g root -m 755 /opt/chalkak-backup
 sudo install -d -o root -g chalkak-backup -m 750 /etc/chalkak-backup
 sudo install -d -o chalkak-backup -g chalkak-backup -m 700 /var/lib/chalkak-backup
-for file in backup.sh backup-lock.sh db-backup.sh image-backup.sh scheduled-backup.sh report-backup-status.sh; do
-  sudo install -o root -g root -m 644 "deploy/backup/$file" /opt/chalkak-backup/
-done
 ```
 
 `backup.env.example`을 참고해 Git 밖에서 실제 `backup.env`, `pgpass`, `rclone.conf`를 준비한다.
@@ -199,14 +208,34 @@ RDS CA 번들은 같은 위치의 `rds-ca.pem`에 읽을 수 있게 둔다. 비�
 팀 S3 인증은 백업용 설정에만 둔다. 서버 관리자와 같은 호스트의 침해까지 격리하는 구조는 아니다.
 이 OS 분리만으로 IAM 삭제·덮어쓰기 제한을 대신하지 않으며 실제 대상 권한은 별도로 검증한다.
 
-### 2. 실측·검증 후 시간 상한 설정
+### 2. 공통 설치기로 실행 파일 설치
+
+사용자·도구·실제 설정을 준비한 다음, 저장소의 `backend/`에서 실행한다.
+이후 앱 배포도 같은 설치기를 호출한다. 설치만으로 백업 실행이나 예약 활성화를 하지는 않는다.
+
+설치기는 root 관리 잠금 경로와 백업 사용자의 읽기·쓰기 권한을 준비한다. 이미 있는 잠금 파일을
+교체하거나 비우지 않으며, 심볼릭 링크·하드 링크·root 외 사용자가 변경 가능한 디렉터리는 거부한다.
+root 설치 후 실제 백업 사용자의 잠금 획득과 실행 중 갱신 차단은 별도 Linux 권한 테스트로 검증한다.
+
+```bash
+sudo /bin/bash deploy/scripts/install_backup.sh
+sudo readlink -f /opt/chalkak-backup/current
+sudo ls -l /opt/chalkak-backup/current/
+```
+
+설치기는 실행 파일 6개를 새 `releases/release.*`에 넣고 `current`가 그 폴더를 가리키게 한다.
+서비스 파일도 설치하지만, 타이머 파일과 비밀 설정은 이 단계에서 만들거나 바꾸지 않는다.
+이전 방식으로 바로 아래에 복사한 파일이 있더라도 새 실행 명령은 모두 `current/`를 사용한다.
+실행 중인 백업과 기존 파일은 이 절차에서 임의로 삭제하지 않는다.
+
+### 3. 실측·검증 후 시간 상한 설정
 
 처음에는 타이머를 켜지 않고 백업 전용 사용자로 수동 전체 백업을 실행한다.
 실제 회사 S3 읽기·팀 S3 생성/조회·버저닝·제한된 삭제 권한을 먼저 확인한다.
 
 ```bash
 sudo -u chalkak-backup /usr/bin/time -v /bin/bash \
-  /opt/chalkak-backup/backup.sh /etc/chalkak-backup/backup.env
+  /opt/chalkak-backup/current/backup.sh /etc/chalkak-backup/backup.env
 ```
 
 최초 전체 백업과 변경분이 있는 일별 백업을 각각 측정한다. 전체 시간, 대상 수·용량,
@@ -221,7 +250,6 @@ DB 덤프의 기존 5분 상한과 별개다. `backup.sh` 직접 실행에는 �
 한도를 넘으면 프로세스 그룹에 TERM을 보내고 10초 후에도 남으면 KILL한다. 부분 회차는 미완료다.
 
 ```bash
-sudo /bin/bash deploy/scripts/install_backup.sh
 sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/scheduled-backup.sh \
   /etc/chalkak-backup/backup.env --check
 # 설정 검사 통과 후, 타이머를 켜기 전에 실제 서비스 수동 실행
@@ -234,7 +262,7 @@ sudo journalctl -u chalkak-backup.service --since today --no-pager
 환경에서 실제 보관본 복구·사용자 관계·이미지 key 연결까지 확인한 후에만 다음 단계로 진행한다.
 서비스가 성공 후 `inactive (dead)`인 것은 정상이다. 반복 상주하는 서버가 아닌 일회 실행이다.
 
-### 3. 예약 활성화와 확인
+### 4. 예약 활성화와 확인
 
 ```bash
 sudo install -o root -g root -m 644 deploy/systemd/chalkak-backup.timer /etc/systemd/system/
@@ -265,10 +293,9 @@ systemctl show chalkak-backup.service -p Result -p ExecMainStatus -p MemoryPeak 
 
 ```bash
 sudo systemctl stop chalkak-backup.timer
-# 실행 중이면 종료를 기다리거나, 아래 명령으로 이번 백업을 중단한다(미완료 기록 확인).
-sudo systemctl stop chalkak-backup.service
+# 실행 중인 예약·수동 백업이 스스로 끝날 때까지 기다린다. 강제로 중단하지 않는다.
 systemctl is-active chalkak-backup.service
-sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup/backup.lock true
+sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup-lock/backup.lock true
 ```
 
 서비스가 비활성이고 잠금 확인이 성공했는지 확인한 뒤 배포한다. 직접 실행 중인 백업이 있으면
@@ -277,6 +304,13 @@ sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup/back
 수 있다. 파일 갱신 단계에는 자동 잠금이 있지만 앱 배포 전체와 백업의 부하를 분리하는 잠금은
 아니므로 이 수동 절차를 지킨다. 갱신 이후 운영 수동 백업은 실패 알림도 적용되도록 서비스로 실행한다.
 
+**기존 잠금 경로에서 이전할 때:** 타이머를 중지하고 예약·직접 실행 백업과 배포가 모두 끝났는지
+확인한다. 이전 경로 `/var/lib/chalkak-backup/backup.lock`의 잠금도 해제됐는지 확인한 뒤,
+관리자가 `/etc/chalkak-backup/backup.env`의 `BACKUP_LOCK_FILE`을
+`/var/lib/chalkak-backup-lock/backup.lock`으로 바꾸고 공통 설치기를 실행한다.
+이전 경로를 쓰는 코드로는 다시 실행하지 않는다. 새 설정 검사와 잠금 권한을 확인한 뒤 타이머를
+재개한다. 설치기는 실제 설정·인증 파일을 자동 수정하지 않는다. 이전 잠금 파일도 자동 삭제하지 않는다.
+
 ```bash
 sudo systemctl start chalkak-backup.service
 ```
@@ -284,6 +318,8 @@ sudo systemctl start chalkak-backup.service
 ```bash
 # Linux에서 설정·권한 거부, 종료 코드 전달, 실제 프로세스 그룹 시간 초과 검사
 bash deploy/backup/tests/scheduled-backup-test.sh
+# 격리된 Linux 컨테이너의 root에서 실제 root/백업 사용자 권한과 최초 설치 검사
+bash deploy/backup/tests/backup-lock-permissions-test.sh
 # systemd-analyze가 있는 Linux에서 서버 시간대·날짜 경계에 따른 다음 예약 시각 검사
 bash deploy/backup/tests/backup-timer-test.sh
 # 종료 요약·비밀 문자열 차단·수집 설정 검사
@@ -293,7 +329,7 @@ bash deploy/backup/tests/backup-status-test.sh
 ### 개별 DB 실행
 
 ```bash
-bash deploy/backup/db-backup.sh /etc/chalkak-backup/backup.env
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/db-backup.sh /etc/chalkak-backup/backup.env
 ```
 
 날짜는 UTC로 기록하며 예약 실행의 한국 시간 기준과 구분한다.
@@ -438,7 +474,7 @@ rclone이 제어 문자·슬래시 등을 표시할 때 쓰는 치환·인용 �
 가리키는 경우까지 판별하지는 않는다. 실제 계정·권한 분리는 #844에서 확인한다.
 
 ```bash
-bash deploy/backup/image-backup.sh /etc/chalkak-backup/backup.env
+sudo -u chalkak-backup /bin/bash /opt/chalkak-backup/current/image-backup.sh /etc/chalkak-backup/backup.env
 ```
 
 Bash, rclone, `jq`, `sort`, `cmp`, `mktemp`가 필요하다. `rclone check --download`는 파일 내용을

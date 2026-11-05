@@ -64,7 +64,7 @@ echo 'PASS: 실제 기록 실패 시 오류 반환·기존 요약 보존'
 # 비동기 알림은 운영 서비스 실행 결과를 바꾸지 않아야 한다.
 grep -Fxq 'ExecStopPost=-/usr/bin/timeout --kill-after=1s 5s /bin/bash report-backup-status.sh /var/log/chalkak-backup/status.log' \
   "$script_dir/../systemd/chalkak-backup.service"
-grep -Fxq 'ReadWritePaths=/var/log/chalkak-backup' "$script_dir/../systemd/chalkak-backup.service"
+grep -Fxq 'ReadWritePaths=/var/log/chalkak-backup /var/lib/chalkak-backup-lock' "$script_dir/../systemd/chalkak-backup.service"
 jq -e '[.logs.logs_collected.files.collect_list[] |
   select(.file_path == "/var/log/chalkak-backup/status.log" and .log_group_name == "/chalkak/prod/backup")] | length == 1' \
   "$script_dir/../monitoring/cloudwatch-agent.prod.json" >/dev/null

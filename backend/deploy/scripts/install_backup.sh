@@ -6,6 +6,7 @@ set +x
 config=/etc/chalkak-backup/backup.env
 install_dir=/opt/chalkak-backup
 state_dir=/var/lib/chalkak-backup
+lock_dir=/var/lib/chalkak-backup-lock
 unit_dir=/etc/systemd/system
 log_dir=/var/log/chalkak-backup
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -18,20 +19,44 @@ fi
 [[ $EUID -eq 0 ]] || { echo '백업 파일 갱신은 root로 실행해야 합니다.' >&2; exit 1; }
 id chalkak-backup >/dev/null 2>&1
 [[ -f "$config" && ! -L "$config" && -d "$install_dir" && ! -L "$install_dir" &&
-   -d "$state_dir" && ! -L "$state_dir" && ! -L "$state_dir/backup.lock" ]] || {
+   -d "$state_dir" && ! -L "$state_dir" ]] || {
   echo '최초 백업 구성과 보호 경로를 확인하세요.' >&2; exit 1;
 }
 # 비밀 설정을 root로 source하지 않는다. 백업 실행 사용자 권한에서 잠금 경로만 검사한다.
 runuser -u chalkak-backup -- /bin/bash -c '
   set +x
   source "$1"
-  [[ "$BACKUP_LOCK_FILE" == "$2/backup.lock" && "$BACKUP_STATE_DIRECTORY" == "$2" ]]
-' bash "$config" "$state_dir" || {
-  echo '배포와 백업은 기본 결과 디렉터리의 같은 잠금을 사용해야 합니다.' >&2; exit 1;
+  [[ "$BACKUP_LOCK_FILE" == "$3/backup.lock" && "$BACKUP_STATE_DIRECTORY" == "$2" ]]
+' bash "$config" "$state_dir" "$lock_dir" || {
+  echo '백업 결과 경로와 root 관리 공통 잠금 경로를 확인하세요.' >&2; exit 1;
 }
 
+# 상위 경로를 root만 변경할 수 있으므로 검사와 열기 사이에 백업 사용자가 바꿔치기할 수 없다.
+[[ ! -L "$lock_dir" && "$(readlink -f -- "${lock_dir%/*}")" == "${lock_dir%/*}" ]] || exit 1
+if [[ -e "$lock_dir" ]]; then
+  [[ -d "$lock_dir" && "$(stat -c %u -- "$lock_dir")" == 0 ]] || exit 1
+  lock_mode=$(stat -c %a -- "$lock_dir")
+  (( (8#$lock_mode & 0022) == 0 )) || {
+    echo 'root 외 사용자가 변경 가능한 잠금 디렉터리는 사용할 수 없습니다.' >&2; exit 1;
+  }
+fi
+install -d -o root -g chalkak-backup -m 750 "$lock_dir"
+lock_file="$lock_dir/backup.lock"
+if [[ ! -e "$lock_file" && ! -L "$lock_file" ]]; then
+  # 최초 설치가 겹쳐도 기존 파일을 교체하지 않는다. 생성한 설치기만 권한을 설정한다.
+  if (umask 077; set -o noclobber; : > "$lock_file") 2>/dev/null; then
+    chown root:chalkak-backup "$lock_file"
+    chmod 660 "$lock_file"
+  fi
+fi
+# 이미 사용 중인 inode를 교체·초기화하지 않는다. 잘못된 기존 파일은 자동 보정하지 않는다.
+[[ -f "$lock_file" && ! -L "$lock_file" && "$(stat -c %u -- "$lock_file")" == 0 &&
+   "$(stat -c %a -- "$lock_file")" == 660 && "$(stat -c %h -- "$lock_file")" == 1 ]] || exit 1
+runuser -u chalkak-backup -- test -r "$lock_file"
+runuser -u chalkak-backup -- test -w "$lock_file"
+
 # 실행 중인 예약·수동 백업은 중단하지 않는다. 갱신이 실패하면 앱 배포도 중단하고 나중에 재배포한다.
-exec 9>> "$state_dir/backup.lock"
+exec 9<> "$lock_file"
 flock --exclusive --nonblock --conflict-exit-code 75 9 || {
   echo '백업 또는 다른 파일 갱신이 실행 중입니다. 완료 후 재배포하세요.' >&2; exit 75;
 }

@@ -74,6 +74,9 @@ prepare_case() {
   touch "$case_dir/ca.pem" "$case_dir/pgpass" "$case_dir/calls"
   printf '[production]\ntype = alias\nremote = %s/source\n[backup]\ntype = alias\nremote = %s/target\n' \
     "$case_dir" "$case_dir" > "$case_dir/rclone.conf"
+  mkdir -p "$case_dir/locks"
+  touch "$case_dir/locks/backup.lock"
+  chmod 660 "$case_dir/locks/backup.lock"
   cat > "$case_dir/backup.env" <<EOF
 PGHOST=unused
 PGPORT=5432
@@ -87,7 +90,7 @@ IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 DB_BACKUP_TEMP_ROOT=$case_dir/work
 IMAGE_BACKUP_TEMP_ROOT=$case_dir/work
-BACKUP_LOCK_FILE=$case_dir/backup.lock
+BACKUP_LOCK_FILE=$case_dir/locks/backup.lock
 BACKUP_STATE_DIRECTORY=$case_dir/state
 BACKUP_RUN_DESTINATION=backup:bucket/chalkak/runs
 EOF
@@ -256,7 +259,7 @@ bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 9>> "$case_dir/other.lock" >
 echo 'PASS: 상속된 다른 파일의 fd 9를 잠금 우회로 사용하지 않음'
 
 prepare_case unlocked-fd
-bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 9>> "$case_dir/backup.lock" > "$case_dir/output" 2>&1
+bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 9>> "$case_dir/locks/backup.lock" > "$case_dir/output" 2>&1
 grep -q ' COMPLETE ' "$case_dir/output"
 echo 'PASS: 같은 파일 fd를 상속해도 실제 flock 획득 수행'
 
@@ -265,7 +268,7 @@ for invalid in selection missing-state symlink-lock; do
   case "$invalid" in
     selection) execute invalid ;;
     missing-state) rmdir "$case_dir/state"; execute ;;
-    symlink-lock) touch "$case_dir/other.lock"; ln -s "$case_dir/other.lock" "$case_dir/backup.lock"; execute ;;
+    symlink-lock) touch "$case_dir/other.lock"; rm "$case_dir/locks/backup.lock"; ln -s "$case_dir/other.lock" "$case_dir/locks/backup.lock"; execute ;;
   esac
   [[ $status -ne 0 && ! -s "$case_dir/calls" ]]
   echo "PASS: $invalid 설정 거부, 백업 시작 안 함"

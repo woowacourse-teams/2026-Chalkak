@@ -6,6 +6,7 @@ TEST_ROOT=$(mktemp -d)
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 trap 'printf "FAIL: line=%s scenario=%s\n" "$LINENO" "${scenario:-setup}" >&2; cat "$TEST_ROOT/output" >&2' ERR
 mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/runner" "$TEST_ROOT/state"
+cp "$SCRIPT_DIR/backup-lock.sh" "$TEST_ROOT/runner/"
 cp "$SCRIPT_DIR/scheduled-backup.sh" "$TEST_ROOT/runner/"
 # 예약 래퍼의 종료 코드·시간 제한을 검사한다. 실제 백업 동작은 backup-test.sh에서 검사한다.
 cat > "$TEST_ROOT/runner/backup.sh" <<'MOCK'
@@ -27,6 +28,9 @@ MOCK
 done
 chmod +x "$TEST_ROOT/bin/"*
 export PATH="$TEST_ROOT/bin:$PATH" TEST_ROOT TEST_MODE=normal TEST_EXIT=0 TEST_PG_MAJOR=18
+mkdir "$TEST_ROOT/locks"
+touch "$TEST_ROOT/locks/backup.lock"
+chmod 660 "$TEST_ROOT/locks/backup.lock"
 touch "$TEST_ROOT/ca.pem" "$TEST_ROOT/pgpass" "$TEST_ROOT/rclone.conf"
 cat > "$TEST_ROOT/template" <<EOF
 PGHOST=unused
@@ -41,7 +45,7 @@ IMAGE_BACKUP_SOURCE=production:bucket
 IMAGE_BACKUP_DESTINATION=backup:bucket/chalkak/images
 BACKUP_RUN_DESTINATION=backup:bucket/chalkak/runs
 BACKUP_STATE_DIRECTORY=$TEST_ROOT/state
-BACKUP_LOCK_FILE=$TEST_ROOT/state/backup.lock
+BACKUP_LOCK_FILE=$TEST_ROOT/locks/backup.lock
 BACKUP_MAX_RUNTIME_SECONDS=5
 EOF
 prepare() {

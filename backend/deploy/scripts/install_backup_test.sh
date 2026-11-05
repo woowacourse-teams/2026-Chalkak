@@ -8,7 +8,8 @@ mkdir -p "$root/bin" "$root/deploy/scripts" "$root/deploy/backup" "$root/deploy/
   "$root/etc/chalkak-backup" "$root/opt/chalkak-backup" "$root/state" "$root/units"
 # Linux의 실제 flock·심볼릭 링크 교체를 사용한다. 서비스·사용자·설치 대상은 임시 환경으로 격리한다.
 # 테스트용 경로와 root 검사만 바꾸고 나머지는 운영 스크립트 그대로 실행한다.
-sed -e "s|/etc/chalkak-backup|$root/etc/chalkak-backup|g" \
+sed -e "s|/var/lib/chalkak-backup-lock|$root/locks|g" \
+  -e "s|/etc/chalkak-backup|$root/etc/chalkak-backup|g" \
   -e "s|/opt/chalkak-backup|$root/opt/chalkak-backup|g" \
   -e "s|/var/lib/chalkak-backup|$root/state|g" \
   -e "s|/etc/systemd/system|$root/units|g" \
@@ -60,11 +61,14 @@ cp "$script_dir/../systemd/chalkak-backup.service" "$root/deploy/systemd/"
 bash "$runner" > "$root/output"
 [[ ! -e "$current" && ! -e "$root/systemctl.log" ]]
 echo 'PASS: 미구성 서버는 변경 없이 통과'
-printf 'BACKUP_LOCK_FILE=%s/state/backup.lock\nBACKUP_STATE_DIRECTORY=%s/state\n' "$root" "$root" > "$config"
+printf 'BACKUP_LOCK_FILE=%s/locks/backup.lock\nBACKUP_STATE_DIRECTORY=%s/state\n' "$root" "$root" > "$config"
 printf '비밀 DB 암호\n' > "$root/etc/chalkak-backup/pgpass"
 printf '비밀 S3 인증\n' > "$root/etc/chalkak-backup/rclone.conf"
 cp -Rp "$root/etc/chalkak-backup" "$root/secret-before"
-exec 8>> "$root/state/backup.lock"
+mkdir "$root/locks"
+touch "$root/locks/backup.lock"
+chmod 660 "$root/locks/backup.lock"
+exec 8<> "$root/locks/backup.lock"
 flock -x 8
 rc=0
 bash "$runner" > "$root/output" 2>&1 || rc=$?

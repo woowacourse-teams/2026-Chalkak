@@ -33,9 +33,9 @@ done
    -O "$BACKUP_STATE_DIRECTORY" && "$(stat -c %a "$BACKUP_STATE_DIRECTORY")" == 700 ]] || {
   echo 'CA 인증서와 실행 사용자 소유의 mode 700 결과 디렉터리를 준비하세요.' >&2; exit 1;
 }
-[[ "$BACKUP_LOCK_FILE" == "$BACKUP_STATE_DIRECTORY/backup.lock" && ! -L "$BACKUP_LOCK_FILE" ]] || {
-  echo '잠금 파일은 결과 디렉터리의 backup.lock이어야 합니다.' >&2; exit 1;
-}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+source "$script_dir/backup-lock.sh"
+backup_lock_path_valid
 if [[ ! "${BACKUP_MAX_RUNTIME_SECONDS:-}" =~ ^[1-9][0-9]{0,4}$ ]] ||
    (( BACKUP_MAX_RUNTIME_SECONDS >= 86400 )); then
   echo '실측 후 전체 실행 제한을 1~86399초의 정수로 설정하세요: BACKUP_MAX_RUNTIME_SECONDS' >&2
@@ -48,7 +48,6 @@ done
   echo 'PostgreSQL 18 백업 도구가 필요합니다.' >&2; exit 1;
 }
 if [[ "${2:-}" == --check ]]; then echo 'READY: 예약 실행 설정·파일 권한·도구 검사 통과 (연결 검증 아님)'; exit 0; fi
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 stage=scheduled-backup
 result=0
 # oneshot의 RuntimeMaxSec 대신 GNU timeout으로 전체 프로세스 그룹 실행 시간을 제한한다.
