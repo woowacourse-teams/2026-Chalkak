@@ -1,5 +1,10 @@
 package com.stonefive.chalkak.feature.instagramconsent.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -36,6 +41,8 @@ import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
  * - 스위치가 켜지면: 앞에 `@`가 붙은 ID 칸과, 그 아래 안내 "작성하신 계정을 게시물에 태그해 드릴게요. (선택)".
  *   서버가 ID를 거절했으면([InstagramConsentInputState.instagramIdError]) 안내 자리에 오류 색으로 오류 문구를 보여 준다.
  * - 스위치가 꺼지면 ID 칸과 안내를 감춘다. 쓰던 ID는 상태에 남는다.
+ *   켜고 끌 때 ID 칸과 안내는 위에서부터 펼쳐지고 접히며 서서히 나타나고 사라진다. 묶음 높이가 매 프레임 바뀌므로
+ *   아래 내용과 이 묶음을 담은 바텀시트의 높이도 함께 따라 움직인다(한 번에 툭 튀어나오지 않게).
  *
  * 입력은 [state]로 받기만 하고, 바뀐 값은 [onAgreedChange]·[onInstagramIdChange]로 올린다.
  * ID 칸 포커스는 [onInstagramIdFocusChange]로 알려, 맨 아래 칸일 때 부모가 스크롤을 따라 내릴 수 있게 한다.
@@ -56,37 +63,59 @@ fun InstagramConsentSection(
             onCheckedChange = onAgreedChange,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (state.agreed) {
-            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
-            ChalkakTextField(
-                value = state.instagramId,
-                onValueChange = onInstagramIdChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { onInstagramIdFocusChange(it.isFocused) }
-                    .testTag(INSTAGRAM_CONSENT_ID_TAG),
-                placeholder = "인스타그램 ID",
+        AnimatedVisibility(
+            visible = state.agreed,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+        ) {
+            InstagramConsentIdInput(
+                state = state,
+                onInstagramIdChange = onInstagramIdChange,
                 enabled = enabled,
-                textStyle = ChalkakTheme.typography.subheadline,
-                singleLine = true,
-                maxLength = INSTAGRAM_ID_MAX_LENGTH,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.None,
-                    autoCorrectEnabled = false,
-                    keyboardType = KeyboardType.Ascii,
-                    imeAction = ImeAction.Done,
-                ),
-                prefix = "@",
-            )
-            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xs))
-            val error = state.instagramIdError
-            Text(
-                text = error ?: "작성하신 계정을 게시물에 태그해 드릴게요. (선택)",
-                modifier = Modifier.testTag(INSTAGRAM_CONSENT_HELPER_TAG),
-                color = if (error != null) ChalkakTheme.colors.error else ChalkakTheme.colors.textMuted,
-                style = ChalkakTheme.typography.footnote,
+                onInstagramIdFocusChange = onInstagramIdFocusChange,
             )
         }
+    }
+}
+
+/** 스위치가 켜졌을 때 펼쳐지는 '@ ID' 칸과 그 아래 안내(또는 서버 오류) 문구. */
+@Composable
+private fun InstagramConsentIdInput(
+    state: InstagramConsentInputState,
+    onInstagramIdChange: (String) -> Unit,
+    enabled: Boolean,
+    onInstagramIdFocusChange: (Boolean) -> Unit,
+) {
+    Column {
+        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
+        ChalkakTextField(
+            value = state.instagramId,
+            onValueChange = onInstagramIdChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { onInstagramIdFocusChange(it.isFocused) }
+                .testTag(INSTAGRAM_CONSENT_ID_TAG),
+            placeholder = "인스타그램 ID",
+            enabled = enabled,
+            textStyle = ChalkakTheme.typography.subheadline,
+            singleLine = true,
+            maxLength = INSTAGRAM_ID_MAX_LENGTH,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Ascii,
+                imeAction = ImeAction.Done,
+            ),
+            prefix = "@",
+        )
+        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xs))
+        val error = state.instagramIdError
+        Text(
+            text = error ?: "작성하신 계정을 게시물에 태그해 드릴게요. (선택)",
+            modifier = Modifier.testTag(INSTAGRAM_CONSENT_HELPER_TAG),
+            color = if (error != null) ChalkakTheme.colors.error else ChalkakTheme.colors.textMuted,
+            style = ChalkakTheme.typography.footnote,
+        )
     }
 }
 
