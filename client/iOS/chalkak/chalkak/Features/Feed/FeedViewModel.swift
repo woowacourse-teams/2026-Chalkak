@@ -11,7 +11,7 @@ final class FeedViewModel {
     typealias DetailHandler = @MainActor @Sendable (String) async -> Result<FeedContent, FeedError>
     typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
     typealias DeleteHandler = @MainActor @Sendable (String) async -> Result<Void, FeedError>
-    typealias UpdatePostHandler = @MainActor @Sendable (String, String?, String?, InstagramConsent) async -> Result<FeedPostUpdate, FeedError>
+    typealias UpdateTitleHandler = @MainActor @Sendable (String, String?) async -> Result<FeedTitleUpdate, FeedError>
 
     private(set) var viewState: FeedViewState
     private(set) var event: FeedEvent?
@@ -23,14 +23,12 @@ final class FeedViewModel {
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
     private let deleteHandler: DeleteHandler
-    private let updatePostHandler: UpdatePostHandler
+    private let updateTitleHandler: UpdateTitleHandler
     private var likeGeneration = 0
     // 상세를 받기 전에 다른 화면에서 도착한 좋아요. 상세가 도착하면 그 위에 덮어쓴다.
     private var pendingLikeUpdate: FeedLikeUpdate?
     // 직전 좋아요 요청. 다음 요청은 이 태스크가 끝난 뒤에 보내 직렬화한다.
     private var likeTask: Task<Void, Never>?
-    // 진행 중인 상세 조회 수. 본인 동의를 아직 못 받았을 때 '조회 중'과 '조회 실패'를 나누는 데 쓴다.
-    private var detailLoadCount = 0
 
     init(
         postID: String,
@@ -42,7 +40,7 @@ final class FeedViewModel {
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
         deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) },
-        updatePostHandler: @escaping UpdatePostHandler = { _, _, _, _ in .failure(.generic) },
+        updateTitleHandler: @escaping UpdateTitleHandler = { _, _ in .failure(.generic) },
         aiReviewRepository: (any AIReviewRepository)? = nil
     ) {
         self.aiReview = aiReviewRepository.map {
@@ -69,7 +67,7 @@ final class FeedViewModel {
         self.detailHandler = detailHandler
         self.likeHandler = likeHandler
         self.deleteHandler = deleteHandler
-        self.updatePostHandler = updatePostHandler
+        self.updateTitleHandler = updateTitleHandler
     }
 
     convenience init(target: FeedTarget, apiClient: FeedAPIClient, aiReviewRepository: (any AIReviewRepository)? = nil) {
@@ -88,14 +86,9 @@ final class FeedViewModel {
             deleteHandler: { postID in
                 await feedResult { try await apiClient.deletePost(postID: postID) }
             },
-            updatePostHandler: { postID, title, description, instagramConsent in
+            updateTitleHandler: { postID, title in
                 await feedResult {
-                    try await apiClient.updatePost(
-                        postID: postID,
-                        title: title,
-                        description: description,
-                        instagramConsent: instagramConsent
-                    )
+                    try await apiClient.updatePostTitle(postID: postID, title: title)
                 }
             },
             aiReviewRepository: aiReviewRepository
@@ -107,13 +100,9 @@ final class FeedViewModel {
             viewState.contentStatus = .loading
         }
         let likeGenerationAtStart = likeGeneration
-        let postUpdateVersionAtStart = viewState.postUpdateVersion
+        let titleUpdateVersionAtStart = viewState.titleUpdateVersion
 
-        detailLoadCount += 1
-        let result = await detailHandler(postID)
-        detailLoadCount -= 1
-
-        switch result {
+        switch await detailHandler(postID) {
         case let .success(content):
             var merged = content
             // 상세 요청 중 좋아요가 토글됐다면 낙관적 좋아요 상태를 상세 응답으로 덮어쓰지 않는다.
@@ -121,16 +110,9 @@ final class FeedViewModel {
                 merged.post.isLiked = current.post.isLiked
                 merged.post.likeCount = current.post.likeCount
             }
-            // 상세 요청 중 수정을 저장했다면 늦게 온 상세 응답이 수정 결과를 덮어쓰지 않게 한다.
-            if viewState.postUpdateVersion != postUpdateVersionAtStart,
+            if viewState.titleUpdateVersion != titleUpdateVersionAtStart,
                let current = viewState.content {
                 merged.post.title = current.post.title
-                merged.post.description = current.post.description
-                merged.post.instagramConsent = current.post.instagramConsent
-            }
-            // 동의는 본인 상세에만 오므로, 응답에 없으면 이미 받아 둔 값을 유지한다.
-            if let current = viewState.content {
-                merged.post.instagramConsent = merged.post.instagramConsent ?? current.post.instagramConsent
             }
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
@@ -236,7 +218,7 @@ final class FeedViewModel {
         guard let current = viewState.content,
               current.post.isOwnedByCurrentUser,
               !viewState.isDeleting,
-              !viewState.isSavingPostEdit
+              !viewState.isUpdatingTitle
         else { return }
 
         viewState.isDeleting = true
@@ -255,89 +237,39 @@ final class FeedViewModel {
         }
     }
 
-    /// 상단 '수정'을 누르면 지금 제목·설명·인스타그램 동의를 채운 수정 입력을 연다. 비어 있던 값은 빈 칸으로 시작한다.
-    /// 수정은 동의까지 통째로 교체하므로(POST-010), 상세 조회로 본인 동의를 받지 못했으면 열지 않는다.
-    /// 그대로 열면 저장할 때 동의가 철회되기 때문이다. 상세를 불러오는 중이면 아무것도 하지 않는다.
-    /// 예) 목록에서 들어와 상세 조회가 실패한 내 게시물 → 안내 "게시물을 불러오지 못해 수정할 수 없어요"
-    func startPostEdit() {
+    func updatePostTitle(_ title: String?) {
         guard let current = viewState.content,
-              current.post.isOwnedByCurrentUser,
-              FeedDateLabel.isToday(current.topicDate)
-        else { return }
-        guard let instagramConsent = current.post.instagramConsent else {
-            if detailLoadCount == 0 {
-                event = .showPostEditUnavailable
-            }
-            return
-        }
-        viewState.postEdit = FeedPostEditState(
-            title: current.post.title ?? "",
-            description: current.post.description ?? "",
-            instagramConsent: InstagramConsentInput(consent: instagramConsent)
-        )
-    }
-
-    func updatePostEditTitle(_ title: String) {
-        viewState.postEdit?.title = title
-    }
-
-    func updatePostEditDescription(_ description: String) {
-        viewState.postEdit?.description = description
-    }
-
-    func updatePostEditInstagramUploadAgreed(_ isAgreed: Bool) {
-        viewState.postEdit?.instagramConsent.setAgreed(isAgreed)
-    }
-
-    func updatePostEditInstagramID(_ instagramID: String) {
-        viewState.postEdit?.instagramConsent.setInstagramID(instagramID)
-    }
-
-    /// 수정 화면을 저장하지 않고 닫는다. 저장 중에는 응답을 받아야 하므로 닫지 않는다.
-    func cancelPostEdit() {
-        guard !viewState.isSavingPostEdit else { return }
-        viewState.postEdit = nil
-    }
-
-    /// 수정 입력의 제목·설명·인스타그램 동의를 한 요청으로 보낸다. 서버는 모두 함께 교체하므로 고치지 않은 값도 같이 보낸다(POST-010).
-    func savePostEdit() {
-        guard let edit = viewState.postEdit,
-              let current = viewState.content,
               current.post.isOwnedByCurrentUser,
               FeedDateLabel.isToday(current.topicDate),
               !viewState.isDeleting,
-              !viewState.isSavingPostEdit
+              !viewState.isUpdatingTitle
         else { return }
 
-        let trimmedTitle = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedTitle: String? = trimmedTitle.isEmpty ? nil : trimmedTitle
-        let instagramConsent = edit.instagramConsent.consent
-        viewState.isSavingPostEdit = true
+        let normalizedTitle: String?
+        if let title {
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
+        } else {
+            normalizedTitle = nil
+        }
+        viewState.isUpdatingTitle = true
 
         Task { [weak self] in
             guard let self else { return }
-            switch await self.updatePostHandler(self.postID, normalizedTitle, edit.description, instagramConsent) {
+            switch await self.updateTitleHandler(self.postID, normalizedTitle) {
             case let .success(update):
                 guard var latest = self.viewState.content else {
-                    self.viewState.isSavingPostEdit = false
+                    self.viewState.isUpdatingTitle = false
                     return
                 }
                 latest.post.title = update.title
-                latest.post.description = update.description
-                // 응답에 동의가 없으면(서버 반영 전) 보낸 값으로 둔다.
-                latest.post.instagramConsent = update.instagramConsent ?? instagramConsent
                 self.viewState.content = latest
-                self.viewState.postEdit = nil
-                self.viewState.isSavingPostEdit = false
-                self.viewState.postUpdateVersion += 1
-                self.event = .showPostUpdateSuccess
-            case .failure(.invalidInstagramID):
-                // 시트의 ID 칸 아래에 오류를 보여 주므로 토스트는 띄우지 않는다. 상세의 동의는 그대로 둔다.
-                self.viewState.isSavingPostEdit = false
-                self.viewState.postEdit?.instagramConsent.showInvalidInstagramID()
+                self.viewState.isUpdatingTitle = false
+                self.viewState.titleUpdateVersion += 1
+                self.event = .showTitleUpdateSuccess
             case let .failure(error):
-                self.viewState.isSavingPostEdit = false
-                self.event = .showPostUpdateFailure(error)
+                self.viewState.isUpdatingTitle = false
+                self.event = .showTitleUpdateFailure(error)
             }
         }
     }

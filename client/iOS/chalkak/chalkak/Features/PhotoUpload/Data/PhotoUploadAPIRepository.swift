@@ -94,8 +94,7 @@ struct PhotoUploadAPIRepository: Sendable {
                 topicID: topic.id,
                 photoUploadID: upload.uploadID,
                 title: normalizedTitle(text.title),
-                description: normalizedDescription(text.description),
-                instagramConsent: text.instagramConsent
+                description: normalizedDescription(text.description)
             )
             guard let moderationStatus = PhotoUploadModerationStatus(
                 rawValue: response.moderationStatus
@@ -192,10 +191,6 @@ struct PhotoUploadAPIRepository: Sendable {
             }
             if message == Constants.topicNotOpenMessage {
                 return .topicNotOpen
-            }
-            // ID 형식 오류는 errorCode가 다른 400과 같아(BUSINESS_ERROR) message로만 구분한다.
-            if statusCode == 400, message == InstagramConsentInput.serverInvalidInstagramIDMessage {
-                return .invalidInstagramID
             }
             return .postCreationRejected
         }

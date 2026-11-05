@@ -2,7 +2,6 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
-import com.stonefive.chalkak.data.remote.post.INVALID_INSTAGRAM_ID_MESSAGE
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
@@ -20,7 +19,6 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
-import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -30,7 +28,7 @@ import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
-import com.stonefive.chalkak.domain.model.PostUpdate
+import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -136,39 +134,28 @@ class PostRepositoryImpl(
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
-    override suspend fun updatePost(
+    override suspend fun updatePostTitle(
         postId: String,
         title: String?,
-        description: String?,
-        instagramConsent: InstagramConsent,
-    ): HomeResult<PostUpdate> = when (
-        val result = remoteDataSource.updatePost(
+    ): HomeResult<PostTitleUpdate> = when (
+        val result = remoteDataSource.updatePostTitle(
             postId = postId,
-            title = title.normalizeOptionalText(),
-            description = description.normalizeOptionalText(),
-            instagramUploadAgreed = instagramConsent.agreed,
-            instagramId = instagramConsent.instagramId,
+            title = title.normalizeTitle(),
         )
     ) {
         is ApiResult.Success -> if (result.value.postId == postId) {
             HomeResult.Success(
-                PostUpdate(
+                PostTitleUpdate(
                     postId = result.value.postId,
                     title = result.value.title
-                        .normalizeOptionalText(),
-                    // 상세 조회와 같이 공백뿐인 설명은 설명 없음으로 본다.
-                    description = result.value.description
-                        ?.takeIf(String::isNotBlank),
-                    instagramConsent = result.value.instagramUploadAgreed?.let { agreed ->
-                        InstagramConsent(agreed = agreed, instagramId = result.value.instagramId)
-                    },
+                        .normalizeTitle(),
                 ),
             )
         } else {
             HomeResult.Failure(HomeFailure.InvalidResponse)
         }
 
-        is ApiResult.Failure -> HomeResult.Failure(result.error.toPostUpdateFailure())
+        is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
     }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -391,9 +378,6 @@ class PostRepositoryImpl(
                 ),
                 topic = topic.title,
                 topicDate = parsedTopicDate,
-                instagramConsent = instagramConsent?.let {
-                    InstagramConsent(agreed = it.agreed, instagramId = it.instagramId)
-                },
             ),
         )
     }
@@ -448,8 +432,7 @@ class PostRepositoryImpl(
 
     private fun Long.toLikeCountOrNull(): Int? = takeIf { it in 0L..Int.MAX_VALUE.toLong() }?.toInt()
 
-    /** 제목·설명처럼 비워 둘 수 있는 글은 앞뒤 공백을 지우고, 남는 글이 없으면 null(없음)로 보낸다(POST-005). */
-    private fun String?.normalizeOptionalText(): String? = this
+    private fun String?.normalizeTitle(): String? = this
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
 
@@ -464,14 +447,6 @@ class PostRepositoryImpl(
             else -> HomeFailure.Http(statusCode)
         }
     }
-
-    /** 수정 실패. 서버가 인스타그램 ID 형식을 거절했으면 ID 오류로 구분하고, 그 밖은 [toDomain]과 같다. */
-    private fun ApiError.toPostUpdateFailure(): HomeFailure =
-        if (this is ApiError.Http && message == INVALID_INSTAGRAM_ID_MESSAGE) {
-            HomeFailure.InvalidInstagramId
-        } else {
-            toDomain()
-        }
 
     private fun ApiError.toTodayPostStatusFailure(): TodayPostStatusFailure = when (this) {
         ApiError.Network -> TodayPostStatusFailure.Network

@@ -19,7 +19,6 @@ import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
-import com.stonefive.chalkak.feature.instagramconsent.toInputState
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
@@ -44,7 +43,7 @@ class FeedViewModel(
     private val _uiState = MutableStateFlow(
         FeedUiState(
             content = initialContent,
-            isPostEditable = initialContent?.topicDate == dateProvider(),
+            isTitleEditable = initialContent?.topicDate == dateProvider(),
             isLoading = initialContent == null,
             isRefreshing = initialContent != null && postId != null,
         ),
@@ -273,7 +272,7 @@ class FeedViewModel(
     fun deletePost() {
         val state = _uiState.value
         val post = state.content?.post ?: return
-        if (!post.isOwnedByCurrentUser || state.isDeleting || state.isSavingPostEdit) return
+        if (!post.isOwnedByCurrentUser || state.isDeleting || state.isUpdatingTitle) return
 
         _uiState.update {
             it.copy(
@@ -311,86 +310,28 @@ class FeedViewModel(
         }
     }
 
-    /**
-     * 상단 '수정'을 누르면 지금 제목·설명·인스타그램 동의를 채운 수정 입력을 연다. 비어 있던 값은 빈 칸으로 시작한다.
-     * 수정은 동의까지 통째로 교체하므로(POST-010), 상세 조회로 본인 동의를 받지 못했으면 열지 않는다.
-     * 그대로 열면 저장할 때 동의가 철회되기 때문이다. 상세를 불러오는 중이면 아무것도 하지 않는다.
-     */
-    fun startPostEdit() {
+    fun updatePostTitle(title: String?) {
         val state = _uiState.value
-        val post = state.content?.post ?: return
-        if (!post.isOwnedByCurrentUser || !state.isPostEditable) return
-        val consent = state.instagramConsent
-        if (consent == null) {
-            if (!state.isRefreshing && !state.isLoading) {
-                _uiState.update { it.copy(pendingMessage = nextToast(CONSENT_UNAVAILABLE_MESSAGE)) }
-            }
-            return
-        }
-
-        _uiState.update {
-            it.copy(
-                postEdit = FeedPostEditState(
-                    title = post.title.orEmpty(),
-                    description = post.description.orEmpty(),
-                    instagramConsent = consent.toInputState(),
-                ),
-            )
-        }
-    }
-
-    fun updatePostEditTitle(title: String) {
-        _uiState.update { state ->
-            state.copy(postEdit = state.postEdit?.copy(title = title))
-        }
-    }
-
-    fun updatePostEditDescription(description: String) {
-        _uiState.update { state ->
-            state.copy(postEdit = state.postEdit?.copy(description = description))
-        }
-    }
-
-    fun updatePostEditInstagramUploadAgreed(agreed: Boolean) {
-        _uiState.update { state ->
-            val edit = state.postEdit ?: return@update state
-            state.copy(postEdit = edit.copy(instagramConsent = edit.instagramConsent.withAgreed(agreed)))
-        }
-    }
-
-    fun updatePostEditInstagramId(instagramId: String) {
-        _uiState.update { state ->
-            val edit = state.postEdit ?: return@update state
-            state.copy(postEdit = edit.copy(instagramConsent = edit.instagramConsent.withInstagramId(instagramId)))
-        }
-    }
-
-    /** 수정 화면을 저장하지 않고 닫는다. 저장 중에는 응답을 받아야 하므로 닫지 않는다. */
-    fun cancelPostEdit() {
-        if (_uiState.value.isSavingPostEdit) return
-        _uiState.update { it.copy(postEdit = null) }
-    }
-
-    /** 수정 입력의 제목·설명·인스타그램 동의를 한 요청으로 보낸다. 서버는 모두 함께 교체하므로 고치지 않은 값도 같이 보낸다(POST-010). */
-    fun savePostEdit() {
-        val state = _uiState.value
-        val edit = state.postEdit ?: return
         val post = state.content?.post ?: return
         if (
             !post.isOwnedByCurrentUser ||
-            !state.isPostEditable ||
+            !state.isTitleEditable ||
             state.isDeleting ||
-            state.isSavingPostEdit ||
+            state.isUpdatingTitle ||
             state.isRefreshing
         ) {
             return
         }
 
-        val instagramConsent = edit.instagramConsent.toConsent()
-        _uiState.update { it.copy(isSavingPostEdit = true) }
+        _uiState.update {
+            it.copy(
+                isUpdatingTitle = true,
+                titleUpdateSuccessPostId = null,
+            )
+        }
         viewModelScope.launch {
             val result = try {
-                repository.updatePost(post.id, edit.title, edit.description, instagramConsent)
+                repository.updatePostTitle(post.id, title)
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
@@ -401,43 +342,29 @@ class FeedViewModel(
                 is HomeResult.Success -> {
                     _uiState.update { currentState ->
                         val currentContent = currentState.content ?: return@update currentState.copy(
-                            isSavingPostEdit = false,
+                            isUpdatingTitle = false,
                         )
                         val updatedTitle = result.value.title
                         val updatedPost = currentContent.post.copy(
                             title = updatedTitle,
-                            description = result.value.description,
                             contentDescription = updatedTitle.toContentDescription(),
                         )
                         currentState.copy(
-                            isSavingPostEdit = false,
-                            postEdit = null,
+                            isUpdatingTitle = false,
+                            titleUpdateSuccessPostId = post.id,
                             content = currentContent.copy(
                                 post = updatedPost,
                             ),
-                            instagramConsent = result.value.instagramConsent ?: instagramConsent,
-                            pendingMessage = nextToast("게시물을 수정했어요"),
+                            pendingMessage = nextToast("제목을 수정했어요"),
                         )
                     }
                 }
 
-                is HomeResult.Failure -> if (result.reason == HomeFailure.InvalidInstagramId) {
-                    // 시트의 ID 칸 아래에 오류를 보여 주므로 토스트는 띄우지 않는다. 상세의 동의는 그대로 둔다.
-                    _uiState.update { state ->
-                        state.copy(
-                            isSavingPostEdit = false,
-                            postEdit = state.postEdit?.let { current ->
-                                current.copy(instagramConsent = current.instagramConsent.withInvalidInstagramId())
-                            },
-                        )
-                    }
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            isSavingPostEdit = false,
-                            pendingMessage = nextToast(result.reason.toPostUpdateErrorMessage()),
-                        )
-                    }
+                is HomeResult.Failure -> _uiState.update {
+                    it.copy(
+                        isUpdatingTitle = false,
+                        pendingMessage = nextToast(result.reason.toTitleUpdateErrorMessage()),
+                    )
                 }
             }
         }
@@ -496,7 +423,7 @@ class FeedViewModel(
                     isLiked = post.isLiked,
                     topicDate = content.topicDate,
                 ),
-                isPostEditable = content.topicDate == dateProvider(),
+                isTitleEditable = content.topicDate == dateProvider(),
             )
             syncFeedbackTarget()
         }
@@ -597,11 +524,10 @@ class FeedViewModel(
         _uiState.update { state ->
             state.copy(
                 content = if (state.content == updatedContent) state.content else updatedContent,
-                isPostEditable = detail.topicDate == dateProvider(),
+                isTitleEditable = detail.topicDate == dateProvider(),
                 isLoading = false,
                 isRefreshing = false,
                 errorMessage = null,
-                instagramConsent = detail.instagramConsent,
             )
         }
         syncFeedbackTarget()
@@ -634,19 +560,19 @@ class FeedViewModel(
         else -> "게시물을 삭제하지 못했어요"
     }
 
-    private fun HomeFailure.toPostUpdateErrorMessage(): String = when (this) {
+    private fun HomeFailure.toTitleUpdateErrorMessage(): String = when (this) {
         is HomeFailure.Http -> when (statusCode) {
             400 -> "수정할 수 없는 상태이거나 주제 참여 기간이 끝났어요"
             403 -> "본인의 게시물만 수정할 수 있어요"
             404 -> "게시물을 찾을 수 없어요"
-            else -> "게시물을 수정하지 못했어요"
+            else -> "게시물 제목을 수정하지 못했어요"
         }
 
         HomeFailure.Unauthorized -> "로그인이 필요해요"
 
         HomeFailure.Network -> "네트워크 연결을 확인해 주세요"
 
-        else -> "게시물을 수정하지 못했어요"
+        else -> "게시물 제목을 수정하지 못했어요"
     }
 
     private fun HomeFailure.isPostNotFound(): Boolean = this is HomeFailure.Http && statusCode == 404
@@ -696,4 +622,3 @@ class FeedViewModel(
 }
 
 private const val LIKE_ERROR_MESSAGE = "좋아요를 변경하지 못했어요"
-private const val CONSENT_UNAVAILABLE_MESSAGE = "게시물을 불러오지 못해 수정할 수 없어요"

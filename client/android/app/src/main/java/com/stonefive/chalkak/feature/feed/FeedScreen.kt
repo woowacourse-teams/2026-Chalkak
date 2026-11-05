@@ -66,8 +66,8 @@ import com.stonefive.chalkak.feature.aireview.component.AiReviewResultSheet
 import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.aireview.component.AiReviewStartSheet
 import com.stonefive.chalkak.feature.feed.component.FeedContent
-import com.stonefive.chalkak.feature.feed.component.FeedPostEditSheet
 import com.stonefive.chalkak.feature.feed.component.FeedSignatureHintSheet
+import com.stonefive.chalkak.feature.feed.component.FeedTitleEditDialog
 import com.stonefive.chalkak.feature.feed.component.FeedTopBar
 import java.time.LocalDate
 
@@ -135,13 +135,7 @@ fun FeedRoute(
         entryThumbnailImageUrl = entryThumbnailImageUrl,
         openAiReviewResult = openAiReviewResult,
         onNavigateBack = onNavigateBack,
-        onEditClick = viewModel::startPostEdit,
-        onPostEditTitleChange = viewModel::updatePostEditTitle,
-        onPostEditDescriptionChange = viewModel::updatePostEditDescription,
-        onPostEditInstagramUploadAgreedChange = viewModel::updatePostEditInstagramUploadAgreed,
-        onPostEditInstagramIdChange = viewModel::updatePostEditInstagramId,
-        onPostEditSave = viewModel::savePostEdit,
-        onPostEditDismiss = viewModel::cancelPostEdit,
+        onEditTitleClick = viewModel::updatePostTitle,
         onDeleteClick = viewModel::deletePost,
         onLikeClick = viewModel::onLikeClicked,
         onSignatureClick = {
@@ -175,13 +169,7 @@ fun FeedScreen(
     onSignatureClick: () -> Unit = {},
     onSignatureVisible: () -> Unit = {},
     onDismissSignatureHint: () -> Unit = {},
-    onEditClick: () -> Unit = {},
-    onPostEditTitleChange: (String) -> Unit = {},
-    onPostEditDescriptionChange: (String) -> Unit = {},
-    onPostEditInstagramUploadAgreedChange: (Boolean) -> Unit = {},
-    onPostEditInstagramIdChange: (String) -> Unit = {},
-    onPostEditSave: () -> Unit = {},
-    onPostEditDismiss: () -> Unit = {},
+    onEditTitleClick: (String?) -> Unit = {},
     onRetryClick: () -> Unit = {},
     entryPostId: String? = null,
     entryThumbnailImageUrl: String? = null,
@@ -199,6 +187,8 @@ fun FeedScreen(
     val isPillOverPhoto = photoBounds?.let { photo -> pillBounds?.overlaps(photo) } == true
     val hasEntryPhoto = entryPostId != null && entryThumbnailImageUrl != null
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showTitleEditDialog by rememberSaveable { mutableStateOf(false) }
+    var titleDraft by rememberSaveable { mutableStateOf("") }
     val aiReviewKey = uiState.content
         ?.post
         ?.id to uiState.aiReview.phase
@@ -219,6 +209,12 @@ fun FeedScreen(
         }
     }
 
+    LaunchedEffect(uiState.titleUpdateSuccessPostId) {
+        if (uiState.titleUpdateSuccessPostId != null) {
+            showTitleEditDialog = false
+        }
+    }
+
     if (showDeleteDialog) {
         ChalkakConfirmDialog(
             title = "게시물 삭제",
@@ -234,16 +230,14 @@ fun FeedScreen(
         )
     }
 
-    if (uiState.postEdit != null && uiState.content?.post != null) {
-        FeedPostEditSheet(
-            edit = uiState.postEdit,
-            onTitleChange = onPostEditTitleChange,
-            onDescriptionChange = onPostEditDescriptionChange,
-            onInstagramUploadAgreedChange = onPostEditInstagramUploadAgreedChange,
-            onInstagramIdChange = onPostEditInstagramIdChange,
-            onSave = onPostEditSave,
-            onDismiss = onPostEditDismiss,
-            isSaving = uiState.isSavingPostEdit,
+    if (showTitleEditDialog) {
+        FeedTitleEditDialog(
+            title = titleDraft,
+            onTitleChange = { titleDraft = it },
+            onConfirm = { onEditTitleClick(titleDraft) },
+            onDismiss = { if (!uiState.isUpdatingTitle) showTitleEditDialog = false },
+            isSubmitting = uiState.isUpdatingTitle,
+            modifier = Modifier.fillMaxWidth(0.88f),
         )
     }
     uiState.aiReview.message?.let { message ->
@@ -315,20 +309,26 @@ fun FeedScreen(
         topBar = {
             FeedTopBar(
                 onNavigateBack = onNavigateBack,
-                onEditClick = onEditClick,
+                onEditClick = {
+                    titleDraft = uiState.content
+                        ?.post
+                        ?.title
+                        .orEmpty()
+                    showTitleEditDialog = true
+                },
                 onDeleteClick = { showDeleteDialog = true },
                 isEditVisible = uiState.content
                     ?.post
-                    ?.isOwnedByCurrentUser == true && uiState.isPostEditable,
+                    ?.isOwnedByCurrentUser == true && uiState.isTitleEditable,
                 isDeleteVisible = uiState.content
                     ?.post
                     ?.isOwnedByCurrentUser == true,
                 isDeleteEnabled = !uiState.isDeleting,
                 isEditEnabled =
                     !uiState.isDeleting &&
-                        !uiState.isSavingPostEdit &&
+                        !uiState.isUpdatingTitle &&
                         !uiState.isRefreshing &&
-                        uiState.isPostEditable,
+                        uiState.isTitleEditable,
                 modifier = Modifier
                     .fillMaxWidth()
                     .photoTransitionChrome()

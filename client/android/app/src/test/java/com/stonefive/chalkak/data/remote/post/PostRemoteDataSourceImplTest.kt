@@ -4,9 +4,8 @@ import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
-import com.stonefive.chalkak.data.remote.post.model.InstagramConsentResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
-import com.stonefive.chalkak.data.remote.post.model.PostUpdateResponse
+import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
@@ -148,113 +147,23 @@ class PostRemoteDataSourceImplTest {
     fun `게시물 제목 수정은 PUT과 제목 body를 전송한다`() = runTest {
         server.enqueue(jsonResponse("""{"postId":"$POST_ID","title":"수정한 제목"}"""))
 
-        val result = dataSource.updatePost(POST_ID, "수정한 제목", null, false, null)
+        val result = dataSource.updatePostTitle(POST_ID, "수정한 제목")
         val request = server.takeRequest()
 
-        assertEquals(ApiResult.Success(PostUpdateResponse(POST_ID, "수정한 제목")), result)
+        assertEquals(ApiResult.Success(PostTitleUpdateResponse(POST_ID, "수정한 제목")), result)
         assertEquals("PUT", request.method)
         assertEquals("/api/v1/posts/$POST_ID", request.path)
-        assertEquals("{\"title\":\"수정한 제목\",\"description\":null}", request.body.readUtf8())
-    }
-
-    @Test
-    fun `저장하면 제목과 설명을 한 요청에 보낸다`() = runTest {
-        // Given 제목 "퇴근길 노을", 설명 없음인 내 게시물
-        server.enqueue(
-            jsonResponse("""{"postId":"$POST_ID","title":"퇴근길 노을","description":"회사 앞 육교에서 찍었어요"}"""),
-        )
-
-        // When  설명을 "회사 앞 육교에서 찍었어요"로 쓰고 저장한다
-        dataSource.updatePost(POST_ID, "퇴근길 노을", "회사 앞 육교에서 찍었어요", false, null)
-
-        // Then  요청이 title "퇴근길 노을", description "회사 앞 육교에서 찍었어요"
-        val request = server.takeRequest()
-        assertEquals(
-            "{\"title\":\"퇴근길 노을\",\"description\":\"회사 앞 육교에서 찍었어요\"}",
-            request.body.readUtf8(),
-        )
+        assertEquals("{\"title\":\"수정한 제목\"}", request.body.readUtf8())
     }
 
     @Test
     fun `빈 제목 삭제는 null body를 전송한다`() = runTest {
         server.enqueue(jsonResponse("""{"postId":"$POST_ID","title":null}"""))
 
-        dataSource.updatePost(POST_ID, null, null, false, null)
+        dataSource.updatePostTitle(POST_ID, null)
 
         val request = server.takeRequest()
-        assertEquals("{\"title\":null,\"description\":null}", request.body.readUtf8())
-    }
-
-    @Test
-    fun `수정을 시작하면 현재 동의와 ID가 채워진다`() = runTest {
-        // Given 본인 게시물 상세의 동의 true, ID "chalkak.daily"
-        server.enqueue(
-            jsonResponse(
-                DETAIL_BODY.dropLast(1) + ""","instagramConsent":{"agreed":true,"instagramId":"chalkak.daily"}}""",
-            ),
-        )
-
-        // When  상세를 불러온다(수정은 이 값으로 채운다)
-        val result = dataSource.getPostDetail(POST_ID) as ApiResult.Success
-
-        // Then  상세의 동의 true, ID "chalkak.daily"
-        assertEquals(
-            InstagramConsentResponse(agreed = true, instagramId = "chalkak.daily"),
-            result.value.instagramConsent,
-        )
-    }
-
-    @Test
-    fun `수정에서 동의를 끄고 저장하면 제목·설명과 함께 철회를 보낸다`() = runTest {
-        // Given 제목 "퇴근길 노을", 설명 "육교에서"인 본인 게시물의 수정 상태
-        server.enqueue(
-            jsonResponse(
-                """{"postId":"$POST_ID","title":"퇴근길 노을","description":"육교에서","instagramUploadAgreed":false}""",
-            ),
-        )
-
-        // When  스위치를 끄고 저장
-        dataSource.updatePost(POST_ID, "퇴근길 노을", "육교에서", instagramUploadAgreed = false, instagramId = null)
-
-        // Then  수정 요청이 title "퇴근길 노을", description "육교에서"이고 동의 필드가 없다.
-        //       서버는 instagramUploadAgreed 생략을 동의 철회(false), instagramId 생략을 null로 본다
-        assertEquals(
-            "{\"title\":\"퇴근길 노을\",\"description\":\"육교에서\"}",
-            server
-                .takeRequest()
-                .body
-                .readUtf8(),
-        )
-    }
-
-    @Test
-    fun `제목만 고쳐도 동의와 ID를 지우지 않는다`() = runTest {
-        // Given 동의 true, ID "chalkak.daily"인 본인 게시물의 수정 상태
-        server.enqueue(
-            jsonResponse(
-                """{"postId":"$POST_ID","title":"새 제목","description":null,"instagramUploadAgreed":true,"instagramId":"chalkak.daily"}""",
-            ),
-        )
-
-        // When  제목만 "새 제목"으로 바꾸고 저장
-        val result = dataSource.updatePost(
-            POST_ID,
-            "새 제목",
-            null,
-            instagramUploadAgreed = true,
-            instagramId = "chalkak.daily",
-        ) as ApiResult.Success
-
-        // Then  수정 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
-        assertEquals(
-            "{\"title\":\"새 제목\",\"description\":null,\"instagramUploadAgreed\":true,\"instagramId\":\"chalkak.daily\"}",
-            server
-                .takeRequest()
-                .body
-                .readUtf8(),
-        )
-        assertEquals(true, result.value.instagramUploadAgreed)
-        assertEquals("chalkak.daily", result.value.instagramId)
+        assertEquals("{\"title\":null}", request.body.readUtf8())
     }
 
     @Test

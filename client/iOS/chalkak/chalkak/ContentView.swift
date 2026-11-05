@@ -1158,7 +1158,7 @@ struct ContentView: View {
                 ),
                 onCameraImageSaveFailure: onCameraImageSaveFailure
             )
-            // 사진 선택 창을 거치지 않고 사진을 고른 상태로 시작한다.
+            // 사진 선택 창을 거치지 않고 사진을 고른 상태로 시작해 글 쓰기 단계를 확인한다.
             if ProcessInfo.processInfo.arguments.contains("-test-photo-upload-selected"),
                let image = UIImage(named: "preview_photo"),
                let data = image.jpegData(compressionQuality: 0.8) {

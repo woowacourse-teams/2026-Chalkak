@@ -62,7 +62,4 @@ sealed interface HomeFailure {
     data object InvalidResponse : HomeFailure
 
     data class Http(val statusCode: Int) : HomeFailure
-
-    /** 게시물 수정에서 서버가 인스타그램 ID 형식을 거절했다. */
-    data object InvalidInstagramId : HomeFailure
 }

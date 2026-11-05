@@ -47,7 +47,4 @@ sealed interface PostCreationFailure {
     data object TopicNotOpen : PostCreationFailure
 
     data object InvalidResponse : PostCreationFailure
-
-    /** 서버가 인스타그램 ID 형식을 거절했다. ID 칸 아래에 오류를 보여 준다. */
-    data object InvalidInstagramId : PostCreationFailure
 }

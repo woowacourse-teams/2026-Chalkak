@@ -84,6 +84,8 @@ final class PhotoUploadViewModel {
         switch action {
         case .backClicked:
             publish(.navigateBack)
+        case .writingBackClicked:
+            viewState.isWriting = false
         case .galleryClicked:
             publish(.openGallery)
         case .cameraClicked:
@@ -102,10 +104,6 @@ final class PhotoUploadViewModel {
                 to: Constants.descriptionMaxLength,
                 using: .unicodeScalars
             )
-        case let .instagramUploadAgreedChanged(isAgreed):
-            viewState.instagramConsent.setAgreed(isAgreed)
-        case let .instagramIDChanged(instagramID):
-            viewState.instagramConsent.setInstagramID(instagramID)
         case .submitClicked:
             submit()
         case let .messageShown(messageID):
@@ -130,6 +128,8 @@ final class PhotoUploadViewModel {
         viewState.selectedImage = preview
         viewState.selectedImageData = data
         viewState.imagePreparationStatus = .preparing
+        // 사진을 고르면 바로 글 쓰기 단계로 넘어간다.
+        viewState.isWriting = true
         startImagePreparation(data: data, generation: generation)
     }
 
@@ -274,11 +274,7 @@ final class PhotoUploadViewModel {
 
         preparedImage = nil
         let caption = viewState.caption
-        let text = PhotoUploadPostText(
-            title: caption,
-            description: viewState.postDescription,
-            instagramConsent: viewState.instagramConsent.consent
-        )
+        let text = PhotoUploadPostText(title: caption, description: viewState.postDescription)
         let repository = repository
         submissionTask = Task { [weak self] in
             let result = await repository.createPost(preparation, text, topic)
@@ -343,10 +339,7 @@ final class PhotoUploadViewModel {
 
     private func handleTransientFailure(_ failure: PhotoUploadFailure) {
         viewState.isSubmitting = false
-        if failure == .invalidInstagramID {
-            // ID 칸 아래에 오류를 보여 주므로 토스트는 띄우지 않는다. 스위치와 입력한 ID는 그대로 둔다.
-            viewState.instagramConsent.showInvalidInstagramID()
-        } else if failure == .reauthenticationRequired {
+        if failure == .reauthenticationRequired {
             publish(.reauthenticationRequired)
         } else {
             publishMessage(failure.message)
@@ -403,13 +396,12 @@ final class PhotoUploadViewModel {
 
 enum PhotoUploadAction: Equatable, Sendable {
     case backClicked
+    case writingBackClicked
     case galleryClicked
     case cameraClicked
     case selectedImageClicked
     case captionChanged(String)
     case descriptionChanged(String)
-    case instagramUploadAgreedChanged(Bool)
-    case instagramIDChanged(String)
     case submitClicked
     case messageShown(Int)
 }

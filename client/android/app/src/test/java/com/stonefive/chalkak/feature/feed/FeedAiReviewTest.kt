@@ -10,13 +10,12 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
-import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
-import com.stonefive.chalkak.domain.model.PostUpdate
+import com.stonefive.chalkak.domain.model.PostTitleUpdate
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewFailure
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
@@ -465,12 +464,10 @@ class FeedAiReviewTest {
         override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
         override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-        override suspend fun updatePost(
+        override suspend fun updatePostTitle(
             postId: String,
             title: String?,
-            description: String?,
-            instagramConsent: InstagramConsent,
-        ): HomeResult<PostUpdate> = error("unused")
+        ): HomeResult<PostTitleUpdate> = error("unused")
         override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("unused")
         override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
         override suspend fun updateLike(

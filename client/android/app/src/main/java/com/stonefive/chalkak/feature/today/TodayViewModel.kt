@@ -407,8 +407,6 @@ class TodayViewModel(
 
         HomeFailure.InvalidResponse -> TodayInitialError.InvalidResponse
 
-        HomeFailure.InvalidInstagramId -> TodayInitialError.Client
-
         is HomeFailure.Http -> when (statusCode) {
             in 400..499 -> TodayInitialError.Client
             in 500..599 -> TodayInitialError.Server

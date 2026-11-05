@@ -102,8 +102,6 @@ class PostCreationRemoteDataSourceImplTest {
             photoUploadId = "upload-id",
             title = "📸 바다",
             description = "퇴근길에\n만난 노을",
-            instagramUploadAgreed = false,
-            instagramId = null,
         )
         val request = server.takeRequest()
 
@@ -133,88 +131,10 @@ class PostCreationRemoteDataSourceImplTest {
             photoUploadId = "upload-id",
             title = null,
             description = null,
-            instagramUploadAgreed = false,
-            instagramId = null,
         )
 
         assertEquals(
             "{\"topicId\":\"topic-id\",\"photoUploadId\":\"upload-id\"}",
-            server
-                .takeRequest()
-                .body
-                .readUtf8(),
-        )
-    }
-
-    @Test
-    fun `동의하지 않고 전시하면 동의 안 함으로 보낸다`() = runTest {
-        // Given 스위치를 켜지 않은 작성 화면
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(201)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"postId":"post-id","moderationStatus":"VALIDATING"}"""),
-        )
-
-        // When  전시하기
-        dataSource.createPost("topic-id", "upload-id", null, null, instagramUploadAgreed = false, instagramId = null)
-
-        // Then  작성 요청에 동의 필드가 없다. 서버는 instagramUploadAgreed 생략을 false(동의 안 함), instagramId 생략을 null로 본다
-        assertEquals(
-            "{\"topicId\":\"topic-id\",\"photoUploadId\":\"upload-id\"}",
-            server
-                .takeRequest()
-                .body
-                .readUtf8(),
-        )
-    }
-
-    @Test
-    fun `동의하고 ID를 쓰면 ID와 함께 보낸다`() = runTest {
-        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(201)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"postId":"post-id","moderationStatus":"VALIDATING"}"""),
-        )
-
-        // When  전시하기
-        dataSource.createPost(
-            "topic-id",
-            "upload-id",
-            null,
-            null,
-            instagramUploadAgreed = true,
-            instagramId = "chalkak.daily",
-        )
-
-        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
-        assertEquals(
-            "{\"topicId\":\"topic-id\",\"photoUploadId\":\"upload-id\",\"instagramUploadAgreed\":true,\"instagramId\":\"chalkak.daily\"}",
-            server
-                .takeRequest()
-                .body
-                .readUtf8(),
-        )
-    }
-
-    @Test
-    fun `동의하고 ID를 비우면 ID 없이 보낸다`() = runTest {
-        // Given 스위치를 켜고 ID 칸이 공백뿐(앱이 null로 바꿔 넘긴다)
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(201)
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"postId":"post-id","moderationStatus":"VALIDATING"}"""),
-        )
-
-        // When  전시하기
-        dataSource.createPost("topic-id", "upload-id", null, null, instagramUploadAgreed = true, instagramId = null)
-
-        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 null(생략)
-        assertEquals(
-            "{\"topicId\":\"topic-id\",\"photoUploadId\":\"upload-id\",\"instagramUploadAgreed\":true}",
             server
                 .takeRequest()
                 .body
@@ -250,7 +170,7 @@ class PostCreationRemoteDataSourceImplTest {
                 ),
         )
 
-        val result = dataSource.createPost("topic-id", "upload-id", null, null, false, null)
+        val result = dataSource.createPost("topic-id", "upload-id", null, null)
 
         assertEquals(
             ApiResult.Failure(
