@@ -5,6 +5,7 @@ import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.AuthorPostResponse
 import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
+import com.stonefive.chalkak.data.remote.post.model.InstagramConsentResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarMonthsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarResponse
@@ -19,6 +20,7 @@ import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
 import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostDetail
@@ -354,6 +356,75 @@ class PostRepositoryImplTest {
     }
 
     @Test
+    fun `수정을 시작하면 현재 동의와 ID가 채워진다`() = runTest {
+        // Given 본인 게시물 상세의 동의 true, ID "chalkak.daily"
+        remoteDataSource.detailResult = ApiResult.Success(
+            PostDetailResponse(
+                id = "photo-1",
+                authorId = "author-1",
+                topic = TopicResponse(id = "topic-1", title = "바다", topicDate = "2026-08-28"),
+                originalImageUrl = "photo-original",
+                thumbnailImageUrl = "photo-thumbnail",
+                signatureOriginalImageUrl = "signature-original",
+                likeCount = 1,
+                isLiked = false,
+                isMine = true,
+                instagramConsent = InstagramConsentResponse(agreed = true, instagramId = "chalkak.daily"),
+            ),
+        )
+
+        // When  상세를 불러온다(수정은 이 값으로 채운다)
+        val result = repository.getPostDetail("photo-1") as HomeResult.Success<PostDetail>
+
+        // Then  상세의 동의 true, ID "chalkak.daily"
+        assertEquals(InstagramConsent(agreed = true, instagramId = "chalkak.daily"), result.value.instagramConsent)
+    }
+
+    @Test
+    fun `제목만 고쳐도 동의와 ID를 지우지 않는다`() = runTest {
+        // Given 동의 true, ID "chalkak.daily"인 본인 게시물의 수정 상태
+        remoteDataSource.titleUpdateResult = ApiResult.Success(
+            PostUpdateResponse(
+                postId = "photo-1",
+                title = "새 제목",
+                instagramUploadAgreed = true,
+                instagramId = "chalkak.daily",
+            ),
+        )
+
+        // When  제목만 "새 제목"으로 바꾸고 저장
+        val result = repository.updatePost(
+            "photo-1",
+            "새 제목",
+            null,
+            InstagramConsent(agreed = true, instagramId = "chalkak.daily"),
+        ) as HomeResult.Success
+
+        // Then  수정 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"(저장 결과도 같음)
+        assertEquals(true to "chalkak.daily", remoteDataSource.updatedConsent)
+        assertEquals(InstagramConsent(agreed = true, instagramId = "chalkak.daily"), result.value.instagramConsent)
+    }
+
+    @Test
+    fun `수정 저장에서 서버가 ID 형식을 거절하면 시트에 오류를 보여 준다`() = runTest {
+        // Given 수정 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        remoteDataSource.titleUpdateResult = ApiResult.Failure(
+            ApiError.Http(400, "BUSINESS_ERROR", "인스타그램 ID 형식이 올바르지 않습니다."),
+        )
+
+        // When  저장
+        val result = repository.updatePost(
+            "photo-1",
+            "퇴근길 노을",
+            null,
+            InstagramConsent(agreed = true, instagramId = "chalkak-daily"),
+        )
+
+        // Then  ID 형식 오류로 돌려준다(시트가 ID 칸에 오류를 보여 준다)
+        assertEquals(HomeResult.Failure(HomeFailure.InvalidInstagramId), result)
+    }
+
+    @Test
     fun `게시물 삭제 성공과 권한 실패를 도메인 결과로 변환한다`() = runTest {
         remoteDataSource.deleteResult = ApiResult.Success(Unit)
         assertEquals(HomeResult.Success(Unit), repository.deletePost("photo-1"))
@@ -373,7 +444,7 @@ class PostRepositoryImplTest {
         )
 
         // When  설명을 "회사 앞 육교에서 찍었어요"로 쓰고 저장한다
-        repository.updatePost("photo-1", "퇴근길 노을", "회사 앞 육교에서 찍었어요")
+        repository.updatePost("photo-1", "퇴근길 노을", "회사 앞 육교에서 찍었어요", InstagramConsent.NotAgreed)
 
         // Then  요청이 title "퇴근길 노을", description "회사 앞 육교에서 찍었어요"
         assertEquals("회사 앞 육교에서 찍었어요", remoteDataSource.updatedDescription)
@@ -387,7 +458,12 @@ class PostRepositoryImplTest {
         )
 
         // When  저장이 끝난다
-        val result = repository.updatePost("photo-1", "퇴근길", "회사 앞 육교에서\n찍었어요") as HomeResult.Success
+        val result = repository.updatePost(
+            "photo-1",
+            "퇴근길",
+            "회사 앞 육교에서\n찍었어요",
+            InstagramConsent.NotAgreed,
+        ) as HomeResult.Success
 
         // Then  상세 제목 "퇴근길", 설명 "회사 앞 육교에서\n찍었어요"
         assertEquals(PostUpdate("photo-1", "퇴근길", "회사 앞 육교에서\n찍었어요"), result.value)
@@ -401,7 +477,12 @@ class PostRepositoryImplTest {
         )
 
         // When  설명을 "   \n"으로 바꾸고 저장한다
-        val result = repository.updatePost("photo-1", "퇴근길 노을", "   \n") as HomeResult.Success
+        val result = repository.updatePost(
+            "photo-1",
+            "퇴근길 노을",
+            "   \n",
+            InstagramConsent.NotAgreed,
+        ) as HomeResult.Success
 
         // Then  요청의 description null, 저장 뒤 상세 설명 없음(null)
         assertEquals(null, remoteDataSource.updatedDescription)
@@ -414,7 +495,12 @@ class PostRepositoryImplTest {
             PostUpdateResponse("photo-1", "수정한 제목"),
         )
 
-        val result = repository.updatePost("photo-1", "  수정한 제목  ", null) as HomeResult.Success
+        val result = repository.updatePost(
+            "photo-1",
+            "  수정한 제목  ",
+            null,
+            InstagramConsent.NotAgreed,
+        ) as HomeResult.Success
 
         assertEquals("photo-1" to "수정한 제목", remoteDataSource.updatedTitle)
         assertEquals("수정한 제목", result.value.title)
@@ -422,7 +508,7 @@ class PostRepositoryImplTest {
         remoteDataSource.titleUpdateResult = ApiResult.Success(
             PostUpdateResponse("photo-1", null),
         )
-        val cleared = repository.updatePost("photo-1", "   ", null) as HomeResult.Success
+        val cleared = repository.updatePost("photo-1", "   ", null, InstagramConsent.NotAgreed) as HomeResult.Success
 
         assertEquals("photo-1" to null, remoteDataSource.updatedTitle)
         assertEquals(null, cleared.value.title)
@@ -785,6 +871,7 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     var titleUpdateResult: ApiResult<PostUpdateResponse> = ApiResult.Failure(ApiError.Network)
     var updatedTitle: Pair<String, String?>? = null
     var updatedDescription: String? = null
+    var updatedConsent: Pair<Boolean, String?>? = null
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
     val pendingLikes = ArrayDeque<CompletableDeferred<ApiResult<PostLikeResponse>>>()
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
@@ -810,7 +897,10 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
         postId: String,
         title: String?,
         description: String?,
+        instagramUploadAgreed: Boolean,
+        instagramId: String?,
     ): ApiResult<PostUpdateResponse> {
+        updatedConsent = instagramUploadAgreed to instagramId
         updatedTitle = postId to title
         updatedDescription = description
         return titleUpdateResult

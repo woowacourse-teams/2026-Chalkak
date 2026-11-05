@@ -61,6 +61,7 @@ fun ChalkakTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    prefix: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -106,8 +107,8 @@ fun ChalkakTextField(
         interactionSource = interactionSource,
         cursorBrush = SolidColor(ChalkakTheme.colors.inputCursor),
         decorationBox = { innerTextField ->
-            val inputContent: @Composable (Modifier) -> Unit = { inputModifier ->
-                Box(modifier = inputModifier) {
+            val textArea: @Composable (Modifier) -> Unit = { areaModifier ->
+                Box(modifier = areaModifier) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
                             text = placeholder,
@@ -118,6 +119,22 @@ fun ChalkakTextField(
                         )
                     }
                     innerTextField()
+                }
+            }
+            val inputContent: @Composable (Modifier) -> Unit = { inputModifier ->
+                if (prefix == null) {
+                    textArea(inputModifier)
+                } else {
+                    // 입력값에 들어가지 않는 고정 글자(예: 인스타그램 ID 앞의 "@")를 입력 앞에 둔다.
+                    Row(modifier = inputModifier) {
+                        Text(
+                            text = prefix,
+                            color = ChalkakTheme.colors.textMuted,
+                            style = resolvedTextStyle,
+                            maxLines = 1,
+                        )
+                        textArea(Modifier.weight(1f))
+                    }
                 }
             }
             val counter: @Composable (Modifier) -> Unit = { counterModifier ->
