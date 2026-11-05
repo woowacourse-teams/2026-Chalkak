@@ -8,10 +8,14 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -60,7 +64,7 @@ fun DisplayRoute(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     modifier: Modifier = Modifier,
     initialDate: LocalDate? = null,
-    initialSort: PostSort = PostSort.LATEST,
+    initialSort: PostSort = PostSort.RANDOM,
     viewModel: DisplayViewModel = viewModel(
         key = "display-${initialDate ?: "latest"}-$initialSort",
         factory = DisplayViewModel.factory(
@@ -93,6 +97,7 @@ fun DisplayRoute(
         onFeaturedPageChanged = viewModel::updateFeaturedPage,
         onEndThresholdChanged = viewModel::updateEndThreshold,
         onRetryClick = viewModel::retry,
+        onRefresh = viewModel::refresh,
         onOpenPhotoUpload = onOpenPhotoUpload,
         onNavigateToBottomBar = onNavigateToBottomBar,
         onOpenFeed = { post, dateLabel, topic, topicDate ->
@@ -121,10 +126,15 @@ fun DisplayScreen(
     onOpenFeed: (Post, String, String, LocalDate?) -> Unit = { _, _, _, _ -> },
     onLikeClick: (String) -> Unit = {},
     onRetryClick: () -> Unit = {},
+    onRefresh: () -> Unit = {},
     scrollToTopRequested: Boolean = false,
     onScrollToTopHandled: () -> Unit = {},
     onDatePicked: (LocalDate) -> Unit = {},
 ) {
+    val pullToRefreshState = rememberPullToRefreshState()
+    // 사진이 보이는 상태에서만 당겨서 새로고침한다. 오류 화면은 다시 시도 버튼을 쓴다.
+    val canRefresh = uiState.content is DisplayContentState.Latest ||
+        uiState.content is DisplayContentState.Archive
     var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
     val selectedSort = (uiState.content as? DisplayContentState.Latest)?.selectedSort
     val gridState = rememberSaveable(uiState.selectedDate, saver = LazyStaggeredGridState.Saver) {
@@ -190,27 +200,46 @@ fun DisplayScreen(
             .background(ChalkakBackground)
             .nestedScroll(scrollState.nestedScrollConnection),
     ) {
-        DisplayBody(
-            content = uiState.content,
-            onFeaturedPageChanged = onFeaturedPageChanged,
-            onEndThresholdChanged = onEndThresholdChanged,
-            onRetryClick = onRetryClick,
-            isLoadingNext = uiState.isLoadingNext,
-            gridState = gridState,
-            onPhotoClick = { photo ->
-                onOpenFeed(
-                    photo,
-                    uiState.selectedDate
-                        ?.toFeedDateLabel()
-                        .orEmpty(),
-                    uiState.topic,
-                    uiState.selectedDate,
-                )
-            },
-            onLikeClick = { photo -> onLikeClick(photo.id) },
-            topContentPadding = bodyTopContentPadding,
-            modifier = Modifier.fillMaxSize(),
-        )
+        // 홈·오늘의 PullToRefreshBox와 같은 표시. 오류·로딩 상태에서는 당김을 끄려고 modifier로 쓴다.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pullToRefresh(
+                    isRefreshing = uiState.isRefreshing,
+                    state = pullToRefreshState,
+                    enabled = canRefresh,
+                    onRefresh = onRefresh,
+                ),
+        ) {
+            DisplayBody(
+                content = uiState.content,
+                onFeaturedPageChanged = onFeaturedPageChanged,
+                onEndThresholdChanged = onEndThresholdChanged,
+                onRetryClick = onRetryClick,
+                isLoadingNext = uiState.isLoadingNext,
+                gridState = gridState,
+                onPhotoClick = { photo ->
+                    onOpenFeed(
+                        photo,
+                        uiState.selectedDate
+                            ?.toFeedDateLabel()
+                            .orEmpty(),
+                        uiState.topic,
+                        uiState.selectedDate,
+                    )
+                },
+                onLikeClick = { photo -> onLikeClick(photo.id) },
+                topContentPadding = bodyTopContentPadding,
+                modifier = Modifier.fillMaxSize(),
+            )
+            PullToRefreshDefaults.Indicator(
+                state = pullToRefreshState,
+                isRefreshing = uiState.isRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = bodyTopContentPadding),
+            )
+        }
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -324,7 +353,7 @@ private val previewLatestState = DisplayUiState(
     topic = "바다",
     content = DisplayContentState.Latest(
         photos = previewDisplayPhotos,
-        selectedSort = PostSort.LATEST,
+        selectedSort = PostSort.RANDOM,
     ),
 )
 
@@ -343,6 +372,12 @@ private val previewArchiveState = DisplayUiState(
 @Composable
 private fun LatestDisplayScreenPreview() {
     DisplayScreenPreviewContent(uiState = previewLatestState)
+}
+
+@Preview(name = "최신 전시 새로고침 중", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun RefreshingDisplayScreenPreview() {
+    DisplayScreenPreviewContent(uiState = previewLatestState.copy(isRefreshing = true))
 }
 
 @Preview(name = "과거 전시", showBackground = true, widthDp = 390, heightDp = 844)

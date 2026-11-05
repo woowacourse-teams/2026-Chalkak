@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 class DisplayViewModel(
     private val repository: PostRepository,
     private val initialDate: LocalDate? = null,
-    initialSort: PostSort = PostSort.LATEST,
+    initialSort: PostSort = PostSort.RANDOM,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
     firstTopicDate: LocalDate = FIRST_TOPIC_DATE,
 ) : ViewModel() {
@@ -116,6 +116,29 @@ class DisplayViewModel(
 
     fun retry() {
         loadDisplay(_uiState.value.selectedDate)
+    }
+
+    /**
+     * 당겨서 새로고침. 보던 사진은 그대로 두고 [DisplayUiState.isRefreshing]을 켠 채 첫 페이지를 다시 불러온다.
+     * 랜덤순은 seed 없이 요청해 서버가 새로 섞은 순서를 받고, 지난 날짜는 인기순으로 불러온다.
+     * 실패하면 이전 사진·seed로 되돌리고 오류 안내를 띄운다. 새로고침 중이거나 사진이 없는 상태면 무시한다.
+     */
+    fun refresh() {
+        val state = _uiState.value
+        if (state.isRefreshing) return
+        if (state.content !is DisplayContentState.Latest &&
+            state.content !is DisplayContentState.Archive
+        ) {
+            return
+        }
+        val selectedDate = state.selectedDate ?: return
+
+        _uiState.value = state.copy(isRefreshing = true)
+        loadDisplay(
+            date = selectedDate,
+            previousState = state,
+            keepsContentVisible = true,
+        )
     }
 
     fun onResume() {
@@ -385,6 +408,7 @@ class DisplayViewModel(
                         hasNext = previousState.hasNext,
                         randomSeed = previousState.randomSeed,
                         isLoadingNext = false,
+                        isRefreshing = false,
                         pendingMessage = pendingMessage,
                     )
                     _uiState.update { restoredState.withAppliedLikeUpdatesAfter(requestLikeRevision) }
@@ -394,6 +418,7 @@ class DisplayViewModel(
                             content = DisplayContentState.Error(
                                 message = DISPLAY_ERROR_MESSAGE,
                             ),
+                            isRefreshing = false,
                         )
                     }
                 }
@@ -668,7 +693,7 @@ class DisplayViewModel(
         }
         val key = DisplayCacheKey(date, sort)
         displayCache[key] = DisplayCacheEntry(
-            state = state.copy(pendingMessage = null),
+            state = state.copy(pendingMessage = null, isRefreshing = false),
             firstPagePhotoIds = displayCache[key]?.firstPagePhotoIds
                 ?: state.photos.mapTo(mutableSetOf(), Post::id),
         )
@@ -677,7 +702,7 @@ class DisplayViewModel(
     companion object {
         fun factory(
             initialDate: LocalDate? = null,
-            initialSort: PostSort = PostSort.LATEST,
+            initialSort: PostSort = PostSort.RANDOM,
         ) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication

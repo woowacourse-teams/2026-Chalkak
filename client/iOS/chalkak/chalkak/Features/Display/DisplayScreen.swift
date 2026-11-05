@@ -189,7 +189,7 @@ struct DisplayScreen: View {
                     // ChalkakSortSelector는 44pt 최소 터치 높이로 텍스트를 세로 중앙 정렬하므로
                     // 구분선 바로 아래에 붙이면 Android 필터 top 12dp와 맞는다.
                     ChalkakSortSelector(
-                        options: DisplaySort.allCases,
+                        options: Self.sortTabOrder,
                         selectedOption: viewModel.viewState.selectedSort,
                         label: { $0.label },
                         onSelect: { sort in Task { await viewModel.selectSort(sort) } }
@@ -231,6 +231,11 @@ struct DisplayScreen: View {
         }
         .feedZoomViewport(.display)
         .scrollPosition($scrollPosition)
+        .refreshable {
+            // 홈·오늘 화면과 같이, SwiftUI가 새로고침 컨트롤 작업을 취소해도 시작한 갱신은 끝까지 마친다.
+            let refreshTask = Task { await viewModel.refresh() }
+            await refreshTask.value
+        }
         .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
             withAnimation(.snappy) {
                 scrollPosition.scrollTo(edge: .top)
@@ -296,6 +301,10 @@ struct DisplayScreen: View {
     private func showMessage(_ text: String) {
         showToast(text)
     }
+
+    /// 전시 정렬 탭에 보이는 순서(왼쪽부터). 기본 정렬인 랜덤순을 맨 앞에 둔다(#974).
+    /// `DisplaySort`의 case 순서와 상관없이 이 배열 순서대로 그린다. Android `DisplaySortTabs`의 `DisplaySortOrder`와 같다.
+    private static let sortTabOrder: [DisplaySort] = [.random, .popular, .latest]
 }
 
 private enum Metrics {

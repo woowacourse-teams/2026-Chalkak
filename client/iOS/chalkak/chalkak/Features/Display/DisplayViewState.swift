@@ -74,7 +74,8 @@ struct DisplayViewState: Equatable, Sendable {
     var latestDate: Date?
     var earliestDate: Date?
     var topic = ""
-    var selectedSort: DisplaySort = .latest
+    // 정렬을 지정하지 않고 들어오면 랜덤순이다(#974).
+    var selectedSort: DisplaySort = .random
     var photos: [DisplayPhoto] = []
     var featuredPhotos: [DisplayPhoto] = []
     var featuredPage = 0
