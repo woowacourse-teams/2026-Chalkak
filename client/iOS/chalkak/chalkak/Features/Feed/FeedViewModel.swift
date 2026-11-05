@@ -11,7 +11,7 @@ final class FeedViewModel {
     typealias DetailHandler = @MainActor @Sendable (String) async -> Result<FeedContent, FeedError>
     typealias LikeHandler = @MainActor @Sendable (String, Bool) async -> Result<FeedLikeUpdate, FeedError>
     typealias DeleteHandler = @MainActor @Sendable (String) async -> Result<Void, FeedError>
-    typealias UpdateTitleHandler = @MainActor @Sendable (String, String?) async -> Result<FeedTitleUpdate, FeedError>
+    typealias UpdatePostHandler = @MainActor @Sendable (String, String?, String?) async -> Result<FeedPostUpdate, FeedError>
 
     private(set) var viewState: FeedViewState
     private(set) var event: FeedEvent?
@@ -23,7 +23,7 @@ final class FeedViewModel {
     private let detailHandler: DetailHandler
     private let likeHandler: LikeHandler
     private let deleteHandler: DeleteHandler
-    private let updateTitleHandler: UpdateTitleHandler
+    private let updatePostHandler: UpdatePostHandler
     private var likeGeneration = 0
     // 상세를 받기 전에 다른 화면에서 도착한 좋아요. 상세가 도착하면 그 위에 덮어쓴다.
     private var pendingLikeUpdate: FeedLikeUpdate?
@@ -40,7 +40,7 @@ final class FeedViewModel {
         detailHandler: @escaping DetailHandler = { _ in .failure(.generic) },
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
         deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) },
-        updateTitleHandler: @escaping UpdateTitleHandler = { _, _ in .failure(.generic) },
+        updatePostHandler: @escaping UpdatePostHandler = { _, _, _ in .failure(.generic) },
         aiReviewRepository: (any AIReviewRepository)? = nil
     ) {
         self.aiReview = aiReviewRepository.map {
@@ -67,7 +67,7 @@ final class FeedViewModel {
         self.detailHandler = detailHandler
         self.likeHandler = likeHandler
         self.deleteHandler = deleteHandler
-        self.updateTitleHandler = updateTitleHandler
+        self.updatePostHandler = updatePostHandler
     }
 
     convenience init(target: FeedTarget, apiClient: FeedAPIClient, aiReviewRepository: (any AIReviewRepository)? = nil) {
@@ -86,9 +86,9 @@ final class FeedViewModel {
             deleteHandler: { postID in
                 await feedResult { try await apiClient.deletePost(postID: postID) }
             },
-            updateTitleHandler: { postID, title in
+            updatePostHandler: { postID, title, description in
                 await feedResult {
-                    try await apiClient.updatePostTitle(postID: postID, title: title)
+                    try await apiClient.updatePost(postID: postID, title: title, description: description)
                 }
             },
             aiReviewRepository: aiReviewRepository
@@ -100,7 +100,7 @@ final class FeedViewModel {
             viewState.contentStatus = .loading
         }
         let likeGenerationAtStart = likeGeneration
-        let titleUpdateVersionAtStart = viewState.titleUpdateVersion
+        let postUpdateVersionAtStart = viewState.postUpdateVersion
 
         switch await detailHandler(postID) {
         case let .success(content):
@@ -110,9 +110,11 @@ final class FeedViewModel {
                 merged.post.isLiked = current.post.isLiked
                 merged.post.likeCount = current.post.likeCount
             }
-            if viewState.titleUpdateVersion != titleUpdateVersionAtStart,
+            // 상세 요청 중 수정을 저장했다면 늦게 온 상세 응답이 수정 결과를 덮어쓰지 않게 한다.
+            if viewState.postUpdateVersion != postUpdateVersionAtStart,
                let current = viewState.content {
                 merged.post.title = current.post.title
+                merged.post.description = current.post.description
             }
             if let current = viewState.content, current.post.isOwnedByCurrentUser {
                 merged.post.isOwnedByCurrentUser = true
@@ -218,7 +220,7 @@ final class FeedViewModel {
         guard let current = viewState.content,
               current.post.isOwnedByCurrentUser,
               !viewState.isDeleting,
-              !viewState.isUpdatingTitle
+              !viewState.isSavingPostEdit
         else { return }
 
         viewState.isDeleting = true
@@ -237,39 +239,64 @@ final class FeedViewModel {
         }
     }
 
-    func updatePostTitle(_ title: String?) {
+    /// 상단 '수정'을 누르면 지금 제목·설명을 채운 수정 입력을 연다. 비어 있던 값은 빈 칸으로 시작한다.
+    func startPostEdit() {
         guard let current = viewState.content,
+              current.post.isOwnedByCurrentUser,
+              FeedDateLabel.isToday(current.topicDate)
+        else { return }
+        viewState.postEdit = FeedPostEditState(
+            title: current.post.title ?? "",
+            description: current.post.description ?? ""
+        )
+    }
+
+    func updatePostEditTitle(_ title: String) {
+        viewState.postEdit?.title = title
+    }
+
+    func updatePostEditDescription(_ description: String) {
+        viewState.postEdit?.description = description
+    }
+
+    /// 수정 화면을 저장하지 않고 닫는다. 저장 중에는 응답을 받아야 하므로 닫지 않는다.
+    func cancelPostEdit() {
+        guard !viewState.isSavingPostEdit else { return }
+        viewState.postEdit = nil
+    }
+
+    /// 수정 입력의 제목·설명을 한 요청으로 보낸다. 서버는 둘을 함께 교체하므로 고치지 않은 값도 같이 보낸다(POST-010).
+    func savePostEdit() {
+        guard let edit = viewState.postEdit,
+              let current = viewState.content,
               current.post.isOwnedByCurrentUser,
               FeedDateLabel.isToday(current.topicDate),
               !viewState.isDeleting,
-              !viewState.isUpdatingTitle
+              !viewState.isSavingPostEdit
         else { return }
 
-        let normalizedTitle: String?
-        if let title {
-            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
-        } else {
-            normalizedTitle = nil
-        }
-        viewState.isUpdatingTitle = true
+        let trimmedTitle = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTitle: String? = trimmedTitle.isEmpty ? nil : trimmedTitle
+        viewState.isSavingPostEdit = true
 
         Task { [weak self] in
             guard let self else { return }
-            switch await self.updateTitleHandler(self.postID, normalizedTitle) {
+            switch await self.updatePostHandler(self.postID, normalizedTitle, edit.description) {
             case let .success(update):
                 guard var latest = self.viewState.content else {
-                    self.viewState.isUpdatingTitle = false
+                    self.viewState.isSavingPostEdit = false
                     return
                 }
                 latest.post.title = update.title
+                latest.post.description = update.description
                 self.viewState.content = latest
-                self.viewState.isUpdatingTitle = false
-                self.viewState.titleUpdateVersion += 1
-                self.event = .showTitleUpdateSuccess
+                self.viewState.postEdit = nil
+                self.viewState.isSavingPostEdit = false
+                self.viewState.postUpdateVersion += 1
+                self.event = .showPostUpdateSuccess
             case let .failure(error):
-                self.viewState.isUpdatingTitle = false
-                self.event = .showTitleUpdateFailure(error)
+                self.viewState.isSavingPostEdit = false
+                self.event = .showPostUpdateFailure(error)
             }
         }
     }

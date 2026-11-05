@@ -55,17 +55,22 @@ struct FeedAPIClient: Sendable {
         try await requestNoContent(path: "posts/\(postID)", method: "DELETE")
     }
 
-    func updatePostTitle(postID: String, title: String?) async throws -> FeedTitleUpdate {
-        let normalizedTitle: String?
-        if let title {
-            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
-        } else {
-            normalizedTitle = nil
-        }
+    /// 제목·설명처럼 비워 둘 수 있는 글은 앞뒤 공백을 지우고, 남는 글이 없으면 nil(없음)로 본다(POST-005).
+    /// 예: "  퇴근길  " → "퇴근길", "   \n" → nil
+    private static func normalizedOptionalText(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    func updatePost(postID: String, title: String?, description: String?) async throws -> FeedPostUpdate {
         let body: Data
         do {
-            body = try encoder.encode(FeedTitleUpdateRequest(title: normalizedTitle))
+            body = try encoder.encode(
+                FeedPostUpdateRequest(
+                    title: Self.normalizedOptionalText(title),
+                    description: Self.normalizedOptionalText(description)
+                )
+            )
         } catch {
             throw FeedAPIError.invalidResponse
         }
@@ -90,23 +95,24 @@ struct FeedAPIClient: Sendable {
                 throw FeedAPIError.invalidResponse
             }
 
-            let decoded: FeedTitleUpdateResponse
+            let decoded: FeedPostUpdateResponse
             do {
-                decoded = try decoder.decode(FeedTitleUpdateResponse.self, from: data)
+                decoded = try decoder.decode(FeedPostUpdateResponse.self, from: data)
             } catch {
                 throw FeedAPIError.invalidResponse
             }
             guard decoded.postID == postID else {
                 throw FeedAPIError.invalidResponse
             }
-            let normalizedTitle: String?
-            if let title = decoded.title {
-                let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
-            } else {
-                normalizedTitle = nil
+            // 상세 조회와 같이 공백뿐인 설명은 설명 없음으로 본다.
+            let updatedDescription = decoded.description.flatMap {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
             }
-            return FeedTitleUpdate(postID: decoded.postID, title: normalizedTitle)
+            return FeedPostUpdate(
+                postID: decoded.postID,
+                title: Self.normalizedOptionalText(decoded.title),
+                description: updatedDescription
+            )
         } catch let error as FeedAPIError {
             throw error
         } catch AuthenticatedHTTPClientError.reauthenticationRequired {

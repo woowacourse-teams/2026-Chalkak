@@ -28,7 +28,7 @@ import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -134,21 +134,26 @@ class PostRepositoryImpl(
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = when (
-        val result = remoteDataSource.updatePostTitle(
+        description: String?,
+    ): HomeResult<PostUpdate> = when (
+        val result = remoteDataSource.updatePost(
             postId = postId,
-            title = title.normalizeTitle(),
+            title = title.normalizeOptionalText(),
+            description = description.normalizeOptionalText(),
         )
     ) {
         is ApiResult.Success -> if (result.value.postId == postId) {
             HomeResult.Success(
-                PostTitleUpdate(
+                PostUpdate(
                     postId = result.value.postId,
                     title = result.value.title
-                        .normalizeTitle(),
+                        .normalizeOptionalText(),
+                    // 상세 조회와 같이 공백뿐인 설명은 설명 없음으로 본다.
+                    description = result.value.description
+                        ?.takeIf(String::isNotBlank),
                 ),
             )
         } else {
@@ -432,7 +437,8 @@ class PostRepositoryImpl(
 
     private fun Long.toLikeCountOrNull(): Int? = takeIf { it in 0L..Int.MAX_VALUE.toLong() }?.toInt()
 
-    private fun String?.normalizeTitle(): String? = this
+    /** 제목·설명처럼 비워 둘 수 있는 글은 앞뒤 공백을 지우고, 남는 글이 없으면 null(없음)로 보낸다(POST-005). */
+    private fun String?.normalizeOptionalText(): String? = this
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
 

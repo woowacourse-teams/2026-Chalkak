@@ -15,7 +15,7 @@ import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewFailure
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
@@ -464,10 +464,11 @@ class FeedAiReviewTest {
         override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
         override suspend fun getPostDetail(postId: String): HomeResult<PostDetail> = error("unused")
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
-        override suspend fun updatePostTitle(
+        override suspend fun updatePost(
             postId: String,
             title: String?,
-        ): HomeResult<PostTitleUpdate> = error("unused")
+            description: String?,
+        ): HomeResult<PostUpdate> = error("unused")
         override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("unused")
         override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> = error("unused")
         override suspend fun updateLike(

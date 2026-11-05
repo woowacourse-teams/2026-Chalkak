@@ -94,30 +94,42 @@ struct FeedLikeUpdate: Equatable, Sendable {
     let likeCount: Int
 }
 
-struct FeedTitleUpdateRequest: Encodable {
+/// 게시물 수정 요청. 서버는 제목·설명·인스타그램 동의를 한 번에 통째로 교체한다(POST-010).
+/// 빠진 필드는 "없음"으로 덮어쓰므로, 고치지 않은 값도 현재 값을 다시 보내야 한다.
+/// 주의: 인스타그램 동의(instagramUploadAgreed, instagramId)는 앱에 입력 UI가 없어 아직 보내지 않고, 서버는 이를 "동의 안 함"으로 저장한다.
+/// 동의 UI를 만들 때 이 요청에도 상세 응답의 instagramConsent 값을 함께 실어야 수정할 때마다 동의가 꺼지지 않는다.
+/// 근거: 이슈 #938
+struct FeedPostUpdateRequest: Encodable {
     let title: String?
+    let description: String?
 
     enum CodingKeys: String, CodingKey {
         case title
+        case description
     }
 
+    // 빈 값도 null로 꼭 보낸다. 설명을 빼고 보내면 서버가 설명을 지운다(POST-010).
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(title, forKey: .title)
+        try container.encode(description, forKey: .description)
     }
 }
 
-struct FeedTitleUpdateResponse: Decodable, Equatable, Sendable {
+struct FeedPostUpdateResponse: Decodable, Equatable, Sendable {
     let postID: String
     let title: String?
+    let description: String?
 
     enum CodingKeys: String, CodingKey {
         case postID = "postId"
         case title
+        case description
     }
 }
 
-struct FeedTitleUpdate: Equatable, Sendable {
+struct FeedPostUpdate: Equatable, Sendable {
     let postID: String
     let title: String?
+    let description: String?
 }

@@ -13,7 +13,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.repository.PostRepository
 import java.time.LocalDate
@@ -621,10 +621,11 @@ class AuthorPostsViewModelTest {
 
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("Unused")
 
-        override suspend fun updatePostTitle(
+        override suspend fun updatePost(
             postId: String,
             title: String?,
-        ): HomeResult<PostTitleUpdate> = error("Unused")
+            description: String?,
+        ): HomeResult<PostUpdate> = error("Unused")
 
         override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("Unused")
 

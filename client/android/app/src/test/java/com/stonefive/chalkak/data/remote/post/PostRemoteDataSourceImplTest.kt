@@ -5,7 +5,7 @@ import com.stonefive.chalkak.data.remote.ApiRequestExecutor
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.AuthorizationRequestContext
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
-import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
+import com.stonefive.chalkak.data.remote.post.model.PostUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.PostSort
@@ -147,23 +147,41 @@ class PostRemoteDataSourceImplTest {
     fun `게시물 제목 수정은 PUT과 제목 body를 전송한다`() = runTest {
         server.enqueue(jsonResponse("""{"postId":"$POST_ID","title":"수정한 제목"}"""))
 
-        val result = dataSource.updatePostTitle(POST_ID, "수정한 제목")
+        val result = dataSource.updatePost(POST_ID, "수정한 제목", null)
         val request = server.takeRequest()
 
-        assertEquals(ApiResult.Success(PostTitleUpdateResponse(POST_ID, "수정한 제목")), result)
+        assertEquals(ApiResult.Success(PostUpdateResponse(POST_ID, "수정한 제목")), result)
         assertEquals("PUT", request.method)
         assertEquals("/api/v1/posts/$POST_ID", request.path)
-        assertEquals("{\"title\":\"수정한 제목\"}", request.body.readUtf8())
+        assertEquals("{\"title\":\"수정한 제목\",\"description\":null}", request.body.readUtf8())
+    }
+
+    @Test
+    fun `저장하면 제목과 설명을 한 요청에 보낸다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 없음인 내 게시물
+        server.enqueue(
+            jsonResponse("""{"postId":"$POST_ID","title":"퇴근길 노을","description":"회사 앞 육교에서 찍었어요"}"""),
+        )
+
+        // When  설명을 "회사 앞 육교에서 찍었어요"로 쓰고 저장한다
+        dataSource.updatePost(POST_ID, "퇴근길 노을", "회사 앞 육교에서 찍었어요")
+
+        // Then  요청이 title "퇴근길 노을", description "회사 앞 육교에서 찍었어요"
+        val request = server.takeRequest()
+        assertEquals(
+            "{\"title\":\"퇴근길 노을\",\"description\":\"회사 앞 육교에서 찍었어요\"}",
+            request.body.readUtf8(),
+        )
     }
 
     @Test
     fun `빈 제목 삭제는 null body를 전송한다`() = runTest {
         server.enqueue(jsonResponse("""{"postId":"$POST_ID","title":null}"""))
 
-        dataSource.updatePostTitle(POST_ID, null)
+        dataSource.updatePost(POST_ID, null, null)
 
         val request = server.takeRequest()
-        assertEquals("{\"title\":null}", request.body.readUtf8())
+        assertEquals("{\"title\":null,\"description\":null}", request.body.readUtf8())
     }
 
     @Test

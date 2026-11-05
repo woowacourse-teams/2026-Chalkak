@@ -15,7 +15,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
@@ -592,7 +592,7 @@ class FeedViewModelTest {
     @Test
     fun `내 게시물 제목 수정 성공 시 화면 제목과 완료 상태를 갱신한다`() = runTest {
         repository.titleUpdateResult = HomeResult.Success(
-            PostTitleUpdate(PHOTO_ID, "수정한 제목"),
+            PostUpdate(PHOTO_ID, "수정한 제목", null),
         )
         val ownedPost = feedContent()
             .photos
@@ -612,7 +612,9 @@ class FeedViewModelTest {
             dateProvider = { TEST_DATE },
         )
 
-        selectedViewModel.updatePostTitle("  수정한 제목  ")
+        selectedViewModel.startPostEdit()
+        selectedViewModel.updatePostEditTitle("  수정한 제목  ")
+        selectedViewModel.savePostEdit()
         advanceUntilIdle()
 
         assertEquals(PHOTO_ID to "  수정한 제목  ", repository.updatedTitle)
@@ -622,10 +624,10 @@ class FeedViewModelTest {
                 ?.post
                 ?.title,
         )
-        assertEquals(PHOTO_ID, selectedViewModel.uiState.value.titleUpdateSuccessPostId)
-        assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+        assertEquals(null, selectedViewModel.uiState.value.postEdit)
+        assertFalse(selectedViewModel.uiState.value.isSavingPostEdit)
         assertEquals(
-            "제목을 수정했어요",
+            "게시물을 수정했어요",
             (selectedViewModel.uiState.value.pendingMessage as UiMessage.Toast).text,
         )
     }
@@ -650,16 +652,18 @@ class FeedViewModelTest {
             dateProvider = { TEST_DATE },
         )
 
-        selectedViewModel.updatePostTitle("수정 시도")
+        selectedViewModel.startPostEdit()
+        selectedViewModel.savePostEdit()
         advanceUntilIdle()
 
         assertEquals(null, repository.updatedTitle)
-        assertFalse(selectedViewModel.uiState.value.isTitleEditable)
+        assertFalse(selectedViewModel.uiState.value.isPostEditable)
     }
 
     @Test
     fun `다른 사용자 게시물은 제목 수정 요청을 보내지 않는다`() = runTest {
-        viewModel.updatePostTitle("수정 시도")
+        viewModel.startPostEdit()
+        viewModel.savePostEdit()
         advanceUntilIdle()
 
         assertEquals(null, repository.updatedTitle)
@@ -689,13 +693,199 @@ class FeedViewModelTest {
         )
 
         assertTrue(selectedViewModel.uiState.value.isRefreshing)
-        selectedViewModel.updatePostTitle("수정 시도")
+        selectedViewModel.startPostEdit()
+        selectedViewModel.savePostEdit()
 
         assertEquals(null, selectedRepository.updatedTitle)
-        assertFalse(selectedViewModel.uiState.value.isUpdatingTitle)
+        assertFalse(selectedViewModel.uiState.value.isSavingPostEdit)
 
         detailRequest.complete(HomeResult.Failure(HomeFailure.Network))
         advanceUntilIdle()
+    }
+
+    @Test
+    fun `수정을 시작하면 지금 제목과 설명이 입력칸에 채워진다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 "회사 앞 육교에서 찍었어요"인 내 게시물
+        val editViewModel = ownedPostViewModel(
+            title = "퇴근길 노을",
+            description = "회사 앞 육교에서 찍었어요",
+        )
+
+        // When  수정을 누른다
+        editViewModel.startPostEdit()
+
+        // Then  수정 입력의 제목 "퇴근길 노을", 설명 "회사 앞 육교에서 찍었어요"
+        assertEquals(
+            FeedPostEditState(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요"),
+            editViewModel.uiState.value.postEdit,
+        )
+    }
+
+    @Test
+    fun `저장하면 제목과 설명을 한 요청에 보낸다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 없음인 내 게시물
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = null)
+        editViewModel.startPostEdit()
+
+        // When  설명을 "회사 앞 육교에서 찍었어요"로 쓰고 저장한다
+        editViewModel.updatePostEditDescription("회사 앞 육교에서 찍었어요")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  요청이 title "퇴근길 노을", description "회사 앞 육교에서 찍었어요"
+        assertEquals(
+            Triple(PHOTO_ID, "퇴근길 노을", "회사 앞 육교에서 찍었어요"),
+            repository.updatedPost,
+        )
+    }
+
+    @Test
+    fun `제목만 고쳐도 기존 설명을 지우지 않는다`() = runTest {
+        // Given 설명 "회사 앞 육교에서 찍었어요"인 내 게시물
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // When  제목만 "퇴근길"로 바꾸고 저장한다
+        editViewModel.updatePostEditTitle("퇴근길")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  요청의 description "회사 앞 육교에서 찍었어요"
+        assertEquals(
+            Triple(PHOTO_ID, "퇴근길", "회사 앞 육교에서 찍었어요"),
+            repository.updatedPost,
+        )
+    }
+
+    @Test
+    fun `저장에 성공하면 상세의 제목·설명이 응답 값으로 바뀐다`() = runTest {
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // Given 저장 응답이 title "퇴근길", description "회사 앞 육교에서\n찍었어요"
+        repository.titleUpdateResult = HomeResult.Success(
+            PostUpdate(PHOTO_ID, "퇴근길", "회사 앞 육교에서\n찍었어요"),
+        )
+
+        // When  저장이 끝난다
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  상세 제목 "퇴근길", 설명 "회사 앞 육교에서\n찍었어요", 수정 화면 닫힘, 안내 "게시물을 수정했어요"
+        val state = editViewModel.uiState.value
+        assertEquals(
+            "퇴근길",
+            state.content
+                ?.post
+                ?.title,
+        )
+        assertEquals(
+            "회사 앞 육교에서\n찍었어요",
+            state.content
+                ?.post
+                ?.description,
+        )
+        assertEquals(null, state.postEdit)
+        assertEquals("게시물을 수정했어요", (state.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun `저장 중에 다시 저장해도 요청은 한 번만 간다`() = runTest {
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // Given 저장 요청이 아직 끝나지 않음
+        val pendingRequest = CompletableDeferred<HomeResult<PostUpdate>>()
+        repository.updatePostRequest = pendingRequest
+        editViewModel.savePostEdit()
+        runCurrent()
+
+        // When  저장을 한 번 더 누른다
+        editViewModel.savePostEdit()
+        runCurrent()
+
+        // Then  수정 요청 횟수 1
+        assertEquals(1, repository.updatePostCalls)
+
+        pendingRequest.complete(HomeResult.Failure(HomeFailure.Network))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `저장이 실패하면 입력이 남고 상세 값은 그대로다`() = runTest {
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+
+        // Given 수정 요청이 서버 오류(500)로 실패한다
+        repository.titleUpdateResult = HomeResult.Failure(HomeFailure.Http(500))
+
+        // When  설명을 "새 설명"으로 바꾸고 저장한다
+        editViewModel.updatePostEditDescription("새 설명")
+        editViewModel.savePostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 화면이 열린 채 설명 입력 "새 설명", 상세 설명 "회사 앞 육교에서 찍었어요", 실패 안내 표시
+        val state = editViewModel.uiState.value
+        assertEquals("새 설명", state.postEdit?.description)
+        assertEquals(
+            "회사 앞 육교에서 찍었어요",
+            state.content
+                ?.post
+                ?.description,
+        )
+        assertEquals("게시물을 수정하지 못했어요", (state.pendingMessage as UiMessage.Toast).text)
+    }
+
+    @Test
+    fun `수정을 닫으면 저장하지 않고 입력이 사라진다`() = runTest {
+        // Given 설명을 "새 설명"으로 고친 수정 입력
+        val editViewModel = ownedPostViewModel(title = "퇴근길 노을", description = "회사 앞 육교에서 찍었어요")
+        editViewModel.startPostEdit()
+        editViewModel.updatePostEditDescription("새 설명")
+
+        // When  닫기(뒤로)를 누른다
+        editViewModel.cancelPostEdit()
+        advanceUntilIdle()
+
+        // Then  수정 입력이 없고, 요청 횟수 0, 상세 설명 "회사 앞 육교에서 찍었어요"
+        val state = editViewModel.uiState.value
+        assertEquals(null, state.postEdit)
+        assertEquals(0, repository.updatePostCalls)
+        assertEquals(
+            "회사 앞 육교에서 찍었어요",
+            state.content
+                ?.post
+                ?.description,
+        )
+    }
+
+    /** 오늘 주제에 올린 내 게시물 상세를 연 ViewModel. 수정 TC들이 같은 시작 상태를 쓴다. */
+    private fun ownedPostViewModel(
+        title: String?,
+        description: String?,
+        postRepository: FakePostRepository = repository,
+    ): FeedViewModel {
+        val ownedPost = feedContent()
+            .photos
+            .single()
+            .copy(
+                title = title,
+                description = description,
+                isOwnedByCurrentUser = true,
+            )
+        return FeedViewModel(
+            repository = postRepository,
+            aiReviewRepository = FakeAiReviewRepository(),
+            sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            initialContent = FeedContentState.Success(
+                dateLabel = "8월 28일의 주제",
+                topic = "하늘하늘하늘",
+                post = ownedPost,
+                isLiked = false,
+                topicDate = TEST_DATE,
+            ),
+            dateProvider = { TEST_DATE },
+        )
     }
 
     @Test
@@ -855,10 +1045,13 @@ private class FakePostRepository : PostRepository {
     var detailRequest: CompletableDeferred<HomeResult<PostDetail>>? = null
     var deleteResult: HomeResult<Unit> = HomeResult.Success(Unit)
     var deletedPostId: String? = null
-    var titleUpdateResult: HomeResult<PostTitleUpdate> = HomeResult.Success(
-        PostTitleUpdate(PHOTO_ID, "수정한 제목"),
+    var titleUpdateResult: HomeResult<PostUpdate> = HomeResult.Success(
+        PostUpdate(PHOTO_ID, "수정한 제목", null),
     )
     var updatedTitle: Pair<String, String?>? = null
+    var updatedPost: Triple<String, String?, String?>? = null
+    var updatePostCalls = 0
+    var updatePostRequest: CompletableDeferred<HomeResult<PostUpdate>>? = null
 
     override suspend fun getPostCalendar(month: YearMonth): HomeResult<PostCalendar> = error("unused")
 
@@ -869,12 +1062,15 @@ private class FakePostRepository : PostRepository {
         return deleteResult
     }
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> {
+        description: String?,
+    ): HomeResult<PostUpdate> {
+        updatePostCalls++
         updatedTitle = postId to title
-        return titleUpdateResult
+        updatedPost = Triple(postId, title, description)
+        return updatePostRequest?.await() ?: titleUpdateResult
     }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -920,10 +1116,11 @@ private class ControlledPostRepository : PostRepository {
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = error("unused")
+        description: String?,
+    ): HomeResult<PostUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = HomeResult.Success(feedContent())
 

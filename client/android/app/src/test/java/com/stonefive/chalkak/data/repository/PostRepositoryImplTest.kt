@@ -12,7 +12,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostDetailResponse
 import com.stonefive.chalkak.data.remote.post.model.PostLikeResponse
 import com.stonefive.chalkak.data.remote.post.model.PostPageResponse
 import com.stonefive.chalkak.data.remote.post.model.PostResponse
-import com.stonefive.chalkak.data.remote.post.model.PostTitleUpdateResponse
+import com.stonefive.chalkak.data.remote.post.model.PostUpdateResponse
 import com.stonefive.chalkak.data.remote.post.model.TodayPostResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
@@ -25,6 +25,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -365,20 +366,63 @@ class PostRepositoryImplTest {
     }
 
     @Test
-    fun `게시물 제목은 앞뒤 공백을 제거하고 빈 제목은 null로 변환한다`() = runTest {
+    fun `저장하면 제목과 설명을 한 요청에 보낸다`() = runTest {
+        // Given 제목 "퇴근길 노을", 설명 없음인 내 게시물
         remoteDataSource.titleUpdateResult = ApiResult.Success(
-            PostTitleUpdateResponse("photo-1", "수정한 제목"),
+            PostUpdateResponse("photo-1", "퇴근길 노을"),
         )
 
-        val result = repository.updatePostTitle("photo-1", "  수정한 제목  ") as HomeResult.Success
+        // When  설명을 "회사 앞 육교에서 찍었어요"로 쓰고 저장한다
+        repository.updatePost("photo-1", "퇴근길 노을", "회사 앞 육교에서 찍었어요")
+
+        // Then  요청이 title "퇴근길 노을", description "회사 앞 육교에서 찍었어요"
+        assertEquals("회사 앞 육교에서 찍었어요", remoteDataSource.updatedDescription)
+    }
+
+    @Test
+    fun `저장에 성공하면 상세의 제목·설명이 응답 값으로 바뀐다`() = runTest {
+        // Given 저장 응답이 title "퇴근길", description "회사 앞 육교에서\n찍었어요"
+        remoteDataSource.titleUpdateResult = ApiResult.Success(
+            PostUpdateResponse("photo-1", "퇴근길", "회사 앞 육교에서\n찍었어요"),
+        )
+
+        // When  저장이 끝난다
+        val result = repository.updatePost("photo-1", "퇴근길", "회사 앞 육교에서\n찍었어요") as HomeResult.Success
+
+        // Then  상세 제목 "퇴근길", 설명 "회사 앞 육교에서\n찍었어요"
+        assertEquals(PostUpdate("photo-1", "퇴근길", "회사 앞 육교에서\n찍었어요"), result.value)
+    }
+
+    @Test
+    fun `설명을 공백만 남기고 저장하면 설명 없음으로 보낸다`() = runTest {
+        // Given 설명 "회사 앞 육교에서 찍었어요"인 내 게시물
+        remoteDataSource.titleUpdateResult = ApiResult.Success(
+            PostUpdateResponse("photo-1", "퇴근길 노을", null),
+        )
+
+        // When  설명을 "   \n"으로 바꾸고 저장한다
+        val result = repository.updatePost("photo-1", "퇴근길 노을", "   \n") as HomeResult.Success
+
+        // Then  요청의 description null, 저장 뒤 상세 설명 없음(null)
+        assertEquals(null, remoteDataSource.updatedDescription)
+        assertEquals(null, result.value.description)
+    }
+
+    @Test
+    fun `게시물 제목은 앞뒤 공백을 제거하고 빈 제목은 null로 변환한다`() = runTest {
+        remoteDataSource.titleUpdateResult = ApiResult.Success(
+            PostUpdateResponse("photo-1", "수정한 제목"),
+        )
+
+        val result = repository.updatePost("photo-1", "  수정한 제목  ", null) as HomeResult.Success
 
         assertEquals("photo-1" to "수정한 제목", remoteDataSource.updatedTitle)
         assertEquals("수정한 제목", result.value.title)
 
         remoteDataSource.titleUpdateResult = ApiResult.Success(
-            PostTitleUpdateResponse("photo-1", null),
+            PostUpdateResponse("photo-1", null),
         )
-        val cleared = repository.updatePostTitle("photo-1", "   ") as HomeResult.Success
+        val cleared = repository.updatePost("photo-1", "   ", null) as HomeResult.Success
 
         assertEquals("photo-1" to null, remoteDataSource.updatedTitle)
         assertEquals(null, cleared.value.title)
@@ -738,8 +782,9 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
     var calendarResult: ApiResult<PostCalendarResponse> = ApiResult.Success(calendarResponse())
     var postsResult: ApiResult<PostPageResponse> = ApiResult.Success(postPage())
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit)
-    var titleUpdateResult: ApiResult<PostTitleUpdateResponse> = ApiResult.Failure(ApiError.Network)
+    var titleUpdateResult: ApiResult<PostUpdateResponse> = ApiResult.Failure(ApiError.Network)
     var updatedTitle: Pair<String, String?>? = null
+    var updatedDescription: String? = null
     val likeRequests = mutableListOf<Pair<String, Boolean>>()
     val pendingLikes = ArrayDeque<CompletableDeferred<ApiResult<PostLikeResponse>>>()
     var likeResult: ApiResult<PostLikeResponse> = ApiResult.Success(
@@ -761,11 +806,13 @@ private class FakePostRemoteDataSource : PostRemoteDataSource {
 
     override suspend fun deletePost(postId: String): ApiResult<Unit> = deleteResult
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): ApiResult<PostTitleUpdateResponse> {
+        description: String?,
+    ): ApiResult<PostUpdateResponse> {
         updatedTitle = postId to title
+        updatedDescription = description
         return titleUpdateResult
     }
 
