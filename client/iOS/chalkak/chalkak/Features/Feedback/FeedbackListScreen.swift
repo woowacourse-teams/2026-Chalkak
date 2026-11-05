@@ -126,23 +126,20 @@ private struct FeedbackListEmptyView: View {
     @Environment(\.chalkakTheme) private var theme
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: theme.spacing.sm) {
-                Text("아직 보낸 문의가 없어요")
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.textSecondary)
+        VStack(spacing: theme.spacing.sm) {
+            Text("아직 보낸 문의가 없어요")
+                .font(theme.typography.body)
+                .foregroundStyle(theme.colors.textSecondary)
 
-                Text("불편한 점이나 궁금한 점을 문의하기로 알려 주세요")
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.textMuted)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, theme.spacing.screenHorizontal)
-            .padding(.top, Metrics.emptyTopPadding)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("feedbackList.empty")
+            Text("불편한 점이나 궁금한 점을 문의하기로 알려 주세요")
+                .font(theme.typography.subheadline)
+                .foregroundStyle(theme.colors.textMuted)
         }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, theme.spacing.screenHorizontal)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("feedbackList.empty")
     }
 }
 
@@ -195,7 +192,6 @@ private struct FeedbackListPaginationView: View {
 
 private enum Metrics {
     static let dividerHeight: CGFloat = 1
-    static let emptyTopPadding: CGFloat = 120
     static let minimumTouchHeight: CGFloat = 44
     static let minimumRowHeight: CGFloat = 44
 }
