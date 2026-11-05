@@ -31,9 +31,9 @@ import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 /**
  * 전시하기 화면과 게시물 수정 시트의 이야기 칸 아래에 두는 "공식 인스타그램 소개 허용" 묶음(이슈 #939).
  *
- * - 위: 제목 "작가님의 작품을 찰칵 인스타그램에서 만날 수 있게 해도 될까요?", 오른쪽 스위치. 행 전체를 눌러도 켜고 끈다.
+ * - 위: 제목 "이 사진이 선정될 경우, 찰캌 인스타그램에 소개해도 될까요?", 오른쪽 스위치. 행 전체를 눌러도 켜고 끈다.
  *   제목은 스위치 왼쪽 남은 폭 안에서 줄바꿈되어 스위치와 겹치지 않는다.
- * - 스위치가 켜지면: 앞에 `@`가 붙은 ID 칸과, 그 아래 안내 "작성하신 계정을 올릴 때 태그해드릴게요(선택)".
+ * - 스위치가 켜지면: 앞에 `@`가 붙은 ID 칸과, 그 아래 안내 "작성하신 계정을 게시물에 태그해 드릴게요. (선택)".
  *   서버가 ID를 거절했으면([InstagramConsentInputState.instagramIdError]) 안내 자리에 오류 색으로 오류 문구를 보여 준다.
  * - 스위치가 꺼지면 ID 칸과 안내를 감춘다. 쓰던 ID는 상태에 남는다.
  *
@@ -81,7 +81,7 @@ fun InstagramConsentSection(
             Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xs))
             val error = state.instagramIdError
             Text(
-                text = error ?: "작성하신 계정을 올릴 때 태그해드릴게요(선택)",
+                text = error ?: "작성하신 계정을 게시물에 태그해 드릴게요. (선택)",
                 modifier = Modifier.testTag(INSTAGRAM_CONSENT_HELPER_TAG),
                 color = if (error != null) ChalkakTheme.colors.error else ChalkakTheme.colors.textMuted,
                 style = ChalkakTheme.typography.footnote,
@@ -108,7 +108,7 @@ private fun InstagramConsentToggleRow(
     ) {
         // weight(1f)로 스위치 왼쪽 남은 폭만 쓰게 해, 긴 제목이 스위치 아래로 밀리지 않고 줄바꿈된다.
         Text(
-            text = "작가님의 작품을 찰칵 인스타그램에서 만날 수 있게 해도 될까요?",
+            text = "이 사진이 선정될 경우, 찰캌 인스타그램에 소개해도 될까요?",
             modifier = Modifier.weight(1f),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.caption,

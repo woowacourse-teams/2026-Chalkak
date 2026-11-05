@@ -2,9 +2,9 @@ import SwiftUI
 
 /// 게시물 작성 화면과 수정 시트의 이야기 칸 아래에 두는 인스타그램 게시 동의 스위치와 인스타그램 ID 칸.
 ///
-/// 스위치 행: 제목 "작가님의 작품을 찰칵 인스타그램에서 만날 수 있게 해도 될까요?" 한 줄만 둔다.
+/// 스위치 행: 제목 "이 사진이 선정될 경우, 찰캌 인스타그램에 소개해도 될까요?" 한 줄만 둔다.
 /// 제목은 '제목'·'이야기' 칸 이름과 같은 굵은 캡션 글씨이고, 길면 스위치와 겹치지 않게 줄을 바꾼다.
-/// 스위치가 켜지면 앞에 `@`가 붙은 ID 칸과 안내 "작성하신 계정을 올릴 때 태그해드릴게요(선택)"가 펼쳐지고, 꺼지면 둘 다 사라진다.
+/// 스위치가 켜지면 앞에 `@`가 붙은 ID 칸과 안내 "작성하신 계정을 게시물에 태그해 드릴게요. (선택)"가 펼쳐지고, 꺼지면 둘 다 사라진다.
 /// ID 칸 오른쪽에는 제목 칸처럼 글자 수 "0 / 30"을 보여 준다.
 /// `errorMessage`가 있으면 안내 자리에 오류 색으로 그 문구를 보여 준다(서버가 ID 형식을 거절했을 때).
 /// 값은 받기만 하고 바뀐 값은 `onAgreedChange`·`onInstagramIDChange`로 올린다. ID 칸은 30자까지만 받는다(POST-013, `InstagramConsentInput`과 같은 값).
@@ -26,7 +26,7 @@ struct ChalkakInstagramConsentField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Toggle(isOn: Binding(get: { isAgreed }, set: onAgreedChange)) {
-                Text("작가님의 작품을 찰칵 인스타그램에서 만날 수 있게 해도 될까요?")
+                Text("이 사진이 선정될 경우, 찰캌 인스타그램에 소개해도 될까요?")
                     .font(theme.typography.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.textPrimary)
@@ -61,7 +61,7 @@ struct ChalkakInstagramConsentField: View {
                 .accessibilityIdentifier("instagramConsent.instagramID")
                 .padding(.top, theme.spacing.md)
 
-                Text(errorMessage ?? "작성하신 계정을 올릴 때 태그해드릴게요(선택)")
+                Text(errorMessage ?? "작성하신 계정을 게시물에 태그해 드릴게요. (선택)")
                     .font(theme.typography.caption)
                     .foregroundStyle(errorMessage == nil ? theme.colors.textMuted : theme.colors.error)
                     .padding(.top, theme.spacing.sm)
