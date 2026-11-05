@@ -71,7 +71,7 @@ public class Feedback {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "삭제된 문의에는 답변할 수 없습니다.");
         }
-        if (hasAnswerHistory() && !isAnswerDeleted()) {
+        if (hasCurrentAnswer()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 답변한 문의입니다.");
         }
         String normalized = content == null ? "" : content.strip();
@@ -96,6 +96,10 @@ public class Feedback {
         // 반복 삭제의 대상 확인에 등록 시각을 쓰고, DB의 내용·시각 쌍 제약에 맞춰 재답변 전까지 원문도 유지한다.
         answerDeletedAt = deletedAt.truncatedTo(ChronoUnit.MICROS);
         return true;
+    }
+
+    public boolean hasCurrentAnswer() {
+        return hasAnswerHistory() && !isAnswerDeleted();
     }
 
     public boolean hasAnswerHistory() {

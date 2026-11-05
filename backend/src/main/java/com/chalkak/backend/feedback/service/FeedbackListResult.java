@@ -38,7 +38,7 @@ public record FeedbackListResult(
                     feedback.getId(),
                     feedback.getContent(),
                     feedback.getCreatedAt(),
-                    feedback.hasAnswerHistory() && !feedback.isAnswerDeleted()
+                    feedback.hasCurrentAnswer()
             );
         }
     }

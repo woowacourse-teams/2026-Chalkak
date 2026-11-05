@@ -61,6 +61,30 @@ class FeedbackListIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("답변이 있는 본인 문의 목록은 답변 여부만 제공하고 답변 원문과 시각은 노출하지 않는다")
+    void getFeedbacks_answeredFeedback_returnsAnswerPresenceWithoutAnswerDetails()
+            throws Exception {
+        // Given
+        UUID userId = createUser(UserStatus.ACTIVE);
+        UUID feedbackId = createFeedback(userId, "답변받은 문의");
+        jdbcTemplate.update(
+                "UPDATE feedbacks SET answer_content = ?, answered_at = CURRENT_TIMESTAMP WHERE id = ?",
+                "관리자 답변 원문",
+                feedbackId
+        );
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/feedbacks")
+                .header(HttpHeaders.AUTHORIZATION, tokenFor(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbacks.length()").value(1))
+                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(feedbackId.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].hasAnswer").value(true))
+                .andExpect(jsonPath("$.feedbacks[0].answerContent").doesNotExist())
+                .andExpect(jsonPath("$.feedbacks[0].answeredAt").doesNotExist());
+    }
+
+    @Test
     @DisplayName("탈퇴한 회원은 유효 기간이 남은 토큰으로도 목록을 조회할 수 없다")
     void getFeedbacks_withdrawnUser_returnsUnauthorized() throws Exception {
         // Given
