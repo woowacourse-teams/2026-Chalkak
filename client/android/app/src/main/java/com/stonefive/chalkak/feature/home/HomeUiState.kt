@@ -24,6 +24,8 @@ data class HomeUiState(
     val bannerHasNext: Boolean = false,
     val isLoadingMoreBanners: Boolean = false,
     val bannerLoadMoreError: Boolean = false,
+    val isIssueOnTop: Boolean = false,
+    val isIssueLayoutResolved: Boolean = true,
     val isRefreshing: Boolean = false,
     val isAuthenticated: Boolean = false,
     val feedbackPhase: HomeFeedbackPhase = HomeFeedbackPhase.Hidden,
@@ -47,6 +49,25 @@ val HomeUiState.showsUploadEntry: Boolean
 // 비로그인 상태에는 기록이 없으므로 이번 주 기록 영역을 숨긴다.
 val HomeUiState.showsWeeklyRecord: Boolean
     get() = hero != HomeHeroState.LoginRequired
+
+// 배치가 정해지기 전에는 ISSUE를 숨겨 아래에서 위로 튀지 않게 한다.
+val HomeUiState.showsIssue: Boolean
+    get() = isIssueLayoutResolved && (banners.isNotEmpty() || bannerStatus == HomeSectionStatus.Loading)
+
+// 추가 로딩 중이거나 실패하면 캐러셀 끝에 로딩·재시도 카드가 한 장 붙는다.
+val HomeUiState.issueCarouselPageCount: Int
+    get() = banners.size + if (isLoadingMoreBanners || bannerLoadMoreError) 1 else 0
+
+fun HomeUiState.shouldLoadMoreBanners(lastVisibleIssueIndex: Int?): Boolean = banners.isNotEmpty() &&
+    bannerStatus == HomeSectionStatus.Ready &&
+    bannerHasNext &&
+    !isRefreshing &&
+    !isLoadingMoreBanners &&
+    !bannerLoadMoreError &&
+    lastVisibleIssueIndex != null &&
+    lastVisibleIssueIndex >= banners.lastIndex - ISSUE_PREFETCH_DISTANCE
+
+private const val ISSUE_PREFETCH_DISTANCE = 2
 
 // 피드백 카드는 오늘 올린 사진이 검수를 통과(승인)했을 때만 보인다. 검수 대기 사진과 사진이 없는 상태에서는 숨긴다.
 val HomeUiState.showsFeedback: Boolean

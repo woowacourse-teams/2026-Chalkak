@@ -9,6 +9,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.stonefive.chalkak.core.analytics.HomeInteraction
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.domain.model.Post
 import java.time.LocalDate
@@ -26,6 +27,7 @@ fun HomeRoute(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
     onOpenRecordDate: (LocalDate) -> Unit = {},
+    onInteraction: (HomeInteraction) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -77,5 +79,6 @@ fun HomeRoute(
         modifier = modifier,
         onLoadMoreBanners = viewModel::loadMoreBanners,
         onDismissFeedbackMessage = viewModel::dismissFeedbackMessage,
+        onInteraction = onInteraction,
     )
 }

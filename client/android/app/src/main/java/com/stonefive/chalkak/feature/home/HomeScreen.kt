@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,6 +54,9 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
+import com.stonefive.chalkak.core.analytics.HomeInteraction
+import com.stonefive.chalkak.core.analytics.HomeInteraction.RankingAction
+import com.stonefive.chalkak.core.analytics.HomeInteraction.RankingSection
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.bottombar.rememberScreenBottomBarScrollState
@@ -67,6 +71,7 @@ import com.stonefive.chalkak.feature.aireview.component.AiReviewSheetDragHandle
 import com.stonefive.chalkak.feature.home.component.HomeFeedbackCard
 import com.stonefive.chalkak.feature.home.component.HomeFeedbackStartSheet
 import com.stonefive.chalkak.feature.home.component.HomeHeroCard
+import com.stonefive.chalkak.feature.home.component.HomeIssueCarousel
 import com.stonefive.chalkak.feature.home.component.HomeIssueSection
 import com.stonefive.chalkak.feature.home.component.HomeRankingRow
 import com.stonefive.chalkak.feature.home.component.HomeTopBar
@@ -76,6 +81,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 const val HOME_CONTENT_TEST_TAG = "home-content"
@@ -97,6 +103,7 @@ fun HomeScreen(
     onOpenRecordDate: (LocalDate) -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
     onDismissFeedbackMessage: () -> Unit = {},
+    onInteraction: (HomeInteraction) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     // 날짜가 바뀌면 다른 사진의 카드이므로 펼침·시트 상태를 처음으로 되돌린다.
@@ -158,7 +165,10 @@ fun HomeScreen(
                     .background(ChalkakTheme.colors.background),
             ) {
                 HomeTopBar(
-                    onNotificationClick = onNotificationClick,
+                    onNotificationClick = {
+                        onInteraction(HomeInteraction.Notification)
+                        onNotificationClick()
+                    },
                     hasUnreadNotifications = uiState.hasUnreadNotifications,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -179,8 +189,10 @@ fun HomeScreen(
                     onOpenFeed = onOpenFeed,
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
+                    onInteraction = onInteraction,
                     isFeedbackExpanded = isFeedbackExpanded,
                     onFeedbackStartClick = {
+                        onInteraction(HomeInteraction.Feedback)
                         // 실패한 리뷰는 시작 안내 없이 바로 다시 요청한다.
                         if (uiState.feedbackPhase == HomeFeedbackPhase.Failed) {
                             onStartFeedback()
@@ -305,6 +317,7 @@ private fun HomeContent(
     onOpenFeed: (Post) -> Unit,
     onRetry: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
+    onInteraction: (HomeInteraction) -> Unit,
     isFeedbackExpanded: Boolean,
     onOpenRecordDate: (LocalDate) -> Unit,
     onFeedbackStartClick: () -> Unit,
@@ -317,23 +330,33 @@ private fun HomeContent(
     val pullToRefreshState = rememberPullToRefreshState()
     val currentUiState by rememberUpdatedState(uiState)
     val currentOnLoadMoreBanners by rememberUpdatedState(onLoadMoreBanners)
-    LaunchedEffect(listState) {
+    val currentOnInteraction by rememberUpdatedState(onInteraction)
+    val issuePagerState = rememberPagerState { currentUiState.issueCarouselPageCount }
+    LaunchedEffect(listState, issuePagerState) {
         snapshotFlow {
             val state = currentUiState
-            val lastVisibleIssue = listState.layoutInfo.visibleItemsInfo
-                .mapNotNull { it.key as? HomeIssueItemKey }
-                .maxOfOrNull { it.index }
-            state.banners.isNotEmpty() &&
-                state.bannerStatus == HomeSectionStatus.Ready &&
-                state.bannerHasNext &&
-                !state.isRefreshing &&
-                !state.isLoadingMoreBanners &&
-                !state.bannerLoadMoreError &&
-                lastVisibleIssue != null &&
-                lastVisibleIssue >= state.banners.lastIndex - ISSUE_PREFETCH_DISTANCE
+            val lastVisibleIssue = if (state.isIssueOnTop) {
+                issuePagerState.layoutInfo.visiblePagesInfo
+                    .maxOfOrNull { it.index }
+            } else {
+                listState.layoutInfo.visibleItemsInfo
+                    .mapNotNull { it.key as? HomeIssueItemKey }
+                    .maxOfOrNull { it.index }
+            }
+            state.shouldLoadMoreBanners(lastVisibleIssue)
         }.distinctUntilChanged().collect { shouldLoadMore ->
             if (shouldLoadMore) currentOnLoadMoreBanners()
         }
+    }
+
+    LaunchedEffect(issuePagerState) {
+        snapshotFlow { issuePagerState.settledPage }
+            .drop(1)
+            .collect { page ->
+                if (page < currentUiState.banners.size) {
+                    currentOnInteraction(HomeInteraction.IssueSwipe(position = page + 1))
+                }
+            }
     }
 
     PullToRefreshBox(
@@ -375,8 +398,14 @@ private fun HomeContent(
                 HomeHeroCard(
                     hero = uiState.hero,
                     topic = uiState.topic,
-                    onOpenPhotoUpload = onOpenPhotoUpload,
-                    onLogin = onNavigateToLogin,
+                    onOpenPhotoUpload = {
+                        onInteraction(HomeInteraction.Upload(HomeInteraction.UploadSource.Hero))
+                        onOpenPhotoUpload()
+                    },
+                    onLogin = {
+                        onInteraction(HomeInteraction.Login)
+                        onNavigateToLogin()
+                    },
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                 )
@@ -395,21 +424,72 @@ private fun HomeContent(
                     )
                 }
             }
+            if (uiState.isIssueOnTop && uiState.showsIssue) {
+                item(key = "issue-carousel") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = ChalkakTheme.spacing.xxl),
+                    ) {
+                        HomeIssueHeader(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                        )
+                        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+                        if (uiState.banners.isEmpty()) {
+                            HomeIssueSection(
+                                banner = null,
+                                onIssueClick = onIssueClick,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                                showHeader = false,
+                            )
+                        } else {
+                            HomeIssueCarousel(
+                                banners = uiState.banners,
+                                pagerState = issuePagerState,
+                                isLoadingMore = uiState.isLoadingMoreBanners,
+                                onIssueClick = onIssueClick,
+                                onRetryLoadMore = onLoadMoreBanners,
+                                modifier = Modifier.fillMaxWidth(),
+                                onIssueTap = { banner, page ->
+                                    onInteraction(HomeInteraction.Issue(banner.id, position = page + 1))
+                                },
+                            )
+                        }
+                    }
+                }
+            }
             if (uiState.showsWeeklyRecord) {
                 item {
                     Spacer(
                         modifier = Modifier.height(
-                            if (uiState.showsFeedback) ChalkakTheme.spacing.xl else ChalkakTheme.spacing.xxl,
+                            if (uiState.showsFeedback && !uiState.isIssueOnTop) {
+                                ChalkakTheme.spacing.xl
+                            } else {
+                                ChalkakTheme.spacing.xxl
+                            },
                         ),
                     )
                     HomeWeeklyRecord(
                         days = uiState.week,
                         status = uiState.recordsStatus,
-                        onOpenRecord = onOpenRecord,
-                        onOpenRecordDate = onOpenRecordDate,
+                        onOpenRecord = {
+                            onInteraction(HomeInteraction.Record(HomeInteraction.RecordAction.More))
+                            onOpenRecord()
+                        },
+                        onOpenRecordDate = { date ->
+                            onInteraction(HomeInteraction.Record(HomeInteraction.RecordAction.Date))
+                            onOpenRecordDate(date)
+                        },
                         onRetry = onRetry,
                         uploadEntryDate = uiState.date.takeIf { uiState.showsUploadEntry },
-                        onOpenPhotoUpload = onOpenPhotoUpload,
+                        onOpenPhotoUpload = {
+                            onInteraction(HomeInteraction.Upload(HomeInteraction.UploadSource.WeeklyRecord))
+                            onOpenPhotoUpload()
+                        },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
                     )
                 }
@@ -420,8 +500,14 @@ private fun HomeContent(
                     title = "어제 랭킹",
                     ranking = uiState.yesterday,
                     displayDate = uiState.date.minusDays(1),
-                    onOpenDisplay = onOpenDisplay,
-                    onOpenFeed = onOpenFeed,
+                    onOpenDisplay = { date ->
+                        onInteraction(rankingInteraction(RankingSection.Yesterday, RankingAction.More))
+                        onOpenDisplay(date)
+                    },
+                    onOpenFeed = { post ->
+                        onInteraction(rankingInteraction(RankingSection.Yesterday, RankingAction.Photo))
+                        onOpenFeed(post)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -431,18 +517,20 @@ private fun HomeContent(
                     title = "오늘 인기있는 사진",
                     ranking = uiState.trending,
                     displayDate = uiState.date,
-                    onOpenDisplay = onOpenDisplay,
-                    onOpenFeed = onOpenFeed,
+                    onOpenDisplay = { date ->
+                        onInteraction(rankingInteraction(RankingSection.Trending, RankingAction.More))
+                        onOpenDisplay(date)
+                    },
+                    onOpenFeed = { post ->
+                        onInteraction(rankingInteraction(RankingSection.Trending, RankingAction.Photo))
+                        onOpenFeed(post)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (uiState.banners.isNotEmpty() || uiState.bannerStatus == HomeSectionStatus.Loading) {
+            if (!uiState.isIssueOnTop && uiState.showsIssue) {
                 item(key = "issue-header") {
-                    Text(
-                        text = "ISSUE",
-                        color = ChalkakTheme.colors.textPrimary,
-                        style = ChalkakTheme.typography.headline,
-                        fontWeight = FontWeight.Bold,
+                    HomeIssueHeader(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(
@@ -471,7 +559,10 @@ private fun HomeContent(
                 ) { index, banner ->
                     HomeIssueSection(
                         banner = banner,
-                        onIssueClick = onIssueClick,
+                        onIssueClick = { title, url ->
+                            onInteraction(HomeInteraction.Issue(banner.id, position = index + 1))
+                            onIssueClick(title, url)
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
@@ -504,6 +595,22 @@ private fun HomeContent(
             }
         }
     }
+}
+
+private fun rankingInteraction(
+    section: RankingSection,
+    action: RankingAction,
+) = HomeInteraction.Ranking(section, action)
+
+@Composable
+private fun HomeIssueHeader(modifier: Modifier = Modifier) {
+    Text(
+        text = "ISSUE",
+        color = ChalkakTheme.colors.textPrimary,
+        style = ChalkakTheme.typography.headline,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -545,8 +652,6 @@ private fun Modifier.homeBottomDivider(): Modifier {
         )
     }
 }
-
-private const val ISSUE_PREFETCH_DISTANCE = 2
 
 private data class HomeIssueItemKey(
     val id: String,

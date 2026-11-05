@@ -40,6 +40,7 @@ import androidx.navigation.toRoute
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.analytics.HomeInteraction
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarHostState
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
@@ -481,6 +482,14 @@ fun ChalkakNavHost(
                             }
                         },
                         viewModel = homeViewModel,
+                        onInteraction = { interaction ->
+                            val requiresLogin = interaction is HomeInteraction.Ranking &&
+                                interaction.action == HomeInteraction.RankingAction.Photo &&
+                                sessionState !is UserSessionState.Authenticated
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED && !requiresLogin) {
+                                analyticsTracker.trackHomeInteraction(interaction)
+                            }
+                        },
                     )
                 }
             }
