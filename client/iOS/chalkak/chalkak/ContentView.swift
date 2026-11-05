@@ -106,6 +106,13 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
+                            case .settings:
+                                NotificationSettingsScreen(
+                                    viewModel: notificationSettingsViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) }
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
                             case let .approved(postID), let .aiReview(postID):
                                 FeedScreen(
                                     viewModel: makeFeedViewModel(FeedTarget(
@@ -493,11 +500,13 @@ struct ContentView: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
-                notificationSettingsViewModel: notificationSettingsViewModel,
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
                 onOpenFeedback: openFeedback,
+                onOpenNotificationSettings: {
+                    withAnimation { notificationPath = [.settings] }
+                },
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
@@ -960,8 +969,13 @@ struct ContentView: View {
         )
         return NotificationSettingsViewModel(
             loadSettings: { try await client.fetch() },
-            saveSettings: { topic, moderation, aiReview in
-                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
+            saveSettings: { topic, moderation, aiReview, like in
+                try await client.update(
+                    topicPushEnabled: topic,
+                    moderationPushEnabled: moderation,
+                    aiReviewPushEnabled: aiReview,
+                    likePushEnabled: like
+                )
             },
         )
     }
@@ -1285,6 +1299,8 @@ struct ContentView: View {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
+            case .settings:
+                return AnalyticsScreen(name: "notification_settings", screenClass: "NotificationSettings")
             case .approved, .aiReview:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
             case .rejected, .notice:
@@ -1347,6 +1363,7 @@ private struct NotificationUnreadRefreshID: Hashable {
 
 private enum NotificationRoute: Hashable {
     case inbox
+    case settings
     case approved(String)
     case aiReview(String)
     case rejected(NotificationDetailTarget)

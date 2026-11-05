@@ -311,23 +311,30 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsShowsSeparateServerNotificationTogglesWithoutPermissionRow() throws {
+    func testNotificationSettingsOpensFromSettingsWithFourTogglesAndReturns() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
         let settings = app.buttons["설정"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
         settings.tap()
+        let notificationSettings = app.buttons["알림 설정"]
+        XCTAssertTrue(notificationSettings.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.switches["오늘 주제 알림"].exists)
+        notificationSettings.tap()
         let topicToggle = app.switches["오늘 주제 알림"]
-        let moderationToggle = app.switches["게시물 승인·반려 알림"]
         XCTAssertTrue(topicToggle.waitForExistence(timeout: 5))
-        XCTAssertTrue(moderationToggle.exists)
+        XCTAssertTrue(app.switches["게시물 승인·반려 알림"].exists)
+        XCTAssertTrue(app.switches["AI 피드백 완료 알림"].exists)
+        XCTAssertTrue(app.switches["좋아요 알림"].exists)
         XCTAssertFalse(app.staticTexts["이 계정의 모든 기기에 적용돼요"].exists)
         XCTAssertFalse(app.switches["알림 받기"].exists)
         let permission = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "알림 허용")).firstMatch
         XCTAssertFalse(permission.exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
         XCTAssertFalse(app.buttons["notificationTime.custom"].exists)
+        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(notificationSettings.waitForExistence(timeout: 5))
     }
 
     @MainActor
