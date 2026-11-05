@@ -65,8 +65,15 @@ private struct FeedbackListView: View {
     let onRefresh: () async -> Void
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
+        FeedbackRefreshScrollView(
+            tintColor: UIColor(theme.colors.actionPrimary),
+            onRefresh: onRefresh,
+            onApproachBottom: {
+                // 실패한 뒤에는 사람이 다시 시도를 눌렀을 때만 요청한다.
+                if viewState.hasNext, !viewState.loadMoreFailed { onLoadMore() }
+            }
+        ) {
+            VStack(spacing: 0) {
                 ForEach(viewState.items) { item in
                     Button {
                         onSelect(item)
@@ -87,15 +94,11 @@ private struct FeedbackListView: View {
                         isLoading: viewState.isLoadingMore,
                         onRetry: onLoadMore
                     )
-                    .onAppear {
-                        // 실패한 뒤에는 저절로 다시 부르지 않고 사람이 다시 시도를 누르게 한다.
-                        if !viewState.loadMoreFailed { onLoadMore() }
-                    }
                 }
             }
             .padding(.horizontal, theme.spacing.screenHorizontal)
+            .chalkakTheme(theme)
         }
-        .refreshable { await onRefresh() }
     }
 }
 
