@@ -13,6 +13,7 @@ struct HomeScreen: View {
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
     var onIssueClick: (URL) -> Void = { _ in }
+    var onInteraction: (HomeInteraction) -> Void = { _ in }
     var bottomBarCompact: Binding<Bool> = .constant(false)
     var isActive = true
 
@@ -50,9 +51,15 @@ struct HomeScreen: View {
                     HomeHeroCard(
                         hero: viewModel.viewState.hero,
                         topic: viewModel.viewState.topic,
-                        onOpenPhotoUpload: onOpenPhotoUpload,
+                        onOpenPhotoUpload: {
+                            onInteraction(.upload(source: .hero))
+                            onOpenPhotoUpload()
+                        },
                         onRetry: { Task { await viewModel.refresh() } },
-                        onLogin: onLogin
+                        onLogin: {
+                            onInteraction(.login)
+                            onLogin()
+                        }
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, theme.spacing.screenHorizontal)
@@ -72,27 +79,46 @@ struct HomeScreen: View {
                         .padding(.top, theme.spacing.lg)
                     }
 
+                    if viewModel.viewState.isIssueOnTop && viewModel.viewState.showsIssue {
+                        issueCarousel
+                    }
+
                     if showsWeeklyRecord {
                         HomeWeeklyRecord(
                             days: viewModel.viewState.week,
                             status: viewModel.viewState.recordsStatus,
-                            onOpenRecord: onOpenRecord,
+                            onOpenRecord: {
+                                onInteraction(.record(action: .more))
+                                onOpenRecord()
+                            },
                             onRetry: { Task { await viewModel.refresh() } },
-                            onOpenRecordDate: onOpenRecordDate,
+                            onOpenRecordDate: { date in
+                                onInteraction(.record(action: .date))
+                                onOpenRecordDate(date)
+                            },
                             uploadEntryDate: showsUploadEntry ? viewModel.viewState.date : nil,
-                            onOpenPhotoUpload: onOpenPhotoUpload
+                            onOpenPhotoUpload: {
+                                onInteraction(.upload(source: .weeklyRecord))
+                                onOpenPhotoUpload()
+                            }
                         )
                         .padding(.horizontal, theme.spacing.screenHorizontal)
-                        .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
+                        .padding(.top, showsFeedback && !viewModel.viewState.isIssueOnTop ? theme.spacing.xl : theme.spacing.xxl)
                     }
 
                     HomeRankingRow(
                         title: "어제 랭킹",
                         ranking: viewModel.viewState.yesterday,
                         displayDate: yesterday,
-                        onOpenDisplay: onOpenDisplay,
+                        onOpenDisplay: { date in
+                            onInteraction(.ranking(section: .yesterday, action: .more))
+                            onOpenDisplay(date)
+                        },
                         zoomSource: FeedZoomSource.homeYesterday,
-                        onOpenFeed: onOpenFeed
+                        onOpenFeed: { photo, zoomSource in
+                            onInteraction(.ranking(section: .yesterday, action: .photo))
+                            onOpenFeed(photo, zoomSource)
+                        }
                     )
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xxl)
@@ -101,62 +127,21 @@ struct HomeScreen: View {
                         title: "오늘 인기있는 사진",
                         ranking: viewModel.viewState.trending,
                         displayDate: viewModel.viewState.date,
-                        onOpenDisplay: onOpenDisplay,
+                        onOpenDisplay: { date in
+                            onInteraction(.ranking(section: .trending, action: .more))
+                            onOpenDisplay(date)
+                        },
                         zoomSource: FeedZoomSource.homeTrending,
-                        onOpenFeed: onOpenFeed
+                        onOpenFeed: { photo, zoomSource in
+                            onInteraction(.ranking(section: .trending, action: .photo))
+                            onOpenFeed(photo, zoomSource)
+                        }
                     )
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xxl)
 
-                    if !viewModel.viewState.banners.isEmpty || viewModel.viewState.bannerStatus == .loading {
-                        Text("ISSUE")
-                            .font(theme.typography.headline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(theme.colors.textPrimary)
-                            .padding(.horizontal, theme.spacing.screenHorizontal)
-                            .padding(.top, theme.spacing.xxl)
-                            .padding(.bottom, theme.spacing.lg)
-
-                        ForEach(viewModel.viewState.banners) { banner in
-                            HomeIssueSection(banner: banner, onIssueClick: onIssueClick, showHeader: false)
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal, theme.spacing.screenHorizontal)
-                                .padding(.bottom, theme.spacing.xxl)
-                                .onScrollVisibilityChange(threshold: 0.01) { isVisible in
-                                    if isVisible {
-                                        visibleBannerIDs.insert(banner.id)
-                                    } else {
-                                        visibleBannerIDs.remove(banner.id)
-                                    }
-                                }
-                        }
-                    }
-
-                    if viewModel.viewState.bannerStatus == .loading && viewModel.viewState.banners.isEmpty {
-                        HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, theme.spacing.screenHorizontal)
-                    }
-
-                    if viewModel.viewState.isLoadingMoreBanners {
-                        ProgressView()
-                            .tint(theme.colors.actionPrimary)
-                            .frame(maxWidth: .infinity)
-                            .accessibilityLabel("ISSUE 더 불러오는 중")
-                            .accessibilityIdentifier("home.issue.loadingMore")
-                    } else if viewModel.viewState.bannerLoadMoreError {
-                        Button {
-                            Task { await viewModel.loadMoreBanners() }
-                        } label: {
-                            Text("ISSUE를 불러오지 못했어요. 다시 시도")
-                                .font(theme.typography.subheadline)
-                                .foregroundStyle(theme.colors.textPrimary)
-                                .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchHeight)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, theme.spacing.screenHorizontal)
-                        .accessibilityIdentifier("home.issue.retry")
+                    if !viewModel.viewState.isIssueOnTop {
+                        issueList
                     }
                 }
                 .padding(.bottom, theme.spacing.xxl)
@@ -275,8 +260,10 @@ struct HomeScreen: View {
         case .loadError:
             feedbackRetryID += 1
         case .ready:
+            onInteraction(.feedback)
             isFeedbackSheetPresented = true
         case .failed(canRequestAgain: true):
+            onInteraction(.feedback)
             Task { await viewModel.requestAIReview() }
         default:
             break
@@ -286,6 +273,95 @@ struct HomeScreen: View {
     private func resetFeedback() {
         isFeedbackExpanded = false
         isFeedbackSheetPresented = false
+    }
+
+    private var issueHeader: some View {
+        Text("ISSUE")
+            .font(theme.typography.headline)
+            .fontWeight(.bold)
+            .foregroundStyle(theme.colors.textPrimary)
+            .padding(.horizontal, theme.spacing.screenHorizontal)
+            .padding(.top, theme.spacing.xxl)
+            .padding(.bottom, theme.spacing.lg)
+    }
+
+    @ViewBuilder
+    private var issueCarousel: some View {
+        issueHeader
+
+        if viewModel.viewState.banners.isEmpty {
+            HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, theme.spacing.screenHorizontal)
+        } else {
+            HomeIssueCarousel(
+                banners: viewModel.viewState.banners,
+                isLoadingMore: viewModel.viewState.isLoadingMoreBanners,
+                hasLoadMoreError: viewModel.viewState.bannerLoadMoreError,
+                onIssueClick: openIssue,
+                onRetryLoadMore: { Task { await viewModel.loadMoreBanners() } },
+                onBannerVisibilityChange: updateBannerVisibility,
+                onSwipe: { onInteraction(.issueSwipe(position: $0 + 1)) }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var issueList: some View {
+        if viewModel.viewState.showsIssue {
+            issueHeader
+
+            ForEach(viewModel.viewState.banners) { banner in
+                HomeIssueSection(banner: banner, onIssueClick: { _ in openIssue(banner) }, showHeader: false)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.bottom, theme.spacing.xxl)
+                    .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+                        updateBannerVisibility(banner.id, isVisible: isVisible)
+                    }
+            }
+        }
+
+        if viewModel.viewState.bannerStatus == .loading && viewModel.viewState.banners.isEmpty {
+            HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, theme.spacing.screenHorizontal)
+        }
+
+        if viewModel.viewState.isLoadingMoreBanners {
+            ProgressView()
+                .tint(theme.colors.actionPrimary)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel("ISSUE 더 불러오는 중")
+                .accessibilityIdentifier("home.issue.loadingMore")
+        } else if viewModel.viewState.bannerLoadMoreError {
+            Button {
+                Task { await viewModel.loadMoreBanners() }
+            } label: {
+                Text("ISSUE를 불러오지 못했어요. 다시 시도")
+                    .font(theme.typography.subheadline)
+                    .foregroundStyle(theme.colors.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: Metrics.minimumTouchHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, theme.spacing.screenHorizontal)
+            .accessibilityIdentifier("home.issue.retry")
+        }
+    }
+
+    private func openIssue(_ banner: Banner) {
+        let index = viewModel.viewState.banners.firstIndex { $0.id == banner.id } ?? 0
+        onInteraction(.issue(bannerID: banner.id, position: index + 1))
+        onIssueClick(banner.webViewURL)
+    }
+
+    private func updateBannerVisibility(_ id: Banner.ID, isVisible: Bool) {
+        if isVisible {
+            visibleBannerIDs.insert(id)
+        } else {
+            visibleBannerIDs.remove(id)
+        }
     }
 
     private var bannerPaginationTrigger: HomeBannerPaginationTrigger {

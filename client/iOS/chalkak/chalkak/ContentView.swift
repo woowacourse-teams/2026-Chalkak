@@ -538,15 +538,18 @@ struct ContentView: View {
                         showMessage("로그인 후 알림을 확인할 수 있어요")
                         return
                     }
+                    analyticsTracker.trackHomeInteraction(.notification)
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onIssueClick: { selectedIssueURL = $0 },
+                onInteraction: trackHomeInteraction,
                 bottomBarCompact: $isBottomBarCompact,
                 isActive: selectedFeed == nil && notificationPath.isEmpty
                     && selectedIssueURL == nil && !isNotificationInboxPresented && !isFeedbackPresented
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
+                homeViewModel.markPresented()
 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
@@ -565,14 +568,23 @@ struct ContentView: View {
         select(.record)
     }
 
-    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
-        var isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+    private var canOpenHomeFeed: Bool {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
-            isAuthenticated = false
+            return false
         }
 #endif
-        guard isAuthenticated else {
+        return KeychainSessionStore.hasAuthenticatedSession()
+    }
+
+    private func trackHomeInteraction(_ interaction: HomeInteraction) {
+        // 비로그인 사용자의 랭킹 사진은 로그인 안내만 보여 주므로 이동으로 세지 않는다.
+        if case .ranking(_, .photo) = interaction, !canOpenHomeFeed { return }
+        analyticsTracker.trackHomeInteraction(interaction)
+    }
+
+    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
+        guard canOpenHomeFeed else {
             showMessage("상세를 보려면 로그인이 필요해요")
             return
         }
@@ -1022,7 +1034,9 @@ struct ContentView: View {
             loader: .live(baseURL: resolvedAPIBaseURL),
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
-            )
+            ),
+            loadIssueExperiment: { await AppRemoteConfig.shared.homeIssueExperiment() },
+            onIssueExperimentExposed: { FirebaseAnalyticsTracker().trackHomeIssueLayoutExposed(isIssueOnTop: $0) }
         )
     }
 
