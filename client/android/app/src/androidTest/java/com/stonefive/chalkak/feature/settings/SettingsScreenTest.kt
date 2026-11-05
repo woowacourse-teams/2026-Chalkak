@@ -105,7 +105,6 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("로그인").performClick()
 
         assertTrue(loginClicked)
-        composeRule.onAllNodesWithText("매일 알림 시간").assertCountEquals(0)
         composeRule.onAllNodesWithText("사인 재설정").assertCountEquals(0)
         composeRule.onAllNodesWithText("로그아웃").assertCountEquals(0)
         composeRule.onAllNodesWithText("회원탈퇴").assertCountEquals(0)

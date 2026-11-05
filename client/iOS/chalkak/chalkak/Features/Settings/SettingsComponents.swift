@@ -203,7 +203,6 @@ struct SettingsNotificationCard: View {
                 .padding(.horizontal, Metrics.cardHorizontalPadding)
             }
         }
-        .accessibilityIdentifier("settings.notificationSetup")
     }
 }
 

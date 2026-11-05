@@ -223,8 +223,7 @@ final class chalkakUITests: XCTestCase {
     func testSettingsUploadButtonShowsLoginRequiredMessageForGuest() throws {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-stonefive.chalkak.guest-access", "NO",
-            "-notificationSetup.hasCompleted", "YES"
+            "-stonefive.chalkak.guest-access", "NO"
         ]
         app.launch()
 
@@ -250,8 +249,7 @@ final class chalkakUITests: XCTestCase {
     func testGuestSettingsSeparatesFeedbackAndAccountSections() throws {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-stonefive.chalkak.guest-access", "NO",
-            "-notificationSetup.hasCompleted", "YES"
+            "-stonefive.chalkak.guest-access", "NO"
         ]
         app.launch()
 
@@ -331,8 +329,6 @@ final class chalkakUITests: XCTestCase {
         XCTAssertFalse(app.switches["알림 받기"].exists)
         let permission = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "알림 허용")).firstMatch
         XCTAssertFalse(permission.exists, app.debugDescription)
-        XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
-        XCTAssertFalse(app.buttons["notificationTime.custom"].exists)
         app.buttons["뒤로 가기"].tap()
         XCTAssertTrue(notificationSettings.waitForExistence(timeout: 5))
     }
