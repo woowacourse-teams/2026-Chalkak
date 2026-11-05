@@ -361,7 +361,7 @@ struct FeedViewModelTests {
             postID: "post-1",
             seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true),
             isLikeConfirmed: true,
-            updatePostHandler: { postID, title, _ in
+            updatePostHandler: { postID, title, _, _ in
                 #expect(postID == "post-1")
                 requestedTitle = title
                 return .success(FeedPostUpdate(postID: postID, title: title, description: nil))
@@ -381,7 +381,7 @@ struct FeedViewModelTests {
             postID: "post-2",
             seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: false),
             isLikeConfirmed: true,
-            updatePostHandler: { _, _, _ in
+            updatePostHandler: { _, _, _, _ in
                 Issue.record("다른 사용자의 게시물은 제목 수정 요청을 보내면 안 됩니다")
                 return .success(FeedPostUpdate(postID: "post-2", title: "수정", description: nil))
             }
@@ -406,7 +406,7 @@ struct FeedViewModelTests {
                 topicDate: Date(timeIntervalSinceNow: -172_800)
             ),
             isLikeConfirmed: true,
-            updatePostHandler: { _, _, _ in
+            updatePostHandler: { _, _, _, _ in
                 didRequestUpdate = true
                 return .success(FeedPostUpdate(postID: "post-1", title: "수정", description: nil))
             }
@@ -434,7 +434,7 @@ struct FeedViewModelTests {
                 detail.post.title = "상세 응답 제목"
                 return .success(detail)
             },
-            updatePostHandler: { postID, title, _ in
+            updatePostHandler: { postID, title, _, _ in
                 .success(FeedPostUpdate(postID: postID, title: title, description: nil))
             }
         )
@@ -596,7 +596,7 @@ struct FeedViewModelTests {
                 detail.post.description = "상세 응답 설명"
                 return .success(detail)
             },
-            updatePostHandler: { postID, title, description in
+            updatePostHandler: { postID, title, description, _ in
                 .success(FeedPostUpdate(postID: postID, title: title, description: description))
             }
         )
@@ -615,13 +615,154 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.post.description == "새 설명")
     }
 
+    @Test("수정을 시작하면 현재 동의와 ID가 채워진다")
+    func startPostEditFillsInstagramConsent() {
+        // Given 본인 게시물 상세의 동의 true, ID "chalkak.daily"
+        let viewModel = Self.ownedPostViewModel(
+            title: "퇴근길 노을",
+            description: "육교에서",
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak.daily")
+        )
+
+        // When  수정
+        viewModel.startPostEdit()
+
+        // Then  수정 상태의 동의가 켜짐, ID가 "chalkak.daily"
+        #expect(viewModel.viewState.postEdit?.instagramConsent == InstagramConsentInput(isAgreed: true, instagramID: "chalkak.daily"))
+    }
+
+    @Test("수정에서 동의를 끄고 저장하면 제목·설명과 함께 철회를 보낸다")
+    func savePostEditSendsConsentWithdrawal() async {
+        // Given 제목 "퇴근길 노을", 설명 "육교에서", 동의 true, ID "chalkak.daily"인 본인 게시물의 수정 상태
+        let recorder = PostUpdateRecorder()
+        let viewModel = Self.ownedPostViewModel(
+            title: "퇴근길 노을",
+            description: "육교에서",
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak.daily"),
+            updatePostHandler: recorder.handler
+        )
+        viewModel.startPostEdit()
+        #expect(viewModel.viewState.postEdit?.instagramConsent.isAgreed == true)
+
+        // When  스위치를 끄고 저장
+        viewModel.updatePostEditInstagramUploadAgreed(false)
+        viewModel.savePostEdit()
+        await recorder.waitForRequests(1)
+
+        // Then  수정 요청이 title "퇴근길 노을", description "육교에서", instagramUploadAgreed false, instagramId null
+        #expect(recorder.requests == [PostUpdateRequestRecord(postID: "post-1", title: "퇴근길 노을", description: "육교에서")])
+        #expect(recorder.consents == [InstagramConsent(isAgreed: false, instagramID: nil)])
+    }
+
+    @Test("제목만 고쳐도 동의와 ID를 지우지 않는다")
+    func savePostEditKeepsInstagramConsent() async {
+        // Given 동의 true, ID "chalkak.daily"인 본인 게시물의 수정 상태
+        let recorder = PostUpdateRecorder()
+        let viewModel = Self.ownedPostViewModel(
+            title: "퇴근길 노을",
+            description: "육교에서",
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak.daily"),
+            updatePostHandler: recorder.handler
+        )
+        viewModel.startPostEdit()
+
+        // When  제목만 "새 제목"으로 바꾸고 저장
+        viewModel.updatePostEditTitle("새 제목")
+        viewModel.savePostEdit()
+        await recorder.waitForRequests(1)
+
+        // Then  수정 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        #expect(recorder.consents == [InstagramConsent(isAgreed: true, instagramID: "chalkak.daily")])
+    }
+
+    @Test("수정 저장에서 서버가 ID 형식을 거절하면 시트에 오류를 보여 준다")
+    func savePostEditShowsInstagramIDError() async throws {
+        // Given 수정 상태에서 동의 켜짐, ID "chalkak-daily", 수정 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        let recorder = PostUpdateRecorder()
+        recorder.result = .failure(.invalidInstagramID)
+        let viewModel = Self.ownedPostViewModel(
+            title: "퇴근길 노을",
+            description: "육교에서",
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak.daily"),
+            updatePostHandler: recorder.handler
+        )
+        viewModel.startPostEdit()
+        viewModel.updatePostEditInstagramID("chalkak-daily")
+
+        // When  저장
+        viewModel.savePostEdit()
+        await recorder.waitForRequests(1)
+        try await waitUntil { !viewModel.viewState.isSavingPostEdit }
+
+        // Then  수정 시트가 열린 채 ID 오류가 "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요", 상세의 동의·ID는 그대로
+        #expect(viewModel.viewState.postEdit?.instagramConsent == InstagramConsentInput(
+            isAgreed: true,
+            instagramID: "chalkak-daily",
+            errorMessage: "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요"
+        ))
+        #expect(viewModel.viewState.content?.post.instagramConsent == InstagramConsent(isAgreed: true, instagramID: "chalkak.daily"))
+    }
+
+    @Test("본인 동의 정보를 못 불러왔으면 수정을 열지 않는다")
+    func startPostEditRefusesWithoutInstagramConsent() async {
+        // Given 피드 목록에서 들어와 상세 조회가 네트워크 오류로 끝난 본인 게시물(동의 정보 없음)
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true, instagramConsent: nil),
+            isLikeConfirmed: true,
+            detailHandler: { _ in .failure(.network) }
+        )
+        await viewModel.load()
+
+        // When  수정
+        viewModel.startPostEdit()
+
+        // Then  수정 상태가 열리지 않고 안내 "게시물을 불러오지 못해 수정할 수 없어요"
+        #expect(viewModel.viewState.postEdit == nil)
+        #expect(viewModel.event == .showPostEditUnavailable)
+        #expect(FeedEvent.postEditUnavailableMessage == "게시물을 불러오지 못해 수정할 수 없어요")
+    }
+
+    @Test("상세 응답이 늦게 도착해도 조회 중 저장한 동의를 유지한다")
+    func detailLoadPreservesInstagramConsentUpdatedWhileRefreshing() async throws {
+        // Given 상세 조회가 끝나기 전, 동의 true였던 게시물의 동의를 끄고 저장했다
+        let gate = AsyncGate()
+        defer { gate.release() }
+        let agreed = InstagramConsent(isAgreed: true, instagramID: "chalkak.daily")
+        let recorder = PostUpdateRecorder()
+        let viewModel = FeedViewModel(
+            postID: "post-1",
+            seed: Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true, instagramConsent: agreed),
+            isLikeConfirmed: true,
+            detailHandler: { _ in
+                await gate.waitForRelease()
+                return .success(Self.content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true, instagramConsent: agreed))
+            },
+            updatePostHandler: recorder.handler
+        )
+        let loadTask = Task { await viewModel.load() }
+        await gate.waitUntilEntered()
+        viewModel.startPostEdit()
+        viewModel.updatePostEditInstagramUploadAgreed(false)
+        viewModel.savePostEdit()
+        try await waitUntil { viewModel.event != nil }
+
+        // When  늦은 상세 응답이 도착한다
+        gate.release()
+        await loadTask.value
+
+        // Then  상세의 동의 꺼짐, ID 없음
+        #expect(viewModel.viewState.content?.post.instagramConsent == InstagramConsent(isAgreed: false, instagramID: nil))
+    }
+
     /// 오늘 주제에 올린 내 게시물 상세를 연 뷰모델. 수정 TC들이 같은 시작 상태를 쓴다.
     private static func ownedPostViewModel(
         title: String?,
         description: String?,
-        updatePostHandler: @escaping FeedViewModel.UpdatePostHandler = { _, _, _ in .failure(.generic) }
+        instagramConsent: InstagramConsent? = .notAgreed,
+        updatePostHandler: @escaping FeedViewModel.UpdatePostHandler = { _, _, _, _ in .failure(.generic) }
     ) -> FeedViewModel {
-        var seed = content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true)
+        var seed = content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true, instagramConsent: instagramConsent)
         seed.post.title = title
         seed.post.description = description
         return FeedViewModel(
@@ -653,7 +794,9 @@ struct FeedViewModelTests {
         likeCount: Int,
         topic: String = "하늘",
         isOwnedByCurrentUser: Bool = false,
-        topicDate: Date = Date()
+        topicDate: Date = Date(),
+        // 본인 게시물 상세에서 받은 인스타그램 동의. 수정은 이 값이 있어야 열린다(#939 TC 12).
+        instagramConsent: InstagramConsent? = .notAgreed
     ) -> FeedContent {
         FeedContent(
             dateLabel: "8월 3일의 주제",
@@ -667,7 +810,8 @@ struct FeedViewModelTests {
                 title: "제목",
                 likeCount: likeCount,
                 isLiked: isLiked,
-                isOwnedByCurrentUser: isOwnedByCurrentUser
+                isOwnedByCurrentUser: isOwnedByCurrentUser,
+                instagramConsent: instagramConsent
             )
         )
     }
@@ -683,12 +827,15 @@ struct PostUpdateRequestRecord: Equatable {
 @MainActor
 private final class PostUpdateRecorder {
     private(set) var requests: [PostUpdateRequestRecord] = []
+    // 요청마다 함께 보낸 인스타그램 동의. requests와 같은 순서다.
+    private(set) var consents: [InstagramConsent] = []
     var result: Result<FeedPostUpdate, FeedError>?
     var gate: AsyncGate?
 
     var handler: FeedViewModel.UpdatePostHandler {
-        { [self] postID, title, description in
+        { [self] postID, title, description, instagramConsent in
             requests.append(PostUpdateRequestRecord(postID: postID, title: title, description: description))
+            consents.append(instagramConsent)
             await gate?.waitForRelease()
             return result ?? .success(FeedPostUpdate(postID: postID, title: title, description: description))
         }

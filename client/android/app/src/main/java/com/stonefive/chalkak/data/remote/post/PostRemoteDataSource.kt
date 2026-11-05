@@ -33,6 +33,8 @@ interface PostRemoteDataSource {
         postId: String,
         title: String?,
         description: String?,
+        instagramUploadAgreed: Boolean,
+        instagramId: String?,
     ): ApiResult<PostUpdateResponse>
 
     suspend fun getPosts(query: HomeQuery): ApiResult<PostPageResponse>

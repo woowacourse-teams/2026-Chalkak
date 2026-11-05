@@ -16,6 +16,14 @@ data class PostDetailResponse(
     val likeCount: Long,
     val isLiked: Boolean,
     val isMine: Boolean = false,
+    // 조회자가 작성자 본인일 때만 내려온다. 다른 사람이면 null.
+    val instagramConsent: InstagramConsentResponse? = null,
+)
+
+@Serializable
+data class InstagramConsentResponse(
+    val agreed: Boolean,
+    val instagramId: String? = null,
 )
 
 @Serializable

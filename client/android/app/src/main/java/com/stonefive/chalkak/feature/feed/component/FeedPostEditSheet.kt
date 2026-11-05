@@ -34,12 +34,16 @@ import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextLengthMetric
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.feed.FeedPostEditState
+import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
+import com.stonefive.chalkak.feature.instagramconsent.component.InstagramConsentSection
 
 /**
  * 피드 상세의 '수정'으로 여는 게시물 수정 바텀시트.
  *
  * 맨 위 줄 왼쪽에 '게시물 수정', 오른쪽에 '저장'을 두고, 그 아래 '제목'(한 줄)과 '이야기'(3–8줄) 칸으로 제목과 설명을 함께 고친다.
- * 입력값은 [edit]으로 받기만 하고, 바뀐 글은 [onTitleChange]·[onDescriptionChange]로 ViewModel에 올린다.
+ * 이야기 칸 아래에는 전시하기 화면과 같은 '공식 인스타그램 소개 허용' 스위치와 ID 칸([InstagramConsentSection])이 현재 값으로 채워진다.
+ * 입력값은 [edit]으로 받기만 하고, 바뀐 값은 [onTitleChange]·[onDescriptionChange]·[onInstagramUploadAgreedChange]·
+ * [onInstagramIdChange]로 ViewModel에 올린다.
  * 아래로 내리기·바깥 누르기·뒤로 가기는 저장하지 않고 [onDismiss]를 부른다.
  * 저장 중([isSaving])에는 입력과 닫기를 모두 막는다. 응답이 오기 전에 닫으면 결과를 볼 곳이 없기 때문이다.
  * 키보드가 올라오면 ModalBottomSheet가 시트를 키보드 위로 올려 준다(시트 안에서 따로 비키지 않는다).
@@ -56,6 +60,8 @@ fun FeedPostEditSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     isSaving: Boolean = false,
+    onInstagramUploadAgreedChange: (Boolean) -> Unit = {},
+    onInstagramIdChange: (String) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -78,6 +84,8 @@ fun FeedPostEditSheet(
             edit = edit,
             onTitleChange = onTitleChange,
             onDescriptionChange = onDescriptionChange,
+            onInstagramUploadAgreedChange = onInstagramUploadAgreedChange,
+            onInstagramIdChange = onInstagramIdChange,
             onSave = onSave,
             isSaving = isSaving,
             modifier = Modifier
@@ -97,6 +105,8 @@ private fun FeedPostEditContent(
     edit: FeedPostEditState,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
+    onInstagramUploadAgreedChange: (Boolean) -> Unit,
+    onInstagramIdChange: (String) -> Unit,
     onSave: () -> Unit,
     isSaving: Boolean,
     modifier: Modifier = Modifier,
@@ -142,6 +152,15 @@ private fun FeedPostEditContent(
             maxLines = DESCRIPTION_MAX_LINES,
             maxLength = POST_DESCRIPTION_MAX_LENGTH,
             lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
+        )
+        Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+
+        InstagramConsentSection(
+            state = edit.instagramConsent,
+            onAgreedChange = onInstagramUploadAgreedChange,
+            onInstagramIdChange = onInstagramIdChange,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSaving,
         )
     }
 }
@@ -205,9 +224,12 @@ private fun FeedPostEditContentPreview() {
             edit = FeedPostEditState(
                 title = "늦은 오후의 골목",
                 description = "퇴근길에 빛이 벽을 타고 내려오는 걸 보고 멈춰 섰어요.",
+                instagramConsent = InstagramConsentInputState(agreed = true, instagramId = "chalkak.daily"),
             ),
             onTitleChange = {},
             onDescriptionChange = {},
+            onInstagramUploadAgreedChange = {},
+            onInstagramIdChange = {},
             onSave = {},
             isSaving = false,
             modifier = Modifier

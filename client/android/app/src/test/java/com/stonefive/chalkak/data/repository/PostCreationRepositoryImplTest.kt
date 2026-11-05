@@ -11,6 +11,7 @@ import com.stonefive.chalkak.data.remote.post.model.PostCreateResponse
 import com.stonefive.chalkak.data.remote.post.model.PostImageUploadResponse
 import com.stonefive.chalkak.data.remote.topic.TopicRemoteDataSource
 import com.stonefive.chalkak.data.remote.topic.model.TopicResponse
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -61,7 +62,7 @@ class PostCreationRepositoryImplTest {
         assertTrue(uploader.calls.isEmpty())
         assertTrue(remote.createdTitles.isEmpty())
 
-        val result = repository.createPost(preparation, "   ", null, topic)
+        val result = repository.createPost(preparation, "   ", null, topic, InstagramConsent.NotAgreed)
 
         assertEquals(PostCreationTopicResult.Success(topic), topicResult)
         assertEquals(
@@ -92,11 +93,43 @@ class PostCreationRepositoryImplTest {
     fun `설명은 앞뒤 공백과 줄바꿈을 지워 보내고 공백뿐이면 생략한다`() = runTest {
         repository.getCreationTopic(requestedDate)
 
-        repository.createPost(prepare(), null, "\n  퇴근길 노을\n두 번째 줄  \n", topic)
-        repository.createPost(prepare(), null, " \n ", topic)
-        repository.createPost(prepare(), null, "노\u0000을", topic)
+        repository.createPost(prepare(), null, "\n  퇴근길 노을\n두 번째 줄  \n", topic, InstagramConsent.NotAgreed)
+        repository.createPost(prepare(), null, " \n ", topic, InstagramConsent.NotAgreed)
+        repository.createPost(prepare(), null, "노\u0000을", topic, InstagramConsent.NotAgreed)
 
         assertEquals(listOf("퇴근길 노을\n두 번째 줄", null, "노을"), remote.createdDescriptions)
+    }
+
+    @Test
+    fun `동의하고 ID를 쓰면 ID와 함께 보낸다`() = runTest {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력
+        val consent = InstagramConsent(agreed = true, instagramId = "chalkak.daily")
+
+        // When  전시하기
+        repository.createPost(prepare(), "제목", null, topic, consent)
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        assertEquals(listOf(true to "chalkak.daily"), remote.createdConsents)
+    }
+
+    @Test
+    fun `서버가 ID 형식을 거절하면 ID 칸에 오류를 보여 준다`() = runTest {
+        // Given 스위치를 켜고 ID에 "chalkak-daily" 입력, 작성 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        remote.createResult = ApiResult.Failure(
+            ApiError.Http(400, "BUSINESS_ERROR", "인스타그램 ID 형식이 올바르지 않습니다."),
+        )
+
+        // When  전시하기
+        val result = repository.createPost(
+            prepare(),
+            "제목",
+            null,
+            topic,
+            InstagramConsent(agreed = true, instagramId = "chalkak-daily"),
+        )
+
+        // Then  ID 형식 오류로 돌려준다(화면이 ID 칸에 오류를 보여 준다)
+        assertEquals(PostCreationResult.Failure(PostCreationFailure.InvalidInstagramId), result)
     }
 
     @Test
@@ -165,7 +198,7 @@ class PostCreationRepositoryImplTest {
         assertFalse(file?.exists() == true)
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ImagePreparationFailed),
-            repository.createPost(preparation, "제목", null, topic),
+            repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed),
         )
     }
 
@@ -176,7 +209,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.UploadRejected),
-            repository.createPost(preparation, "제목", null, topic),
+            repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed),
         )
         assertTrue(remote.createdTitles.isEmpty())
         assertFalse(encoder.lastFile?.exists() == true)
@@ -189,7 +222,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.ReauthenticationRequired),
-            repository.createPost(preparation, "제목", null, topic),
+            repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -206,7 +239,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.AlreadySubmitted),
-            repository.createPost(prepare(), "제목", null, topic),
+            repository.createPost(prepare(), "제목", null, topic, InstagramConsent.NotAgreed),
         )
     }
 
@@ -222,7 +255,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.TopicNotOpen),
-            repository.createPost(prepare(), "제목", null, topic),
+            repository.createPost(prepare(), "제목", null, topic, InstagramConsent.NotAgreed),
         )
     }
 
@@ -231,7 +264,7 @@ class PostCreationRepositoryImplTest {
         listOf("VALIDATING", "PENDING").forEach { status ->
             remote.createResult = ApiResult.Success(PostCreateResponse("post-$status", status))
 
-            val result = repository.createPost(prepare(), "제목", null, topic)
+            val result = repository.createPost(prepare(), "제목", null, topic, InstagramConsent.NotAgreed)
 
             assertTrue(result is PostCreationResult.Success)
             assertEquals(
@@ -248,7 +281,7 @@ class PostCreationRepositoryImplTest {
 
         assertEquals(
             PostCreationResult.Failure(PostCreationFailure.InvalidResponse),
-            repository.createPost(preparation, "제목", null, topic),
+            repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed),
         )
         assertFalse(encoder.lastFile?.exists() == true)
     }
@@ -282,7 +315,7 @@ class PostCreationRepositoryImplTest {
         remote.uploadPolicyResults += ApiResult.Success(uploadPolicy(uploadId = "upload-id-2"))
         nowNanos = TimeUnit.SECONDS.toNanos(295)
 
-        val result = repository.createPost(preparation, "제목", null, topic)
+        val result = repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed)
 
         assertTrue(result is PostCreationResult.Success)
         assertEquals(2, remote.calls.count { it == "upload-policy" })
@@ -300,7 +333,7 @@ class PostCreationRepositoryImplTest {
         )
         nowNanos = TimeUnit.SECONDS.toNanos(295)
 
-        val result = repository.createPost(preparation, "제목", null, topic)
+        val result = repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed)
 
         assertTrue(result is PostCreationResult.Success)
         assertEquals(
@@ -330,7 +363,7 @@ class PostCreationRepositoryImplTest {
         )
         nowNanos = TimeUnit.SECONDS.toNanos(295)
 
-        val result = repository.createPost(preparation, "제목", null, topic)
+        val result = repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed)
 
         assertTrue(result is PostCreationResult.Success)
         assertEquals(listOf(edit, edit), encoder.edits)
@@ -341,7 +374,7 @@ class PostCreationRepositoryImplTest {
         uploader.await = CompletableDeferred()
         val preparation = prepare()
         val job = launch {
-            repository.createPost(preparation, "제목", null, topic)
+            repository.createPost(preparation, "제목", null, topic, InstagramConsent.NotAgreed)
         }
 
         while (uploader.calls.isEmpty()) testScheduler.runCurrent()
@@ -376,6 +409,7 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
     val calls = mutableListOf<String>()
     val createdTitles = mutableListOf<String?>()
     val createdDescriptions = mutableListOf<String?>()
+    val createdConsents = mutableListOf<Pair<Boolean, String?>>()
     var uploadPolicyResult: ApiResult<PostImageUploadResponse> = ApiResult.Success(defaultUploadPolicy())
     val uploadPolicyResults = ArrayDeque<ApiResult<PostImageUploadResponse>>()
     var createResult: ApiResult<PostCreateResponse> = ApiResult.Success(PostCreateResponse("post-id", "VALIDATING"))
@@ -391,11 +425,14 @@ private class FakePostCreationRemoteDataSource(private val events: MutableList<S
         photoUploadId: String,
         title: String?,
         description: String?,
+        instagramUploadAgreed: Boolean,
+        instagramId: String?,
     ): ApiResult<PostCreateResponse> {
         calls += "create:$topicId:$photoUploadId:$title"
         events += "create:$topicId:$photoUploadId:$title"
         createdTitles += title
         createdDescriptions += description
+        createdConsents += instagramUploadAgreed to instagramId
         return createResult
     }
 
