@@ -223,7 +223,7 @@ private fun LoadNextPageNearEnd(
 ) {
     val currentCanLoadMore by rememberUpdatedState(canLoadMore)
     val currentOnLoadNextPage by rememberUpdatedState(onLoadNextPage)
-    LaunchedEffect(listState, itemCount) {
+    LaunchedEffect(listState, itemCount, canLoadMore) {
         snapshotFlow {
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo
                 .lastOrNull()
