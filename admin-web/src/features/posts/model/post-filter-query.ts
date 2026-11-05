@@ -1,11 +1,21 @@
 import type { ModerationStatus } from "@/shared/api/contracts";
 
-import type { AdminPostFilters, AdminPostSort } from "../api/post-api";
+import type {
+  AdminPostFilters,
+  AdminPostInstagramConsentFilter,
+  AdminPostSort,
+} from "../api/post-api";
 
 const moderationStatuses = new Set<ModerationStatus>([
   "PENDING",
   "APPROVED",
   "REJECTED",
+]);
+
+const instagramConsents = new Set<AdminPostInstagramConsentFilter>([
+  "agreed",
+  "notAgreed",
+  "revoked",
 ]);
 
 function positiveInteger(value: string | null, fallback: number) {
@@ -22,36 +32,27 @@ export function readAdminPostFilters(
 ): AdminPostFilters {
   const rawStatus = params.get("status") as ModerationStatus | null;
   const rawSort = params.get("sort") as AdminPostSort | null;
+  const rawConsent = params.get("instagramConsent") as AdminPostInstagramConsentFilter | null;
+  const topicId = optional(params.get("topicId"));
 
   return {
     status:
       rawStatus && moderationStatuses.has(rawStatus) ? rawStatus : "PENDING",
-    topicId: optional(params.get("topicId")),
-    topicDate: optional(params.get("topicDate")),
+    topicId,
     userId: optional(params.get("userId")),
-    createdAtFrom: optional(params.get("createdAtFrom")),
-    createdAtTo: optional(params.get("createdAtTo")),
+    instagramConsent:
+      rawConsent && instagramConsents.has(rawConsent) ? rawConsent : undefined,
+    instagramId: optional(params.get("instagramId")),
+    // The server rejects popularity sort without a topic.
     sort:
-      rawSort === "createdAtAsc" || rawSort === "createdAtDesc"
+      rawSort === "createdAtAsc" ||
+      rawSort === "createdAtDesc" ||
+      (rawSort === "likeCountDesc" && topicId)
         ? rawSort
         : "createdAtDesc",
     page: positiveInteger(params.get("page"), 1),
     pageSize: Math.min(100, positiveInteger(params.get("pageSize"), 20)),
   };
-}
-
-export function dateStartInstant(value: string) {
-  return value ? new Date(value + "T00:00:00+09:00").toISOString() : undefined;
-}
-
-export function dateEndInstant(value: string) {
-  return value ? new Date(value + "T23:59:59.999+09:00").toISOString() : undefined;
-}
-
-export function instantDate(value?: string) {
-  if (!value) return "";
-  const timestamp = new Date(value).getTime();
-  return Number.isNaN(timestamp) ? "" : new Date(timestamp + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 export function withQueryPatch(

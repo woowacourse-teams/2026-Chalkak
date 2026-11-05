@@ -7,15 +7,15 @@ import type {
 import { getApiClient } from "@/shared/api/client";
 import { serializeQuery } from "@/shared/api/query-string";
 
-export type AdminPostSort = "createdAtDesc" | "createdAtAsc";
+export type AdminPostSort = "createdAtDesc" | "createdAtAsc" | "likeCountDesc";
+export type AdminPostInstagramConsentFilter = "agreed" | "notAgreed" | "revoked";
 
 export interface AdminPostFilters {
   status?: ModerationStatus;
   topicId?: string;
-  topicDate?: string;
   userId?: string;
-  createdAtFrom?: string;
-  createdAtTo?: string;
+  instagramConsent?: AdminPostInstagramConsentFilter;
+  instagramId?: string;
   sort: AdminPostSort;
   page: number;
   pageSize: number;
@@ -30,10 +30,9 @@ export async function fetchAdminPosts(
       serializeQuery({
         status: filters.status,
         topicId: filters.topicId,
-        topicDate: filters.topicDate,
         userId: filters.userId,
-        createdAtFrom: filters.createdAtFrom,
-        createdAtTo: filters.createdAtTo,
+        instagramConsent: filters.instagramConsent,
+        instagramId: filters.instagramId,
         sort: filters.sort,
         page: filters.page,
         pageSize: filters.pageSize,

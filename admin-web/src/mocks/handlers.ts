@@ -254,21 +254,45 @@ function toListItem(post: AdminPostDetailResponse): AdminPostListItem {
         }
       : null,
     likeCount: post.likeCount,
+    instagramUploadAgreed: post.instagramConsent.agreed,
+    instagramId: post.instagramConsent.instagramId,
     createdAt: post.createdAt,
     moderatedAt: post.moderatedAt,
     deletedAt: post.deletedAt,
   };
 }
 
-function listPosts(request: Request): AdminPostListResponse {
+// 서버와 같은 규칙: 앞뒤 공백, 맨 앞 @ 하나, 대소문자를 무시한다.
+function normalizeInstagramId(value: string) {
+  return value.trim().replace(/^@/, "").toLowerCase();
+}
+
+function matchesInstagramConsent(post: AdminPostDetailResponse, consent: string | null) {
+  const { agreed, revokedAt } = post.instagramConsent;
+  switch (consent) {
+    case "agreed":
+      return agreed;
+    case "notAgreed":
+      return !agreed && !revokedAt;
+    case "revoked":
+      return !agreed && Boolean(revokedAt);
+    default:
+      return true;
+  }
+}
+
+function listPosts(request: Request): AdminPostListResponse | null {
   const params = new URL(request.url).searchParams;
   const status = params.get("status");
   const topicId = params.get("topicId");
-  const topicDate = params.get("topicDate");
   const userId = params.get("userId");
-  const createdAtFrom = params.get("createdAtFrom");
-  const createdAtTo = params.get("createdAtTo");
+  const instagramConsent = params.get("instagramConsent");
+  const instagramId = normalizeInstagramId(params.get("instagramId") ?? "");
   const sort = params.get("sort") ?? "createdAtDesc";
+  const removedDateFilters = ["topicDate", "createdAtFrom", "createdAtTo"];
+  if (removedDateFilters.some((name) => params.get(name)?.trim()) || (sort === "likeCountDesc" && !topicId)) {
+    return null;
+  }
   const page = Math.max(1, Number(params.get("page") ?? 1));
   const pageSize = Math.min(
     100,
@@ -278,15 +302,19 @@ function listPosts(request: Request): AdminPostListResponse {
   const filtered = Object.values(postStore)
     .filter((post) => !status || post.moderationStatus === status)
     .filter((post) => !topicId || post.topic?.topicId === topicId)
-    .filter((post) => !topicDate || post.topic?.topicDate === topicDate)
     .filter((post) => !userId || post.author?.userId === userId)
-    .filter((post) => !createdAtFrom || post.createdAt >= createdAtFrom)
-    .filter((post) => !createdAtTo || post.createdAt <= createdAtTo)
-    .sort((left, right) =>
-      sort === "createdAtAsc"
+    .filter((post) => matchesInstagramConsent(post, instagramConsent))
+    .filter((post) => !instagramId || (post.instagramConsent.instagramId ?? "").toLowerCase().includes(instagramId))
+    .sort((left, right) => {
+      if (sort === "likeCountDesc") {
+        return right.likeCount - left.likeCount
+          || right.createdAt.localeCompare(left.createdAt)
+          || left.postId.localeCompare(right.postId);
+      }
+      return sort === "createdAtAsc"
         ? left.createdAt.localeCompare(right.createdAt)
-        : right.createdAt.localeCompare(left.createdAt),
-    )
+        : right.createdAt.localeCompare(left.createdAt);
+    })
     .map(toListItem);
 
   const start = (page - 1) * pageSize;
@@ -494,7 +522,10 @@ export const handlers = [
       return HttpResponse.json(errorFixtures.notFound, { status: 404 });
     }
 
-    return HttpResponse.json(listPosts(request));
+    const posts = listPosts(request);
+    return posts
+      ? HttpResponse.json(posts)
+      : HttpResponse.json(errorFixtures.badRequest, { status: 400 });
   }),
   http.get(adminApi + "/posts/:postId", ({ params }) => {
     const post = postStore[String(params.postId)];

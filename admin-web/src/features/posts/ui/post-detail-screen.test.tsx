@@ -60,6 +60,43 @@ describe("PostDetailScreen", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows an agreed Instagram consent with its ID and timestamps", async () => {
+    render(<QueryProvider><ToastProvider><PostDetailScreen postId={postIds.pending} /></ToastProvider></QueryProvider>);
+
+    const section = (await screen.findByRole("heading", { name: "인스타그램 업로드 동의" })).nextElementSibling as HTMLElement;
+    expect(within(section).getByText("동의함")).toBeInTheDocument();
+    expect(within(section).getByText("@chalkak_creator")).toBeInTheDocument();
+    expect(within(section).getByText("2026. 8. 28. 오후 1:10")).toBeInTheDocument();
+    expect(within(section).getByText("철회 시각").nextElementSibling).toHaveTextContent("—");
+  });
+
+  it("shows a revoked Instagram consent without an ID", async () => {
+    render(<QueryProvider><ToastProvider><PostDetailScreen postId={postIds.approved} /></ToastProvider></QueryProvider>);
+
+    const section = (await screen.findByRole("heading", { name: "인스타그램 업로드 동의" })).nextElementSibling as HTMLElement;
+    expect(within(section).getByText("철회함")).toBeInTheDocument();
+    expect(within(section).getByText("인스타그램 ID").nextElementSibling).toHaveTextContent("—");
+    expect(within(section).getByText("철회 시각").nextElementSibling).not.toHaveTextContent("—");
+  });
+
+  it("shows no consent and empty timestamps when the user never agreed", async () => {
+    render(<QueryProvider><ToastProvider><PostDetailScreen postId={postIds.rejected} /></ToastProvider></QueryProvider>);
+
+    const section = (await screen.findByRole("heading", { name: "인스타그램 업로드 동의" })).nextElementSibling as HTMLElement;
+    expect(within(section).getByText("동의 안 함")).toBeInTheDocument();
+    expect(within(section).getByText("동의 시각").nextElementSibling).toHaveTextContent("—");
+    expect(within(section).getByText("철회 시각").nextElementSibling).toHaveTextContent("—");
+  });
+
+  it("keeps the deleted status visible next to an agreed consent without an ID", async () => {
+    render(<QueryProvider><ToastProvider><PostDetailScreen postId={postIds.deleted} /></ToastProvider></QueryProvider>);
+
+    const section = (await screen.findByRole("heading", { name: "인스타그램 업로드 동의" })).nextElementSibling as HTMLElement;
+    expect(within(section).getByText("동의함")).toBeInTheDocument();
+    expect(within(section).getByText("인스타그램 ID").nextElementSibling).toHaveTextContent("—");
+    expect(screen.getAllByText("삭제").length).toBeGreaterThan(0);
+  });
+
   it("keeps the list return URL on the back link", async () => {
     render(
       <QueryProvider>
