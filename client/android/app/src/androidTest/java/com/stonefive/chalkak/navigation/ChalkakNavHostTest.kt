@@ -832,6 +832,48 @@ class ChalkakNavHostTest {
     }
 
     @Test
+    fun likeMilestoneNotificationOpensOwnedFeedWithoutResultIntent() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "POST_LIKE_MILESTONE",
+                sourceType = "POST",
+                sourceId = "post-id",
+                notificationId = "notification-id",
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<FeedById>() == true
+        }
+        composeRule.runOnIdle {
+            val route = navController.currentBackStackEntry!!.toRoute<FeedById>()
+            assertEquals("post-id", route.postId)
+            assertTrue(route.isOwnedByCurrentUser)
+            assertFalse(route.openAiReviewResult)
+        }
+    }
+
+    @Test
     fun aiReviewCompletedNotificationOpensOwnedFeedWithResultIntent() {
         lateinit var navController: NavHostController
 

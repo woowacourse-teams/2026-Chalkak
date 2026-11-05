@@ -9,6 +9,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
     case postRejected(notificationID: String)
     case notice(notificationID: String)
     case aiReview(postID: String, notificationID: String)
+    case likeMilestone(postID: String, notificationID: String)
 
     /// 필드가 빠졌거나 알 수 없는 종류면 nil을 반환해 화면 이동 없이 앱만 연다.
     init?(userInfo: [AnyHashable: Any]) {
@@ -27,6 +28,10 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
             guard userInfo[Key.sourceType] as? String == "POST",
                   let postID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
             self = .aiReview(postID: postID, notificationID: notificationID)
+        case NotificationType.likeMilestone:
+            guard userInfo[Key.sourceType] as? String == "POST",
+                  let postID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
+            self = .likeMilestone(postID: postID, notificationID: notificationID)
         case NotificationType.postRejected:
             self = .postRejected(notificationID: notificationID)
         case NotificationType.notice:
@@ -41,7 +46,8 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         case .topic:
             nil
         case let .postApproved(_, notificationID), let .postRejected(notificationID),
-             let .notice(notificationID), let .aiReview(_, notificationID):
+             let .notice(notificationID), let .aiReview(_, notificationID),
+             let .likeMilestone(_, notificationID):
             notificationID
         }
     }
@@ -68,6 +74,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         static let notice = "NOTICE"
         static let aiReviewCompleted = "AI_REVIEW_COMPLETED"
         static let aiReviewFailed = "AI_REVIEW_FAILED"
+        static let likeMilestone = "POST_LIKE_MILESTONE"
     }
 }
 

@@ -951,7 +951,8 @@ internal fun NavHostController.openNotificationTarget(
             }
         }
 
-        type == POST_APPROVED && sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
+        (type == POST_APPROVED || type == POST_LIKE_MILESTONE) &&
+            sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() -> {
             navigate(
                 FeedById(
                     postId = sourceId,
@@ -992,6 +993,7 @@ private fun NavBackStackEntry.feedPostId(): String? = when {
 }
 
 private const val POST_APPROVED = "POST_APPROVED"
+private const val POST_LIKE_MILESTONE = "POST_LIKE_MILESTONE"
 private const val POST_REJECTED = "POST_REJECTED"
 private const val NOTICE = "NOTICE"
 private const val POST_SOURCE_TYPE = "POST"

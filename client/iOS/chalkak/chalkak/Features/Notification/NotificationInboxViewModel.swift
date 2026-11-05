@@ -20,6 +20,9 @@ struct NotificationItem: Identifiable, Equatable, Sendable {
         case "AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED":
             guard sourceType == "POST", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
             return .aiReview(postID: sourceID, notificationID: id)
+        case "POST_LIKE_MILESTONE":
+            guard sourceType == "POST", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
+            return .likeMilestone(postID: sourceID, notificationID: id)
         case "POST_REJECTED":
             return .postRejected(notificationID: id)
         case "NOTICE":

@@ -113,11 +113,11 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                            case let .approved(postID), let .aiReview(postID):
+                            case let .approved(postID), let .aiReview(postID), let .likeMilestone(postID):
                                 FeedScreen(
                                     viewModel: makeFeedViewModel(FeedTarget(
                                         postID: postID,
-                                        isOwnedByCurrentUser: destination == .aiReview(postID)
+                                        isOwnedByCurrentUser: destination != .approved(postID)
                                     )),
                                     usesPhotoTransition: false,
                                     opensAIReviewOnEntry: destination == .aiReview(postID),
@@ -691,7 +691,8 @@ struct ContentView: View {
             return
         }
         if let destination = notificationPath.last,
-           destination == .approved(postID) || destination == .aiReview(postID) {
+           destination == .approved(postID) || destination == .aiReview(postID)
+               || destination == .likeMilestone(postID) {
             selectedAuthorPosts = nil
             closeNotificationDestination(destination)
         }
@@ -799,6 +800,8 @@ struct ContentView: View {
                 notificationPath.append(.approved(postID))
             case let .aiReview(postID, _):
                 notificationPath.append(.aiReview(postID))
+            case let .likeMilestone(postID, _):
+                notificationPath.append(.likeMilestone(postID))
             case let .postRejected(notificationID):
                 notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
             case let .notice(notificationID):
@@ -1301,7 +1304,7 @@ struct ContentView: View {
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
             case .settings:
                 return AnalyticsScreen(name: "notification_settings", screenClass: "NotificationSettings")
-            case .approved, .aiReview:
+            case .approved, .aiReview, .likeMilestone:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
             case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
@@ -1366,6 +1369,7 @@ private enum NotificationRoute: Hashable {
     case settings
     case approved(String)
     case aiReview(String)
+    case likeMilestone(String)
     case rejected(NotificationDetailTarget)
     case notice(NotificationDetailTarget)
 }
