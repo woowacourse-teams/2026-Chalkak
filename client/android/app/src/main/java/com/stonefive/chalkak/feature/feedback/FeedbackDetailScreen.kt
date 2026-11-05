@@ -156,10 +156,14 @@ fun FeedbackDetailScreen(
                 onDeleteConfirm()
             },
             onDismiss = { showDeleteDialog = false },
+            modifier = Modifier.fillMaxWidth(DELETE_DIALOG_WIDTH_FRACTION),
             confirmStyle = ChalkakConfirmDialogStyle.DESTRUCTIVE,
         )
     }
 }
+
+// ChalkakConfirmDialog는 폭을 받지 않으면 화면 전체 폭이 된다. 게시물 삭제 다이얼로그(FeedScreen)와 같은 폭으로 맞춘다.
+private const val DELETE_DIALOG_WIDTH_FRACTION = 0.81f
 
 @Composable
 private fun FeedbackDetailContent(
