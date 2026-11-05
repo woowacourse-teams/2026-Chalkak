@@ -351,7 +351,7 @@ final class HomeViewModel {
     private func loadPersonal(_ date: Date, authenticated: Bool, request: Int) async {
         guard authenticated else {
             guard isCurrent(request) else { return }
-            viewState.hero = .empty
+            viewState.hero = .loginRequired
             viewState.recordsStatus = .ready
             return
         }

@@ -244,7 +244,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
         assertEquals(calls, repository.months.size)
         assertEquals(0, repository.statusCalls)
-        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.LoginRequired, viewModel.uiState.value.hero)
         assertTrue(
             viewModel.uiState.value.week
                 .all { it.post == null },
@@ -437,7 +437,7 @@ class HomeViewModelTest {
         session.value = UserSessionState.Guest
         repository.calendarGate!!.complete(Unit)
         advanceUntilIdle()
-        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.LoginRequired, viewModel.uiState.value.hero)
         assertTrue(
             viewModel.uiState.value.week
                 .all { it.post == null },

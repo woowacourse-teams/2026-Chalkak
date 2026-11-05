@@ -5,6 +5,7 @@ struct HomeScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
     var onOpenPhotoUpload: () -> Void = {}
+    var onLogin: () -> Void = {}
     var onOpenRecord: () -> Void = {}
     var onOpenRecordDate: (Date) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
@@ -46,17 +47,16 @@ struct HomeScreen: View {
                     .padding(.top, theme.spacing.xl + theme.spacing.sm)
                     .id(HomeScrollTarget.top)
 
-                    if !showsUploadEntry {
-                        HomeHeroCard(
-                            hero: viewModel.viewState.hero,
-                            topic: viewModel.viewState.topic,
-                            onOpenPhotoUpload: onOpenPhotoUpload,
-                            onRetry: { Task { await viewModel.refresh() } }
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, theme.spacing.screenHorizontal)
-                        .padding(.top, theme.spacing.xl)
-                    }
+                    HomeHeroCard(
+                        hero: viewModel.viewState.hero,
+                        topic: viewModel.viewState.topic,
+                        onOpenPhotoUpload: onOpenPhotoUpload,
+                        onRetry: { Task { await viewModel.refresh() } },
+                        onLogin: onLogin
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+                    .padding(.top, theme.spacing.xl)
 
                     if showsFeedback {
                         HomeFeedbackCard(
@@ -72,17 +72,19 @@ struct HomeScreen: View {
                         .padding(.top, theme.spacing.lg)
                     }
 
-                    HomeWeeklyRecord(
-                        days: viewModel.viewState.week,
-                        status: viewModel.viewState.recordsStatus,
-                        onOpenRecord: onOpenRecord,
-                        onRetry: { Task { await viewModel.refresh() } },
-                        onOpenRecordDate: onOpenRecordDate,
-                        uploadEntryDate: showsUploadEntry ? viewModel.viewState.date : nil,
-                        onOpenPhotoUpload: onOpenPhotoUpload
-                    )
-                    .padding(.horizontal, theme.spacing.screenHorizontal)
-                    .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
+                    if showsWeeklyRecord {
+                        HomeWeeklyRecord(
+                            days: viewModel.viewState.week,
+                            status: viewModel.viewState.recordsStatus,
+                            onOpenRecord: onOpenRecord,
+                            onRetry: { Task { await viewModel.refresh() } },
+                            onOpenRecordDate: onOpenRecordDate,
+                            uploadEntryDate: showsUploadEntry ? viewModel.viewState.date : nil,
+                            onOpenPhotoUpload: onOpenPhotoUpload
+                        )
+                        .padding(.horizontal, theme.spacing.screenHorizontal)
+                        .padding(.top, showsFeedback ? theme.spacing.xl : theme.spacing.xxl)
+                    }
 
                     HomeRankingRow(
                         title: "어제 랭킹",
@@ -244,8 +246,11 @@ struct HomeScreen: View {
 
     private var showsFeedback: Bool { feedbackPostID != nil }
 
-    /// 오늘 사진을 올리기 전에는 히어로 카드 대신 주간 기록의 오늘 칸이 업로드 진입점이 된다.
+    /// 오늘 사진을 올리기 전에는 히어로 카드와 함께 주간 기록의 오늘 칸도 업로드 진입점이 된다.
     private var showsUploadEntry: Bool { viewModel.viewState.hero == .empty }
+
+    /// 비로그인 상태에는 기록이 없으므로 이번 주 기록 영역을 숨긴다.
+    private var showsWeeklyRecord: Bool { viewModel.viewState.hero != .loginRequired }
 
     private var feedbackObservationID: String? {
         guard scenePhase == .active, isActive, let postID = feedbackPostID else { return nil }

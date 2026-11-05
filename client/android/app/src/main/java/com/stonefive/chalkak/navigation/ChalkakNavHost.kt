@@ -428,6 +428,7 @@ fun ChalkakNavHost(
                 ) {
                     HomeRoute(
                         onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
+                        onNavigateToLogin = dropUnlessResumed(lifecycleOwner = backStackEntry, block = navigateToLogin),
                         onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                         onOpenRecord = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navigateToBottomBar(backStackEntry, ChalkakBottomBarItem.RECORD)

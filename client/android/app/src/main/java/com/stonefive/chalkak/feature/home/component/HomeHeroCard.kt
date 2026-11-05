@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
@@ -53,12 +54,18 @@ fun HomeHeroCard(
     onOpenPhotoUpload: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onLogin: () -> Unit = {},
 ) {
     // 내 사진은 피드처럼 원본 비율로 보여 준다. 비율을 알기 전과 다른 상태는 기본 비율을 쓴다.
     var photoAspectRatio by remember((hero as? HomeHeroState.Photo)?.imageUrl) { mutableStateOf<Float?>(null) }
+    val aspectRatio = when (hero) {
+        HomeHeroState.Empty, HomeHeroState.LoginRequired -> HERO_EMPTY_ASPECT_RATIO
+        is HomeHeroState.Photo -> photoAspectRatio ?: HERO_ASPECT_RATIO
+        else -> HERO_ASPECT_RATIO
+    }
     Box(
         modifier = modifier
-            .aspectRatio(photoAspectRatio?.takeIf { hero is HomeHeroState.Photo } ?: HERO_ASPECT_RATIO)
+            .aspectRatio(aspectRatio)
             .clip(ChalkakTheme.shapes.photoCard)
             .testTag(HOME_HERO_TEST_TAG),
     ) {
@@ -70,9 +77,23 @@ fun HomeHeroCard(
                 )
             }
 
-            HomeHeroState.Empty -> EmptyHeroContent(
-                topic = topic,
-                onOpenPhotoUpload = onOpenPhotoUpload,
+            HomeHeroState.Empty -> {
+                val displayTopic = topic.ifBlank { "오늘의 주제" }
+                HeroActionContent(
+                    message = "아직 \"$displayTopic\" 사진을 전시하지 않았어요.\n작가님의 시선을 공유해주세요!",
+                    actionText = "사진 전시하기",
+                    actionDescription = "$displayTopic 사진 전시하기",
+                    onClick = onOpenPhotoUpload,
+                    showsAddIcon = true,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            HomeHeroState.LoginRequired -> HeroActionContent(
+                message = "사진을 전시하려면 로그인이 필요해요",
+                actionText = "로그인하기",
+                actionDescription = "로그인하기",
+                onClick = onLogin,
                 modifier = Modifier.fillMaxSize(),
             )
 
@@ -141,46 +162,57 @@ private fun PhotoHeroContent(
 }
 
 @Composable
-private fun EmptyHeroContent(
-    topic: String,
-    onOpenPhotoUpload: () -> Unit,
+private fun HeroActionContent(
+    message: String,
+    actionText: String,
+    actionDescription: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showsAddIcon: Boolean = false,
 ) {
-    val displayTopic = topic.ifBlank { "오늘의 주제" }
     Column(
         modifier = modifier
             .background(ChalkakTheme.colors.surface)
             .border(BorderStroke(HeroEmptyBorderWidth, ChalkakTheme.colors.border), ChalkakTheme.shapes.photoCard)
             .semantics(mergeDescendants = true) {
-                contentDescription = "$displayTopic 사진을 공유하지 않았어요"
+                contentDescription = actionDescription
             }.clickable(
                 interactionSource = null,
                 indication = null,
                 role = Role.Button,
-                onClick = onOpenPhotoUpload,
+                onClick = onClick,
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "\"$displayTopic\" 사진을 공유하지 않았어요",
+            text = message,
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.subheadline,
-            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = ChalkakTheme.spacing.lg),
         )
         Spacer(modifier = Modifier.height(ChalkakTheme.spacing.xl))
-        Box(
+        Row(
             modifier = Modifier
-                .size(HeroAddButtonSize)
-                .clip(CircleShape)
-                .background(ChalkakTheme.colors.actionPrimary),
-            contentAlignment = Alignment.Center,
+                .clip(ChalkakTheme.shapes.button)
+                .background(ChalkakTheme.colors.actionPrimary)
+                .padding(horizontal = ChalkakTheme.spacing.lg, vertical = ChalkakTheme.spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                tint = ChalkakTheme.colors.onActionPrimary,
-                modifier = Modifier.size(HeroAddIconSize),
+            if (showsAddIcon) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = ChalkakTheme.colors.onActionPrimary,
+                    modifier = Modifier.size(HeroAddIconSize),
+                )
+                Spacer(modifier = Modifier.width(ChalkakTheme.spacing.sm))
+            }
+            Text(
+                text = actionText,
+                color = ChalkakTheme.colors.onActionPrimary,
+                style = ChalkakTheme.typography.subheadline,
             )
         }
     }
@@ -228,9 +260,9 @@ private fun PendingBadge(modifier: Modifier = Modifier) {
 }
 
 private const val HERO_ASPECT_RATIO = 5f / 6f
+private const val HERO_EMPTY_ASPECT_RATIO = 19f / 10f
 private val HeroEmptyBorderWidth = 1.dp
-private val HeroAddButtonSize = 36.dp
-private val HeroAddIconSize = 22.dp
+private val HeroAddIconSize = 20.dp
 private val HeroProgressSize = 28.dp
 private val HeroSignatureWidth = 64.dp
 private val HeroSignatureHeight = 48.dp
@@ -241,6 +273,20 @@ private fun HomeHeroCardPreview() {
     ChalkakTheme {
         HomeHeroCard(
             hero = HomeHeroState.Empty,
+            topic = "하늘",
+            onOpenPhotoUpload = {},
+            onRetry = {},
+            modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun HomeHeroCardLoginRequiredPreview() {
+    ChalkakTheme {
+        HomeHeroCard(
+            hero = HomeHeroState.LoginRequired,
             topic = "하늘",
             onOpenPhotoUpload = {},
             onRetry = {},

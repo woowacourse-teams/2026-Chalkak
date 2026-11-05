@@ -528,6 +528,7 @@ struct ContentView: View {
             HomeScreen(
                 viewModel: homeViewModel,
                 onOpenPhotoUpload: { openPhotoUpload(from: .home) },
+                onLogin: showLogin,
                 onOpenRecord: { select(.record) },
                 onOpenRecordDate: openRecord(at:),
                 onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
@@ -991,6 +992,7 @@ struct ContentView: View {
             if let index = arguments.firstIndex(of: "-test-home-hero-state"), arguments.indices.contains(index + 1) {
                 switch arguments[index + 1] {
                 case "empty": state.hero = .empty
+                case "login-required": state.hero = .loginRequired
                 case "loading": state.hero = .loading
                 case "processing": state.hero = .processing
                 case "error": state.hero = .error

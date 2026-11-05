@@ -22,6 +22,7 @@ fun HomeRoute(
     onOpenFeed: (Post) -> Unit,
     onNotificationClick: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
+    onNavigateToLogin: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
     onOpenRecordDate: (LocalDate) -> Unit = {},
@@ -63,6 +64,7 @@ fun HomeRoute(
     HomeScreen(
         uiState = uiState,
         onOpenPhotoUpload = onOpenPhotoUpload,
+        onNavigateToLogin = onNavigateToLogin,
         onOpenRecord = onOpenRecord,
         onOpenRecordDate = onOpenRecordDate,
         onOpenDisplay = onOpenDisplay,
