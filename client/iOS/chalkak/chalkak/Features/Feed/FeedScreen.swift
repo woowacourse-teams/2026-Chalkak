@@ -97,9 +97,9 @@ struct FeedScreen: View {
         }
         .overlay(alignment: .top) {
             FeedTopBar(
-                onBack: { close() },
-                onEdit: { viewModel.startPostEdit() },
-                onDelete: { showsDeleteDialog = true },
+                onBack: { ifNotBackSwiping { close() } },
+                onEdit: { ifNotBackSwiping { viewModel.startPostEdit() } },
+                onDelete: { ifNotBackSwiping { showsDeleteDialog = true } },
                 isEditVisible: viewModel.viewState.content.map {
                     $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
                 } == true,
@@ -112,10 +112,11 @@ struct FeedScreen: View {
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
             .opacity(visibleContentProgress)
+            .allowsHitTesting(!isBackSwipeTransitioning)
         }
         .overlay(alignment: .bottomTrailing) {
             if canShowAIReview, let aiReview = viewModel.aiReview {
-                FeedAIReviewButton(model: aiReview) { showsAIReviewSheet = true }
+                FeedAIReviewButton(model: aiReview) { ifNotBackSwiping { showsAIReviewSheet = true } }
                     .padding(.trailing, theme.spacing.lg)
                     .padding(.bottom, theme.spacing.md)
                     .opacity(visibleContentProgress)
@@ -194,7 +195,8 @@ struct FeedScreen: View {
             .accessibilityHidden(true)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
+        .gesture(backSwipeGesture)
+        .allowsHitTesting(!isClosing)
         .onAppear {
             // 전달받은 탭 순간의 좌표를 우선한다. 닫을 때는 현재 셀 위치를 다시 읽는다.
             if transitionSource == nil { captureTransitionSource() }
@@ -411,6 +413,18 @@ struct FeedScreen: View {
         viewModel.viewState.isLikeEnabled && !isBackSwiping && !isPhotoMoving && !isClosing
     }
 
+    // 스와이프 중이거나 놓은 뒤 제자리로 돌아가거나 닫히는 중인지.
+    // 첫 열림 전환은 포함하지 않는다. 사진을 기다리는 동안에도 뒤로 가기는 눌려야 한다.
+    private var isBackSwipeTransitioning: Bool {
+        hasCompletedOpening && isPhotoMoving
+    }
+
+    // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 버튼 동작을 실행하지 않는다.
+    private func ifNotBackSwiping(_ action: () -> Void) {
+        guard !isBackSwipeTransitioning else { return }
+        action()
+    }
+
     private var usesScreenTransition: Bool {
         usesPhotoTransition && movingSource != nil
     }
@@ -543,47 +557,61 @@ struct FeedScreen: View {
     }
 
     // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 동안 사진이 출발 뷰 쪽으로 따라간다.
-    private var backSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
-            .onChanged { value in
-                guard !isClosing, !isPhotoInteracting else { return }
-                if !isBackSwiping {
-                    guard !isPhotoMoving,
-                          value.startLocation.x <= Metrics.backSwipeEdgeWidth,
-                          value.translation.width > abs(value.translation.height) else { return }
-                    isBackSwiping = true
-                    zoomRegistry?.hidesWholeSource = true
-                    backSwipeTracking = FeedBackSwipeTracking()
-                    captureTransitionSource()
-                    isPhotoMoving = true
-                }
-                zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
-                backSwipeTracking.update(to: value.translation)
-                let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
-                if usesScreenTransition {
-                    // 길게 끌어도 창 크기를 유지하고, 손을 놓은 뒤 카드로 접는다.
-                    photoProgress = 1
-                    screenDragOffset = backSwipeTracking.distance * 0.65
-                } else {
-                    photoProgress = 1 - min(dragged, 1)
-                    contentProgress = photoProgress
-                }
-            }
-            .onEnded { value in
-                guard isBackSwiping else { return }
-                isBackSwiping = false
-                guard !isClosing else { return }
-                backSwipeTracking.update(to: value.translation)
-                // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
-                let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
-                    ? -backSwipeTracking.horizontalVelocity(value.velocity) / Metrics.backSwipeFullDistance
-                    : 0
-                if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
-                    close(releaseVelocity: releaseVelocity)
-                } else {
-                    open(releaseVelocity: releaseVelocity)
-                }
-            }
+    private var backSwipeGesture: FeedBackSwipeGesture {
+        FeedBackSwipeGesture(
+            canBegin: { usesPhotoTransition && !isClosing && !isPhotoMoving && !isPhotoInteracting },
+            onChanged: { updateBackSwipe(to: $0) },
+            onEnded: { finishBackSwipe(translation: $0, velocity: $1) },
+            onCancelled: { cancelBackSwipe() }
+        )
+    }
+
+    private func updateBackSwipe(to translation: CGSize) {
+        guard !isClosing else { return }
+        if !isBackSwiping {
+            isBackSwiping = true
+            zoomRegistry?.hidesWholeSource = true
+            backSwipeTracking = FeedBackSwipeTracking()
+            captureTransitionSource()
+            isPhotoMoving = true
+        }
+        zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
+        backSwipeTracking.update(to: translation)
+        let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
+        if usesScreenTransition {
+            // 길게 끌어도 창 크기를 유지하고, 손을 놓은 뒤 카드로 접는다.
+            photoProgress = 1
+            screenDragOffset = backSwipeTracking.distance * 0.65
+        } else {
+            photoProgress = 1 - min(dragged, 1)
+            contentProgress = photoProgress
+        }
+    }
+
+    private func finishBackSwipe(translation: CGSize, velocity: CGSize) {
+        guard isBackSwiping else { return }
+        isBackSwiping = false
+        guard !isClosing else { return }
+        backSwipeTracking.update(to: translation)
+        // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
+        let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
+            ? -backSwipeTracking.horizontalVelocity(velocity) / Metrics.backSwipeFullDistance
+            : 0
+        let predictedTranslation = CGSize(
+            width: translation.width + velocity.width * Metrics.backSwipeProjectionTime,
+            height: translation.height + velocity.height * Metrics.backSwipeProjectionTime
+        )
+        if backSwipeTracking.projectedDistance(to: predictedTranslation) >= Metrics.backSwipeCloseDistance {
+            close(releaseVelocity: releaseVelocity)
+        } else {
+            open(releaseVelocity: releaseVelocity)
+        }
+    }
+
+    private func cancelBackSwipe() {
+        guard isBackSwiping else { return }
+        isBackSwiping = false
+        open()
     }
 
     private func errorView(_ reason: FeedError) -> some View {
@@ -700,9 +728,9 @@ private enum Metrics {
     static let photoReleaseDuration: TimeInterval = 0.3
     // 닫힘 전환(0.3초)의 뒤쪽 절반에서 하단바를 드러낸다.
     static let sourceBarAnimation: Animation = .easeIn(duration: 0.15).delay(0.15)
-    static let backSwipeEdgeWidth: CGFloat = 24
-    static let backSwipeMinimumDistance: CGFloat = 12
     static let backSwipeFullDistance: CGFloat = 300
+    // 손을 뗀 속도로 이만큼 더 움직인다고 보고 닫을지 정한다.
+    static let backSwipeProjectionTime: CGFloat = 0.25
     static let backSwipeCloseDistance: CGFloat = 120
 }
 
