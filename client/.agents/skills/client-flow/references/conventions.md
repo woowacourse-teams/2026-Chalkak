@@ -8,15 +8,18 @@
 1. 계획 승인 (`client-plan`)
 2. PR 리뷰 (`client-pr` 이후): 사람이 드래프트 PR을 보고, 리뷰할 만하면 드래프트를 직접 푼다
 
-push, 캡처 업로드, 드래프트 PR은 묻지 않는다. 사람은 터미널보다 PR에서 코드·본문·캡처를 한 번에 보는 게 낫고, 드래프트라 리뷰 요청도 가지 않는다.
-캡처는 공개 레포에 올라가 한 번 올리면 지워도 커밋 주소로 계속 열린다. 그래서 화면 확인은 테스트 계정으로만 하고, 테스트 계정에 공개하기 곤란한 사진을 두지 않는다.
+push, 드래프트 PR은 묻지 않는다. 사람은 터미널보다 PR에서 코드·본문을 한 번에 보는 게 낫고, 드래프트라 리뷰 요청도 가지 않는다.
+
+화면 확인은 AI가 하지 않고 사람이 PR 리뷰에서 한다(#960). AI는 PR 📸 칸에 화면 기준, 확인 항목, 가는 길·데이터, 개발 서버 빌드 명령을 체크리스트로 채운다. 사람은 기기에서 확인하고, 고칠 곳이 있으면 수정을 요청하고(`/client-pr #번호 리뷰 지적: <무엇>`), 다 확인되면 드래프트를 푼다.
+- 왜: 자동 비교는 화면 기준(레퍼런스)이 틀려도 틀린 화면을 `의도한 변화`로 통과시키고, 기기 조작은 비용과 막힘이 가장 크다. 화면 확인 스킬은 나중에 자동화를 다시 붙일 자리로 남기고, 사람이 캡처·녹화를 따로 요청할 때만 쓴다.
+- 캡처는 공개 레포에 올라가 한 번 올리면 지워도 커밋 주소로 계속 열린다. 그래서 화면 확인은 테스트 계정으로만 하고, 테스트 계정에 공개하기 곤란한 사진을 두지 않는다.
 
 그 밖에는 묻지 않고 진행한다. 다음 경우에만 멈추고 묻는다.
 
-- 기기 환경이 막혔을 때(로그인 풀림, 에뮬레이터·시뮬레이터 없음, 서버 응답 없음)
+- 테스트 환경이 막혔을 때(iOS 테스트용 시뮬레이터 없음, 빌드 도구 오류)
 - TDD 중 TC가 틀렸다고 판단했을 때(계획을 다시 승인받는다)
 - 같은 검사가 4번 연속 실패했을 때(아래 "멈춤 규칙")
-- 원격에 새 브랜치를 처음 만들 때(`client/pr-assets`)
+- 원격에 새 브랜치를 처음 만들 때(`client/pr-assets`, 사람이 요청한 캡처를 올릴 때만)
 - 하네스 작업에서 시험 이슈를 새 세션으로 돌려야 할 때(`client-tdd`의 "하네스 작업일 때")
 
 멈춘 곳에서는 같은 대화에서 묻고, 답을 받으면 이어 간다. 커맨드를 다시 부르는 건 세션이 끊겼을 때만이다.
@@ -24,7 +27,7 @@ push, 캡처 업로드, 드래프트 PR은 묻지 않는다. 사람은 터미널
 ## 멈춤 규칙
 
 같은 검사가 고친 뒤에도 **4번 연속** 실패하면 더 고치지 않고 멈춘다.
-검사 하나는 Red 만들기, Green 만들기, push 전 전체 검사, 수정 후 화면 확인, 하네스 문서 검사 중 하나다.
+검사 하나는 Red 만들기, Green 만들기, push 전 전체 검사, 하네스 문서 검사 중 하나다.
 통과하면 횟수를 0으로 되돌린다.
 
 멈출 때 알리는 것:
@@ -38,14 +41,14 @@ push, 캡처 업로드, 드래프트 PR은 묻지 않는다. 사람은 터미널
 - 기준 브랜치는 `client/develop`이다(`develop` 아님). 브랜치는 `origin/client/develop`에서 만들고 PR도 여기로 연다.
   - 예외: 하네스 시험 브랜치는 하네스 브랜치에서 따고 PR도 거기로 연다. 브랜치의 `gh-merge-base` 설정(`git config branch.<브랜치>.gh-merge-base`)에 기준 브랜치가 있다.
 - 작업 브랜치는 `client-issue`가 이슈에 연결된 브랜치로 만든다(`gh issue develop`). 이때 원격에 빈 브랜치가 생기는 것은 묻지 않는다. 코드 push는 `client-pr`에서 push 전 전체 검사를 통과한 뒤에만 한다.
-- 플랫폼은 바꿀 파일 경로로 정한다.
+- 플랫폼은 바꿀 파일 경로로 정한다. 표에서 더 자세한 경로가 먼저다(`client/android/AGENTS.md`는 Android가 아니라 하네스). 플랫폼 `AGENTS.md`·`CLAUDE.md`는 AI 지침이라 앱 코드처럼 시험 측정을 흐리지 않는다.
 
 | 경로 | 플랫폼 | 라벨 | 브랜치 이름의 플랫폼 자리 |
 |---|---|---|---|
 | `client/android/` | Android | `Android` | `android` |
 | `client/iOS/` | iOS | `iOS` | `ios` |
 | `client/web/` | Web | `Web` | `web` |
-| `client/.agents/`, `client/.claude/skills/`, `client/.codex/` | 하네스 | `Android` `iOS` | 뺌(예: `client/chore/#952-harness-verify-step`) |
+| `client/.agents/`, `client/.claude/skills/`, `client/.codex/`, `client/android/AGENTS.md`·`CLAUDE.md`, `client/iOS/AGENTS.md`·`CLAUDE.md` | 하네스 | `Android` `iOS` | 뺌(예: `client/chore/#952-harness-verify-step`) |
 
 - Android와 iOS를 함께 바꾸면 라벨을 둘 다 달고, 제목은 `클라이언트`로 시작하고, 브랜치 이름에서 플랫폼 자리를 뺀다(예: `client/refactor/#907-like-logic-update`). 검증은 `client-tdd`대로 플랫폼별 서브에이전트가 동시에 한다.
 - Web은 이슈·계획·PR만 쓴다. TDD, Gradle·xcodebuild 검사, 기기 확인은 하지 않는다.
@@ -94,12 +97,12 @@ mkdir -p "$EVID/media"
 | 파일 | 쓰는 커맨드 | 내용 |
 |---|---|---|
 | `plan.md` | `client-plan` | 승인된 계획(이슈 댓글과 같은 내용) |
-| `evidence-<플랫폼>.md` | `client-tdd`의 플랫폼 서브에이전트 | 그 플랫폼 TC의 Red 메시지 한 줄과 Green 통과, 전체 검사 결과. 플랫폼 서브에이전트가 동시에 쓰므로 파일을 나눈다 |
+| `evidence-<플랫폼>.md` | `client-tdd`의 플랫폼 서브에이전트 | 그 플랫폼 TC의 Red 메시지 한 줄과 Green 통과, 전체 검사 결과. 플랫폼 서브에이전트가 동시에 쓰므로 파일을 나눈다. 계획이 바뀌면 `## 계획 수정 (v2): …` 줄을 덧붙이고 그 아래 기록만 유효하다(`client-plan`) |
 | `evidence-harness.md` | `client-tdd`(하네스) | 문서 검사 명령과 종료 코드 |
 | `trial.md` | `client-tdd`(하네스) | 시험 이슈, 시험 브랜치, 하네스 브랜치·커밋, 확인할 TC 번호 |
 | `metrics.md` | `client-tdd`(하네스) | 측정 표, TC마다 시험에서 확인됨/안 됨과 근거 |
-| `media/` | 화면 확인 스킬 | `android-before-<n>.png`, `ios-after-<n>.png`, `android-compare-<n>.png`, `ios-repro.mp4` 등 |
-| `route-<플랫폼>.md` | `client-tdd` | 수정 전 화면 확인 결과의 `route`. 수정 후에 같은 길·조건으로 찍을 때 `hint`로 넘긴다 |
+| `media/` | 화면 확인 스킬(사람이 요청할 때만) | 사람이 요청한 캡처·녹화(예: `ios-repro.mp4`) |
+| `route-<플랫폼>.md` | (지금 안 씀) | 자동 화면 확인을 다시 붙이면 수정 전 `route`를 남긴다 |
 
 플랫폼은 `android` 또는 `ios`, `n`은 계획의 테스트 밖 확인 항목 번호다. 사용자에게 보고할 때는 `file://` 절대 경로로 적는다.
 
@@ -109,7 +112,7 @@ mkdir -p "$EVID/media"
 |---|---|---|
 | 메인 대화 | 사람이 고른 모델 | 사람이 고른 모델 |
 | 플랫폼 TDD 서브에이전트 | 지정 안 함(메인과 같음) | 지정 안 함(메인과 같음) |
-| 화면 확인 서브에이전트 | `sonnet` (스킬 머리말 `model`) | `gpt-6.1-terra`, 추론 `medium` (`client/.codex/agents/chalkak-screen-check.toml`) |
+| 화면 확인 서브에이전트(사람이 요청할 때만) | `sonnet` (스킬 머리말 `model`) | `gpt-6.1-terra`, 추론 `medium` (`client/.codex/agents/chalkak-screen-check.toml`) |
 
 코드를 고치는 일은 고른 모델로 하고, 찍고 비교하는 화면 확인만 가벼운 모델로 돌린다. Codex가 레포의 에이전트 정의를 못 읽어 `agent_type`을 거부하면 지정 없이 띄우고, 그 사실을 PR의 Technical Concerns에 적는다.
 

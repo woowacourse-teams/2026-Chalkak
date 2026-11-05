@@ -1,6 +1,6 @@
 ---
 name: client-pr
-description: 검증과 기록이 끝난 찰칵 클라이언트 작업을 코드·문서 커밋으로 나누고 PR 본문을 쓴 뒤, 묻지 않고 push·캡처 업로드·드래프트 PR까지 연다. 드래프트 해제는 사람이 한다. 리뷰 반영 뒤 추가 커밋에도 쓴다. 사람이 /client-pr로 부를 때만 쓴다.
+description: 검증과 기록이 끝난 찰칵 클라이언트 작업을 코드·문서 커밋으로 나누고 PR 본문(사람이 할 화면 확인 체크리스트 포함)을 쓴 뒤, 묻지 않고 push·드래프트 PR까지 연다. 화면 확인과 드래프트 해제는 사람이 한다. 리뷰 반영 뒤 추가 커밋에도 쓴다. 사람이 /client-pr로 부를 때만 쓴다.
 argument-hint: "#이슈번호"
 disable-model-invocation: true
 ---
@@ -8,10 +8,10 @@ disable-model-invocation: true
 # client-pr
 
 먼저 [공통 약속](../client-flow/references/conventions.md)과 [PR 본문 형식](references/pr-body.md)을 읽는다.
-화면 확인을 한 작업일 때만 [화면 확인 자료](references/screen-evidence.md)도 읽는다(캡처 업로드와 📸 칸 쓰기).
+화면 코드를 바꾼 작업이면 [화면 확인 자료](references/screen-evidence.md)도 읽는다(📸 칸에 사람이 확인할 체크리스트 쓰기).
 문서는 별도 PR 없이 같은 PR에 넣는다.
 
-사람은 터미널이 아니라 드래프트 PR에서 코드, 본문, 기록, 캡처를 본다. 그래서 push부터 드래프트 PR까지 묻지 않고 한다.
+사람은 터미널이 아니라 드래프트 PR에서 코드, 본문, 기록을 보고, 📸 체크리스트대로 기기에서 화면을 확인한다. 그래서 push부터 드래프트 PR까지 묻지 않고 한다.
 리뷰할 만한지는 사람이 PR을 보고 정하고, 드래프트도 사람이 푼다.
 
 ## 순서
@@ -24,13 +24,11 @@ disable-model-invocation: true
    - 남길 기록이 없으면 문서 커밋도 없다.
 3. **PR 본문 쓰기**: [PR 본문 형식](references/pr-body.md)대로 `$EVID/pr.md`에 쓴다.
 4. **push**: `git push -u origin HEAD`
-5. **캡처 업로드**(화면 확인을 했을 때):
-   ```bash
-   client/.agents/skills/client-pr/scripts/upload-media.sh <이슈번호> "$EVID"/media/*-compare-*.png ...
-   ```
-   - 출력된 마크다운을 `$EVID/pr.md`의 `## 📸 화면 확인` 칸에 넣는다.
-   - 올리지 않은 파일은 워크트리를 지울 때 같이 사라진다. 남겨야 할 녹화 원본(`android-repro.mp4` 등)이 있으면 함께 올린다.
-   - 원격에 `client/pr-assets`가 없다고 나오면(종료 코드 3) 만들어도 되는지 묻고, 승인받으면 `--create-branch`를 붙여 다시 실행한다.
+5. **📸 칸 확인**(화면 코드를 바꿨을 때): `$EVID/pr.md`의 `## 📸 화면 확인`이 [화면 확인 자료](references/screen-evidence.md)의 사람 확인 체크리스트인지 본다. 화면 기준, 항목 번호마다 가는 길·데이터와 바꾼 플랫폼마다 빈 체크박스, 개발 서버 빌드 명령이 있어야 한다.
+   - 캡처는 올리지 않는다(`upload-media.sh`는 자동 화면 확인을 다시 붙일 때 쓴다). 사람이 요청해서 찍은 캡처·녹화(`mode: adhoc`)가 `$EVID/media/`에 있을 때만 올린다. 그때 원격에 `client/pr-assets`가 없다고 나오면(종료 코드 3) 만들어도 되는지 묻고, 승인받으면 `--create-branch`를 붙여 다시 실행한다.
+       ```bash
+       client/.agents/skills/client-pr/scripts/upload-media.sh <이슈번호> "$EVID"/media/<파일>...
+       ```
 6. **드래프트 PR**: 기준 브랜치는 보통 `client/develop`이고, 하네스 시험 브랜치면 그 하네스 브랜치다.
    ```bash
    BASE=$(git config "branch.$(git branch --show-current).gh-merge-base" || echo client/develop)
@@ -46,14 +44,19 @@ disable-model-invocation: true
 
 같은 PR에 추가 커밋으로 반영한다. 묻지 않고 push한다.
 
-1. 고친다. 동작이 바뀌면 TC를 추가해 Red → Green으로, TC 자체가 틀렸으면 `client-plan`에서 다시 승인받는다.
-2. push 전 전체 검사 → 수정 후 화면 확인(화면이 바뀌었으면) → `client-record` 다시 보기
-3. 추가 커밋(`fix: 리뷰 반영 - <무엇> (#123)`), 본문 갱신
-4. `git push`, 바뀐 캡처는 다시 업로드, `gh pr edit <PR번호> --body-file "$EVID/pr.md"`
+리뷰 내용은 사람이 대화에 적어 준다(`/client-pr #123 리뷰 지적: <무엇>`). PR 댓글로만 남겼다고 하면 `gh pr view <PR번호> --comments`로 읽는다.
+
+1. 계획이 바뀌는지 본다.
+   - TC, 테스트 밖 확인 항목, 화면 기준 중 하나라도 바뀌면 `client-plan`의 "계획이 바뀌어 다시 승인받을 때"를 따른다. 잘못된 화면 기준(레퍼런스)으로 만든 경우가 여기다.
+   - 계획은 그대로이고 구현만 고치면 바로 고친다. 동작이 바뀌면 추가 TC로 Red → Green, 모양만이면 바로 고친다.
+2. 고친다. TC가 바뀌었으면 바뀐 TC만 Red부터 한다(`client-tdd`, 플랫폼 서브에이전트).
+3. push 전 전체 검사 → `client-record` 다시 보기(바뀐 결정이 이미 남긴 기록과 어긋나면 그 기록을 고친다)
+4. 추가 커밋(`fix: 리뷰 반영 - <무엇> (#123)`), 본문 갱신. 화면이 바뀐 항목의 📸 체크박스는 다시 빈칸으로 둔다. 계획이 바뀌었으면 검증 결과 표 아래에 `TC n은 계획이 바뀌었어요: <무엇을 무엇으로, 왜>`, 화면 기준이 바뀌었으면 📎 참고 자료에 바뀐 기준과 이유 한 줄.
+5. `git push`, `gh pr edit <PR번호> --body-file "$EVID/pr.md"`
 
 ## 알릴 것
 
-- PR 주소와 "드래프트예요. PR을 보고 리뷰할 만하면 드래프트를 풀어 주세요."
-- 올린 캡처 수, 리뷰어가 먼저 볼 곳(📸 칸의 `설명 못 함` 번호)
+- PR 주소와 "드래프트예요. 📸 칸대로 기기에서 화면을 확인하고, 리뷰할 만하면 드래프트를 풀어 주세요. 고칠 곳은 `/client-pr #<번호> 리뷰 지적: <무엇>`으로 알려 주세요."
+- 화면 확인 항목 수와 바꾼 플랫폼(화면 코드를 바꿨을 때)
 - 계획과 달라진 점(있으면). PR 본문의 어디에 적었는지
 - 백엔드 전달 문구(있으면). 사람이 백엔드에 전달한다.
