@@ -547,7 +547,7 @@ fun ChalkakNavHost(
                         initialDate = display.date.toLocalDateOrNull(),
                         initialSort = PostSort.entries.firstOrNull {
                             it.name == display.sort
-                        } ?: PostSort.LATEST,
+                        } ?: PostSort.RANDOM,
                         onOpenFeed = { post, dateLabel, topic, topicDate ->
                             if (backStackEntry.lifecycle.currentState != Lifecycle.State.RESUMED) {
                                 false
