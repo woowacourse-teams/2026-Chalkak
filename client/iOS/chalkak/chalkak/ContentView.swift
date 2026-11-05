@@ -639,7 +639,7 @@ struct ContentView: View {
         }
     }
 
-    private func openDisplay(at date: Date, sort: DisplaySort = .latest) {
+    private func openDisplay(at date: Date, sort: DisplaySort = .random) {
         displayViewModel = Self.makeDisplayViewModel(initialDate: date, initialSort: sort)
         selectedTab = .display
     }
@@ -1028,7 +1028,7 @@ struct ContentView: View {
         )
     }
 
-    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
+    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .random) -> DisplayViewModel {
         DisplayViewModel(
             initialDate: initialDate,
             initialSort: initialSort,

@@ -231,6 +231,11 @@ struct DisplayScreen: View {
         }
         .feedZoomViewport(.display)
         .scrollPosition($scrollPosition)
+        .refreshable {
+            // 홈·오늘 화면과 같이, SwiftUI가 새로고침 컨트롤 작업을 취소해도 시작한 갱신은 끝까지 마친다.
+            let refreshTask = Task { await viewModel.refresh() }
+            await refreshTask.value
+        }
         .onChange(of: viewModel.scrollToTopRequestID) { _, _ in
             withAnimation(.snappy) {
                 scrollPosition.scrollTo(edge: .top)
