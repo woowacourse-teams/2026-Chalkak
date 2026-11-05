@@ -3,6 +3,9 @@ set -euo pipefail
 set +x
 
 # 백업을 이미 구성한 서버만 갱신한다. 설정 생성·도구 설치·예약 활성화는 최초 구성에서 수행한다.
+[[ $# -eq 0 || ( $# -eq 1 && "$1" == --prepare-locks ) ]] || {
+  echo '사용법: install_backup.sh [--prepare-locks]' >&2; exit 1;
+}
 config=/etc/chalkak-backup/backup.env
 install_dir=/opt/chalkak-backup
 state_dir=/var/lib/chalkak-backup
@@ -55,6 +58,12 @@ for lock_file in "$lock_dir/backup.lock" "$lock_dir/full-backup.lock"; do
   runuser -u chalkak-backup -- test -r "$lock_file"
   runuser -u chalkak-backup -- test -w "$lock_file"
 done
+
+# BeforeInstall은 코드 교체 없이 같은 보호 경로만 먼저 준비한다.
+[[ "${1:-}" != --prepare-locks ]] || exit 0
+if [[ -e "$lock_dir/deployment" || -L "$lock_dir/deployment" ]]; then
+  /bin/bash "$script_dir/deployment_backup_guard.sh" check
+fi
 
 # 실행 중인 예약·수동 백업은 중단하지 않는다. 갱신이 실패하면 앱 배포도 중단하고 나중에 재배포한다.
 exec 9<> "$lock_dir/backup.lock"

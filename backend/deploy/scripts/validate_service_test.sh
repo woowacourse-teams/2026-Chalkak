@@ -33,6 +33,7 @@ create_fixture() {
   sed "s#/opt/chalkak/bin/blue_green.sh#${root}/bin/blue_green.sh#" \
     "${SCRIPT_DIR}/validate_service.sh" >"${root}/bin/validate_service.sh"
   cp "${SCRIPT_DIR}/blue_green.sh" "${root}/bin/blue_green.sh"
+  printf '#!/bin/bash\nprintf "guard %%s\\n" "$1" >> "$CALLS_FILE"\n' >"${root}/bin/deployment_backup_guard.sh"
   printf 'server 127.0.0.1:8080;\n' >"${root}/upstream.conf"
   # 레거시 정리 경로는 임시 디렉터리를 가리키게 한다(실제 /opt, /etc는 건드리지 않는다).
   mkdir -p "${root}/legacy-app"
@@ -138,6 +139,12 @@ expect_case() {
   check "${name}: 종료 코드" '[[ "${status}" -eq "${expected_status}" ]]' || ok=0
   check "${name}: snippet" '[[ "$(cat "${root}/upstream.conf")" == "${expected_snippet}" ]]' || ok=0
   check "${name}: 픽스처 밖 rm 없음" '[[ ! -e "${root}/escape" ]]' || ok=0
+  check "${name}: 시작 전 배포 차단 확인" 'grep -qx "guard check" "${root}/calls"' || ok=0
+  if [[ "${old_stopped}" == yes && " $* " != *" LISTEN_OLD=1 "* ]]; then
+    check "${name}: 이전 앱 종료 후 차단 해제" 'grep -qx "guard finish" "${root}/calls" && [[ "$(tail -1 "${root}/calls")" == "guard finish" ]]' || ok=0
+  else
+    check "${name}: 배포 실패·이전 앱 잔존 시 차단 유지" '! grep -qx "guard finish" "${root}/calls"' || ok=0
+  fi
   if [[ "${old_stopped}" == yes && " $* " != *" LISTEN_OLD=1 "* ]]; then
     # 이전 앱이 정상 종료되어 8080 승격이면 레거시 정리가 임시 대상에 적용되어야 한다.
     check "${name}: 레거시 임시 대상 제거" '[[ ! -e "${root}/legacy-app" && ! -e "${root}/legacy.wants" ]]' || ok=0

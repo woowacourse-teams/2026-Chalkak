@@ -115,6 +115,8 @@ diff -r "$root/secret-before" "$root/etc/chalkak-backup"
 [[ $(grep -vc '^daemon-reload$' "$root/systemctl.log") -eq 0 ]]
 echo 'PASS: 모든 성공·실패 경로에서 설정 보존 및 실행 금지 유지'
 
+# 이 테스트는 설치기 실패 전파를 검증한다. 배포 전체 차단은 deployment_backup_guard_test에서 검증한다.
+printf '#!/bin/bash\n[[ "$1" == check ]]\n' > "$root/deploy/scripts/deployment_backup_guard.sh"
 # 실제 AfterInstall도 백업 갱신 실패를 무시하지 않고 뒤 단계를 중단해야 한다.
 mkdir -p "$root/app/bin" "$root/app/db" "$root/app/incoming" "$root/run"
 printf 'RELEASES_DIR=%q\nIMAGE=fixture\n' "$root/app/releases" > "$root/app/bin/blue_green.sh"

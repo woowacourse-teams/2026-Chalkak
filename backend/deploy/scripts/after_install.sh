@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+/bin/bash "$(dirname -- "${BASH_SOURCE[0]}")/deployment_backup_guard.sh" check
+
 for command_name in docker curl; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "Required command is missing: ${command_name}" >&2
@@ -43,5 +45,5 @@ chmod 0644 /opt/chalkak/db/compose.dev.yml
 systemctl disable --now chalkak-config.service 2>/dev/null || true
 rm -f /run/chalkak/application.env /run/chalkak/postgres.env
 
-# 백업은 설정된 서버에서 파일만 갱신한다. 실행 중이면 잠금 충돌로 배포를 중단한다.
+# 배포 차단을 유지한 상태에서 파일만 갱신한다. 갱신 실패는 배포 실패로 전달한다.
 /bin/bash "$(dirname -- "${BASH_SOURCE[0]}")/install_backup.sh"

@@ -67,22 +67,29 @@ DB 전체 덤프와 운영 게시글·사인 이미지 네 경로를 백업하�
 AfterInstall을 실패 처리하고 새 앱 기동·전환 단계로 진행하지 않는다. 기존 앱과 실행 중인 백업은
 이 갱신 스크립트가 중단하지 않는다. 백업 설정이 없는 개발 서버는 설치를 생략한다.
 
-- 실행 중인 백업과 같은 `/var/lib/chalkak-backup-lock/backup.lock`을 사용한다. 잠금을 얻지 못하면
-  기존 백업을 중단하지 않고 종료 코드 75로 배포를 중단한다. 백업 완료 후 재배포한다.
+- BeforeInstall에서 root 관리 `deployment/` 표시를 만들고 타이머를 멈춘다. 새 예약·수동·개별 백업은
+  `SKIPPED reason=app-deployment`(75)로 생략한다. 이미 시작된 백업의 자식 작업은 계속 실행한다.
+- 기존 전체·부분 백업과 이미 대기 중인 예약의 정상 종료를 기다린다. 대기 상한은
+  `BACKUP_MAX_RUNTIME_SECONDS`와 3300초 중 작은 값이다(BeforeInstall 제한 3600초 내 여유 확보).
+  상한을 넘으면 기존 백업은 계속 두고 앱 배포만 실패시킨다. 이때 새 앱은 아직 시작하지 않는다.
+- 차단은 훅 사이에도 유지한다. 새 앱 시작·트래픽 전환·안정화·이전 앱 종료가 모두 끝난 뒤에만
+  해제한다. 실패·강제 종료·이전 앱 종료 실패에서는 자동 만료시키지 않는다.
 - 실행 파일 6개만 root 소유로 새 `releases/release.*` 디렉터리에 준비하고 문법을 검사한 뒤
   `current` 연결을 한 번에 교체한다. 서비스의 실제 작업 디렉터리와 `pwd -P`로 한 회차의
   실행 파일을 고정한다. 이전 release는 자동 삭제하지 않는다.
 - `backup.env`, `pgpass`, `rclone.conf`, CA 인증서는 복사하거나 수정하지 않는다.
   앱 `application.env`에도 백업 설정을 추가하지 않는다.
-- 서비스 파일 반영과 `daemon-reload`만 수행한다. 백업·복구 스크립트 실행,
-  Docker 실행, 서비스·타이머의 start/restart/enable을 호출하지 않는다.
-  따라서 앱 배포가 실제 백업을 시작하거나 중지된 예약을 다시 활성화하지 않는다.
+- 설치기 자체는 서비스 파일 반영과 `daemon-reload`만 수행한다. 백업·복구·Docker를 실행하지 않는다.
+  배포 차단 관리자는 배포 전 켜져 있던 타이머만 다시 켠다. 원래 꺼진 예약은 켜지 않는다.
+  `Persistent=true`이므로 놓친 예약이 있으면 차단 해제 후 백업이 즉시 시작될 수 있다.
 - 타이머 파일은 자동 교체하지 않는다. 예약 시각을 변경할 때는 별도로 검토하고 수동 반영한다.
   코드 교체 후 서비스 반영이 실패하면 기존 `current`와 서비스 파일을 복구한다.
 
 ```bash
 # Linux 임시 경로와 명령 대역으로 배포 안전성 검증. 실제 DB·S3·Docker는 사용하지 않는다.
 bash deploy/scripts/install_backup_test.sh
+# 격리 Linux 컨테이너 root에서만 실행: 실제 잠금·사용자 권한과 배포 차단 검증
+bash deploy/scripts/deployment_backup_guard_test.sh
 ```
 
 검증 EC2는 검증할 때만 생성한다. 생성 전에 담당자의 삭제 권한과 비용을 확인하고,
@@ -166,6 +173,7 @@ DB·이미지 실패도 가능한 경우 `RESULT`와 도구 로그를 원격에 
 | 전체 백업 실행 중 또는 다른 예약이 대기 중 | `SKIPPED reason=full-backup-running`, 종료 코드 75. 성공으로 세지 않음 |
 | DB만 또는 이미지만 백업 중 | 기존 작업을 중단하지 않고 잠금 해제를 기다린 뒤 DB → 이미지 전체 재실행 |
 | 대기시간 초과 | `FAILED stage=lock-wait-timeout`, 종료 코드 1. 기존 작업은 계속 실행 |
+| 앱 배포 중 | 새 백업 생략(75). 배포 전 켜져 있던 타이머는 정상 배포 후 재개 |
 | 다른 파일 갱신이 공통 잠금을 사용 중 | 같은 상한 내 대기 후 실행 |
 
 부분 백업의 성공·실패 결과는 전체 성공으로 재사용하지 않는다. 대기 중 새 예약은 중복으로
@@ -304,23 +312,35 @@ systemctl show chalkak-backup.service -p Result -p ExecMainStatus -p MemoryPeak 
 코드 배포만으로 CloudWatch 필터·경보·Agent 설정까지 자동 반영되지는 않는다.
 실제 권한·복구·부하·첫 예약 실행이 확인되기 전까지 #844 완료로 간주하지 않는다.
 
-### 배포 전 중지·배포 후 재개
+### 배포 차단 확인·실패 후 재개
 
-같은 운영 EC2의 무중단 배포와 백업이 겹치지 않도록 배포 담당자가 아래 순서를 지킨다.
-타이머 중지만으로 이미 실행 중인 백업이 멈추지는 않는다.
+배포 훅이 자동으로 차단·대기·해제한다. 진행 상태는 회사 운영 EC2에서 아래 경로로 확인한다.
 
 ```bash
-sudo systemctl stop chalkak-backup.timer
-# 실행 중인 예약·수동 백업이 스스로 끝날 때까지 기다린다. 강제로 중단하지 않는다.
-systemctl is-active chalkak-backup.service
-sudo -u chalkak-backup flock --exclusive --nonblock /var/lib/chalkak-backup-lock/backup.lock true
+sudo ls -ld /var/lib/chalkak-backup-lock/deployment
+sudo cat /var/lib/chalkak-backup-lock/deployment/id
+systemctl is-active chalkak-backup.timer
 ```
 
-서비스가 비활성이고 잠금 확인이 성공했는지 확인한 뒤 배포한다. 직접 실행 중인 백업이 있으면
-완료·종료를 확인한다. 배포 중에는 누구도 수동 백업을 시작하지 않는다. 배포 완료·앱 정상 상태를
-확인한 후 `sudo systemctl start chalkak-backup.timer`로 재개한다. 놓친 예약이 있으면 즉시 실행될
-수 있다. 파일 갱신 단계에는 자동 잠금이 있지만 앱 배포 전체와 백업의 부하를 분리하는 잠금은
-아니므로 이 수동 절차를 지킨다. 갱신 이후 운영 수동 백업은 실패 알림도 적용되도록 서비스로 실행한다.
+`deployment/`가 있으면 새 백업은 실행하지 않는다. BeforeInstall 대기 실패는 예약을 원래대로 돌리지만,
+그 이후 배포 실패·강제 종료는 앱이 두 개 남았을 수 있어 차단을 유지한다. 다른 배포도 자동으로
+기존 표시를 덮어쓰지 않는다. 먼저 CodeDeploy의 해당 배포가 종료됐는지, 활성 앱이 정상인지,
+이전 앱 컨테이너와 포트가 정리됐는지 확인한다. 그 후 기록된 배포 ID로 아래 명령을 실행한다.
+
+```bash
+# 회사 운영 EC2. d-XXXXXXXXX는 위 id 파일에 기록된 실제 배포 ID로 바꾼다.
+sudo env DEPLOYMENT_ID=d-XXXXXXXXX /bin/bash \
+  /opt/chalkak/bin/deployment_backup_guard.sh finish
+```
+
+해제 명령도 활성 앱 정상 응답·유휴 포트 컨테이너/리스너 종료를 다시 검사한다. 아직 두 앱이
+있거나 예약 재개가 실패하면 차단을 유지한다. `deployment/`를 직접 삭제하지 않는다.
+배포 전 타이머가 꺼져 있었다면 해제 후에도 꺼진 채로 둔다. 누락된 백업은 서비스로 수동 실행한다.
+
+**첫 적용 전:** 이전 코드에는 배포 표시 검사 기능이 없다. 예약을 멈추고 기존 예약·수동 백업이
+모두 자연 종료한 뒤 최신 공통 설치기를 한 번 실행한다. 오래된 release의 스크립트를 직접 실행하지
+않는다. 그 다음 새 배포 훅을 포함한 revision으로 배포한다. 파일만 바꾼다고 이미 실행 중인 옛
+프로세스에 새 차단 기능이 생기지는 않는다.
 
 **기존 잠금 경로에서 이전할 때:** 타이머를 중지하고 예약·직접 실행 백업과 배포가 모두 끝났는지
 확인한다. 이전 경로 `/var/lib/chalkak-backup/backup.lock`의 잠금도 해제됐는지 확인한 뒤,

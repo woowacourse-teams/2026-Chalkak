@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+/bin/bash "$(dirname -- "${BASH_SOURCE[0]}")/deployment_backup_guard.sh" check
+
 # shellcheck source=blue_green.sh
 source /opt/chalkak/bin/blue_green.sh
 
@@ -86,10 +88,19 @@ fi
 
 bg_set_oom_score "${new_container}" 0 || echo "Warning: oom_score_adj was not reset for ${new_container}" >&2
 # 새 앱이 정상 서비스 중이므로 이전 앱 종료 실패로 배포를 실패시키지 않는다(CodeDeploy 자동 롤백이 정상 릴리스를 되돌리게 된다). 운영자가 ERROR 줄을 보고 직접 종료한다.
+old_stopped=false
 if bg_stop_old "${old_port}"; then
+  old_stopped=true
   bg_log "old app on port ${old_port} stopped"
 else
   echo "ERROR: old app still listening on port ${old_port}; stop it manually (new app on port ${new_port} is serving, deploy kept)" >&2
 fi
 
 bg_prune_releases "${new_container}" || echo "Warning: release pruning failed" >&2
+
+# 이전 앱이 남아 있으면 두 앱과 백업이 겹치지 않도록 차단을 유지한다.
+if [[ "$old_stopped" == true ]]; then
+  /bin/bash "$(dirname -- "${BASH_SOURCE[0]}")/deployment_backup_guard.sh" finish
+else
+  echo '백업 차단 유지: 이전 앱 종료를 확인한 뒤 수동으로 해제하세요.' >&2
+fi
