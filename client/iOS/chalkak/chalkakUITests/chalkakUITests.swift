@@ -282,9 +282,9 @@ final class chalkakUITests: XCTestCase {
             app.staticTexts["정보 및 약관"].frame.minY
         )
 
-        app.buttons["피드백 보내기"].tap()
+        app.buttons["고객센터"].tap()
         XCTAssertTrue(
-            app.staticTexts["피드백을 보내려면 로그인이 필요해요"]
+            app.staticTexts["고객센터를 이용하려면 로그인이 필요해요"]
                 .waitForExistence(timeout: 3)
         )
     }
@@ -339,7 +339,10 @@ final class chalkakUITests: XCTestCase {
         let settingsButton = app.buttons["설정"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
         settingsButton.tap()
-        let feedbackButton = app.buttons["피드백 보내기"]
+        let customerSupportButton = app.buttons["고객센터"]
+        XCTAssertTrue(customerSupportButton.waitForExistence(timeout: 5))
+        customerSupportButton.tap()
+        let feedbackButton = app.buttons["feedbackList.compose"]
         XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
         feedbackButton.tap()
 
@@ -365,7 +368,6 @@ final class chalkakUITests: XCTestCase {
         ).withOffset(CGVector(dx: 0, dy: 300)))
         XCTAssertTrue(title.waitForNonExistence(timeout: 3))
         XCTAssertTrue(feedbackButton.isHittable)
-        XCTAssertEqual(settingsButton.value as? String, "선택됨")
     }
 
     @MainActor
@@ -377,7 +379,10 @@ final class chalkakUITests: XCTestCase {
         let settingsButton = app.buttons["설정"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
         settingsButton.tap()
-        let feedbackButton = app.buttons["피드백 보내기"]
+        let customerSupportButton = app.buttons["고객센터"]
+        XCTAssertTrue(customerSupportButton.waitForExistence(timeout: 5))
+        customerSupportButton.tap()
+        let feedbackButton = app.buttons["feedbackList.compose"]
         XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
         feedbackButton.tap()
 

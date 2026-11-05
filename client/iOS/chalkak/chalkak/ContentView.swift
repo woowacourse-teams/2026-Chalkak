@@ -44,6 +44,8 @@ struct ContentView: View {
     @State private var photoUploadViewModel: PhotoUploadViewModel?
     @State private var isPhotoUploadPresented = false
     @State private var feedbackViewModel: FeedbackViewModel?
+    // 고객센터 목록. 답변 푸시로 상세만 열려도 삭제·목록 갱신을 같은 인스턴스로 한다.
+    @State private var feedbackListViewModel = Self.makeFeedbackListViewModel()
     @State private var isFeedbackPresented = false
     @State private var photoUploadEntryTask: Task<Void, Never>?
     @State private var photoUploadEntryTaskID: UUID?
@@ -123,6 +125,30 @@ struct ContentView: View {
                                     externalLikeUpdate: authorPostsLikeUpdate
                                 )
                                 .id(postID)
+                                .background(InteractivePopGestureEnabler())
+                            case .customerSupport:
+                                FeedbackListScreen(
+                                    viewModel: feedbackListViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onCompose: openFeedback,
+                                    onSelect: { item in
+                                        withAnimation { notificationPath.append(.feedbackDetail(item.id)) }
+                                    }
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            case let .feedbackDetail(feedbackID):
+                                FeedbackDetailScreen(
+                                    viewModel: Self.makeFeedbackDetailViewModel(feedbackID: feedbackID),
+                                    isDeleting: feedbackListViewModel.isDeleting(feedbackID),
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onDelete: { deleteFeedback(feedbackID, from: destination) },
+                                    onNotFound: {
+                                        Task { await feedbackListViewModel.refresh() }
+                                    }
+                                )
+                                .id(feedbackID)
+                                .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
                             case let .rejected(target), let .notice(target):
                                 NotificationDetailScreen(
@@ -497,7 +523,7 @@ struct ContentView: View {
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
-                onOpenFeedback: openFeedback,
+                onOpenFeedback: openCustomerSupport,
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
@@ -732,7 +758,17 @@ struct ContentView: View {
             defer {
                 if notificationNavigationID == notificationID { notificationNavigationID = nil }
             }
-            let canNavigate = await inbox.readForNavigation(notificationID)
+            // 문의·답변 삭제 시 알림도 지워지므로, 옛 답변 푸시는 읽음 404여도
+            // 문의 상세 API로 현재 문의·답변을 확인한다. 근거: #964, NOTIFICATION-018
+            let allowsMissingNotification: Bool
+            if case .feedbackAnswered = tap {
+                allowsMissingNotification = true
+            } else {
+                allowsMissingNotification = false
+            }
+            let canNavigate = await inbox.readForNavigation(
+                notificationID, allowsMissingNotification: allowsMissingNotification
+            )
             guard !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
                   KeychainSessionStore.hasAuthenticatedSession() else { return }
             guard canNavigate else {
@@ -794,6 +830,8 @@ struct ContentView: View {
                 notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
             case let .notice(notificationID):
                 notificationPath.append(.notice(NotificationDetailTarget(id: notificationID)))
+            case let .feedbackAnswered(feedbackID, _):
+                notificationPath.append(.feedbackDetail(feedbackID))
             }
         }
     }
@@ -887,14 +925,46 @@ struct ContentView: View {
         selectedTab = photoUploadReturnTab
     }
 
+    private func openCustomerSupport() {
+        guard KeychainSessionStore.hasAuthenticatedSession() || Self.isFeedbackEntryUITest else {
+            showMessage("고객센터를 이용하려면 로그인이 필요해요")
+            return
+        }
+
+        withAnimation {
+            notificationPath = [.customerSupport]
+        }
+    }
+
     private func openFeedback() {
         guard KeychainSessionStore.hasAuthenticatedSession() || Self.isFeedbackEntryUITest else {
-            showMessage("피드백을 보내려면 로그인이 필요해요")
+            showMessage("문의를 보내려면 로그인이 필요해요")
             return
         }
 
         feedbackViewModel = Self.makeFeedbackViewModel()
         isFeedbackPresented = true
+    }
+
+    /// 상세의 삭제 확인 후. 지웠거나(204) 이미 없는 문의(404)면 상세를 닫고, 그 밖의 실패는 상세에 남는다.
+    private func deleteFeedback(_ feedbackID: String, from destination: NotificationRoute) {
+        let listViewModel = feedbackListViewModel
+        Task {
+            let result = await listViewModel.delete(feedbackID)
+            guard listViewModel === feedbackListViewModel else { return }
+            switch result {
+            case .deleted:
+                closeNotificationDestination(destination)
+                showMessage("문의를 삭제했어요")
+            case let .notFound(message):
+                closeNotificationDestination(destination)
+                showMessage(message)
+            case let .failed(message):
+                showMessage(message)
+            case .ignored:
+                break
+            }
+        }
     }
 
     private func closeFeedback() {
@@ -904,6 +974,7 @@ struct ContentView: View {
     private func handleFeedbackSubmitted() {
         closeFeedback()
         showMessage("피드백을 보내주셔서 감사해요.")
+        Task { await feedbackListViewModel.feedbackSubmitted() }
     }
 
     private func showServiceTerms() {
@@ -951,6 +1022,7 @@ struct ContentView: View {
         settingsViewModel = Self.makeSettingsViewModel()
         notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
         notificationInboxViewModel = Self.makeNotificationInboxViewModel()
+        feedbackListViewModel = Self.makeFeedbackListViewModel()
     }
 
     private static func makeNotificationSettingsViewModel() -> NotificationSettingsViewModel {
@@ -1117,14 +1189,42 @@ struct ContentView: View {
             return FeedbackViewModel(submitFeedback: { _ in })
         }
 #endif
-        let apiClient = FeedbackAPIClient(
-            configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
-            accessTokenProvider: { KeychainSessionStore.accessToken() }
-        )
+        let apiClient = makeFeedbackAPIClient()
         return FeedbackViewModel(
             submitFeedback: { content in
                 _ = try await apiClient.submitFeedback(content: content)
             }
+        )
+    }
+
+    private static func makeFeedbackAPIClient() -> FeedbackAPIClient {
+        FeedbackAPIClient(
+            configuration: FeedbackAPIConfiguration(baseURL: resolvedAPIBaseURL),
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+    }
+
+    private static func makeFeedbackListViewModel() -> FeedbackListViewModel {
+#if DEBUG
+        if isFeedbackEntryUITest {
+            return FeedbackListViewModel(
+                loadPage: { FeedbackPage(currentPage: $0, pageSize: 20, hasNext: false, items: []) },
+                deleteFeedback: { _ in }
+            )
+        }
+#endif
+        let apiClient = makeFeedbackAPIClient()
+        return FeedbackListViewModel(
+            loadPage: { try await apiClient.fetchFeedbacks(page: $0) },
+            deleteFeedback: { try await apiClient.deleteFeedback(id: $0) }
+        )
+    }
+
+    private static func makeFeedbackDetailViewModel(feedbackID: String) -> FeedbackDetailViewModel {
+        let apiClient = makeFeedbackAPIClient()
+        return FeedbackDetailViewModel(
+            feedbackID: feedbackID,
+            loadDetail: { try await apiClient.fetchFeedback(id: feedbackID) }
         )
     }
 
@@ -1289,6 +1389,10 @@ struct ContentView: View {
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
             case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
+            case .customerSupport:
+                return AnalyticsScreen(name: "customer_support", screenClass: "CustomerSupport")
+            case .feedbackDetail:
+                return AnalyticsScreen(name: "feedback_detail", screenClass: "FeedbackDetail")
             }
         }
         if selectedIssueURL != nil {
@@ -1351,6 +1455,10 @@ private enum NotificationRoute: Hashable {
     case aiReview(String)
     case rejected(NotificationDetailTarget)
     case notice(NotificationDetailTarget)
+    /// 설정 → 고객센터의 내 문의 목록.
+    case customerSupport
+    /// 문의 UUID로 여는 문의 상세. 고객센터 목록과 답변 알림(알림함·푸시)에서 연다.
+    case feedbackDetail(String)
 }
 
 

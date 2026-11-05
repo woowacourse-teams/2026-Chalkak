@@ -27,6 +27,12 @@ struct FeedbackScreen: View {
                         .font(theme.typography.subheadline)
                         .foregroundStyle(theme.colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    Text("문의는 1분에 1건, 최근 24시간에 최대 5건 보낼 수 있어요.")
+                        .font(theme.typography.footnote)
+                        .foregroundStyle(theme.colors.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("feedback.submissionLimit")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())

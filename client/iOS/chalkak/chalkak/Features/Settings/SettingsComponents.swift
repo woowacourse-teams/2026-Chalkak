@@ -123,7 +123,7 @@ struct SettingsFeedbackCard: View {
 
     var body: some View {
         SettingsCard {
-            SettingsRow(title: "피드백 보내기", action: onFeedback) {
+            SettingsRow(title: "고객센터", action: onFeedback) {
                 SettingsChevron()
             }
         }
