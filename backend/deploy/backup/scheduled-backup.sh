@@ -9,7 +9,7 @@ if [[ $# -lt 1 || $# -gt 2 || ! -r "$1" || ( $# -eq 2 && "$2" != --check ) ]]; t
 fi
 config=$1
 stage=schedule-configuration
-trap 'result=$?; if [[ $result -ne 0 ]]; then printf "%s FAILED stage=%s exit=%s\n" "$(date -u +%FT%TZ)" "$stage" "$result" >&2; fi' EXIT
+trap 'result=$?; if [[ $result -ne 0 && $result -ne 75 ]]; then printf "%s FAILED stage=%s exit=%s\n" "$(date -u +%FT%TZ)" "$stage" "$result" >&2; fi' EXIT
 # 설정은 실행 사용자가 관리하는 신뢰된 셸 파일이다. 검사 중에도 실제 값을 출력하지 않는다.
 [[ -f "$config" && ! -L "$config" && -O "$config" && "$(stat -c %a "$config")" == 600 ]] || {
   echo '설정 파일은 실행 사용자 소유의 일반 파일, mode 600이어야 합니다.' >&2; exit 1;
@@ -36,6 +36,7 @@ done
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 source "$script_dir/backup-lock.sh"
 backup_lock_path_valid
+backup_lock_path_valid "$(backup_full_lock_path)"
 if [[ ! "${BACKUP_MAX_RUNTIME_SECONDS:-}" =~ ^[1-9][0-9]{0,4}$ ]] ||
    (( BACKUP_MAX_RUNTIME_SECONDS >= 86400 )); then
   echo '실측 후 전체 실행 제한을 1~86399초의 정수로 설정하세요: BACKUP_MAX_RUNTIME_SECONDS' >&2
@@ -48,6 +49,29 @@ done
   echo 'PostgreSQL 18 백업 도구가 필요합니다.' >&2; exit 1;
 }
 if [[ "${2:-}" == --check ]]; then echo 'READY: 예약 실행 설정·파일 권한·도구 검사 통과 (연결 검증 아님)'; exit 0; fi
+backup_lock_wait_pid=''
+stop_waiting() {
+  local code=$1
+  trap '' INT TERM
+  if [[ -n "$backup_lock_wait_pid" ]]; then
+    kill -TERM "$backup_lock_wait_pid" 2>/dev/null || true
+    wait "$backup_lock_wait_pid" 2>/dev/null || true
+  fi
+  exit "$code"
+}
+trap 'stop_waiting 130' INT
+trap 'stop_waiting 143' TERM
+# 전체 실행 또는 대기 중인 예약이 있으면 중복만 생략한다.
+stage=full-backup-lock
+backup_full_lock
+stage=lock-wait
+printf '%s WAITING stage=lock-wait max_seconds=%s\n' "$(date -u +%FT%TZ)" "$BACKUP_MAX_RUNTIME_SECONDS"
+result=0
+backup_lock "$BACKUP_MAX_RUNTIME_SECONDS" || result=$?
+if [[ $result -eq 74 ]]; then stage=lock-wait-timeout; exit 1; fi
+[[ $result -eq 0 ]] || exit "$result"
+# 대기와 실제 실행은 각각 같은 상한을 갖는다. 실행 제한은 잠금 획득 뒤부터 센다.
+trap - INT TERM
 stage=scheduled-backup
 result=0
 # oneshot의 RuntimeMaxSec 대신 GNU timeout으로 전체 프로세스 그룹 실행 시간을 제한한다.

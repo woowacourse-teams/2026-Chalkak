@@ -3,7 +3,18 @@ set -euo pipefail
 umask 077
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TEST_ROOT=$(mktemp -d)
-trap 'rm -rf -- "$TEST_ROOT"' EXIT
+holder_pid=''
+scheduled_pid=''
+cleanup() {
+  touch "$TEST_ROOT/release"
+  [[ -z "$holder_pid" ]] || wait "$holder_pid" 2>/dev/null || true
+  if [[ -n "$scheduled_pid" ]]; then
+    kill -TERM "$scheduled_pid" 2>/dev/null || true
+    wait "$scheduled_pid" 2>/dev/null || true
+  fi
+  rm -rf -- "$TEST_ROOT"
+}
+trap cleanup EXIT
 trap 'printf "FAIL: line=%s scenario=%s\n" "$LINENO" "${scenario:-setup}" >&2; cat "$TEST_ROOT/output" >&2' ERR
 mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/runner" "$TEST_ROOT/state"
 cp "$SCRIPT_DIR/backup-lock.sh" "$TEST_ROOT/runner/"
@@ -12,6 +23,7 @@ cp "$SCRIPT_DIR/scheduled-backup.sh" "$TEST_ROOT/runner/"
 cat > "$TEST_ROOT/runner/backup.sh" <<'MOCK'
 #!/usr/bin/env bash
 echo called > "$TEST_ROOT/called"
+if [[ "$TEST_MODE" == delayed ]]; then sleep 1.8; fi
 if [[ "$TEST_MODE" == timeout* ]]; then
   if [[ "$TEST_MODE" == timeout-stubborn ]]; then trap '' TERM; fi
   sleep 60 &
@@ -29,8 +41,8 @@ done
 chmod +x "$TEST_ROOT/bin/"*
 export PATH="$TEST_ROOT/bin:$PATH" TEST_ROOT TEST_MODE=normal TEST_EXIT=0 TEST_PG_MAJOR=18
 mkdir "$TEST_ROOT/locks"
-touch "$TEST_ROOT/locks/backup.lock"
-chmod 660 "$TEST_ROOT/locks/backup.lock"
+touch "$TEST_ROOT/locks/backup.lock" "$TEST_ROOT/locks/full-backup.lock"
+chmod 660 "$TEST_ROOT/locks/backup.lock" "$TEST_ROOT/locks/full-backup.lock"
 touch "$TEST_ROOT/ca.pem" "$TEST_ROOT/pgpass" "$TEST_ROOT/rclone.conf"
 cat > "$TEST_ROOT/template" <<EOF
 PGHOST=unused
@@ -53,7 +65,7 @@ prepare() {
   cp "$TEST_ROOT/template" "$TEST_ROOT/backup.env"
   chmod 600 "$TEST_ROOT/backup.env" "$TEST_ROOT/pgpass" "$TEST_ROOT/rclone.conf"
   chmod 700 "$TEST_ROOT/state"
-  rm -f "$TEST_ROOT/called"
+  rm -f "$TEST_ROOT/called" "$TEST_ROOT/held" "$TEST_ROOT/release" "$TEST_ROOT/output"
   export TEST_MODE=normal TEST_EXIT=0 TEST_PG_MAJOR=18
 }
 execute() {
@@ -77,6 +89,115 @@ for value in '' REPLACE_WITH_MEASURED_SECONDS 0 -1 1.5 86400 999999; do
   printf '\nBACKUP_MAX_RUNTIME_SECONDS=%s\n' "$value" >> "$TEST_ROOT/backup.env"
   rejected
 done
+
+prepare missing-full-lock
+mv "$TEST_ROOT/locks/full-backup.lock" "$TEST_ROOT/saved-full.lock"
+rejected
+mv "$TEST_ROOT/saved-full.lock" "$TEST_ROOT/locks/full-backup.lock"
+prepare symlink-full-lock
+mv "$TEST_ROOT/locks/full-backup.lock" "$TEST_ROOT/saved-full.lock"
+ln -s "$TEST_ROOT/saved-full.lock" "$TEST_ROOT/locks/full-backup.lock"
+rejected
+rm "$TEST_ROOT/locks/full-backup.lock"
+mv "$TEST_ROOT/saved-full.lock" "$TEST_ROOT/locks/full-backup.lock"
+
+await_file() {
+  for _ in {1..200}; do
+    [[ ! -f "$1" ]] || return 0
+    sleep 0.02
+  done
+  return 1
+}
+hold_lock() {
+  flock --exclusive "$TEST_ROOT/locks/$1" bash -c '
+    touch "$TEST_ROOT/held"
+    while [[ ! -e "$TEST_ROOT/release" ]]; do sleep 0.02; done
+  ' &
+  holder_pid=$!
+  await_file "$TEST_ROOT/held"
+}
+start_scheduled() {
+  bash "$TEST_ROOT/runner/scheduled-backup.sh" "$TEST_ROOT/backup.env" > "$TEST_ROOT/output" 2>&1 &
+  scheduled_pid=$!
+  for _ in {1..200}; do
+    if grep -q 'WAITING stage=lock-wait' "$TEST_ROOT/output"; then return 0; fi
+    sleep 0.02
+  done
+  return 1
+}
+release_holder() {
+  touch "$TEST_ROOT/release"
+  wait "$holder_pid"
+  holder_pid=''
+}
+
+prepare full-already-running
+hold_lock full-backup.lock
+execute
+[[ "$status" == 75 && ! -e "$TEST_ROOT/called" ]]
+grep -q 'SKIPPED reason=full-backup-running' "$TEST_ROOT/output"
+if grep -q FAILED "$TEST_ROOT/output"; then exit 1; fi
+kill -0 "$holder_pid"
+release_holder
+echo "PASS: $scenario"
+
+prepare partial-wait-and-duplicate
+hold_lock backup.lock
+start_scheduled
+[[ ! -e "$TEST_ROOT/called" ]]
+status=0
+bash "$TEST_ROOT/runner/scheduled-backup.sh" "$TEST_ROOT/backup.env" > "$TEST_ROOT/duplicate" 2>&1 || status=$?
+[[ "$status" == 75 && ! -e "$TEST_ROOT/called" ]]
+release_holder
+wait "$scheduled_pid"
+scheduled_pid=''
+[[ -e "$TEST_ROOT/called" ]]
+echo "PASS: $scenario"
+
+prepare wait-timeout-keeps-existing-backup
+echo 'BACKUP_MAX_RUNTIME_SECONDS=1' >> "$TEST_ROOT/backup.env"
+hold_lock backup.lock
+execute
+[[ "$status" == 1 && ! -e "$TEST_ROOT/called" ]]
+grep -q 'FAILED stage=lock-wait-timeout' "$TEST_ROOT/output"
+kill -0 "$holder_pid"
+flock --exclusive --nonblock "$TEST_ROOT/locks/full-backup.lock" true
+release_holder
+echo "PASS: $scenario"
+
+prepare interrupted-wait-keeps-existing-backup
+hold_lock backup.lock
+start_scheduled
+# 대기 flock 자식을 확인한 후 예약 부모만 종료해도 대기 잠금이 남지 않아야 한다.
+waiter_pid=''
+for _ in {1..200}; do
+  waiter_pid=$(pgrep -P "$scheduled_pid" -x flock || true)
+  [[ -z "$waiter_pid" ]] || break
+  sleep 0.02
+done
+[[ -n "$waiter_pid" ]]
+kill -TERM "$scheduled_pid"
+status=0
+wait "$scheduled_pid" || status=$?
+scheduled_pid=''
+[[ "$status" == 143 && ! -e "$TEST_ROOT/called" ]]
+if kill -0 "$waiter_pid" 2>/dev/null; then exit 1; fi
+kill -0 "$holder_pid"
+flock --exclusive --nonblock "$TEST_ROOT/locks/full-backup.lock" true
+release_holder
+echo "PASS: $scenario"
+
+prepare separate-wait-and-runtime-budgets
+echo 'BACKUP_MAX_RUNTIME_SECONDS=3' >> "$TEST_ROOT/backup.env"
+export TEST_MODE=delayed
+hold_lock backup.lock
+start_scheduled
+sleep 1.8
+release_holder
+wait "$scheduled_pid"
+scheduled_pid=''
+[[ -e "$TEST_ROOT/called" ]]
+echo "PASS: $scenario"
 prepare missing-required-setting
 echo 'PGHOST=' >> "$TEST_ROOT/backup.env"
 rejected

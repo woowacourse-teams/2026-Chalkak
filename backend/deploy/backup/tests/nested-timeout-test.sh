@@ -44,8 +44,8 @@ for TEST_MODE in normal stubborn; do
   mkdir -p "$case_dir/state" "$case_dir/work"
   chmod 700 "$case_dir/state"
   mkdir "$case_dir/locks"
-  touch "$case_dir/locks/backup.lock"
-  chmod 660 "$case_dir/locks/backup.lock"
+  touch "$case_dir/locks/backup.lock" "$case_dir/locks/full-backup.lock"
+  chmod 660 "$case_dir/locks/backup.lock" "$case_dir/locks/full-backup.lock"
   touch "$case_dir/ca.pem" "$case_dir/pgpass" "$case_dir/rclone.conf"
   cat > "$case_dir/backup.env" <<EOF
 PGHOST=unused

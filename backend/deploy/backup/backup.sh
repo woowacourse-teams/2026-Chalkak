@@ -17,6 +17,9 @@ source "$config"
 set +a
 source "$script_dir/backup-lock.sh"
 backup_lock
+# 수동 실행은 공통 잠금을 먼저 얻어야 한다. 부분 백업 때문에 시작도 못 한 전체 요청이
+# 예약 실행을 잘못 생략시키지 않도록, 전체 잠금부터 선점하지 않는다.
+if [[ "$selection" == all ]]; then backup_full_lock; fi
 
 for tool in rclone mktemp cmp; do
   command -v "$tool" >/dev/null || { printf '필수 도구 없음: %s\n' "$tool" >&2; exit 1; }

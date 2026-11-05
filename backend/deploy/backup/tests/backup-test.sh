@@ -6,8 +6,10 @@ REAL_RCLONE=$(command -v rclone)
 export REAL_RCLONE
 TEST_ROOT=$(mktemp -d)
 background_pid=''
+scheduled_pid=''
 cleanup() {
   [[ -z "$background_pid" ]] || { touch "${case_dir}/release"; wait "$background_pid" 2>/dev/null || true; }
+  [[ -z "$scheduled_pid" ]] || { kill -TERM "$scheduled_pid" 2>/dev/null || true; wait "$scheduled_pid" 2>/dev/null || true; }
   rm -rf -- "$TEST_ROOT"
 }
 trap cleanup EXIT
@@ -75,8 +77,8 @@ prepare_case() {
   printf '[production]\ntype = alias\nremote = %s/source\n[backup]\ntype = alias\nremote = %s/target\n' \
     "$case_dir" "$case_dir" > "$case_dir/rclone.conf"
   mkdir -p "$case_dir/locks"
-  touch "$case_dir/locks/backup.lock"
-  chmod 660 "$case_dir/locks/backup.lock"
+  touch "$case_dir/locks/backup.lock" "$case_dir/locks/full-backup.lock"
+  chmod 660 "$case_dir/locks/backup.lock" "$case_dir/locks/full-backup.lock"
   cat > "$case_dir/backup.env" <<EOF
 PGHOST=unused
 PGPORT=5432
@@ -93,6 +95,7 @@ IMAGE_BACKUP_TEMP_ROOT=$case_dir/work
 BACKUP_LOCK_FILE=$case_dir/locks/backup.lock
 BACKUP_STATE_DIRECTORY=$case_dir/state
 BACKUP_RUN_DESTINATION=backup:bucket/chalkak/runs
+BACKUP_MAX_RUNTIME_SECONDS=10
 EOF
   export TEST_CASE="$case_dir" TEST_FAULT='' TEST_HOLD=''
 }
@@ -211,6 +214,12 @@ for entry in backup db-backup image-backup; do
   [[ $(wc -l < "$case_dir/calls") -eq 1 ]]
   echo "PASS: 실행 중 $entry 직접 호출 차단, 종료 코드 75, 기존 작업 유지"
 done
+# 실제 전체 백업의 잠금을 예약 래퍼가 구분해야 한다.
+status=0
+bash "$SCRIPT_DIR/scheduled-backup.sh" "$case_dir/backup.env" > "$case_dir/duplicate" 2>&1 || status=$?
+[[ $status -eq 75 ]]
+grep -q 'SKIPPED reason=full-backup-running' "$case_dir/duplicate"
+echo 'PASS: 실제 전체 백업 중 예약 실행만 중복 생략'
 # 종료 요청 중 자식이 아직 처리 중이면 잠금을 유지하고 다음 이미지는 시작하지 않는다.
 kill -TERM "$background_pid"
 sleep 0.1
@@ -255,11 +264,11 @@ for worker in db image; do
 done
 
 prepare_case unrelated-fd
-bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 9>> "$case_dir/other.lock" > "$case_dir/output" 2>&1
-echo 'PASS: 상속된 다른 파일의 fd 9를 잠금 우회로 사용하지 않음'
+bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 8>> "$case_dir/other-full.lock" 9>> "$case_dir/other.lock" > "$case_dir/output" 2>&1
+echo 'PASS: 상속된 다른 파일의 fd 8·9를 잠금 우회로 사용하지 않음'
 
 prepare_case unlocked-fd
-bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 9>> "$case_dir/locks/backup.lock" > "$case_dir/output" 2>&1
+bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" 8>> "$case_dir/locks/full-backup.lock" 9>> "$case_dir/locks/backup.lock" > "$case_dir/output" 2>&1
 grep -q ' COMPLETE ' "$case_dir/output"
 echo 'PASS: 같은 파일 fd를 상속해도 실제 flock 획득 수행'
 
@@ -273,4 +282,58 @@ for invalid in selection missing-state symlink-lock; do
   [[ $status -ne 0 && ! -s "$case_dir/calls" ]]
   echo "PASS: $invalid 설정 거부, 백업 시작 안 함"
 done
-echo '총 23개 시나리오 통과 (DB 합성 명령, 실제 Linux flock·rclone·내용 비교)'
+
+for partial in db images direct-db direct-images; do
+  prepare_case "scheduled-after-$partial"
+  held=db
+  entry=backup
+  arguments=("$case_dir/backup.env" "$partial")
+  fault=''
+  case "$partial" in
+    images) held=images ;;
+    direct-db) entry=db-backup; arguments=("$case_dir/backup.env"); fault=db ;;
+    direct-images) entry=image-backup; held=images; arguments=("$case_dir/backup.env"); fault=image ;;
+  esac
+  TEST_HOLD=$held TEST_FAULT=$fault bash "$SCRIPT_DIR/$entry.sh" "${arguments[@]}" > "$case_dir/partial-output" 2>&1 &
+  background_pid=$!
+  for _ in {1..200}; do
+    [[ ! -f "$case_dir/ready" ]] || break
+    sleep 0.02
+  done
+  [[ -f "$case_dir/ready" ]]
+  bash "$SCRIPT_DIR/scheduled-backup.sh" "$case_dir/backup.env" > "$case_dir/output" 2>&1 &
+  scheduled_pid=$!
+  for _ in {1..200}; do
+    if grep -q 'WAITING stage=lock-wait' "$case_dir/output"; then break; fi
+    sleep 0.02
+  done
+  grep -q 'WAITING stage=lock-wait' "$case_dir/output"
+  [[ $(wc -l < "$case_dir/calls") -eq 1 ]]
+  # 부분 작업 때문에 시작하지 못한 수동 전체 요청이 예약을 취소시키면 안 된다.
+  status=0
+  bash "$SCRIPT_DIR/backup.sh" "$case_dir/backup.env" > "$case_dir/manual-output" 2>&1 || status=$?
+  [[ $status -eq 75 ]]
+  touch "$case_dir/release"
+  status=0
+  wait "$background_pid" || status=$?
+  background_pid=''
+  if [[ -n "$fault" ]]; then [[ $status -eq 9 ]]; else [[ $status -eq 0 ]]; fi
+  wait "$scheduled_pid"
+  scheduled_pid=''
+  {
+    printf '%s\n' "$held"
+    # 이미지 전체 백업은 게시글·사인의 원본·썸네일 네 경로를 각각 조회한다.
+    if [[ "$partial" == images ]]; then printf 'images\nimages\nimages\n'; fi
+    printf 'db\nimages\nimages\nimages\nimages\n'
+  } > "$case_dir/expected-calls"
+  cmp "$case_dir/expected-calls" "$case_dir/calls"
+  grep -q ' COMPLETE run=.* db_exit=0 images_exit=0' "$case_dir/output"
+  expected_db=1
+  expected_images=1
+  if [[ "$partial" == db ]]; then expected_db=2; fi
+  if [[ "$partial" == images ]]; then expected_images=2; fi
+  [[ $(find "$case_dir/target/bucket/chalkak/db" -name COMPLETE | wc -l) -eq $expected_db ]]
+  [[ $(find "$case_dir/target/bucket/chalkak/images" -name COMPLETE | wc -l) -eq $expected_images ]]
+  echo "PASS: $partial 부분 작업 정상종료·실패 뒤 예약 DB → 이미지 전체 재실행"
+done
+echo '총 28개 시나리오 통과 (DB 합성 명령, 실제 Linux flock·rclone·내용 비교)'

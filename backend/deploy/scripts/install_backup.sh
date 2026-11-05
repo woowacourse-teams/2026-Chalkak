@@ -41,22 +41,23 @@ if [[ -e "$lock_dir" ]]; then
   }
 fi
 install -d -o root -g chalkak-backup -m 750 "$lock_dir"
-lock_file="$lock_dir/backup.lock"
-if [[ ! -e "$lock_file" && ! -L "$lock_file" ]]; then
-  # 최초 설치가 겹쳐도 기존 파일을 교체하지 않는다. 생성한 설치기만 권한을 설정한다.
-  if (umask 077; set -o noclobber; : > "$lock_file") 2>/dev/null; then
-    chown root:chalkak-backup "$lock_file"
-    chmod 660 "$lock_file"
+for lock_file in "$lock_dir/backup.lock" "$lock_dir/full-backup.lock"; do
+  if [[ ! -e "$lock_file" && ! -L "$lock_file" ]]; then
+    # 최초 설치가 겹쳐도 기존 파일을 교체하지 않는다. 생성한 설치기만 권한을 설정한다.
+    if (umask 077; set -o noclobber; : > "$lock_file") 2>/dev/null; then
+      chown root:chalkak-backup "$lock_file"
+      chmod 660 "$lock_file"
+    fi
   fi
-fi
-# 이미 사용 중인 inode를 교체·초기화하지 않는다. 잘못된 기존 파일은 자동 보정하지 않는다.
-[[ -f "$lock_file" && ! -L "$lock_file" && "$(stat -c %u -- "$lock_file")" == 0 &&
-   "$(stat -c %a -- "$lock_file")" == 660 && "$(stat -c %h -- "$lock_file")" == 1 ]] || exit 1
-runuser -u chalkak-backup -- test -r "$lock_file"
-runuser -u chalkak-backup -- test -w "$lock_file"
+  # 이미 사용 중인 inode를 교체·초기화하지 않는다. 잘못된 기존 파일은 자동 보정하지 않는다.
+  [[ -f "$lock_file" && ! -L "$lock_file" && "$(stat -c %u -- "$lock_file")" == 0 &&
+     "$(stat -c %a -- "$lock_file")" == 660 && "$(stat -c %h -- "$lock_file")" == 1 ]] || exit 1
+  runuser -u chalkak-backup -- test -r "$lock_file"
+  runuser -u chalkak-backup -- test -w "$lock_file"
+done
 
 # 실행 중인 예약·수동 백업은 중단하지 않는다. 갱신이 실패하면 앱 배포도 중단하고 나중에 재배포한다.
-exec 9<> "$lock_file"
+exec 9<> "$lock_dir/backup.lock"
 flock --exclusive --nonblock --conflict-exit-code 75 9 || {
   echo '백업 또는 다른 파일 갱신이 실행 중입니다. 완료 후 재배포하세요.' >&2; exit 75;
 }

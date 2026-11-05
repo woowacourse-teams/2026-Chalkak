@@ -72,16 +72,20 @@ echo 'PASS: 최초 설치 중복 시 준비 중인 잠금 파일 교체 차단'
 # 최초 설치기는 root로 실행하고, 설치된 공통 잠금은 실제 백업 사용자로 연다.
 [[ $(stat -c '%U:%G:%a' "$root/locks") == root:chalkak-backup:750 ]]
 [[ $(stat -c '%U:%G:%a' "$lock_file") == root:chalkak-backup:660 ]]
+[[ $(stat -c '%U:%G:%a' "$root/locks/full-backup.lock") == root:chalkak-backup:660 ]]
 runuser -u chalkak-backup -- env BACKUP_LOCK_FILE="$lock_file" bash -c '
   source "$1"
   backup_lock
+  backup_full_lock
 ' bash "$root/code/current/backup-lock.sh"
 echo 'PASS: 최초 root 설치 후 실제 백업 사용자가 잠금 획득'
 
 inode=$(stat -c %i "$lock_file")
+full_inode=$(stat -c %i "$root/locks/full-backup.lock")
 printf 'preserved\n' > "$lock_file"
 bash "$runner" > "$root/output" 2>&1
 [[ $(stat -c %i "$lock_file") == "$inode" && $(cat "$lock_file") == preserved ]]
+[[ $(stat -c %i "$root/locks/full-backup.lock") == "$full_inode" ]]
 echo 'PASS: 재설치가 잠금 inode와 내용을 교체하지 않음'
 
 if runuser -u chalkak-backup -- rm "$lock_file" 2>/dev/null; then exit 1; fi
