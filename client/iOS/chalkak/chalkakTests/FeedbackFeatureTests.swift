@@ -100,6 +100,52 @@ struct FeedbackViewModelTests {
                 == .showMessage("피드백 내용이 올바르지 않습니다.")
         )
     }
+
+    @Test("제출 중 보내기를 다시 눌러도 제출은 한 번이다")
+    func submitWhileSubmittingSendsOnce() async throws {
+        // Given 첫 제출이 아직 응답하지 않음
+        // When  보내기를 한 번 더 누른다
+        // Then  제출 핸들러 호출 1회
+        let gate = FeedbackSubmitGate()
+        let viewModel = FeedbackViewModel(
+            submitFeedback: { _ in try await gate.submit() }
+        )
+        viewModel.updateContent("두 번 눌러도 한 번만")
+
+        let firstSubmit = Task { await viewModel.submit() }
+        try await waitUntil { gate.callCount == 1 }
+        await viewModel.submit()
+        gate.resume()
+        await firstSubmit.value
+
+        #expect(gate.callCount == 1)
+        #expect(viewModel.event == .submitted)
+    }
+
+    @Test("제출이 네트워크 오류면 다시 보내지 않고 목록 확인을 안내한다",
+          arguments: [FeedbackSubmitFailure.network, .timedOut])
+    func networkFailureAsksToCheckList(failure: FeedbackSubmitFailure) async {
+        // Given 제출 핸들러가 네트워크 오류(타임아웃 포함)를 던짐
+        // When  보낸다
+        // Then  핸들러 호출 1회, 메시지 "보내지 못했을 수 있어요. 내 문의에서 확인한 뒤 다시 보내 주세요."
+        var submitCount = 0
+        let viewModel = FeedbackViewModel(
+            submitFeedback: { _ in
+                submitCount += 1
+                throw failure.error
+            }
+        )
+        viewModel.updateContent("저장됐는지 모르는 문의")
+
+        await viewModel.submit()
+
+        #expect(submitCount == 1)
+        #expect(
+            viewModel.event
+                == .showMessage("보내지 못했을 수 있어요. 내 문의에서 확인한 뒤 다시 보내 주세요.")
+        )
+        #expect(!viewModel.viewState.isSubmitting)
+    }
 }
 
 @MainActor
@@ -185,6 +231,194 @@ struct FeedbackAPIClientTests {
             )
         }
         #expect(await recorder.requests.isEmpty)
+    }
+
+    @Test("목록의 hasAnswer를 현재 답변 상태로 담고 누락·null은 상태 없음으로 둔다")
+    func decodesAnswerStateWithoutDetailRequests() async throws {
+        // Given 현재 API의 true·false·누락·null 목록 항목
+        // When 목록 API를 한 번 불러온다
+        // Then 네 상태를 보존하며 항목별 상세 요청을 하지 않는다
+        let recorder = FeedbackRequestRecorder()
+        let client = makeClient { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: """
+            {"currentPage":1,"pageSize":20,"hasNext":false,"feedbacks":[
+              {"feedbackId":"\(Self.feedbackA)","content":"완료","createdAt":"2026-11-03T06:00:00Z","hasAnswer":true},
+              {"feedbackId":"\(Self.feedbackB)","content":"대기","createdAt":"2026-11-03T06:00:00Z","hasAnswer":false},
+              {"feedbackId":"\(Self.feedbackA)","content":"누락","createdAt":"2026-11-03T06:00:00Z"},
+              {"feedbackId":"\(Self.feedbackB)","content":"null","createdAt":"2026-11-03T06:00:00Z","hasAnswer":null}
+            ]}
+            """)
+        }
+        let page = try await client.fetchFeedbacks(page: 1)
+        #expect(page.items.map(\.hasAnswer) == [true, false, nil, nil])
+        #expect(await recorder.requests.count == 1)
+        #expect(await recorder.requests.first?.url?.path == "/api/v1/feedbacks")
+    }
+
+    @Test("내 문의 목록은 첫 페이지를 20건 단위로 인증해 요청한다")
+    func fetchesFirstFeedbackPage() async throws {
+        // Given 로그인한 회원
+        // When  목록 첫 페이지를 불러온다
+        // Then  `GET feedbacks?page=1&pageSize=20`, `Authorization: Bearer` 헤더, 응답의 문의 ID·내용·접수 시각이 담긴다
+        let recorder = FeedbackRequestRecorder()
+        let client = makeClient { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: """
+                {"currentPage":1,"pageSize":20,"hasNext":true,"feedbacks":[
+                  {"feedbackId":"\(Self.feedbackA)","content":"사진 업로드 후 화면이 멈춰요.","createdAt":"2026-11-03T06:00:00Z"},
+                  {"feedbackId":"\(Self.feedbackB)","content":"알림이 늦게 와요.","createdAt":"2026-11-02T23:30:15.250Z"}
+                ]}
+                """
+            )
+        }
+
+        let page = try await client.fetchFeedbacks(page: 1)
+
+        let request = await recorder.requests.first
+        let components = request?.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+        #expect(request?.httpMethod == "GET")
+        #expect(components?.path == "/api/v1/feedbacks")
+        #expect(components?.queryItems?.sorted { $0.name < $1.name } == [
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "pageSize", value: "20"),
+        ])
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
+        #expect(page.currentPage == 1)
+        #expect(page.hasNext)
+        #expect(page.items == [
+            FeedbackSummary(
+                id: Self.feedbackA,
+                content: "사진 업로드 후 화면이 멈춰요.",
+                createdAt: Self.utc(year: 2026, month: 11, day: 3, hour: 6)
+            ),
+            FeedbackSummary(
+                id: Self.feedbackB,
+                content: "알림이 늦게 와요.",
+                createdAt: Self.utc(year: 2026, month: 11, day: 2, hour: 23, minute: 30, second: 15)
+                    .addingTimeInterval(0.25)
+            ),
+        ])
+    }
+
+    @Test("답변이 있으면 상세 상태에 답변 내용과 시각을 담는다")
+    func decodesAnsweredFeedback() async throws {
+        // Given `answerContent`="확인했어요", `answeredAt`="2026-11-04T01:00:00Z"
+        // When  상세를 불러온다
+        // Then  답변 내용 "확인했어요", 답변 시각 2026-11-04T01:00:00Z
+        let recorder = FeedbackRequestRecorder()
+        let client = makeClient { request in
+            await recorder.append(request)
+            return Self.response(
+                for: request,
+                body: """
+                {"feedbackId":"\(Self.feedbackA)","content":"사진 업로드 후 화면이 멈춰요.","createdAt":"2026-11-03T06:00:00Z",
+                 "answerContent":"확인했어요","answeredAt":"2026-11-04T01:00:00Z"}
+                """
+            )
+        }
+
+        let detail = try await client.fetchFeedback(id: Self.feedbackA)
+
+        let request = await recorder.requests.first
+        #expect(request?.httpMethod == "GET")
+        #expect(request?.url?.path == "/api/v1/feedbacks/\(Self.feedbackA)")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
+        #expect(detail.answer == FeedbackAnswer(
+            content: "확인했어요",
+            answeredAt: Self.utc(year: 2026, month: 11, day: 4, hour: 1)
+        ))
+    }
+
+    @Test("답변 필드가 둘 다 null이면 미답변 상태가 된다")
+    func decodesUnansweredFeedback() async throws {
+        // Given `answerContent`=null, `answeredAt`=null
+        // When  상세를 불러온다
+        // Then  답변 없음(nil)
+        let client = makeClient { request in
+            Self.response(
+                for: request,
+                body: """
+                {"feedbackId":"\(Self.feedbackA)","content":"사진 업로드 후 화면이 멈춰요.","createdAt":"2026-11-03T06:00:00Z",
+                 "answerContent":null,"answeredAt":null}
+                """
+            )
+        }
+
+        let detail = try await client.fetchFeedback(id: Self.feedbackA)
+
+        #expect(detail == FeedbackDetail(
+            id: Self.feedbackA,
+            content: "사진 업로드 후 화면이 멈춰요.",
+            createdAt: Self.utc(year: 2026, month: 11, day: 3, hour: 6),
+            answer: nil
+        ))
+    }
+
+    @Test("상세에서 404를 받으면 찾을 수 없음 안내와 목록 갱신을 요청한다")
+    func mapsDetailNotFound() async {
+        // Given 상세 요청이 404 / BUSINESS_ERROR
+        // When  상세를 불러온다
+        // Then  "문의를 찾을 수 없어요" 메시지, 목록 갱신 이벤트 (API는 notFound로 바꿔 ViewModel에 넘긴다)
+        let client = makeClient { request in
+            Self.response(for: request, statusCode: 404, body: Self.notFoundBody)
+        }
+
+        await #expect(throws: FeedbackAPIError.notFound) {
+            _ = try await client.fetchFeedback(id: Self.feedbackA)
+        }
+    }
+
+    @Test("삭제 204 빈 본문을 성공으로 처리하고 목록에서 뺀다")
+    func deletesWithEmptyNoContentResponse() async throws {
+        // Given 목록 A, B, C, B 삭제 요청이 본문 없는 204
+        // When  B를 삭제한다
+        // Then  `DELETE feedbacks/{B}`, 목록이 A, C (목록 처리는 FeedbackListViewModelTests)
+        let recorder = FeedbackRequestRecorder()
+        let client = makeClient { request in
+            await recorder.append(request)
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 204, httpVersion: nil, headerFields: [:]
+            )!
+            return (response, Data())
+        }
+
+        try await client.deleteFeedback(id: Self.feedbackB)
+
+        let request = await recorder.requests.first
+        #expect(request?.httpMethod == "DELETE")
+        #expect(request?.url?.path == "/api/v1/feedbacks/\(Self.feedbackB)")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
+    }
+
+    @Test("삭제에서 404를 받으면 찾을 수 없음 안내 후 목록을 다시 불러온다")
+    func mapsDeleteNotFound() async {
+        // Given 삭제 요청이 404
+        // When  삭제한다
+        // Then  "문의를 찾을 수 없어요" 메시지, 목록 1페이지 재조회 (API는 notFound로 바꿔 ViewModel에 넘긴다)
+        let client = makeClient { request in
+            Self.response(for: request, statusCode: 404, body: Self.notFoundBody)
+        }
+
+        await #expect(throws: FeedbackAPIError.notFound) {
+            try await client.deleteFeedback(id: Self.feedbackB)
+        }
+    }
+
+    private static let feedbackA = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
+    private static let feedbackB = "0198f6c1-62ba-7d30-8b12-0f733b6570d5"
+    private static let notFoundBody = #"{"errorCode":"BUSINESS_ERROR","message":"문의를 찾을 수 없습니다."}"#
+
+    private static func utc(
+        year: Int, month: Int, day: Int, hour: Int, minute: Int = 0, second: Int = 0
+    ) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar.date(from: DateComponents(
+            year: year, month: month, day: day, hour: hour, minute: minute, second: second
+        ))!
     }
 
     private func makeClient(
@@ -301,5 +535,42 @@ private final class FeedbackMockURLProtocol: URLProtocol, @unchecked Sendable {
         }
         request.httpBody = body
         return request
+    }
+}
+
+/// 제출 테스트에서 고르는 네트워크 오류. API 클라이언트의 `.network`와 URLSession 타임아웃을 함께 본다.
+enum FeedbackSubmitFailure: Sendable, CustomTestStringConvertible {
+    case network
+    case timedOut
+
+    var error: Error {
+        switch self {
+        case .network: FeedbackAPIError.network
+        case .timedOut: URLError(.timedOut)
+        }
+    }
+
+    var testDescription: String {
+        switch self {
+        case .network: "FeedbackAPIError.network"
+        case .timedOut: "URLError.timedOut"
+        }
+    }
+}
+
+/// 첫 제출을 `resume()`할 때까지 붙잡아 둔다.
+@MainActor
+private final class FeedbackSubmitGate {
+    private(set) var callCount = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func submit() async throws {
+        callCount += 1
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }

@@ -20,6 +20,9 @@ struct NotificationItem: Identifiable, Equatable, Sendable {
         case "AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED":
             guard sourceType == "POST", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
             return .aiReview(postID: sourceID, notificationID: id)
+        case "FEEDBACK_ANSWERED":
+            guard sourceType == "FEEDBACK", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
+            return .feedbackAnswered(feedbackID: sourceID, notificationID: id)
         case "POST_LIKE_MILESTONE":
             guard sourceType == "POST", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
             return .likeMilestone(postID: sourceID, notificationID: id)
@@ -139,8 +142,8 @@ final class NotificationInboxViewModel {
         if generation == requestGeneration { isLoadingMore = false }
     }
 
-    /// 조회만으로 읽음 처리하지 않는다. 서버에서 찾을 수 없는 알림은 이동하지 않는다.
-    func readForNavigation(_ notificationID: String) async -> Bool {
+    /// 조회만으로 읽음 처리하지 않는다. 기본적으로 서버에서 찾을 수 없는 알림은 이동하지 않는다.
+    func readForNavigation(_ notificationID: String, allowsMissingNotification: Bool = false) async -> Bool {
         message = nil
         guard readingIDs.insert(notificationID).inserted else { return false }
         defer { readingIDs.remove(notificationID) }
@@ -155,6 +158,11 @@ final class NotificationInboxViewModel {
             return true
         } catch NotificationAPIError.notFound {
             await refresh()
+            guard !Task.isCancelled else { return false }
+            if allowsMissingNotification {
+                message = nil
+                return true
+            }
             message = "더 이상 확인할 수 없는 알림이에요."
             return false
         } catch NotificationAPIError.unauthorized {
