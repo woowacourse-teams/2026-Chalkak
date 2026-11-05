@@ -832,6 +832,42 @@ class ChalkakNavHostTest {
     }
 
     @Test
+    fun likeMilestoneNotificationWithInvalidPostIdOpensNotificationsInstead() {
+        lateinit var navController: NavHostController
+
+        composeRule.activity.setContent {
+            val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
+            LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
+            navController = rememberNavController()
+            ChalkakTheme {
+                ChalkakNavHost(
+                    analyticsTracker = NoOpAnalyticsTracker,
+                    homeViewModel = homeViewModel,
+                    navController = navController,
+                    startDestination = Home,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Home>() == true
+        }
+
+        composeRule.runOnIdle {
+            navController.openNotificationTarget(
+                type = "POST_LIKE_MILESTONE",
+                sourceType = "POST",
+                sourceId = "not-a-uuid",
+                notificationId = "notification-id",
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            navController.currentDestination?.hasRoute<Notifications>() == true
+        }
+    }
+
+    @Test
     fun likeMilestoneNotificationOpensOwnedFeedWithoutResultIntent() {
         lateinit var navController: NavHostController
 
@@ -857,7 +893,7 @@ class ChalkakNavHostTest {
             navController.openNotificationTarget(
                 type = "POST_LIKE_MILESTONE",
                 sourceType = "POST",
-                sourceId = "post-id",
+                sourceId = NOTIFICATION_POST_ID,
                 notificationId = "notification-id",
             )
         }
@@ -867,7 +903,7 @@ class ChalkakNavHostTest {
         }
         composeRule.runOnIdle {
             val route = navController.currentBackStackEntry!!.toRoute<FeedById>()
-            assertEquals("post-id", route.postId)
+            assertEquals(NOTIFICATION_POST_ID, route.postId)
             assertTrue(route.isOwnedByCurrentUser)
             assertFalse(route.openAiReviewResult)
         }
@@ -899,7 +935,7 @@ class ChalkakNavHostTest {
             navController.openNotificationTarget(
                 type = "AI_REVIEW_COMPLETED",
                 sourceType = "POST",
-                sourceId = "post-id",
+                sourceId = NOTIFICATION_POST_ID,
                 notificationId = "notification-id",
             )
         }
@@ -909,17 +945,17 @@ class ChalkakNavHostTest {
         }
         composeRule.runOnIdle {
             val route = navController.currentBackStackEntry!!.toRoute<FeedById>()
-            assertEquals("post-id", route.postId)
+            assertEquals(NOTIFICATION_POST_ID, route.postId)
             assertTrue(route.isOwnedByCurrentUser)
             assertTrue(route.openAiReviewResult)
             navController.openNotificationTarget(
                 type = "AI_REVIEW_FAILED",
                 sourceType = "POST",
-                sourceId = "post-id",
+                sourceId = NOTIFICATION_POST_ID,
                 notificationId = "failed-notification-id",
             )
             val failedRoute = navController.currentBackStackEntry!!.toRoute<FeedById>()
-            assertEquals("post-id", failedRoute.postId)
+            assertEquals(NOTIFICATION_POST_ID, failedRoute.postId)
             assertTrue(failedRoute.openAiReviewResult)
             assertTrue(
                 navController.previousBackStackEntry
@@ -954,7 +990,7 @@ class ChalkakNavHostTest {
         composeRule.runOnIdle {
             navController.navigate(
                 Feed(
-                    postId = "post-id",
+                    postId = NOTIFICATION_POST_ID,
                     originalImageUrl = "original",
                     thumbnailImageUrl = "thumbnail",
                     signatureOriginalImageUrl = "signature",
@@ -975,7 +1011,7 @@ class ChalkakNavHostTest {
             navController.openNotificationTarget(
                 type = "AI_REVIEW_COMPLETED",
                 sourceType = "POST",
-                sourceId = "post-id",
+                sourceId = NOTIFICATION_POST_ID,
                 notificationId = "notification-id",
             )
         }
@@ -1051,3 +1087,5 @@ private object NoOpAnalyticsTracker : AnalyticsTracker {
 
     override fun trackBottomNavigationSelection(destination: String) = Unit
 }
+
+private const val NOTIFICATION_POST_ID = "019a0010-0000-7000-8000-000000000003"
