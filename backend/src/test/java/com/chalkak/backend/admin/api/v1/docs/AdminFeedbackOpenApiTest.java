@@ -65,7 +65,7 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("admin-api 문서는 기존 피드백 목록 계약을 제공한다")
+    @DisplayName("관리자 피드백 목록 문서는 필터와 답변 상태를 제공한다")
     void adminApiDocs_exposesFeedbackListContract() throws Exception {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/admin-api"))
@@ -73,6 +73,8 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters[*].name")
                         .value(containsInAnyOrder(
                                 "userId",
+                                "inquiryStatus",
+                                "bannedAuthorOnly",
                                 "sort",
                                 "page",
                                 "pageSize"
@@ -101,6 +103,30 @@ class AdminFeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.components.schemas.AdminFeedbackListItem.properties.deletedAt.type")
                         .value(containsInAnyOrder("string", "null")))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'inquiryStatus')].required")
+                        .value(containsInAnyOrder(false)))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'inquiryStatus')].schema.enum")
+                        .value(containsInAnyOrder(containsInAnyOrder(
+                                "ALL",
+                                "NEEDS_ANSWER",
+                                "ANSWERED",
+                                "INQUIRY_DELETED"
+                        ))))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/feedbacks'].get.parameters"
+                        + "[?(@.name == 'bannedAuthorOnly')].required")
+                        .value(containsInAnyOrder(false)))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackListItem.properties.answerState.enum")
+                        .value(containsInAnyOrder(
+                                "UNANSWERED",
+                                "ANSWERED",
+                                "DELETED"
+                        )))
+                .andExpect(jsonPath(
+                        "$.components.schemas.AdminFeedbackListItem.properties.answerContent")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.AdminFeedbackListAuthor.properties[*]")
                         .exists());
     }

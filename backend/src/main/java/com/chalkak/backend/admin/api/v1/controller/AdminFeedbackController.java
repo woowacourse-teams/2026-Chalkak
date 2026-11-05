@@ -9,6 +9,7 @@ import com.chalkak.backend.admin.api.v1.dto.response.AdminFeedbackListResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminFeedbackDetailResponse;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.exception.BusinessException;
@@ -98,8 +99,13 @@ public class AdminFeedbackController implements AdminFeedbackApiDocs {
             @Valid @ModelAttribute AdminFeedbackListRequest request
     ) {
         UUID userId = request.userId() == null ? null : CanonicalUuidParser.parse(request.userId());
-        AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
+        AdminFeedbackQueryCriteria criteria = new AdminFeedbackQueryCriteria(
                 userId,
+                request.inquiryStatus(),
+                request.bannedAuthorOnly()
+        );
+        AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
+                criteria,
                 request.sort(),
                 request.page(),
                 request.pageSize()

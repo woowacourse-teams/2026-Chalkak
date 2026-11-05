@@ -13,7 +13,7 @@ public record AdminFeedbackDetailResult(
         Instant createdAt,
         String answerContent,
         Instant answeredAt,
-        AnswerState answerState,
+        AdminFeedbackAnswerState answerState,
         String answerVersion,
         Instant deletedAt,
         AuthorSummary author
@@ -26,7 +26,7 @@ public record AdminFeedbackDetailResult(
                 detail.createdAt(),
                 detail.answerContent(),
                 detail.answeredAt(),
-                AnswerState.from(detail),
+                AdminFeedbackAnswerState.from(detail.answeredAt(), detail.answerDeletedAt()),
                 detail.answeredAt() == null
                         ? null
                         : Feedback.createAnswerVersion(detail.answeredAt()),
@@ -38,16 +38,5 @@ public record AdminFeedbackDetailResult(
                         detail.authorAppVersion()
                 )
         );
-    }
-
-    public enum AnswerState {
-        UNANSWERED, ANSWERED, DELETED;
-
-        private static AnswerState from(AdminFeedbackDetailProjection detail) {
-            if (detail.answerDeletedAt() != null) {
-                return DELETED;
-            }
-            return detail.answeredAt() == null ? UNANSWERED : ANSWERED;
-        }
     }
 }

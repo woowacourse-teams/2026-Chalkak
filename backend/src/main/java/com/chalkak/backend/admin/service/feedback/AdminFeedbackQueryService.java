@@ -1,5 +1,6 @@
 package com.chalkak.backend.admin.service.feedback;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.exception.BusinessException;
@@ -20,7 +21,7 @@ public class AdminFeedbackQueryService {
     private final AdminFeedbackQueryRepository adminFeedbackQueryRepository;
 
     public AdminFeedbackListResult getFeedbacks(
-            UUID userId,
+            AdminFeedbackQueryCriteria criteria,
             AdminFeedbackSort sort,
             int page,
             int pageSize
@@ -28,7 +29,7 @@ public class AdminFeedbackQueryService {
         validatePagination(page, pageSize);
         return AdminFeedbackListResult.from(
                 adminFeedbackQueryRepository.findFeedbacks(
-                        userId,
+                        criteria,
                         sort == null ? AdminFeedbackSort.CREATED_AT_DESC : sort,
                         page,
                         pageSize
