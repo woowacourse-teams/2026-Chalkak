@@ -106,11 +106,18 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                            case let .approved(postID), let .aiReview(postID):
+                            case .settings:
+                                NotificationSettingsScreen(
+                                    viewModel: notificationSettingsViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) }
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            case let .approved(postID), let .aiReview(postID), let .likeMilestone(postID):
                                 FeedScreen(
                                     viewModel: makeFeedViewModel(FeedTarget(
                                         postID: postID,
-                                        isOwnedByCurrentUser: destination == .aiReview(postID)
+                                        isOwnedByCurrentUser: true
                                     )),
                                     usesPhotoTransition: false,
                                     opensAIReviewOnEntry: destination == .aiReview(postID),
@@ -312,6 +319,7 @@ struct ContentView: View {
         }
         .task(id: route) {
             await handleNotificationPermissionAtHomeEntry()
+            await migrateLikePushIfNeeded()
         }
         .task(id: NotificationUnreadRefreshID(
             modelID: ObjectIdentifier(notificationInboxViewModel), isHome: route == .main
@@ -346,6 +354,19 @@ struct ContentView: View {
     }
 
     @MainActor
+    private func migrateLikePushIfNeeded() async {
+        guard route == .main, let userID = KeychainSessionStore.userID() else { return }
+        let client = NotificationSettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        await LikePushMigration.run(
+            userID: userID,
+            load: { try await client.fetch() },
+            save: { try await client.update(likePushEnabled: $0) }
+        )
+    }
+
     private func handleNotificationPermissionAtHomeEntry() async {
         guard route == .main,
               KeychainSessionStore.hasAuthenticatedSession(),
@@ -495,11 +516,13 @@ struct ContentView: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
-                notificationSettingsViewModel: notificationSettingsViewModel,
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
                 onOpenFeedback: openFeedback,
+                onOpenNotificationSettings: {
+                    withAnimation { notificationPath = [.settings] }
+                },
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
@@ -540,15 +563,18 @@ struct ContentView: View {
                         showMessage("로그인 후 알림을 확인할 수 있어요")
                         return
                     }
+                    analyticsTracker.trackHomeInteraction(.notification)
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onIssueClick: { selectedIssueURL = $0 },
+                onInteraction: trackHomeInteraction,
                 bottomBarCompact: $isBottomBarCompact,
                 isActive: selectedFeed == nil && notificationPath.isEmpty
                     && selectedIssueURL == nil && !isNotificationInboxPresented && !isFeedbackPresented
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
+                homeViewModel.markPresented()
 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
@@ -567,14 +593,23 @@ struct ContentView: View {
         select(.record)
     }
 
-    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
-        var isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+    private var canOpenHomeFeed: Bool {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
-            isAuthenticated = false
+            return false
         }
 #endif
-        guard isAuthenticated else {
+        return KeychainSessionStore.hasAuthenticatedSession()
+    }
+
+    private func trackHomeInteraction(_ interaction: HomeInteraction) {
+        // 비로그인 사용자의 랭킹 사진은 로그인 안내만 보여 주므로 이동으로 세지 않는다.
+        if case .ranking(_, .photo) = interaction, !canOpenHomeFeed { return }
+        analyticsTracker.trackHomeInteraction(interaction)
+    }
+
+    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
+        guard canOpenHomeFeed else {
             showMessage("상세를 보려면 로그인이 필요해요")
             return
         }
@@ -639,7 +674,7 @@ struct ContentView: View {
         }
     }
 
-    private func openDisplay(at date: Date, sort: DisplaySort = .latest) {
+    private func openDisplay(at date: Date, sort: DisplaySort = .random) {
         displayViewModel = Self.makeDisplayViewModel(initialDate: date, initialSort: sort)
         selectedTab = .display
     }
@@ -684,7 +719,8 @@ struct ContentView: View {
             return
         }
         if let destination = notificationPath.last,
-           destination == .approved(postID) || destination == .aiReview(postID) {
+           destination == .approved(postID) || destination == .aiReview(postID)
+               || destination == .likeMilestone(postID) {
             selectedAuthorPosts = nil
             closeNotificationDestination(destination)
         }
@@ -792,6 +828,8 @@ struct ContentView: View {
                 notificationPath.append(.approved(postID))
             case let .aiReview(postID, _):
                 notificationPath.append(.aiReview(postID))
+            case let .likeMilestone(postID, _):
+                notificationPath.append(.likeMilestone(postID))
             case let .postRejected(notificationID):
                 notificationPath.append(.rejected(NotificationDetailTarget(id: notificationID)))
             case let .notice(notificationID):
@@ -962,8 +1000,13 @@ struct ContentView: View {
         )
         return NotificationSettingsViewModel(
             loadSettings: { try await client.fetch() },
-            saveSettings: { topic, moderation, aiReview in
-                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
+            saveSettings: { topic, moderation, aiReview, like in
+                try await client.update(
+                    topicPushEnabled: topic,
+                    moderationPushEnabled: moderation,
+                    aiReviewPushEnabled: aiReview,
+                    likePushEnabled: like
+                )
             },
         )
     }
@@ -1024,11 +1067,13 @@ struct ContentView: View {
             loader: .live(baseURL: resolvedAPIBaseURL),
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
-            )
+            ),
+            loadIssueExperiment: { await AppRemoteConfig.shared.homeIssueExperiment() },
+            onIssueExperimentExposed: { FirebaseAnalyticsTracker().trackHomeIssueLayoutExposed(isIssueOnTop: $0) }
         )
     }
 
-    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
+    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .random) -> DisplayViewModel {
         DisplayViewModel(
             initialDate: initialDate,
             initialSort: initialSort,
@@ -1287,7 +1332,9 @@ struct ContentView: View {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
-            case .approved, .aiReview:
+            case .settings:
+                return AnalyticsScreen(name: "notification_settings", screenClass: "NotificationSettings")
+            case .approved, .aiReview, .likeMilestone:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
             case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")
@@ -1349,8 +1396,10 @@ private struct NotificationUnreadRefreshID: Hashable {
 
 private enum NotificationRoute: Hashable {
     case inbox
+    case settings
     case approved(String)
     case aiReview(String)
+    case likeMilestone(String)
     case rejected(NotificationDetailTarget)
     case notice(NotificationDetailTarget)
 }

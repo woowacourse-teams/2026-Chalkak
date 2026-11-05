@@ -24,6 +24,7 @@ struct DisplayViewModelTests {
         let canonicalDate = Self.date(2026, 9, 1)
         let recorder = DisplayRequestRecorder()
         let viewModel = DisplayViewModel(
+            initialSort: .latest,
             dateProvider: { canonicalDate },
             firstPageHandler: { date, sort, _ in
                 recorder.firstPages.append((date, sort))
@@ -45,6 +46,7 @@ struct DisplayViewModelTests {
         let latestDate = Self.date(2026, 9, 2)
         let recorder = DisplayRequestRecorder()
         let viewModel = DisplayViewModel(
+            initialSort: .latest,
             dateProvider: { latestDate },
             firstPageHandler: { date, sort, _ in
                 recorder.firstPages.append((date, sort))
@@ -143,6 +145,7 @@ struct DisplayViewModelTests {
     func refreshPreservesCachedTailPages() async {
         let latestDate = Self.date(2026, 9, 2)
         let viewModel = DisplayViewModel(
+            initialSort: .latest,
             dateProvider: { latestDate },
             firstPageHandler: { date, sort, _ in
                 .success(
@@ -188,6 +191,7 @@ struct DisplayViewModelTests {
         var randomSeed = "seed-1"
         var randomFirstPhotoID = "random-first-1"
         let viewModel = DisplayViewModel(
+            initialSort: .latest,
             dateProvider: { latestDate },
             firstPageHandler: { date, sort, _ in
                 .success(
@@ -628,6 +632,7 @@ struct DisplayViewModelTests {
         let recorder = DisplayRequestRecorder()
         let firstPhoto = Self.photo(id: "photo-1")
         let viewModel = DisplayViewModel(
+            initialSort: .latest,
             dateProvider: { latestDate },
             firstPageHandler: { date, sort, _ in
                 .success(
@@ -822,6 +827,219 @@ struct DisplayViewModelTests {
 
         #expect(viewModel.viewState.photos.first?.isLiked == true)
         #expect(viewModel.viewState.photos.first?.likeCount == 12)
+    }
+
+    @Test("정렬 지정 없이 전시에 들어오면 오늘 전시를 랜덤순으로 불러온다")
+    func loadsTodayWithRandomSortWhenSortIsNotGiven() async {
+        // Given 오늘이 2026-11-05이고 정렬을 지정하지 않음
+        // When  전시를 처음 불러온다
+        // Then  첫 요청이 (2026-11-05, RANDOM, 1페이지, seed 없음)이고, 선택된 정렬이 RANDOM
+        let today = Self.date(2026, 11, 5)
+        var requests: [(date: Date, sort: DisplaySort, seed: String?)] = []
+        let viewModel = DisplayViewModel(
+            dateProvider: { today },
+            firstPageHandler: { date, sort, seed in
+                requests.append((date, sort, seed))
+                return .success(Self.content(date: date))
+            }
+        )
+
+        await viewModel.load()
+
+        // firstPageHandler는 1페이지 요청이다.
+        #expect(requests.count == 1)
+        #expect(requests.first?.date == today)
+        #expect(requests.first?.sort == .random)
+        #expect(requests.first?.seed == nil)
+        #expect(viewModel.viewState.selectedSort == .random)
+    }
+
+    @Test("인기순을 지정해 들어오면 인기순으로 불러온다")
+    func loadsWithPopularSortWhenPopularIsGiven() async {
+        // Given 오늘이 2026-11-05이고 정렬을 POPULAR로 지정함(홈 → 전시)
+        // When  전시를 처음 불러온다
+        // Then  첫 요청 정렬이 POPULAR, 선택된 정렬이 POPULAR
+        let today = Self.date(2026, 11, 5)
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialSort: .popular,
+            dateProvider: { today },
+            firstPageHandler: { date, sort, _ in
+                recorder.firstPages.append((date, sort))
+                return .success(Self.content(date: date))
+            }
+        )
+
+        await viewModel.load()
+
+        #expect(recorder.firstPages.count == 1)
+        #expect(recorder.firstPages.first?.1 == .popular)
+        #expect(viewModel.viewState.selectedSort == .popular)
+    }
+
+    @Test("랜덤순에서 새로고침하면 새 seed로 다시 섞인 목록으로 바뀐다")
+    func refreshReshufflesRandomSortWithNewSeed() async {
+        // Given 오늘 전시, 랜덤순, seed "seed-A"로 1·2페이지를 불러와 사진이 p1–p6
+        // When  새로고침하고 서버가 seed "seed-B", 사진 p7, p8, p9를 준다
+        // Then  요청이 (RANDOM, 1페이지, seed 없음). 사진이 p7, p8, p9만 남고 seed가 "seed-B". 다음 페이지 요청에는 "seed-B"를 쓴다
+        let today = Self.date(2026, 11, 5)
+        var serverSeed = "seed-A"
+        var firstPagePhotoIDs = ["p1", "p2", "p3"]
+        var firstPageRequests: [(sort: DisplaySort, seed: String?)] = []
+        var nextPageRequests: [DisplayPageRequest] = []
+        let viewModel = DisplayViewModel(
+            initialSort: .random,
+            dateProvider: { today },
+            firstPageHandler: { date, sort, seed in
+                firstPageRequests.append((sort, seed))
+                return .success(Self.content(
+                    date: date,
+                    page: DisplayPage(
+                        photos: firstPagePhotoIDs.map { Self.photo(id: $0) },
+                        currentPage: 1,
+                        hasNext: true,
+                        randomSeed: serverSeed
+                    )
+                ))
+            },
+            nextPageHandler: { request in
+                nextPageRequests.append(request)
+                let ids = request.randomSeed == "seed-A" ? ["p4", "p5", "p6"] : ["p10", "p11", "p12"]
+                return .success(DisplayPage(
+                    photos: ids.map { Self.photo(id: $0) },
+                    currentPage: request.page,
+                    hasNext: true,
+                    randomSeed: request.randomSeed
+                ))
+            }
+        )
+        await viewModel.load()
+        await viewModel.didReachEndThreshold(true)
+        #expect(viewModel.viewState.photos.map(\.id) == ["p1", "p2", "p3", "p4", "p5", "p6"])
+        serverSeed = "seed-B"
+        firstPagePhotoIDs = ["p7", "p8", "p9"]
+
+        await viewModel.refresh()
+
+        #expect(firstPageRequests.count == 2)
+        #expect(firstPageRequests.last?.sort == .random)
+        #expect(firstPageRequests.last?.seed == nil)
+        #expect(viewModel.viewState.photos.map(\.id) == ["p7", "p8", "p9"])
+        #expect(viewModel.viewState.randomSeed == "seed-B")
+
+        await viewModel.didReachEndThreshold(true)
+
+        #expect(nextPageRequests.last == DisplayPageRequest(
+            topicDate: today,
+            sort: .random,
+            page: 2,
+            randomSeed: "seed-B"
+        ))
+    }
+
+    @Test("지난 날짜 전시에서 새로고침하면 인기순으로 다시 불러온다")
+    func refreshReloadsArchiveWithPopularSort() async {
+        // Given 2026-11-03 전시(지난 날짜, 인기순)
+        // When  새로고침
+        // Then  요청이 (2026-11-03, POPULAR, 1페이지)
+        let today = Self.date(2026, 11, 5)
+        let archiveDate = Self.date(2026, 11, 3)
+        let recorder = DisplayRequestRecorder()
+        let viewModel = DisplayViewModel(
+            initialDate: archiveDate,
+            dateProvider: { today },
+            firstPageHandler: { date, sort, _ in
+                recorder.firstPages.append((date, sort))
+                return .success(Self.content(date: date))
+            }
+        )
+        await viewModel.load()
+        #expect(viewModel.viewState.contentStatus == .archive)
+
+        await viewModel.refresh()
+
+        // firstPageHandler는 1페이지 요청이다.
+        #expect(recorder.firstPages.count == 2)
+        #expect(recorder.firstPages.last?.0 == archiveDate)
+        #expect(recorder.firstPages.last?.1 == .popular)
+    }
+
+    @Test("새로고침이 실패하면 보던 사진과 seed를 그대로 두고 오류 안내를 띄운다")
+    func failedRefreshKeepsPhotosAndSeedAndShowsFailure() async {
+        // Given 랜덤순, seed "seed-A", 사진 p1, p2, p3
+        // When  새로고침하고 서버 오류가 난다
+        // Then  사진이 p1, p2, p3 그대로, seed "seed-A" 그대로, "전시를 불러오지 못했어요" 안내가 뜬다
+        let today = Self.date(2026, 11, 5)
+        var shouldFail = false
+        let viewModel = DisplayViewModel(
+            initialSort: .random,
+            dateProvider: { today },
+            firstPageHandler: { date, _, _ in
+                shouldFail
+                    ? .failure(.server)
+                    : .success(Self.content(
+                        date: date,
+                        page: DisplayPage(
+                            photos: ["p1", "p2", "p3"].map { Self.photo(id: $0) },
+                            currentPage: 1,
+                            hasNext: true,
+                            randomSeed: "seed-A"
+                        )
+                    ))
+            }
+        )
+        await viewModel.load()
+        shouldFail = true
+
+        await viewModel.refresh()
+
+        #expect(viewModel.viewState.contentStatus == .latest)
+        #expect(viewModel.viewState.photos.map(\.id) == ["p1", "p2", "p3"])
+        #expect(viewModel.viewState.randomSeed == "seed-A")
+        #expect(viewModel.event == .showFailure(.server))
+        #expect(DisplayError.server.message == "전시를 불러오지 못했어요")
+    }
+
+    @Test("새로고침 중에 또 새로고침해도 요청은 한 번만 간다")
+    func blocksDuplicateRefreshWhilePending() async {
+        // Given 새로고침 요청이 아직 끝나지 않음
+        // When  한 번 더 새로고침
+        // Then  첫 페이지 요청이 1번만 감
+        let today = Self.date(2026, 11, 5)
+        let gate = DisplayFirstPageGate()
+        let viewModel = DisplayViewModel(
+            initialState: DisplayViewState(
+                contentStatus: .latest,
+                selectedDate: today,
+                latestDate: today,
+                topic: "전시",
+                selectedSort: .random,
+                photos: [Self.photo(id: "p1")],
+                currentPage: 1,
+                hasNext: true,
+                randomSeed: "seed-A"
+            ),
+            dateProvider: { today },
+            firstPageHandler: { date, _, _ in await gate.request(date: date) }
+        )
+        let firstRefresh = Task { await viewModel.refresh() }
+        // 요청이 없으면 기다리다 멈추지 않도록, 정해진 횟수만 양보하며 첫 요청을 기다린다.
+        for _ in 0..<50 where gate.requestCount < 1 {
+            await Task.yield()
+        }
+
+        let secondRefresh = Task { await viewModel.refresh() }
+        for _ in 0..<50 {
+            await Task.yield()
+        }
+        let requestCount = gate.requestCount
+        for index in 0..<requestCount {
+            gate.completeRequest(at: index, with: .success(Self.content(date: today)))
+        }
+        await firstRefresh.value
+        await secondRefresh.value
+
+        #expect(requestCount == 1)
     }
 
     private static func content(
@@ -1162,6 +1380,8 @@ private final class DisplayFirstPageGate {
     private var requests: [Date] = []
     private var continuations: [CheckedContinuation<Result<DisplayContent, DisplayError>, Never>] = []
     private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    var requestCount: Int { requests.count }
 
     func request(date: Date) async -> Result<DisplayContent, DisplayError> {
         requests.append(date)

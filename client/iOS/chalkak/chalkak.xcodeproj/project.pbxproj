@@ -13,6 +13,7 @@
 		64DDEAB03028544800ECB6E1 /* SDWebImageWebPCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB13028544800ECB6E1 /* SDWebImageWebPCoder */; };
 		64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */; };
 		64DDEAB53028544800ECB6E1 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB63028544800ECB6E1 /* FirebaseMessaging */; };
+		64DDEABA3028544800ECB6E1 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEABB3028544800ECB6E1 /* FirebaseRemoteConfig */; };
 		64DDEAB73028544800ECB6E1 /* Mantis in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB93028544800ECB6E1 /* Mantis */; };
 /* End PBXBuildFile section */
 
@@ -64,6 +65,7 @@
 			files = (
 				64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */,
 				64DDEAB53028544800ECB6E1 /* FirebaseMessaging in Frameworks */,
+				64DDEABA3028544800ECB6E1 /* FirebaseRemoteConfig in Frameworks */,
 				64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */,
 				64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */,
 				64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */,
@@ -131,6 +133,7 @@
 			packageProductDependencies = (
 				64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */,
 				64DDEAB63028544800ECB6E1 /* FirebaseMessaging */,
+				64DDEABB3028544800ECB6E1 /* FirebaseRemoteConfig */,
 				64DDEAA03028544800ECB6E1 /* GoogleSignIn */,
 				64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */,
 				64DDEAA23028544800ECB6E1 /* KakaoSDKUser */,
@@ -733,6 +736,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseMessaging;
+		};
+		64DDEABB3028544800ECB6E1 /* FirebaseRemoteConfig */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseRemoteConfig;
 		};
 		64DDEAB93028544800ECB6E1 /* Mantis */ = {
 			isa = XCSwiftPackageProductDependency;

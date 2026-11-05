@@ -89,7 +89,7 @@ class NotificationTargetTest {
         val postTarget = notificationTargetOf(
             type = "POST_APPROVED",
             sourceType = "POST",
-            sourceId = "P",
+            sourceId = POST_ID,
             notificationId = "N",
         )
 
@@ -104,8 +104,11 @@ class NotificationTargetTest {
         )
         assertEquals(NotificationTarget.FeedbackInquiry(feedbackId = "F"), feedbackTarget)
         assertEquals(
-            listOf(NotificationTarget.Post(postId = "P", openAiReviewResult = false)),
+            listOf(NotificationTarget.Post(postId = POST_ID, openAiReviewResult = false)),
             postPushRoute,
         )
     }
 }
+
+// 게시물 알림은 UUID 형식 sourceId만 이동한다(#972).
+private const val POST_ID = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"

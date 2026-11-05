@@ -31,13 +31,19 @@ struct NotificationSettingsAPIClient: Sendable {
 
     /// Sends only the changed preference to avoid overwriting another device's update.
     /// The endpoint returns 204 with no response body.
-    func update(topicPushEnabled: Bool? = nil, moderationPushEnabled: Bool? = nil, aiReviewPushEnabled: Bool? = nil) async throws {
-        guard topicPushEnabled != nil || moderationPushEnabled != nil || aiReviewPushEnabled != nil else { return }
+    func update(
+        topicPushEnabled: Bool? = nil,
+        moderationPushEnabled: Bool? = nil,
+        aiReviewPushEnabled: Bool? = nil,
+        likePushEnabled: Bool? = nil
+    ) async throws {
+        guard topicPushEnabled != nil || moderationPushEnabled != nil || aiReviewPushEnabled != nil || likePushEnabled != nil else { return }
         let body = try JSONEncoder().encode(
             NotificationSettingsUpdateRequest(
                 topicPushEnabled: topicPushEnabled,
                 moderationPushEnabled: moderationPushEnabled,
-                aiReviewPushEnabled: aiReviewPushEnabled
+                aiReviewPushEnabled: aiReviewPushEnabled,
+                likePushEnabled: likePushEnabled
             )
         )
         _ = try await request(method: "PATCH", body: body)
@@ -79,4 +85,5 @@ private struct NotificationSettingsUpdateRequest: Encodable {
     let topicPushEnabled: Bool?
     let moderationPushEnabled: Bool?
     let aiReviewPushEnabled: Bool?
+    let likePushEnabled: Bool?
 }

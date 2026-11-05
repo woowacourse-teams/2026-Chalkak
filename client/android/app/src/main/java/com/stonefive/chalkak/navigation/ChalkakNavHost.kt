@@ -40,6 +40,7 @@ import androidx.navigation.toRoute
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.analytics.HomeInteraction
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarHostState
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
@@ -76,6 +77,7 @@ import com.stonefive.chalkak.feature.notification.NotificationRoute
 import com.stonefive.chalkak.feature.record.RecordRoute
 import com.stonefive.chalkak.feature.record.RecordViewModel
 import com.stonefive.chalkak.feature.record.component.RecordPhotoStackStyle
+import com.stonefive.chalkak.feature.settings.NotificationSettingsRoute
 import com.stonefive.chalkak.feature.settings.SettingsRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignaturePreviewRoute
 import com.stonefive.chalkak.feature.signature.ChangeSignatureRoute
@@ -471,6 +473,14 @@ fun ChalkakNavHost(
                             }
                         },
                         viewModel = homeViewModel,
+                        onInteraction = { interaction ->
+                            val requiresLogin = interaction is HomeInteraction.Ranking &&
+                                interaction.action == HomeInteraction.RankingAction.Photo &&
+                                sessionState !is UserSessionState.Authenticated
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED && !requiresLogin) {
+                                analyticsTracker.trackHomeInteraction(interaction)
+                            }
+                        },
                     )
                 }
             }
@@ -537,7 +547,7 @@ fun ChalkakNavHost(
                         initialDate = display.date.toLocalDateOrNull(),
                         initialSort = PostSort.entries.firstOrNull {
                             it.name == display.sort
-                        } ?: PostSort.LATEST,
+                        } ?: PostSort.RANDOM,
                         onOpenFeed = { post, dateLabel, topic, topicDate ->
                             if (backStackEntry.lifecycle.currentState != Lifecycle.State.RESUMED) {
                                 false
@@ -796,6 +806,9 @@ fun ChalkakNavHost(
                             showToast(FEEDBACK_LOGIN_REQUIRED_MESSAGE)
                         }
                     },
+                    onOpenNotificationSettings = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.navigate(NotificationSettings) { launchSingleTop = true }
+                    },
                     onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                     onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
                 )
@@ -823,6 +836,14 @@ fun ChalkakNavHost(
                         }
                     },
                     onReauthenticationRequired = navigateToLogin,
+                )
+            }
+
+            composable<NotificationSettings> { backStackEntry ->
+                NotificationSettingsRoute(
+                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
+                        navController.popBackStack()
+                    },
                 )
             }
 
@@ -1117,6 +1138,7 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
+    hasRoute<NotificationSettings>() -> NotificationSettingsAnalyticsScreen
     hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
     hasRoute<FeedbackList>() -> AnalyticsScreen(name = "customer_support", screenClass = "FeedbackList")
     hasRoute<FeedbackDetail>() -> AnalyticsScreen(name = "feedback_detail", screenClass = "FeedbackDetail")
@@ -1146,6 +1168,11 @@ private val OnboardingSignaturePreviewAnalyticsScreen = AnalyticsScreen(
 private val ChangeSignaturePreviewAnalyticsScreen = AnalyticsScreen(
     name = "change_signature_preview",
     screenClass = "ChangeSignaturePreview",
+)
+
+private val NotificationSettingsAnalyticsScreen = AnalyticsScreen(
+    name = "notification_settings",
+    screenClass = "NotificationSettings",
 )
 
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"

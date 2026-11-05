@@ -10,7 +10,7 @@ internal sealed interface NotificationTarget {
     /** 오늘의 주제 알림. 홈으로 간다. */
     data object TodayHome : NotificationTarget
 
-    /** 게시물 승인·AI 리뷰 알림. [openAiReviewResult]면 AI 리뷰 결과를 열어 둔다. */
+    /** 게시물 승인·좋아요 달성·AI 리뷰 알림. [openAiReviewResult]면 AI 리뷰 결과를 열어 둔다. */
     data class Post(
         val postId: String,
         val openAiReviewResult: Boolean,
@@ -43,11 +43,12 @@ internal fun notificationTargetOf(
 ): NotificationTarget = when {
     type == TOPIC -> NotificationTarget.TodayHome
 
-    type == POST_APPROVED && sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() ->
+    (type == POST_APPROVED || type == POST_LIKE_MILESTONE) &&
+        sourceType == POST_SOURCE_TYPE && sourceId != null && isNotificationPostId(sourceId) ->
         NotificationTarget.Post(postId = sourceId, openAiReviewResult = false)
 
     (type == AI_REVIEW_COMPLETED || type == AI_REVIEW_FAILED) &&
-        sourceType == POST_SOURCE_TYPE && !sourceId.isNullOrBlank() ->
+        sourceType == POST_SOURCE_TYPE && sourceId != null && isNotificationPostId(sourceId) ->
         NotificationTarget.Post(postId = sourceId, openAiReviewResult = true)
 
     (type == POST_REJECTED || type == NOTICE) && !notificationId.isNullOrBlank() ->
@@ -106,8 +107,13 @@ internal fun pushReadFailureHandlingOf(
     }
 }
 
+// API 경로에 그대로 들어가는 값이라 UUID 형식만 받는다.
+internal fun isNotificationPostId(value: String): Boolean = NOTIFICATION_POST_ID_PATTERN.matches(value)
+
+private val NOTIFICATION_POST_ID_PATTERN = Regex("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 internal const val TOPIC = "TOPIC"
 private const val POST_APPROVED = "POST_APPROVED"
+private const val POST_LIKE_MILESTONE = "POST_LIKE_MILESTONE"
 private const val POST_REJECTED = "POST_REJECTED"
 private const val NOTICE = "NOTICE"
 private const val POST_SOURCE_TYPE = "POST"
