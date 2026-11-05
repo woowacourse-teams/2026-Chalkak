@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         LegacyDailyReminderCleanup.run()
         FirebaseApp.configure()
+        AppRemoteConfig.shared.start()
         UNUserNotificationCenter.current().delegate = self
         Messaging.messaging().delegate = self
         application.registerForRemoteNotifications()
