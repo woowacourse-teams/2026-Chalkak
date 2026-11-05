@@ -320,12 +320,12 @@ struct HomeScreen: View {
                         updateBannerVisibility(banner.id, isVisible: isVisible)
                     }
             }
-        }
 
-        if viewModel.viewState.bannerStatus == .loading && viewModel.viewState.banners.isEmpty {
-            HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, theme.spacing.screenHorizontal)
+            if viewModel.viewState.banners.isEmpty {
+                HomeIssueSection(banner: nil, onIssueClick: onIssueClick, showHeader: false)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, theme.spacing.screenHorizontal)
+            }
         }
 
         if viewModel.viewState.isLoadingMoreBanners {
