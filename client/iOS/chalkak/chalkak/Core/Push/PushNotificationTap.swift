@@ -9,6 +9,8 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
     case postRejected(notificationID: String)
     case notice(notificationID: String)
     case aiReview(postID: String, notificationID: String)
+    /// 고객센터 문의에 답변이 달렸다는 알림. 문의 상세를 연다.
+    case feedbackAnswered(feedbackID: String, notificationID: String)
     case likeMilestone(postID: String, notificationID: String)
 
     /// 필드가 빠졌거나 알 수 없는 종류면 nil을 반환해 화면 이동 없이 앱만 연다.
@@ -28,6 +30,10 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
             guard userInfo[Key.sourceType] as? String == "POST",
                   let postID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
             self = .aiReview(postID: postID, notificationID: notificationID)
+        case NotificationType.feedbackAnswered:
+            guard userInfo[Key.sourceType] as? String == "FEEDBACK",
+                  let feedbackID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
+            self = .feedbackAnswered(feedbackID: feedbackID, notificationID: notificationID)
         case NotificationType.likeMilestone:
             guard userInfo[Key.sourceType] as? String == "POST",
                   let postID = Self.identifier(userInfo[Key.sourceID]) else { return nil }
@@ -47,6 +53,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
             nil
         case let .postApproved(_, notificationID), let .postRejected(notificationID),
              let .notice(notificationID), let .aiReview(_, notificationID),
+             let .feedbackAnswered(_, notificationID),
              let .likeMilestone(_, notificationID):
             notificationID
         }
@@ -74,6 +81,7 @@ nonisolated enum PushNotificationTap: Equatable, Sendable {
         static let notice = "NOTICE"
         static let aiReviewCompleted = "AI_REVIEW_COMPLETED"
         static let aiReviewFailed = "AI_REVIEW_FAILED"
+        static let feedbackAnswered = "FEEDBACK_ANSWERED"
         static let likeMilestone = "POST_LIKE_MILESTONE"
     }
 }
@@ -90,7 +98,13 @@ final class PushTapRouter {
         pendingTap = tap
     }
 
-    func consume() -> PushNotificationTap? {
+    /// 읽음 요청 중 표시가 열리면 최신 클릭을 덮지 않고 원래 클릭을 돌려둔다.
+    func restoreIfEmpty(_ tap: PushNotificationTap) {
+        if pendingTap == nil { pendingTap = tap }
+    }
+
+    func consume(ifAllowed: Bool = true) -> PushNotificationTap? {
+        guard ifAllowed else { return nil }
         defer { pendingTap = nil }
         return pendingTap
     }

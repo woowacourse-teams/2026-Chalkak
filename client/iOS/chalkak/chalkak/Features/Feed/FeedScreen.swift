@@ -30,6 +30,11 @@ struct FeedScreen: View {
     private let opensAIReviewOnEntry: Bool
     @State private var hasOpenedInitialAIReview = false
     private let usesPhotoTransition: Bool
+    @State private var presentationID = UUID()
+    @State private var isSignatureHintOnScreen = false
+    @State private var isPostEditOnScreen = false
+    private let isPresentationActive: Bool
+    private let onNativePresentationChange: (UUID, Bool) -> Void
     @State private var showsDeleteDialog = false
     @State private var showsAIReviewSheet = false
     // AI 피드백 시트가 닫히는 애니메이션까지 끝났는지. 시트 두 개를 겹쳐 띄우지 않으려고 따로 둔다.
@@ -62,7 +67,9 @@ struct FeedScreen: View {
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in },
         onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)? = nil,
         onLikeChange: ((FeedLikeUpdate) -> Void)? = nil,
-        externalLikeUpdate: FeedLikeUpdate? = nil
+        externalLikeUpdate: FeedLikeUpdate? = nil,
+        isPresentationActive: Bool = true,
+        onNativePresentationChange: @escaping (UUID, Bool) -> Void = { _, _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
         _transitionSource = State(initialValue: transitionSource)
@@ -75,6 +82,8 @@ struct FeedScreen: View {
         self.onOpenAuthorPosts = onOpenAuthorPosts
         self.onLikeChange = onLikeChange
         self.externalLikeUpdate = externalLikeUpdate
+        self.isPresentationActive = isPresentationActive
+        self.onNativePresentationChange = onNativePresentationChange
     }
 
     var body: some View {
@@ -203,7 +212,14 @@ struct FeedScreen: View {
             // 공유 사진은 도착 프레임이 준비된 뒤 첫 프레임부터 이동한다.
             if movingSource == nil || !usesPhotoTransition { startOpening() }
         }
+        .onChange(of: nativePresentationState.blocksPushNavigation, initial: true) { _, blocks in
+            onNativePresentationChange(presentationID, blocks)
+        }
+        .onChange(of: viewModel.viewState.postEdit != nil) { _, shows in
+            if shows { isPostEditOnScreen = true }
+        }
         .onDisappear {
+            onNativePresentationChange(presentationID, false)
             zoomRegistry?.sourceBarOpacity = 0
             zoomRegistry?.hidesWholeSource = false
             if zoomRegistry?.activeSource == zoomSource {
@@ -246,7 +262,7 @@ struct FeedScreen: View {
         .sheet(isPresented: Binding(
             get: { viewModel.viewState.postEdit != nil },
             set: { isPresented in if !isPresented { viewModel.cancelPostEdit() } }
-        )) {
+        ), onDismiss: { isPostEditOnScreen = false }) {
             if let edit = viewModel.viewState.postEdit {
                 FeedPostEditSheet(
                     edit: edit,
@@ -261,6 +277,15 @@ struct FeedScreen: View {
         }
     }
 
+    private var nativePresentationState: FeedNativePresentationState {
+        FeedNativePresentationState(
+            aiReview: showsAIReviewSheet || isAIReviewSheetOnScreen,
+            signatureHint: showsSignatureHint || isSignatureHintOnScreen,
+            postEdit: viewModel.viewState.postEdit != nil || isPostEditOnScreen,
+            deleteConfirmation: showsDeleteDialog
+        )
+    }
+
     // 시작 안내와 실패 이유는 내용이 짧아 낮은 높이로, 결과·진행 상태는 펼칠 수 있는 높이로 연다.
     private func aiReviewSheetDetents(_ aiReview: FeedAIReviewViewModel) -> Set<PresentationDetent> {
         if aiReview.canRequest { return [.height(Metrics.aiStartSheetHeight)] }
@@ -273,7 +298,7 @@ struct FeedScreen: View {
     }
 
     private var canObserveAIReview: Bool {
-        viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
+        isPresentationActive && viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
     }
 
     @ViewBuilder
@@ -383,7 +408,7 @@ struct FeedScreen: View {
     // 비로그인도 띄운다(사인을 누르면 로그인 안내). 시트를 한 번 닫거나 사인을 누르면 다시 띄우지 않는다.
     // AI 피드백 시트가 떠 있거나 진입하자마자 열릴 예정이면, 그 시트가 완전히 닫힌 뒤에 띄운다.
     private var canShowSignatureHint: Bool {
-        signatureTapHandler != nil
+        isPresentationActive && signatureTapHandler != nil
             && !isPhotoMoving && !isClosing && !isBackSwiping
             && !showsAIReviewSheet && !isAIReviewSheetOnScreen
             && !(opensAIReviewOnEntry && !hasOpenedInitialAIReview)
@@ -395,6 +420,7 @@ struct FeedScreen: View {
             return
         }
         guard !showsSignatureHint, !signatureHint.hasShown else { return }
+        isSignatureHintOnScreen = true
         showsSignatureHint = true
     }
 
@@ -407,6 +433,7 @@ struct FeedScreen: View {
 
     // 아래로 쓸어내리거나 바깥을 눌러 사용자가 닫았을 때만 기록한다.
     private func handleSignatureHintDismiss() {
+        isSignatureHintOnScreen = false
         if !isHidingSignatureHintByCode { signatureHint.markShown() }
         isHidingSignatureHintByCode = false
     }
@@ -757,4 +784,14 @@ private enum Metrics {
         FeedScreen(viewModel: FeedPreviewData.viewModel(state: FeedPreviewData.errorState))
     }
     .chalkakTheme(.light)
+}
+
+/// 네이티브 표시와 닫힘 애니메이션이 끝날 때까지 푸시 이동을 보류한다.
+struct FeedNativePresentationState {
+    var aiReview = false
+    var signatureHint = false
+    var postEdit = false
+    var deleteConfirmation = false
+
+    var blocksPushNavigation: Bool { aiReview || signatureHint || postEdit || deleteConfirmation }
 }
