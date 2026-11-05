@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.INVALID_INSTAGRAM_ID_MESSAGE
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
@@ -19,6 +20,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -138,11 +140,14 @@ class PostRepositoryImpl(
         postId: String,
         title: String?,
         description: String?,
+        instagramConsent: InstagramConsent,
     ): HomeResult<PostUpdate> = when (
         val result = remoteDataSource.updatePost(
             postId = postId,
             title = title.normalizeOptionalText(),
             description = description.normalizeOptionalText(),
+            instagramUploadAgreed = instagramConsent.agreed,
+            instagramId = instagramConsent.instagramId,
         )
     ) {
         is ApiResult.Success -> if (result.value.postId == postId) {
@@ -154,13 +159,16 @@ class PostRepositoryImpl(
                     // 상세 조회와 같이 공백뿐인 설명은 설명 없음으로 본다.
                     description = result.value.description
                         ?.takeIf(String::isNotBlank),
+                    instagramConsent = result.value.instagramUploadAgreed?.let { agreed ->
+                        InstagramConsent(agreed = agreed, instagramId = result.value.instagramId)
+                    },
                 ),
             )
         } else {
             HomeResult.Failure(HomeFailure.InvalidResponse)
         }
 
-        is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+        is ApiResult.Failure -> HomeResult.Failure(result.error.toPostUpdateFailure())
     }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -383,6 +391,9 @@ class PostRepositoryImpl(
                 ),
                 topic = topic.title,
                 topicDate = parsedTopicDate,
+                instagramConsent = instagramConsent?.let {
+                    InstagramConsent(agreed = it.agreed, instagramId = it.instagramId)
+                },
             ),
         )
     }
@@ -453,6 +464,14 @@ class PostRepositoryImpl(
             else -> HomeFailure.Http(statusCode)
         }
     }
+
+    /** 수정 실패. 서버가 인스타그램 ID 형식을 거절했으면 ID 오류로 구분하고, 그 밖은 [toDomain]과 같다. */
+    private fun ApiError.toPostUpdateFailure(): HomeFailure =
+        if (this is ApiError.Http && message == INVALID_INSTAGRAM_ID_MESSAGE) {
+            HomeFailure.InvalidInstagramId
+        } else {
+            toDomain()
+        }
 
     private fun ApiError.toTodayPostStatusFailure(): TodayPostStatusFailure = when (this) {
         ApiError.Network -> TodayPostStatusFailure.Network

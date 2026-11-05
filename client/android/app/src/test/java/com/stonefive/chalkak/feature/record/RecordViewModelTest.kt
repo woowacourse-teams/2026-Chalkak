@@ -1446,6 +1446,7 @@ private class FakePostRepository : PostRepository {
         postId: String,
         title: String?,
         description: String?,
+        instagramConsent: com.stonefive.chalkak.domain.model.InstagramConsent,
     ): HomeResult<com.stonefive.chalkak.domain.model.PostUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> = error("unused")

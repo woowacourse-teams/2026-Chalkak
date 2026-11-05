@@ -53,10 +53,17 @@ class PostRemoteDataSourceImpl(
         postId: String,
         title: String?,
         description: String?,
+        instagramUploadAgreed: Boolean,
+        instagramId: String?,
     ): ApiResult<PostUpdateResponse> = requestExecutor.execute {
         postApi.updatePost(
             postId = postId,
-            request = PostUpdateRequest(title = title, description = description),
+            request = PostUpdateRequest(
+                title = title,
+                description = description,
+                instagramUploadAgreed = instagramUploadAgreed,
+                instagramId = instagramId,
+            ),
         )
     }
 
