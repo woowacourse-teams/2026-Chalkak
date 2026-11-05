@@ -91,6 +91,7 @@ struct FeedbackPushNavigationTests {
             (.topic, []),
             (.postApproved(postID: "P", notificationID: "N"), [.approved("P")]),
             (.aiReview(postID: "P", notificationID: "N"), [.aiReview("P")]),
+            (.likeMilestone(postID: "P", notificationID: "N"), [.likeMilestone("P")]),
             (.postRejected(notificationID: "N"), [.rejected(NotificationDetailTarget(id: "N"))]),
             (.notice(notificationID: "N"), [.notice(NotificationDetailTarget(id: "N"))]),
         ]
@@ -104,5 +105,39 @@ struct FeedbackPushNavigationTests {
         _ = navigation.open(feedbackID: "F", path: [])
         navigation.reset()
         #expect(!navigation.hidesPreviousOverlays)
+    }
+}
+
+struct FeedPushDeferralTests {
+    @Test("피드의 네이티브 시트·확인창이 있는 동안 푸시를 보관하고 닫힌 뒤 소비한다")
+    func defersWithoutLosingPendingTap() {
+        let router = PushTapRouter()
+        let tap = PushNotificationTap.feedbackAnswered(feedbackID: "F", notificationID: "N")
+        let presentations = [
+            FeedNativePresentationState(aiReview: true),
+            FeedNativePresentationState(signatureHint: true),
+            FeedNativePresentationState(postEdit: true),
+            FeedNativePresentationState(deleteConfirmation: true),
+        ]
+        for presentation in presentations {
+            router.receive(tap)
+            #expect(presentation.blocksPushNavigation)
+            #expect(router.consume(ifAllowed: !presentation.blocksPushNavigation) == nil)
+            #expect(router.pendingTap == tap)
+            #expect(router.consume(ifAllowed: !FeedNativePresentationState().blocksPushNavigation) == tap)
+        }
+    }
+
+    @Test("읽음 요청 중 표시가 열리면 푸시를 복구하되 새 클릭을 덮지 않는다")
+    func restoresOnlyWithoutNewerTap() {
+        let router = PushTapRouter()
+        let tap = PushNotificationTap.feedbackAnswered(feedbackID: "F", notificationID: "N")
+        router.receive(tap)
+        #expect(router.consume() == tap)
+        router.restoreIfEmpty(tap)
+        #expect(router.pendingTap == tap)
+        router.receive(.topic)
+        router.restoreIfEmpty(tap)
+        #expect(router.pendingTap == .topic)
     }
 }

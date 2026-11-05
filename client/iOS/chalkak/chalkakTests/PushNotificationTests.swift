@@ -38,6 +38,25 @@ struct PushNotificationTapTests {
         #expect(tap?.notificationID == Self.notificationID)
     }
 
+    @Test("좋아요 달성 푸시는 게시물로 이동하며 알림 ID는 읽음에 사용한다")
+    func parsesLikeMilestonePush() {
+        let tap = PushNotificationTap(userInfo: Self.userInfo(type: "POST_LIKE_MILESTONE"))
+        #expect(tap == .likeMilestone(postID: Self.postID, notificationID: Self.notificationID))
+        #expect(tap?.notificationID == Self.notificationID)
+    }
+
+    @Test("좋아요 달성 푸시는 유효한 게시물·알림 ID와 POST 종류가 필요하다")
+    func rejectsInvalidLikeMilestonePush() {
+        for (key, value) in [
+            ("sourceId", "not-a-uuid"), ("notificationId", "not-a-uuid"),
+            ("sourceType", "TOPIC")
+        ] {
+            var payload = Self.userInfo(type: "POST_LIKE_MILESTONE")
+            payload[key] = value
+            #expect(PushNotificationTap(userInfo: payload) == nil)
+        }
+    }
+
     @Test("AI 완료·실패 푸시는 게시물 피드로 이동하며 알림 ID는 읽음에 사용한다",
           arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
     func parsesAIReviewPush(type: String) {

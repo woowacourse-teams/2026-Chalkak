@@ -63,6 +63,7 @@ import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextLength
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.feature.instagramconsent.component.InstagramConsentSection
 import com.stonefive.chalkak.feature.photoedit.PhotoEditRoute
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
@@ -169,6 +170,7 @@ fun PhotoUploadScreen(
     val scrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
     var isDescriptionFocused by remember { mutableStateOf(false) }
+    var isInstagramIdFocused by remember { mutableStateOf(false) }
     var isBackPending by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -176,11 +178,12 @@ fun PhotoUploadScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // 이야기 칸은 화면 맨 아래 입력칸이라, 포커스를 받거나 키보드가 올라오거나 줄이 늘면 끝까지 따라 내려간다.
-    // 하드웨어 키보드는 키보드 높이가 0이므로 높이와 상관없이 따라가야 칸이 전시하기 버튼에 가리지 않는다.
-    // 근거: 이슈 #945
-    LaunchedEffect(isDescriptionFocused) {
-        if (isDescriptionFocused) {
+    // 이야기 칸과 그 아래 인스타그램 ID 칸은 화면 맨 아래 입력칸이라, 포커스를 받거나 키보드가 올라오거나 줄이 늘면
+    // 끝까지 따라 내려간다. 하드웨어 키보드는 키보드 높이가 0이므로 높이와 상관없이 따라가야 칸이 전시하기 버튼에 가리지 않는다.
+    // 근거: 이슈 #945, #939
+    val isBottomInputFocused = isDescriptionFocused || isInstagramIdFocused
+    LaunchedEffect(isBottomInputFocused) {
+        if (isBottomInputFocused) {
             snapshotFlow { scrollState.maxValue }
                 .collectLatest(scrollState::scrollTo)
         }
@@ -197,7 +200,7 @@ fun PhotoUploadScreen(
     fun requestBack() {
         if (isBackPending || uiState.isSubmitting) return
 
-        if (isCaptionFocused || isDescriptionFocused || imeBottom > 0) {
+        if (isCaptionFocused || isDescriptionFocused || isInstagramIdFocused || imeBottom > 0) {
             isBackPending = true
             focusManager.clearFocus()
             keyboardController?.hide()
@@ -312,6 +315,17 @@ fun PhotoUploadScreen(
                         maxLength = DESCRIPTION_MAX_LENGTH,
                         // 서버가 이야기 길이를 code point로 검증하므로 같은 단위로 제한한다.
                         lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
+                    )
+
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+
+                    InstagramConsentSection(
+                        state = uiState.instagramConsent,
+                        onAgreedChange = { onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(it)) },
+                        onInstagramIdChange = { onAction(PhotoUploadUiAction.InstagramIdChanged(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isSubmitting,
+                        onInstagramIdFocusChange = { isInstagramIdFocused = it },
                     )
 
                     PhotoUploadTopicError(

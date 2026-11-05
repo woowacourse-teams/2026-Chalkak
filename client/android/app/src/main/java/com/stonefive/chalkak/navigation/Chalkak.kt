@@ -34,12 +34,15 @@ data class WebPage(
 data object Notifications
 
 @Serializable
+data object NotificationSettings
+
+@Serializable
 data class NotificationDetail(val notificationId: String)
 
 @Serializable
 data class Display(
     val date: String,
-    val sort: String = "LATEST",
+    val sort: String = "RANDOM",
 )
 
 @Serializable

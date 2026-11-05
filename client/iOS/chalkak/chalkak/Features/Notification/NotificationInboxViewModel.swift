@@ -23,6 +23,9 @@ struct NotificationItem: Identifiable, Equatable, Sendable {
         case "FEEDBACK_ANSWERED":
             guard sourceType == "FEEDBACK", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
             return .feedbackAnswered(feedbackID: sourceID, notificationID: id)
+        case "POST_LIKE_MILESTONE":
+            guard sourceType == "POST", let sourceID, UUID(uuidString: sourceID) != nil else { return nil }
+            return .likeMilestone(postID: sourceID, notificationID: id)
         case "POST_REJECTED":
             return .postRejected(notificationID: id)
         case "NOTICE":

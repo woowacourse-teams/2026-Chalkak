@@ -11,6 +11,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -498,6 +499,7 @@ class HomeAiReviewTest {
             postId: String,
             title: String?,
             description: String?,
+            instagramConsent: InstagramConsent,
         ): HomeResult<PostUpdate> = error("unused")
 
         override suspend fun getPostContent(query: HomeQuery) =

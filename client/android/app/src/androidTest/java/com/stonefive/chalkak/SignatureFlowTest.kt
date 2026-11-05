@@ -21,6 +21,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.platform.app.InstrumentationRegistry
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
+import com.stonefive.chalkak.core.analytics.HomeInteraction
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
@@ -176,4 +177,8 @@ private object NoOpAnalyticsTracker : AnalyticsTracker {
     ) = Unit
 
     override fun trackBottomNavigationSelection(destination: String) = Unit
+
+    override fun trackHomeIssueLayoutExposed(isIssueOnTop: Boolean) = Unit
+
+    override fun trackHomeInteraction(interaction: HomeInteraction) = Unit
 }

@@ -4,6 +4,116 @@ import Testing
 
 @MainActor
 struct HomeViewStateTests {
+    @Test("ISSUE는 불러오는 중이거나 배너가 있을 때만 보인다")
+    func showsIssueOnlyWhileLoadingOrWithBanners() {
+        var state = HomeViewState()
+        #expect(state.showsIssue)
+
+        state.bannerStatus = .ready
+        #expect(!state.showsIssue)
+
+        state.banners = [HomePreviewData.banner]
+        #expect(state.showsIssue)
+
+        state.banners = []
+        state.bannerStatus = .error
+        #expect(!state.showsIssue)
+    }
+
+    @Test("배치가 정해지기 전에는 ISSUE를 숨긴다")
+    func hidesIssueUntilLayoutResolved() {
+        var state = HomeViewState()
+        state.isIssueLayoutResolved = false
+        state.banners = [HomePreviewData.banner]
+        #expect(!state.showsIssue)
+
+        state.isIssueLayoutResolved = true
+        #expect(state.showsIssue)
+    }
+
+    @Test("ISSUE 실험 값은 재개와 날짜 변경 초기화 뒤에도 유지된다")
+    func issueExperimentSurvivesStateReset() async {
+        var today = Self.date(year: 2026, month: 8, day: 3)
+        var loadCount = 0
+        let viewModel = HomeViewModel(
+            loader: HomePreviewData.loader,
+            dateProvider: { today },
+            isAuthenticated: { false },
+            loadIssueExperiment: {
+                loadCount += 1
+                return HomeIssueExperiment(isIssueOnTop: true, isAssigned: true)
+            }
+        )
+        #expect(!viewModel.viewState.isIssueLayoutResolved)
+
+        await viewModel.resume()
+        #expect(viewModel.viewState.isIssueOnTop)
+        #expect(viewModel.viewState.isIssueLayoutResolved)
+
+        today = Self.date(year: 2026, month: 8, day: 4)
+        await viewModel.resume()
+        #expect(viewModel.viewState.isIssueOnTop)
+        #expect(viewModel.viewState.isIssueLayoutResolved)
+        #expect(loadCount == 1)
+    }
+
+    @Test("ISSUE 노출은 홈을 본 뒤 한 번만 기록한다", arguments: [true, false])
+    func reportsIssueExposureOnceAfterPresentation(presentsFirst: Bool) async {
+        var exposures: [Bool] = []
+        let viewModel = HomeViewModel(
+            loader: HomePreviewData.loader,
+            isAuthenticated: { false },
+            loadIssueExperiment: { HomeIssueExperiment(isIssueOnTop: false, isAssigned: true) },
+            onIssueExperimentExposed: { exposures.append($0) }
+        )
+
+        if presentsFirst {
+            viewModel.markPresented()
+            #expect(exposures.isEmpty)
+            await viewModel.resume()
+        } else {
+            await viewModel.resume()
+            #expect(exposures.isEmpty)
+            viewModel.markPresented()
+        }
+        viewModel.markPresented()
+
+        #expect(exposures == [false])
+    }
+
+    @Test("기본값만 쓰는 사용자는 ISSUE 노출로 기록하지 않는다")
+    func doesNotReportDefaultConfigExposure() async {
+        var exposures: [Bool] = []
+        let viewModel = HomeViewModel(
+            loader: HomePreviewData.loader,
+            isAuthenticated: { false },
+            onIssueExperimentExposed: { exposures.append($0) }
+        )
+
+        viewModel.markPresented()
+        await viewModel.resume()
+
+        #expect(viewModel.viewState.isIssueLayoutResolved)
+        #expect(exposures.isEmpty)
+    }
+
+    @Test("홈 행동은 이벤트 이름과 파라미터로 나뉜다")
+    func homeInteractionMapsToEvents() {
+        let issue = HomeInteraction.issue(bannerID: "banner-1", position: 2)
+        #expect(issue.eventName == "home_issue_clicked")
+        #expect(issue.parameters["banner_id"] as? String == "banner-1")
+        #expect(issue.parameters["position"] as? Int == 2)
+
+        let ranking = HomeInteraction.ranking(section: .yesterday, action: .more)
+        #expect(ranking.eventName == "home_ranking_clicked")
+        #expect(ranking.parameters["section"] as? String == "yesterday")
+        #expect(ranking.parameters["action"] as? String == "more")
+
+        #expect(HomeInteraction.upload(source: .weeklyRecord).parameters["source"] as? String == "weekly_record")
+        #expect(HomeInteraction.login.eventName == "home_login_clicked")
+        #expect(HomeInteraction.login.parameters.isEmpty)
+    }
+
     @Test("주는 일요일부터 토요일까지 계산하며 연말 경계를 넘는다")
     func weekDatesCrossYearBoundaryFromSunday() {
         let dates = HomeViewState.weekDates(Self.date(year: 2027, month: 1, day: 1))

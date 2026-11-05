@@ -985,6 +985,198 @@ class DisplayViewModelTest {
         assertEquals(17, restoredPhoto.likeCount)
         assertFalse(restoredPhoto.isLiked)
     }
+
+    @Test
+    fun `정렬 지정 없이 전시에 들어오면 오늘 전시를 랜덤순으로 불러온다`() = runTest {
+        // Given 오늘이 2026-11-05이고 정렬을 지정하지 않음
+        // When  전시를 처음 불러온다
+        // Then  첫 요청이 (2026-11-05, RANDOM, 1페이지, seed 없음)이고, 선택된 정렬이 RANDOM
+        val defaultRepository = FakePostRepository()
+        val defaultViewModel = DisplayViewModel(
+            repository = defaultRepository,
+            dateProvider = { REFRESH_TODAY },
+            firstTopicDate = EARLIEST_DATE,
+        )
+
+        assertEquals(
+            listOf(HomeQuery(date = REFRESH_TODAY, sort = PostSort.RANDOM, page = 1, randomSeed = null)),
+            defaultRepository.requests,
+        )
+        assertEquals(
+            PostSort.RANDOM,
+            (defaultViewModel.uiState.value.content as DisplayContentState.Latest).selectedSort,
+        )
+    }
+
+    @Test
+    fun `인기순을 지정해 들어오면 인기순으로 불러온다`() = runTest {
+        // Given 오늘이 2026-11-05이고 정렬을 POPULAR로 지정함(홈 → 전시)
+        // When  전시를 처음 불러온다
+        // Then  첫 요청 정렬이 POPULAR, 선택된 정렬이 POPULAR
+        val popularRepository = FakePostRepository()
+        val popularViewModel = displayViewModel(
+            repository = popularRepository,
+            initialSort = PostSort.POPULAR,
+            today = REFRESH_TODAY,
+        )
+
+        assertEquals(
+            PostSort.POPULAR,
+            popularRepository.requests
+                .single()
+                .sort,
+        )
+        assertEquals(
+            PostSort.POPULAR,
+            (popularViewModel.uiState.value.content as DisplayContentState.Latest).selectedSort,
+        )
+    }
+
+    @Test
+    fun `랜덤순에서 새로고침하면 새 seed로 다시 섞인 목록으로 바뀐다`() = runTest {
+        // Given 오늘 전시, 랜덤순, seed "seed-A"로 1·2페이지를 불러와 사진이 p1–p6
+        // When  새로고침하고 서버가 seed "seed-B", 사진 p7, p8, p9를 준다
+        // Then  요청이 (RANDOM, 1페이지, seed 없음). 사진이 p7, p8, p9만 남고 seed가 "seed-B". 다음 페이지 요청에는 "seed-B"를 쓴다
+        val randomRepository = FakePostRepository().apply {
+            firstPageHasNext = true
+            firstPageRandomSeed = "seed-A"
+            firstPagePhotos = photosOf("p1", "p2", "p3")
+            nextPageResult = HomeResult.Success(
+                PostPage(
+                    photos = photosOf("p4", "p5", "p6"),
+                    likedPhotoIds = emptySet(),
+                    currentPage = 2,
+                    hasNext = true,
+                    randomSeed = "seed-A",
+                ),
+            )
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM, today = REFRESH_TODAY)
+        randomViewModel.updateEndThreshold(true)
+        randomViewModel.updateEndThreshold(false)
+        assertEquals(
+            listOf("p1", "p2", "p3", "p4", "p5", "p6"),
+            (randomViewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        randomRepository.firstPageRandomSeed = "seed-B"
+        randomRepository.firstPagePhotos = photosOf("p7", "p8", "p9")
+
+        randomViewModel.refresh()
+
+        assertEquals(
+            HomeQuery(date = REFRESH_TODAY, sort = PostSort.RANDOM, page = 1, randomSeed = null),
+            randomRepository.requests.last(),
+        )
+        assertEquals(2, randomRepository.requests.size)
+        val state = randomViewModel.uiState.value
+        assertEquals(
+            listOf("p7", "p8", "p9"),
+            (state.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        assertEquals("seed-B", state.randomSeed)
+
+        randomViewModel.updateEndThreshold(true)
+
+        assertEquals(
+            HomeQuery(date = REFRESH_TODAY, sort = PostSort.RANDOM, page = 2, randomSeed = "seed-B"),
+            randomRepository.pageRequests.last(),
+        )
+    }
+
+    @Test
+    fun `지난 날짜 전시에서 새로고침하면 인기순으로 다시 불러온다`() = runTest {
+        // Given 2026-11-03 전시(지난 날짜, 인기순)
+        // When  새로고침
+        // Then  요청이 (2026-11-03, POPULAR, 1페이지)
+        val archiveRepository = FakePostRepository()
+        val archiveDate = LocalDate.of(2026, 11, 3)
+        val archiveViewModel = displayViewModel(archiveRepository, initialDate = archiveDate, today = REFRESH_TODAY)
+
+        archiveViewModel.refresh()
+
+        assertEquals(2, archiveRepository.requests.size)
+        assertEquals(
+            HomeQuery(date = archiveDate, sort = PostSort.POPULAR, page = 1),
+            archiveRepository.requests.last(),
+        )
+    }
+
+    @Test
+    fun `새로고침하는 동안 새로고침 상태가 켜지고 끝나면 꺼진다`() = runTest {
+        // Given 오늘 전시가 보이는 상태
+        // When  새로고침을 시작하고 응답이 온다
+        // Then  요청 중 isRefreshing true, 응답 뒤 false. 그동안 화면 내용이 로딩으로 바뀌지 않음
+        val refreshRepository = FakePostRepository()
+        val refreshingViewModel =
+            displayViewModel(refreshRepository, initialSort = PostSort.RANDOM, today = REFRESH_TODAY)
+        val previousContent = refreshingViewModel.uiState.value.content
+        val pendingResult = CompletableDeferred<HomeResult<PostContent>>()
+        refreshRepository.pendingContentResult = pendingResult
+
+        refreshingViewModel.refresh()
+
+        assertTrue(refreshingViewModel.uiState.value.isRefreshing)
+        assertEquals(previousContent, refreshingViewModel.uiState.value.content)
+
+        pendingResult.complete(
+            HomeResult.Success(
+                PostContent(
+                    topicDate = REFRESH_TODAY,
+                    topic = "바다",
+                    photos = photosOf("p7"),
+                    likedPhotoIds = emptySet(),
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertFalse(refreshingViewModel.uiState.value.isRefreshing)
+        assertEquals(
+            listOf("p7"),
+            (refreshingViewModel.uiState.value.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+    }
+
+    @Test
+    fun `새로고침이 실패하면 보던 사진과 seed를 그대로 두고 오류 안내를 띄운다`() = runTest {
+        // Given 랜덤순, seed "seed-A", 사진 p1, p2, p3
+        // When  새로고침하고 서버 오류가 난다
+        // Then  사진이 p1, p2, p3 그대로, seed "seed-A" 그대로, "전시를 불러오지 못했어요" 안내가 뜨고, isRefreshing false
+        val randomRepository = FakePostRepository().apply {
+            firstPageRandomSeed = "seed-A"
+            firstPagePhotos = photosOf("p1", "p2", "p3")
+        }
+        val randomViewModel = displayViewModel(randomRepository, initialSort = PostSort.RANDOM, today = REFRESH_TODAY)
+        randomRepository.firstPageFailure = HomeFailure.Network
+
+        randomViewModel.refresh()
+
+        val state = randomViewModel.uiState.value
+        assertEquals(2, randomRepository.requests.size)
+        assertEquals(
+            listOf("p1", "p2", "p3"),
+            (state.content as DisplayContentState.Latest).photos.map(Post::id),
+        )
+        assertEquals("seed-A", state.randomSeed)
+        assertEquals("전시를 불러오지 못했어요", (state.pendingMessage as UiMessage.Toast).text)
+        assertFalse(state.isRefreshing)
+    }
+
+    @Test
+    fun `새로고침 중에 또 새로고침해도 요청은 한 번만 간다`() = runTest {
+        // Given 새로고침 요청이 아직 끝나지 않음
+        // When  한 번 더 새로고침
+        // Then  첫 페이지 요청이 1번만 감
+        val refreshRepository = FakePostRepository()
+        val refreshingViewModel =
+            displayViewModel(refreshRepository, initialSort = PostSort.RANDOM, today = REFRESH_TODAY)
+        refreshRepository.pendingContentResult = CompletableDeferred()
+
+        refreshingViewModel.refresh()
+        refreshingViewModel.refresh()
+
+        assertEquals(2, refreshRepository.requests.size)
+    }
 }
 
 private val LATEST_DATE: LocalDate = LocalDate.of(2026, 8, 5)
@@ -1011,6 +1203,7 @@ private class FakePostRepository : PostRepository {
     )
     var firstPageHasNext = false
     var firstPageRandomSeed: String? = null
+    var firstPagePhotos: List<Post>? = null
     var topicNotFoundDates: Set<LocalDate> = emptySet()
     var firstPageFailure: HomeFailure? = null
     var pendingContentResult: CompletableDeferred<HomeResult<PostContent>>? = null
@@ -1046,6 +1239,7 @@ private class FakePostRepository : PostRepository {
         postId: String,
         title: String?,
         description: String?,
+        instagramConsent: com.stonefive.chalkak.domain.model.InstagramConsent,
     ): HomeResult<com.stonefive.chalkak.domain.model.PostUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -1060,7 +1254,7 @@ private class FakePostRepository : PostRepository {
             PostContent(
                 topicDate = selectedDate,
                 topic = if (selectedDate == LATEST_DATE) "바다" else "다리",
-                photos = if (selectedDate < LATEST_DATE) {
+                photos = firstPagePhotos ?: if (selectedDate < LATEST_DATE) {
                     listOf(post, post.copy(id = "archive-photo"))
                 } else {
                     listOf(post.copy(id = firstPagePhotoIdsBySort[query.sort] ?: post.id))
@@ -1091,13 +1285,18 @@ private fun displayViewModel(
     repository: PostRepository,
     initialDate: LocalDate? = null,
     initialSort: PostSort = PostSort.LATEST,
+    today: LocalDate = LATEST_DATE,
 ) = DisplayViewModel(
     repository = repository,
     initialDate = initialDate,
     initialSort = initialSort,
-    dateProvider = { LATEST_DATE },
+    dateProvider = { today },
     firstTopicDate = EARLIEST_DATE,
 )
+
+private val REFRESH_TODAY: LocalDate = LocalDate.of(2026, 11, 5)
+
+private fun photosOf(vararg ids: String): List<Post> = ids.map { post.copy(id = it) }
 
 private fun firstPageQuery(
     date: LocalDate,

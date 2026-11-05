@@ -12,6 +12,7 @@ struct PhotoUploadScreen: View {
 
     @State private var isCaptionFocused = false
     @State private var isDescriptionFocused = false
+    @State private var isInstagramIDFocused = false
     @State private var isKeyboardVisible = false
     @State private var isBackPending = false
     @State private var captionFrame: CGRect = .zero
@@ -37,6 +38,7 @@ struct PhotoUploadScreen: View {
                             guard isInputFocused || isKeyboardVisible else { return }
                             isCaptionFocused = false
                             isDescriptionFocused = false
+                            isInstagramIDFocused = false
                             dismissKeyboard()
                         }
                     )
@@ -88,6 +90,18 @@ struct PhotoUploadScreen: View {
                             descriptionFrame = frame
                         }
                         .id(PhotoUploadInput.description)
+
+                        ChalkakInstagramConsentField(
+                            isAgreed: viewState.instagramConsent.isAgreed,
+                            instagramID: viewState.instagramConsent.instagramID,
+                            errorMessage: viewState.instagramConsent.errorMessage,
+                            isEnabled: !viewState.isSubmitting,
+                            onAgreedChange: { onAction(.instagramUploadAgreedChanged($0)) },
+                            onInstagramIDChange: { onAction(.instagramIDChanged($0)) },
+                            onInstagramIDFocusChange: { isInstagramIDFocused = $0 }
+                        )
+                        .padding(.top, theme.spacing.lg)
+                        .id(PhotoUploadInput.instagramID)
 
                         if let topicErrorMessage = viewState.topicErrorMessage {
                             PhotoUploadTopicError(message: topicErrorMessage, onRetry: onRetryTopicLoad)
@@ -172,6 +186,7 @@ struct PhotoUploadScreen: View {
     private var focusedInput: PhotoUploadInput? {
         if isCaptionFocused { return .caption }
         if isDescriptionFocused { return .description }
+        if isInstagramIDFocused { return .instagramID }
         return nil
     }
 
@@ -251,6 +266,7 @@ struct PhotoUploadScreen: View {
 private enum PhotoUploadInput: Hashable {
     case caption
     case description
+    case instagramID
 }
 
 /// 주제를 불러오지 못하면 전시할 수 없으므로 다시 시도할 수 있게 보여 준다.

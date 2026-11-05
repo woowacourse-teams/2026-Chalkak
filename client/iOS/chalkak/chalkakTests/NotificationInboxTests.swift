@@ -701,6 +701,33 @@ struct NoticeNotificationDestinationTests {
     }
 }
 
+struct LikeMilestoneNotificationDestinationTests {
+    private let postID = "019a0010-0000-7000-8000-000000000003"
+    private let notificationID = "019a0010-0000-7000-8000-000000000002"
+
+    @Test("좋아요 달성 알림함은 해당 게시물로 연결한다")
+    func opensPost() {
+        #expect(item(sourceType: "POST", sourceID: postID).destination == .likeMilestone(
+            postID: postID, notificationID: notificationID
+        ))
+    }
+
+    @Test("좋아요 달성 알림의 대상이 잘못되면 이동하지 않는다")
+    func ignoresInvalidSource() {
+        #expect(item(sourceType: "NOTICE", sourceID: postID).destination == nil)
+        #expect(item(sourceType: "POST", sourceID: "bad-id").destination == nil)
+        #expect(item(sourceType: "POST", sourceID: nil).destination == nil)
+    }
+
+    private func item(sourceType: String, sourceID: String?) -> NotificationItem {
+        NotificationItem(
+            id: notificationID, type: "POST_LIKE_MILESTONE", sourceType: sourceType, sourceID: sourceID,
+            title: "게시물에서 새로운 업적을 달성했어요", body: "좋아요 5개 이상을 달성했어요",
+            thumbnailURL: nil, readAt: nil, createdAt: Date()
+        )
+    }
+}
+
 struct AIReviewNotificationDestinationTests {
     @Test("AI 결과 알림함도 같은 게시물 피드로 연결한다",
           arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])

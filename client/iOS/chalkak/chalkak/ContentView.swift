@@ -29,6 +29,7 @@ struct ContentView: View {
     @AppStorage("record.photoStackStyle") private var recordStackStyle: RecordPhotoStackStyle = .pillars
     @State private var notificationPath: [NotificationRoute] = []
     @State private var feedbackPushNavigation = FeedbackPushNavigation()
+    @State private var feedNativePresentationIDs: Set<UUID> = []
     @State private var notificationNavigationID: String?
     @State private var notificationNavigationTask: Task<Void, Never>?
     @State private var notificationInboxViewModel = Self.makeNotificationInboxViewModel()
@@ -109,11 +110,18 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
-                            case let .approved(postID), let .aiReview(postID):
+                            case .settings:
+                                NotificationSettingsScreen(
+                                    viewModel: notificationSettingsViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) }
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            case let .approved(postID), let .aiReview(postID), let .likeMilestone(postID):
                                 FeedScreen(
                                     viewModel: makeFeedViewModel(FeedTarget(
                                         postID: postID,
-                                        isOwnedByCurrentUser: destination == .aiReview(postID)
+                                        isOwnedByCurrentUser: true
                                     )),
                                     usesPhotoTransition: false,
                                     opensAIReviewOnEntry: destination == .aiReview(postID),
@@ -123,7 +131,9 @@ struct ContentView: View {
                                         handleDeletedPost(postID)
                                     },
                                     onOpenAuthorPosts: openAuthorPosts,
-                                    externalLikeUpdate: authorPostsLikeUpdate
+                                    externalLikeUpdate: authorPostsLikeUpdate,
+                                    isPresentationActive: notificationPath.last == destination && !feedbackPushNavigation.hidesPreviousOverlays,
+                                    onNativePresentationChange: handleFeedNativePresentationChange
                                 )
                                 .id(postID)
                                 .background(InteractivePopGestureEnabler())
@@ -170,6 +180,8 @@ struct ContentView: View {
                             }
                         }
                 }
+                // 백 스와이프로 드러난 아래 화면이 눌리지 않게 Feed가 떠 있는 동안 터치를 막는다.
+                .allowsHitTesting(selectedFeed == nil || feedbackPushNavigation.hidesPreviousOverlays)
                 // 사진만 확대되며 열리도록 push 대신 탭 화면 위에 Feed를 덮어 띄운다.
                 .overlay {
                     if let target = selectedFeed {
@@ -181,7 +193,9 @@ struct ContentView: View {
                             onBack: { selectedFeed = nil },
                             onDeleted: handleDeletedPost,
                             onOpenAuthorPosts: openAuthorPosts,
-                            externalLikeUpdate: authorPostsLikeUpdate
+                            externalLikeUpdate: authorPostsLikeUpdate,
+                            isPresentationActive: !feedbackPushNavigation.hidesPreviousOverlays,
+                            onNativePresentationChange: handleFeedNativePresentationChange
                         )
                         .id(target.id)
                         .transition(.identity)
@@ -226,7 +240,9 @@ struct ContentView: View {
                                 authorPostsLikeUpdate = update
                             },
                             // 카드 좋아요 응답이 상세를 연 뒤에 도착해도 이 상세에 맞춘다.
-                            externalLikeUpdate: authorPostsLikeUpdate
+                            externalLikeUpdate: authorPostsLikeUpdate,
+                            isPresentationActive: !feedbackPushNavigation.hidesPreviousOverlays,
+                            onNativePresentationChange: handleFeedNativePresentationChange
                         )
                         .id(target.id)
                         .transition(.identity)
@@ -354,6 +370,7 @@ struct ContentView: View {
         }
         .task(id: route) {
             await handleNotificationPermissionAtHomeEntry()
+            await migrateLikePushIfNeeded()
         }
         .task(id: NotificationUnreadRefreshID(
             modelID: ObjectIdentifier(notificationInboxViewModel), isHome: route == .main
@@ -388,6 +405,19 @@ struct ContentView: View {
     }
 
     @MainActor
+    private func migrateLikePushIfNeeded() async {
+        guard route == .main, let userID = KeychainSessionStore.userID() else { return }
+        let client = NotificationSettingsAPIClient(
+            baseURL: AppConfiguration().apiBaseURL,
+            accessTokenProvider: { KeychainSessionStore.accessToken() }
+        )
+        await LikePushMigration.run(
+            userID: userID,
+            load: { try await client.fetch() },
+            save: { try await client.update(likePushEnabled: $0) }
+        )
+    }
+
     private func handleNotificationPermissionAtHomeEntry() async {
         guard route == .main,
               KeychainSessionStore.hasAuthenticatedSession(),
@@ -537,11 +567,13 @@ struct ContentView: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
-                notificationSettingsViewModel: notificationSettingsViewModel,
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
                 onOpenFeedback: openCustomerSupport,
+                onOpenNotificationSettings: {
+                    withAnimation { notificationPath = [.settings] }
+                },
                 onSignedOut: showLogin,
                 onNavigateToBottomBar: select,
                 onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
@@ -582,15 +614,18 @@ struct ContentView: View {
                         showMessage("로그인 후 알림을 확인할 수 있어요")
                         return
                     }
+                    analyticsTracker.trackHomeInteraction(.notification)
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
                 onIssueClick: { selectedIssueURL = $0 },
+                onInteraction: trackHomeInteraction,
                 bottomBarCompact: $isBottomBarCompact,
                 isActive: selectedFeed == nil && notificationPath.isEmpty
                     && selectedIssueURL == nil && !isNotificationInboxPresented && !isFeedbackPresented
             )
             .task(id: ObjectIdentifier(homeViewModel)) {
+                homeViewModel.markPresented()
 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-test-home-hero-state") || ProcessInfo.processInfo.arguments.contains("-test-home-banner-state") { return }
 #endif
@@ -609,14 +644,23 @@ struct ContentView: View {
         select(.record)
     }
 
-    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
-        var isAuthenticated = KeychainSessionStore.hasAuthenticatedSession()
+    private var canOpenHomeFeed: Bool {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-test-home-preview") {
-            isAuthenticated = false
+            return false
         }
 #endif
-        guard isAuthenticated else {
+        return KeychainSessionStore.hasAuthenticatedSession()
+    }
+
+    private func trackHomeInteraction(_ interaction: HomeInteraction) {
+        // 비로그인 사용자의 랭킹 사진은 로그인 안내만 보여 주므로 이동으로 세지 않는다.
+        if case .ranking(_, .photo) = interaction, !canOpenHomeFeed { return }
+        analyticsTracker.trackHomeInteraction(interaction)
+    }
+
+    private func openHomeFeed(_ photo: DisplayPhoto, zoomSource: FeedZoomSource) {
+        guard canOpenHomeFeed else {
             showMessage("상세를 보려면 로그인이 필요해요")
             return
         }
@@ -681,7 +725,7 @@ struct ContentView: View {
         }
     }
 
-    private func openDisplay(at date: Date, sort: DisplaySort = .latest) {
+    private func openDisplay(at date: Date, sort: DisplaySort = .random) {
         displayViewModel = Self.makeDisplayViewModel(initialDate: date, initialSort: sort)
         selectedTab = .display
     }
@@ -726,7 +770,8 @@ struct ContentView: View {
             return
         }
         if let destination = notificationPath.last,
-           destination == .approved(postID) || destination == .aiReview(postID) {
+           destination == .approved(postID) || destination == .aiReview(postID)
+               || destination == .likeMilestone(postID) {
             selectedAuthorPosts = nil
             closeNotificationDestination(destination)
         }
@@ -749,6 +794,16 @@ struct ContentView: View {
         route == .main
             && !isPhotoUploadPresented
             && !isFeedbackPresented
+            && selectedLegalDocument == nil
+            && feedNativePresentationIDs.isEmpty
+    }
+
+    private func handleFeedNativePresentationChange(_ id: UUID, _ isPresented: Bool) {
+        if isPresented {
+            feedNativePresentationIDs.insert(id)
+        } else {
+            feedNativePresentationIDs.remove(id)
+        }
     }
 
     private func handlePendingPushTap() {
@@ -758,7 +813,7 @@ struct ContentView: View {
             _ = pushTapRouter.consume()
             return
         }
-        guard canOpenPushDestination, let tap = pushTapRouter.consume() else { return }
+        guard let tap = pushTapRouter.consume(ifAllowed: canOpenPushDestination) else { return }
 
         if tap == .topic {
             notificationNavigationTask?.cancel()
@@ -794,6 +849,11 @@ struct ContentView: View {
             ) else {
                 if !Task.isCancelled, inbox === notificationInboxViewModel, route == .main,
                    KeychainSessionStore.hasAuthenticatedSession(), let message = inbox.message { showMessage(message) }
+                return
+            }
+            // 읽음 요청 중 시트가 열렸다면 입력·표시를 닫지 않고, 닫힌 뒤 다시 처리한다.
+            guard canOpenPushDestination else {
+                pushTapRouter.restoreIfEmpty(tap)
                 return
             }
             openNotificationDestination(tap, fromInbox: false)
@@ -1026,6 +1086,7 @@ struct ContentView: View {
 
     private func resetMainState() {
         feedbackPushNavigation.reset()
+        feedNativePresentationIDs.removeAll()
         notificationNavigationTask?.cancel()
         notificationNavigationTask = nil
         notificationNavigationID = nil
@@ -1057,8 +1118,13 @@ struct ContentView: View {
         )
         return NotificationSettingsViewModel(
             loadSettings: { try await client.fetch() },
-            saveSettings: { topic, moderation, aiReview in
-                try await client.update(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
+            saveSettings: { topic, moderation, aiReview, like in
+                try await client.update(
+                    topicPushEnabled: topic,
+                    moderationPushEnabled: moderation,
+                    aiReviewPushEnabled: aiReview,
+                    likePushEnabled: like
+                )
             },
         )
     }
@@ -1119,11 +1185,13 @@ struct ContentView: View {
             loader: .live(baseURL: resolvedAPIBaseURL),
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
-            )
+            ),
+            loadIssueExperiment: { await AppRemoteConfig.shared.homeIssueExperiment() },
+            onIssueExperimentExposed: { FirebaseAnalyticsTracker().trackHomeIssueLayoutExposed(isIssueOnTop: $0) }
         )
     }
 
-    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .latest) -> DisplayViewModel {
+    private static func makeDisplayViewModel(initialDate: Date? = nil, initialSort: DisplaySort = .random) -> DisplayViewModel {
         DisplayViewModel(
             initialDate: initialDate,
             initialSort: initialSort,
@@ -1394,23 +1462,25 @@ struct ContentView: View {
         case .main:
             break
         }
-        if let signatureAnalyticsScreen {
+        if let signatureAnalyticsScreen, !feedbackPushNavigation.hidesPreviousOverlays {
             return signatureAnalyticsScreen
         }
-        if selectedAuthorFeed != nil {
+        if selectedAuthorFeed != nil && !feedbackPushNavigation.hidesPreviousOverlays {
             return AnalyticsScreen(name: "feed", screenClass: "Feed")
         }
-        if selectedAuthorPosts != nil {
+        if selectedAuthorPosts != nil && !feedbackPushNavigation.hidesPreviousOverlays {
             return AnalyticsScreen(name: "author_posts", screenClass: "AuthorPosts")
         }
-        if selectedFeed != nil {
+        if selectedFeed != nil && !feedbackPushNavigation.hidesPreviousOverlays {
             return AnalyticsScreen(name: "feed", screenClass: "Feed")
         }
         if let notificationDestination = notificationPath.last {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
-            case .approved, .aiReview:
+            case .settings:
+                return AnalyticsScreen(name: "notification_settings", screenClass: "NotificationSettings")
+            case .approved, .aiReview, .likeMilestone:
                 return AnalyticsScreen(name: "feed", screenClass: "Feed")
             case .rejected, .notice:
                 return AnalyticsScreen(name: "notification_detail", screenClass: "NotificationDetail")

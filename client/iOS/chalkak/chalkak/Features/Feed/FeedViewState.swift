@@ -14,6 +14,7 @@ enum FeedError: Error, Equatable, Sendable {
     case client
     case server
     case generic
+    case invalidInstagramID
 
     var message: String {
         switch self {
@@ -23,7 +24,7 @@ enum FeedError: Error, Equatable, Sendable {
             "네트워크 연결을 확인해 주세요"
         case .invalidResponse:
             "게시물 정보를 불러오지 못했어요"
-        case .client, .server, .generic:
+        case .client, .server, .generic, .invalidInstagramID:
             "게시물을 불러오지 못했어요"
         }
     }
@@ -34,7 +35,7 @@ enum FeedError: Error, Equatable, Sendable {
             "게시물을 찾을 수 없어요"
         case .network:
             "네트워크 연결을 확인해 주세요"
-        case .invalidResponse, .client, .server, .generic:
+        case .invalidResponse, .client, .server, .generic, .invalidInstagramID:
             "게시물을 삭제하지 못했어요"
         }
     }
@@ -49,6 +50,8 @@ enum FeedError: Error, Equatable, Sendable {
             "수정할 수 없는 상태이거나 주제 참여 기간이 끝났어요"
         case .invalidResponse, .server, .generic:
             "게시물을 수정하지 못했어요"
+        case .invalidInstagramID:
+            InstagramConsentInput.invalidInstagramIDMessage
         }
     }
 }
@@ -57,7 +60,11 @@ enum FeedEvent: Equatable, Sendable {
     case showDeleteFailure(FeedError)
     case showPostUpdateSuccess
     case showPostUpdateFailure(FeedError)
+    case showPostEditUnavailable
     case showLikeFailure
+
+    /// 본인 동의 정보를 못 받아 수정을 열 수 없을 때의 안내. 그대로 열면 저장할 때 동의가 철회된다(POST-010).
+    static let postEditUnavailableMessage = "게시물을 불러오지 못해 수정할 수 없어요"
 }
 
 struct FeedPost: Identifiable, Equatable, Sendable {
@@ -73,6 +80,8 @@ struct FeedPost: Identifiable, Equatable, Sendable {
     var authorID: String? = nil
     // 작품 설명. 줄바꿈을 포함할 수 있고, 없으면 nil이라 Feed에 표시하지 않는다.
     var description: String? = nil
+    // 공식 인스타그램 게시 동의. 서버가 작성자 본인의 상세 조회에만 내려 주며, 받기 전이거나 다른 사람 게시물이면 nil이다.
+    var instagramConsent: InstagramConsent? = nil
 }
 
 enum FeedSignatureTapAction: Equatable, Sendable {
@@ -106,6 +115,8 @@ struct FeedViewState: Equatable, Sendable {
 struct FeedPostEditState: Equatable, Sendable {
     var title: String
     var description: String
+    // 인스타그램 게시 동의 스위치와 ID 칸. 수정은 동의도 통째로 교체하므로 현재 값으로 채워 연다.
+    var instagramConsent = InstagramConsentInput()
 }
 
 /// 원본 이미지가 로드되기 전까지 Feed 사진 자리에 보여줄, 출발 화면에 떠 있던 이미지.

@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.upload
 import androidx.lifecycle.SavedStateHandle
 import com.stonefive.chalkak.MainDispatcherRule
 import com.stonefive.chalkak.core.ui.UiMessage
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.PostCreation
 import com.stonefive.chalkak.domain.model.PostCreationFailure
 import com.stonefive.chalkak.domain.model.PostCreationResult
@@ -18,6 +19,7 @@ import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustments
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
+import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
@@ -983,6 +985,129 @@ class PhotoUploadViewModelTest {
         assertFalse(pendingViewModel.uiState.value.canSubmit)
         assertEquals(listOf(uploadTopicDate), repository.requestedTopicDates)
     }
+
+    @Test
+    fun `동의하지 않고 전시하면 동의 안 함으로 보낸다`() = runTest {
+        // Given 스위치를 켜지 않은 작성 화면
+        viewModel.selectPhoto("content://media/photo/1")
+        assertFalse(viewModel.uiState.value.instagramConsent.agreed)
+
+        // When  전시하기
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        // Then  작성 요청의 instagramUploadAgreed가 false, instagramId가 null
+        assertEquals(
+            listOf(InstagramConsent(agreed = false, instagramId = null)),
+            postCreationRepository.requestedConsents,
+        )
+    }
+
+    @Test
+    fun `동의하고 ID를 쓰면 ID와 함께 보낸다`() = runTest {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력
+        viewModel.selectPhoto("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(true))
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("chalkak.daily"))
+
+        // When  전시하기
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        assertEquals(
+            listOf(InstagramConsent(agreed = true, instagramId = "chalkak.daily")),
+            postCreationRepository.requestedConsents,
+        )
+    }
+
+    @Test
+    fun `동의하고 ID를 비우면 ID 없이 보낸다`() = runTest {
+        // Given 스위치를 켜고 ID 칸이 공백뿐
+        viewModel.selectPhoto("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(true))
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("   "))
+
+        // When  전시하기
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 null
+        assertEquals(
+            listOf(InstagramConsent(agreed = true, instagramId = null)),
+            postCreationRepository.requestedConsents,
+        )
+    }
+
+    @Test
+    fun `동의를 끄면 입력했던 ID는 보내지 않는다`() = runTest {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력한 뒤 스위치를 끔
+        viewModel.selectPhoto("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(true))
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("chalkak.daily"))
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(false))
+
+        // When  전시하기
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        // Then  작성 요청의 instagramUploadAgreed가 false, instagramId가 null
+        assertEquals(
+            listOf(InstagramConsent(agreed = false, instagramId = null)),
+            postCreationRepository.requestedConsents,
+        )
+    }
+
+    @Test
+    fun `ID는 30자까지만 입력된다`() = runTest {
+        // Given 스위치를 켠 작성 화면
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(true))
+
+        // When  ID에 "a"를 31자 입력
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("a".repeat(31)))
+
+        // Then  화면 상태의 ID가 "a" 30자
+        assertEquals("a".repeat(30), viewModel.uiState.value.instagramConsent.instagramId)
+    }
+
+    @Test
+    fun `서버가 ID 형식을 거절하면 ID 칸에 오류를 보여 준다`() = runTest {
+        // Given 스위치를 켜고 ID에 "chalkak-daily" 입력, 작성 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        postCreationRepository.result = PostCreationResult.Failure(PostCreationFailure.InvalidInstagramId)
+        viewModel.selectPhoto("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(true))
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("chalkak-daily"))
+
+        // When  전시하기
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+
+        // Then  화면 상태의 ID 오류가 "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요", 스위치는 켜짐, ID는 "chalkak-daily" 그대로
+        assertEquals(
+            InstagramConsentInputState(
+                agreed = true,
+                instagramId = "chalkak-daily",
+                instagramIdError = "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요",
+            ),
+            viewModel.uiState.value.instagramConsent,
+        )
+        assertFalse(viewModel.uiState.value.isSubmitting)
+    }
+
+    @Test
+    fun `ID를 고치면 ID 오류가 사라진다`() = runTest {
+        // Given TC 6처럼 ID 오류가 보이는 작성 화면
+        postCreationRepository.result = PostCreationResult.Failure(PostCreationFailure.InvalidInstagramId)
+        viewModel.selectPhoto("content://media/photo/1")
+        viewModel.onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(true))
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("chalkak-daily"))
+        viewModel.onAction(PhotoUploadUiAction.SubmitClicked)
+        assertEquals(
+            "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요",
+            viewModel.uiState.value.instagramConsent.instagramIdError,
+        )
+
+        // When  ID를 "chalkak_daily"로 고침
+        viewModel.onAction(PhotoUploadUiAction.InstagramIdChanged("chalkak_daily"))
+
+        // Then  화면 상태의 ID 오류가 없음(null)
+        assertEquals(null, viewModel.uiState.value.instagramConsent.instagramIdError)
+    }
 }
 
 private val croppedMonoEdit = PhotoEdit(
@@ -1021,6 +1146,7 @@ private class FakePostCreationRepository : PostCreationRepository {
     val requestedTopicDates = mutableListOf<LocalDate>()
     val requestedTopics = mutableListOf<Topic>()
     val requestedTexts = mutableListOf<Pair<String?, String?>>()
+    val requestedConsents = mutableListOf<InstagramConsent>()
     val preparations = mutableListOf<PostImagePreparation>()
     val preparedImageUris = mutableListOf<String>()
     val preparedEdits = mutableListOf<PhotoEdit>()
@@ -1057,9 +1183,11 @@ private class FakePostCreationRepository : PostCreationRepository {
         title: String?,
         description: String?,
         topic: Topic,
+        instagramConsent: InstagramConsent,
     ): PostCreationResult {
         callCount++
         requestedTexts += title to description
+        requestedConsents += instagramConsent
         requestedTopics += topic
         await?.await()
         return if (results.isEmpty()) result else results.removeFirst()

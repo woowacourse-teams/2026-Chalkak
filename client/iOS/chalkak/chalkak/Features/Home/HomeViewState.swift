@@ -54,8 +54,15 @@ struct HomeViewState: Equatable, Sendable {
     var bannerHasNext = false
     var isLoadingMoreBanners = false
     var bannerLoadMoreError = false
+    var isIssueOnTop = false
+    var isIssueLayoutResolved = true
     var isRefreshing = false
     var isAuthenticated = false
+
+    var showsIssue: Bool {
+        // 배치가 정해지기 전에는 ISSUE를 숨겨 아래에서 위로 튀지 않게 한다.
+        isIssueLayoutResolved && (!banners.isEmpty || bannerStatus == .loading)
+    }
 
     init(date: Date = Date()) {
         self.date = RecordMonth.calendar.startOfDay(for: date)

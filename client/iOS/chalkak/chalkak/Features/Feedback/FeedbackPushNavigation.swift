@@ -2,8 +2,10 @@ import Foundation
 
 enum NotificationRoute: Hashable {
     case inbox
+    case settings
     case approved(String)
     case aiReview(String)
+    case likeMilestone(String)
     case rejected(NotificationDetailTarget)
     case notice(NotificationDetailTarget)
     /// 설정 → 고객센터의 내 문의 목록.
@@ -47,6 +49,7 @@ struct FeedbackPushNavigation {
         case .topic: return []
         case let .postApproved(postID, _): return prefix + [.approved(postID)]
         case let .aiReview(postID, _): return prefix + [.aiReview(postID)]
+        case let .likeMilestone(postID, _): return prefix + [.likeMilestone(postID)]
         case let .postRejected(id): return prefix + [.rejected(NotificationDetailTarget(id: id))]
         case let .notice(id): return prefix + [.notice(NotificationDetailTarget(id: id))]
         case let .feedbackAnswered(feedbackID, _): return prefix + [.feedbackDetail(feedbackID)]
