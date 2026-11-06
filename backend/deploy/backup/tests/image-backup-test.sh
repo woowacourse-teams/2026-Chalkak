@@ -98,6 +98,14 @@ assert_failed() {
   [[ ! -d "$runs" || -z "$(find "$runs" -name COMPLETE -print)" ]]
 }
 
+prepare_case missing-temp-root
+rmdir "$case_dir/work"
+execute_backup
+[[ $status -eq 0 && -d "$case_dir/work" ]]
+mode=$(stat -c '%a' "$case_dir/work" 2>/dev/null) || mode=$(stat -f '%Lp' "$case_dir/work")
+[[ "$mode" == 700 ]]
+echo 'PASS: 임시 상위 경로 누락 시 mode 700으로 준비하고 백업 완료·작업 파일 정리'
+
 prepare_case initial
 execute_backup
 [[ $status -eq 0 ]]
@@ -225,4 +233,4 @@ if grep -q ' COMPLETE ' "$case_dir/output"; then
 fi
 echo 'PASS: 완료 표식 재조회 불일치 실패, 이미 전송된 표식은 자동 삭제하지 않음'
 
-echo '총 31개 시나리오 통과 (실제 rclone 로컬 저장소, 실패·해시 부재 상황 주입; AWS 버저닝은 별도 검증)'
+echo '총 32개 시나리오 통과 (실제 rclone 로컬 저장소, 실패·해시 부재 상황 주입; AWS 버저닝은 별도 검증)'

@@ -61,6 +61,8 @@ done
 export PGSSLMODE=verify-full PGCONNECT_TIMEOUT=10
 export PGAPPNAME=chalkak-db-backup
 export PGOPTIONS='-c default_transaction_read_only=on'
+# 새 서버에서도 설정된 임시 상위 경로를 실행 사용자 권한으로 준비한다.
+mkdir -p -- "${DB_BACKUP_TEMP_ROOT:-/tmp}"
 work_dir=$(mktemp -d "${DB_BACKUP_TEMP_ROOT:-/tmp}/chalkak-db-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")
 run_id=${work_dir##*/}
 destination="$DB_BACKUP_DESTINATION/$run_id"

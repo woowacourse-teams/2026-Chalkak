@@ -105,6 +105,14 @@ assert_failed() {
   [[ -z "$(find "$case_dir/remote" -name COMPLETE -print)" ]] || exit 1
 }
 
+prepare_case missing-temp-root
+rmdir "$case_dir/work"
+execute_backup
+[[ $status -eq 0 && -d "$case_dir/work" ]]
+mode=$(stat -c '%a' "$case_dir/work" 2>/dev/null) || mode=$(stat -f '%Lp' "$case_dir/work")
+[[ "$mode" == 700 ]]
+echo 'PASS: 임시 상위 경로 누락 시 mode 700으로 준비하고 백업 완료·작업 파일 정리'
+
 prepare_case success
 execute_backup
 [[ $status -eq 0 ]] || exit 1
@@ -183,4 +191,4 @@ execute_backup
 [[ $status -eq 0 && $(find "$case_dir/remote" -name COMPLETE | wc -l) -eq 1 ]] || exit 1
 echo 'PASS: 실패 후 재실행으로 정상 보관본 생성'
 
-echo '총 16개 시나리오 통과 (DB 명령은 합성 도구, 전송·내용 비교는 실제 rclone)'
+echo '총 17개 시나리오 통과 (DB 명령은 합성 도구, 전송·내용 비교는 실제 rclone)'
