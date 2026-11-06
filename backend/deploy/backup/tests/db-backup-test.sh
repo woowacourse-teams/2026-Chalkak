@@ -54,9 +54,14 @@ MOCK
 # 실제 timeout을 사용하되 시험에서는 1초 제한으로 바꿔 기다리는 시간을 줄인다.
 cat > "$TEST_ROOT/bin/timeout" <<'WRAPPER'
 #!/usr/bin/env bash
-[[ "$1" == --kill-after=10s && "$2" == 5m && "$3" == pg_dump ]] || exit 8
-shift 2
-exec "$REAL_TIMEOUT" --kill-after=1s 1s "$@"
+[[ "$1" == --foreground && "$2" == --kill-after=10s && "$3" == 5m && "$4" == pg_dump ]] || exit 8
+shift 3
+# 실제 신호 전송 기록을 보관하고 원래 stderr와 종료 코드는 그대로 전달한다.
+status=0
+LC_ALL=C "$REAL_TIMEOUT" --verbose --foreground --kill-after=1s 1s "$@" \
+  2> "$TEST_REMOTE_ROOT/timeout.log" || status=$?
+cat "$TEST_REMOTE_ROOT/timeout.log" >&2
+exit "$status"
 WRAPPER
 chmod +x "$TEST_ROOT/bin/timeout"
 chmod +x "$TEST_ROOT/bin/pg_dump" "$TEST_ROOT/bin/pg_restore" "$TEST_ROOT/bin/rclone"
@@ -71,8 +76,12 @@ prepare_case() {
   touch "$case_dir/ca.pem"
   printf 'unused:5432:fixture:fixture:SECRET_SENTINEL\n' > "$case_dir/pgpass"
   printf '[backup]\ntype = alias\nremote = %s/remote\n' "$case_dir" > "$case_dir/rclone.conf"
+  mkdir -p "$case_dir/locks"
+  touch "$case_dir/locks/backup.lock"
+  chmod 660 "$case_dir/locks/backup.lock"
   cat > "$case_dir/backup.env" <<EOF
 PGHOST=unused
+BACKUP_LOCK_FILE=$case_dir/locks/backup.lock
 PGPORT=5432
 PGDATABASE=fixture
 PGUSER=fixture
@@ -100,6 +109,14 @@ assert_failed() {
   if grep -q ' COMPLETE ' "$case_dir/output"; then exit 1; fi
   [[ -z "$(find "$case_dir/remote" -name COMPLETE -print)" ]] || exit 1
 }
+
+prepare_case missing-temp-root
+rmdir "$case_dir/work"
+execute_backup
+[[ $status -eq 0 && -d "$case_dir/work" ]]
+mode=$(stat -c '%a' "$case_dir/work" 2>/dev/null) || mode=$(stat -f '%Lp' "$case_dir/work")
+[[ "$mode" == 700 ]]
+echo 'PASS: 임시 상위 경로 누락 시 mode 700으로 준비하고 백업 완료·작업 파일 정리'
 
 prepare_case success
 execute_backup
@@ -134,11 +151,20 @@ for fault in timeout timeout-kill; do
   export TEST_FAULT=$fault
   execute_backup
   assert_failed dump
-  if [[ "$fault" == timeout ]]; then [[ $status -eq 124 ]] || exit 1
-  else [[ $status -eq 137 ]] || exit 1; fi
+  grep -q 'sending signal TERM ' "$case_dir/remote/timeout.log"
+  if [[ "$fault" == timeout ]]; then
+    [[ $status -eq 124 ]]
+    if grep -q 'sending signal KILL ' "$case_dir/remote/timeout.log"; then exit 1; fi
+  else
+    # GNU timeout 8.32는 --foreground 강제 종료에도 시간 초과 코드 124를 반환한다.
+    [[ $status -eq 124 || $status -eq 137 ]]
+    grep -q 'sending signal KILL ' "$case_dir/remote/timeout.log"
+  fi
   dump_pid=$(cat "$case_dir/remote/dump.pid")
   if kill -0 "$dump_pid" 2>/dev/null; then echo 'FAIL: 덤프 프로세스 잔존'; exit 1; fi
-  echo "PASS: $fault 종료·업로드 차단·완료 기록 없음·임시 파일 정리"
+  [[ ! -e "$case_dir/remote/bucket" ]]
+  flock --exclusive --nonblock "$case_dir/locks/backup.lock" true
+  echo "PASS: $fault 신호 전송·프로세스 종료·업로드 차단·임시 파일 정리·잠금 해제"
 done
 
 prepare_case missing
@@ -179,4 +205,4 @@ execute_backup
 [[ $status -eq 0 && $(find "$case_dir/remote" -name COMPLETE | wc -l) -eq 1 ]] || exit 1
 echo 'PASS: 실패 후 재실행으로 정상 보관본 생성'
 
-echo '총 16개 시나리오 통과 (DB 명령은 합성 도구, 전송·내용 비교는 실제 rclone)'
+echo '총 17개 시나리오 통과 (DB 명령은 합성 도구, 전송·내용 비교는 실제 rclone)'

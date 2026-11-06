@@ -20,6 +20,9 @@ notification.log → 로그 그룹 /chalkak/{env}/notification (모두 30일)
 
 이미지 처리 Lambda의 로그 그룹 `/aws/lambda/chalkak-image-processor`에도 메트릭 필터를 붙이고, 이 필터와 SQS·Lambda 기본 지표의 알람(`chalkak-shared-*`)은 prod 토픽으로 보낸다.
 
+DB·이미지 백업 실패도 기존 prod 토픽과 알림 Lambda를 사용한다. 전용 종료 요약 수집·경보 설정과
+적용 완료 확인은 [백업 실패 알림](../backup/monitoring.md)을 따른다.
+
 | 저장소 파일 | 사용처 |
 | --- | --- |
 | `backend/deploy/monitoring/cloudwatch-agent.dev.json` | dev EC2에 붙여 넣는 CloudWatch Agent 설정 (5단계) |

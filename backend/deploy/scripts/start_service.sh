@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+/bin/bash "$(dirname -- "${BASH_SOURCE[0]}")/deployment_backup_guard.sh" check
+
 CONFIG_FILE=/etc/chalkak/application.env
 COMPOSE_FILE=/opt/chalkak/db/compose.dev.yml
 BACKUP_DIR=/opt/chalkak/backups
