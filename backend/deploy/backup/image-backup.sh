@@ -11,6 +11,8 @@ fi
 set -a
 source "$1"
 set +a
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/backup-lock.sh"
+backup_lock
 stage=configuration
 work_dir=''
 run_id=unassigned
@@ -37,6 +39,8 @@ done
 for tool in rclone jq sort cmp mktemp; do
   command -v "$tool" >/dev/null || { printf '필수 도구 없음: %s\n' "$tool" >&2; exit 1; }
 done
+# 새 서버에서도 설정된 임시 상위 경로를 실행 사용자 권한으로 준비한다.
+mkdir -p -- "${IMAGE_BACKUP_TEMP_ROOT:-/tmp}"
 work_dir=$(mktemp -d "${IMAGE_BACKUP_TEMP_ROOT:-/tmp}/chalkak-images-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")
 run_id=${work_dir##*/}
 files="$IMAGE_BACKUP_DESTINATION/files"
