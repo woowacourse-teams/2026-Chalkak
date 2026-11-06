@@ -21,7 +21,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -358,18 +357,28 @@ class AdminFeedbackQueryRepositoryTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = InquiryStatus.class, names = {"ALL", "NEEDS_ANSWER"})
-    @DisplayName("전체·답변 필요 사용자별 조회의 공통 실행 계획에서 인덱스 조건을 유지한다")
-    void findFeedbacks_genericPlan_usesUserIndexCondition(InquiryStatus inquiryStatus) {
-        // Given & When
+    @MethodSource("genericPlanSettings")
+    @DisplayName("전체·답변 필요 사용자별 조회는 증분 정렬 여부와 무관하게 인덱스 조건을 유지한다")
+    void findFeedbacks_genericPlan_usesUserIndexCondition(InquiryStatus inquiryStatus,
+            boolean incrementalSortEnabled) {
+        // Given
+        insertFeedbacksForOtherUsers();
+        jdbcTemplate.execute("ANALYZE feedbacks");
+        jdbcTemplate.execute("ANALYZE users");
+
+        // When
         String plan = jdbcTemplate.execute((ConnectionCallback<String>) connection -> {
             PGConnection postgres = connection.unwrap(PGConnection.class);
             int previousThreshold = postgres.getPrepareThreshold();
             postgres.setPrepareThreshold(1);
             try {
                 jdbcTemplate.execute("SET LOCAL plan_cache_mode = force_generic_plan");
-                // 작은 fixture에서도 인덱스 검색 조건을 만들 수 있는지 확인한다.
+                // 사용자 조건이 인덱스 검색 조건으로 유지되는지 확인한다.
                 jdbcTemplate.execute("SET LOCAL enable_seqscan = off");
+                jdbcTemplate
+                        .execute("SET LOCAL enable_incremental_sort = " + incrementalSortEnabled);
+                // 같은 연결에 남은 계획 대신 이 테스트의 통계와 설정으로 다시 계획한다.
+                jdbcTemplate.execute("DISCARD PLANS");
                 adminFeedbackQueryRepository.findFeedbacks(
                         new AdminFeedbackQueryCriteria(
                                 ACTIVE_USER_ID,
@@ -512,6 +521,32 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbackById_missingFeedback_returnsEmpty() {
         // When & Then
         assertThat(adminFeedbackQueryRepository.findFeedbackById(UUID.randomUUID())).isEmpty();
+    }
+
+    private void insertFeedbacksForOtherUsers() {
+        // 사용자마다 문의를 한 건씩 두어 사용자 ID로 좁히는 조건의 선택도를 명확히 한다.
+        jdbcTemplate.update("""
+                WITH authors AS (
+                    INSERT INTO users (id, email, signature_original_storage_key)
+                    SELECT md5('plan-user-' || number)::uuid,
+                           'plan-user-' || number || '@example.com',
+                           'signatures/plan-user-' || number
+                    FROM generate_series(1, 1000) AS number
+                    RETURNING id
+                )
+                INSERT INTO feedbacks (id, user_id, content, created_at)
+                SELECT md5('plan-feedback-' || id)::uuid, id, '다른 사용자의 문의', ?
+                FROM authors
+                """, Timestamp.from(NEWEST_CREATED_AT));
+    }
+
+    private static Stream<Arguments> genericPlanSettings() {
+        return Stream.of(
+                Arguments.of(InquiryStatus.ALL, true),
+                Arguments.of(InquiryStatus.ALL, false),
+                Arguments.of(InquiryStatus.NEEDS_ANSWER, true),
+                Arguments.of(InquiryStatus.NEEDS_ANSWER, false)
+        );
     }
 
     private static Stream<Arguments> inquiryStatusResults() {
