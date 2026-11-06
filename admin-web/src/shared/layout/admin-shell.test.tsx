@@ -33,7 +33,7 @@ describe("AdminShell", () => {
     render(<AdminShell><p>게시물 콘텐츠</p></AdminShell>);
 
     const nav = screen.getByRole("navigation", { name: "관리자 메뉴" });
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["게시물", "사용자", "주제", "배너", "처리 이력", "피드백", "AI", "알림", "앱 버전"]);
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["게시물", "사용자", "주제", "배너", "처리 이력", "고객센터", "AI", "알림", "앱 버전"]);
     expect(within(nav).getByRole("link", { name: "게시물" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("operator")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();

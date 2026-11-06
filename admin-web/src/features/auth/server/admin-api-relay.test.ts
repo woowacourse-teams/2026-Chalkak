@@ -776,3 +776,32 @@ describe("app version settings relay", () => {
     expect(await response.json()).toMatchObject({ errorCode: "RESOURCE_STATE_CHANGED" });
   });
 });
+
+describe("customer support relay", () => {
+  it.each([
+    ["GET", "feedbacks?userId=" + resourceId],
+    ["GET", "feedbacks/" + resourceId],
+    ["POST", "feedbacks/" + resourceId + "/answer"],
+    ["DELETE", "feedbacks/" + resourceId + "/answer?answerVersion=opaque_version"],
+    ["DELETE", "feedbacks/" + resourceId],
+  ])("forwards %s %s through the authenticated relay", async (method, path) => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const body = method === "POST" ? { answerContent: "답변", sendPush: true } : undefined;
+    const response = await relay(path, { cookie: token, method, body });
+
+    expect(response.status).toBe(204);
+    expect(fetchMock).toHaveBeenCalledWith(upstream + "/" + path, expect.objectContaining({
+      method,
+      headers: expect.any(Headers),
+      body: body ? JSON.stringify(body) : undefined,
+    }));
+    const headers = fetchMock.mock.calls[0][1]?.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer " + token);
+  });
+
+  it("does not forward a body with an inquiry deletion", async () => {
+    const response = await relay("feedbacks/" + resourceId, { cookie: token, method: "DELETE", body: {} });
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

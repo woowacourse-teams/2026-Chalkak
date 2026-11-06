@@ -1,8 +1,15 @@
 .page { display: grid; gap: 20px; }
 .pageTitle { margin: 0; color: #252631; font-size: 22px; font-weight: 700; }
 .description { margin: 0; color: #666; font-size: 14px; line-height: 1.6; }
-.filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
-.filters label { display: grid; gap: 6px; font-size: 13px; color: #555; }
+.filterPanel { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 16px; border: 1px solid #e3e4ed; border-radius: 8px; background: #fff; }
+.statusFilters { display: flex; flex-wrap: wrap; gap: 6px; }
+.statusFilters button { min-height: 44px; border: 1px solid transparent; border-radius: 6px; padding: 8px 12px; background: #f6f7fb; color: #41434f; font: inherit; font-size: 13px; cursor: pointer; }
+.statusFilters button[aria-pressed="true"] { border-color: #c9c9f0; background: #ececfb; color: #4545ab; font-weight: 700; }
+.statusFilters button:focus-visible, .bannedFilter input:focus-visible { outline: 2px solid #6262d9; outline-offset: 2px; }
+.filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px 20px; }
+.sortFilter { display: grid; gap: 6px; font-size: 13px; color: #555; }
+.bannedFilter { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: #41434f; font-size: 13px; cursor: pointer; }
+.bannedFilter input { width: 16px; height: 16px; margin: 0; accent-color: #5353bc; }
 .filters select { min-width: 140px; min-height: 44px; border: 1px solid #d9dde1; background: white; border-radius: 6px; padding: 9px 12px; color: #23262a; font: inherit; font-size: 14px; }
 .list { padding: 0; margin: 0; list-style: none; border-block: 1px solid #dfe2e5; }
 .entry { padding: 20px 0; border-bottom: 1px solid #e9ebed; }
@@ -13,7 +20,38 @@
 .entryMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: 13px; color: #666; }
 .content { margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: #23262a; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 520px) {
-  .filters label { width: 100%; }
+  .filterPanel { align-items: stretch; padding: 12px; }
+  .statusFilters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .filters { align-items: center; justify-content: space-between; width: 100%; }
+  .sortFilter { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
   .filters select { width: 100%; min-width: 0; font-size: 16px; }
   .entryHeading { align-items: flex-start; flex-direction: column; gap: 0; }
 }
+
+.rowActions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; }
+.rowActions { margin-top: 8px; }
+.textButton { display: inline-flex; align-items: center; min-height: 44px; border: 0; padding: 0; background: transparent; color: #4545ab; text-decoration: underline; text-underline-offset: 3px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.detailHeader, .answerHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.detailHeader p { margin-top: 5px; }
+.detailGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; }
+.answerHeader { margin-bottom: 16px; }
+.answerHeader h3 { margin: 0; }
+.answerForm { display: grid; gap: 10px; font-size: 14px; }
+.answerForm textarea { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #d4d5df; border-radius: 6px; color: #252631; font: inherit; resize: vertical; }
+.answerForm textarea:focus-visible { outline: 2px solid #6262d9; outline-offset: 2px; }
+.pushOption { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.pushOption input { width: 17px; height: 17px; accent-color: #5353bc; }
+@media (max-width: 760px) {
+  .detailGrid { grid-template-columns: minmax(0, 1fr); }
+  .answerForm textarea { font-size: 16px; }
+}
+
+.history { display: grid; gap: 12px; scroll-margin-top: 16px; }
+.history h3 { margin: 0; }
+.historyList { margin: 0; padding: 0; list-style: none; }
+.historyItem + .historyItem { border-top: 1px solid #e9ebed; }
+.historyItem a { display: grid; gap: 6px; padding: 12px 0; color: #252631; overflow-wrap: anywhere; }
+.historyItem a:hover .historyLinkLabel { margin-left: auto; color: #4545ab; font-size: 12px; font-weight: 600; }
+.historyExcerpt { color: #4545ab; text-decoration: underline; text-underline-offset: 3px; }
+.historyLinkLabel { margin-left: auto; color: #4545ab; font-size: 12px; font-weight: 600; }
+.historyExcerpt { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }

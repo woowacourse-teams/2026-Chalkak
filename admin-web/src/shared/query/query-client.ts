@@ -45,6 +45,7 @@ export const queryKeys = {
   feedbacks: {
     lists: ["admin", "feedbacks", "list"] as const,
     list: (filters: object) => [...queryKeys.feedbacks.lists, filters] as const,
+    detail: (id: string) => ["admin", "feedbacks", "detail", id] as const,
   },
   dashboard: ["admin", "dashboard"] as const,
   auditLogs: ["admin", "audit-logs"] as const,
