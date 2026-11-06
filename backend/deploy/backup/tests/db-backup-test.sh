@@ -56,7 +56,12 @@ cat > "$TEST_ROOT/bin/timeout" <<'WRAPPER'
 #!/usr/bin/env bash
 [[ "$1" == --foreground && "$2" == --kill-after=10s && "$3" == 5m && "$4" == pg_dump ]] || exit 8
 shift 3
-exec "$REAL_TIMEOUT" --foreground --kill-after=1s 1s "$@"
+# 실제 신호 전송 기록을 보관하고 원래 stderr와 종료 코드는 그대로 전달한다.
+status=0
+LC_ALL=C "$REAL_TIMEOUT" --verbose --foreground --kill-after=1s 1s "$@" \
+  2> "$TEST_REMOTE_ROOT/timeout.log" || status=$?
+cat "$TEST_REMOTE_ROOT/timeout.log" >&2
+exit "$status"
 WRAPPER
 chmod +x "$TEST_ROOT/bin/timeout"
 chmod +x "$TEST_ROOT/bin/pg_dump" "$TEST_ROOT/bin/pg_restore" "$TEST_ROOT/bin/rclone"
@@ -146,11 +151,20 @@ for fault in timeout timeout-kill; do
   export TEST_FAULT=$fault
   execute_backup
   assert_failed dump
-  if [[ "$fault" == timeout ]]; then [[ $status -eq 124 ]] || exit 1
-  else [[ $status -eq 137 ]] || exit 1; fi
+  grep -q 'sending signal TERM ' "$case_dir/remote/timeout.log"
+  if [[ "$fault" == timeout ]]; then
+    [[ $status -eq 124 ]]
+    if grep -q 'sending signal KILL ' "$case_dir/remote/timeout.log"; then exit 1; fi
+  else
+    # GNU timeout 8.32는 --foreground 강제 종료에도 시간 초과 코드 124를 반환한다.
+    [[ $status -eq 124 || $status -eq 137 ]]
+    grep -q 'sending signal KILL ' "$case_dir/remote/timeout.log"
+  fi
   dump_pid=$(cat "$case_dir/remote/dump.pid")
   if kill -0 "$dump_pid" 2>/dev/null; then echo 'FAIL: 덤프 프로세스 잔존'; exit 1; fi
-  echo "PASS: $fault 종료·업로드 차단·완료 기록 없음·임시 파일 정리"
+  [[ ! -e "$case_dir/remote/bucket" ]]
+  flock --exclusive --nonblock "$case_dir/locks/backup.lock" true
+  echo "PASS: $fault 신호 전송·프로세스 종료·업로드 차단·임시 파일 정리·잠금 해제"
 done
 
 prepare_case missing
