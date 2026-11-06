@@ -106,6 +106,28 @@ public class NotificationService {
         ));
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createForFeedbackAnswer(
+            UUID userId,
+            UUID feedbackId,
+            UUID eventKey,
+            Instant answeredAt,
+            boolean pushEnabled
+    ) {
+        notificationRepository.save(Notification.feedbackAnswered(
+                userId,
+                feedbackId,
+                eventKey,
+                answeredAt,
+                pushEnabled
+        ));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void deleteFeedbackNotifications(UUID feedbackId) {
+        notificationRepository.deleteFeedbackNotifications(feedbackId);
+    }
+
     public NotificationListResult getNotifications(
             UUID userId,
             int page,

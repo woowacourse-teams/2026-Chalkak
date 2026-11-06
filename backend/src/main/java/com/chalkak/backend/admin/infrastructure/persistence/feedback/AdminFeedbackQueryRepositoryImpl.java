@@ -1,6 +1,8 @@
 package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.AdminPage;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
@@ -20,13 +22,13 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
     private final AdminFeedbackJpaRepository repository;
 
     @Override
-    public Optional<AdminFeedbackProjection> findFeedbackById(UUID feedbackId) {
+    public Optional<AdminFeedbackDetailProjection> findFeedbackById(UUID feedbackId) {
         return repository.findFeedbackById(feedbackId);
     }
 
     @Override
     public AdminPage<AdminFeedbackProjection> findFeedbacks(
-            UUID userId,
+            AdminFeedbackQueryCriteria criteria,
             AdminFeedbackSort sort,
             int page,
             int pageSize
@@ -36,7 +38,7 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
                 pageSize,
                 toSort(sort)
         );
-        Slice<AdminFeedbackProjection> result = findFeedbackSlice(userId, pageable);
+        Slice<AdminFeedbackProjection> result = findFeedbackSlice(criteria, pageable);
         return new AdminPage<>(
                 result.getContent(),
                 page,
@@ -45,12 +47,11 @@ public class AdminFeedbackQueryRepositoryImpl implements AdminFeedbackQueryRepos
         );
     }
 
-    private Slice<AdminFeedbackProjection> findFeedbackSlice(UUID userId,
+    private Slice<AdminFeedbackProjection> findFeedbackSlice(AdminFeedbackQueryCriteria criteria,
             Pageable pageable) {
-        if (userId == null) {
-            return repository.findFeedbacks(pageable);
-        }
-        return repository.findFeedbacksByUserId(userId, pageable);
+        return criteria.userId() == null
+                ? repository.findFeedbacks(criteria, pageable)
+                : repository.findFeedbacksByUserId(criteria, pageable);
     }
 
     private Sort toSort(AdminFeedbackSort sort) {

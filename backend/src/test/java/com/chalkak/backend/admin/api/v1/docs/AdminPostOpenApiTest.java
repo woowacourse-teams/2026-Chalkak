@@ -27,14 +27,37 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                         .value(containsInAnyOrder(
                                 "status",
                                 "topicId",
-                                "topicDate",
                                 "userId",
-                                "createdAtFrom",
-                                "createdAtTo",
                                 "sort",
+                                "instagramConsent",
+                                "instagramId",
                                 "page",
                                 "pageSize"
                         )))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get"
+                        + ".parameters[?(@.name == 'instagramConsent')].schema.enum")
+                        .value(containsInAnyOrder(
+                                containsInAnyOrder(
+                                        "agreed",
+                                        "notAgreed",
+                                        "revoked"
+                                )
+                        )))
+                .andExpect(jsonPath("$.components.schemas.AdminPostListItem"
+                        + ".properties.instagramUploadAgreed").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostListItem"
+                        + ".properties.instagramId").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailResponse"
+                        + ".properties.instagramConsent['$ref']")
+                        .value("#/components/schemas/AdminPostDetailInstagramConsent"))
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailInstagramConsent"
+                        + ".properties.agreed").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailInstagramConsent"
+                        + ".properties.instagramId").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailInstagramConsent"
+                        + ".properties.agreedAt").exists())
+                .andExpect(jsonPath("$.components.schemas.AdminPostDetailInstagramConsent"
+                        + ".properties.revokedAt").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get"
                         + ".parameters[?(@.name == 'status')].schema.enum")
                         .value(containsInAnyOrder(
@@ -42,6 +65,15 @@ class AdminPostOpenApiTest extends IntegrationTestSupport {
                                         "PENDING",
                                         "APPROVED",
                                         "REJECTED"
+                                )
+                        )))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/posts'].get"
+                        + ".parameters[?(@.name == 'sort')].schema.enum")
+                        .value(containsInAnyOrder(
+                                containsInAnyOrder(
+                                        "createdAtDesc",
+                                        "createdAtAsc",
+                                        "likeCountDesc"
                                 )
                         )))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/posts/{postId}'].get"

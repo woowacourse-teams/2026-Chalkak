@@ -11,7 +11,9 @@ public enum NotificationType {
     AI_REVIEW_COMPLETED(NotificationSourceType.POST, User::isAiReviewPushEnabled), // AI 리뷰 완료
     AI_REVIEW_FAILED(NotificationSourceType.POST, User::isAiReviewPushEnabled), // AI 리뷰 실패
     NOTICE(NotificationSourceType.NOTICE, user -> true), // 관리자 공지, 전용 수신 설정 없이 항상 보낸다.
-    REMINDER(NotificationSourceType.REMINDER, User::isTopicPushEnabled); // 관리자 리마인더, 주제 설정을 따름
+    REMINDER(NotificationSourceType.REMINDER, User::isTopicPushEnabled), // 관리자 리마인더, 주제 설정을 따름
+    FEEDBACK_ANSWERED(NotificationSourceType.FEEDBACK, user -> true); // 검수·주제 수신 설정과 독립적으로 발송 대상에
+                                                                      // 포함한다.
 
     private final NotificationSourceType sourceType;
     private final Predicate<User> pushEnabled;

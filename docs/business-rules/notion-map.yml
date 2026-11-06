@@ -49,6 +49,9 @@ rule_pages:
       보관과 조회 범위: [FEEDBACK-003]
       관리자 조회: [FEEDBACK-004]
       관리자 문의 삭제: [FEEDBACK-005]
+      관리자 최초 답변: [FEEDBACK-006]
+      관리자 답변 삭제: [FEEDBACK-007]
+      관리자 재답변과 선택 푸시: [FEEDBACK-008]
   docs/business-rules/rules/admin.md:
     domain: 관리자
     pages:
@@ -83,6 +86,7 @@ rule_pages:
     pages:
       검수 결과 알림 생성: [NOTIFICATION-001]
       조회와 읽음: [NOTIFICATION-002, NOTIFICATION-003]
+      고객센터 답변 알림: [NOTIFICATION-018]
       보관과 삭제: [NOTIFICATION-004]
       푸시 기기 등록: [NOTIFICATION-005]
       푸시 수신 설정: [NOTIFICATION-006]

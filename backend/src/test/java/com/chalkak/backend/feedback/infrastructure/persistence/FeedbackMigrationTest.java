@@ -236,6 +236,41 @@ class FeedbackMigrationTest extends IntegrationTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("답변이 없는 문의에는 답변 삭제 시각만 저장할 수 없다")
+    void migrate_unansweredFeedback_rejectsDeletionTimestamp() {
+        String schema = "feedback_answer_" + UUID.randomUUID().toString().replace("-", "");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("CREATE SCHEMA " + schema);
+        try {
+            migrate(schema, "202611041324");
+            UUID userId = UUID.randomUUID();
+            UUID feedbackId = UUID.randomUUID();
+            jdbc.update(
+                    "INSERT INTO " + schema
+                            + ".users (id, email, signature_original_storage_key) VALUES (?, ?, ?)",
+                    userId,
+                    userId + "@chalkak.test",
+                    "signatures/" + userId
+            );
+            jdbc.update(
+                    "INSERT INTO " + schema
+                            + ".feedbacks (id, user_id, content) VALUES (?, ?, '문의')",
+                    feedbackId,
+                    userId
+            );
+
+            assertThatThrownBy(() -> jdbc.update(
+                    "UPDATE " + schema
+                            + ".feedbacks SET answer_deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    feedbackId
+            )).isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("ck_feedbacks_answer_deletion");
+        } finally {
+            jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
+        }
+    }
+
     private void migrate(String schema, String version) {
         Flyway.configure()
                 .dataSource(dataSource)

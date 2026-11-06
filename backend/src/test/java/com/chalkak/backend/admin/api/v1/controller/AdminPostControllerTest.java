@@ -13,7 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
+import com.chalkak.backend.admin.api.v1.converter.AdminPostInstagramConsentFilterConverter;
 import com.chalkak.backend.admin.api.v1.converter.AdminPostSortConverter;
+import com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter;
 import com.chalkak.backend.admin.repository.post.AdminPostSort;
 import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.admin.service.post.AdminPostDetail;
@@ -51,7 +53,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import({
         GlobalExceptionHandler.class,
         AdminArgumentResolverWebMvcConfig.class,
-        AdminPostSortConverter.class
+        AdminPostSortConverter.class,
+        AdminPostInstagramConsentFilterConverter.class
 })
 class AdminPostControllerTest {
 
@@ -70,6 +73,8 @@ class AdminPostControllerTest {
     private static final Instant UPDATED_AT = Instant.parse("2026-08-12T03:40:00Z");
     private static final Instant MODERATED_AT = Instant.parse("2026-08-12T03:45:00Z");
     private static final Instant DELETED_AT = Instant.parse("2026-08-12T04:00:00Z");
+    private static final Instant INSTAGRAM_AGREED_AT = Instant.parse("2026-08-12T03:35:00Z");
+    private static final Instant INSTAGRAM_REVOKED_AT = Instant.parse("2026-08-12T03:32:00Z");
 
     @Autowired
     private MockMvc mockMvc;
@@ -119,17 +124,18 @@ class AdminPostControllerTest {
                         43L,
                         CREATED_AT,
                         null,
-                        null
+                        null,
+                        true,
+                        "chalkak_user"
                 ))
         );
         given(adminPostQueryService.getPosts(
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 20
         )).willReturn(result);
@@ -145,17 +151,18 @@ class AdminPostControllerTest {
                 .andExpect(jsonPath("$.posts[0].author.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].topic.topicId").value(TOPIC_ID.toString()))
                 .andExpect(jsonPath("$.posts[0].photo.photoId").value(PHOTO_ID.toString()))
-                .andExpect(jsonPath("$.posts[0].description").doesNotExist());
+                .andExpect(jsonPath("$.posts[0].description").doesNotExist())
+                .andExpect(jsonPath("$.posts[0].instagramUploadAgreed").value(true))
+                .andExpect(jsonPath("$.posts[0].instagramId").value("chalkak_user"));
 
         then(adminActorResolver).should().resolve();
         then(adminPostQueryService).should().getPosts(
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 20
         );
@@ -165,8 +172,6 @@ class AdminPostControllerTest {
     @DisplayName("관리자 게시물 목록의 모든 필터와 정렬 및 페이지 조건을 서비스에 전달한다")
     void getPosts_withAllFilters_passesQueryParameters() throws Exception {
         // Given
-        Instant createdAtFrom = Instant.parse("2026-08-01T00:00:00Z");
-        Instant createdAtTo = Instant.parse("2026-08-31T23:59:59Z");
         AdminPostListResult result = new AdminPostListResult(
                 2,
                 50,
@@ -176,11 +181,10 @@ class AdminPostControllerTest {
         given(adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
-                TOPIC_DATE,
                 USER_ID,
-                createdAtFrom,
-                createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
+                null,
+                null,
                 2,
                 50
         )).willReturn(result);
@@ -189,10 +193,7 @@ class AdminPostControllerTest {
         mockMvc.perform(get("/api/v1/admin/posts")
                 .queryParam("status", "REJECTED")
                 .queryParam("topicId", TOPIC_ID.toString())
-                .queryParam("topicDate", TOPIC_DATE.toString())
                 .queryParam("userId", USER_ID.toString())
-                .queryParam("createdAtFrom", createdAtFrom.toString())
-                .queryParam("createdAtTo", createdAtTo.toString())
                 .queryParam("sort", "createdAtAsc")
                 .queryParam("page", "2")
                 .queryParam("pageSize", "50"))
@@ -205,14 +206,185 @@ class AdminPostControllerTest {
         then(adminPostQueryService).should().getPosts(
                 ModerationStatus.REJECTED,
                 TOPIC_ID,
-                TOPIC_DATE,
                 USER_ID,
-                createdAtFrom,
-                createdAtTo,
                 AdminPostSort.CREATED_AT_ASC,
+                null,
+                null,
                 2,
                 50
         );
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "agreed, AGREED",
+            "notAgreed, NOT_AGREED",
+            "revoked, REVOKED"
+    })
+    @DisplayName("관리자 게시물 목록의 인스타그램 동의 상태와 ID 필터를 서비스에 전달한다")
+    void getPosts_withInstagramFilters_passesQueryParameters(
+            String queryValue,
+            AdminPostInstagramConsentFilter expected
+    ) throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                expected,
+                "@Chalkak_User",
+                1,
+                20
+        )).willReturn(new AdminPostListResult(
+                1,
+                20,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("instagramConsent", queryValue)
+                .queryParam("instagramId", "@Chalkak_User"))
+                .andExpect(status().isOk());
+
+        then(adminPostQueryService).should().getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                expected,
+                "@Chalkak_User",
+                1,
+                20
+        );
+    }
+
+    @Test
+    @DisplayName("관리자 게시물 상세의 인스타그램 동의 이력이 없으면 시각을 null로 직렬화한다")
+    void getPost_neverAgreed_returnsNullConsentTimes() throws Exception {
+        // Given
+        AdminPostDetail detail = createDetail(
+                ModerationStatus.PENDING,
+                null,
+                null,
+                null
+        );
+        AdminPostDetail neverAgreed = new AdminPostDetail(
+                detail.postId(),
+                detail.title(),
+                detail.description(),
+                detail.moderationStatus(),
+                detail.author(),
+                detail.topic(),
+                detail.photo(),
+                detail.imageUpload(),
+                detail.likeCount(),
+                detail.createdAt(),
+                detail.updatedAt(),
+                detail.moderatedAt(),
+                detail.moderatedBy(),
+                detail.rejectionReason(),
+                detail.deletedAt(),
+                new AdminPostDetail.InstagramConsentDetail(
+                        false,
+                        null,
+                        null,
+                        null
+                )
+        );
+        given(adminPostQueryService.getPost(POST_ID)).willReturn(neverAgreed);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts/{postId}", POST_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.instagramConsent.agreed").value(false))
+                .andExpect(jsonPath("$.instagramConsent.instagramId").value(nullValue()))
+                .andExpect(jsonPath("$.instagramConsent.agreedAt").value(nullValue()))
+                .andExpect(jsonPath("$.instagramConsent.revokedAt").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("관리자 게시물 목록의 인기순 정렬 값을 서비스에 전달한다")
+    void getPosts_likeCountDescSort_passesPopularSort() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        )).willReturn(new AdminPostListResult(
+                1,
+                20,
+                false,
+                List.of()
+        ));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("topicId", TOPIC_ID.toString())
+                .queryParam("sort", "likeCountDesc"))
+                .andExpect(status().isOk());
+
+        then(adminPostQueryService).should().getPosts(
+                null,
+                TOPIC_ID,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        );
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "topicDate, 2026-08-12",
+            "createdAtFrom, 2026-08-01T00:00:00Z",
+            "createdAtTo, 2026-08-31T23:59:59Z"
+    })
+    @DisplayName("제거된 날짜 필터 파라미터를 보내면 무시하지 않고 400을 반환하며 서비스를 호출하지 않는다")
+    void getPosts_removedDateFilter_returnsBadRequest(
+            String parameterName,
+            String parameterValue
+    ) throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam(parameterName, parameterValue))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostQueryService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("주제 없이 인기순으로 관리자 게시물 목록을 요청하면 400을 반환한다")
+    void getPosts_likeCountDescWithoutTopic_returnsBadRequest() throws Exception {
+        // Given
+        given(adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        )).willThrow(new BusinessException(
+                ErrorCode.BUSINESS_ERROR,
+                "조회 조건이 올바르지 않습니다."));
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("sort", "likeCountDesc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
     }
 
     @Test
@@ -234,11 +406,10 @@ class AdminPostControllerTest {
             "pageSize, 101",
             "status, UNKNOWN",
             "topicId, invalid-uuid",
-            "topicDate, 2026-13-40",
             "userId, invalid-uuid",
-            "createdAtFrom, invalid-time",
-            "createdAtTo, invalid-time",
-            "sort, unknownSort"
+            "sort, unknownSort",
+            "instagramConsent, unknown",
+            "instagramConsent, not_agreed"
     })
     @DisplayName("페이지나 필터가 올바르지 않으면 400을 반환하고 서비스를 호출하지 않는다")
     void getPosts_invalidQuery_returnsBadRequest(
@@ -254,6 +425,18 @@ class AdminPostControllerTest {
         then(adminPostQueryService).shouldHaveNoInteractions();
     }
 
+    @Test
+    @DisplayName("인스타그램 ID 검색어에 NUL 문자가 있으면 400을 반환하고 서비스를 호출하지 않는다")
+    void getPosts_instagramIdWithNul_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/posts")
+                .queryParam("instagramId", "chalkak\u0000user"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+
+        then(adminPostQueryService).shouldHaveNoInteractions();
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {1, 100})
     @DisplayName("관리자 게시물 페이지 크기의 양쪽 경계값을 허용한다")
@@ -263,10 +446,9 @@ class AdminPostControllerTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 pageSize
         )).willReturn(new AdminPostListResult(
@@ -323,7 +505,13 @@ class AdminPostControllerTest {
                 .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()))
                 .andExpect(jsonPath("$.updatedAt").value(UPDATED_AT.toString()))
                 .andExpect(jsonPath("$.moderatedAt").value(MODERATED_AT.toString()))
-                .andExpect(jsonPath("$.deletedAt").value(DELETED_AT.toString()));
+                .andExpect(jsonPath("$.deletedAt").value(DELETED_AT.toString()))
+                .andExpect(jsonPath("$.instagramConsent.agreed").value(true))
+                .andExpect(jsonPath("$.instagramConsent.instagramId").value("chalkak_user"))
+                .andExpect(jsonPath("$.instagramConsent.agreedAt")
+                        .value(INSTAGRAM_AGREED_AT.toString()))
+                .andExpect(jsonPath("$.instagramConsent.revokedAt")
+                        .value(INSTAGRAM_REVOKED_AT.toString()));
 
         then(adminActorResolver).should().resolve();
         then(adminPostQueryService).should().getPost(POST_ID);
@@ -885,7 +1073,13 @@ class AdminPostControllerTest {
                 moderatedAt,
                 null,
                 null,
-                deletedAt
+                deletedAt,
+                new AdminPostDetail.InstagramConsentDetail(
+                        true,
+                        "chalkak_user",
+                        INSTAGRAM_AGREED_AT,
+                        INSTAGRAM_REVOKED_AT
+                )
         );
     }
 }

@@ -87,7 +87,7 @@ public class PostCommandService {
             boolean instagramUploadAgreed,
             String instagramId
     ) {
-        User author = getPostableUser(userId);
+        User author = getActiveUserForShare(userId);
         Topic topic = topicRepository.findActiveById(topicId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
@@ -260,10 +260,7 @@ public class PostCommandService {
     }
 
     private void validateUpdatableUser(UUID userId) {
-        userRepository.findActiveById(userId)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."));
+        getActiveUserForShare(userId);
     }
 
     /**
@@ -272,6 +269,17 @@ public class PostCommandService {
      */
     private User getPostableUser(UUID userId) {
         return userRepository.findActiveById(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
+    }
+
+    /**
+     * 인스타그램 동의를 바꾸는 작성·수정은 회원 행을 공유 잠금으로 먼저 잡는다. 탈퇴가 회원 행을 잠근 뒤 동의 게시물을 철회하므로, 겹친
+     * 요청은 탈퇴 전에 끝나 철회 대상이 되거나 탈퇴 커밋 뒤 탈퇴 회원으로 판정되어 401이 된다. 순서는 회원 다음 게시물·업로드로 탈퇴와 같다.
+     */
+    private User getActiveUserForShare(UUID userId) {
+        return userRepository.findActiveByIdForShare(userId)
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
                         "유효하지 않은 인증 정보입니다."));

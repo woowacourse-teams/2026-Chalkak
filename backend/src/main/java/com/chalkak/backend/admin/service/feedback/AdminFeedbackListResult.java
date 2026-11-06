@@ -30,6 +30,7 @@ public record AdminFeedbackListResult(
             String content,
             Instant createdAt,
             Instant deletedAt,
+            AdminFeedbackAnswerState answerState,
             AuthorSummary author
     ) {
 
@@ -39,6 +40,8 @@ public record AdminFeedbackListResult(
                     feedback.content(),
                     feedback.createdAt(),
                     feedback.deletedAt(),
+                    AdminFeedbackAnswerState.from(feedback.answeredAt(),
+                            feedback.answerDeletedAt()),
                     AuthorSummary.from(feedback)
             );
         }

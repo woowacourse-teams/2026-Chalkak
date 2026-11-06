@@ -78,6 +78,11 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public List<Post> findInstagramAgreedByAuthorIdForUpdate(UUID authorId) {
+        return postJpaRepository.findInstagramAgreedByAuthorIdForUpdate(authorId);
+    }
+
+    @Override
     public Optional<Post> findByIdForUpdate(UUID postId) {
         return postJpaRepository.findByIdForUpdate(postId);
     }
