@@ -46,6 +46,8 @@ export interface AdminPostListItem {
   topic: AdminPostTopicSummary | null;
   photo: AdminPostPhotoSummary | null;
   likeCount: number;
+  instagramUploadAgreed: boolean;
+  instagramId: string | null;
   createdAt: Instant;
   moderatedAt: Instant | null;
   deletedAt: Instant | null;
@@ -85,6 +87,13 @@ export interface AdminPostImageUpload {
   updatedAt: Instant;
 }
 
+export interface AdminPostInstagramConsent {
+  agreed: boolean;
+  instagramId: string | null;
+  agreedAt: Instant | null;
+  revokedAt: Instant | null;
+}
+
 export interface AdminPostDetailResponse {
   postId: string;
   title: string | null;
@@ -94,6 +103,7 @@ export interface AdminPostDetailResponse {
   photo: AdminPostPhotoDetail | null;
   imageUpload: AdminPostImageUpload | null;
   likeCount: number;
+  instagramConsent: AdminPostInstagramConsent;
   createdAt: Instant;
   updatedAt: Instant;
   moderatedAt: Instant | null;
@@ -202,11 +212,21 @@ export interface AdminFeedbackAuthor {
   appVersion: string | null;
 }
 
+export type AdminFeedbackAnswerState = "UNANSWERED" | "ANSWERED" | "DELETED";
+
 export interface AdminFeedbackListItem {
   feedbackId: string;
   content: string;
   createdAt: Instant;
+  deletedAt: Instant | null;
+  answerState: AdminFeedbackAnswerState;
   author: AdminFeedbackAuthor;
+}
+
+export interface AdminFeedbackDetail extends AdminFeedbackListItem {
+  answerContent: string | null;
+  answeredAt: Instant | null;
+  answerVersion: string | null;
 }
 
 export interface AdminFeedbackListResponse {

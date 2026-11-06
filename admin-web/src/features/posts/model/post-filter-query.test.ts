@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  dateEndInstant,
-  dateStartInstant,
-  instantDate,
   readAdminPostFilters,
   withQueryPatch,
 } from "./post-filter-query";
@@ -12,13 +9,12 @@ describe("post filter URL query", () => {
   it("reads valid filters and applies safe defaults", () => {
     const filters = readAdminPostFilters(
       new URLSearchParams(
-        "status=PENDING&topicDate=2026-08-28&page=2&pageSize=50&sort=createdAtAsc",
+        "status=PENDING&page=2&pageSize=50&sort=createdAtAsc",
       ),
     );
 
     expect(filters).toMatchObject({
       status: "PENDING",
-      topicDate: "2026-08-28",
       page: 2,
       pageSize: 50,
       sort: "createdAtAsc",
@@ -51,10 +47,26 @@ describe("post filter URL query", () => {
     ).toBe("?status=PENDING&page=3");
   });
 
-  it("converts Korean calendar dates to inclusive Instant bounds", () => {
-    expect(dateStartInstant("2026-08-01")).toBe("2026-07-31T15:00:00.000Z");
-    expect(dateEndInstant("2026-08-31")).toBe("2026-08-31T14:59:59.999Z");
-    expect(instantDate("2026-07-31T15:00:00.000Z")).toBe("2026-08-01");
-    expect(instantDate("invalid")).toBe("");
+  it("reads Instagram consent and ID filters", () => {
+    expect(
+      readAdminPostFilters(new URLSearchParams("instagramConsent=revoked&instagramId=%20%40Chalkak%20")),
+    ).toMatchObject({ instagramConsent: "revoked", instagramId: "@Chalkak" });
+    expect(
+      readAdminPostFilters(new URLSearchParams("instagramConsent=maybe&instagramId=%20")),
+    ).toMatchObject({ instagramConsent: undefined, instagramId: undefined });
+  });
+
+  it("allows popularity sort only with a topic", () => {
+    expect(readAdminPostFilters(new URLSearchParams("sort=likeCountDesc&topicId=t1")).sort).toBe("likeCountDesc");
+    expect(readAdminPostFilters(new URLSearchParams("sort=likeCountDesc")).sort).toBe("createdAtDesc");
+  });
+
+  it("ignores removed date filters from old bookmarks", () => {
+    const filters = readAdminPostFilters(
+      new URLSearchParams("topicDate=2026-08-28&createdAtFrom=2026-08-01T00:00:00Z&createdAtTo=2026-08-31T00:00:00Z"),
+    );
+    expect(filters).not.toHaveProperty("topicDate");
+    expect(filters).not.toHaveProperty("createdAtFrom");
+    expect(filters).not.toHaveProperty("createdAtTo");
   });
 });

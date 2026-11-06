@@ -1,4 +1,8 @@
-import type { AdminPostListItem, ModerationStatus } from "@/shared/api/contracts";
+import type {
+  AdminPostInstagramConsent,
+  AdminPostListItem,
+  ModerationStatus,
+} from "@/shared/api/contracts";
 import type { ApiError } from "@/shared/api/errors";
 
 export interface DisplayStatus {
@@ -19,6 +23,15 @@ export function getPostDisplayStatus(
     return { label: "삭제", tone: "neutral" };
   }
   return moderationDisplay[post.moderationStatus];
+}
+
+export function getInstagramConsentDisplay(
+  consent: Pick<AdminPostInstagramConsent, "agreed" | "revokedAt">,
+) {
+  if (consent.agreed) {
+    return { label: "동의함" };
+  }
+  return { label: consent.revokedAt ? "철회함" : "동의 안 함" };
 }
 
 export function formatInstant(

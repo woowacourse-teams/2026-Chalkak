@@ -32,6 +32,17 @@ function detailHref(postId: string, returnTo: string) {
   return "/posts/" + postId + "?" + query.toString();
 }
 
+function InstagramConsentSummary({ post }: { post: AdminPostListItem }) {
+  return (
+    <span className={styles.instagramSummary}>
+      <StatusBadge tone={post.instagramUploadAgreed ? "info" : "neutral"}>
+        {post.instagramUploadAgreed ? "인스타 동의" : "인스타 미동의"}
+      </StatusBadge>
+      {post.instagramId ? <small>@{post.instagramId}</small> : null}
+    </span>
+  );
+}
+
 export function PostListScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -49,6 +60,7 @@ export function PostListScreen() {
       ...filters,
       topicId: undefined,
       userId: undefined,
+      sort: filters.sort === "likeCountDesc" ? "createdAtDesc" : filters.sort,
       page: 1,
       pageSize: 100,
     }),
@@ -140,6 +152,11 @@ export function PostListScreen() {
       ),
     },
     {
+      id: "instagram",
+      header: "인스타그램",
+      render: (post) => <InstagramConsentSummary post={post} />,
+    },
+    {
       id: "createdAt",
       header: "등록 시각",
       align: "right",
@@ -166,10 +183,9 @@ export function PostListScreen() {
           updateFilters({
             status: next.status,
             topicId: next.topicId,
-            topicDate: next.topicDate,
             userId: next.userId,
-            createdAtFrom: next.createdAtFrom,
-            createdAtTo: next.createdAtTo,
+            instagramConsent: next.instagramConsent,
+            instagramId: next.instagramId,
             sort: next.sort,
             pageSize: next.pageSize,
             page: 1,
@@ -222,6 +238,7 @@ export function PostListScreen() {
                     <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                     <strong>{post.title ?? "제목 없음"}</strong>
                     <span>{post.topic?.title ?? "연결된 주제 없음"}</span>
+                    <InstagramConsentSummary post={post} />
                     <small>{formatInstant(post.createdAt)}</small>
                   </div>
                 </Link>
