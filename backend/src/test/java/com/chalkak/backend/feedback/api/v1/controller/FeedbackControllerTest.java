@@ -84,7 +84,9 @@ class FeedbackControllerTest {
                 .willReturn(new FeedbackDetailResult(
                         FEEDBACK_ID,
                         "내 문의",
-                        CREATED_AT
+                        CREATED_AT,
+                        null,
+                        null
                 ));
 
         // When & Then
@@ -126,7 +128,8 @@ class FeedbackControllerTest {
                 List.of(new FeedbackListResult.FeedbackSummary(
                         FEEDBACK_ID,
                         "문의합니다",
-                        CREATED_AT
+                        CREATED_AT,
+                        false
                 ))
         ));
 
@@ -139,6 +142,7 @@ class FeedbackControllerTest {
                 .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(FEEDBACK_ID.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].content").value("문의합니다"))
                 .andExpect(jsonPath("$.feedbacks[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].hasAnswer").value(false))
                 .andExpect(jsonPath("$.feedbacks[0].userId").doesNotExist());
     }
 

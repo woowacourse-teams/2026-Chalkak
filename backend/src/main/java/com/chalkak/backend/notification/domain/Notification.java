@@ -209,6 +209,32 @@ public class Notification {
         return notification;
     }
 
+    public static Notification feedbackAnswered(
+            UUID userId,
+            UUID feedbackId,
+            UUID eventKey,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        validateRequired(
+                userId,
+                feedbackId,
+                eventKey,
+                createdAt
+        );
+        Notification notification = new Notification();
+        notification.userId = userId;
+        notification.sourceType = NotificationSourceType.FEEDBACK;
+        notification.sourceId = feedbackId;
+        notification.eventKey = eventKey;
+        notification.type = NotificationType.FEEDBACK_ANSWERED;
+        notification.title = "고객센터 답변이 도착했습니다.";
+        notification.body = "문의 상세에서 답변을 확인해 주세요.";
+        notification.createdAt = createdAt;
+        notification.initializePublication(pushEnabled);
+        return notification;
+    }
+
     public void markPublished(Instant acceptedAt) {
         validatePendingPublication();
         if (acceptedAt == null) {

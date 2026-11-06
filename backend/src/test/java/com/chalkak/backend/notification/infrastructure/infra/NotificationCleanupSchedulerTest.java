@@ -119,6 +119,48 @@ class NotificationCleanupSchedulerTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("만료된 답변 알림을 지워도 문의와 답변 원문은 남는다")
+    void deleteExpiredNotifications_expiredFeedbackAnswer_preservesFeedback() {
+        // Given
+        UUID feedbackId = UUID.randomUUID();
+        UUID notificationId = UUID.randomUUID();
+        Instant answeredAt = NORMAL_THRESHOLD.minusSeconds(1);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO feedbacks (id, user_id, content, created_at, answer_content, answered_at)
+                        VALUES (?, ?, '문의 원문', ?, '답변 원문', ?)
+                        """,
+                feedbackId,
+                activeUserId,
+                Timestamp.from(answeredAt.minusSeconds(1)),
+                Timestamp.from(answeredAt)
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (id, user_id, source_type, source_id, event_key, type,
+                            title, body, created_at, sqs_publish_status)
+                        VALUES (?, ?, 'FEEDBACK', ?, ?, 'FEEDBACK_ANSWERED',
+                            '답변 알림', '문의 상세 확인', ?, 'NOT_REQUIRED')
+                        """,
+                notificationId,
+                activeUserId,
+                feedbackId,
+                UUID.randomUUID(),
+                Timestamp.from(answeredAt)
+        );
+
+        // When
+        notificationCleanupScheduler.deleteExpiredNotifications();
+
+        // Then
+        assertThat(exists(notificationId)).isFalse();
+        assertThat(jdbcTemplate.queryForMap(
+                "SELECT content, answer_content FROM feedbacks WHERE id = ? AND deleted_at IS NULL",
+                feedbackId
+        )).containsEntry("content", "문의 원문").containsEntry("answer_content", "답변 원문");
+    }
+
+    @Test
     @DisplayName("탈퇴한 지 30일이 지나면 최근에 생성된 알림도 삭제한다")
     void deleteExpiredNotifications_oldWithdrawal_deletesRecentNotification() {
         // Given

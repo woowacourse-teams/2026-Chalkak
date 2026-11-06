@@ -62,6 +62,12 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
                                 .exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.FeedbackDetailResponse.properties.createdAt.format")
+                        .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackDetailResponse.properties.answerContent")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackDetailResponse.properties.answeredAt.format")
                         .value("date-time"));
     }
 
@@ -116,6 +122,9 @@ class FeedbackOpenApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(
                         "$.components.schemas.FeedbackListItem.properties.createdAt.format")
                         .value("date-time"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.FeedbackListItem.properties.hasAnswer.type")
+                        .value("boolean"))
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].put").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks'].delete").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/feedbacks/me']").doesNotExist());

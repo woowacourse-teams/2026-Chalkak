@@ -139,6 +139,16 @@ public enum AdminAction {
             AdminTargetType.FEEDBACK,
             false,
             AdminAuditTransitionRules::isFeedbackDeleted
+    ), FEEDBACK_ANSWERED(
+            AdminTargetType.FEEDBACK,
+            false,
+            AdminAuditTransitionRules::isFeedbackAnswered
+    ),
+
+    FEEDBACK_ANSWER_DELETED(
+            AdminTargetType.FEEDBACK,
+            false,
+            AdminAuditTransitionRules::isFeedbackAnswerDeleted
     );
 
     private final AdminTargetType targetType;

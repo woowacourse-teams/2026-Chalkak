@@ -28,7 +28,8 @@ public record AdminPostDetail(
         Instant moderatedAt,
         UUID moderatedBy,
         String rejectionReason,
-        Instant deletedAt
+        Instant deletedAt,
+        InstagramConsentDetail instagramConsent
 ) {
 
     private static final List<String> SAFE_IMAGE_METADATA_KEYS = List.of(
@@ -76,7 +77,13 @@ public record AdminPostDetail(
                 post.moderatedAt(),
                 post.moderatedBy(),
                 post.rejectionReason(),
-                post.deletedAt()
+                post.deletedAt(),
+                new InstagramConsentDetail(
+                        post.instagramUploadAgreed(),
+                        post.instagramId(),
+                        post.instagramAgreedAt(),
+                        post.instagramRevokedAt()
+                )
         );
     }
 
@@ -91,6 +98,14 @@ public record AdminPostDetail(
             }
         }
         return Collections.unmodifiableMap(safeMetadata);
+    }
+
+    public record InstagramConsentDetail(
+            boolean agreed,
+            String instagramId,
+            Instant agreedAt,
+            Instant revokedAt
+    ) {
     }
 
     public record AuthorDetail(

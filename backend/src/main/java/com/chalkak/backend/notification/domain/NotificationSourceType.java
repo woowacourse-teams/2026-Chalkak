@@ -1,5 +1,5 @@
 package com.chalkak.backend.notification.domain;
 
 public enum NotificationSourceType {
-    POST, TOPIC, NOTICE, REMINDER
+    POST, TOPIC, NOTICE, REMINDER, FEEDBACK
 }

@@ -3,9 +3,11 @@ package com.chalkak.backend.admin.service.post;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.post.AdminPostDetailProjection;
+import com.chalkak.backend.admin.repository.post.AdminPostInstagramConsentFilter;
 import com.chalkak.backend.admin.repository.post.AdminPostQueryCriteria;
 import com.chalkak.backend.admin.repository.post.AdminPostQueryRepository;
 import com.chalkak.backend.admin.repository.post.AdminPostSort;
@@ -26,6 +28,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -77,10 +82,9 @@ class AdminPostQueryServiceTest {
                         null,
                         null,
                         null,
+                        AdminPostSort.CREATED_AT_DESC,
                         null,
-                        null,
-                        null,
-                        AdminPostSort.CREATED_AT_DESC
+                        null
                 ),
                 1,
                 1
@@ -100,10 +104,9 @@ class AdminPostQueryServiceTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 1
         );
@@ -124,18 +127,17 @@ class AdminPostQueryServiceTest {
     }
 
     @Test
-    @DisplayName("상태와 주제, 날짜, 작성자, 등록 시각 조건에 맞는 게시물만 조회한다")
+    @DisplayName("상태와 주제, 작성자 조건에 맞는 게시물만 조회한다")
     void getPosts_allFilters_returnsMatchingPost() {
         // Given
         given(repository.findPosts(
                 new AdminPostQueryCriteria(
                         ModerationStatus.REJECTED,
                         SECOND_TOPIC_ID,
-                        SECOND_TOPIC_DATE,
                         SECOND_USER_ID,
-                        Instant.parse("2026-08-13T04:00:00Z"),
-                        Instant.parse("2026-08-13T05:00:00Z"),
-                        AdminPostSort.CREATED_AT_DESC
+                        AdminPostSort.CREATED_AT_DESC,
+                        null,
+                        null
                 ),
                 1,
                 20
@@ -150,11 +152,10 @@ class AdminPostQueryServiceTest {
         AdminPostListResult result = adminPostQueryService.getPosts(
                 ModerationStatus.REJECTED,
                 SECOND_TOPIC_ID,
-                SECOND_TOPIC_DATE,
                 SECOND_USER_ID,
-                Instant.parse("2026-08-13T04:00:00Z"),
-                Instant.parse("2026-08-13T05:00:00Z"),
                 AdminPostSort.CREATED_AT_DESC,
+                null,
+                null,
                 1,
                 20
         );
@@ -167,6 +168,178 @@ class AdminPostQueryServiceTest {
         });
     }
 
+    @ParameterizedTest
+    @CsvSource(
+            delimiter = '|',
+            value = {
+                    "chalkak_user | chalkak_user",
+                    "ChalKak_User | chalkak_user",
+                    "@chalkak_user | chalkak_user",
+                    "'  @Chalkak_User  ' | chalkak_user",
+                    "@@chalkak | @chalkak"
+            })
+    @DisplayName("인스타그램 ID 검색어는 공백과 맨 앞 골뱅이 하나를 제거하고 소문자로 바꿔 조회한다")
+    void getPosts_instagramId_normalizesKeyword(
+            String rawKeyword,
+            String expectedKeyword
+    ) {
+        // Given
+        AdminPostQueryCriteria expected = new AdminPostQueryCriteria(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                AdminPostInstagramConsentFilter.AGREED,
+                expectedKeyword
+        );
+        given(repository.findPosts(
+                expected,
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary()),
+                1,
+                20,
+                false
+        ));
+
+        // When
+        AdminPostListResult result = adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                AdminPostInstagramConsentFilter.AGREED,
+                rawKeyword,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.posts()).singleElement().satisfies(post -> {
+            assertThat(post.instagramUploadAgreed()).isTrue();
+            assertThat(post.instagramId()).isEqualTo("chalkak_user");
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"   ", "@", " @ "})
+    @DisplayName("비어 있거나 골뱅이만 있는 인스타그램 ID 검색어는 필터로 적용하지 않는다")
+    void getPosts_blankInstagramId_doesNotFilter(String rawKeyword) {
+        // Given
+        AdminPostQueryCriteria expected = new AdminPostQueryCriteria(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                null,
+                null
+        );
+        given(repository.findPosts(
+                expected,
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(),
+                1,
+                20,
+                false
+        ));
+
+        // When
+        AdminPostListResult result = adminPostQueryService.getPosts(
+                null,
+                null,
+                null,
+                AdminPostSort.CREATED_AT_DESC,
+                null,
+                rawKeyword,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.posts()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상세 조회는 인스타그램 동의 여부와 ID, 동의·철회 시각을 반환한다")
+    void getPost_returnsInstagramConsent() {
+        // Given
+        given(repository.findPostById(SECOND_POST_ID)).willReturn(Optional.of(detail()));
+
+        // When
+        AdminPostDetail result = adminPostQueryService.getPost(SECOND_POST_ID);
+
+        // Then
+        assertThat(result.instagramConsent().agreed()).isTrue();
+        assertThat(result.instagramConsent().instagramId()).isEqualTo("chalkak_user");
+        assertThat(result.instagramConsent().agreedAt()).isEqualTo(SECOND_POST_CREATED_AT);
+        assertThat(result.instagramConsent().revokedAt()).isEqualTo(SECOND_POST_DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("주제가 지정되면 인기순 조건으로 게시물을 조회한다")
+    void getPosts_likeCountDescWithTopic_queriesPopularSort() {
+        // Given
+        given(repository.findPosts(
+                new AdminPostQueryCriteria(
+                        null,
+                        SECOND_TOPIC_ID,
+                        null,
+                        AdminPostSort.LIKE_COUNT_DESC,
+                        null,
+                        null
+                ),
+                1,
+                20
+        )).willReturn(new AdminPage<>(
+                List.of(summary()),
+                1,
+                20,
+                false
+        ));
+
+        // When
+        AdminPostListResult result = adminPostQueryService.getPosts(
+                null,
+                SECOND_TOPIC_ID,
+                null,
+                AdminPostSort.LIKE_COUNT_DESC,
+                null,
+                null,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(result.posts()).singleElement()
+                .satisfies(post -> assertThat(post.postId()).isEqualTo(SECOND_POST_ID));
+    }
+
+    @Test
+    @DisplayName("주제 없이 인기순으로 조회하면 잘못된 요청 예외를 발생시키고 조회하지 않는다")
+    void getPosts_likeCountDescWithoutTopic_throwsBusinessException() {
+        // When
+        BusinessException exception = catchThrowableOfType(
+                BusinessException.class,
+                () -> adminPostQueryService.getPosts(
+                        null,
+                        null,
+                        SECOND_USER_ID,
+                        AdminPostSort.LIKE_COUNT_DESC,
+                        null,
+                        null,
+                        1,
+                        20
+                ));
+
+        // Then
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("조회 조건이 올바르지 않습니다.");
+        then(repository).shouldHaveNoInteractions();
+    }
+
     @Test
     @DisplayName("내부 검증 중 상태는 관리자 게시물 조회 조건으로 요청할 수 없다")
     void getPosts_validatingStatus_throwsBusinessException() {
@@ -177,10 +350,9 @@ class AdminPostQueryServiceTest {
                         ModerationStatus.VALIDATING,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
+                        null,
+                        null,
                         1,
                         20
                 ));
@@ -188,28 +360,6 @@ class AdminPostQueryServiceTest {
         // Then
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(exception.getMessage()).isEqualTo("게시물 조회 상태가 올바르지 않습니다.");
-    }
-
-    @Test
-    @DisplayName("등록 시각 시작이 종료보다 늦으면 잘못된 요청 예외를 발생시킨다")
-    void getPosts_createdAtFromAfterCreatedAtTo_throwsBusinessException() {
-        // When
-        BusinessException exception = catchThrowableOfType(
-                BusinessException.class,
-                () -> adminPostQueryService.getPosts(
-                        null,
-                        null,
-                        null,
-                        null,
-                        Instant.parse("2026-08-13T05:00:00Z"),
-                        Instant.parse("2026-08-13T04:00:00Z"),
-                        AdminPostSort.CREATED_AT_DESC,
-                        1,
-                        20
-                ));
-
-        // Then
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
     }
 
     @Test
@@ -222,10 +372,9 @@ class AdminPostQueryServiceTest {
                         null,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         AdminPostSort.CREATED_AT_DESC,
+                        null,
+                        null,
                         Integer.MAX_VALUE,
                         100
                 ));
@@ -302,7 +451,9 @@ class AdminPostQueryServiceTest {
                 1L,
                 SECOND_POST_CREATED_AT,
                 null,
-                SECOND_POST_DELETED_AT
+                SECOND_POST_DELETED_AT,
+                true,
+                "chalkak_user"
         );
     }
 
@@ -349,7 +500,11 @@ class AdminPostQueryServiceTest {
                 "CORRUPTED_IMAGE",
                 SECOND_POST_CREATED_AT,
                 SECOND_POST_CREATED_AT,
-                1L
+                1L,
+                true,
+                "chalkak_user",
+                SECOND_POST_CREATED_AT,
+                SECOND_POST_DELETED_AT
         );
     }
 }

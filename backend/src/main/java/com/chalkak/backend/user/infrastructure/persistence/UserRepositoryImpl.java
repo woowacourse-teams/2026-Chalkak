@@ -34,6 +34,11 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public Optional<User> findActiveByIdForShare(UUID id) {
+        return userJpaRepository.findActiveByIdForShare(id);
+    }
+
+    @Override
     public Optional<User> findByIdForUpdate(UUID id) {
         return userJpaRepository.findByIdForUpdate(id);
     }

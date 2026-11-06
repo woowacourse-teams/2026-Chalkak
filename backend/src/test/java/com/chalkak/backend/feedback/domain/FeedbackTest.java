@@ -6,16 +6,181 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.chalkak.backend.exception.BusinessException;
 import java.util.UUID;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class FeedbackTest {
 
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
 
     private static final Instant CREATED_AT = Instant.parse("2026-11-03T06:00:00Z");
+
+    @ParameterizedTest(name = "{0}: {1}")
+    @MethodSource("feedbacksByCurrentAnswer")
+    @DisplayName("미답변·답변·답변 삭제·재답변에 따라 현재 답변 여부를 판정한다")
+    void hasCurrentAnswer_answerState_returnsCurrentAnswer(Feedback feedback, boolean expected) {
+        // Given: 미답변·답변·답변 삭제·재답변 상태는 MethodSource에서 준비한다.
+
+        // When
+        boolean actual = feedback.hasCurrentAnswer();
+
+        // Then
+        assertThat(actual).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("답변한 적 없는 문의에서는 답변을 삭제할 수 없다")
+    void deleteAnswer_unansweredFeedback_rejects() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+
+        assertThatThrownBy(() -> feedback.deleteAnswer("version", CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("문의 전체가 삭제되면 답변만 삭제할 수 없다")
+    void deleteAnswer_deletedFeedback_rejects() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+        feedback.answer("답변", CREATED_AT);
+        feedback.delete(CREATED_AT);
+        String version = Feedback.createAnswerVersion(CREATED_AT);
+
+        assertThatThrownBy(() -> feedback.deleteAnswer(version, CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("같은 답변의 반복 삭제는 최초 삭제 시각을 유지한다")
+    void deleteAnswer_sameVersionTwice_preservesFirstDeletion() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+        feedback.answer("답변", CREATED_AT);
+        String version = Feedback.createAnswerVersion(CREATED_AT);
+
+        assertThat(feedback.deleteAnswer(version, CREATED_AT)).isTrue();
+        assertThat(feedback.deleteAnswer(version, CREATED_AT.plusSeconds(1))).isFalse();
+        assertThat(feedback.getAnswerDeletedAt()).isEqualTo(CREATED_AT);
+    }
+
+    @Test
+    @DisplayName("같은 마이크로초에 재답변해도 이전 답변과 구분되는 시각을 저장한다")
+    void answer_deletedAnswerAtSameTime_advancesVersion() {
+        // Given
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
+        feedback.answer("이전 답변", CREATED_AT);
+        feedback.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT);
+
+        // When
+        feedback.answer("새 답변", CREATED_AT);
+
+        // Then
+        assertThat(feedback.getAnswerContent()).isEqualTo("새 답변");
+        assertThat(feedback.getAnswerDeletedAt()).isNull();
+        assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT.plus(1, ChronoUnit.MICROS));
+        assertThatThrownBy(
+                () -> feedback.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("답변은 공백 제거 후 3000 코드 포인트까지 허용한다")
+    void answer_maxLengthAfterStrip_storesAnswer() {
+        // Given
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+        String content = "😀".repeat(3000);
+
+        // When
+        feedback.answer("  " + content + "  ", CREATED_AT);
+
+        // Then
+        assertThat(feedback.getAnswerContent()).isEqualTo(content);
+        assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\n\t"})
+    @DisplayName("비어 있거나 공백뿐인 답변을 거절한다")
+    void answer_blankContent_rejects(String content) {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+
+        assertThatThrownBy(() -> feedback.answer(content, CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("3000 코드 포인트를 초과하는 답변을 거절한다")
+    void answer_contentOverMaxLength_rejects() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+
+        assertThatThrownBy(() -> feedback.answer("😀".repeat(3001), CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("삭제된 문의에는 답변할 수 없다")
+    void answer_deletedFeedback_rejects() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+        feedback.delete(CREATED_AT);
+
+        assertThatThrownBy(() -> feedback.answer("답변", CREATED_AT))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("중복 답변은 최초 답변을 덮어쓰지 않는다")
+    void answer_alreadyAnswered_preservesOriginal() {
+        Feedback feedback = Feedback.create(
+                USER_ID,
+                "문의",
+                CREATED_AT
+        );
+        feedback.answer("최초 답변", CREATED_AT);
+
+        assertThatThrownBy(() -> feedback.answer("중복 답변", CREATED_AT.plusSeconds(1)))
+                .isInstanceOf(BusinessException.class);
+        assertThat(feedback.getAnswerContent()).isEqualTo("최초 답변");
+        assertThat(feedback.getAnsweredAt()).isEqualTo(CREATED_AT);
+    }
 
     @Test
     @DisplayName("문의 삭제는 원문·작성자를 보존하고 삭제 시각만 기록한다")
@@ -154,5 +319,32 @@ class FeedbackTest {
         );
 
         assertThat(feedback.getContent()).isEqualTo(content);
+    }
+
+    private static Stream<Arguments> feedbacksByCurrentAnswer() {
+        Feedback unanswered = createFeedback();
+        Feedback answered = createFeedback();
+        answered.answer("답변", CREATED_AT);
+        Feedback deletedAnswer = createFeedback();
+        deletedAnswer.answer("삭제할 답변", CREATED_AT);
+        deletedAnswer.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT);
+        Feedback reanswered = createFeedback();
+        reanswered.answer("이전 답변", CREATED_AT);
+        reanswered.deleteAnswer(Feedback.createAnswerVersion(CREATED_AT), CREATED_AT);
+        reanswered.answer("재답변", CREATED_AT);
+        return Stream.of(
+                Arguments.of(Named.of("미답변", unanswered), false),
+                Arguments.of(Named.of("현재 답변 있음", answered), true),
+                Arguments.of(Named.of("답변 삭제", deletedAnswer), false),
+                Arguments.of(Named.of("재답변", reanswered), true)
+        );
+    }
+
+    private static Feedback createFeedback() {
+        return Feedback.create(
+                USER_ID,
+                "문의 원문",
+                CREATED_AT
+        );
     }
 }

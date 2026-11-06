@@ -34,6 +34,16 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             SELECT post
             FROM Post post
             WHERE post.author.id = :authorId
+              AND post.instagramConsent.agreed = TRUE
+            ORDER BY post.id
+            """)
+    List<Post> findInstagramAgreedByAuthorIdForUpdate(@Param("authorId") UUID authorId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT post
+            FROM Post post
+            WHERE post.author.id = :authorId
               AND post.topic.id = :topicId
               AND post.moderationStatus <> :excludedStatus
               AND post.deletedAt IS NULL
@@ -59,7 +69,8 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     );
 
     /**
-     * 조건을 바꾸면 관리자 AI 리뷰 조회의 visibleToAuthor(AdminAiReviewJpql)와 상세 조회용 findVisibleByIdForViewer도 함께 고친다.
+     * 조건을 바꾸면 관리자 AI 리뷰 조회의 visibleToAuthor(AdminAiReviewJpql)와 상세 조회용
+     * findVisibleByIdForViewer도 함께 고친다.
      */
     @Query("""
             SELECT post

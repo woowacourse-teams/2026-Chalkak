@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria.InquiryStatus;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
@@ -29,6 +31,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class AdminFeedbackQueryServiceTest {
 
+    private static final AdminFeedbackQueryCriteria ALL_FEEDBACKS = new AdminFeedbackQueryCriteria(
+            null,
+            InquiryStatus.ALL,
+            false
+    );
     private static final UUID FEEDBACK_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000003");
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000002");
     private static final Instant CREATED_AT = Instant.parse("2026-09-16T01:00:00Z");
@@ -45,7 +52,7 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_withdrawnAuthor_derivesWithdrawnStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -54,7 +61,7 @@ class AdminFeedbackQueryServiceTest {
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -71,7 +78,7 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_bannedAuthor_derivesBannedStatus() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -80,7 +87,7 @@ class AdminFeedbackQueryServiceTest {
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -97,7 +104,7 @@ class AdminFeedbackQueryServiceTest {
     @DisplayName("페이지 조건이 범위를 벗어나면 조회하지 않는다")
     void getFeedbacks_invalidPagination_throwsBusinessException(int page, int pageSize) {
         assertThatThrownBy(() -> adminFeedbackQueryService.getFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 page,
                 pageSize
@@ -113,7 +120,11 @@ class AdminFeedbackQueryServiceTest {
     void getFeedbacks_userFilter_preservesFilterAndPagination() {
         // Given
         given(adminFeedbackQueryRepository.findFeedbacks(
-                USER_ID,
+                new AdminFeedbackQueryCriteria(
+                        USER_ID,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 2,
                 7
@@ -126,7 +137,11 @@ class AdminFeedbackQueryServiceTest {
 
         // When
         AdminFeedbackListResult result = adminFeedbackQueryService.getFeedbacks(
-                USER_ID,
+                new AdminFeedbackQueryCriteria(
+                        USER_ID,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 null,
                 2,
                 7
@@ -179,7 +194,9 @@ class AdminFeedbackQueryServiceTest {
                 "user@example.com",
                 userStatus,
                 "1.2.3",
-                userDeletedAt
+                userDeletedAt,
+                null,
+                null
         );
     }
 }

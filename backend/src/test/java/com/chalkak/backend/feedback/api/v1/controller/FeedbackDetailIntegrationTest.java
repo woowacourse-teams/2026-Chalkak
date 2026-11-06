@@ -1,5 +1,6 @@
 package com.chalkak.backend.feedback.api.v1.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,7 +47,30 @@ class FeedbackDetailIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.feedbackId").value(feedbackId.toString()))
                 .andExpect(jsonPath("$.content").value("비공개 문의 원문"))
-                .andExpect(jsonPath("$.createdAt").isNotEmpty());
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.answerContent").value(nullValue()))
+                .andExpect(jsonPath("$.answeredAt").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("본인 상세에는 저장된 답변을 표시하고 목록에는 노출하지 않는다")
+    void getFeedback_answeredFeedback_returnsAnswerOnlyInDetail() throws Exception {
+        // Given
+        UUID userId = createUser(UserStatus.ACTIVE);
+        UUID feedbackId = createFeedback(userId);
+        addAnswer(feedbackId);
+
+        // When & Then
+        getFeedback(userId, feedbackId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerContent").value("비공개 답변"))
+                .andExpect(jsonPath("$.answeredAt").value("2026-11-04T01:00:00.123456Z"));
+        mockMvc.perform(
+                get("/api/v1/feedbacks").header(HttpHeaders.AUTHORIZATION, tokenFor(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedbacks[0].feedbackId").value(feedbackId.toString()))
+                .andExpect(jsonPath("$.feedbacks[0].answerContent").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.feedbacks[0].answeredAt").doesNotHaveJsonPath());
     }
 
     @Test
@@ -56,6 +80,7 @@ class FeedbackDetailIntegrationTest extends IntegrationTestSupport {
         UUID authorId = createUser(UserStatus.ACTIVE);
         UUID viewerId = createUser(UserStatus.ACTIVE);
         UUID feedbackId = createFeedback(authorId);
+        addAnswer(feedbackId);
 
         // When & Then
         expectNotFound(getFeedback(viewerId, feedbackId));
@@ -129,6 +154,13 @@ class FeedbackDetailIntegrationTest extends IntegrationTestSupport {
         return feedbackId;
     }
 
+    private void addAnswer(UUID feedbackId) {
+        jdbcTemplate.update(
+                "UPDATE feedbacks SET answer_content = '비공개 답변', answered_at = TIMESTAMPTZ '2026-11-04 01:00:00.123456+00' WHERE id = ?",
+                feedbackId
+        );
+    }
+
     private ResultActions getFeedback(UUID userId, UUID feedbackId) throws Exception {
         return mockMvc.perform(get("/api/v1/feedbacks/{feedbackId}", feedbackId)
                 .header(HttpHeaders.AUTHORIZATION, tokenFor(userId)));
@@ -138,6 +170,8 @@ class FeedbackDetailIntegrationTest extends IntegrationTestSupport {
         result.andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("문의를 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.answerContent").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.answeredAt").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.content").doesNotExist())
                 .andExpect(jsonPath("$.feedbackId").doesNotExist());
     }

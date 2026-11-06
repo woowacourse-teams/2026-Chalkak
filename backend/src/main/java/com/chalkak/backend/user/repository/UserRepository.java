@@ -14,6 +14,8 @@ public interface UserRepository {
 
     Optional<User> findActiveByIdForUpdate(UUID id);
 
+    Optional<User> findActiveByIdForShare(UUID id);
+
     Optional<User> findByIdForUpdate(UUID id);
 
     Optional<User> findActiveByPendingSignatureUploadIdForUpdate(UUID uploadId);

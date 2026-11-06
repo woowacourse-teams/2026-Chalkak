@@ -2,9 +2,12 @@ package com.chalkak.backend.admin.infrastructure.persistence.feedback;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria.InquiryStatus;
 import com.chalkak.backend.admin.repository.AdminPage;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryRepository;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackDetailProjection;
 import com.chalkak.backend.admin.repository.feedback.AdminFeedbackProjection;
 import com.chalkak.backend.support.PostgresRepositoryTest;
 import com.chalkak.backend.user.domain.UserStatus;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,6 +33,11 @@ import org.postgresql.PGConnection;
 @PostgresRepositoryTest
 class AdminFeedbackQueryRepositoryTest {
 
+    private static final AdminFeedbackQueryCriteria ALL_FEEDBACKS = new AdminFeedbackQueryCriteria(
+            null,
+            InquiryStatus.ALL,
+            false
+    );
     private static final UUID ACTIVE_USER_ID = UUID
             .fromString("0198fc00-0000-7000-8000-000000000001");
     private static final UUID BANNED_USER_ID = UUID
@@ -78,7 +87,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtDesc_returnsNewestFirstWithAuthor() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -111,7 +120,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_createdAtAsc_returnsOldestFirst() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -133,14 +142,14 @@ class AdminFeedbackQueryRepositoryTest {
         // When
         AdminPage<AdminFeedbackProjection> firstPage = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        null,
+                        ALL_FEEDBACKS,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         2
                 );
         AdminPage<AdminFeedbackProjection> lastPage = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        null,
+                        ALL_FEEDBACKS,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         2,
                         2
@@ -162,7 +171,7 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_bannedAndWithdrawnAuthors_areIncluded() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 1,
                 20
@@ -192,7 +201,11 @@ class AdminFeedbackQueryRepositoryTest {
 
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                authorId,
+                new AdminFeedbackQueryCriteria(
+                        authorId,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -209,7 +222,11 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbacks_unknownUser_returnsEmptyPage() {
         // When
         AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
-                UUID.randomUUID(),
+                new AdminFeedbackQueryCriteria(
+                        UUID.randomUUID(),
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -220,9 +237,130 @@ class AdminFeedbackQueryRepositoryTest {
         assertThat(page.hasNext()).isFalse();
     }
 
+    @ParameterizedTest
+    @MethodSource("inquiryStatusResults")
+    @DisplayName("문의 상태별로 현재 답변과 문의 삭제 여부를 적용한다")
+    void findFeedbacks_inquiryStatus_filtersRelevantInquiries(InquiryStatus inquiryStatus,
+            List<UUID> expectedIds) {
+        // Given
+        insertFeedback(
+                TIED_FIRST_ID,
+                ACTIVE_USER_ID,
+                NEWEST_CREATED_AT.plusSeconds(1)
+        );
+        saveAnswer(NEWEST_FEEDBACK_ID, null);
+        saveAnswer(OLDEST_FEEDBACK_ID, null);
+        saveAnswer(TIED_FIRST_ID, NEWEST_CREATED_AT.plusSeconds(120));
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                new AdminFeedbackQueryCriteria(
+                        null,
+                        inquiryStatus,
+                        false
+                ),
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(page.items()).extracting(AdminFeedbackProjection::feedbackId)
+                .containsExactlyElementsOf(expectedIds);
+    }
+
+    @ParameterizedTest
+    @MethodSource("bannedAuthorResults")
+    @DisplayName("현재 차단된 작성자만 조회하며 답변 필요 조건과 조합할 수 있다")
+    void findFeedbacks_bannedAuthorOnly_excludesWithdrawnAndActiveAuthors(
+            InquiryStatus inquiryStatus,
+            List<UUID> expectedIds
+    ) {
+        // Given
+        jdbcTemplate.update("UPDATE users SET status = 'BANNED' WHERE id = ?", WITHDRAWN_USER_ID);
+        insertFeedback(
+                TIED_FIRST_ID,
+                BANNED_USER_ID,
+                NEWEST_CREATED_AT.plusSeconds(1)
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        // When
+        AdminPage<AdminFeedbackProjection> page = adminFeedbackQueryRepository.findFeedbacks(
+                new AdminFeedbackQueryCriteria(
+                        null,
+                        inquiryStatus,
+                        true
+                ),
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                20
+        );
+
+        // Then
+        assertThat(page.items()).extracting(AdminFeedbackProjection::feedbackId)
+                .containsExactlyElementsOf(expectedIds);
+    }
+
     @Test
-    @DisplayName("사용자별 조회는 공통 실행 계획에서도 사용자 인덱스 검색 조건을 유지한다")
-    void findFeedbacks_genericPlan_usesUserIndexCondition() {
+    @DisplayName("선택한 사용자의 답변 필요 문의만 골라낸 뒤 페이지를 나눈다")
+    void findFeedbacks_needsAnswerByUser_filtersBeforePagination() {
+        // Given
+        insertFeedback(
+                TIED_FIRST_ID,
+                ACTIVE_USER_ID,
+                NEWEST_CREATED_AT.plusSeconds(1)
+        );
+        insertFeedback(
+                TIED_SECOND_ID,
+                ACTIVE_USER_ID,
+                NEWEST_CREATED_AT.plusSeconds(2)
+        );
+        insertFeedback(
+                UUID.randomUUID(),
+                BANNED_USER_ID,
+                NEWEST_CREATED_AT.plusSeconds(3)
+        );
+        saveAnswer(TIED_FIRST_ID, NEWEST_CREATED_AT.plusSeconds(120));
+        saveAnswer(TIED_SECOND_ID, null);
+        entityManager.flush();
+        entityManager.clear();
+        AdminFeedbackQueryCriteria criteria = new AdminFeedbackQueryCriteria(
+                ACTIVE_USER_ID,
+                InquiryStatus.NEEDS_ANSWER,
+                false
+        );
+
+        // When
+        AdminPage<AdminFeedbackProjection> first = adminFeedbackQueryRepository.findFeedbacks(
+                criteria,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                1,
+                1
+        );
+        AdminPage<AdminFeedbackProjection> last = adminFeedbackQueryRepository.findFeedbacks(
+                criteria,
+                AdminFeedbackSort.CREATED_AT_DESC,
+                2,
+                1
+        );
+
+        // Then
+        assertThat(first.items()).extracting(AdminFeedbackProjection::feedbackId)
+                .containsExactly(TIED_FIRST_ID);
+        assertThat(first.hasNext()).isTrue();
+        assertThat(last.items()).extracting(AdminFeedbackProjection::feedbackId)
+                .containsExactly(NEWEST_FEEDBACK_ID);
+        assertThat(last.hasNext()).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = InquiryStatus.class, names = {"ALL", "NEEDS_ANSWER"})
+    @DisplayName("전체·답변 필요 사용자별 조회의 공통 실행 계획에서 인덱스 조건을 유지한다")
+    void findFeedbacks_genericPlan_usesUserIndexCondition(InquiryStatus inquiryStatus) {
         // Given & When
         String plan = jdbcTemplate.execute((ConnectionCallback<String>) connection -> {
             PGConnection postgres = connection.unwrap(PGConnection.class);
@@ -233,22 +371,31 @@ class AdminFeedbackQueryRepositoryTest {
                 // 작은 fixture에서도 인덱스 검색 조건을 만들 수 있는지 확인한다.
                 jdbcTemplate.execute("SET LOCAL enable_seqscan = off");
                 adminFeedbackQueryRepository.findFeedbacks(
-                        ACTIVE_USER_ID,
+                        new AdminFeedbackQueryCriteria(
+                                ACTIVE_USER_ID,
+                                inquiryStatus,
+                                false
+                        ),
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         20
                 );
+                // Hibernate가 실제로 준비한 사용자별 쿼리의 실행 계획을 확인한다.
                 String statementName = jdbcTemplate.queryForObject("""
                         SELECT name FROM pg_prepared_statements
                         WHERE statement LIKE '%from feedbacks%'
                           AND statement LIKE '%join users%'
-                          AND statement LIKE '%where%user_id%'
+                          AND statement LIKE '%where%user_id%answer_deleted_at%'
                           AND statement NOT LIKE '%pg_prepared_statements%'
                         ORDER BY prepare_time DESC LIMIT 1
                         """, String.class);
                 return jdbcTemplate.queryForObject(
-                        "EXPLAIN (FORMAT JSON) EXECUTE \"" + statementName + "\" ('"
-                                + ACTIVE_USER_ID + "', 21)",
+                        "EXPLAIN (FORMAT JSON) EXECUTE \"%s\" ('%s', '%3$s', '%3$s', '%3$s', '%3$s', false, 'BANNED', 21)"
+                                .formatted(
+                                        statementName,
+                                        ACTIVE_USER_ID,
+                                        inquiryStatus
+                                ),
                         String.class
                 );
             } finally {
@@ -257,7 +404,8 @@ class AdminFeedbackQueryRepositoryTest {
         });
 
         // Then
-        assertThat(plan).contains("Index Cond", "user_id = $1");
+        assertThat(plan).contains("\"Index Name\": \"idx_feedbacks_user_created_at\"",
+                "\"Index Cond\": \"(user_id = $1)\"");
     }
 
     @ParameterizedTest
@@ -288,20 +436,32 @@ class AdminFeedbackQueryRepositoryTest {
         // When
         AdminPage<AdminFeedbackProjection> first = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        ACTIVE_USER_ID,
+                        new AdminFeedbackQueryCriteria(
+                                ACTIVE_USER_ID,
+                                InquiryStatus.ALL,
+                                false
+                        ),
                         sort,
                         1,
                         2
                 );
         AdminPage<AdminFeedbackProjection> last = adminFeedbackQueryRepository.findFeedbacks(
-                ACTIVE_USER_ID,
+                new AdminFeedbackQueryCriteria(
+                        ACTIVE_USER_ID,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 sort,
                 2,
                 2
         );
         AdminPage<AdminFeedbackProjection> beyond = adminFeedbackQueryRepository
                 .findFeedbacks(
-                        ACTIVE_USER_ID,
+                        new AdminFeedbackQueryCriteria(
+                                ACTIVE_USER_ID,
+                                InquiryStatus.ALL,
+                                false
+                        ),
                         sort,
                         3,
                         2
@@ -322,7 +482,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("관리자 상세는 삭제된 문의의 원문과 작성자 정보를 조회한다")
     void findFeedbackById_deletedFeedback_returnsContentAndAuthor() {
         // When
-        AdminFeedbackProjection detail = adminFeedbackQueryRepository
+        AdminFeedbackDetailProjection detail = adminFeedbackQueryRepository
                 .findFeedbackById(OLDEST_FEEDBACK_ID).orElseThrow();
 
         // Then
@@ -338,7 +498,7 @@ class AdminFeedbackQueryRepositoryTest {
     @DisplayName("관리자 상세는 탈퇴한 작성자의 문의도 제외하지 않는다")
     void findFeedbackById_withdrawnAuthor_returnsFeedback() {
         // When
-        AdminFeedbackProjection detail = adminFeedbackQueryRepository
+        AdminFeedbackDetailProjection detail = adminFeedbackQueryRepository
                 .findFeedbackById(MIDDLE_FEEDBACK_ID).orElseThrow();
 
         // Then
@@ -352,6 +512,43 @@ class AdminFeedbackQueryRepositoryTest {
     void findFeedbackById_missingFeedback_returnsEmpty() {
         // When & Then
         assertThat(adminFeedbackQueryRepository.findFeedbackById(UUID.randomUUID())).isEmpty();
+    }
+
+    private static Stream<Arguments> inquiryStatusResults() {
+        return Stream.of(
+                Arguments.of(
+                        InquiryStatus.ALL,
+                        List.of(
+                                TIED_FIRST_ID,
+                                NEWEST_FEEDBACK_ID,
+                                MIDDLE_FEEDBACK_ID,
+                                OLDEST_FEEDBACK_ID
+                        )
+                ),
+                Arguments.of(InquiryStatus.NEEDS_ANSWER, List.of(TIED_FIRST_ID)),
+                Arguments.of(InquiryStatus.ANSWERED, List.of(NEWEST_FEEDBACK_ID)),
+                Arguments.of(InquiryStatus.INQUIRY_DELETED, List.of(OLDEST_FEEDBACK_ID))
+        );
+    }
+
+    private static Stream<Arguments> bannedAuthorResults() {
+        return Stream.of(
+                Arguments.of(InquiryStatus.ALL, List.of(TIED_FIRST_ID, OLDEST_FEEDBACK_ID)),
+                Arguments.of(InquiryStatus.NEEDS_ANSWER, List.of(TIED_FIRST_ID))
+        );
+    }
+
+    private void saveAnswer(UUID feedbackId, Instant answerDeletedAt) {
+        jdbcTemplate.update(
+                """
+                        UPDATE feedbacks
+                        SET answer_content = '답변 원문', answered_at = ?, answer_deleted_at = ?
+                        WHERE id = ?
+                        """,
+                Timestamp.from(NEWEST_CREATED_AT.plusSeconds(60)),
+                answerDeletedAt == null ? null : Timestamp.from(answerDeletedAt),
+                feedbackId
+        );
     }
 
     private static Stream<Arguments> filteredPageOrders() {
