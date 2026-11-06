@@ -8,7 +8,7 @@ public interface AdminFeedbackQueryRepository {
     Optional<AdminFeedbackDetailProjection> findFeedbackById(UUID feedbackId);
 
     AdminPage<AdminFeedbackProjection> findFeedbacks(
-            UUID userId,
+            AdminFeedbackQueryCriteria criteria,
             AdminFeedbackSort sort,
             int page,
             int pageSize

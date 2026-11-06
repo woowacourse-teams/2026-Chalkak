@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria;
+import com.chalkak.backend.admin.repository.feedback.AdminFeedbackQueryCriteria.InquiryStatus;
 import com.chalkak.backend.admin.api.support.AdminActorResolver;
 import com.chalkak.backend.admin.api.support.AdminArgumentResolverWebMvcConfig;
 import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
@@ -17,6 +19,7 @@ import com.chalkak.backend.admin.repository.feedback.AdminFeedbackSort;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackListResult;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackDetailResult;
+import com.chalkak.backend.admin.service.feedback.AdminFeedbackAnswerState;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackQueryService;
 import com.chalkak.backend.admin.service.feedback.AdminFeedbackCommandService;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -46,6 +50,11 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 class AdminFeedbackControllerTest {
 
+    private static final AdminFeedbackQueryCriteria ALL_FEEDBACKS = new AdminFeedbackQueryCriteria(
+            null,
+            InquiryStatus.ALL,
+            false
+    );
     private static final UUID ADMIN_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000001");
     private static final UUID USER_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000002");
     private static final UUID FEEDBACK_ID = UUID.fromString("0198fd00-0000-7000-8000-000000000003");
@@ -67,6 +76,20 @@ class AdminFeedbackControllerTest {
     @BeforeEach
     void setUp() {
         given(adminActorResolver.resolve()).willReturn(new AuthenticatedAdmin(ADMIN_ID));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", " "})
+    @DisplayName("답변 삭제 요청에 답변 버전이 없거나 비어 있으면 서비스 호출 전에 거절한다")
+    void deleteFeedbackAnswer_missingOrBlankVersion_rejects(String answerVersion) throws Exception {
+        var request = delete("/api/v1/admin/feedbacks/{feedbackId}/answer", FEEDBACK_ID);
+        if (answerVersion != null) {
+            request.param("answerVersion", answerVersion);
+        }
+
+        mockMvc.perform(request).andExpect(status().isBadRequest());
+        then(adminFeedbackCommandService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -94,8 +117,20 @@ class AdminFeedbackControllerTest {
         then(adminFeedbackCommandService).should().answerFeedback(
                 FEEDBACK_ID,
                 ADMIN_ID,
-                answer
+                answer,
+                false
         );
+    }
+
+    @Test
+    @DisplayName("잘못된 문의 상태나 차단 필터는 조회 전에 거절한다")
+    void getFeedbacks_invalidFilters_returnsBadRequest() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/api/v1/admin/feedbacks").param("inquiryStatus", "UNKNOWN"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/admin/feedbacks").param("bannedAuthorOnly", "invalid"))
+                .andExpect(status().isBadRequest());
+        then(adminFeedbackQueryService).shouldHaveNoInteractions();
     }
 
     @Test
@@ -103,7 +138,7 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_withoutParameters_usesDefaults() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -127,7 +162,7 @@ class AdminFeedbackControllerTest {
 
         then(adminFeedbackQueryService).should()
                 .getFeedbacks(
-                        null,
+                        ALL_FEEDBACKS,
                         AdminFeedbackSort.CREATED_AT_DESC,
                         1,
                         20
@@ -139,7 +174,7 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_withParameters_passesThemToService() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
-                null,
+                ALL_FEEDBACKS,
                 AdminFeedbackSort.CREATED_AT_ASC,
                 2,
                 50
@@ -155,7 +190,7 @@ class AdminFeedbackControllerTest {
 
         then(adminFeedbackQueryService).should()
                 .getFeedbacks(
-                        null,
+                        ALL_FEEDBACKS,
                         AdminFeedbackSort.CREATED_AT_ASC,
                         2,
                         50
@@ -167,7 +202,11 @@ class AdminFeedbackControllerTest {
     void getFeedbacks_userFilter_returnsDeletionTime() throws Exception {
         // Given
         given(adminFeedbackQueryService.getFeedbacks(
-                USER_ID,
+                new AdminFeedbackQueryCriteria(
+                        USER_ID,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -180,7 +219,11 @@ class AdminFeedbackControllerTest {
                 .andExpect(jsonPath("$.feedbacks[0].author.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.feedbacks[0].deletedAt").value(DELETED_AT.toString()));
         then(adminFeedbackQueryService).should().getFeedbacks(
-                USER_ID,
+                new AdminFeedbackQueryCriteria(
+                        USER_ID,
+                        InquiryStatus.ALL,
+                        false
+                ),
                 AdminFeedbackSort.CREATED_AT_DESC,
                 1,
                 20
@@ -231,6 +274,8 @@ class AdminFeedbackControllerTest {
                         "문의 원문",
                         CREATED_AT,
                         null,
+                        null,
+                        AdminFeedbackAnswerState.UNANSWERED,
                         null,
                         DELETED_AT,
                         new AdminFeedbackListResult.AuthorSummary(
@@ -287,6 +332,7 @@ class AdminFeedbackControllerTest {
                         "사진 업로드가 느려요.",
                         CREATED_AT,
                         deletedAt,
+                        AdminFeedbackAnswerState.UNANSWERED,
                         new AdminFeedbackListResult.AuthorSummary(
                                 USER_ID,
                                 "user@example.com",

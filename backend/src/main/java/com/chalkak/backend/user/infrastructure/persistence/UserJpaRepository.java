@@ -23,6 +23,10 @@ public interface UserJpaRepository extends JpaRepository<User, UUID> {
     @Query("select u from User u where u.id = :id and u.deletedAt is null")
     Optional<User> findActiveByIdForUpdate(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select u from User u where u.id = :id and u.deletedAt is null")
+    Optional<User> findActiveByIdForShare(@Param("id") UUID id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select u

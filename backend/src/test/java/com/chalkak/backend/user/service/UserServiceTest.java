@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
 import com.chalkak.backend.exception.UnauthorizedException;
+import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
@@ -36,6 +37,8 @@ class UserServiceTest {
     private UserRepository users;
     @Mock
     private SocialAccountRepository accounts;
+    @Mock
+    private PostRepository posts;
     @Mock
     private UserRefreshTokenService refreshTokens;
     @Mock
@@ -122,7 +125,7 @@ class UserServiceTest {
     @DisplayName("활성 회원이 없으면 탈퇴를 부수 효과 없이 거부한다")
     void completeWithdrawal_unavailableUser_throwsUnauthorizedException() {
         // Given
-        given(users.findActiveById(USER_ID)).willReturn(Optional.empty());
+        given(users.findActiveByIdForUpdate(USER_ID)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> service.completeWithdrawal(USER_ID, List.of()))

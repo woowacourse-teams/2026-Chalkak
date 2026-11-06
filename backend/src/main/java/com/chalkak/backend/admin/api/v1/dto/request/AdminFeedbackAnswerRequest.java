@@ -13,7 +13,11 @@ public record AdminFeedbackAnswerRequest(
                 minLength = 1,
                 maxLength = Feedback.MAX_ANSWER_LENGTH,
                 requiredMode = Schema.RequiredMode.REQUIRED)
-        String answerContent
+        String answerContent,
+        @Schema(
+                description = "재답변 푸시 발송 여부. 생략하면 발송하지 않으며 최초 답변에는 적용하지 않습니다.",
+                defaultValue = "false")
+        Boolean sendPush
 ) {
 
     @JsonIgnore

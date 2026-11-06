@@ -63,6 +63,13 @@ public class AdminPostQueryRepositoryImpl implements AdminPostQueryRepository {
     }
 
     private Sort toSort(AdminPostSort sort) {
+        if (sort == AdminPostSort.LIKE_COUNT_DESC) {
+            return Sort.by(
+                    Sort.Order.desc("counter.likeCount"),
+                    Sort.Order.desc("createdAt"),
+                    Sort.Order.asc("id")
+            );
+        }
         if (sort == AdminPostSort.CREATED_AT_ASC) {
             return Sort.by(
                     Sort.Direction.ASC,

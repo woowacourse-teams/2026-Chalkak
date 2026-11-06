@@ -26,14 +26,17 @@ public record FeedbackListResponse(
     public record FeedbackListItem(
             UUID feedbackId,
             String content,
-            Instant createdAt
+            Instant createdAt,
+            @Schema(description = "현재 답변이 있으면 true, 최초 미답변이거나 답변만 삭제됐으면 false")
+            boolean hasAnswer
     ) {
 
         private static FeedbackListItem from(FeedbackListResult.FeedbackSummary feedback) {
             return new FeedbackListItem(
                     feedback.feedbackId(),
                     feedback.content(),
-                    feedback.createdAt()
+                    feedback.createdAt(),
+                    feedback.hasAnswer()
             );
         }
     }
