@@ -38,6 +38,31 @@ describe("admin post API", () => {
     expect(response.posts[0]?.postId).toBe(postIds.pending);
   });
 
+  it("sends Instagram filters and popularity sort but never the removed date filters", async () => {
+    let requested = new URL("http://localhost");
+    server.use(http.get("*/api/v1/admin/posts", ({ request }) => {
+      requested = new URL(request.url);
+      return HttpResponse.json({ currentPage: 1, pageSize: 20, hasNext: false, posts: [] });
+    }));
+
+    await fetchAdminPosts({
+      status: "APPROVED",
+      topicId: "topic-1",
+      instagramConsent: "revoked",
+      instagramId: "chalkak",
+      sort: "likeCountDesc",
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(requested.searchParams.get("instagramConsent")).toBe("revoked");
+    expect(requested.searchParams.get("instagramId")).toBe("chalkak");
+    expect(requested.searchParams.get("sort")).toBe("likeCountDesc");
+    for (const name of ["topicDate", "createdAtFrom", "createdAtTo"]) {
+      expect(requested.searchParams.has(name)).toBe(false);
+    }
+  });
+
   it("uses the backend READY image-upload status in the review fixture", async () => {
     const response = await fetchAdminPost(postIds.pending);
 
