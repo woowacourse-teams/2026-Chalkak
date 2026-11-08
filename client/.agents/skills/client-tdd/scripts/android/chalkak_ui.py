@@ -108,6 +108,25 @@ def swipe(x1, y1, x2, y2, ms=300):
     adb("shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
 
 
+def touch_down(x, y):
+    """손가락을 누른 채로 둔다. touch_move로 끌고 touch_up으로 뗀다(끌기 도중 상태를 판정할 때)."""
+    adb("shell", "input", "motionevent", "DOWN", str(x), str(y))
+
+
+def touch_move(x, y, steps=1, from_xy=None):
+    """누른 손가락을 (x, y)까지 옮긴다. steps>1이면 from_xy(없으면 마지막 위치 모름 → 한 번에)에서 나눠 옮긴다."""
+    if steps > 1 and from_xy:
+        fx, fy = from_xy
+        for i in range(1, steps + 1):
+            adb("shell", "input", "motionevent", "MOVE", str(fx + (x - fx) * i // steps), str(fy + (y - fy) * i // steps))
+    else:
+        adb("shell", "input", "motionevent", "MOVE", str(x), str(y))
+
+
+def touch_up(x, y):
+    adb("shell", "input", "motionevent", "UP", str(x), str(y))
+
+
 def screen_size():
     m = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
     return int(m.group(1)), int(m.group(2))
