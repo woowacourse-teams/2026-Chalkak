@@ -25,7 +25,8 @@ disable-model-invocation: true
 3. **PR 본문 쓰기**: [PR 본문 형식](references/pr-body.md)대로 `$EVID/pr.md`에 쓴다.
 4. **push**: `git push -u origin HEAD`
 5. **📸 칸 확인**(화면 코드를 바꿨을 때): `$EVID/pr.md`의 `## 📸 화면 확인`이 [화면 확인 자료](references/screen-evidence.md)의 사람 확인 체크리스트인지 본다. 화면 기준, 항목 번호마다 가는 길·데이터와 바꾼 플랫폼마다 빈 체크박스, 개발 서버 빌드 명령이 있어야 한다.
-   - 캡처는 올리지 않는다(`upload-media.sh`는 자동 화면 확인을 다시 붙일 때 쓴다). 사람이 요청해서 찍은 캡처·녹화(`mode: adhoc`)가 `$EVID/media/`에 있을 때만 올린다. 그때 원격에 `client/pr-assets`가 없다고 나오면(종료 코드 3) 만들어도 되는지 묻고, 승인받으면 `--create-branch`를 붙여 다시 실행한다.
+   - Android 화면 자동 확인 캡처(`$EVID/media/`의 `android-before-<n>.png`, `android-after-<n>.png`, `preview-diff/`의 바뀐 그림)는 올려서 📸 칸에 넣는다. 바로 열기 캡처는 앱 리소스 이미지만 보여서 공개해도 된다. 로그인·계정 고르기 화면은 올리지 않는다.
+   - 사람이 요청해서 찍은 캡처·녹화(`mode: adhoc`)가 `$EVID/media/`에 있을 때도 올린다. 그때 원격에 `client/pr-assets`가 없다고 나오면(종료 코드 3) 만들어도 되는지 묻고, 승인받으면 `--create-branch`를 붙여 다시 실행한다.
        ```bash
        client/.agents/skills/client-pr/scripts/upload-media.sh <이슈번호> "$EVID"/media/<파일>...
        ```
