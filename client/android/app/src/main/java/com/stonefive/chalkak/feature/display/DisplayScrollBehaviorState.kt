@@ -130,13 +130,9 @@ class DisplayScrollBehaviorState(
                 if (consumedScroll != 0f) return Offset(0f, consumedScroll)
             }
 
-            if (available.y > 0f && hasFilter && filterHeight > 0 && filterOffset < 0f) {
-                settleJob?.cancel()
-                val previousOffset = filterOffset
-                filterOffset = (filterOffset + available.y).coerceAtMost(0f)
-                if (filterOffset != previousOffset) {
-                    return Offset(0f, filterOffset - previousOffset)
-                }
+            if (available.y > 0f) {
+                val consumedScroll = expandTopAreas(available.y)
+                if (consumedScroll != 0f) return Offset(0f, consumedScroll)
             }
             return Offset.Zero
         }
@@ -204,6 +200,29 @@ class DisplayScrollBehaviorState(
         if (!gridState.canScrollBackward && headerOffset == 0f && filterOffset == 0f) {
             bottomBarState.hideScrollToTopButton()
         }
+    }
+
+    /**
+     * 아래로 끄는 양 [downwardScroll](양수)을 스크롤 전 단계에서 필터 → 헤더 순으로 펼치는 데 쓰고, 쓴 양을 돌려준다.
+     * 필터는 목록 위치와 상관없이 펼친다. 헤더는 목록이 맨 위일 때만 여기서 펼친다(#988).
+     * 맨 위에서 남은 끌기는 안쪽의 당겨서 새로고침이 받으므로, 헤더를 다 펼친 뒤에만 새로고침이 당겨진다.
+     * 예: 헤더 200·필터 100이 모두 접힌 맨 위에서 120을 끌면 필터 100, 헤더 20을 쓰고 120을 돌려준다.
+     */
+    private fun expandTopAreas(downwardScroll: Float): Float {
+        var remainingScroll = downwardScroll
+        if (hasFilter && filterHeight > 0 && filterOffset < 0f) {
+            settleJob?.cancel()
+            val previousOffset = filterOffset
+            filterOffset = (filterOffset + remainingScroll).coerceAtMost(0f)
+            remainingScroll -= filterOffset - previousOffset
+        }
+        if (remainingScroll > 0f && !gridState.canScrollBackward && headerHeight > 0 && headerOffset < 0f) {
+            settleJob?.cancel()
+            val previousOffset = headerOffset
+            headerOffset = (headerOffset + remainingScroll).coerceAtMost(0f)
+            remainingScroll -= headerOffset - previousOffset
+        }
+        return downwardScroll - remainingScroll
     }
 
     private fun settleTopAreas() {
