@@ -149,14 +149,15 @@ class DisplayViewModel(
         val photoId = openedPhotoId
         openedPhotoId = null
         val state = _uiState.value
-        if (photoId != null &&
+        val isTodayRandom =
             (state.content as? DisplayContentState.Latest)?.selectedSort == PostSort.RANDOM &&
-            state.selectedDate == dateProvider()
-        ) {
-            // 랜덤 첫 페이지 재요청은 새 시드를 발급하므로 복귀 시 상세 변경만 반영한다.
-            refreshOpenedPhoto(photoId)
-        } else {
-            revalidate()
+                state.selectedDate == dateProvider()
+        // 랜덤 첫 페이지 재요청은 새 시드를 발급해 순서가 바뀌므로, 오늘 랜덤 전시는 복귀 때 다시 받지 않는다.
+        // 사진을 열고 돌아왔으면 그 사진의 상세 변경만 반영하고, 새 순서는 당겨서 새로고침([refresh])으로 받는다.
+        when {
+            isTodayRandom && photoId != null -> refreshOpenedPhoto(photoId)
+            isTodayRandom -> Unit
+            else -> revalidate()
         }
     }
 
