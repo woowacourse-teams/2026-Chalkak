@@ -10,7 +10,7 @@
 ViewModel이 바뀌지 않는 작업은 2부터 한다.
 
 - mock 라이브러리를 쓰지 않는다. 같은 테스트 파일에 있는 `private class Fake...`를 재사용하거나 새로 만든다.
-- Compose·SwiftUI 화면은 TDD 대상이 아니다. 계획의 테스트 밖 확인 항목으로 사람이 PR 리뷰에서 기기로 본다.
+- Compose·SwiftUI 화면 모양은 TC로 쓰지 않는다. 계획의 테스트 밖 확인 항목이다. Android는 [화면 자동 확인](screen-auto-check.md)으로 수정 전 실패 → 수정 후 통과까지 보고, iOS는 사람이 PR 리뷰에서 본다.
 
 ## TC 묶음 돌리기
 
