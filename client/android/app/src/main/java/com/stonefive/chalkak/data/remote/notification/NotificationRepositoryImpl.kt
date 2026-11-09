@@ -74,6 +74,7 @@ class NotificationRepositoryImpl(private val remoteDataSource: NotificationRemot
                 topicPushEnabled = response.topicPushEnabled,
                 moderationPushEnabled = response.moderationPushEnabled,
                 aiReviewPushEnabled = response.aiReviewPushEnabled,
+                likePushEnabled = response.likePushEnabled,
             )
         }
 
@@ -84,6 +85,7 @@ class NotificationRepositoryImpl(private val remoteDataSource: NotificationRemot
                     topicPushEnabled = settings.topicPushEnabled,
                     moderationPushEnabled = settings.moderationPushEnabled,
                     aiReviewPushEnabled = settings.aiReviewPushEnabled,
+                    likePushEnabled = settings.likePushEnabled,
                 ),
             ).mapSuccess { Unit }
 

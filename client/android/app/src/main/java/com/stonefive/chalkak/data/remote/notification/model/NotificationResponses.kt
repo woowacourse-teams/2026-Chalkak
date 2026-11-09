@@ -43,6 +43,7 @@ data class NotificationPushSettingsResponse(
     val topicPushEnabled: Boolean,
     val moderationPushEnabled: Boolean,
     val aiReviewPushEnabled: Boolean,
+    val likePushEnabled: Boolean,
 )
 
 @Serializable
@@ -50,6 +51,7 @@ data class NotificationPushSettingsRequest(
     val topicPushEnabled: Boolean? = null,
     val moderationPushEnabled: Boolean? = null,
     val aiReviewPushEnabled: Boolean? = null,
+    val likePushEnabled: Boolean? = null,
 )
 
 @Serializable

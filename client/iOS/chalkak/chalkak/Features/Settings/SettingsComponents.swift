@@ -123,7 +123,19 @@ struct SettingsFeedbackCard: View {
 
     var body: some View {
         SettingsCard {
-            SettingsRow(title: "피드백 보내기", action: onFeedback) {
+            SettingsRow(title: "고객센터", action: onFeedback) {
+                SettingsChevron()
+            }
+        }
+    }
+}
+
+struct SettingsNotificationEntryCard: View {
+    let onOpen: () -> Void
+
+    var body: some View {
+        SettingsCard {
+            SettingsRow(title: "알림 설정", action: onOpen) {
                 SettingsChevron()
             }
         }
@@ -135,49 +147,47 @@ struct SettingsNotificationCard: View {
     let topicPushEnabled: Bool
     let moderationPushEnabled: Bool
     let aiReviewPushEnabled: Bool
+    let likePushEnabled: Bool
     let isTopicDisabled: Bool
     let isModerationDisabled: Bool
     let isAIReviewDisabled: Bool
+    let isLikeDisabled: Bool
     let errorMessage: String?
     let onTopicToggle: (Bool) -> Void
     let onModerationToggle: (Bool) -> Void
     let onAIReviewToggle: (Bool) -> Void
+    let onLikeToggle: (Bool) -> Void
     let onRetry: () -> Void
 
     var body: some View {
         SettingsCard {
-            SettingsRow(title: "오늘 주제 알림", verticalPadding: Metrics.notificationRowVerticalPadding) {
-                Toggle("", isOn: Binding(get: { topicPushEnabled }, set: onTopicToggle))
-                    .toggleStyle(.switch)
-                    .tint(theme.colors.actionPrimary)
-                    .controlSize(.regular)
-                    .labelsHidden()
-                    .disabled(isTopicDisabled)
-                    .accessibilityLabel("오늘 주제 알림")
-                    .accessibilityValue(topicPushEnabled ? "켬" : "끔")
-            }
+            SettingsToggleRow(
+                title: "오늘 주제 알림",
+                isOn: topicPushEnabled,
+                isDisabled: isTopicDisabled,
+                onToggle: onTopicToggle
+            )
             SettingsDivider()
-            SettingsRow(title: "게시물 승인·반려 알림", verticalPadding: Metrics.notificationRowVerticalPadding) {
-                Toggle("", isOn: Binding(get: { moderationPushEnabled }, set: onModerationToggle))
-                    .toggleStyle(.switch)
-                    .tint(theme.colors.actionPrimary)
-                    .controlSize(.regular)
-                    .labelsHidden()
-                    .disabled(isModerationDisabled)
-                    .accessibilityLabel("게시물 승인·반려 알림")
-                    .accessibilityValue(moderationPushEnabled ? "켬" : "끔")
-            }
+            SettingsToggleRow(
+                title: "게시물 승인·반려 알림",
+                isOn: moderationPushEnabled,
+                isDisabled: isModerationDisabled,
+                onToggle: onModerationToggle
+            )
             SettingsDivider()
-            SettingsRow(title: "AI 피드백 완료 알림", verticalPadding: Metrics.notificationRowVerticalPadding) {
-                Toggle("", isOn: Binding(get: { aiReviewPushEnabled }, set: onAIReviewToggle))
-                    .toggleStyle(.switch)
-                    .tint(theme.colors.actionPrimary)
-                    .controlSize(.regular)
-                    .labelsHidden()
-                    .disabled(isAIReviewDisabled)
-                    .accessibilityLabel("AI 피드백 완료 알림")
-                    .accessibilityValue(aiReviewPushEnabled ? "켬" : "끔")
-            }
+            SettingsToggleRow(
+                title: "AI 피드백 완료 알림",
+                isOn: aiReviewPushEnabled,
+                isDisabled: isAIReviewDisabled,
+                onToggle: onAIReviewToggle
+            )
+            SettingsDivider()
+            SettingsToggleRow(
+                title: "좋아요 알림",
+                isOn: likePushEnabled,
+                isDisabled: isLikeDisabled,
+                onToggle: onLikeToggle
+            )
             if let errorMessage {
                 HStack(spacing: theme.spacing.xs) {
                     Text(errorMessage)
@@ -193,7 +203,6 @@ struct SettingsNotificationCard: View {
                 .padding(.horizontal, Metrics.cardHorizontalPadding)
             }
         }
-        .accessibilityIdentifier("settings.notificationSetup")
     }
 }
 
@@ -295,6 +304,27 @@ private extension SettingsRow where Trailing == EmptyView {
     ) {
         self.init(title: title, textColor: textColor, action: action) {
             EmptyView()
+        }
+    }
+}
+
+private struct SettingsToggleRow: View {
+    @Environment(\.chalkakTheme) private var theme
+    let title: String
+    let isOn: Bool
+    let isDisabled: Bool
+    let onToggle: (Bool) -> Void
+
+    var body: some View {
+        SettingsRow(title: title, verticalPadding: Metrics.notificationRowVerticalPadding) {
+            Toggle("", isOn: Binding(get: { isOn }, set: onToggle))
+                .toggleStyle(.switch)
+                .tint(theme.colors.actionPrimary)
+                .controlSize(.regular)
+                .labelsHidden()
+                .disabled(isDisabled)
+                .accessibilityLabel(title)
+                .accessibilityValue(isOn ? "켬" : "끔")
         }
     }
 }

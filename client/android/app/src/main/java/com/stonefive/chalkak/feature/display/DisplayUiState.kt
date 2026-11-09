@@ -16,6 +16,7 @@ data class DisplayUiState(
     val hasNext: Boolean = false,
     val randomSeed: String? = null,
     val isLoadingNext: Boolean = false,
+    val isRefreshing: Boolean = false,
     val pendingMessage: UiMessage? = null,
 ) {
     val canGoPrevious: Boolean

@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.domain.repository
 
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.PostCreationResult
 import com.stonefive.chalkak.domain.model.PostCreationTopicResult
 import com.stonefive.chalkak.domain.model.PostImagePreparation
@@ -23,6 +24,8 @@ interface PostCreationRepository {
     suspend fun createPost(
         preparation: PostImagePreparation,
         title: String?,
+        description: String?,
         topic: Topic,
+        instagramConsent: InstagramConsent,
     ): PostCreationResult
 }

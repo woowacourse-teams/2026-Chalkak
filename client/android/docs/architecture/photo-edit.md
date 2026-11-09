@@ -1,5 +1,7 @@
 # 사진 편집 구조
 
+관련 경로: feature/photoedit/**, domain/model/photoedit/**
+
 사진 편집 코드(`feature/photoedit`, `domain/model/photoedit`)를 처음 읽는 사람을 위한 문서다.
 업로드 파일의 용량·품질 정책은 [게시물 이미지 인코딩 정책](post-image-encoding.md)을 본다.
 

@@ -95,25 +95,37 @@ final class AuthorPostsViewModel {
         await loadNextPage()
     }
 
-    /// 카드의 좋아요를 등록·취소한다. 전시 카드처럼 응답을 받은 뒤 반영하고, 반영한 값을 돌려준다.
-    /// 실패하면 카드를 그대로 두고 `.likeFailed`를 알린다.
+    /// 카드의 좋아요를 등록·취소한다. 누르는 즉시 반영하고, 응답을 받으면 서버 값으로 맞춰 돌려준다.
+    /// 실패하면 누르기 전 값으로 되돌리고 `.likeFailed`를 알린다.
     @discardableResult
     func toggleLike(postID: AuthorPost.ID) async -> FeedLikeUpdate? {
         guard !likingPostIDs.contains(postID),
-              let isLiked = viewState.posts.first(where: { $0.id == postID })?.isLiked
+              let post = viewState.posts.first(where: { $0.id == postID }),
+              let wasLiked = post.isLiked,
+              let previousCount = post.likeCount
         else { return nil }
         likingPostIDs.insert(postID)
         defer { likingPostIDs.remove(postID) }
 
-        switch await likeHandler(postID, !isLiked) {
+        let isLiked = !wasLiked
+        applyLike(FeedLikeUpdate(
+            postID: postID,
+            isLiked: isLiked,
+            likeCount: max(0, previousCount + (isLiked ? 1 : -1))
+        ))
+
+        let rollback = FeedLikeUpdate(postID: postID, isLiked: wasLiked, likeCount: previousCount)
+        switch await likeHandler(postID, isLiked) {
         case let .success(update):
             guard update.postID == postID, update.likeCount >= 0 else {
+                applyLike(rollback)
                 event = .likeFailed
                 return nil
             }
             applyLike(update)
             return update
         case .failure:
+            applyLike(rollback)
             event = .likeFailed
             return nil
         }

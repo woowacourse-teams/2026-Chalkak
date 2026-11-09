@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
+import com.stonefive.chalkak.data.remote.post.INVALID_INSTAGRAM_ID_MESSAGE
 import com.stonefive.chalkak.data.remote.post.PostRemoteDataSource
 import com.stonefive.chalkak.data.remote.post.model.AuthorPostsResponse
 import com.stonefive.chalkak.data.remote.post.model.PostCalendarItemResponse
@@ -19,6 +20,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -28,7 +30,7 @@ import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -40,6 +42,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
@@ -48,12 +54,14 @@ import kotlinx.coroutines.sync.withLock
 class PostRepositoryImpl(
     private val remoteDataSource: PostRemoteDataSource,
     private val topicRemoteDataSource: TopicRemoteDataSource,
+    private val likeRequestScope: CoroutineScope,
 ) : PostRepository,
     PhotoUploadEntryRepository {
     private val _likeUpdates = MutableSharedFlow<PostLikeUpdate>(extraBufferCapacity = 64)
     override val likeUpdates = _likeUpdates.asSharedFlow()
     private val likeUpdateMutex = Mutex()
     private val likeRequestGenerations = mutableMapOf<String, Long>()
+    private val likeRequests = mutableMapOf<String, Deferred<HomeResult<HomeLike>>>()
 
     override suspend fun getAuthorPosts(
         authorId: String,
@@ -128,28 +136,39 @@ class PostRepositoryImpl(
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = when (
-        val result = remoteDataSource.updatePostTitle(
+        description: String?,
+        instagramConsent: InstagramConsent,
+    ): HomeResult<PostUpdate> = when (
+        val result = remoteDataSource.updatePost(
             postId = postId,
-            title = title.normalizeTitle(),
+            title = title.normalizeOptionalText(),
+            description = description.normalizeOptionalText(),
+            instagramUploadAgreed = instagramConsent.agreed,
+            instagramId = instagramConsent.instagramId,
         )
     ) {
         is ApiResult.Success -> if (result.value.postId == postId) {
             HomeResult.Success(
-                PostTitleUpdate(
+                PostUpdate(
                     postId = result.value.postId,
                     title = result.value.title
-                        .normalizeTitle(),
+                        .normalizeOptionalText(),
+                    // 상세 조회와 같이 공백뿐인 설명은 설명 없음으로 본다.
+                    description = result.value.description
+                        ?.takeIf(String::isNotBlank),
+                    instagramConsent = result.value.instagramUploadAgreed?.let { agreed ->
+                        InstagramConsent(agreed = agreed, instagramId = result.value.instagramId)
+                    },
                 ),
             )
         } else {
             HomeResult.Failure(HomeFailure.InvalidResponse)
         }
 
-        is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
+        is ApiResult.Failure -> HomeResult.Failure(result.error.toPostUpdateFailure())
     }
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
@@ -190,15 +209,34 @@ class PostRepositoryImpl(
             is ApiResult.Failure -> HomeResult.Failure(result.error.toDomain())
         }
 
+    /**
+     * 같은 게시물의 좋아요는 직전 요청이 끝난 뒤 보내 서버에 누른 순서대로 반영한다.
+     * 요청은 화면보다 오래 사는 [likeRequestScope]에서 실행해, 응답을 기다리던 화면이 닫혀도 마지막 의도가 전송된다.
+     * 변경 공유는 가장 최근에 누른 요청의 성공만 한다.
+     */
     override suspend fun updateLike(
         photoId: String,
         isLiked: Boolean,
     ): HomeResult<HomeLike> {
-        val generation = likeUpdateMutex.withLock {
-            val next = (likeRequestGenerations[photoId] ?: 0L) + 1L
-            likeRequestGenerations[photoId] = next
-            next
+        val request = likeUpdateMutex.withLock {
+            val generation = (likeRequestGenerations[photoId] ?: 0L) + 1L
+            likeRequestGenerations[photoId] = generation
+            val previous = likeRequests[photoId]
+            likeRequestScope
+                .async(start = CoroutineStart.LAZY) {
+                    previous?.join()
+                    sendLike(photoId, isLiked, generation)
+                }.also { likeRequests[photoId] = it }
         }
+        request.start()
+        return request.await()
+    }
+
+    private suspend fun sendLike(
+        photoId: String,
+        isLiked: Boolean,
+        generation: Long,
+    ): HomeResult<HomeLike> {
         val result = when (val response = remoteDataSource.updateLike(photoId, isLiked)) {
             is ApiResult.Success -> if (response.value.postId == photoId) {
                 response.value.toDomain()
@@ -208,9 +246,10 @@ class PostRepositoryImpl(
 
             is ApiResult.Failure -> HomeResult.Failure(response.error.toDomain())
         }
-        if (result is HomeResult.Success) {
-            likeUpdateMutex.withLock {
-                if (likeRequestGenerations[photoId] == generation) {
+        likeUpdateMutex.withLock {
+            if (likeRequestGenerations[photoId] == generation) {
+                likeRequests.remove(photoId)
+                if (result is HomeResult.Success) {
                     _likeUpdates.emit(PostLikeUpdate(photoId, result.value.likeCount, result.value.isLiked))
                 }
             }
@@ -345,12 +384,16 @@ class PostRepositoryImpl(
                         ?: "무제 작품 이미지",
                     submittedAt = null,
                     title = title,
+                    description = description?.takeIf(String::isNotBlank),
                     likeCount = mappedLikeCount,
                     isLiked = isLiked,
                     isOwnedByCurrentUser = isMine,
                 ),
                 topic = topic.title,
                 topicDate = parsedTopicDate,
+                instagramConsent = instagramConsent?.let {
+                    InstagramConsent(agreed = it.agreed, instagramId = it.instagramId)
+                },
             ),
         )
     }
@@ -405,7 +448,8 @@ class PostRepositoryImpl(
 
     private fun Long.toLikeCountOrNull(): Int? = takeIf { it in 0L..Int.MAX_VALUE.toLong() }?.toInt()
 
-    private fun String?.normalizeTitle(): String? = this
+    /** 제목·설명처럼 비워 둘 수 있는 글은 앞뒤 공백을 지우고, 남는 글이 없으면 null(없음)로 보낸다(POST-005). */
+    private fun String?.normalizeOptionalText(): String? = this
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
 
@@ -420,6 +464,14 @@ class PostRepositoryImpl(
             else -> HomeFailure.Http(statusCode)
         }
     }
+
+    /** 수정 실패. 서버가 인스타그램 ID 형식을 거절했으면 ID 오류로 구분하고, 그 밖은 [toDomain]과 같다. */
+    private fun ApiError.toPostUpdateFailure(): HomeFailure =
+        if (this is ApiError.Http && message == INVALID_INSTAGRAM_ID_MESSAGE) {
+            HomeFailure.InvalidInstagramId
+        } else {
+            toDomain()
+        }
 
     private fun ApiError.toTodayPostStatusFailure(): TodayPostStatusFailure = when (this) {
         ApiError.Network -> TodayPostStatusFailure.Network

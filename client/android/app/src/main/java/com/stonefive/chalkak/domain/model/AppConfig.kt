@@ -7,6 +7,16 @@ package com.stonefive.chalkak.domain.model
 data class AppConfig(
     val isAiReviewEnabled: Boolean = true,
     val isPhotoEditEnabled: Boolean = true,
+    val isHomeIssueTopEnabled: Boolean = false,
+)
+
+/**
+ * 이번 앱 실행 동안 고정되는 홈 ISSUE 배치 실험 값.
+ * [isAssigned]는 원격 값을 받았는지를 뜻하며, 기본값만 쓰는 사용자는 실험 집계에서 뺀다.
+ */
+data class HomeIssueExperiment(
+    val isIssueOnTop: Boolean = false,
+    val isAssigned: Boolean = false,
 )
 
 /** 개발자 도구에서 지금 적용된 설정을 확인하기 위한 상태. */

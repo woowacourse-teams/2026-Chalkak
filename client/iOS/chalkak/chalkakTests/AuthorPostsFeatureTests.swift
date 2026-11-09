@@ -239,8 +239,8 @@ struct AuthorPostsViewModelTests {
         #expect(viewModel.viewState.posts.map(\.id) == ["a", "b"])
     }
 
-    @Test("카드 좋아요는 응답을 받은 뒤 반영하고 반영한 값을 돌려준다")
-    func togglesLikeAfterResponse() async {
+    @Test("카드 좋아요는 응답을 받으면 서버 값으로 맞추고 반영한 값을 돌려준다")
+    func togglesLikeWithServerResponse() async {
         let requests = AuthorPostsLikeRecorder()
         let viewModel = AuthorPostsViewModel(
             target: Self.target,
@@ -264,8 +264,30 @@ struct AuthorPostsViewModelTests {
         #expect(viewModel.viewState.showsLikes)
     }
 
-    @Test("좋아요 실패나 잘못된 응답은 카드를 그대로 두고 실패를 알린다")
-    func likeFailureKeepsCard() async {
+    @Test("카드 좋아요는 응답을 기다리기 전에 먼저 반영한다")
+    func togglesLikeBeforeResponse() async {
+        let snapshot = AuthorPostsLikeSnapshot()
+        let viewModel = AuthorPostsViewModel(
+            target: Self.target,
+            pageHandler: { _ in
+                .success(AuthorPostsPage(posts: [Self.post("a", likeCount: 2, isLiked: false)], currentPage: 1, hasNext: false))
+            },
+            likeHandler: { postID, isLiked in
+                snapshot.capture()
+                return .success(FeedLikeUpdate(postID: postID, isLiked: isLiked, likeCount: 3))
+            }
+        )
+        snapshot.viewModel = viewModel
+        await viewModel.load()
+
+        await viewModel.toggleLike(postID: "a")
+
+        #expect(snapshot.isLiked == true)
+        #expect(snapshot.likeCount == 3)
+    }
+
+    @Test("좋아요 실패는 누르기 전 값으로 되돌리고 실패를 알린다")
+    func likeFailureRestoresCard() async {
         let viewModel = AuthorPostsViewModel(
             target: Self.target,
             pageHandler: { _ in
@@ -369,6 +391,18 @@ struct AuthorPostsSignatureHintTests {
 @MainActor
 private final class AuthorPostsLikeRecorder {
     var calls: [Bool] = []
+}
+
+@MainActor
+private final class AuthorPostsLikeSnapshot {
+    weak var viewModel: AuthorPostsViewModel?
+    private(set) var isLiked: Bool?
+    private(set) var likeCount: Int?
+
+    func capture() {
+        isLiked = viewModel?.viewState.posts.first?.isLiked
+        likeCount = viewModel?.viewState.posts.first?.likeCount
+    }
 }
 
 @MainActor

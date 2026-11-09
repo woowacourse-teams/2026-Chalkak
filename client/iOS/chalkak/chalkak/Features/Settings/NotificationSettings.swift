@@ -6,6 +6,7 @@ struct NotificationSettings: Codable, Equatable, Sendable {
     let topicPushEnabled: Bool
     let moderationPushEnabled: Bool
     let aiReviewPushEnabled: Bool
+    let likePushEnabled: Bool
 }
 
 struct NotificationSettingsViewState: Equatable, Sendable {
@@ -14,10 +15,14 @@ struct NotificationSettingsViewState: Equatable, Sendable {
     var isSavingTopic = false
     var isSavingModeration = false
     var isSavingAIReview = false
-    var isSaving: Bool { isSavingTopic || isSavingModeration || isSavingAIReview }
+    var isSavingLike = false
+    var isSaving: Bool { isSavingTopic || isSavingModeration || isSavingAIReview || isSavingLike }
     var isTopicDisabled: Bool { isLoading || isSavingTopic || settings == nil }
     var isModerationDisabled: Bool { isLoading || isSavingModeration || settings == nil }
     var isAIReviewDisabled: Bool { isLoading || isSavingAIReview || settings == nil }
+    var isLikeDisabled: Bool { isLoading || isSavingLike || settings == nil }
+    // 첫 조회 중 꺼진 토글이 잠깐 보였다가 켜지지 않도록 조회 결과가 나올 때까지 카드를 숨긴다.
+    var isAwaitingFirstLoad: Bool { settings == nil && errorMessage == nil }
     var errorMessage: String?
 }
 
@@ -25,7 +30,7 @@ struct NotificationSettingsViewState: Equatable, Sendable {
 @Observable
 final class NotificationSettingsViewModel {
     typealias Loader = @MainActor @Sendable () async throws -> NotificationSettings
-    typealias Saver = @MainActor @Sendable (Bool?, Bool?, Bool?) async throws -> Void
+    typealias Saver = @MainActor @Sendable (Bool?, Bool?, Bool?, Bool?) async throws -> Void
 
     private(set) var saveErrorMessage: String?
     private(set) var viewState: NotificationSettingsViewState
@@ -36,7 +41,7 @@ final class NotificationSettingsViewModel {
     init(
         initialState: NotificationSettingsViewState = NotificationSettingsViewState(),
         loadSettings: @escaping Loader = { throw SettingsAPIError.configuration },
-        saveSettings: @escaping Saver = { _, _, _ in throw SettingsAPIError.configuration }
+        saveSettings: @escaping Saver = { _, _, _, _ in throw SettingsAPIError.configuration }
     ) {
         viewState = initialState
         self.loadSettings = loadSettings
@@ -73,49 +78,72 @@ final class NotificationSettingsViewModel {
     func consumeSaveError() { saveErrorMessage = nil }
 
     func setTopicPushEnabled(_ enabled: Bool) async {
-        _ = await update(topicPushEnabled: enabled, moderationPushEnabled: nil, aiReviewPushEnabled: nil)
+        _ = await update(topicPushEnabled: enabled)
     }
 
     func setModerationPushEnabled(_ enabled: Bool) async {
-        _ = await update(topicPushEnabled: nil, moderationPushEnabled: enabled, aiReviewPushEnabled: nil)
+        _ = await update(moderationPushEnabled: enabled)
     }
 
     func setAIReviewPushEnabled(_ enabled: Bool) async {
-        _ = await update(topicPushEnabled: nil, moderationPushEnabled: nil, aiReviewPushEnabled: enabled)
+        _ = await update(aiReviewPushEnabled: enabled)
+    }
+
+    func setLikePushEnabled(_ enabled: Bool) async {
+        _ = await update(likePushEnabled: enabled)
     }
 
     func setAllPushEnabled(_ enabled: Bool) async -> Bool {
-        await update(topicPushEnabled: enabled, moderationPushEnabled: enabled, aiReviewPushEnabled: enabled)
+        await update(
+            topicPushEnabled: enabled,
+            moderationPushEnabled: enabled,
+            aiReviewPushEnabled: enabled,
+            likePushEnabled: enabled
+        )
     }
 
-    private func update(topicPushEnabled: Bool?, moderationPushEnabled: Bool?, aiReviewPushEnabled: Bool?) async -> Bool {
+    private func update(
+        topicPushEnabled: Bool? = nil,
+        moderationPushEnabled: Bool? = nil,
+        aiReviewPushEnabled: Bool? = nil,
+        likePushEnabled: Bool? = nil
+    ) async -> Bool {
         guard !viewState.isLoading,
               topicPushEnabled == nil || !viewState.isSavingTopic,
               moderationPushEnabled == nil || !viewState.isSavingModeration,
               aiReviewPushEnabled == nil || !viewState.isSavingAIReview,
-              topicPushEnabled != nil || moderationPushEnabled != nil || aiReviewPushEnabled != nil,
+              likePushEnabled == nil || !viewState.isSavingLike,
+              topicPushEnabled != nil || moderationPushEnabled != nil || aiReviewPushEnabled != nil || likePushEnabled != nil,
               let topic = topicPushEnabled ?? viewState.settings?.topicPushEnabled,
               let moderation = moderationPushEnabled ?? viewState.settings?.moderationPushEnabled,
-              let aiReview = aiReviewPushEnabled ?? viewState.settings?.aiReviewPushEnabled
+              let aiReview = aiReviewPushEnabled ?? viewState.settings?.aiReviewPushEnabled,
+              let like = likePushEnabled ?? viewState.settings?.likePushEnabled
         else { return false }
 
         let requestGeneration = generation
         let previousSettings = viewState.settings
-        viewState.settings = NotificationSettings(topicPushEnabled: topic, moderationPushEnabled: moderation, aiReviewPushEnabled: aiReview)
+        viewState.settings = NotificationSettings(
+            topicPushEnabled: topic,
+            moderationPushEnabled: moderation,
+            aiReviewPushEnabled: aiReview,
+            likePushEnabled: like
+        )
         saveErrorMessage = nil
         if topicPushEnabled != nil { viewState.isSavingTopic = true }
         if moderationPushEnabled != nil { viewState.isSavingModeration = true }
         if aiReviewPushEnabled != nil { viewState.isSavingAIReview = true }
+        if likePushEnabled != nil { viewState.isSavingLike = true }
         viewState.errorMessage = nil
         defer {
             if requestGeneration == generation {
                 if topicPushEnabled != nil { viewState.isSavingTopic = false }
                 if moderationPushEnabled != nil { viewState.isSavingModeration = false }
                 if aiReviewPushEnabled != nil { viewState.isSavingAIReview = false }
+                if likePushEnabled != nil { viewState.isSavingLike = false }
             }
         }
         do {
-            try await saveSettings(topicPushEnabled, moderationPushEnabled, aiReviewPushEnabled)
+            try await saveSettings(topicPushEnabled, moderationPushEnabled, aiReviewPushEnabled, likePushEnabled)
             try Task.checkCancellation()
             guard requestGeneration == generation else { return false }
             return true
@@ -132,7 +160,10 @@ final class NotificationSettingsViewModel {
                         : viewState.settings?.moderationPushEnabled ?? previousSettings.moderationPushEnabled,
                     aiReviewPushEnabled: aiReviewPushEnabled != nil
                         ? previousSettings.aiReviewPushEnabled
-                        : viewState.settings?.aiReviewPushEnabled ?? previousSettings.aiReviewPushEnabled
+                        : viewState.settings?.aiReviewPushEnabled ?? previousSettings.aiReviewPushEnabled,
+                    likePushEnabled: likePushEnabled != nil
+                        ? previousSettings.likePushEnabled
+                        : viewState.settings?.likePushEnabled ?? previousSettings.likePushEnabled
                 )
             } else {
                 viewState.settings = nil

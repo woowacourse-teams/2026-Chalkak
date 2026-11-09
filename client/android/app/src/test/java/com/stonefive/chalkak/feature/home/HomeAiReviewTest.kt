@@ -11,6 +11,7 @@ import com.stonefive.chalkak.domain.model.HomeFailure
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.Post
 import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostCalendarItem
@@ -18,7 +19,7 @@ import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostStatus
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
@@ -494,10 +495,12 @@ class HomeAiReviewTest {
 
         override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-        override suspend fun updatePostTitle(
+        override suspend fun updatePost(
             postId: String,
             title: String?,
-        ): HomeResult<PostTitleUpdate> = error("unused")
+            description: String?,
+            instagramConsent: InstagramConsent,
+        ): HomeResult<PostUpdate> = error("unused")
 
         override suspend fun getPostContent(query: HomeQuery) =
             HomeResult.Success(PostContent(query.date, "하늘", emptyList(), emptySet()))

@@ -32,9 +32,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
+import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextLengthMetric
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.feature.feedback.component.FeedbackTopBar
+import com.stonefive.chalkak.feature.feedback.component.FeedbackTopBarPadding
 
 @Composable
 fun FeedbackRoute(
@@ -89,16 +91,12 @@ fun FeedbackScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             FeedbackTopBar(
+                title = "피드백 보내기",
                 onBackClick = onBackClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(
-                        start = 8.dp,
-                        end = 12.dp,
-                        top = 10.dp,
-                        bottom = 8.dp,
-                    ),
+                    .padding(FeedbackTopBarPadding),
             )
         },
     ) { innerPadding ->
@@ -152,6 +150,7 @@ fun FeedbackScreen(
                     textStyle = ChalkakTheme.typography.subheadline,
                     minLines = 8,
                     maxLength = FEEDBACK_MAX_CONTENT_LENGTH,
+                    lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
                 )
 
                 Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))

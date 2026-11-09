@@ -2,6 +2,7 @@ package com.stonefive.chalkak.feature.feedback.component
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,8 +23,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
+/** 고객센터·문의 작성·문의 상세 화면이 [FeedbackTopBar] 바깥에 주는 여백. 세 화면의 제목 위치를 맞춘다. */
+val FeedbackTopBarPadding = PaddingValues(start = 8.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)
+
+/** 고객센터·문의 작성·문의 상세 위의 제목 줄. 왼쪽 뒤로 가기와 가운데 [title]만 있다. */
 @Composable
 fun FeedbackTopBar(
+    title: String,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -51,7 +57,7 @@ fun FeedbackTopBar(
         }
 
         Text(
-            text = "피드백 보내기",
+            text = title,
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.headline,
             modifier = Modifier.weight(1f),
@@ -67,6 +73,7 @@ fun FeedbackTopBar(
 private fun FeedbackTopBarPreview() {
     ChalkakTheme {
         FeedbackTopBar(
+            title = "고객센터",
             onBackClick = {},
             modifier = Modifier
                 .fillMaxWidth()

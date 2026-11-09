@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
 import com.stonefive.chalkak.domain.model.HomeFailure
+import com.stonefive.chalkak.domain.model.HomeIssueExperiment
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
 import com.stonefive.chalkak.domain.model.NotificationResult
@@ -52,14 +53,18 @@ class HomeViewModel(
     private val dateProvider: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Seoul")) },
     private val notificationRepository: NotificationRepository? = null,
     private val isAiReviewEnabled: () -> Boolean = { true },
+    private val loadHomeIssueExperiment: suspend () -> HomeIssueExperiment = { HomeIssueExperiment() },
+    private val onIssueExperimentExposed: (isIssueOnTop: Boolean) -> Unit = {},
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider()))
+    private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider(), isIssueLayoutResolved = false))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
     private var bannerLoadMoreJob: Job? = null
     private var unreadNotificationsJob: Job? = null
     private var hasBeenPresented = false
     private var isResumed = false
+    private var issueExperiment: HomeIssueExperiment? = null
+    private var hasReportedIssueExposure = false
     private val isPreloadingEnabled = MutableStateFlow(false)
     private val aiReviewSession = AiReviewSession(
         scope = viewModelScope,
@@ -72,6 +77,14 @@ class HomeViewModel(
     val isReadyForInitialDisplay: StateFlow<Boolean> = _isReadyForInitialDisplay.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            val experiment = loadHomeIssueExperiment()
+            issueExperiment = experiment
+            _uiState.update {
+                it.copy(isIssueOnTop = experiment.isIssueOnTop, isIssueLayoutResolved = true)
+            }
+            reportIssueExposureIfNeeded()
+        }
         viewModelScope.launch {
             combine(sessionState, isPreloadingEnabled) { session, enabled -> session to enabled }
                 .collectLatest { (session, enabled) ->
@@ -120,6 +133,7 @@ class HomeViewModel(
     fun onResume() {
         val isFirstPresentation = !hasBeenPresented
         hasBeenPresented = true
+        reportIssueExposureIfNeeded()
         if (!sessionState.value.canLoadHome()) return
         isResumed = true
         refreshUnreadNotifications()
@@ -156,12 +170,22 @@ class HomeViewModel(
         }
     }
 
+    // 홈 ViewModel은 화면이 보이기 전에 미리 만들어지므로 실제로 홈을 본 뒤에만 노출로 센다.
+    private fun reportIssueExposureIfNeeded() {
+        val experiment = issueExperiment ?: return
+        if (!hasBeenPresented || hasReportedIssueExposure || !experiment.isAssigned) return
+        hasReportedIssueExposure = true
+        onIssueExperimentExposed(experiment.isIssueOnTop)
+    }
+
     private fun resetState(state: HomeUiState) {
         aiReviewSession.setTarget(null)
         val isAuthenticated = sessionState.value is UserSessionState.Authenticated
         if (!isAuthenticated) unreadNotificationsJob?.cancel()
         _uiState.value = state.copy(
             hasUnreadNotifications = isAuthenticated && _uiState.value.hasUnreadNotifications,
+            isIssueOnTop = _uiState.value.isIssueOnTop,
+            isIssueLayoutResolved = _uiState.value.isIssueLayoutResolved,
         )
     }
 
@@ -321,7 +345,7 @@ class HomeViewModel(
         authenticated: Boolean,
     ) {
         if (!authenticated) {
-            _uiState.update { it.copy(hero = HomeHeroState.Empty, recordsStatus = HomeSectionStatus.Ready) }
+            _uiState.update { it.copy(hero = HomeHeroState.LoginRequired, recordsStatus = HomeSectionStatus.Ready) }
             return
         }
         val dates = homeWeekDates(date)
@@ -419,6 +443,8 @@ class HomeViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
+                val appConfigRepository = application.appContainer.appConfigRepository
+                val analyticsTracker = application.appContainer.analyticsTracker
                 HomeViewModel(
                     repository = application.appContainer.postRepository,
                     uploadEntryRepository = application.appContainer.photoUploadEntryRepository,
@@ -426,7 +452,9 @@ class HomeViewModel(
                     bannerRepository = application.appContainer.bannerRepository,
                     aiReviewRepository = application.appContainer.aiReviewRepository,
                     notificationRepository = application.appContainer.notificationRepository,
-                    isAiReviewEnabled = { application.appContainer.appConfigRepository.config.value.isAiReviewEnabled },
+                    isAiReviewEnabled = { appConfigRepository.config.value.isAiReviewEnabled },
+                    loadHomeIssueExperiment = appConfigRepository::homeIssueExperiment,
+                    onIssueExperimentExposed = analyticsTracker::trackHomeIssueLayoutExposed,
                 )
             }
         }

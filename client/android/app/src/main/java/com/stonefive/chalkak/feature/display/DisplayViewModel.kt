@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 class DisplayViewModel(
     private val repository: PostRepository,
     private val initialDate: LocalDate? = null,
-    initialSort: PostSort = PostSort.LATEST,
+    initialSort: PostSort = PostSort.RANDOM,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
     firstTopicDate: LocalDate = FIRST_TOPIC_DATE,
 ) : ViewModel() {
@@ -118,6 +118,29 @@ class DisplayViewModel(
         loadDisplay(_uiState.value.selectedDate)
     }
 
+    /**
+     * 당겨서 새로고침. 보던 사진은 그대로 두고 [DisplayUiState.isRefreshing]을 켠 채 첫 페이지를 다시 불러온다.
+     * 랜덤순은 seed 없이 요청해 서버가 새로 섞은 순서를 받고, 지난 날짜는 인기순으로 불러온다.
+     * 실패하면 이전 사진·seed로 되돌리고 오류 안내를 띄운다. 새로고침 중이거나 사진이 없는 상태면 무시한다.
+     */
+    fun refresh() {
+        val state = _uiState.value
+        if (state.isRefreshing) return
+        if (state.content !is DisplayContentState.Latest &&
+            state.content !is DisplayContentState.Archive
+        ) {
+            return
+        }
+        val selectedDate = state.selectedDate ?: return
+
+        _uiState.value = state.copy(isRefreshing = true)
+        loadDisplay(
+            date = selectedDate,
+            previousState = state,
+            keepsContentVisible = true,
+        )
+    }
+
     fun onResume() {
         if (!hasBeenPresented) {
             hasBeenPresented = true
@@ -126,14 +149,15 @@ class DisplayViewModel(
         val photoId = openedPhotoId
         openedPhotoId = null
         val state = _uiState.value
-        if (photoId != null &&
+        val isTodayRandom =
             (state.content as? DisplayContentState.Latest)?.selectedSort == PostSort.RANDOM &&
-            state.selectedDate == dateProvider()
-        ) {
-            // 랜덤 첫 페이지 재요청은 새 시드를 발급하므로 복귀 시 상세 변경만 반영한다.
-            refreshOpenedPhoto(photoId)
-        } else {
-            revalidate()
+                state.selectedDate == dateProvider()
+        // 랜덤 첫 페이지 재요청은 새 시드를 발급해 순서가 바뀌므로, 오늘 랜덤 전시는 복귀 때 다시 받지 않는다.
+        // 사진을 열고 돌아왔으면 그 사진의 상세 변경만 반영하고, 새 순서는 당겨서 새로고침([refresh])으로 받는다.
+        when {
+            isTodayRandom && photoId != null -> refreshOpenedPhoto(photoId)
+            isTodayRandom -> Unit
+            else -> revalidate()
         }
     }
 
@@ -385,6 +409,7 @@ class DisplayViewModel(
                         hasNext = previousState.hasNext,
                         randomSeed = previousState.randomSeed,
                         isLoadingNext = false,
+                        isRefreshing = false,
                         pendingMessage = pendingMessage,
                     )
                     _uiState.update { restoredState.withAppliedLikeUpdatesAfter(requestLikeRevision) }
@@ -394,6 +419,7 @@ class DisplayViewModel(
                             content = DisplayContentState.Error(
                                 message = DISPLAY_ERROR_MESSAGE,
                             ),
+                            isRefreshing = false,
                         )
                     }
                 }
@@ -668,7 +694,7 @@ class DisplayViewModel(
         }
         val key = DisplayCacheKey(date, sort)
         displayCache[key] = DisplayCacheEntry(
-            state = state.copy(pendingMessage = null),
+            state = state.copy(pendingMessage = null, isRefreshing = false),
             firstPagePhotoIds = displayCache[key]?.firstPagePhotoIds
                 ?: state.photos.mapTo(mutableSetOf(), Post::id),
         )
@@ -677,7 +703,7 @@ class DisplayViewModel(
     companion object {
         fun factory(
             initialDate: LocalDate? = null,
-            initialSort: PostSort = PostSort.LATEST,
+            initialSort: PostSort = PostSort.RANDOM,
         ) = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
@@ -785,7 +811,7 @@ private data class DisplayCacheEntry(
 )
 
 private const val DISPLAY_ERROR_MESSAGE = "전시를 불러오지 못했어요"
-private const val LIKE_ERROR_MESSAGE = "좋아요를 반영하지 못했어요"
+private const val LIKE_ERROR_MESSAGE = "좋아요를 변경하지 못했어요"
 
 private fun DisplayUiState.withoutPhoto(photoId: String): DisplayUiState = copy(
     content = when (val currentContent = content) {

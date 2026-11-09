@@ -10,7 +10,7 @@ import XCTest
 final class chalkakUITests: XCTestCase {
 
     @MainActor
-    func testPhotoUploadConfirmsDiscardFromCloseAndDownwardSwipe() throws {
+    func testPhotoUploadClosesWithoutConfirmationWhenNothingIsSelected() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
@@ -19,30 +19,49 @@ final class chalkakUITests: XCTestCase {
 
         let close = app.buttons["photoUpload.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
-        let caption = app.textFields["사진 설명"]
+        XCTAssertFalse(app.buttons["photoUpload.submit"].isEnabled)
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["작성을 그만둘까요?"].exists)
+    }
+
+    @MainActor
+    func testPhotoUploadConfirmsDiscardFromCloseAndDownwardSwipe() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry", "-test-photo-upload-selected"]
+        app.launch()
+        XCTAssertTrue(app.buttons["추가"].waitForExistence(timeout: 5))
+        app.buttons["추가"].tap()
+
+        // 사진을 고른 상태에서도 같은 화면에서 제목을 쓴다.
+        let close = app.buttons["photoUpload.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let caption = app.textFields["작품 제목"]
         XCTAssertTrue(caption.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["photoUpload.submit"].exists)
         caption.tap()
         caption.typeText("작품 제목")
-        close.tap()
 
+        close.tap()
         let dialogTitle = app.alerts["작성을 그만둘까요?"]
         XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
         dialogTitle.buttons["취소"].tap()
         XCTAssertTrue(dialogTitle.waitForNonExistence(timeout: 3))
         XCTAssertTrue((caption.value as? String)?.contains("작품 제목") == true)
 
-        let imageArea = app.staticTexts["앨범에서 고르거나 지금 찍어요"]
-        let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        // 제목을 쓰며 올라간 화면을 맨 위로 되돌린다. 아래로 끌어 닫기는 맨 위에서만 동작한다.
+        app.swipeDown()
+        XCTAssertFalse(dialogTitle.waitForExistence(timeout: 2))
+
+        let imageArea = app.buttons["photoUpload.selectedImage"].exists
+            ? app.buttons["photoUpload.selectedImage"]
+            : app.images["선택한 사진"]
+        XCTAssertTrue(imageArea.waitForExistence(timeout: 5))
+        let start = imageArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 300)))
         XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
         dialogTitle.buttons["뒤로 가기"].tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
-
-        app.buttons["추가"].tap()
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        close.tap()
-        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
-        XCTAssertFalse(dialogTitle.exists)
     }
 
     override func setUpWithError() throws {
@@ -80,7 +99,7 @@ final class chalkakUITests: XCTestCase {
         XCTAssertEqual(display.value as? String, "선택됨")
         drag(from: display, to: settings)
         XCTAssertEqual(settings.value as? String, "선택됨")
-        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+        XCTAssertFalse(app.buttons["photoUpload.close"].exists)
         drag(from: settings, to: today)
         XCTAssertEqual(today.value as? String, "선택됨")
 
@@ -103,7 +122,7 @@ final class chalkakUITests: XCTestCase {
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
         XCTAssertEqual(app.buttons["전시"].value as? String, "선택됨")
-        XCTAssertFalse(app.staticTexts["전시하기"].exists)
+        XCTAssertFalse(app.buttons["photoUpload.close"].exists)
     }
 
     @MainActor
@@ -120,11 +139,11 @@ final class chalkakUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ))
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
-        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+        app.buttons["photoUpload.close"].tap()
         XCTAssertEqual(today.value as? String, "선택됨")
         app.buttons["추가"].tap()
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -156,8 +175,8 @@ final class chalkakUITests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
-        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+        app.buttons["photoUpload.close"].tap()
         XCTAssertEqual(settings.value as? String, "선택됨")
         XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
     }
@@ -204,8 +223,7 @@ final class chalkakUITests: XCTestCase {
     func testSettingsUploadButtonShowsLoginRequiredMessageForGuest() throws {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-stonefive.chalkak.guest-access", "NO",
-            "-notificationSetup.hasCompleted", "YES"
+            "-stonefive.chalkak.guest-access", "NO"
         ]
         app.launch()
 
@@ -231,8 +249,7 @@ final class chalkakUITests: XCTestCase {
     func testGuestSettingsSeparatesFeedbackAndAccountSections() throws {
         let app = XCUIApplication()
         app.launchArguments = [
-            "-stonefive.chalkak.guest-access", "NO",
-            "-notificationSetup.hasCompleted", "YES"
+            "-stonefive.chalkak.guest-access", "NO"
         ]
         app.launch()
 
@@ -263,9 +280,9 @@ final class chalkakUITests: XCTestCase {
             app.staticTexts["정보 및 약관"].frame.minY
         )
 
-        app.buttons["피드백 보내기"].tap()
+        app.buttons["고객센터"].tap()
         XCTAssertTrue(
-            app.staticTexts["피드백을 보내려면 로그인이 필요해요"]
+            app.staticTexts["고객센터를 이용하려면 로그인이 필요해요"]
                 .waitForExistence(timeout: 3)
         )
     }
@@ -284,31 +301,36 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
         uploadButton.tap()
 
-        XCTAssertTrue(app.staticTexts["전시하기"].waitForExistence(timeout: 5))
-        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
+        app.buttons["photoUpload.close"].tap()
 
         XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["설정"].value as? String, "선택됨")
     }
 
     @MainActor
-    func testSettingsShowsSeparateServerNotificationTogglesWithoutPermissionRow() throws {
+    func testNotificationSettingsOpensFromSettingsWithFourTogglesAndReturns() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
         let settings = app.buttons["설정"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
         settings.tap()
+        let notificationSettings = app.buttons["알림 설정"]
+        XCTAssertTrue(notificationSettings.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.switches["오늘 주제 알림"].exists)
+        notificationSettings.tap()
         let topicToggle = app.switches["오늘 주제 알림"]
-        let moderationToggle = app.switches["게시물 승인·반려 알림"]
         XCTAssertTrue(topicToggle.waitForExistence(timeout: 5))
-        XCTAssertTrue(moderationToggle.exists)
+        XCTAssertTrue(app.switches["게시물 승인·반려 알림"].exists)
+        XCTAssertTrue(app.switches["AI 피드백 완료 알림"].exists)
+        XCTAssertTrue(app.switches["좋아요 알림"].exists)
         XCTAssertFalse(app.staticTexts["이 계정의 모든 기기에 적용돼요"].exists)
         XCTAssertFalse(app.switches["알림 받기"].exists)
         let permission = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "알림 허용")).firstMatch
         XCTAssertFalse(permission.exists, app.debugDescription)
-        XCTAssertFalse(app.staticTexts["notificationSetup.title"].exists)
-        XCTAssertFalse(app.buttons["notificationTime.custom"].exists)
+        app.buttons["뒤로 가기"].tap()
+        XCTAssertTrue(notificationSettings.waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -320,7 +342,10 @@ final class chalkakUITests: XCTestCase {
         let settingsButton = app.buttons["설정"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
         settingsButton.tap()
-        let feedbackButton = app.buttons["피드백 보내기"]
+        let customerSupportButton = app.buttons["고객센터"]
+        XCTAssertTrue(customerSupportButton.waitForExistence(timeout: 5))
+        customerSupportButton.tap()
+        let feedbackButton = app.buttons["feedbackList.compose"]
         XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
         feedbackButton.tap()
 
@@ -346,7 +371,6 @@ final class chalkakUITests: XCTestCase {
         ).withOffset(CGVector(dx: 0, dy: 300)))
         XCTAssertTrue(title.waitForNonExistence(timeout: 3))
         XCTAssertTrue(feedbackButton.isHittable)
-        XCTAssertEqual(settingsButton.value as? String, "선택됨")
     }
 
     @MainActor
@@ -358,7 +382,10 @@ final class chalkakUITests: XCTestCase {
         let settingsButton = app.buttons["설정"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
         settingsButton.tap()
-        let feedbackButton = app.buttons["피드백 보내기"]
+        let customerSupportButton = app.buttons["고객센터"]
+        XCTAssertTrue(customerSupportButton.waitForExistence(timeout: 5))
+        customerSupportButton.tap()
+        let feedbackButton = app.buttons["feedbackList.compose"]
         XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
         feedbackButton.tap()
 

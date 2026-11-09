@@ -14,13 +14,19 @@ fun DisplaySortTabs(
     modifier: Modifier = Modifier,
 ) {
     ChalkakSortSelector(
-        options = PostSort.entries,
+        options = DisplaySortOrder,
         selectedOption = selectedSort,
         optionLabel = PostSort::displayLabel,
         onOptionSelected = onSortSelected,
         modifier = modifier,
     )
 }
+
+/**
+ * 전시 정렬 탭에 보이는 순서(왼쪽부터). 기본 정렬인 랜덤순을 맨 앞에 둔다(#974).
+ * [PostSort]의 선언 순서와 상관없이 이 목록 순서대로 그린다. iOS `DisplayScreen`의 `sortTabOrder`와 같다.
+ */
+private val DisplaySortOrder = listOf(PostSort.RANDOM, PostSort.POPULAR, PostSort.LATEST)
 
 private val PostSort.displayLabel: String
     get() = when (this) {
@@ -34,7 +40,7 @@ private val PostSort.displayLabel: String
 private fun DisplaySortTabsPreview() {
     ChalkakTheme {
         DisplaySortTabs(
-            selectedSort = PostSort.LATEST,
+            selectedSort = PostSort.RANDOM,
             onSortSelected = {},
         )
     }

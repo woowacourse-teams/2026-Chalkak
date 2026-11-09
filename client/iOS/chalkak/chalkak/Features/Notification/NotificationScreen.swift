@@ -122,7 +122,7 @@ private struct NotificationListItem: View {
                         .lineLimit(2)
                 }
 
-                Text(NotificationDateFormatter.string(from: item.createdAt))
+                Text(ChalkakTimestampFormatter.string(from: item.createdAt))
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.textInactive)
             }
@@ -244,26 +244,6 @@ private struct NotificationPaginationView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, theme.spacing.xl)
-    }
-}
-
-private enum NotificationDateFormatter {
-    static func string(from date: Date) -> String {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-
-        if calendar.isDateInToday(date) {
-            formatter.dateFormat = "HH:mm"
-            return formatter.string(from: date)
-        }
-        if calendar.isDateInYesterday(date) {
-            formatter.dateFormat = "HH:mm"
-            return "어제 \(formatter.string(from: date))"
-        }
-
-        formatter.dateFormat = "M월 d일 HH:mm"
-        return formatter.string(from: date)
     }
 }
 

@@ -1,5 +1,7 @@
 # 원격 설정 (Firebase Remote Config)
 
+관련 경로: domain/model/AppConfig.kt, domain/repository/AppConfigRepository.kt, data/remote/config/**
+
 스토어 배포 없이 기능을 끄거나 값을 바꾸기 위한 설정이다.
 
 ## 키

@@ -115,6 +115,7 @@ final class TodayViewModel {
             guard let currentIndex = viewState.photos.firstIndex(where: { $0.id == photoID }) else { return }
             viewState.photos[currentIndex] = previousPhoto
             setLiked(wasLiked, photoID: photoID)
+            publish(.showLikeFailure)
         }
     }
 

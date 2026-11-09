@@ -30,12 +30,15 @@ struct FeedScreen: View {
     private let opensAIReviewOnEntry: Bool
     @State private var hasOpenedInitialAIReview = false
     private let usesPhotoTransition: Bool
+    @State private var presentationID = UUID()
+    @State private var isSignatureHintOnScreen = false
+    @State private var isPostEditOnScreen = false
+    private let isPresentationActive: Bool
+    private let onNativePresentationChange: (UUID, Bool) -> Void
     @State private var showsDeleteDialog = false
     @State private var showsAIReviewSheet = false
     // AI 피드백 시트가 닫히는 애니메이션까지 끝났는지. 시트 두 개를 겹쳐 띄우지 않으려고 따로 둔다.
     @State private var isAIReviewSheetOnScreen = false
-    @State private var showsTitleEditDialog = false
-    @State private var titleDraft = ""
     @State private var showsSignatureHint = false
     // 코드가 안내 시트를 닫는 중인지. 사용자가 닫은 경우와 구분해, 사용자가 닫았을 때만 다시 띄우지 않도록 기록한다.
     @State private var isHidingSignatureHintByCode = false
@@ -64,7 +67,9 @@ struct FeedScreen: View {
         onDeleted: @escaping (FeedPost.ID) -> Void = { _ in },
         onOpenAuthorPosts: ((AuthorPostsTarget) -> Void)? = nil,
         onLikeChange: ((FeedLikeUpdate) -> Void)? = nil,
-        externalLikeUpdate: FeedLikeUpdate? = nil
+        externalLikeUpdate: FeedLikeUpdate? = nil,
+        isPresentationActive: Bool = true,
+        onNativePresentationChange: @escaping (UUID, Bool) -> Void = { _, _ in }
     ) {
         _viewModel = State(initialValue: viewModel)
         _transitionSource = State(initialValue: transitionSource)
@@ -77,6 +82,8 @@ struct FeedScreen: View {
         self.onOpenAuthorPosts = onOpenAuthorPosts
         self.onLikeChange = onLikeChange
         self.externalLikeUpdate = externalLikeUpdate
+        self.isPresentationActive = isPresentationActive
+        self.onNativePresentationChange = onNativePresentationChange
     }
 
     var body: some View {
@@ -99,28 +106,26 @@ struct FeedScreen: View {
         }
         .overlay(alignment: .top) {
             FeedTopBar(
-                onBack: { close() },
-                onEdit: {
-                    titleDraft = viewModel.viewState.content?.post.title ?? ""
-                    showsTitleEditDialog = true
-                },
-                onDelete: { showsDeleteDialog = true },
+                onBack: { ifNotBackSwiping { close() } },
+                onEdit: { ifNotBackSwiping { viewModel.startPostEdit() } },
+                onDelete: { ifNotBackSwiping { showsDeleteDialog = true } },
                 isEditVisible: viewModel.viewState.content.map {
                     $0.post.isOwnedByCurrentUser && FeedDateLabel.isToday($0.topicDate)
                 } == true,
                 isDeleteVisible: viewModel.viewState.content?.post.isOwnedByCurrentUser == true,
                 isEditEnabled: !viewModel.viewState.isDeleting &&
-                    !viewModel.viewState.isUpdatingTitle &&
+                    !viewModel.viewState.isSavingPostEdit &&
                     viewModel.viewState.content.map { FeedDateLabel.isToday($0.topicDate) } == true,
-                isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isUpdatingTitle
+                isDeleteEnabled: !viewModel.viewState.isDeleting && !viewModel.viewState.isSavingPostEdit
             )
             .padding(.horizontal, theme.spacing.lg)
             .padding(.vertical, theme.spacing.md)
             .opacity(visibleContentProgress)
+            .allowsHitTesting(!isBackSwipeTransitioning)
         }
         .overlay(alignment: .bottomTrailing) {
             if canShowAIReview, let aiReview = viewModel.aiReview {
-                FeedAIReviewButton(model: aiReview) { showsAIReviewSheet = true }
+                FeedAIReviewButton(model: aiReview) { ifNotBackSwiping { showsAIReviewSheet = true } }
                     .padding(.trailing, theme.spacing.lg)
                     .padding(.bottom, theme.spacing.md)
                     .opacity(visibleContentProgress)
@@ -199,14 +204,22 @@ struct FeedScreen: View {
             .accessibilityHidden(true)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .simultaneousGesture(backSwipeGesture, including: usesPhotoTransition ? .all : .none)
+        .gesture(backSwipeGesture)
+        .allowsHitTesting(!isClosing)
         .onAppear {
             // 전달받은 탭 순간의 좌표를 우선한다. 닫을 때는 현재 셀 위치를 다시 읽는다.
             if transitionSource == nil { captureTransitionSource() }
             // 공유 사진은 도착 프레임이 준비된 뒤 첫 프레임부터 이동한다.
             if movingSource == nil || !usesPhotoTransition { startOpening() }
         }
+        .onChange(of: nativePresentationState.blocksPushNavigation, initial: true) { _, blocks in
+            onNativePresentationChange(presentationID, blocks)
+        }
+        .onChange(of: viewModel.viewState.postEdit != nil) { _, shows in
+            if shows { isPostEditOnScreen = true }
+        }
         .onDisappear {
+            onNativePresentationChange(presentationID, false)
             zoomRegistry?.sourceBarOpacity = 0
             zoomRegistry?.hidesWholeSource = false
             if zoomRegistry?.activeSource == zoomSource {
@@ -227,9 +240,6 @@ struct FeedScreen: View {
                 onDeleted(postID)
             }
         }
-        .onChange(of: viewModel.viewState.titleUpdateVersion) { _, _ in
-            showsTitleEditDialog = false
-        }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -248,15 +258,32 @@ struct FeedScreen: View {
         } message: {
             Text("삭제한 게시물은 피드에서 사라지며 다시 복구할 수 없어요.")
         }
-        .alert("게시물 제목 수정", isPresented: $showsTitleEditDialog) {
-            TextField("제목을 입력해 주세요", text: $titleDraft)
-                .textInputAutocapitalization(.never)
-            Button("취소", role: .cancel) { showsTitleEditDialog = false }
-            Button("저장") { viewModel.updatePostTitle(titleDraft) }
-                .disabled(viewModel.viewState.isUpdatingTitle)
-        } message: {
-            Text("새 제목을 입력해 저장하면 게시물에 바로 반영돼요.")
+        // 수정 시트는 뷰모델의 postEdit이 있을 때만 열린다. 아래로 내리거나 바깥을 누르면 저장하지 않고 닫는다.
+        .sheet(isPresented: Binding(
+            get: { viewModel.viewState.postEdit != nil },
+            set: { isPresented in if !isPresented { viewModel.cancelPostEdit() } }
+        ), onDismiss: { isPostEditOnScreen = false }) {
+            if let edit = viewModel.viewState.postEdit {
+                FeedPostEditSheet(
+                    edit: edit,
+                    isSaving: viewModel.viewState.isSavingPostEdit,
+                    onTitleChange: { viewModel.updatePostEditTitle($0) },
+                    onDescriptionChange: { viewModel.updatePostEditDescription($0) },
+                    onInstagramUploadAgreedChange: { viewModel.updatePostEditInstagramUploadAgreed($0) },
+                    onInstagramIDChange: { viewModel.updatePostEditInstagramID($0) },
+                    onSave: { viewModel.savePostEdit() }
+                )
+            }
         }
+    }
+
+    private var nativePresentationState: FeedNativePresentationState {
+        FeedNativePresentationState(
+            aiReview: showsAIReviewSheet || isAIReviewSheetOnScreen,
+            signatureHint: showsSignatureHint || isSignatureHintOnScreen,
+            postEdit: viewModel.viewState.postEdit != nil || isPostEditOnScreen,
+            deleteConfirmation: showsDeleteDialog
+        )
     }
 
     // 시작 안내와 실패 이유는 내용이 짧아 낮은 높이로, 결과·진행 상태는 펼칠 수 있는 높이로 연다.
@@ -271,7 +298,7 @@ struct FeedScreen: View {
     }
 
     private var canObserveAIReview: Bool {
-        viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
+        isPresentationActive && viewModel.aiReview != nil && viewModel.viewState.content?.post.isOwnedByCurrentUser == true
     }
 
     @ViewBuilder
@@ -381,7 +408,7 @@ struct FeedScreen: View {
     // 비로그인도 띄운다(사인을 누르면 로그인 안내). 시트를 한 번 닫거나 사인을 누르면 다시 띄우지 않는다.
     // AI 피드백 시트가 떠 있거나 진입하자마자 열릴 예정이면, 그 시트가 완전히 닫힌 뒤에 띄운다.
     private var canShowSignatureHint: Bool {
-        signatureTapHandler != nil
+        isPresentationActive && signatureTapHandler != nil
             && !isPhotoMoving && !isClosing && !isBackSwiping
             && !showsAIReviewSheet && !isAIReviewSheetOnScreen
             && !(opensAIReviewOnEntry && !hasOpenedInitialAIReview)
@@ -393,6 +420,7 @@ struct FeedScreen: View {
             return
         }
         guard !showsSignatureHint, !signatureHint.hasShown else { return }
+        isSignatureHintOnScreen = true
         showsSignatureHint = true
     }
 
@@ -405,12 +433,25 @@ struct FeedScreen: View {
 
     // 아래로 쓸어내리거나 바깥을 눌러 사용자가 닫았을 때만 기록한다.
     private func handleSignatureHintDismiss() {
+        isSignatureHintOnScreen = false
         if !isHidingSignatureHintByCode { signatureHint.markShown() }
         isHidingSignatureHintByCode = false
     }
 
     private var canLike: Bool {
         viewModel.viewState.isLikeEnabled && !isBackSwiping && !isPhotoMoving && !isClosing
+    }
+
+    // 스와이프 중이거나 놓은 뒤 제자리로 돌아가거나 닫히는 중인지.
+    // 첫 열림 전환은 포함하지 않는다. 사진을 기다리는 동안에도 뒤로 가기는 눌려야 한다.
+    private var isBackSwipeTransitioning: Bool {
+        hasCompletedOpening && isPhotoMoving
+    }
+
+    // 스와이프와 버튼의 손떼기 이벤트가 함께 와도 버튼 동작을 실행하지 않는다.
+    private func ifNotBackSwiping(_ action: () -> Void) {
+        guard !isBackSwipeTransitioning else { return }
+        action()
     }
 
     private var usesScreenTransition: Bool {
@@ -545,47 +586,61 @@ struct FeedScreen: View {
     }
 
     // 화면 왼쪽 가장자리에서 시작한 스와이프로 닫는다. 끄는 동안 사진이 출발 뷰 쪽으로 따라간다.
-    private var backSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: Metrics.backSwipeMinimumDistance)
-            .onChanged { value in
-                guard !isClosing, !isPhotoInteracting else { return }
-                if !isBackSwiping {
-                    guard !isPhotoMoving,
-                          value.startLocation.x <= Metrics.backSwipeEdgeWidth,
-                          value.translation.width > abs(value.translation.height) else { return }
-                    isBackSwiping = true
-                    zoomRegistry?.hidesWholeSource = true
-                    backSwipeTracking = FeedBackSwipeTracking()
-                    captureTransitionSource()
-                    isPhotoMoving = true
-                }
-                zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
-                backSwipeTracking.update(to: value.translation)
-                let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
-                if usesScreenTransition {
-                    // 길게 끌어도 창 크기를 유지하고, 손을 놓은 뒤 카드로 접는다.
-                    photoProgress = 1
-                    screenDragOffset = backSwipeTracking.distance * 0.65
-                } else {
-                    photoProgress = 1 - min(dragged, 1)
-                    contentProgress = photoProgress
-                }
-            }
-            .onEnded { value in
-                guard isBackSwiping else { return }
-                isBackSwiping = false
-                guard !isClosing else { return }
-                backSwipeTracking.update(to: value.translation)
-                // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
-                let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
-                    ? -backSwipeTracking.horizontalVelocity(value.velocity) / Metrics.backSwipeFullDistance
-                    : 0
-                if backSwipeTracking.projectedDistance(to: value.predictedEndTranslation) >= Metrics.backSwipeCloseDistance {
-                    close(releaseVelocity: releaseVelocity)
-                } else {
-                    open(releaseVelocity: releaseVelocity)
-                }
-            }
+    private var backSwipeGesture: FeedBackSwipeGesture {
+        FeedBackSwipeGesture(
+            canBegin: { usesPhotoTransition && !isClosing && !isPhotoMoving && !isPhotoInteracting },
+            onChanged: { updateBackSwipe(to: $0) },
+            onEnded: { finishBackSwipe(translation: $0, velocity: $1) },
+            onCancelled: { cancelBackSwipe() }
+        )
+    }
+
+    private func updateBackSwipe(to translation: CGSize) {
+        guard !isClosing else { return }
+        if !isBackSwiping {
+            isBackSwiping = true
+            zoomRegistry?.hidesWholeSource = true
+            backSwipeTracking = FeedBackSwipeTracking()
+            captureTransitionSource()
+            isPhotoMoving = true
+        }
+        zoomRegistry?.activeSource = usesScreenTransition ? zoomSource : nil
+        backSwipeTracking.update(to: translation)
+        let dragged = backSwipeTracking.distance / Metrics.backSwipeFullDistance
+        if usesScreenTransition {
+            // 길게 끌어도 창 크기를 유지하고, 손을 놓은 뒤 카드로 접는다.
+            photoProgress = 1
+            screenDragOffset = backSwipeTracking.distance * 0.65
+        } else {
+            photoProgress = 1 - min(dragged, 1)
+            contentProgress = photoProgress
+        }
+    }
+
+    private func finishBackSwipe(translation: CGSize, velocity: CGSize) {
+        guard isBackSwiping else { return }
+        isBackSwiping = false
+        guard !isClosing else { return }
+        backSwipeTracking.update(to: translation)
+        // 거리가 늘면 진행도는 줄어든다. 끝까지 끈 뒤에는 진행도가 0에 멈춰 있어 속도도 없다.
+        let releaseVelocity = backSwipeTracking.distance < Metrics.backSwipeFullDistance
+            ? -backSwipeTracking.horizontalVelocity(velocity) / Metrics.backSwipeFullDistance
+            : 0
+        let predictedTranslation = CGSize(
+            width: translation.width + velocity.width * Metrics.backSwipeProjectionTime,
+            height: translation.height + velocity.height * Metrics.backSwipeProjectionTime
+        )
+        if backSwipeTracking.projectedDistance(to: predictedTranslation) >= Metrics.backSwipeCloseDistance {
+            close(releaseVelocity: releaseVelocity)
+        } else {
+            open(releaseVelocity: releaseVelocity)
+        }
+    }
+
+    private func cancelBackSwipe() {
+        guard isBackSwiping else { return }
+        isBackSwiping = false
+        open()
     }
 
     private func errorView(_ reason: FeedError) -> some View {
@@ -614,10 +669,14 @@ struct FeedScreen: View {
         switch event {
         case let .showDeleteFailure(error):
             showMessage(error.deleteMessage)
-        case .showTitleUpdateSuccess:
-            showMessage("제목을 수정했어요")
-        case let .showTitleUpdateFailure(error):
-            showMessage(error.titleUpdateMessage)
+        case .showPostUpdateSuccess:
+            showMessage("게시물을 수정했어요")
+        case let .showPostUpdateFailure(error):
+            showMessage(error.postUpdateMessage)
+        case .showPostEditUnavailable:
+            showMessage(FeedEvent.postEditUnavailableMessage)
+        case .showLikeFailure:
+            showMessage("좋아요를 변경하지 못했어요")
         }
         viewModel.consumeEvent()
     }
@@ -700,9 +759,9 @@ private enum Metrics {
     static let photoReleaseDuration: TimeInterval = 0.3
     // 닫힘 전환(0.3초)의 뒤쪽 절반에서 하단바를 드러낸다.
     static let sourceBarAnimation: Animation = .easeIn(duration: 0.15).delay(0.15)
-    static let backSwipeEdgeWidth: CGFloat = 24
-    static let backSwipeMinimumDistance: CGFloat = 12
     static let backSwipeFullDistance: CGFloat = 300
+    // 손을 뗀 속도로 이만큼 더 움직인다고 보고 닫을지 정한다.
+    static let backSwipeProjectionTime: CGFloat = 0.25
     static let backSwipeCloseDistance: CGFloat = 120
 }
 
@@ -725,4 +784,14 @@ private enum Metrics {
         FeedScreen(viewModel: FeedPreviewData.viewModel(state: FeedPreviewData.errorState))
     }
     .chalkakTheme(.light)
+}
+
+/// 네이티브 표시와 닫힘 애니메이션이 끝날 때까지 푸시 이동을 보류한다.
+struct FeedNativePresentationState {
+    var aiReview = false
+    var signatureHint = false
+    var postEdit = false
+    var deleteConfirmation = false
+
+    var blocksPushNavigation: Bool { aiReview || signatureHint || postEdit || deleteConfirmation }
 }

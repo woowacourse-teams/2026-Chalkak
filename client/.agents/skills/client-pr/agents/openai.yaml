@@ -1,0 +1,6 @@
+interface:
+  display_name: "client-pr"
+  short_description: "커밋·PR 본문·push·캡처 업로드·드래프트 PR"
+  default_prompt: "Use $client-pr for this Chalkak client task."
+policy:
+  allow_implicit_invocation: false

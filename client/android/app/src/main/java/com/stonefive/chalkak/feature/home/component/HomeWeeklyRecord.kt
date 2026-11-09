@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.feature.home.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -51,6 +53,8 @@ fun HomeWeeklyRecord(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenRecordDate: (LocalDate) -> Unit = {},
+    uploadEntryDate: LocalDate? = null,
+    onOpenPhotoUpload: () -> Unit = {},
 ) {
     androidx.compose.foundation.layout.Column(modifier = modifier) {
         HomeSectionHeader(
@@ -64,7 +68,7 @@ fun HomeWeeklyRecord(
         when (status) {
             HomeSectionStatus.Loading -> WeeklyLoading()
             HomeSectionStatus.Error -> WeeklyError(onRetry)
-            HomeSectionStatus.Ready -> WeeklyRecordRow(days, onOpenRecordDate)
+            HomeSectionStatus.Ready -> WeeklyRecordRow(days, onOpenRecordDate, uploadEntryDate, onOpenPhotoUpload)
         }
     }
 }
@@ -73,13 +77,19 @@ fun HomeWeeklyRecord(
 private fun WeeklyRecordRow(
     days: List<HomeWeekDay>,
     onOpenRecordDate: (LocalDate) -> Unit,
+    uploadEntryDate: LocalDate?,
+    onOpenPhotoUpload: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm),
     ) {
         days.forEach { day ->
-            WeeklyRecordCell(day = day, onOpenRecordDate = onOpenRecordDate, modifier = Modifier.weight(1f))
+            if (day.post == null && day.date == uploadEntryDate) {
+                WeeklyRecordUploadCell(onClick = onOpenPhotoUpload, modifier = Modifier.weight(1f))
+            } else {
+                WeeklyRecordCell(day = day, onOpenRecordDate = onOpenRecordDate, modifier = Modifier.weight(1f))
+            }
         }
     }
 }
@@ -133,6 +143,30 @@ private fun WeeklyRecordCell(
                 style = ChalkakTheme.typography.caption,
             )
         }
+    }
+}
+
+@Composable
+private fun WeeklyRecordUploadCell(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(ChalkakTheme.shapes.small)
+            .background(ChalkakTheme.colors.calendarCell)
+            .border(WeeklyUploadBorderWidth, ChalkakTheme.colors.textMuted, ChalkakTheme.shapes.small)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "오늘 사진 올리기" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = null,
+            tint = ChalkakTheme.colors.textPrimary,
+            modifier = Modifier.size(WeeklyUploadIconSize),
+        )
     }
 }
 
@@ -228,6 +262,8 @@ fun HomeSectionHeader(
 }
 
 private val WeeklyBadgePadding = 1.dp
+private val WeeklyUploadBorderWidth = 1.5.dp
+private val WeeklyUploadIconSize = 16.dp
 private val SectionChevronSize = 12.dp
 
 private val WeeklyStatusHeight = 48.dp
@@ -260,6 +296,22 @@ private fun HomeWeeklyRecordPreview() {
             status = HomeSectionStatus.Ready,
             onOpenRecord = {},
             onRetry = {},
+            modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 402)
+@Composable
+private fun HomeWeeklyRecordUploadEntryPreview() {
+    val sunday = LocalDate.of(2026, 8, 2)
+    ChalkakTheme {
+        HomeWeeklyRecord(
+            days = List(7) { index -> HomeWeekDay(date = sunday.plusDays(index.toLong())) },
+            status = HomeSectionStatus.Ready,
+            onOpenRecord = {},
+            onRetry = {},
+            uploadEntryDate = sunday.plusDays(1),
             modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
         )
     }

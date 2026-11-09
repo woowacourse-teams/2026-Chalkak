@@ -3,6 +3,7 @@ package com.stonefive.chalkak.feature.upload
 import androidx.compose.runtime.Immutable
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 import java.time.LocalDate
 
 @Immutable
@@ -12,6 +13,8 @@ data class PhotoUploadUiState(
     val editingPhoto: PhotoEditRequest? = null,
     val imagePreparationStatus: ImagePreparationStatus = ImagePreparationStatus.Idle,
     val caption: String = "",
+    val description: String = "",
+    val instagramConsent: InstagramConsentInputState = InstagramConsentInputState(),
     val showsDiscardConfirmation: Boolean = false,
     val topicTitle: String? = null,
     val isCameraAvailable: Boolean = true,
@@ -22,7 +25,7 @@ data class PhotoUploadUiState(
     val pendingMessage: UiMessage? = null,
 ) {
     val hasUnsavedDraft: Boolean
-        get() = selectedImage != null || caption.isNotBlank()
+        get() = selectedImage != null || caption.isNotBlank() || description.isNotBlank()
 
     val canSubmit: Boolean
         get() = selectedImage != null &&

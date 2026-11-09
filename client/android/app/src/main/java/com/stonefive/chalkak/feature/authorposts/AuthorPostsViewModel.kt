@@ -141,7 +141,7 @@ class AuthorPostsViewModel(
                                 } else {
                                     UiMessage.Toast(
                                         id = nextMessageId++,
-                                        text = "좋아요를 변경하지 못했어요. 다시 시도해주세요",
+                                        text = "좋아요를 변경하지 못했어요",
                                     )
                                 },
                             )

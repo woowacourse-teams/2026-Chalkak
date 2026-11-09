@@ -34,15 +34,20 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun emptyHeroOpensUploadAndBottomTabReadsHome() {
+    fun emptyHeroAndWeeklyCellOpenUploadAndBottomTabReadsHome() {
         var uploads = 0
         var tab: ChalkakBottomBarItem? = null
         showHome(readyState(), onUpload = { uploads++ }, onTab = { tab = it })
         composeRule
-            .onNodeWithContentDescription("하늘 사진을 공유하지 않았어요")
+            .onNodeWithContentDescription("하늘 사진 전시하기")
             .assertIsDisplayed()
             .performClick()
         assertEquals(1, uploads)
+        composeRule
+            .onNodeWithContentDescription("오늘 사진 올리기")
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(2, uploads)
         composeRule
             .onNodeWithText("홈")
             .assertIsDisplayed()
@@ -52,10 +57,20 @@ class HomeScreenTest {
     }
 
     @Test
+    fun guestHeroOpensLoginAndHidesWeeklyRecord() {
+        var logins = 0
+        showHome(readyState().copy(hero = HomeHeroState.LoginRequired), onLogin = { logins++ })
+        composeRule.onNodeWithText("사진을 전시하려면 로그인이 필요해요").assertIsDisplayed()
+        composeRule.onNodeWithText("이번 주 기록").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("로그인하기").performClick()
+        assertEquals(1, logins)
+    }
+
+    @Test
     fun validatingUploadShowsProcessingInsteadOfEmptySlot() {
         showHome(readyState().copy(hero = HomeHeroState.Processing))
         composeRule.onNodeWithText("사진을 처리하고 있어요").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("하늘 사진을 공유하지 않았어요").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("하늘 사진 전시하기").assertDoesNotExist()
     }
 
     @Test
@@ -65,7 +80,7 @@ class HomeScreenTest {
         composeRule.onNodeWithText("오늘의 주제를 불러오지 못했어요").assertDoesNotExist()
         composeRule.onNodeWithText("지금은 참여할 수 있는 주제가 없어요").assertIsDisplayed()
         composeRule.onNodeWithTag(HOME_HERO_TEST_TAG).assertHasNoClickAction()
-        composeRule.onNodeWithContentDescription("오늘의 주제 사진을 공유하지 않았어요").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("오늘의 주제 사진 전시하기").assertDoesNotExist()
     }
 
     @Test
@@ -393,6 +408,7 @@ class HomeScreenTest {
     private fun showHome(
         state: HomeUiState,
         onUpload: () -> Unit = {},
+        onLogin: () -> Unit = {},
         onRecord: () -> Unit = {},
         onRecordDate: (LocalDate) -> Unit = {},
         onDisplay: (LocalDate) -> Unit = {},
@@ -407,6 +423,7 @@ class HomeScreenTest {
                 HomeScreen(
                     uiState = state,
                     onOpenPhotoUpload = onUpload,
+                    onNavigateToLogin = onLogin,
                     onOpenRecord = onRecord,
                     onOpenRecordDate = onRecordDate,
                     onOpenDisplay = onDisplay,

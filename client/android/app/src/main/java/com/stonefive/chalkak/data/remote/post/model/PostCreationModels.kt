@@ -16,6 +16,10 @@ data class PostCreateRequest(
     val topicId: String,
     val photoUploadId: String,
     val title: String? = null,
+    val description: String? = null,
+    // 공식 인스타그램 게시 동의(#939). 기본값은 JSON에서 생략되고, 서버는 생략을 "동의 안 함"·"ID 없음"으로 본다.
+    val instagramUploadAgreed: Boolean = false,
+    val instagramId: String? = null,
 )
 
 @Serializable

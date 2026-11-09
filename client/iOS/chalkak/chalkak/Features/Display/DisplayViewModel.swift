@@ -39,7 +39,7 @@ final class DisplayViewModel {
     init(
         initialState: DisplayViewState? = nil,
         initialDate: Date? = nil,
-        initialSort: DisplaySort = .latest,
+        initialSort: DisplaySort = .random,
         dateProvider: @escaping DateProvider = { Date() },
         firstPageHandler: @escaping FirstPageHandler = { _, _, _ in .failure(.generic) },
         nextPageHandler: @escaping NextPageHandler = { _ in .failure(.generic) },
@@ -68,7 +68,7 @@ final class DisplayViewModel {
 
     convenience init(
         initialDate: Date? = nil,
-        initialSort: DisplaySort = .latest,
+        initialSort: DisplaySort = .random,
         dateProvider: @escaping DateProvider = { Date() },
         firstTopicDate: Date? = DisplayViewModel.firstTopicDate,
         apiClient: DisplayAPIClient
@@ -153,6 +153,23 @@ final class DisplayViewModel {
             preserves: previous,
             keepsContentVisible: previous != nil,
             preservesRandomSeed: true
+        )
+    }
+
+    /// 당겨서 새로고침. 보이는 전시를 그대로 둔 채 같은 날짜의 첫 페이지를 다시 불러온다.
+    /// - 앱 복귀용 `revalidate()`와 달리 랜덤 seed를 넘기지 않는다. 랜덤순이면 서버가 새 seed로 다시 섞고,
+    ///   이전 seed로 불러 둔 2페이지 뒤 사진은 붙이지 않는다. 지난 날짜는 인기순 그대로다.
+    /// - 실패하면 보던 사진과 seed를 되돌리고 `.showFailure`를 낸다.
+    /// - 사진이 보이는 상태(오늘·지난 전시)에서만 동작하고, 이미 새로고침·재검증 중이면 요청하지 않는다.
+    func refresh() async {
+        guard viewState.hasLoadedContent, !isRevalidating else { return }
+
+        let latestDate = Self.startOfDay(dateProvider())
+        await loadFirstPage(
+            date: viewState.selectedDate ?? latestDate,
+            latestDate: latestDate,
+            preserves: viewState,
+            keepsContentVisible: true
         )
     }
 
@@ -260,9 +277,14 @@ final class DisplayViewModel {
         else { return }
         likingPhotoIDs.insert(photoID)
         defer { likingPhotoIDs.remove(photoID) }
-        switch await likeHandler(photoID, !photo.isLiked) {
+
+        let isLiked = !photo.isLiked
+        setLike(photoID: photoID, isLiked: isLiked, likeCount: max(0, photo.likeCount + (isLiked ? 1 : -1)))
+
+        switch await likeHandler(photoID, isLiked) {
         case let .success(update):
             guard update.postID == photoID, update.likeCount >= 0 else {
+                setLike(photoID: photoID, isLiked: photo.isLiked, likeCount: photo.likeCount)
                 event = .likeFailed
                 return
             }
@@ -275,8 +297,24 @@ final class DisplayViewModel {
                 displayCache[key] = entry
             }
         case .failure:
+            setLike(photoID: photoID, isLiked: photo.isLiked, likeCount: photo.likeCount)
             event = .likeFailed
         }
+    }
+
+    /// 응답을 기다리는 동안 보이는 화면의 좋아요만 바꾼다. 캐시는 서버 값을 받은 뒤에만 갱신한다.
+    private func setLike(photoID: String, isLiked: Bool, likeCount: Int) {
+        func updated(_ photos: [DisplayPhoto]) -> [DisplayPhoto] {
+            photos.map { photo in
+                guard photo.id == photoID else { return photo }
+                var photo = photo
+                photo.isLiked = isLiked
+                photo.likeCount = likeCount
+                return photo
+            }
+        }
+        viewState.photos = updated(viewState.photos)
+        viewState.featuredPhotos = updated(viewState.featuredPhotos)
     }
 
     private func applyLikeUpdates(to state: inout DisplayViewState, after version: Int) {

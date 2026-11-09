@@ -17,6 +17,8 @@ import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
+import com.stonefive.chalkak.feature.instagramconsent.INVALID_INSTAGRAM_ID_MESSAGE
+import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
@@ -74,8 +76,28 @@ class PhotoUploadViewModel(
             PhotoUploadUiAction.CameraClicked -> sendUiEvent(PhotoUploadUiEvent.OpenCamera)
 
             is PhotoUploadUiAction.CaptionChanged -> {
-                savedStateHandle[KEY_CAPTION] = action.caption
-                _uiState.update { it.copy(caption = action.caption) }
+                // 제목은 한 줄이므로 붙여넣은 줄바꿈도 지운다.
+                val caption = action.caption.filterNot { it == '\n' || it == '\r' }
+                savedStateHandle[KEY_CAPTION] = caption
+                _uiState.update { it.copy(caption = caption) }
+            }
+
+            is PhotoUploadUiAction.DescriptionChanged -> {
+                savedStateHandle[KEY_DESCRIPTION] = action.description
+                _uiState.update { it.copy(description = action.description) }
+            }
+
+            is PhotoUploadUiAction.InstagramUploadAgreedChanged -> {
+                savedStateHandle[KEY_INSTAGRAM_AGREED] = action.agreed
+                _uiState.update { it.copy(instagramConsent = it.instagramConsent.withAgreed(action.agreed)) }
+            }
+
+            is PhotoUploadUiAction.InstagramIdChanged -> {
+                _uiState.update { state ->
+                    val consent = state.instagramConsent.withInstagramId(action.instagramId)
+                    savedStateHandle[KEY_INSTAGRAM_ID] = consent.instagramId
+                    state.copy(instagramConsent = consent)
+                }
             }
 
             PhotoUploadUiAction.SubmitClicked -> submit()
@@ -173,6 +195,9 @@ class PhotoUploadViewModel(
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
         savedStateHandle.remove<String>(KEY_CAPTION)
+        savedStateHandle.remove<String>(KEY_DESCRIPTION)
+        savedStateHandle.remove<Boolean>(KEY_INSTAGRAM_AGREED)
+        savedStateHandle.remove<String>(KEY_INSTAGRAM_ID)
         savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
         savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
@@ -197,6 +222,11 @@ class PhotoUploadViewModel(
         }
         return PhotoUploadUiState(
             caption = savedStateHandle[KEY_CAPTION] ?: "",
+            description = savedStateHandle[KEY_DESCRIPTION] ?: "",
+            instagramConsent = InstagramConsentInputState(
+                agreed = savedStateHandle[KEY_INSTAGRAM_AGREED] ?: false,
+                instagramId = savedStateHandle[KEY_INSTAGRAM_ID] ?: "",
+            ),
             selectedImage = savedStateHandle[KEY_SELECTED_IMAGE],
             selectedEdit = edit ?: PhotoEdit(),
             topicTitle = postCreationRepository.getCachedCreationTopic(topicDate)?.title,
@@ -217,8 +247,6 @@ class PhotoUploadViewModel(
             loadCreationTopic(submitAfterLoad = true)
             return
         }
-        val caption = state.caption
-
         _uiState.update {
             it.copy(
                 isSubmitting = true,
@@ -226,7 +254,7 @@ class PhotoUploadViewModel(
         }
 
         preparedImage?.let { preparation ->
-            submitPreparedImage(preparation, caption, topic)
+            submitPreparedImage(preparation, topic)
             return
         }
         if (preparationJob?.isActive != true) {
@@ -295,7 +323,7 @@ class PhotoUploadViewModel(
                             if (topic == null) {
                                 loadCreationTopic(submitAfterLoad = true)
                             } else {
-                                submitPreparedImage(result.value, _uiState.value.caption, topic)
+                                submitPreparedImage(result.value, topic)
                             }
                         }
                     }
@@ -328,16 +356,27 @@ class PhotoUploadViewModel(
 
     private fun submitPreparedImage(
         preparation: PostImagePreparation,
-        caption: String,
         topic: Topic,
     ) {
         if (preparedImage != preparation || submissionJob?.isActive == true) return
-        val imageUri = _uiState.value.selectedImage ?: return
-        val edit = _uiState.value.selectedEdit
+        val state = _uiState.value
+        val imageUri = state.selectedImage ?: return
+        val edit = state.selectedEdit
+        val caption = state.caption
+        val description = state.description
+        val instagramConsent = state.instagramConsent.toConsent()
         preparedImage = null
         submissionJob = viewModelScope.launch {
             try {
-                when (val result = postCreationRepository.createPost(preparation, caption, topic)) {
+                when (
+                    val result = postCreationRepository.createPost(
+                        preparation = preparation,
+                        title = caption,
+                        description = description,
+                        topic = topic,
+                        instagramConsent = instagramConsent,
+                    )
+                ) {
                     is PostCreationResult.Success -> {
                         _uiState.update {
                             it.copy(
@@ -428,6 +467,16 @@ class PhotoUploadViewModel(
     }
 
     private fun handleTransientFailure(failure: PostCreationFailure) {
+        if (failure == PostCreationFailure.InvalidInstagramId) {
+            // ID 칸 아래에 오류를 보여 주므로 토스트는 띄우지 않는다. 스위치와 입력한 ID는 그대로 둔다.
+            _uiState.update {
+                it.copy(
+                    isSubmitting = false,
+                    instagramConsent = it.instagramConsent.withInvalidInstagramId(),
+                )
+            }
+            return
+        }
         if (failure == PostCreationFailure.ReauthenticationRequired) {
             _uiState.update { it.copy(isSubmitting = false) }
             sendUiEvent(PhotoUploadUiEvent.ReauthenticationRequired)
@@ -473,11 +522,15 @@ class PhotoUploadViewModel(
         PostCreationFailure.AlreadySubmitted -> "이미 이 주제에 전시한 사진이 있어요."
         PostCreationFailure.TopicNotOpen -> "주제가 변경되어 전시할 수 없어요."
         PostCreationFailure.InvalidResponse -> GENERIC_ERROR_MESSAGE
+        PostCreationFailure.InvalidInstagramId -> INVALID_INSTAGRAM_ID_MESSAGE
         PostCreationFailure.ReauthenticationRequired -> error("Handled before message mapping")
     }
 
     companion object {
         private const val KEY_CAPTION = "upload_caption"
+        private const val KEY_DESCRIPTION = "upload_description"
+        private const val KEY_INSTAGRAM_AGREED = "upload_instagram_agreed"
+        private const val KEY_INSTAGRAM_ID = "upload_instagram_id"
         private const val KEY_SELECTED_IMAGE = "upload_selected_image"
         private const val KEY_SELECTED_EDIT = "upload_selected_edit"
         private const val RESTORED_EDIT_FAILED_MESSAGE = "사진 편집 정보를 복원하지 못했어요. 사진을 다시 선택해 주세요."

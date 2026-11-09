@@ -191,7 +191,7 @@ final class HomeScreenUITests: XCTestCase {
     @MainActor
     func testHeroStatesAndResubmitEntry() {
         let app = XCUIApplication()
-        let scenarios = ["rejected-open", "rejected-closed", "empty", "pending", "approved", "processing", "loading", "error", "no-open-topic"]
+        let scenarios = ["rejected-open", "rejected-closed", "empty", "login-required", "pending", "approved", "processing", "loading", "error", "no-open-topic"]
         for scenario in scenarios {
             app.launchArguments = ["-test-home-preview", "-test-home-hero-state", scenario, "-test-photo-upload-entry"]
             app.launch()
@@ -202,10 +202,16 @@ final class HomeScreenUITests: XCTestCase {
                 XCTAssertFalse(app.buttons["사진 다시 제출하기"].exists)
                 XCTAssertTrue(app.staticTexts["사진이 반려되었어요\n이 주제의 참여 기간이 종료되었어요"].exists)
             }
+            if scenario == "empty" {
+                XCTAssertTrue(app.buttons["하늘 사진 전시하기"].exists)
+            } else if scenario == "login-required" {
+                XCTAssertTrue(app.buttons["로그인하기"].exists)
+                XCTAssertFalse(app.staticTexts["이번 주 기록"].exists)
+            }
             captureScreenshot(app, named: "hero-\(scenario)")
             if scenario == "rejected-open" || scenario == "empty" {
-                let label = scenario == "rejected-open" ? "사진 다시 제출하기" : "하늘 사진을 공유하지 않았어요"
-                app.buttons[label].tap()
+                let identifier = scenario == "rejected-open" ? "사진 다시 제출하기" : "home.weekly.upload"
+                app.buttons[identifier].tap()
                 XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
             }
             app.terminate()

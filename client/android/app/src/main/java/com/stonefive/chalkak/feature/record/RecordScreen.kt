@@ -218,7 +218,7 @@ fun RecordScreen(
                 RecordYearCalendar(
                     year = displayedYear,
                     latestMonth = uiState.latestMonth,
-                    shownMonth = uiState.month,
+                    recordedMonths = uiState.availableMonths,
                     postsByMonth = uiState.yearPosts,
                     photoColors = uiState.photoColors,
                     onPreviousYear = {

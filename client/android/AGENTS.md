@@ -81,3 +81,11 @@
 ## MUST — 프리뷰
 - **모든 stateless Screen + 재사용/디자인시스템 컴포넌트**는 `@Preview`를 갖는다.
   - private 헬퍼까지 강제하지는 않는다.
+
+## MUST — 화면 확인
+- 화면 코드를 바꾸는 작업은 화면에서 볼 항목을 계획의 테스트 밖 확인 항목에 적고, 항목마다 `확인:`(`Preview`·`기기`·`사람`)을 정한다.
+  `Preview`·`기기` 항목은 스크립트로 수정 전 실패 → 수정 후 통과까지 확인한다(`client/.agents/skills/client-tdd/references/screen-auto-check.md`, #987).
+  판단은 사람이 PR 리뷰에서 한다. AI는 PR 📸 칸에 자동 확인 결과와 캡처, 사람이 볼 항목을 채우고, "빌드가 됐으니 화면도 맞다"고 쓰지 않는다.
+  - Preview는 상태를 받아 그리는 Composable로 만들고, 첫 화면부터 보이게 한다(등장 애니메이션은 끝난 상태, 시트는 내용만, 이미지는 앱 리소스).
+  - 바로 열기 화면(`app/src/debug/.../debuglaunch/`)의 상태는 앱이 실제로 부르는 함수로 만든다.
+  - 모델이 캡처를 보고 누를 곳을 정하는 기기 조작은 하지 않는다. `android-screen-check` 스킬은 사람이 캡처·녹화를 따로 요청할 때(`mode: adhoc`)만 쓴다.

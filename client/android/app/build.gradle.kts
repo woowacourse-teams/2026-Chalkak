@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.roborazzi)
 }
 
 fun Properties.requiredProperty(name: String): String = getProperty(name)
@@ -42,8 +43,8 @@ android {
         applicationId = "com.stonefive.chalkak"
         minSdk = 26
         targetSdk = 37
-        versionCode = 28
-        versionName = "1.1.2"
+        versionCode = 29
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "ENABLE_PLAY_APP_UPDATES", "true")
@@ -110,6 +111,40 @@ android {
         buildConfig = true
         compose = true
     }
+    // Preview 스냅샷(Roborazzi): Robolectric이 리소스를 읽고 화면을 실제 그래픽으로 그리게 한다
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all {
+                it.systemProperties["robolectric.pixelCopyRenderMode"] = "hardware"
+                it.jvmArgs(
+                    "--add-opens=java.base/java.io=ALL-UNNAMED",
+                    "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                )
+            }
+        }
+    }
+}
+
+// Preview 스냅샷: @Preview를 찾아 스크린샷 테스트를 만든다.
+// 평소 testDebugUnitTest에는 넣지 않고 -Pchalkak.previewSnapshots를 줄 때만 만든다(전체 검사 시간·실패에 영향 없게).
+// 찍을 패키지는 -Pchalkak.previewPackages=a.b,c.d (기본: 모든 feature). 사용법은 하네스의 화면 자동 확인 문서.
+roborazzi {
+    generateComposePreviewRobolectricTests {
+        enable = providers
+            .gradleProperty("chalkak.previewSnapshots")
+            .isPresent
+        packages = providers
+            .gradleProperty("chalkak.previewPackages")
+            .map { value ->
+                value
+                    .split(",")
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+            }.getOrElse(listOf("com.stonefive.chalkak.feature"))
+        includePrivatePreviews = true
+        robolectricConfig = mapOf("sdk" to "[36]", "qualifiers" to "RobolectricDeviceQualifiers.Pixel7")
+    }
 }
 
 dependencies {
@@ -147,6 +182,13 @@ dependencies {
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.preview.scanner.support)
+    testImplementation(libs.composable.preview.scanner)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.konsist)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)

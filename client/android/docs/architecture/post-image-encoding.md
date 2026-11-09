@@ -1,5 +1,7 @@
 # 게시물 이미지 인코딩 정책
 
+관련 경로: data/post/**, data/repository/PostCreationRepositoryImpl.kt
+
 ## 요약
 
 > 업로드 이미지는 원본 픽셀을 통째로 메모리에 올리지 않는다. 크기만 먼저 읽고(`inJustDecodeBounds`),

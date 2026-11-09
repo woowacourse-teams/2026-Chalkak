@@ -69,6 +69,45 @@ struct NotificationInboxViewModelTests {
         #expect(readAction.requestedIDs == [Self.notificationID(1)])
     }
 
+    @Test("답변 푸시는 알림이 삭제되어도 문의 상세로 이동한다")
+    func feedbackPushAllowsNavigationWhenNotificationWasDeleted() async {
+        // Given 문의 또는 답변 삭제로 읽음 처리 API가 404를 반환한다
+        let viewModel = Self.viewModel(
+            pageLoader: NotificationInboxPageLoader(results: [
+                .success(Self.page(1, hasNext: false, items: [])),
+            ]),
+            unreadLoader: NotificationUnreadLoader(results: [.success(false)]),
+            readAction: NotificationReadAction(results: [.failure(NotificationAPIError.notFound)])
+        )
+
+        // When 답변 푸시에서 문의 상세 이동을 요청한다
+        let shouldNavigate = await viewModel.readForNavigation(
+            Self.notificationID(1), allowsMissingNotification: true
+        )
+
+        // Then 문의 상세 API가 현재 문의와 답변의 존재 여부를 판단한다
+        #expect(shouldNavigate)
+        #expect(viewModel.message == nil)
+    }
+
+    @Test("답변 푸시도 읽음 처리에서 인증이 거절되면 이동하지 않는다")
+    func feedbackPushUnauthorizedReadPreventsNavigation() async {
+        // Given 인증이 거절된 읽음 처리
+        let viewModel = Self.viewModel(
+            pageLoader: NotificationInboxPageLoader(results: []),
+            unreadLoader: NotificationUnreadLoader(results: []),
+            readAction: NotificationReadAction(results: [.failure(NotificationAPIError.unauthorized)])
+        )
+
+        // When 답변 푸시에서 문의 상세 이동을 요청한다
+        let shouldNavigate = await viewModel.readForNavigation(
+            Self.notificationID(1), allowsMissingNotification: true
+        )
+
+        // Then 인증 실패를 우회하지 않는다
+        #expect(!shouldNavigate)
+    }
+
     @Test("네트워크 읽음 실패는 읽지 않은 상태를 보존하되 이동은 허용한다")
     func networkReadFailurePreservesUnreadAndAllowsNavigation() async {
         let unreadItem = Self.item(id: Self.notificationID(1), readAt: nil)
@@ -662,6 +701,33 @@ struct NoticeNotificationDestinationTests {
     }
 }
 
+struct LikeMilestoneNotificationDestinationTests {
+    private let postID = "019a0010-0000-7000-8000-000000000003"
+    private let notificationID = "019a0010-0000-7000-8000-000000000002"
+
+    @Test("좋아요 달성 알림함은 해당 게시물로 연결한다")
+    func opensPost() {
+        #expect(item(sourceType: "POST", sourceID: postID).destination == .likeMilestone(
+            postID: postID, notificationID: notificationID
+        ))
+    }
+
+    @Test("좋아요 달성 알림의 대상이 잘못되면 이동하지 않는다")
+    func ignoresInvalidSource() {
+        #expect(item(sourceType: "NOTICE", sourceID: postID).destination == nil)
+        #expect(item(sourceType: "POST", sourceID: "bad-id").destination == nil)
+        #expect(item(sourceType: "POST", sourceID: nil).destination == nil)
+    }
+
+    private func item(sourceType: String, sourceID: String?) -> NotificationItem {
+        NotificationItem(
+            id: notificationID, type: "POST_LIKE_MILESTONE", sourceType: sourceType, sourceID: sourceID,
+            title: "게시물에서 새로운 업적을 달성했어요", body: "좋아요 5개 이상을 달성했어요",
+            thumbnailURL: nil, readAt: nil, createdAt: Date()
+        )
+    }
+}
+
 struct AIReviewNotificationDestinationTests {
     @Test("AI 결과 알림함도 같은 게시물 피드로 연결한다",
           arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
@@ -686,5 +752,24 @@ struct AIReviewNotificationDestinationTests {
             )
             #expect(item.destination == nil)
         }
+    }
+}
+
+struct FeedbackNotificationDestinationTests {
+    @Test("알림함의 답변 알림 항목은 문의 상세로 이동한다")
+    func opensFeedbackDetail() {
+        // Given 알림 항목 `type=FEEDBACK_ANSWERED`, `sourceType=FEEDBACK`, `sourceID`=F
+        // When  이동 대상을 묻는다
+        // Then  문의 상세(F)
+        let feedbackID = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
+        let notificationID = "019a0010-0000-7000-8000-000000000002"
+        let item = NotificationItem(
+            id: notificationID, type: "FEEDBACK_ANSWERED", sourceType: "FEEDBACK", sourceID: feedbackID,
+            title: "문의에 답변이 등록됐어요", body: "답변을 확인해 보세요.", thumbnailURL: nil,
+            readAt: nil, createdAt: Date()
+        )
+
+        #expect(item.destination == .feedbackAnswered(feedbackID: feedbackID, notificationID: notificationID))
+        #expect(item.destination?.notificationID == notificationID)
     }
 }
