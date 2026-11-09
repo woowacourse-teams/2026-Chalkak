@@ -79,8 +79,11 @@ def wait_text(text, timeout=8.0):
     return wait(lambda ns: find(ns, text=text), timeout)[1]
 
 
-def wait_still(pred, reads=3, interval=0.15, timeout=6.0):
-    """노드 위치가 reads번 연속 같을 때까지 기다린다(애니메이션 중에 누르면 포커스가 안 잡힌다)."""
+def wait_still(pred, reads=3, interval=0.15, timeout=15.0):
+    """노드 위치가 reads번 연속 같을 때까지 기다린다(애니메이션 중에 누르면 포커스가 안 잡힌다).
+
+    화면 읽기 1번이 약 2초라 3번 읽는 데만 6초 남짓 걸린다. 앱을 막 연 직후에도 맞도록 기본 15초를 둔다.
+    """
     end = time.time() + timeout
     last, same = None, 0
     while time.time() < end:
