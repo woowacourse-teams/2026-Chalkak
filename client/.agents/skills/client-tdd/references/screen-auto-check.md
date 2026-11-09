@@ -10,7 +10,7 @@
 
 | 확인 | 무엇에 | 도구 | 판정 |
 |---|---|---|---|
-| `Preview` | 멈춰 있는 모양: 문구, 배치, 상태별 화면 | Preview 스냅샷(Roborazzi, 기기 없음) | 수정 전·후 그림 비교. 바뀐 그림마다 `의도한 변화`/`설명 못 함` |
+| `Preview` | 멈춰 있는 모양: 문구, 배치, 상태별 화면 | Preview 스냅샷(Roborazzi, 기기 없음) | 수정 전·후 그림 비교. 사진 디코딩 잡음은 스크립트가 `잡음`으로 뺀다. 바뀐 그림마다 `의도한 변화`/`의도하지 않은 변경` |
 | `기기` | Preview로 볼 수 없는 것: 키보드, 포커스, 스크롤, 끌기 도중(누른 채 멈춘 상태), 비동기로 끝나는 동작이 결국 끝나는지, 실제 상태 표시줄·창 여백, 애니메이션이 끝난 뒤 위치 | 바로 열기 + 확인 스크립트 | 스크립트가 참/거짓으로 판정 |
 | `사람` | 아래 "사람이 확인하는 범위"의 범주에 드는 것만 | 없음 | PR 📸 칸 체크리스트 |
 
@@ -51,7 +51,9 @@
    python3 $P record "$EVID/media/preview-after" com.stonefive.chalkak.feature.upload,com.stonefive.chalkak.feature.instagramconsent
    python3 $P diff "$EVID/media/preview-before" "$EVID/media/preview-after" "$EVID/media/preview-diff"
    ```
-   - `changed`의 `_compare.png`(수정 전 | 차이 | 수정 후)를 열어 그림마다 `의도한 변화 — <항목 번호와 무엇>` 또는 `설명 못 함 — <무엇이 보이는지>`로 적는다.
+   - `changed`의 `_compare.png`(수정 전 | 차이 | 수정 후, 판정용)를 열어 그림마다 `의도한 변화 — <항목 번호와 무엇>` 또는 `의도하지 않은 변경 — <무엇이 보이는지>`로 적는다. 애매하면 의도하지 않은 변경이다.
+   - `noise`는 열지 않는다. 원본 해상도로는 다르지만 줄여 비교하면 같고 사진 밖 차이도 20px 미만인 그림이다(#988의 사진 디코딩 차이 4장). 기록과 PR 그림의 결과 카드에 장 수만 적는다.
+   - `small: true`인 바뀜은 줄여 비교하면 사라지는 사진 밖의 작은 변화(글자·선 1px 이동 등)다. 잡음으로 보지 말고 같은 방식으로 적는다.
    - 항목이 바뀌어야 하는데 그 그림이 `same`이면 이상이다(Preview가 그 상태를 못 보여 주거나 수정이 안 됨).
    - `blank_after`가 있으면 그 Preview를 고친다.
 
@@ -92,10 +94,12 @@ ui.open_screen("upload-error")
 msg = ui.wait_text("영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요")
 ui.screencap(sys.argv[1])            # 캡처 경로는 인자로 받는다(수정 전·후 이름이 다르다)
 checks = dict(message_visible=bool(msg))
-ui.record(sys.argv[2], name="android-4", ok=all(checks.values()), checks=checks)
+ui.record(sys.argv[2], name="android-4", ok=all(checks.values()), checks=checks,
+          marks={"오류 문구": ui.box(msg)} if msg else {})   # PR 그림의 올가미 자리
 sys.exit(0 if all(checks.values()) else 1)
 ```
 
+- 판정에 쓴 요소의 자리를 `marks`로 남긴다(`ui.box(노드)`). PR 그림이 이 자리에 올가미를 그린다. 캡처를 픽셀 비교해 자리를 찾으면 스크롤 위치가 다를 때 못 찾는다(#953). 요소가 없어서 실패한 쪽은 빈 `{}`로 둔다. `shot`(캡처 파일 이름)은 `record`가 자동으로 넣는다.
 - 판정은 노드의 글자·위치(px)로 한다. 기대 문구는 앱 소스의 상수에서 읽으면 문구가 바뀌어도 따라간다.
 - 기다릴 때는 고정 시간 대신 `ui.wait`, `ui.wait_still`(위치가 멈출 때까지)을 쓴다. 애니메이션 중에 누르면 포커스가 안 잡힌다.
 - 키보드 확인은 `with ui.soft_keyboard():` 안에서 한다. 에뮬레이터는 Mac 키보드가 붙어 있으면 화면 키보드를 띄우지 않는다(#939 판단 불가 원인). 끝나면 원래 값으로 되돌린다.
@@ -128,6 +132,25 @@ TC의 Red → Green과 같다.
 - 모델이 캡처를 보고 다음 누를 곳을 정하는 조작은 하지 않는다. 막히면 스크립트를 고치거나 `사람`으로 돌린다.
 - 로그인이 필요한 확인은 하지 않는다. 사람이 요청한 캡처 등으로 실제 앱이 필요할 때 로그인이 풀려 있으면 `python3 client/.agents/skills/client-tdd/scripts/android/relogin.py <테스트 계정 표시 이름>`으로 기기에 등록된 테스트 계정을 고른다(비밀번호를 쓰지 않는다). 로그인 화면과 계정 고르기 화면은 캡처하지 않는다.
 
+## PR 그림 (변경점 한 장)
+
+Preview·기기 확인이 끝나면 PR 📸 칸에 올릴 그림을 만든다(#1000). 판정은 다시 하지 않고, 위 결과를 사람이 한눈에 읽게 옮긴다.
+- 왜: 판정용 3칸 비교 그림은 GitHub에서 줄어 바뀐 곳이 점처럼 보이고, 차이 칸은 사진 잡음으로 빨개진다. 리뷰어는 그림만 보고 무엇이 바뀌었는지 읽혀야 한다.
+
+1. `$EVID/media/sheet-android.json`에 설명을 쓴다. 칸과 예는 `client/.agents/skills/client-pr/scripts/screen-sheet.py` 맨 위 설명에 있다.
+   - 제목: `#<이슈> <이슈 요약>`. 부제: `Android 화면 확인 · <무엇으로 찍었나> · 분홍 실선은 지금 자리, 점선은 원래 자리`
+   - 섹션: 계획 항목 번호마다 하나. Preview 항목은 바뀐 그림의 쌍(`marks: "auto"`), 기기 항목은 수정 전·후 캡처의 쌍(`marks: "record"`, `results_file: "../checks/results.jsonl"`)
+   - 바뀌지 않아야 하는 쌍(기존 동작 지키기, 수정 전에도 통과)은 `same: true`. 그림에 '='로 잇는다. Preview `그대로`는 쌍을 넣지 않고 결과 카드에 장 수만 적는다
+   - 캡션: [굵은 한 줄, 회색 줄...]. 해요체. 굵은 줄은 무엇이 보이는지, 회색 줄은 판정 값(px, 횟수)
+   - `unintended`: 의도하지 않은 변경마다 하나(`box: "auto"`면 바뀐 곳을 잘라 확대). 보이는 것 / 확인한 것 / 원인(모르면 "모름")
+   - `results`: `auto`(항목마다 수정 전 → 수정 후, Preview 바뀜·그대로 수), `second`(잡음이 있으면 "잡음으로 뺀 것"과 장 수, 없으면 "알아 둘 것"), `human`(`사람` 항목과 그 이유)
+2. 만든다. 높이 4000px을 넘으면 섹션 경계에서 여러 장으로 나뉜다.
+   ```bash
+   python3 client/.agents/skills/client-pr/scripts/screen-sheet.py "$EVID/media/sheet-android.json" -o "$EVID/media/android-sheet"
+   ```
+   출력: `android-sheet-<k>.jpg`(장마다 2MB 이하), `media/originals/`(그림에 쓴 원본을 겹치지 않는 이름으로 복사). 합성은 몇 초다.
+3. 완성 그림을 한 번 열어 글이 넘치거나 겹치지 않는지만 본다. 판정을 다시 하지 않는다. 고치면 설명 파일만 고쳐 다시 만든다.
+
 ## 기록
 
 `$EVID/evidence-android.md` 끝에 덧붙인다.
@@ -135,9 +158,10 @@ TC의 Red → Green과 같다.
 ```text
 ## 화면 확인
 - 1 스위치를 켜면 ID 칸과 안내가 펼쳐진다 (Preview)
-  수정 전·후: 바뀜 2 (동의_켜짐, 동의_꺼짐) — 의도한 변화: 1번 스위치 행 추가 / 그대로 14 / 빈 그림 0
+  수정 전·후: 바뀜 2 (동의_켜짐, 동의_꺼짐) — 의도한 변화: 1번 스위치 행 추가 / 그대로 14 / 잡음 0 / 빈 그림 0
 - 4 서버가 ID를 거절하면 ID 칸 아래 오류 문구가 오류 색으로 보인다 (기기: upload-error, checks/android-4.py)
   수정 전: 실패 — message_visible=false
   수정 후: 통과 (15.2초)
 - 5 실제 서버가 ID 형식을 거절하는 응답 (사람 — 서버 동작)
+- PR 그림: media/android-sheet-1.jpg (1장), 의도하지 않은 변경 0
 ```
