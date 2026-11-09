@@ -121,7 +121,7 @@ struct AuthorPostsScreen: View {
                 guard !isClosing, screenWidth > 0 else { return }
                 if !isBackSwiping {
                     guard !isTransitioning,
-                          value.startLocation.x <= Metrics.backSwipeEdgeWidth,
+                          value.startLocation.x <= FeedBackSwipeGesture.edgeWidth,
                           value.translation.width > abs(value.translation.height) else { return }
                     isBackSwiping = true
                     isTransitioning = true
@@ -330,7 +330,6 @@ private enum Metrics {
     // 화면이 다 들어왔을 때 아래 피드를 어둡게 하는 정도.
     static let dimOpacity: CGFloat = 0.1
     // 백 스와이프 값은 피드와 같다.
-    static let backSwipeEdgeWidth: CGFloat = 24
     static let backSwipeMinimumDistance: CGFloat = 12
     static let backSwipeCloseDistance: CGFloat = 120
     static let emptyIconSize: CGFloat = 34
