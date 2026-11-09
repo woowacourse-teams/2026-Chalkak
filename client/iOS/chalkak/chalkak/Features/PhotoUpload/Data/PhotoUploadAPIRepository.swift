@@ -46,7 +46,7 @@ struct PhotoUploadAPIRepository: Sendable {
 
     func createPost(
         _ preparation: PhotoUploadPreparation,
-        title: String?,
+        text: PhotoUploadPostText,
         topic: PhotoUploadTopic
     ) async -> Result<PhotoUploadCreation, PhotoUploadFailure> {
         do {
@@ -93,7 +93,9 @@ struct PhotoUploadAPIRepository: Sendable {
             let response = try await apiClient.createPost(
                 topicID: topic.id,
                 photoUploadID: upload.uploadID,
-                title: normalizedTitle(title)
+                title: normalizedTitle(text.title),
+                description: normalizedDescription(text.description),
+                instagramConsent: text.instagramConsent
             )
             guard let moderationStatus = PhotoUploadModerationStatus(
                 rawValue: response.moderationStatus
@@ -120,6 +122,15 @@ struct PhotoUploadAPIRepository: Sendable {
         requestStartedAt.addingTimeInterval(
             TimeInterval(max(0, upload.expiresInSeconds - Constants.expirySafetySeconds))
         )
+    }
+
+    /// 서버처럼 앞뒤 공백과 줄바꿈을 지우고, 비면 설명 없음으로 보낸다. 가운데 줄바꿈은 유지한다.
+    /// 서버가 거부하는 NUL 문자는 미리 지운다.
+    private func normalizedDescription(_ description: String) -> String? {
+        let trimmed = description
+            .replacingOccurrences(of: "\u{0}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func normalizedTitle(_ title: String?) -> String? {
@@ -182,6 +193,10 @@ struct PhotoUploadAPIRepository: Sendable {
             if message == Constants.topicNotOpenMessage {
                 return .topicNotOpen
             }
+            // ID 형식 오류는 errorCode가 다른 400과 같아(BUSINESS_ERROR) message로만 구분한다.
+            if statusCode == 400, message == InstagramConsentInput.serverInvalidInstagramIDMessage {
+                return .invalidInstagramID
+            }
             return .postCreationRejected
         }
     }
@@ -215,8 +230,8 @@ extension PhotoUploadRepository {
             prepareImage: { data in
                 await repository.prepareImage(data)
             },
-            createPost: { preparation, title, topic in
-                await repository.createPost(preparation, title: title, topic: topic)
+            createPost: { preparation, text, topic in
+                await repository.createPost(preparation, text: text, topic: topic)
             }
         )
     }

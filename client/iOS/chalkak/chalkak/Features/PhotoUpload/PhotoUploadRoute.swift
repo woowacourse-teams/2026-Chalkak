@@ -29,6 +29,14 @@ struct PhotoUploadRoute: View {
             onAction: handleAction,
             onRetryTopicLoad: viewModel.retryTopicLoad
         )
+        .overlay {
+            if photoSelectionLoader.isLoading {
+                PhotoUploadDownloadGuide(
+                    progress: photoSelectionLoader.progress,
+                    onCancel: photoSelectionLoader.cancel
+                )
+            }
+        }
         .onChange(of: viewModel.event) { _, event in
             handle(event)
         }
@@ -178,7 +186,9 @@ struct PhotoUploadRoute: View {
         pickedPhoto = nil
 
         photoSelectionLoader.start(
-            load: { try await PhotoUploadGalleryPicker.loadImageData(from: photo) },
+            load: { reportProgress in
+                try await PhotoUploadGalleryPicker.loadImageData(from: photo, onProgress: reportProgress)
+            },
             onLoaded: viewModel.beginEditing(sourceData:),
             onFailure: viewModel.showImageSelectionFailure
         )
@@ -186,11 +196,18 @@ struct PhotoUploadRoute: View {
 }
 
 @MainActor
+@Observable
 final class PhotoUploadSelectionLoader {
-    typealias DataLoader = @MainActor () async throws -> Data?
+    typealias ProgressReporter = @MainActor (Double?) -> Void
+    typealias DataLoader = @MainActor (_ reportProgress: @escaping ProgressReporter) async throws -> Data?
 
-    private var generation = 0
-    private var task: Task<Void, Never>?
+    /// 고른 사진을 불러오는 중인지. iCloud에만 있는 사진은 이때 기기로 내려받는다.
+    private(set) var isLoading = false
+    /// 내려받기 진행률(0...1). 진행률을 알 수 없으면 `nil`이다.
+    private(set) var progress: Double?
+
+    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var task: Task<Void, Never>?
 
     func start(
         load: @escaping DataLoader,
@@ -200,16 +217,23 @@ final class PhotoUploadSelectionLoader {
         cancel()
         generation += 1
         let currentGeneration = generation
+        isLoading = true
+        let reportProgress: ProgressReporter = { [weak self] progress in
+            guard let self, self.generation == currentGeneration else { return }
+            self.progress = progress
+        }
 
         task = Task { @MainActor [weak self] in
             defer {
                 if let self, self.generation == currentGeneration {
                     self.task = nil
+                    self.isLoading = false
+                    self.progress = nil
                 }
             }
 
             do {
-                guard let data = try await load() else {
+                guard let data = try await load(reportProgress) else {
                     guard let self, self.generation == currentGeneration else { return }
                     onFailure()
                     return
@@ -235,6 +259,8 @@ final class PhotoUploadSelectionLoader {
         generation += 1
         task?.cancel()
         task = nil
+        isLoading = false
+        progress = nil
     }
 }
 
@@ -258,14 +284,24 @@ struct PhotoUploadGalleryPicker: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
 
-    static func loadImageData(from photo: NSItemProvider) async throws -> Data? {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = photo.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
+    /// iCloud에만 있는 사진은 불러오는 동안 내려받으므로, 그 진행률을 `onProgress`로 알린다.
+    static func loadImageData(
+        from photo: NSItemProvider,
+        onProgress: @escaping @MainActor (Double?) -> Void
+    ) async throws -> Data? {
+        var observation: NSKeyValueObservation?
+        defer { observation?.invalidate() }
+        return try await withCheckedThrowingContinuation { continuation in
+            let progress = photo.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
                     continuation.resume(returning: data)
                 }
+            }
+            observation = progress.observe(\.fractionCompleted, options: [.initial]) { progress, _ in
+                let fraction = progress.isIndeterminate ? nil : progress.fractionCompleted
+                Task { @MainActor in onProgress(fraction) }
             }
         }
     }

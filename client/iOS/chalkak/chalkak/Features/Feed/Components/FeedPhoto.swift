@@ -196,6 +196,16 @@ struct FeedPhoto: View {
                     onLike: onLike
                 )
                 .opacity(zoom.contentProgress)
+
+                if let description = post.description {
+                    Text(description)
+                        .font(theme.typography.subheadline)
+                        .foregroundStyle(theme.colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Metrics.horizontalInset)
+                        .padding(.top, theme.spacing.md)
+                        .opacity(zoom.contentProgress)
+                }
             }
         }
     }

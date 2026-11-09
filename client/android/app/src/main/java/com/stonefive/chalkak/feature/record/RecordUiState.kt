@@ -42,6 +42,16 @@ data class RecordUiState(
     val earliestYear: Int
         get() = minOf(availableMonths.minOfOrNull { it.year } ?: latestMonth.year, latestMonth.year)
 
+    /**
+     * 연간 달력에서 [month]의 월간 화면으로 들어갈 수 있는지.
+     * - 이번 달([latestMonth])은 사진이 없어도 들어간다. 사진을 올릴 수 있는 달이기 때문이다.
+     * - 지난 달은 빈 목록으로 받은 달만 막는다. 아직 받지 못한 달(요청 중·실패)은 막지 않고 불러와 연다.
+     *   화면에서는 아직 받지 못한 달 칸을 누를 수 없게 따로 막는다.
+     * 예: 이번 달이 2026-11이면 2026-11(사진 0장) → true, 2026-09(사진 0장) → false,
+     *     2026-10(사진 1장) → true, 2026-08(아직 받지 못함) → true.
+     */
+    fun canEnterMonth(month: YearMonth): Boolean = month == latestMonth || yearPosts[month]?.isEmpty() != true
+
     /** 년/월 휠을 열 수 있는지. 휠에는 [availableMonths]만 보인다. */
     val canPickMonth: Boolean
         get() = !isLoading && availableMonths.isNotEmpty()

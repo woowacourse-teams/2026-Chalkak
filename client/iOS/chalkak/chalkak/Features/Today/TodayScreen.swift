@@ -51,6 +51,8 @@ struct TodayScreen: View {
             onOpenPhotoUpload()
         case .showGuestLikeMessage:
             showMessage("로그인 후 좋아요를 누를 수 있어요")
+        case .showLikeFailure:
+            showMessage("좋아요를 변경하지 못했어요")
         case let .showRefreshFailure(reason):
             showMessage(reason.message)
         case let .navigateToBottomBar(item):

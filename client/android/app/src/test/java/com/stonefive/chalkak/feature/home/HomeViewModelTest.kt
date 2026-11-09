@@ -6,9 +6,11 @@ import com.stonefive.chalkak.domain.model.AuthorPostsPage
 import com.stonefive.chalkak.domain.model.Banner
 import com.stonefive.chalkak.domain.model.BannerPage
 import com.stonefive.chalkak.domain.model.HomeFailure
+import com.stonefive.chalkak.domain.model.HomeIssueExperiment
 import com.stonefive.chalkak.domain.model.HomeLike
 import com.stonefive.chalkak.domain.model.HomeQuery
 import com.stonefive.chalkak.domain.model.HomeResult
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.NotificationDetail
 import com.stonefive.chalkak.domain.model.NotificationFailure
 import com.stonefive.chalkak.domain.model.NotificationPage
@@ -23,7 +25,7 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostStatus
-import com.stonefive.chalkak.domain.model.PostTitleUpdate
+import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
@@ -244,7 +246,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
         assertEquals(calls, repository.months.size)
         assertEquals(0, repository.statusCalls)
-        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.LoginRequired, viewModel.uiState.value.hero)
         assertTrue(
             viewModel.uiState.value.week
                 .all { it.post == null },
@@ -437,7 +439,7 @@ class HomeViewModelTest {
         session.value = UserSessionState.Guest
         repository.calendarGate!!.complete(Unit)
         advanceUntilIdle()
-        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertEquals(HomeHeroState.LoginRequired, viewModel.uiState.value.hero)
         assertTrue(
             viewModel.uiState.value.week
                 .all { it.post == null },
@@ -704,11 +706,99 @@ class HomeViewModelTest {
         assertFalse(viewModel.uiState.value.hasUnreadNotifications)
     }
 
+    @Test
+    fun `issue stays hidden until the experiment is resolved`() = runTest {
+        val experiment = CompletableDeferred<HomeIssueExperiment>()
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            loadHomeIssueExperiment = { experiment.await() },
+        )
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.showsIssue)
+
+        experiment.complete(HomeIssueExperiment(isIssueOnTop = true, isAssigned = true))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isIssueOnTop)
+        assertTrue(viewModel.uiState.value.isIssueLayoutResolved)
+    }
+
+    @Test
+    fun `issue layout survives sign out reset`() = runTest {
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            session = session,
+            loadHomeIssueExperiment = { HomeIssueExperiment(isIssueOnTop = true, isAssigned = true) },
+        )
+        advanceUntilIdle()
+
+        session.value = UserSessionState.SignedOut
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isIssueOnTop)
+        assertTrue(viewModel.uiState.value.isIssueLayoutResolved)
+    }
+
+    @Test
+    fun `issue exposure is reported once after home is presented`() = runTest {
+        val exposures = mutableListOf<Boolean>()
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            loadHomeIssueExperiment = { HomeIssueExperiment(isIssueOnTop = true, isAssigned = true) },
+            onIssueExperimentExposed = { exposures += it },
+        )
+        advanceUntilIdle()
+        assertEquals(emptyList<Boolean>(), exposures)
+
+        viewModel.onResume()
+        viewModel.onPause()
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(listOf(true), exposures)
+    }
+
+    @Test
+    fun `issue exposure is reported when the experiment resolves after presentation`() = runTest {
+        val experiment = CompletableDeferred<HomeIssueExperiment>()
+        val exposures = mutableListOf<Boolean>()
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            loadHomeIssueExperiment = { experiment.await() },
+            onIssueExperimentExposed = { exposures += it },
+        )
+        viewModel.onResume()
+        advanceUntilIdle()
+        assertEquals(emptyList<Boolean>(), exposures)
+
+        experiment.complete(HomeIssueExperiment(isIssueOnTop = false, isAssigned = true))
+        advanceUntilIdle()
+
+        assertEquals(listOf(false), exposures)
+    }
+
+    @Test
+    fun `default config users are not reported as exposed`() = runTest {
+        val exposures = mutableListOf<Boolean>()
+        val viewModel = createViewModel(
+            FakeHomeRepository(),
+            onIssueExperimentExposed = { exposures += it },
+        )
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isIssueLayoutResolved)
+        assertEquals(emptyList<Boolean>(), exposures)
+    }
+
     private fun createViewModel(
         repository: FakeHomeRepository,
         session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
         dateProvider: () -> LocalDate = { TODAY },
         notificationRepository: NotificationRepository? = null,
+        loadHomeIssueExperiment: suspend () -> HomeIssueExperiment = { HomeIssueExperiment() },
+        onIssueExperimentExposed: (Boolean) -> Unit = {},
     ) = HomeViewModel(
         repository,
         repository,
@@ -717,6 +807,8 @@ class HomeViewModelTest {
         repository,
         dateProvider,
         notificationRepository,
+        loadHomeIssueExperiment = loadHomeIssueExperiment,
+        onIssueExperimentExposed = onIssueExperimentExposed,
     ).also {
         it.startPreloading()
     }
@@ -836,10 +928,12 @@ private class FakeHomeRepository :
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<PostTitleUpdate> = error("unused")
+        description: String?,
+        instagramConsent: InstagramConsent,
+    ): HomeResult<PostUpdate> = error("unused")
 
     override suspend fun updateLike(
         photoId: String,

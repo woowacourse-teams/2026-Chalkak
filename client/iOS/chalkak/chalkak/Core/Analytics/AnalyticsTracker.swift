@@ -8,6 +8,8 @@ struct AnalyticsScreen: Equatable {
 protocol AnalyticsTracking {
     func trackScreenView(screenName: String, screenClass: String)
     func trackBottomNavigationSelection(destination: String)
+    func trackHomeIssueLayoutExposed(isIssueOnTop: Bool)
+    func trackHomeInteraction(_ interaction: HomeInteraction)
 }
 
 struct FirebaseAnalyticsTracker: AnalyticsTracking {
@@ -26,5 +28,14 @@ struct FirebaseAnalyticsTracker: AnalyticsTracking {
             "bottom_navigation_selected",
             parameters: ["destination": destination]
         )
+    }
+
+    func trackHomeIssueLayoutExposed(isIssueOnTop: Bool) {
+        Analytics.setUserProperty(isIssueOnTop ? "top" : "bottom", forName: "home_issue_layout")
+        Analytics.logEvent("home_issue_layout_exposed", parameters: nil)
+    }
+
+    func trackHomeInteraction(_ interaction: HomeInteraction) {
+        Analytics.logEvent(interaction.eventName, parameters: interaction.parameters)
     }
 }

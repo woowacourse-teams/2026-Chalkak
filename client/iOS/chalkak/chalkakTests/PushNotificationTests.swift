@@ -38,6 +38,25 @@ struct PushNotificationTapTests {
         #expect(tap?.notificationID == Self.notificationID)
     }
 
+    @Test("좋아요 달성 푸시는 게시물로 이동하며 알림 ID는 읽음에 사용한다")
+    func parsesLikeMilestonePush() {
+        let tap = PushNotificationTap(userInfo: Self.userInfo(type: "POST_LIKE_MILESTONE"))
+        #expect(tap == .likeMilestone(postID: Self.postID, notificationID: Self.notificationID))
+        #expect(tap?.notificationID == Self.notificationID)
+    }
+
+    @Test("좋아요 달성 푸시는 유효한 게시물·알림 ID와 POST 종류가 필요하다")
+    func rejectsInvalidLikeMilestonePush() {
+        for (key, value) in [
+            ("sourceId", "not-a-uuid"), ("notificationId", "not-a-uuid"),
+            ("sourceType", "TOPIC")
+        ] {
+            var payload = Self.userInfo(type: "POST_LIKE_MILESTONE")
+            payload[key] = value
+            #expect(PushNotificationTap(userInfo: payload) == nil)
+        }
+    }
+
     @Test("AI 완료·실패 푸시는 게시물 피드로 이동하며 알림 ID는 읽음에 사용한다",
           arguments: ["AI_REVIEW_COMPLETED", "AI_REVIEW_FAILED"])
     func parsesAIReviewPush(type: String) {
@@ -101,6 +120,39 @@ struct PushNotificationTapTests {
         #expect(PushNotificationTap(userInfo: malformedPostID) == nil)
         #expect(PushNotificationTap(userInfo: [:]) == nil)
     }
+
+    @Test("답변 푸시를 누르면 문의 ID와 알림 ID로 이동 대상을 만든다")
+    func parsesFeedbackAnsweredPush() {
+        // Given userInfo `type=FEEDBACK_ANSWERED`, `sourceType=FEEDBACK`, `sourceId`=UUID F, `notificationId`=UUID N
+        // When  푸시를 해석한다
+        // Then  이동 대상이 문의 상세(F), 읽음 처리 ID N
+        var payload = Self.userInfo(type: "FEEDBACK_ANSWERED")
+        payload["sourceType"] = "FEEDBACK"
+        payload["sourceId"] = Self.feedbackID
+
+        let tap = PushNotificationTap(userInfo: payload)
+
+        #expect(tap == .feedbackAnswered(feedbackID: Self.feedbackID, notificationID: Self.notificationID))
+        #expect(tap?.notificationID == Self.notificationID)
+    }
+
+    @Test("답변 푸시의 sourceType이 FEEDBACK이 아니거나 sourceId가 UUID가 아니면 이동하지 않는다")
+    func rejectsInvalidFeedbackAnsweredPush() {
+        // Given `sourceType=POST`, 또는 `sourceId`="abc"
+        // When  푸시를 해석한다
+        // Then  nil
+        var postSource = Self.userInfo(type: "FEEDBACK_ANSWERED")
+        postSource["sourceType"] = "POST"
+        postSource["sourceId"] = Self.feedbackID
+        var malformedSource = Self.userInfo(type: "FEEDBACK_ANSWERED")
+        malformedSource["sourceType"] = "FEEDBACK"
+        malformedSource["sourceId"] = "abc"
+
+        #expect(PushNotificationTap(userInfo: postSource) == nil)
+        #expect(PushNotificationTap(userInfo: malformedSource) == nil)
+    }
+
+    private static let feedbackID = "0198f6c1-62ba-7d30-8b12-0f733b6570d4"
 
     private static func userInfo(type: String) -> [AnyHashable: Any] {
         [

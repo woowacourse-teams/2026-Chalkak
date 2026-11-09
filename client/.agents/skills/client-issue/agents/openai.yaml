@@ -1,0 +1,6 @@
+interface:
+  display_name: "client-issue"
+  short_description: "한 줄 설명으로 이슈와 브랜치 만들기"
+  default_prompt: "Use $client-issue for this Chalkak client task."
+policy:
+  allow_implicit_invocation: false

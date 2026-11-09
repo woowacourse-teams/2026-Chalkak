@@ -108,8 +108,8 @@ struct PhotoUploadViewModelTests {
             repository: PhotoUploadRepository(
                 getCreationTopic: { _ in .success(topic) },
                 prepareImage: { _ in .success(preparation) },
-                createPost: { _, title, topic in
-                    #expect(title == "작품 제목")
+                createPost: { _, text, topic in
+                    #expect(text == PhotoUploadPostText(title: "작품 제목", description: "퇴근길 노을\n두 번째 줄"))
                     return .success(
                         PhotoUploadCreation(
                             postID: "post-id",
@@ -123,6 +123,7 @@ struct PhotoUploadViewModelTests {
 
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
         viewModel.handle(.captionChanged("작품 제목"))
+        viewModel.handle(.descriptionChanged("퇴근길 노을\n두 번째 줄"))
         try await waitUntil { viewModel.viewState.imagePreparationStatus == .ready }
 
         viewModel.handle(.submitClicked)
@@ -281,6 +282,205 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.caption == "1234567890")
     }
 
+    @Test("사진을 다시 고르거나 편집해도 입력한 제목과 이야기를 유지한다")
+    func keepsTextWhenPhotoChanges() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.selectImage(data: Data([0x01]), preview: Self.image())
+        viewModel.handle(.captionChanged("한낮의 다리"))
+        viewModel.handle(.descriptionChanged("퇴근길에 만난 노을"))
+
+        viewModel.selectImage(data: Data([0x02]), preview: Self.image())
+
+        #expect(viewModel.viewState.selectedImageData == Data([0x02]))
+        #expect(viewModel.viewState.caption == "한낮의 다리")
+        #expect(viewModel.viewState.postDescription == "퇴근길에 만난 노을")
+    }
+
+    @Test("이야기 입력은 서버와 같은 code point 기준으로 150개까지 허용한다")
+    func limitsDescriptionToOneHundredFiftyCodePoints() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+        // 국기 이모지는 한 글자로 보이지만 code point 두 개다.
+        let text = String(repeating: "가", count: 148) + "🇰🇷" + "끝"
+
+        viewModel.handle(.descriptionChanged(text))
+
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 148) + "🇰🇷")
+        #expect(viewModel.viewState.postDescription.unicodeScalars.count == 150)
+    }
+
+    @Test("설명 길이 제한은 이모지 글자 중간을 자르지 않는다")
+    func keepsGraphemesWhenLimitingDescription() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 149) + "🇰🇷"))
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 149))
+
+        viewModel.handle(.descriptionChanged(String(repeating: "가", count: 146) + "👨‍👩‍👧"))
+        #expect(viewModel.viewState.postDescription == String(repeating: "가", count: 146))
+    }
+
+    @Test("제목은 한 줄이라 붙여넣은 줄바꿈을 지운다")
+    func removesNewlinesFromCaption() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.handle(.captionChanged("한낮의\n다리"))
+
+        #expect(viewModel.viewState.caption == "한낮의다리")
+    }
+
+    @Test("설명만 입력해도 작성 중인 내용으로 본다")
+    func treatsDescriptionAsDraft() {
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+
+        viewModel.handle(.descriptionChanged("  \n "))
+        #expect(viewModel.viewState.hasUnsavedDraft == false)
+
+        viewModel.handle(.descriptionChanged("노을"))
+        #expect(viewModel.viewState.hasUnsavedDraft)
+    }
+
+    @Test("동의하지 않고 전시하면 동의 안 함으로 보낸다")
+    func sendsNotAgreedWithoutConsent() async throws {
+        // Given 스위치를 켜지 않은 작성 화면
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(recorder: recorder)
+
+        // When  전시하기
+        viewModel.handle(.submitClicked)
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
+
+        // Then  작성 요청의 instagramUploadAgreed가 false, instagramId가 null
+        #expect(await recorder.texts.map(\.instagramConsent) == [InstagramConsent(isAgreed: false, instagramID: nil)])
+    }
+
+    @Test("동의하고 ID를 쓰면 ID와 함께 보낸다")
+    func sendsAgreedConsentWithInstagramID() async throws {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(recorder: recorder)
+        viewModel.handle(.instagramUploadAgreedChanged(true))
+        viewModel.handle(.instagramIDChanged("chalkak.daily"))
+
+        // When  전시하기
+        viewModel.handle(.submitClicked)
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        #expect(await recorder.texts.map(\.instagramConsent) == [InstagramConsent(isAgreed: true, instagramID: "chalkak.daily")])
+    }
+
+    @Test("동의하고 ID를 비우면 ID 없이 보낸다")
+    func sendsAgreedConsentWithoutBlankInstagramID() async throws {
+        // Given 스위치를 켜고 ID 칸이 공백뿐
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(recorder: recorder)
+        viewModel.handle(.instagramUploadAgreedChanged(true))
+        viewModel.handle(.instagramIDChanged("   "))
+
+        // When  전시하기
+        viewModel.handle(.submitClicked)
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 null
+        #expect(await recorder.texts.map(\.instagramConsent) == [InstagramConsent(isAgreed: true, instagramID: nil)])
+    }
+
+    @Test("동의를 끄면 입력했던 ID는 보내지 않는다")
+    func dropsInstagramIDWhenConsentTurnedOff() async throws {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력한 뒤 스위치를 끔
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(recorder: recorder)
+        viewModel.handle(.instagramUploadAgreedChanged(true))
+        viewModel.handle(.instagramIDChanged("chalkak.daily"))
+        viewModel.handle(.instagramUploadAgreedChanged(false))
+
+        // When  전시하기
+        viewModel.handle(.submitClicked)
+        try await waitUntil { viewModel.viewState.completedSubmission != nil }
+
+        // Then  작성 요청의 instagramUploadAgreed가 false, instagramId가 null
+        #expect(await recorder.texts.map(\.instagramConsent) == [InstagramConsent(isAgreed: false, instagramID: nil)])
+    }
+
+    @Test("ID는 30자까지만 입력된다")
+    func limitsInstagramIDToThirtyCharacters() {
+        // Given 스위치를 켠 작성 화면
+        let viewModel = PhotoUploadViewModel(topicDate: PhotoUploadDate.today())
+        viewModel.handle(.instagramUploadAgreedChanged(true))
+
+        // When  ID에 "a"를 31자 입력
+        viewModel.handle(.instagramIDChanged(String(repeating: "a", count: 31)))
+
+        // Then  화면 상태의 ID가 "a" 30자
+        #expect(viewModel.viewState.instagramConsent.instagramID == String(repeating: "a", count: 30))
+    }
+
+    @Test("서버가 ID 형식을 거절하면 ID 칸에 오류를 보여 준다")
+    func showsInstagramIDErrorWhenServerRejectsFormat() async throws {
+        // Given 스위치를 켜고 ID에 "chalkak-daily" 입력, 작성 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(recorder: recorder, result: .failure(.invalidInstagramID))
+        viewModel.handle(.instagramUploadAgreedChanged(true))
+        viewModel.handle(.instagramIDChanged("chalkak-daily"))
+
+        // When  전시하기
+        viewModel.handle(.submitClicked)
+        try await waitUntil { !viewModel.viewState.isSubmitting }
+
+        // Then  화면 상태의 ID 오류가 "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요", 스위치는 켜짐, ID는 "chalkak-daily" 그대로
+        #expect(viewModel.viewState.instagramConsent == InstagramConsentInput(
+            isAgreed: true,
+            instagramID: "chalkak-daily",
+            errorMessage: "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요"
+        ))
+    }
+
+    @Test("ID를 고치면 ID 오류가 사라진다")
+    func clearsInstagramIDErrorWhenIDChanges() async throws {
+        // Given TC 6처럼 ID 오류가 보이는 작성 화면
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(recorder: recorder, result: .failure(.invalidInstagramID))
+        viewModel.handle(.instagramUploadAgreedChanged(true))
+        viewModel.handle(.instagramIDChanged("chalkak-daily"))
+        viewModel.handle(.submitClicked)
+        try await waitUntil { !viewModel.viewState.isSubmitting }
+        #expect(viewModel.viewState.instagramConsent.errorMessage == "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요")
+
+        // When  ID를 "chalkak_daily"로 고침
+        viewModel.handle(.instagramIDChanged("chalkak_daily"))
+
+        // Then  화면 상태의 ID 오류가 없음(null)
+        #expect(viewModel.viewState.instagramConsent.errorMessage == nil)
+    }
+
+    /// 사진을 고르고 업로드 준비까지 끝나 바로 전시할 수 있는 작성 화면. 작성 요청 글은 `recorder`에 쌓인다.
+    private static func readyToSubmitViewModel(
+        recorder: PhotoUploadPostTextRecorder,
+        result: Result<PhotoUploadCreation, PhotoUploadFailure>? = nil
+    ) async throws -> PhotoUploadViewModel {
+        let topic = Self.topic()
+        let preparation = Self.preparation()
+        let viewModel = PhotoUploadViewModel(
+            topicDate: topic.date,
+            repository: PhotoUploadRepository(
+                getCreationTopic: { _ in .success(topic) },
+                prepareImage: { _ in .success(preparation) },
+                createPost: { _, text, topic in
+                    await recorder.append(text)
+                    return result ?? .success(
+                        PhotoUploadCreation(postID: "post-id", topic: topic, moderationStatus: .validating)
+                    )
+                }
+            )
+        )
+        viewModel.selectImage(data: Data([0x01]), preview: Self.image())
+        try await waitUntil {
+            viewModel.viewState.imagePreparationStatus == .ready && !viewModel.viewState.isTopicLoading
+        }
+        return viewModel
+    }
+
     private static func topic() -> PhotoUploadTopic {
         PhotoUploadTopic(
             id: "topic-id",
@@ -330,14 +530,14 @@ struct PhotoUploadSelectionLoaderTests {
 
         do {
             loader.start(
-                load: { try await firstGate.wait() },
+                load: { _ in try await firstGate.wait() },
                 onLoaded: { loadedData.append($0) },
                 onFailure: { failureCount += 1 }
             )
             try await firstGate.waitUntilRequested()
 
             loader.start(
-                load: {
+                load: { _ in
                     // 요청 등록과 결과 전달을 각각 늦춰 두 대기 경로의 회귀를 확인한다.
                     try await Task.sleep(for: schedulingDelay)
                     let data = try await secondGate.wait()
@@ -359,6 +559,70 @@ struct PhotoUploadSelectionLoaderTests {
             loader.cancel()
             await firstGate.cancel()
             await secondGate.cancel()
+            throw error
+        }
+    }
+
+    @Test("사진을 불러오는 동안 진행률을 알리고 끝나면 로딩 상태를 해제한다")
+    func reportsLoadingProgressUntilFinished() async throws {
+        let gate = PhotoUploadSelectionGate()
+        let loader = PhotoUploadSelectionLoader()
+        defer { loader.cancel() }
+        var loadedData: [Data] = []
+
+        do {
+            loader.start(
+                load: { reportProgress in
+                    reportProgress(0.4)
+                    return try await gate.wait()
+                },
+                onLoaded: { loadedData.append($0) },
+                onFailure: {}
+            )
+            try await gate.waitUntilRequested()
+
+            #expect(loader.isLoading)
+            #expect(loader.progress == 0.4)
+
+            await gate.resume(with: Data([0x01]))
+            try await waitUntil { loadedData == [Data([0x01])] }
+
+            #expect(!loader.isLoading)
+            #expect(loader.progress == nil)
+        } catch {
+            loader.cancel()
+            await gate.cancel()
+            throw error
+        }
+    }
+
+    @Test("불러오기를 취소하면 로딩 상태를 해제하고 결과를 반영하지 않는다")
+    func cancelClearsLoadingState() async throws {
+        let gate = PhotoUploadSelectionGate()
+        let loader = PhotoUploadSelectionLoader()
+        var loadedData: [Data] = []
+
+        do {
+            loader.start(
+                load: { reportProgress in
+                    reportProgress(0.7)
+                    return try await gate.wait()
+                },
+                onLoaded: { loadedData.append($0) },
+                onFailure: {}
+            )
+            try await gate.waitUntilRequested()
+
+            loader.cancel()
+
+            #expect(!loader.isLoading)
+            #expect(loader.progress == nil)
+            await gate.resume(with: Data([0x01]))
+            try await Task.sleep(for: .milliseconds(50))
+            #expect(loadedData.isEmpty)
+        } catch {
+            loader.cancel()
+            await gate.cancel()
             throw error
         }
     }
@@ -483,7 +747,8 @@ struct PhotoUploadAPIClientTests {
         let creation = try await client.createPost(
             topicID: topic.id,
             photoUploadID: policy.uploadID,
-            title: "작품 제목"
+            title: "작품 제목",
+            description: "퇴근길에 만난 노을을 담았어요."
         )
 
         #expect(topic.title == "틈")
@@ -499,6 +764,129 @@ struct PhotoUploadAPIClientTests {
         #expect(requests[2].value(forHTTPHeaderField: "Content-Type") == "image/webp")
 
         #expect(requests[3].value(forHTTPHeaderField: "Content-Type") == "application/json")
+        let body = try #require(
+            try JSONSerialization.jsonObject(with: Self.bodyData(of: requests[3])) as? [String: String]
+        )
+        #expect(body == [
+            "topicId": "topic-id",
+            "photoUploadId": "upload-id",
+            "title": "작품 제목",
+            "description": "퇴근길에 만난 노을을 담았어요.",
+        ])
+    }
+
+    @Test("설명이 없으면 description을 요청 본문에 넣지 않는다")
+    func omitsMissingDescription() async throws {
+        let recorder = PhotoUploadRequestRecorder()
+        let client = makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#)
+        }
+
+        _ = try await client.createPost(topicID: "topic-id", photoUploadID: "upload-id", title: nil, description: nil)
+
+        let request = try #require(await recorder.requests.first)
+        let body = try #require(
+            try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? [String: String]
+        )
+        #expect(body == ["topicId": "topic-id", "photoUploadId": "upload-id"])
+    }
+
+    @Test("동의하지 않고 전시하면 동의 안 함으로 보낸다")
+    func omitsInstagramConsentWhenNotAgreed() async throws {
+        // Given 스위치를 켜지 않은 작성 화면
+        let recorder = PhotoUploadRequestRecorder()
+        let client = makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#)
+        }
+
+        // When  전시하기
+        _ = try await client.createPost(
+            topicID: "topic-id",
+            photoUploadID: "upload-id",
+            title: nil,
+            description: nil,
+            instagramConsent: InstagramConsent(isAgreed: false, instagramID: nil)
+        )
+
+        // Then  작성 요청의 instagramUploadAgreed가 false, instagramId가 null (서버는 빠진 동의를 동의 안 함으로 저장한다)
+        let request = try #require(await recorder.requests.first)
+        let body = try #require(try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? NSDictionary)
+        #expect(body == ["topicId": "topic-id", "photoUploadId": "upload-id"] as NSDictionary)
+    }
+
+    @Test("동의하고 ID를 쓰면 ID와 함께 보낸다")
+    func sendsInstagramConsentWithID() async throws {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력
+        let recorder = PhotoUploadRequestRecorder()
+        let client = makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#)
+        }
+
+        // When  전시하기
+        _ = try await client.createPost(
+            topicID: "topic-id",
+            photoUploadID: "upload-id",
+            title: nil,
+            description: nil,
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak.daily")
+        )
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        let request = try #require(await recorder.requests.first)
+        let body = try #require(try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? NSDictionary)
+        #expect(body == [
+            "topicId": "topic-id",
+            "photoUploadId": "upload-id",
+            "instagramUploadAgreed": true,
+            "instagramId": "chalkak.daily",
+        ] as NSDictionary)
+    }
+
+    @Test("동의하고 ID를 비우면 ID 없이 보낸다")
+    func sendsInstagramConsentWithoutID() async throws {
+        // Given 스위치를 켜고 ID 칸이 공백뿐
+        let recorder = PhotoUploadRequestRecorder()
+        let client = makeClient(accessToken: "access-token") { request in
+            await recorder.append(request)
+            return Self.response(for: request, body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#)
+        }
+
+        // When  전시하기
+        _ = try await client.createPost(
+            topicID: "topic-id",
+            photoUploadID: "upload-id",
+            title: nil,
+            description: nil,
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: nil)
+        )
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 null
+        let request = try #require(await recorder.requests.first)
+        let body = try #require(try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? NSDictionary)
+        #expect(body == [
+            "topicId": "topic-id",
+            "photoUploadId": "upload-id",
+            "instagramUploadAgreed": true,
+        ] as NSDictionary)
+    }
+
+    /// URLProtocol에는 본문이 스트림으로 전달될 수 있어 둘 다 읽는다.
+    nonisolated private static func bodyData(of request: URLRequest) -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data
     }
 
     @Test("topics 응답 날짜가 요청 날짜와 다르면 invalidResponse가 된다")
@@ -608,6 +996,149 @@ struct PhotoUploadEntryGateTests {
 @MainActor
 @Suite(.serialized)
 struct PhotoUploadAPIRepositoryTests {
+    @Test(
+        "설명은 앞뒤 공백·줄바꿈과 NUL을 지워 보내고, 비면 생략한다",
+        arguments: [
+            ("\n  퇴근길 노을\n두 번째 줄  \n", Optional("퇴근길 노을\n두 번째 줄")),
+            ("노\u{0}을", Optional("노을")),
+            (" \n ", nil),
+        ]
+    )
+    func normalizesDescription(input: String, expected: String?) async throws {
+        let bodies = PhotoUploadRequestRecorder()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                await bodies.append(request)
+                return Self.response(
+                    for: request,
+                    statusCode: 201,
+                    body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+        let preparation = PhotoUploadPreparation(
+            id: UUID(),
+            sourceData: Data([0x01]),
+            encodedData: Data([0x02]),
+            upload: PhotoUploadUploadPolicy(
+                uploadID: "upload-id",
+                uploadURL: URL(string: "https://example.com/upload")!,
+                expiresInSeconds: 60,
+                contentType: "image/webp",
+                maxBytes: 1_024
+            ),
+            uploadURLExpiresAt: Date().addingTimeInterval(60)
+        )
+
+        _ = await PhotoUploadAPIRepository(apiClient: client).createPost(
+            preparation,
+            text: PhotoUploadPostText(title: "", description: input),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        let request = try #require(await bodies.requests.first)
+        let body = try #require(
+            try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? [String: String]
+        )
+        #expect(body["description"] == expected)
+    }
+
+    nonisolated private static func bodyData(of request: URLRequest) -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
+
+    @Test("동의하고 ID를 쓰면 ID와 함께 보낸다")
+    func sendsInstagramConsentThroughRepository() async throws {
+        // Given 스위치를 켜고 ID에 "chalkak.daily" 입력
+        let bodies = PhotoUploadRequestRecorder()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                await bodies.append(request)
+                return Self.response(
+                    for: request,
+                    statusCode: 201,
+                    body: #"{"postId":"post-id","moderationStatus":"VALIDATING"}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+
+        // When  전시하기
+        _ = await PhotoUploadAPIRepository(apiClient: client).createPost(
+            Self.preparation(),
+            text: PhotoUploadPostText(
+                instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak.daily")
+            ),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        // Then  작성 요청의 instagramUploadAgreed가 true, instagramId가 "chalkak.daily"
+        let request = try #require(await bodies.requests.first)
+        let body = try #require(try JSONSerialization.jsonObject(with: Self.bodyData(of: request)) as? NSDictionary)
+        #expect(body["instagramUploadAgreed"] as? Bool == true)
+        #expect(body["instagramId"] as? String == "chalkak.daily")
+    }
+
+    @Test("서버가 ID 형식을 거절하면 ID 칸에 오류를 보여 준다")
+    func mapsInstagramIDFormatRejection() async {
+        // Given 스위치를 켜고 ID에 "chalkak-daily" 입력, 작성 요청이 400 "인스타그램 ID 형식이 올바르지 않습니다."
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                return Self.response(
+                    for: request,
+                    statusCode: 400,
+                    body: #"{"errorCode":"BUSINESS_ERROR","message":"인스타그램 ID 형식이 올바르지 않습니다."}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+
+        // When  전시하기
+        let result = await PhotoUploadAPIRepository(apiClient: client).createPost(
+            Self.preparation(),
+            text: PhotoUploadPostText(
+                instagramConsent: InstagramConsent(isAgreed: true, instagramID: "chalkak-daily")
+            ),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        // Then  ID 형식 오류로 돌려주어 화면이 ID 칸에 "영문, 숫자, 마침표(.), 밑줄(_)만 쓸 수 있어요"를 보여 준다
+        switch result {
+        case let .success(creation):
+            Issue.record("작성이 성공하면 안 됩니다: \(creation)")
+        case let .failure(failure):
+            #expect(failure == .invalidInstagramID)
+        }
+    }
+
+    private static func preparation() -> PhotoUploadPreparation {
+        PhotoUploadPreparation(
+            id: UUID(),
+            sourceData: Data([0x01]),
+            encodedData: Data([0x02]),
+            upload: PhotoUploadUploadPolicy(
+                uploadID: "upload-id",
+                uploadURL: URL(string: "https://example.com/upload")!,
+                expiresInSeconds: 60,
+                contentType: "image/webp",
+                maxBytes: 1_024
+            ),
+            uploadURLExpiresAt: Date().addingTimeInterval(60)
+        )
+    }
+
     @Test("주제 조회 HTTP 오류는 전시 완료 오류가 아닌 주제 조회 오류로 매핑한다")
     func mapsTopicHTTPFailure() async {
         let client = makeClient { request in
@@ -881,6 +1412,15 @@ private actor PhotoUploadRequestRecorder {
 
     func append(_ request: URLRequest) {
         requests.append(request)
+    }
+}
+
+/// 작성 요청에 실린 글(제목·설명·인스타그램 동의)을 기록한다.
+private actor PhotoUploadPostTextRecorder {
+    private(set) var texts: [PhotoUploadPostText] = []
+
+    func append(_ text: PhotoUploadPostText) {
+        texts.append(text)
     }
 }
 

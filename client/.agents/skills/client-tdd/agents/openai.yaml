@@ -1,0 +1,6 @@
+interface:
+  display_name: "client-tdd"
+  short_description: "TC를 테스트 클래스 묶음으로 Red·Green·Refactor, 플랫폼별 서브에이전트, 전체 검사"
+  default_prompt: "Use $client-tdd for this Chalkak client task."
+policy:
+  allow_implicit_invocation: false

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -134,6 +135,19 @@ fun FeedPhoto(
                 onLikeClick = onLikeClick,
                 modifier = Modifier.fillMaxWidth(),
             )
+            HorizontalDivider(
+                thickness = FeedActionRowDividerThickness,
+                color = ChalkakTheme.colors.border,
+            )
+            post.description?.let { description ->
+                FeedDescription(
+                    description = description,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = FeedActionRowHorizontalPadding)
+                        .padding(top = ChalkakTheme.spacing.md),
+                )
+            }
         }
     }
 }
@@ -273,6 +287,7 @@ private fun FeedPhotoPreview() {
                     "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.preview_signature}",
                 contentDescription = "노을이 진 하늘과 전신주",
                 title = "안녕하세요 감사합니다.",
+                description = "노을 지는 퇴근길에 찍었어요.",
                 likeCount = 24,
                 authorId = "preview-author",
             ),
@@ -289,6 +304,7 @@ internal const val FEED_PHOTO_ZOOM_SURFACE_TAG = "feed_photo_zoom_surface"
 
 private val FeedActionRowHeight = 57.dp
 private val FeedActionRowHorizontalPadding = 14.dp
+private val FeedActionRowDividerThickness = 0.5.dp
 private val FeedLikeSpacing = 9.dp
 private val FeedHeartSize = 24.dp
 private val FeedLikeTouchHeight = 44.dp

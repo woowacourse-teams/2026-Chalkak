@@ -55,17 +55,28 @@ struct FeedAPIClient: Sendable {
         try await requestNoContent(path: "posts/\(postID)", method: "DELETE")
     }
 
-    func updatePostTitle(postID: String, title: String?) async throws -> FeedTitleUpdate {
-        let normalizedTitle: String?
-        if let title {
-            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
-        } else {
-            normalizedTitle = nil
-        }
+    /// 제목·설명처럼 비워 둘 수 있는 글은 앞뒤 공백을 지우고, 남는 글이 없으면 nil(없음)로 본다(POST-005).
+    /// 예: "  퇴근길  " → "퇴근길", "   \n" → nil
+    private static func normalizedOptionalText(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    func updatePost(
+        postID: String,
+        title: String?,
+        description: String?,
+        instagramConsent: InstagramConsent = .notAgreed
+    ) async throws -> FeedPostUpdate {
         let body: Data
         do {
-            body = try encoder.encode(FeedTitleUpdateRequest(title: normalizedTitle))
+            body = try encoder.encode(
+                FeedPostUpdateRequest(
+                    title: Self.normalizedOptionalText(title),
+                    description: Self.normalizedOptionalText(description),
+                    instagramConsent: instagramConsent
+                )
+            )
         } catch {
             throw FeedAPIError.invalidResponse
         }
@@ -84,29 +95,39 @@ struct FeedAPIClient: Sendable {
         do {
             let (data, response) = try await authenticatedClient.data(for: request)
             guard (200..<300).contains(response.statusCode) else {
+                // ID 형식 오류는 errorCode가 다른 400과 같아(BUSINESS_ERROR) message로만 구분한다.
+                let errorMessage = (try? decoder.decode(FeedAPIErrorResponse.self, from: data))?.message
+                if response.statusCode == 400,
+                   errorMessage == InstagramConsentInput.serverInvalidInstagramIDMessage {
+                    throw FeedAPIError.invalidInstagramID
+                }
                 throw FeedAPIError.http(response.statusCode)
             }
             guard !data.isEmpty else {
                 throw FeedAPIError.invalidResponse
             }
 
-            let decoded: FeedTitleUpdateResponse
+            let decoded: FeedPostUpdateResponse
             do {
-                decoded = try decoder.decode(FeedTitleUpdateResponse.self, from: data)
+                decoded = try decoder.decode(FeedPostUpdateResponse.self, from: data)
             } catch {
                 throw FeedAPIError.invalidResponse
             }
             guard decoded.postID == postID else {
                 throw FeedAPIError.invalidResponse
             }
-            let normalizedTitle: String?
-            if let title = decoded.title {
-                let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                normalizedTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
-            } else {
-                normalizedTitle = nil
+            // 상세 조회와 같이 공백뿐인 설명은 설명 없음으로 본다.
+            let updatedDescription = decoded.description.flatMap {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
             }
-            return FeedTitleUpdate(postID: decoded.postID, title: normalizedTitle)
+            return FeedPostUpdate(
+                postID: decoded.postID,
+                title: Self.normalizedOptionalText(decoded.title),
+                description: updatedDescription,
+                instagramConsent: decoded.instagramUploadAgreed.map {
+                    InstagramConsent(isAgreed: $0, instagramID: $0 ? decoded.instagramID : nil)
+                }
+            )
         } catch let error as FeedAPIError {
             throw error
         } catch AuthenticatedHTTPClientError.reauthenticationRequired {
@@ -193,10 +214,18 @@ struct FeedAPIClient: Sendable {
     }
 }
 
+/// 서버 오류 응답 본문. 예: `{"errorCode":"BUSINESS_ERROR","message":"인스타그램 ID 형식이 올바르지 않습니다."}`
+private struct FeedAPIErrorResponse: Decodable {
+    let errorCode: String?
+    let message: String?
+}
+
 enum FeedAPIError: Error, Equatable, Sendable {
     case network
     case invalidResponse
     case http(Int)
+    // 수정 저장에서 서버가 인스타그램 ID 형식을 거절했다.
+    case invalidInstagramID
 
     var feedError: FeedError {
         switch self {
@@ -215,6 +244,8 @@ enum FeedAPIError: Error, Equatable, Sendable {
             default:
                 .generic
             }
+        case .invalidInstagramID:
+            .invalidInstagramID
         }
     }
 }

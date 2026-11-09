@@ -6,5 +6,11 @@
             android:exported="false"
             android:label="@string/developer_tools_title"
             android:theme="@style/Theme.Chalkak" />
+        <!-- 화면 자동 확인: 화면을 가짜 상태로 바로 연다. 여는 법은 DebugScreenActivity 주석 -->
+        <activity
+            android:name="com.stonefive.chalkak.debuglaunch.DebugScreenActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Chalkak"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

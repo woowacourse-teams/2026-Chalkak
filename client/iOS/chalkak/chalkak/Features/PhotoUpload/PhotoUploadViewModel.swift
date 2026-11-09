@@ -8,7 +8,7 @@ struct PhotoUploadRepository: Sendable {
     typealias PostCreationHandler =
         @Sendable (
             PhotoUploadPreparation,
-            String?,
+            PhotoUploadPostText,
             PhotoUploadTopic
         ) async -> Result<PhotoUploadCreation, PhotoUploadFailure>
 
@@ -92,7 +92,20 @@ final class PhotoUploadViewModel {
             guard let selectedEditSession else { return }
             viewState.editRequest = PhotoUploadEditRequest(session: selectedEditSession)
         case let .captionChanged(caption):
-            viewState.caption = caption.limited(to: Constants.captionMaxLength, using: .characters)
+            // 제목은 한 줄이므로 붙여넣은 줄바꿈도 지운다.
+            viewState.caption = caption
+                .filter { !$0.isNewline }
+                .limited(to: Constants.captionMaxLength, using: .characters)
+        case let .descriptionChanged(description):
+            // 서버가 설명 길이를 code point로 검증하므로 같은 단위로 제한한다.
+            viewState.postDescription = description.limited(
+                to: Constants.descriptionMaxLength,
+                using: .unicodeScalars
+            )
+        case let .instagramUploadAgreedChanged(isAgreed):
+            viewState.instagramConsent.setAgreed(isAgreed)
+        case let .instagramIDChanged(instagramID):
+            viewState.instagramConsent.setInstagramID(instagramID)
         case .submitClicked:
             submit()
         case let .messageShown(messageID):
@@ -261,9 +274,14 @@ final class PhotoUploadViewModel {
 
         preparedImage = nil
         let caption = viewState.caption
+        let text = PhotoUploadPostText(
+            title: caption,
+            description: viewState.postDescription,
+            instagramConsent: viewState.instagramConsent.consent
+        )
         let repository = repository
         submissionTask = Task { [weak self] in
-            let result = await repository.createPost(preparation, caption, topic)
+            let result = await repository.createPost(preparation, text, topic)
             guard !Task.isCancelled, let self else { return }
             self.submissionTask = nil
 
@@ -325,7 +343,10 @@ final class PhotoUploadViewModel {
 
     private func handleTransientFailure(_ failure: PhotoUploadFailure) {
         viewState.isSubmitting = false
-        if failure == .reauthenticationRequired {
+        if failure == .invalidInstagramID {
+            // ID 칸 아래에 오류를 보여 주므로 토스트는 띄우지 않는다. 스위치와 입력한 ID는 그대로 둔다.
+            viewState.instagramConsent.showInvalidInstagramID()
+        } else if failure == .reauthenticationRequired {
             publish(.reauthenticationRequired)
         } else {
             publishMessage(failure.message)
@@ -376,6 +397,7 @@ final class PhotoUploadViewModel {
 
     private enum Constants {
         static let captionMaxLength = 10
+        static let descriptionMaxLength = 150
     }
 }
 
@@ -385,6 +407,9 @@ enum PhotoUploadAction: Equatable, Sendable {
     case cameraClicked
     case selectedImageClicked
     case captionChanged(String)
+    case descriptionChanged(String)
+    case instagramUploadAgreedChanged(Bool)
+    case instagramIDChanged(String)
     case submitClicked
     case messageShown(Int)
 }

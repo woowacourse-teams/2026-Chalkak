@@ -11,5 +11,8 @@ interface PostCreationRemoteDataSource {
         topicId: String,
         photoUploadId: String,
         title: String?,
+        description: String?,
+        instagramUploadAgreed: Boolean,
+        instagramId: String?,
     ): ApiResult<PostCreateResponse>
 }

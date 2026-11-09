@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct HomeIssueSection: View {
+    static let imageAspectRatio: CGFloat = 1672 / 941
+
     @Environment(\.chalkakTheme) private var theme
     let banner: Banner?
     var onIssueClick: (URL) -> Void
     var showHeader = true
+    var textLineLimit: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.lg) {
@@ -19,7 +22,7 @@ struct HomeIssueSection: View {
                 Button(action: { onIssueClick(banner.webViewURL) }) {
                     VStack(alignment: .leading, spacing: theme.spacing.lg) {
                         theme.colors.surfaceElevated
-                            .aspectRatio(Metrics.imageAspectRatio, contentMode: .fit)
+                            .aspectRatio(Self.imageAspectRatio, contentMode: .fit)
                             .frame(maxWidth: .infinity)
                             .overlay {
                                 GeometryReader { geometry in
@@ -39,10 +42,12 @@ struct HomeIssueSection: View {
                                 .font(theme.typography.subheadline)
                                 .fontWeight(.bold)
                                 .foregroundStyle(theme.colors.textPrimary)
+                                .lineLimit(textLineLimit)
 
                             Text(banner.subtitle)
                                 .font(theme.typography.caption)
                                 .foregroundStyle(theme.colors.textSecondary)
+                                .lineLimit(textLineLimit)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -52,16 +57,12 @@ struct HomeIssueSection: View {
                 .accessibilityLabel(banner.title)
             } else {
                 theme.colors.surfaceElevated
-                    .aspectRatio(Metrics.imageAspectRatio, contentMode: .fit)
+                    .aspectRatio(Self.imageAspectRatio, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: theme.shapes.large))
                     .accessibilityLabel("배너 불러오는 중")
             }
         }
     }
-}
-
-private enum Metrics {
-    static let imageAspectRatio: CGFloat = 1672 / 941
 }
 
 #Preview("Issue Section", traits: .sizeThatFitsLayout) {

@@ -35,7 +35,13 @@ class PhotoUploadScreenTest {
 
     @Test
     fun discardDialogUsesSharedPopupAndPreservesCaptionOnCancel() {
-        val state = mutableStateOf(PhotoUploadUiState(caption = "작품 제목", showsDiscardConfirmation = true))
+        val state = mutableStateOf(
+            PhotoUploadUiState(
+                selectedImage = PREVIEW_PHOTO_URI,
+                caption = "작품 제목",
+                showsDiscardConfirmation = true,
+            ),
+        )
         var confirmed = false
         composeRule.setContent {
             ChalkakTheme {
@@ -72,7 +78,27 @@ class PhotoUploadScreenTest {
     }
 
     @Test
-    fun submitButtonIsDisabledWithoutPhoto() {
+    fun backWithSelectedPhotoRequestsDiscardConfirmation() {
+        val actions = mutableListOf<PhotoUploadUiAction>()
+        composeRule.setContent {
+            ChalkakTheme {
+                PhotoUploadScreen(
+                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
+                    onAction = actions::add,
+                )
+            }
+        }
+
+        pressBack()
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+
+        composeRule.runOnIdle {
+            assertTrue(actions == listOf(PhotoUploadUiAction.BackClicked, PhotoUploadUiAction.BackClicked))
+        }
+    }
+
+    @Test
+    fun submitIsDisabledUntilPhotoIsSelected() {
         composeRule.setContent {
             ChalkakTheme {
                 PhotoUploadScreen(
@@ -82,10 +108,9 @@ class PhotoUploadScreenTest {
             }
         }
 
-        composeRule
-            .onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG)
-            .assertIsDisplayed()
-            .assertIsNotEnabled()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertExists()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_DESCRIPTION_TAG).assertExists()
         assertTrue(
             composeRule
                 .onAllNodesWithText("오늘의 주제에 맞는 한 장")
@@ -113,20 +138,6 @@ class PhotoUploadScreenTest {
                 .fetchSemanticsNodes()
                 .isEmpty(),
         )
-    }
-
-    @Test
-    fun submitButtonIsEnabledWithPhoto() {
-        composeRule.setContent {
-            ChalkakTheme {
-                PhotoUploadScreen(
-                    uiState = PhotoUploadUiState(selectedImage = PREVIEW_PHOTO_URI),
-                    onAction = {},
-                )
-            }
-        }
-
-        composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsEnabled()
     }
 
     @Test
@@ -204,6 +215,7 @@ class PhotoUploadScreenTest {
         composeRule.onNodeWithText("전시 중...").assertIsDisplayed()
         composeRule.onNodeWithTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG).assertIsNotEnabled()
         composeRule.onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(PHOTO_UPLOAD_DESCRIPTION_TAG).assertIsNotEnabled()
     }
 
     @Test
@@ -224,7 +236,7 @@ class PhotoUploadScreenTest {
     }
 
     @Test
-    fun captionCanScrollIntoViewInCompactHeight() {
+    fun descriptionCanScrollIntoViewInCompactHeight() {
         composeRule.setContent {
             ChalkakTheme {
                 Box(modifier = Modifier.size(width = 390.dp, height = 400.dp)) {
@@ -237,7 +249,7 @@ class PhotoUploadScreenTest {
         }
 
         composeRule
-            .onNodeWithTag(PHOTO_UPLOAD_CAPTION_TAG)
+            .onNodeWithTag(PHOTO_UPLOAD_DESCRIPTION_TAG)
             .performScrollTo()
             .assertIsDisplayed()
 

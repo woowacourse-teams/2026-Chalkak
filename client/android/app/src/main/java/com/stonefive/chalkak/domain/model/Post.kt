@@ -11,6 +11,7 @@ data class Post(
     val contentDescription: String,
     val submittedAt: Instant? = null,
     val title: String?,
+    val description: String? = null,
     val likeCount: Int,
     val isLiked: Boolean = false,
     val isOwnedByCurrentUser: Boolean = false,

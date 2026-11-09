@@ -3,6 +3,7 @@ import SwiftUI
 struct NotificationTopBar: View {
     @Environment(\.chalkakTheme) private var theme
 
+    var title = "알림"
     var isMarkAllReadEnabled = false
     let onBackClick: () -> Void
     /// 알림함에서만 전달하며, 없으면 모두 읽음 버튼을 표시하지 않는다.
@@ -10,7 +11,7 @@ struct NotificationTopBar: View {
 
     var body: some View {
         ZStack {
-            Text("알림")
+            Text(title)
                 .font(theme.typography.headline)
                 .foregroundStyle(theme.colors.textPrimary)
                 .padding(.horizontal, ChalkakNavigationButton.diameter)

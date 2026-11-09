@@ -2,15 +2,15 @@ import SwiftUI
 
 /// 한 해를 한 화면에 보는 연간 달력.
 /// - 달마다 날짜를 작은 칸으로 그리고, 기록이 있는 날은 그 사진의 대표색으로 칠한다.
-/// - 달을 누르면 그 달의 월간 화면으로 들어간다. 아직 오지 않은 달과 기록이 없는 달은 누를 수 없다.
-///   지금 보고 있던 달은 기록이 없어도 돌아갈 수 있게 남겨 둔다.
+/// - 달을 누르면 그 달의 월간 화면으로 들어간다. 아직 오지 않은 달과 사진이 없는 지난 달은 흐리게 두고 누를 수 없다.
+///   이번 달(`latestMonth`)은 사진이 없어도 들어간다. 사진을 올릴 수 있는 달이기 때문이다.
 /// - 다른 해는 위의 화살표로 옮겨 간다.
 struct RecordYearCalendar: View {
     @Environment(\.chalkakTheme) private var theme
     let year: Int
     let latestMonth: RecordMonth
-    /// 연간으로 나오기 전에 보던 달.
-    let shownMonth: RecordMonth
+    /// 기록 연월 목록(+이번 달). 여기 없는 지난 달은 받지 않아도 사진이 없는 달로 본다.
+    let recordedMonths: [RecordMonth]
     let canGoPreviousYear: Bool
     let canGoNextYear: Bool
     let postsByMonth: [RecordMonth: [RecordPost]]
@@ -80,10 +80,12 @@ struct RecordYearCalendar: View {
 
     private func monthCell(_ month: RecordMonth) -> some View {
         let posts = postsByMonth[month] ?? []
-        // 아직 받지 않은 달(nil)은 흐리게 하지 않고 누르지만 못하게 둔다. 받자마자 깜빡이지 않게 한다.
-        let hasNoRecords = postsByMonth[month]?.isEmpty == true
-        let isAvailable = month <= latestMonth && (!hasNoRecords || month == shownMonth)
-        let canEnter = isAvailable && (!posts.isEmpty || month == shownMonth)
+        let isCurrentMonth = month == latestMonth
+        // 기록 연월 목록에 있지만 아직 받지 않은 달(nil)은 흐리게 하지 않고 누르지만 못하게 둔다. 받자마자 깜빡이지 않게 한다.
+        let hasNoRecords = postsByMonth[month]?.isEmpty ?? !recordedMonths.contains(month)
+        let isAvailable = month <= latestMonth && (isCurrentMonth || !hasNoRecords)
+        // 이번 달이거나 받아 둔 사진이 있는 지난 달만 누를 수 있다. 아직 받지 못한 달은 받은 뒤에 누를 수 있다.
+        let canEnter = isAvailable && (isCurrentMonth || !posts.isEmpty)
 
         return Button {
             onSelectMonth(month)

@@ -6,8 +6,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,9 +24,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+
+/**
+ * 텍스트 길이를 어떤 단위로 세고 제한할지 정한다.
+ *
+ * 서버 검증 기준과 UI 제한·카운터를 맞추기 위한 값이다. 기본값은 사용자가 눈으로 세는 글자 수(grapheme)이며,
+ * 서버가 다른 단위로 검증하는 화면은 그 단위를 골라 맞춘다.
+ */
+enum class ChalkakTextLengthMetric {
+    /** 사람이 인식하는 글자(grapheme cluster) 수. */
+    CHARACTERS,
+
+    /** Unicode code point 수. 서버가 code point로 길이를 검증할 때 사용한다. */
+    CODE_POINTS,
+}
 
 @Composable
 fun ChalkakTextField(
@@ -37,14 +56,16 @@ fun ChalkakTextField(
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     maxLength: Int? = null,
+    lengthMetric: ChalkakTextLengthMetric = ChalkakTextLengthMetric.CHARACTERS,
     showCharacterCount: Boolean = maxLength != null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    prefix: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val characterCount = remember(value) { value.graphemeCount() }
+    val characterCount = remember(value, lengthMetric) { value.length(lengthMetric) }
     val resolvedTextStyle = (textStyle ?: ChalkakTheme.typography.body).copy(
         color = if (enabled) {
             ChalkakTheme.colors.textPrimary
@@ -62,7 +83,7 @@ fun ChalkakTextField(
         value = value,
         onValueChange = { changedValue ->
             onValueChange(
-                maxLength?.let(changedValue::takeGraphemes) ?: changedValue,
+                maxLength?.let { changedValue.limited(it, lengthMetric) } ?: changedValue,
             )
         },
         modifier = modifier
@@ -86,35 +107,98 @@ fun ChalkakTextField(
         interactionSource = interactionSource,
         cursorBrush = SolidColor(ChalkakTheme.colors.inputCursor),
         decorationBox = { innerTextField ->
-            Box {
-                Box(
-                    modifier = if (showCharacterCount) {
-                        Modifier.padding(bottom = 24.dp)
-                    } else {
-                        Modifier
-                    },
-                ) {
+            val textArea: @Composable (Modifier) -> Unit = { areaModifier ->
+                Box(modifier = areaModifier) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
                             text = placeholder,
                             color = ChalkakTheme.colors.textInactive,
                             style = resolvedTextStyle,
+                            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     innerTextField()
                 }
-
+            }
+            val inputContent: @Composable (Modifier) -> Unit = { inputModifier ->
+                if (prefix == null) {
+                    textArea(inputModifier)
+                } else {
+                    // 입력값에 들어가지 않는 고정 글자(예: 인스타그램 ID 앞의 "@")를 입력 앞에 둔다.
+                    Row(modifier = inputModifier) {
+                        Text(
+                            text = prefix,
+                            color = ChalkakTheme.colors.textMuted,
+                            style = resolvedTextStyle,
+                            maxLines = 1,
+                        )
+                        textArea(Modifier.weight(1f))
+                    }
+                }
+            }
+            val counter: @Composable (Modifier) -> Unit = { counterModifier ->
                 if (showCharacterCount && maxLength != null) {
                     Text(
                         text = "$characterCount / $maxLength",
-                        modifier = Modifier.align(Alignment.BottomEnd),
+                        modifier = counterModifier,
                         color = ChalkakTheme.colors.textInactive,
                         style = ChalkakTheme.typography.subheadline,
                     )
                 }
             }
+
+            if (singleLine) {
+                // 한 줄 입력은 글자 수를 같은 줄 오른쪽에 두어 한 줄 높이를 유지한다.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    inputContent(Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(ChalkakTheme.spacing.sm))
+                    counter(Modifier)
+                }
+            } else {
+                Box {
+                    inputContent(
+                        if (showCharacterCount) Modifier.padding(bottom = 24.dp) else Modifier,
+                    )
+                    counter(Modifier.align(Alignment.BottomEnd))
+                }
+            }
         },
     )
+}
+
+internal fun String.length(metric: ChalkakTextLengthMetric): Int = when (metric) {
+    ChalkakTextLengthMetric.CHARACTERS -> graphemeCount()
+    ChalkakTextLengthMetric.CODE_POINTS -> codePointCount(0, length)
+}
+
+internal fun String.limited(
+    maxLength: Int,
+    metric: ChalkakTextLengthMetric,
+): String = when (metric) {
+    ChalkakTextLengthMetric.CHARACTERS -> takeGraphemes(maxLength)
+    ChalkakTextLengthMetric.CODE_POINTS -> takeCodePoints(maxLength)
+}
+
+private fun String.takeCodePoints(count: Int): String {
+    if (codePointCount(0, length) <= count) return this
+
+    // 글자 중간에서 자르면 국기·피부색 이모지가 깨지므로, 글자 단위로 담다가 합이 넘기 전에 멈춘다.
+    // JVM 단위 테스트에서도 쓸 수 있도록 java.text 구현을 쓴다. 기기에서는 ICU 기반으로 동작한다.
+    val iterator = java.text.BreakIterator.getCharacterInstance().apply {
+        setText(this@takeCodePoints)
+    }
+    var start = iterator.first()
+    var end = iterator.next()
+    var usedCount = 0
+    while (end != java.text.BreakIterator.DONE) {
+        val size = codePointCount(start, end)
+        if (usedCount + size > count) break
+        usedCount += size
+        start = end
+        end = iterator.next()
+    }
+    return substring(0, start)
 }
 
 private fun String.graphemeCount(): Int {

@@ -2,13 +2,10 @@ package com.stonefive.chalkak.feature.notification.component
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -32,14 +29,23 @@ fun NotificationTopBar(
     onMarkAllReadClick: (() -> Unit)? = null,
     isMarkAllReadEnabled: Boolean = false,
 ) {
-    Box(modifier = modifier.height(notificationTopBarHeight)) {
+    Box(
+        modifier = modifier
+            .heightIn(min = notificationTopBarHeight)
+            .padding(bottom = notificationTopBarContentBottom),
+    ) {
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .width(notificationTopBarActionSize)
-                .fillMaxHeight()
+                .align(Alignment.TopStart)
+                .padding(start = notificationBackButtonStart, top = notificationTopBarContentTop)
+                .size(notificationTopBarTouchSize)
                 .semantics { contentDescription = "뒤로 가기" }
-                .clickable(onClick = onBackClick),
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = onBackClick,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -50,23 +56,33 @@ fun NotificationTopBar(
             )
         }
 
-        Text(
-            text = title,
+        Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = notificationTopBarActionSize),
-            color = ChalkakTheme.colors.textPrimary,
-            style = ChalkakTheme.typography.headline,
-            textAlign = TextAlign.Center,
-        )
+                .align(Alignment.TopCenter)
+                .padding(
+                    top = notificationTopBarContentTop,
+                    start = notificationTitleSideInset,
+                    end = notificationTitleSideInset,
+                ).heightIn(min = notificationTopBarTouchSize),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = title,
+                color = ChalkakTheme.colors.textPrimary,
+                style = ChalkakTheme.typography.headline,
+                textAlign = TextAlign.Center,
+            )
+        }
 
         if (onMarkAllReadClick != null) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
+                    .align(Alignment.TopEnd)
                     // 글자 끝은 화면 여백에 맞추고 터치 영역만 글자 주변으로 좁힌다.
-                    .padding(end = ChalkakTheme.spacing.screenHorizontal - ChalkakTheme.spacing.sm)
-                    .heightIn(min = notificationMarkAllReadMinHeight)
+                    .padding(
+                        top = notificationTopBarContentTop,
+                        end = ChalkakTheme.spacing.screenHorizontal - ChalkakTheme.spacing.sm,
+                    ).heightIn(min = notificationTopBarTouchSize)
                     .clickable(
                         enabled = isMarkAllReadEnabled,
                         role = Role.Button,
@@ -101,7 +117,13 @@ private fun NotificationTopBarPreview() {
     }
 }
 
-private val notificationTopBarHeight = 72.dp
-private val notificationTopBarActionSize = 56.dp
-private val notificationBackIconSize = 28.dp
-private val notificationMarkAllReadMinHeight = 48.dp
+// 피드·사진 업로드·고객센터 탑바와 같은 값: 위 10dp, 터치 영역 44dp, 아래 8dp, 아이콘 24dp, 왼쪽 8dp.
+private val notificationTopBarContentTop = 10.dp
+private val notificationTopBarContentBottom = 8.dp
+private val notificationTopBarTouchSize = 44.dp
+private val notificationTopBarHeight = 62.dp
+private val notificationBackButtonStart = 8.dp
+private val notificationBackIconSize = 24.dp
+
+// 제목이 왼쪽 뒤로 가기 영역(8 + 44dp)과 겹치지 않게 양쪽을 같은 폭만큼 비운다.
+private val notificationTitleSideInset = 52.dp

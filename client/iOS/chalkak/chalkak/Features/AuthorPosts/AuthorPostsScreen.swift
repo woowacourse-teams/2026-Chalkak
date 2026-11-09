@@ -303,7 +303,7 @@ struct AuthorPostsScreen: View {
         case .nextPageFailed:
             showToast(AuthorPostsError.generic.message)
         case .likeFailed:
-            showToast("좋아요를 반영하지 못했어요")
+            showToast("좋아요를 변경하지 못했어요")
         }
         viewModel.consumeEvent()
     }

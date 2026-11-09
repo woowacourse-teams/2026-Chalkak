@@ -11,10 +11,12 @@ import com.stonefive.chalkak.domain.model.AppConfigDiagnostics
 import com.stonefive.chalkak.domain.model.AppConfigEntry
 import com.stonefive.chalkak.domain.model.AppConfigFetchStatus
 import com.stonefive.chalkak.domain.model.AppConfigSource
+import com.stonefive.chalkak.domain.model.HomeIssueExperiment
 import com.stonefive.chalkak.domain.repository.AppConfigRepository
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,7 @@ import kotlinx.coroutines.withContext
  * - 시작하면 마지막으로 적용했던 값(기기에 저장됨)을 바로 쓰고, 백그라운드에서 새 값을 받아 즉시 적용한다.
  * - 실행 중에는 실시간 업데이트로 바뀐 값을 받자마자 적용한다. 화면은 진입할 때 값을 확인한다.
  * - 원격에서 받은 적 없는 키는 [AppConfig]의 기본값을 쓴다.
+ * - A/B 실험 값은 첫 게시 값으로 고정해 실행 중 화면이 바뀌지 않게 하고, 새 값은 다음 실행부터 적용한다.
  */
 class FirebaseAppConfigRepository(
     private val scope: CoroutineScope,
@@ -38,6 +41,8 @@ class FirebaseAppConfigRepository(
 ) : AppConfigRepository {
     private val _config = MutableStateFlow(AppConfig())
     override val config: StateFlow<AppConfig> = _config.asStateFlow()
+
+    private val launchHomeIssueExperiment = CompletableDeferred<HomeIssueExperiment>()
 
     private val _diagnostics = MutableStateFlow(AppConfigDiagnostics())
     override val diagnostics: StateFlow<AppConfigDiagnostics> = _diagnostics.asStateFlow()
@@ -70,6 +75,8 @@ class FirebaseAppConfigRepository(
         fetchAndActivate(minimumFetchIntervalSeconds = 0)
     }
 
+    override suspend fun homeIssueExperiment(): HomeIssueExperiment = launchHomeIssueExperiment.await()
+
     private suspend fun fetchAndActivate(minimumFetchIntervalSeconds: Long) {
         try {
             remoteConfig.fetch(minimumFetchIntervalSeconds).await()
@@ -85,15 +92,24 @@ class FirebaseAppConfigRepository(
     // Firebase 캐시가 준비되지 않았으면 읽기가 대기할 수 있으므로 메인 스레드에서 실행하지 않는다.
     private suspend fun publish() = withContext(Dispatchers.IO) {
         val defaults = AppConfig()
+        val remoteHomeIssueTop = remoteBoolean(KEY_HOME_ISSUE_TOP_ENABLED)
+        launchHomeIssueExperiment.complete(
+            HomeIssueExperiment(
+                isIssueOnTop = remoteHomeIssueTop ?: defaults.isHomeIssueTopEnabled,
+                isAssigned = remoteHomeIssueTop != null,
+            ),
+        )
         _config.value = AppConfig(
             isAiReviewEnabled = remoteBoolean(KEY_AI_REVIEW_ENABLED) ?: defaults.isAiReviewEnabled,
             isPhotoEditEnabled = remoteBoolean(KEY_PHOTO_EDIT_ENABLED) ?: defaults.isPhotoEditEnabled,
+            isHomeIssueTopEnabled = remoteHomeIssueTop ?: defaults.isHomeIssueTopEnabled,
         )
         val info = remoteConfig.info
         _diagnostics.value = AppConfigDiagnostics(
             entries = listOf(
                 entry(KEY_AI_REVIEW_ENABLED, _config.value.isAiReviewEnabled),
                 entry(KEY_PHOTO_EDIT_ENABLED, _config.value.isPhotoEditEnabled),
+                entry(KEY_HOME_ISSUE_TOP_ENABLED, _config.value.isHomeIssueTopEnabled),
             ),
             lastFetchStatus = when (info.lastFetchStatus) {
                 FirebaseRemoteConfig.LAST_FETCH_STATUS_SUCCESS -> AppConfigFetchStatus.Success
@@ -127,6 +143,7 @@ class FirebaseAppConfigRepository(
     companion object {
         const val KEY_AI_REVIEW_ENABLED = "ai_review_enabled"
         const val KEY_PHOTO_EDIT_ENABLED = "photo_edit_enabled"
+        const val KEY_HOME_ISSUE_TOP_ENABLED = "home_issue_top_enabled"
     }
 }
 

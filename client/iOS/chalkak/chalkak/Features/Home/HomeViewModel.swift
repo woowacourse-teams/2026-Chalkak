@@ -22,6 +22,12 @@ final class HomeViewModel {
     private var aiReviewGeneration = 0
     private var aiReviewRevision = 0
     private var aiReviewDeadline: Date?
+    private let loadIssueExperiment: @MainActor () async -> HomeIssueExperiment
+    private let onIssueExperimentExposed: @MainActor (Bool) -> Void
+    private var issueExperiment: HomeIssueExperiment?
+    private var isResolvingIssueExperiment = false
+    private var isPresented = false
+    private var hasReportedIssueExposure = false
 
     var hasAIReviewRepository: Bool { aiReviewRepository != nil }
 
@@ -32,19 +38,51 @@ final class HomeViewModel {
         isAuthenticated: @escaping @MainActor () -> Bool = { KeychainSessionStore.hasAuthenticatedSession() },
         aiReviewRepository: (any AIReviewRepository)? = nil,
         aiReviewNow: @escaping @MainActor () -> Date = { Date() },
-        aiReviewSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        aiReviewSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        loadIssueExperiment: @escaping @MainActor () async -> HomeIssueExperiment = { HomeIssueExperiment() },
+        onIssueExperimentExposed: @escaping @MainActor (Bool) -> Void = { _ in }
     ) {
-        viewState = initialState ?? HomeViewState(date: dateProvider())
+        var state = initialState ?? HomeViewState(date: dateProvider())
+        if initialState == nil {
+            state.isIssueLayoutResolved = false
+        }
+        viewState = state
         self.loader = loader
         self.dateProvider = dateProvider
         self.isAuthenticated = isAuthenticated
         self.aiReviewRepository = aiReviewRepository
         self.aiReviewNow = aiReviewNow
         self.aiReviewSleep = aiReviewSleep
+        self.loadIssueExperiment = loadIssueExperiment
+        self.onIssueExperimentExposed = onIssueExperimentExposed
     }
 
     func resume() async {
+        await resolveIssueExperiment()
         await load(showRefreshIndicator: false)
+    }
+
+    /// 홈 ViewModel은 화면이 보이기 전에 미리 불러오므로 실제로 홈을 본 뒤에만 노출로 센다.
+    func markPresented() {
+        isPresented = true
+        reportIssueExposureIfNeeded()
+    }
+
+    private func resolveIssueExperiment() async {
+        guard issueExperiment == nil, !isResolvingIssueExperiment else { return }
+        isResolvingIssueExperiment = true
+        let experiment = await loadIssueExperiment()
+        issueExperiment = experiment
+        isResolvingIssueExperiment = false
+        viewState.isIssueOnTop = experiment.isIssueOnTop
+        viewState.isIssueLayoutResolved = true
+        reportIssueExposureIfNeeded()
+    }
+
+    private func reportIssueExposureIfNeeded() {
+        guard let issueExperiment, isPresented, !hasReportedIssueExposure, issueExperiment.isAssigned else { return }
+        hasReportedIssueExposure = true
+        onIssueExperimentExposed(issueExperiment.isIssueOnTop)
     }
 
     func refresh() async {
@@ -231,7 +269,10 @@ final class HomeViewModel {
         let request = generation
         if date != viewState.date || authenticated != viewState.isAuthenticated {
             cancelAIReview()
+            let previous = viewState
             viewState = HomeViewState(date: date)
+            viewState.isIssueOnTop = previous.isIssueOnTop
+            viewState.isIssueLayoutResolved = previous.isIssueLayoutResolved
         }
         viewState.isAuthenticated = authenticated
         viewState.isRefreshing = showRefreshIndicator
@@ -351,7 +392,7 @@ final class HomeViewModel {
     private func loadPersonal(_ date: Date, authenticated: Bool, request: Int) async {
         guard authenticated else {
             guard isCurrent(request) else { return }
-            viewState.hero = .empty
+            viewState.hero = .loginRequired
             viewState.recordsStatus = .ready
             return
         }

@@ -27,32 +27,61 @@ struct ChalkakTextField: View {
     var lengthMetric: ChalkakTextLengthMetric = .characters
     var showsCharacterCount = true
     var height: CGFloat?
+    /// 입력 앞에 붙여 보여 주는 고정 글자. 입력값에는 들어가지 않는다. 예: 인스타그램 ID 칸의 "@"
+    var leadingText: String? = nil
     var onFocusChange: ((Bool) -> Void)? = nil
 
     var body: some View {
-        TextField(
-            label,
-            text: inputBinding,
-            prompt: Text(placeholder)
-                .foregroundStyle(theme.colors.textInactive),
-            axis: lineLimit.upperBound == 1 ? .horizontal : .vertical
-        )
-        .labelsHidden()
-        .lineLimit(lineLimit)
-        .focused($isFocused)
-        .disabled(!isEnabled)
-        .allowsHitTesting(!isReadOnly)
-        .font(textFont ?? theme.typography.body)
-        .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
-        .tint(theme.colors.inputCursor)
+        content
+            .onAppear(perform: synchronizeInputText)
+            .onChange(of: inputText) { _, newValue in
+                guard let newValue else { return }
+                let normalizedValue = normalizedText(newValue)
+                if inputText != normalizedValue {
+                    inputText = normalizedValue
+                }
+                if text != normalizedValue {
+                    text = normalizedValue
+                }
+            }
+            .onChange(of: text) { _, newValue in
+                let normalizedValue = normalizedText(newValue)
+                if inputText != normalizedValue {
+                    inputText = normalizedValue
+                }
+                if text != normalizedValue {
+                    text = normalizedValue
+                }
+            }
+            .onChange(of: isFocused) { _, isFocused in
+                onFocusChange?(isFocused)
+            }
+    }
+
+    private var content: some View {
+        // 한 줄 입력은 글자 수를 같은 줄 오른쪽에 두어 한 줄 높이를 유지한다.
+        HStack(alignment: .firstTextBaseline, spacing: theme.spacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.xs) {
+                if let leadingText {
+                    Text(leadingText)
+                        .font(textFont ?? theme.typography.body)
+                        .foregroundStyle(theme.colors.textMuted)
+                        .accessibilityHidden(true)
+                }
+                textField
+            }
+            if isSingleLine {
+                characterCount
+            }
+        }
         .padding(
             .bottom,
-            showsCharacterCount && maximumCharacterCount != nil
+            !isSingleLine && showsCharacterCount && maximumCharacterCount != nil
                 ? theme.spacing.xl
                 : theme.spacing.none
         )
         .padding(theme.spacing.lg)
-        .frame(height: height, alignment: .topLeading)
+        .frame(minHeight: height, alignment: isSingleLine ? .leading : .topLeading)
         .background(
             theme.colors.inputBackground,
             in: RoundedRectangle(cornerRadius: theme.shapes.input)
@@ -65,38 +94,44 @@ struct ChalkakTextField: View {
                 )
         }
         .overlay(alignment: .bottomTrailing) {
-            if showsCharacterCount, let maximumCharacterCount {
-                Text("\(currentLength) / \(maximumCharacterCount)")
-                    .font(theme.typography.subheadline)
-                    .foregroundStyle(theme.colors.textInactive)
+            if !isSingleLine {
+                characterCount
                     .padding(theme.spacing.lg)
-                    .accessibilityHidden(true)
             }
         }
+    }
+
+    private var isSingleLine: Bool {
+        lineLimit.upperBound == 1
+    }
+
+    private var textField: some View {
+        TextField(
+            label,
+            text: inputBinding,
+            prompt: Text(placeholder)
+                .foregroundStyle(theme.colors.textInactive),
+            axis: isSingleLine ? .horizontal : .vertical
+        )
+        .labelsHidden()
+        .lineLimit(lineLimit)
+        .focused($isFocused)
+        .disabled(!isEnabled)
+        .allowsHitTesting(!isReadOnly)
+        .font(textFont ?? theme.typography.body)
+        .foregroundStyle(isEnabled ? theme.colors.textPrimary : theme.colors.textMuted)
+        .tint(theme.colors.inputCursor)
         .accessibilityLabel(label)
         .accessibilityValue(accessibilityValue)
-        .onAppear(perform: synchronizeInputText)
-        .onChange(of: inputText) { _, newValue in
-            guard let newValue else { return }
-            let normalizedValue = normalizedText(newValue)
-            if inputText != normalizedValue {
-                inputText = normalizedValue
-            }
-            if text != normalizedValue {
-                text = normalizedValue
-            }
-        }
-        .onChange(of: text) { _, newValue in
-            let normalizedValue = normalizedText(newValue)
-            if inputText != normalizedValue {
-                inputText = normalizedValue
-            }
-            if text != normalizedValue {
-                text = normalizedValue
-            }
-        }
-        .onChange(of: isFocused) { _, isFocused in
-            onFocusChange?(isFocused)
+    }
+
+    @ViewBuilder
+    private var characterCount: some View {
+        if showsCharacterCount, let maximumCharacterCount {
+            Text("\(currentLength) / \(maximumCharacterCount)")
+                .font(theme.typography.subheadline)
+                .foregroundStyle(theme.colors.textInactive)
+                .accessibilityHidden(true)
         }
     }
 
@@ -155,7 +190,16 @@ extension String {
             return String(prefix(maximum))
         case .unicodeScalars:
             guard unicodeScalars.count > maximum else { return self }
-            return String(String.UnicodeScalarView(unicodeScalars.prefix(maximum)))
+            // 글자 중간에서 자르면 국기·피부색 이모지가 깨지므로, 글자 단위로 담다가 합이 넘기 전에 멈춘다.
+            var result = ""
+            var count = 0
+            for character in self {
+                let size = character.unicodeScalars.count
+                guard count + size <= maximum else { break }
+                count += size
+                result.append(character)
+            }
+            return result
         }
     }
 }

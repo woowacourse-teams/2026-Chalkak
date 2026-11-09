@@ -27,6 +27,7 @@ struct FeedbackScreen: View {
                         .font(theme.typography.subheadline)
                         .foregroundStyle(theme.colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())

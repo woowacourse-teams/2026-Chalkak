@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,9 +59,11 @@ import com.stonefive.chalkak.core.designsystem.component.button.ChalkakButton
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextField
+import com.stonefive.chalkak.core.designsystem.component.input.ChalkakTextLengthMetric
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakBackground
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.feature.instagramconsent.component.InstagramConsentSection
 import com.stonefive.chalkak.feature.photoedit.PhotoEditRoute
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadImageArea
 import com.stonefive.chalkak.feature.upload.component.PhotoUploadTopBar
@@ -164,8 +167,10 @@ fun PhotoUploadScreen(
     onDiscardConfirmed: () -> Unit = {},
     onDiscardDismissed: () -> Unit = {},
 ) {
-    val captionScrollState = rememberScrollState()
+    val scrollState = rememberScrollState()
     var isCaptionFocused by remember { mutableStateOf(false) }
+    var isDescriptionFocused by remember { mutableStateOf(false) }
+    var isInstagramIdFocused by remember { mutableStateOf(false) }
     var isBackPending by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
@@ -173,10 +178,14 @@ fun PhotoUploadScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(isCaptionFocused, imeTargetBottom) {
-        if (isCaptionFocused && imeTargetBottom > 0) {
-            snapshotFlow { captionScrollState.maxValue }
-                .collectLatest(captionScrollState::scrollTo)
+    // 이야기 칸과 그 아래 인스타그램 ID 칸은 화면 맨 아래 입력칸이라, 포커스를 받거나 키보드가 올라오거나 줄이 늘면
+    // 끝까지 따라 내려간다. 하드웨어 키보드는 키보드 높이가 0이므로 높이와 상관없이 따라가야 칸이 전시하기 버튼에 가리지 않는다.
+    // 근거: 이슈 #945, #939
+    val isBottomInputFocused = isDescriptionFocused || isInstagramIdFocused
+    LaunchedEffect(isBottomInputFocused) {
+        if (isBottomInputFocused) {
+            snapshotFlow { scrollState.maxValue }
+                .collectLatest(scrollState::scrollTo)
         }
     }
 
@@ -191,7 +200,7 @@ fun PhotoUploadScreen(
     fun requestBack() {
         if (isBackPending || uiState.isSubmitting) return
 
-        if (isCaptionFocused || imeBottom > 0) {
+        if (isCaptionFocused || isDescriptionFocused || isInstagramIdFocused || imeBottom > 0) {
             isBackPending = true
             focusManager.clearFocus()
             keyboardController?.hide()
@@ -248,9 +257,9 @@ fun PhotoUploadScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 104.dp)
+                    .padding(bottom = PhotoUploadBottomButtonSpace)
                     .imePadding()
-                    .verticalScroll(captionScrollState)
+                    .verticalScroll(scrollState)
                     .imeNestedScroll(),
             ) {
                 PhotoUploadImageArea(
@@ -265,13 +274,14 @@ fun PhotoUploadScreen(
                     onPhotoClick = onPhotoClick,
                 )
 
-                Spacer(modifier = Modifier.height(34.dp))
-
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 22.dp),
+                        .padding(horizontal = PhotoUploadContentHorizontalPadding)
+                        .padding(top = ChalkakTheme.spacing.xl, bottom = ChalkakTheme.spacing.lg),
                 ) {
+                    PhotoUploadSectionLabel(text = "제목")
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
                     ChalkakTextField(
                         value = uiState.caption,
                         onValueChange = { onAction(PhotoUploadUiAction.CaptionChanged(it)) },
@@ -282,29 +292,46 @@ fun PhotoUploadScreen(
                         placeholder = "작품 제목은 선택이에요.",
                         enabled = !uiState.isSubmitting,
                         textStyle = ChalkakTheme.typography.subheadline,
-                        minLines = 3,
+                        singleLine = true,
                         maxLength = CAPTION_MAX_LENGTH,
                     )
 
-                    uiState.topicErrorMessage?.let { errorMessage ->
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = errorMessage,
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            style = ChalkakTheme.typography.footnote,
-                            color = ChalkakTheme.colors.error,
-                        )
-                        TextButton(onClick = onRetryTopicLoad) {
-                            Text(
-                                text = "다시 시도",
-                                color = ChalkakTheme.colors.actionPrimary,
-                                style = ChalkakTheme.typography.body,
-                            )
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    PhotoUploadSectionLabel(text = "이야기")
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
+                    ChalkakTextField(
+                        value = uiState.description,
+                        onValueChange = { onAction(PhotoUploadUiAction.DescriptionChanged(it)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isDescriptionFocused = it.isFocused }
+                            .testTag(PHOTO_UPLOAD_DESCRIPTION_TAG),
+                        placeholder = "작품 이야기는 선택이에요.",
+                        enabled = !uiState.isSubmitting,
+                        textStyle = ChalkakTheme.typography.subheadline,
+                        minLines = DESCRIPTION_MIN_LINES,
+                        maxLines = DESCRIPTION_MAX_LINES,
+                        maxLength = DESCRIPTION_MAX_LENGTH,
+                        // 서버가 이야기 길이를 code point로 검증하므로 같은 단위로 제한한다.
+                        lengthMetric = ChalkakTextLengthMetric.CODE_POINTS,
+                    )
+
+                    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+
+                    InstagramConsentSection(
+                        state = uiState.instagramConsent,
+                        onAgreedChange = { onAction(PhotoUploadUiAction.InstagramUploadAgreedChanged(it)) },
+                        onInstagramIdChange = { onAction(PhotoUploadUiAction.InstagramIdChanged(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isSubmitting,
+                        onInstagramIdFocusChange = { isInstagramIdFocused = it },
+                    )
+
+                    PhotoUploadTopicError(
+                        errorMessage = uiState.topicErrorMessage,
+                        onRetry = onRetryTopicLoad,
+                    )
                 }
             }
 
@@ -322,6 +349,39 @@ fun PhotoUploadScreen(
                 enabled = uiState.canSubmit,
             )
         }
+    }
+}
+
+@Composable
+private fun PhotoUploadSectionLabel(text: String) {
+    Text(
+        text = text,
+        color = ChalkakTheme.colors.textPrimary,
+        style = ChalkakTheme.typography.caption,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
+
+/** 주제를 불러오지 못하면 전시할 수 없으므로 다시 시도할 수 있게 보여 준다. */
+@Composable
+private fun PhotoUploadTopicError(
+    errorMessage: String?,
+    onRetry: () -> Unit,
+) {
+    errorMessage ?: return
+    Spacer(modifier = Modifier.height(ChalkakTheme.spacing.sm))
+    Text(
+        text = errorMessage,
+        modifier = Modifier.fillMaxWidth(),
+        style = ChalkakTheme.typography.footnote,
+        color = ChalkakTheme.colors.error,
+    )
+    TextButton(onClick = onRetry) {
+        Text(
+            text = "다시 시도",
+            color = ChalkakTheme.colors.actionPrimary,
+            style = ChalkakTheme.typography.body,
+        )
     }
 }
 
@@ -424,8 +484,14 @@ private fun rememberPhotoPickerState(
 
 const val PHOTO_UPLOAD_SUBMIT_BUTTON_TAG = "photoUploadSubmitButton"
 const val PHOTO_UPLOAD_CAPTION_TAG = "photoUploadCaption"
+const val PHOTO_UPLOAD_DESCRIPTION_TAG = "photoUploadDescription"
 
 private const val CAPTION_MAX_LENGTH = 10
+private const val DESCRIPTION_MAX_LENGTH = 150
+private const val DESCRIPTION_MIN_LINES = 3
+private const val DESCRIPTION_MAX_LINES = 8
+private val PhotoUploadContentHorizontalPadding = 22.dp
+private val PhotoUploadBottomButtonSpace = 104.dp
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
     "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
@@ -457,6 +523,7 @@ private fun PhotoUploadScreenSelectedPreview() {
             uiState = PhotoUploadUiState(
                 selectedImage = drawableResourceUrl(R.drawable.preview_photo),
                 caption = "전선 사이로 빠져나온 하늘",
+                description = "퇴근길에 만난 노을을 담았어요.",
             ),
             onAction = {},
         )

@@ -505,7 +505,7 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun `좋아요 실패는 해당 게시물만 복원한다`() = runTest {
+    fun `좋아요 실패는 해당 게시물만 복원하고 토스트를 띄운다`() = runTest {
         val repository = RecordingPostRepository(
             likeResults = ArrayDeque(listOf(HomeResult.Failure(HomeFailure.Network))),
             todayResults = ArrayDeque(
@@ -529,6 +529,7 @@ class TodayViewModelTest {
             viewModel.uiState.value.likedPhotoIds
                 .isEmpty(),
         )
+        assertEquals("좋아요를 변경하지 못했어요", (viewModel.uiState.value.pendingMessage as UiMessage.Toast).text)
     }
 
     @Test
@@ -661,10 +662,12 @@ class TodayViewModelTest {
 
                 override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-                override suspend fun updatePostTitle(
+                override suspend fun updatePost(
                     postId: String,
                     title: String?,
-                ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
+                    description: String?,
+                    instagramConsent: com.stonefive.chalkak.domain.model.InstagramConsent,
+                ): HomeResult<com.stonefive.chalkak.domain.model.PostUpdate> = error("unused")
 
                 override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
                     error("unexpected defect")
@@ -819,10 +822,12 @@ private class RecordingPostRepository(
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
+        description: String?,
+        instagramConsent: com.stonefive.chalkak.domain.model.InstagramConsent,
+    ): HomeResult<com.stonefive.chalkak.domain.model.PostUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         todayQueries += query
@@ -865,10 +870,12 @@ private class ControlledPostRepository(autoInitial: PostContent? = null) : PostR
 
     override suspend fun deletePost(postId: String): HomeResult<Unit> = error("unused")
 
-    override suspend fun updatePostTitle(
+    override suspend fun updatePost(
         postId: String,
         title: String?,
-    ): HomeResult<com.stonefive.chalkak.domain.model.PostTitleUpdate> = error("unused")
+        description: String?,
+        instagramConsent: com.stonefive.chalkak.domain.model.InstagramConsent,
+    ): HomeResult<com.stonefive.chalkak.domain.model.PostUpdate> = error("unused")
 
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         todayQueries += query

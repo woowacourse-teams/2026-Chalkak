@@ -14,6 +14,7 @@
 		64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */; };
 		64DDEAB53028544800ECB6E1 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB63028544800ECB6E1 /* FirebaseMessaging */; };
 		64DDEAB73028544800ECB6E1 /* Mantis in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEAB93028544800ECB6E1 /* Mantis */; };
+		64DDEABA3028544800ECB6E1 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 64DDEABB3028544800ECB6E1 /* FirebaseRemoteConfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +65,7 @@
 			files = (
 				64DDEAB23028544800ECB6E1 /* FirebaseAnalytics in Frameworks */,
 				64DDEAB53028544800ECB6E1 /* FirebaseMessaging in Frameworks */,
+				64DDEABA3028544800ECB6E1 /* FirebaseRemoteConfig in Frameworks */,
 				64DDEA9A3028544800ECB6E1 /* GoogleSignIn in Frameworks */,
 				64DDEA9B3028544800ECB6E1 /* KakaoSDKAuth in Frameworks */,
 				64DDEA9C3028544800ECB6E1 /* KakaoSDKUser in Frameworks */,
@@ -131,6 +133,7 @@
 			packageProductDependencies = (
 				64DDEAB43028544800ECB6E1 /* FirebaseAnalytics */,
 				64DDEAB63028544800ECB6E1 /* FirebaseMessaging */,
+				64DDEABB3028544800ECB6E1 /* FirebaseRemoteConfig */,
 				64DDEAA03028544800ECB6E1 /* GoogleSignIn */,
 				64DDEAA13028544800ECB6E1 /* KakaoSDKAuth */,
 				64DDEAA23028544800ECB6E1 /* KakaoSDKUser */,
@@ -426,7 +429,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = chalkak.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 5XL9G5DWBD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -449,7 +452,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.1.3;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonefive.chalkak;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -476,7 +479,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = chalkak.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 5XL9G5DWBD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -499,7 +502,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.1.3;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonefive.chalkak;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -738,6 +741,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 64DDEAB83028544800ECB6E1 /* XCRemoteSwiftPackageReference "Mantis" */;
 			productName = Mantis;
+		};
+		64DDEABB3028544800ECB6E1 /* FirebaseRemoteConfig */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 64DDEAB33028544800ECB6E1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseRemoteConfig;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
