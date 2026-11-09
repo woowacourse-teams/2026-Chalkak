@@ -27,9 +27,12 @@ import com.stonefive.chalkak.domain.model.PostCalendar
 import com.stonefive.chalkak.domain.model.PostContent
 import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
+import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.feature.display.DisplayContentState
 import com.stonefive.chalkak.feature.display.DisplayScreen
+import com.stonefive.chalkak.feature.display.DisplayUiState
 import com.stonefive.chalkak.feature.display.DisplayViewModel
 import com.stonefive.chalkak.feature.display.component.previewDisplayPhotos
 import java.time.LocalDate
@@ -38,18 +41,54 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 전시 화면(#988)
- * - display-latest: 사진 30장인 최신 전시(정렬 탭 있음). 당겨서 새로고침이 몇 번 불렸는지 "새로고침 N"으로 보여 준다.
+ * 전시 화면
+ * - display-refreshing(#989): 최신 전시(정렬 탭 있음)를 당겨서 새로고침하는 중. 새로고침 인디케이터가 멈춰 보이는 상태.
+ *   새로고침 중 상태는 DisplayViewModel.refresh()와 같이 보던 상태에 isRefreshing만 켠다(서버 요청은 보내지 않는다).
+ * - display-latest(#988): 사진 30장인 최신 전시(정렬 탭 있음). 당겨서 새로고침이 몇 번 불렸는지 "새로고침 N"으로 보여 준다.
  *   상태는 실제 DisplayViewModel이 첫 페이지를 받아 만든다(저장소만 아래 가짜, 서버 요청 없음).
  *   새로고침은 가짜다: 횟수를 올리고 isRefreshing을 1초 켰다 끈다(ViewModel.refresh()는 부르지 않는다).
  */
 internal val displayDebugScreens: Map<String, @Composable () -> Unit> = mapOf(
+    "display-refreshing" to { DebugDisplay(latestDisplayState().copy(isRefreshing = true)) },
     "display-latest" to { DebugDisplayLatest() },
 )
 
 private val DEBUG_DISPLAY_DATE: LocalDate = LocalDate.of(2026, 11, 9)
 private const val DEBUG_DISPLAY_PHOTO_COUNT = 30
 private const val DEBUG_REFRESH_MILLIS = 1_000L
+
+private fun latestDisplayState(): DisplayUiState {
+    val today = LocalDate.of(2026, 8, 5)
+    return DisplayUiState(
+        selectedDate = today,
+        latestDate = today,
+        earliestDate = today.minusDays(4),
+        topic = "바다",
+        content = DisplayContentState.Latest(
+            photos = previewDisplayPhotos,
+            selectedSort = PostSort.RANDOM,
+        ),
+    )
+}
+
+/** 실제 DisplayScreen에 상태만 넣어 그린다. 새로고침 말고 다른 동작은 아무것도 하지 않는다. */
+@Composable
+private fun DebugDisplay(
+    state: DisplayUiState,
+    onRefresh: () -> Unit = {},
+) {
+    DisplayScreen(
+        uiState = state,
+        onPreviousDateClick = {},
+        onNextDateClick = {},
+        onSortSelected = {},
+        onFeaturedPageChanged = {},
+        onEndThresholdChanged = {},
+        onOpenPhotoUpload = {},
+        onNavigateToBottomBar = {},
+        onRefresh = onRefresh,
+    )
+}
 
 @Composable
 private fun DebugDisplayLatest() {
@@ -65,15 +104,8 @@ private fun DebugDisplayLatest() {
     val scope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize()) {
-        DisplayScreen(
-            uiState = uiState.copy(isRefreshing = isRefreshing),
-            onPreviousDateClick = {},
-            onNextDateClick = {},
-            onSortSelected = {},
-            onFeaturedPageChanged = {},
-            onEndThresholdChanged = {},
-            onOpenPhotoUpload = {},
-            onNavigateToBottomBar = {},
+        DebugDisplay(
+            state = uiState.copy(isRefreshing = isRefreshing),
             onRefresh = {
                 refreshCount++
                 isRefreshing = true

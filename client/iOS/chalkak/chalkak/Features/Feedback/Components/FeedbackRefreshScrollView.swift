@@ -22,6 +22,10 @@ struct FeedbackRefreshScrollView<Content: View>: UIViewControllerRepresentable {
 }
 
 final class FeedbackRefreshScrollController<Content: View>: UIViewController, UIScrollViewDelegate {
+    // Swift 6.3.3 -O crashes in EarlyPerfInliner on this generic class's isolated deinit.
+    // No actor-bound cleanup is needed: dismantleUIViewController cancels the refresh.
+    nonisolated deinit {}
+
     let scrollView = UIScrollView()
     let refreshControl = UIRefreshControl()
     private let hostingController: UIHostingController<Content>
