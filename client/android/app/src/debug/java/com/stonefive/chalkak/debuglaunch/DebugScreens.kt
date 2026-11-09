@@ -13,5 +13,5 @@ import androidx.compose.runtime.Composable
  * - 서버 요청을 보내지 않는다.
  */
 object DebugScreens {
-    val all: Map<String, @Composable () -> Unit> = instagramConsentDebugScreens
+    val all: Map<String, @Composable () -> Unit> = instagramConsentDebugScreens + displayDebugScreens
 }

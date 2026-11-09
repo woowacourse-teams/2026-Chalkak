@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -232,13 +232,6 @@ fun DisplayScreen(
                 topContentPadding = bodyTopContentPadding,
                 modifier = Modifier.fillMaxSize(),
             )
-            PullToRefreshDefaults.Indicator(
-                state = pullToRefreshState,
-                isRefreshing = uiState.isRefreshing,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = bodyTopContentPadding),
-            )
         }
         Column(
             modifier = Modifier
@@ -304,6 +297,15 @@ fun DisplayScreen(
                 }
             }
         }
+        // 헤더·정렬 탭보다 위 층에 두고 상태 표시줄 바로 아래에서 내려오게 한다(#989).
+        // 헤더가 접히든 펼쳐지든 같은 자리이고, 정렬 탭이 없는 과거 전시도 같다.
+        PullToRefreshDefaults.Indicator(
+            state = pullToRefreshState,
+            isRefreshing = uiState.isRefreshing,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars),
+        )
         if (scrollState.bottomBarState.isScrollToTopButtonVisible) {
             ChalkakScrollToTopButton(
                 onClick = {
@@ -384,6 +386,12 @@ private fun RefreshingDisplayScreenPreview() {
 @Composable
 private fun ArchiveDisplayScreenPreview() {
     DisplayScreenPreviewContent(uiState = previewArchiveState)
+}
+
+@Preview(name = "과거 전시 새로고침 중", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun RefreshingArchiveDisplayScreenPreview() {
+    DisplayScreenPreviewContent(uiState = previewArchiveState.copy(isRefreshing = true))
 }
 
 @Preview(name = "본문 로딩", showBackground = true, widthDp = 390, heightDp = 560)
