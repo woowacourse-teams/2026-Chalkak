@@ -51,7 +51,7 @@ enum class ChalkakBottomBarItem(
     HOME(R.string.bottom_bar_today, R.drawable.ic_bottom_home, R.drawable.ic_bottom_home_selected),
     DISPLAY(R.string.bottom_bar_display, R.drawable.ic_bottom_display, R.drawable.ic_bottom_display_selected),
     RECORD(R.string.bottom_bar_record, R.drawable.ic_bottom_record, R.drawable.ic_bottom_record_selected),
-    SETTINGS(R.string.bottom_bar_settings, R.drawable.ic_bottom_setting, R.drawable.ic_bottom_setting_selected),
+    FILTER(R.string.bottom_bar_filter, R.drawable.ic_bottom_setting, R.drawable.ic_bottom_setting_selected),
 }
 
 @Composable
@@ -89,9 +89,9 @@ fun ChalkakBottomBar(
             onClick = { onItemSelected(ChalkakBottomBarItem.RECORD) },
         )
         BottomBarItem(
-            item = ChalkakBottomBarItem.SETTINGS,
-            selected = selectedItem == ChalkakBottomBarItem.SETTINGS,
-            onClick = { onItemSelected(ChalkakBottomBarItem.SETTINGS) },
+            item = ChalkakBottomBarItem.FILTER,
+            selected = selectedItem == ChalkakBottomBarItem.FILTER,
+            onClick = { onItemSelected(ChalkakBottomBarItem.FILTER) },
         )
     }
 }

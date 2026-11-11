@@ -197,8 +197,7 @@ class SettingsScreenTest {
                     onWithdrawClick = {},
                     onAccountDialogConfirm = onAccountDialogConfirm,
                     onAccountDialogDismiss = onAccountDialogDismiss,
-                    onNavigateToBottomBar = {},
-                    onAddClick = {},
+                    onBackClick = {},
                     onNotificationSettingsClick = onNotificationSettingsClick,
                 )
             }

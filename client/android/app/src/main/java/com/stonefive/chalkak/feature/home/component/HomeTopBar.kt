@@ -29,6 +29,7 @@ import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 @Composable
 fun HomeTopBar(
     onNotificationClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     hasUnreadNotifications: Boolean = false,
 ) {
@@ -68,6 +69,25 @@ fun HomeTopBar(
                 )
             }
         }
+        Box(
+            modifier = Modifier
+                .size(NotificationTouchTargetSize)
+                .semantics { contentDescription = "설정" }
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = onSettingsClick,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_bottom_setting),
+                contentDescription = null,
+                tint = ChalkakTheme.colors.iconPrimary,
+                modifier = Modifier.size(NotificationIconSize),
+            )
+        }
     }
 }
 
@@ -91,6 +111,7 @@ private fun HomeTopBarPreview() {
         HomeTopBar(
             onNotificationClick = {
             },
+            onSettingsClick = {},
             hasUnreadNotifications = true,
             modifier = Modifier
                 .fillMaxWidth()
