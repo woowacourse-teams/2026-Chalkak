@@ -2,6 +2,9 @@ import Foundation
 
 enum NotificationRoute: Hashable {
     case inbox
+    /// 홈 상단 설정 버튼으로 여는 설정 화면(#1021). 알림 설정·고객센터는 이 위에 쌓인다.
+    case appSettings
+    /// 설정 → 알림 설정.
     case settings
     case approved(String)
     case aiReview(String)

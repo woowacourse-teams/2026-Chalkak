@@ -85,7 +85,7 @@ final class chalkakUITests: XCTestCase {
 
         let today = app.buttons["홈"]
         let display = app.buttons["전시"]
-        let settings = app.buttons["설정"]
+        let filter = app.buttons["필터"]
         XCTAssertTrue(today.waitForExistence(timeout: 5))
 
         func drag(from startButton: XCUIElement, to endButton: XCUIElement) {
@@ -97,10 +97,10 @@ final class chalkakUITests: XCTestCase {
 
         drag(from: today, to: display)
         XCTAssertEqual(display.value as? String, "선택됨")
-        drag(from: display, to: settings)
-        XCTAssertEqual(settings.value as? String, "선택됨")
+        drag(from: display, to: filter)
+        XCTAssertEqual(filter.value as? String, "선택됨")
         XCTAssertFalse(app.buttons["photoUpload.close"].exists)
-        drag(from: settings, to: today)
+        drag(from: filter, to: today)
         XCTAssertEqual(today.value as? String, "선택됨")
 
         display.tap()
@@ -117,7 +117,7 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(app.buttons["홈"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["홈"].value as? String, "선택됨")
 
-        app.buttons["설정"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        app.buttons["필터"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(forDuration: 0.4, thenDragTo: app.buttons["전시"].coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
@@ -153,31 +153,31 @@ final class chalkakUITests: XCTestCase {
         app.launch()
 
         let today = app.buttons["홈"]
-        let settings = app.buttons["설정"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 5))
-        settings.tap()
-        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        let filter = app.buttons["필터"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        filter.tap()
+        XCTAssertTrue(app.staticTexts["필터 1"].waitForExistence(timeout: 5))
         let expandedWidth = today.frame.width
         app.scrollViews.firstMatch.swipeUp()
         XCTAssertLessThan(today.frame.width, expandedWidth)
 
-        settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        filter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: today.coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
         XCTAssertEqual(today.value as? String, "선택됨")
         XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
 
-        settings.tap()
+        filter.tap()
         app.scrollViews.firstMatch.swipeUp()
         XCTAssertLessThan(today.frame.width, expandedWidth)
-        settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        filter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: app.buttons["추가"].coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
             ))
         XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
         app.buttons["photoUpload.close"].tap()
-        XCTAssertEqual(settings.value as? String, "선택됨")
+        XCTAssertEqual(filter.value as? String, "선택됨")
         XCTAssertEqual(today.frame.width, expandedWidth, accuracy: 1)
     }
 
@@ -220,7 +220,7 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsUploadButtonShowsLoginRequiredMessageForGuest() throws {
+    func testFilterUploadButtonShowsLoginRequiredMessageForGuest() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-stonefive.chalkak.guest-access", "NO"
@@ -231,9 +231,9 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(guestButton.waitForExistence(timeout: 5))
         guestButton.tap()
 
-        let settingsButton = app.buttons["설정"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
-        settingsButton.tap()
+        let filterTab = app.buttons["필터"]
+        XCTAssertTrue(filterTab.waitForExistence(timeout: 5))
+        filterTab.tap()
 
         let uploadButton = app.buttons["추가"]
         XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
@@ -288,14 +288,14 @@ final class chalkakUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsUploadButtonOpensPhotoUploadAndReturnsToSettingsForAuthenticatedUser() throws {
+    func testFilterUploadButtonOpensPhotoUploadAndReturnsToFilterForAuthenticatedUser() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
         app.launch()
 
-        let settingsButton = app.buttons["설정"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5))
-        settingsButton.tap()
+        let filterTab = app.buttons["필터"]
+        XCTAssertTrue(filterTab.waitForExistence(timeout: 5))
+        filterTab.tap()
 
         let uploadButton = app.buttons["추가"]
         XCTAssertTrue(uploadButton.waitForExistence(timeout: 5))
@@ -304,8 +304,8 @@ final class chalkakUITests: XCTestCase {
         XCTAssertTrue(app.buttons["photoUpload.close"].waitForExistence(timeout: 5))
         app.buttons["photoUpload.close"].tap()
 
-        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["설정"].value as? String, "선택됨")
+        XCTAssertTrue(app.staticTexts["필터 1"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["필터"].value as? String, "선택됨")
     }
 
     @MainActor

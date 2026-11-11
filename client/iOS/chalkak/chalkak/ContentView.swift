@@ -39,6 +39,8 @@ struct ContentView: View {
     @State private var settingsViewModel = Self.makeSettingsViewModel()
     @State private var notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
     @State private var recordViewModel = Self.makeRecordViewModel()
+    // 필터 탭 상태. 즐겨찾기는 앱 안에서만 유지된다(저장 API 없음).
+    @State private var filterViewModel = FilterViewModel()
     @State private var authRepository = APIAuthRepository(
         baseURL: AppConfiguration().apiBaseURL
     )
@@ -107,6 +109,23 @@ struct ContentView: View {
                                     viewModel: notificationInboxViewModel,
                                     onBackClick: { closeNotificationDestination(destination) },
                                     onSelect: openInboxNotification
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
+                            case .appSettings:
+                                SettingsScreen(
+                                    viewModel: settingsViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onLogin: showLogin,
+                                    onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
+                                    onTerms: { selectedLegalDocument = .termsOfService },
+                                    onOpenFeedback: openCustomerSupport,
+                                    // 설정 위에 쌓아 뒤로 가면 설정으로 돌아오게 한다.
+                                    onOpenNotificationSettings: {
+                                        withAnimation { notificationPath.append(.settings) }
+                                    },
+                                    onSignedOut: showLogin,
+                                    onSignatureScreenChange: { signatureAnalyticsScreen = $0 }
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
@@ -564,20 +583,9 @@ struct ContentView: View {
                 onSelectPhoto: { selectedFeed = $0 },
                 bottomBarCompact: $isBottomBarCompact
             )
-        case .settings:
-            SettingsScreen(
-                viewModel: settingsViewModel,
-                onLogin: showLogin,
-                onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
-                onTerms: { selectedLegalDocument = .termsOfService },
-                onOpenFeedback: openCustomerSupport,
-                onOpenNotificationSettings: {
-                    withAnimation { notificationPath = [.settings] }
-                },
-                onSignedOut: showLogin,
-                onNavigateToBottomBar: select,
-                onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
-                onSignatureScreenChange: { signatureAnalyticsScreen = $0 },
+        case .filter:
+            FilterScreen(
+                viewModel: filterViewModel,
                 bottomBarCompact: $isBottomBarCompact
             )
         case .record:
@@ -618,6 +626,9 @@ struct ContentView: View {
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
+                onOpenSettings: {
+                    withAnimation { notificationPath = [.appSettings] }
+                },
                 onIssueClick: { selectedIssueURL = $0 },
                 onInteraction: trackHomeInteraction,
                 bottomBarCompact: $isBottomBarCompact,
@@ -702,7 +713,7 @@ struct ContentView: View {
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .home || item == .display || item == .record || item == .settings else { return }
+        guard item == .home || item == .display || item == .record || item == .filter else { return }
 
         if item == .record, !KeychainSessionStore.hasAuthenticatedSession() {
             showMessage("기록을 보려면 로그인이 필요해요")
@@ -1015,8 +1026,9 @@ struct ContentView: View {
             return
         }
 
+        // 설정 위에 쌓아 뒤로 가면 설정으로 돌아오게 한다.
         withAnimation {
-            notificationPath = [.customerSupport]
+            notificationPath.append(.customerSupport)
         }
     }
 
@@ -1104,6 +1116,7 @@ struct ContentView: View {
         homeViewModel = Self.makeHomeViewModel()
         displayViewModel = Self.makeDisplayViewModel()
         recordViewModel = Self.makeRecordViewModel()
+        filterViewModel = FilterViewModel()
         notificationSettingsViewModel.reset()
         settingsViewModel = Self.makeSettingsViewModel()
         notificationSettingsViewModel = Self.makeNotificationSettingsViewModel()
@@ -1478,6 +1491,8 @@ struct ContentView: View {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
+            case .appSettings:
+                return AnalyticsScreen(name: "settings", screenClass: "Settings")
             case .settings:
                 return AnalyticsScreen(name: "notification_settings", screenClass: "NotificationSettings")
             case .approved, .aiReview, .likeMilestone:
@@ -1525,8 +1540,8 @@ private extension ChalkakBottomBarItem {
             AnalyticsScreen(name: "display", screenClass: "Display")
         case .record:
             AnalyticsScreen(name: "record", screenClass: "Record")
-        case .settings:
-            AnalyticsScreen(name: "settings", screenClass: "Settings")
+        case .filter:
+            AnalyticsScreen(name: "filter", screenClass: "Filter")
         }
     }
 }

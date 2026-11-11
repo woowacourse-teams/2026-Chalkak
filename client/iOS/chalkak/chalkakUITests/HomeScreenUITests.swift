@@ -97,8 +97,8 @@ final class HomeScreenUITests: XCTestCase {
         XCTAssertTrue(photo.isHittable)
         let originalY = photo.frame.minY
 
-        app.buttons["설정"].tap()
-        XCTAssertTrue(app.staticTexts["앱 설정"].waitForExistence(timeout: 5))
+        app.buttons["필터"].tap()
+        XCTAssertTrue(app.staticTexts["필터 1"].waitForExistence(timeout: 5))
         app.buttons["홈"].tap()
         XCTAssertTrue(photo.wait(for: \.isHittable, toEqual: true, timeout: 5))
         XCTAssertEqual(photo.frame.minY, originalY, accuracy: 8)
