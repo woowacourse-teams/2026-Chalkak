@@ -12,6 +12,7 @@ import com.stonefive.chalkak.domain.model.PostImagePreparation
 import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.PostModerationStatus
 import com.stonefive.chalkak.domain.model.Topic
+import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.model.photoedit.CropWindow
 import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustment
 import com.stonefive.chalkak.domain.model.photoedit.PhotoAdjustmentLayers
@@ -22,7 +23,9 @@ import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
@@ -950,6 +953,31 @@ class PhotoUploadViewModelTest {
         assertEquals(PhotoUploadUiEvent.ReauthenticationRequired, viewModel.uiEvent.first())
         assertEquals(image, viewModel.uiState.value.selectedImage)
         assertTrue(viewModel.uiState.value.canSubmit)
+    }
+
+    @Test
+    fun `같은 계정으로 다시 로그인하면 사진 올리기가 주제를 다시 불러오고 쓰던 글은 남는다`() = runTest {
+        // Given 주제 불러오기가 재인증 필요로 실패한 사진 올리기, 캡션 "노을"
+        // When  세션 ReauthenticationRequired("u1") → Authenticated("u1")
+        // Then  주제 요청 1회 더, 주제 표시, 캡션 "노을" 그대로
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("u1"))
+        val repository = FakePostCreationRepository().apply {
+            topicResults.add(PostCreationTopicResult.Failure(PostCreationFailure.ReauthenticationRequired))
+            topicResults.add(PostCreationTopicResult.Success(defaultTopic))
+        }
+        val uploadViewModel = PhotoUploadViewModel(repository, uploadTopicDate, sessionState = session)
+        advanceUntilIdle()
+        uploadViewModel.onAction(PhotoUploadUiAction.CaptionChanged("노을"))
+        assertEquals(null, uploadViewModel.uiState.value.topicTitle)
+
+        session.value = UserSessionState.ReauthenticationRequired("u1")
+        advanceUntilIdle()
+        session.value = UserSessionState.Authenticated("u1")
+        advanceUntilIdle()
+
+        assertEquals(listOf(uploadTopicDate, uploadTopicDate), repository.requestedTopicDates)
+        assertEquals("바다", uploadViewModel.uiState.value.topicTitle)
+        assertEquals("노을", uploadViewModel.uiState.value.caption)
     }
 
     @Test

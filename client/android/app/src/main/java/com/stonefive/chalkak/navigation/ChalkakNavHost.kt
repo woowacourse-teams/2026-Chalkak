@@ -1,9 +1,12 @@
 package com.stonefive.chalkak.navigation
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -150,6 +153,17 @@ fun ChalkakNavHost(
         }
     }
 
+    // 로그인 만료(재인증 필요) 때의 이동은 ReauthenticationNavigator가 정한다. 세션 상태는 그 순간의 값을 읽는다.
+    val reauthenticationNavigator = remember(navController) {
+        ReauthenticationNavigator(NavControllerReauthenticationHost(navController, context))
+    }
+    val currentSessionState: () -> UserSessionState = {
+        application.appContainer.authRepository.sessionState.value
+    }
+    val onReauthenticationRequired: () -> Unit = {
+        if (!reauthenticationNavigator.onReauthenticationRequired(currentSessionState())) navigateToLogin()
+    }
+
     val openPhotoUpload: () -> Unit = {
         photoUploadEntryGateViewModel.openPhotoUpload()
     }
@@ -195,6 +209,10 @@ fun ChalkakNavHost(
                 PhotoUploadEntryGateUiEvent.NavigateToLogin -> navigateToLogin()
             }
         }
+    }
+
+    LaunchedEffect(sessionState) {
+        reauthenticationNavigator.onSessionChanged(sessionState)
     }
 
     LaunchedEffect(sessionState) {
@@ -315,8 +333,14 @@ fun ChalkakNavHost(
             },
         ) {
             composable<Login> {
+                val isReauthentication = sessionState is UserSessionState.ReauthenticationRequired
+                BackHandler(enabled = isReauthentication) {
+                    reauthenticationNavigator.onBackPressed()
+                }
                 LoginRoute(
-                    onLoginSuccess = {
+                    isReauthentication = isReauthentication,
+                    onLoginSuccess = onLoginSuccess@{
+                        if (reauthenticationNavigator.onLoginSucceeded(currentSessionState())) return@onLoginSuccess
                         navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
@@ -326,8 +350,10 @@ fun ChalkakNavHost(
                             pendingAuthorPosts = null
                         }
                     },
-                    onGuestAccessGranted = {
+                    onGuestAccessGranted = onGuestAccessGranted@{
                         pendingAuthorPosts = null
+                        // 재인증 로그인(다른 화면 위에 쌓인 로그인)에서는 AuthGate가 게스트 앱 화면을 새로 만든다.
+                        if (navController.previousBackStackEntry != null) return@onGuestAccessGranted
                         navController.navigate(Home) {
                             popUpTo<Login> { inclusive = true }
                             launchSingleTop = true
@@ -864,7 +890,7 @@ fun ChalkakNavHost(
                             navController.navigate(FeedbackDetail(feedbackId)) { launchSingleTop = true }
                         }
                     },
-                    onReauthenticationRequired = navigateToLogin,
+                    onReauthenticationRequired = onReauthenticationRequired,
                 )
             }
 
@@ -885,7 +911,7 @@ fun ChalkakNavHost(
                         showToast(FEEDBACK_SUBMITTED_MESSAGE)
                         navController.returnToFeedbackList<Feedback>()
                     },
-                    onReauthenticationRequired = navigateToLogin,
+                    onReauthenticationRequired = onReauthenticationRequired,
                 )
             }
 
@@ -901,7 +927,7 @@ fun ChalkakNavHost(
                         navController.returnToFeedbackList<FeedbackDetail>()
                     },
                     onDeleted = { navController.returnToFeedbackList<FeedbackDetail>() },
-                    onReauthenticationRequired = navigateToLogin,
+                    onReauthenticationRequired = onReauthenticationRequired,
                 )
             }
 
@@ -912,12 +938,7 @@ fun ChalkakNavHost(
                     onBack = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.popBackStack()
                     },
-                    onReauthenticationRequired = {
-                        navController.navigate(Login) {
-                            popUpTo<Home> { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
+                    onReauthenticationRequired = onReauthenticationRequired,
                     onSubmitted = { submission ->
                         navController.navigate(
                             PhotoUploadSuccess(
@@ -1260,6 +1281,41 @@ private fun Context.markPushNotificationPermissionRequested() {
         .edit()
         .putBoolean(PUSH_PERMISSION_REQUESTED_KEY, true)
         .apply()
+}
+
+private class NavControllerReauthenticationHost(
+    private val navController: NavHostController,
+    private val context: Context,
+) : ReauthenticationNavigationHost {
+    override val isLoginOnTop: Boolean
+        get() = navController.currentBackStackEntry
+            ?.destination
+            ?.hasRoute<Login>() == true
+
+    override fun showLogin() {
+        navController.navigate(Login) { launchSingleTop = true }
+    }
+
+    override fun returnToPreviousScreen() {
+        navController.popBackStack()
+    }
+
+    override fun restartFromHome() {
+        navController.navigate(Home) {
+            popUpTo(navController.graph.id) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    override fun moveAppToBackground() {
+        context.findActivity()?.moveTaskToBack(true)
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun NavHostController.navigateToPhotoUpload(topicDate: LocalDate) {

@@ -40,7 +40,7 @@ class PushSessionReadinessTest {
 
         assertEquals(PushSessionReadiness.ReauthenticationRequired, coordinator.ensurePushRegistrationSession("user"))
         PushDeviceRegistrationCoordinator(store, coordinator, FakePushRegistrationRepository()).register("fcm-token")
-        assertEquals(UserSessionState.SignedOut, store.sessionState.value)
+        assertEquals(UserSessionState.ReauthenticationRequired("user"), store.sessionState.value)
     }
 
     @Test
@@ -84,6 +84,13 @@ private class FakePushSessionStore : SessionStore {
     override suspend fun clear() {
         session.value = LocalSession.SignedOut
         sessionState.value = UserSessionState.SignedOut
+    }
+
+    override suspend fun requireReauthentication(userId: String) {
+        val current = (session.value as? LocalSession.Authenticated)?.credentials ?: return
+        if (current.userId != userId) return
+        session.value = LocalSession.ReauthenticationRequired(userId)
+        sessionState.value = UserSessionState.ReauthenticationRequired(userId)
     }
 }
 

@@ -54,10 +54,9 @@ class PushDeviceRegistrationCoordinator(
             }
 
             PushSessionReadiness.ReauthenticationRequired -> {
-                val currentUserId = (sessionStore.session.value as? LocalSession.Authenticated)
-                    ?.credentials
-                    ?.userId
-                if (currentUserId == expectedUserId) sessionStore.clear()
+                // 로그아웃(clear)이 아니라 재인증 필요 상태로 둔다. 같은 계정으로 다시 로그인하면 보던 화면으로 돌아간다.
+                // 지금 계정이 다르면 requireReauthentication이 아무것도 하지 않는다.
+                sessionStore.requireReauthentication(expectedUserId)
                 return@withLock
             }
         }

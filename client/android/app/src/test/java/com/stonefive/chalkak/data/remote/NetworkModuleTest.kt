@@ -30,6 +30,7 @@ class NetworkModuleTest {
             override suspend fun saveSession(credentials: SessionCredentials): Unit = error("unused")
             override suspend fun updateTokens(credentials: SessionCredentials): Boolean = error("must not refresh")
             override suspend fun clear(): Unit = error("must not clear session")
+            override suspend fun requireReauthentication(userId: String): Unit = error("must not clear session")
         }
         val network = NetworkModule("https://example.com/api/v1/", store)
         assertTrue(

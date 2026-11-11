@@ -3,6 +3,8 @@ package com.stonefive.chalkak
 import android.content.Context
 import androidx.credentials.CredentialManager
 import com.google.firebase.messaging.FirebaseMessaging
+import com.stonefive.chalkak.buildvariant.BuildVariantServices
+import com.stonefive.chalkak.buildvariant.buildVariantRefreshInterceptors
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.analytics.FirebaseAnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
@@ -110,7 +112,17 @@ class AppContainer(context: Context) {
     private val networkModule = NetworkModule(
         baseUrl = BuildConfig.API_BASE_URL,
         sessionStore = sessionStore,
+        refreshInterceptors = buildVariantRefreshInterceptors(),
     )
+
+    // debug 빌드의 개발자 도구용. release에서는 빈 클래스다.
+    val buildVariantServices: BuildVariantServices by lazy {
+        BuildVariantServices(
+            sessionStore = sessionStore,
+            authenticatedClient = networkModule.backendClient,
+            baseUrl = BuildConfig.API_BASE_URL,
+        )
+    }
     private val signatureUploader = OkHttpSignatureUploader(
         networkModule.presignedUploadClient,
     )
