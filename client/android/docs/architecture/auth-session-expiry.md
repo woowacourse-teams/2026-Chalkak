@@ -31,6 +31,7 @@ Refresh 토큰이 만료·폐기되면 세션을 지워 `SignedOut`이 됐고, A
 B를 골랐다.
 - `LocalSession`·`UserSessionState.ReauthenticationRequired(userId)`는 **메모리에만** 둔다. 토큰은 지우고 userId만 기억한다. 재인증 로그인 화면에서 프로세스가 죽으면 다시 시작할 때 `SignedOut` → 일반 로그인 → 홈으로 간다(알려진 한계).
 - `UserSessionStore.requireReauthentication`은 상태를 먼저 알린 뒤 저장소를 비운다. 순서를 바꾸면 DataStore 구독이 `SignedOut`을 먼저 내 AuthGate가 앱 화면을 새로 만든다.
+- DataStore 구독도 `sessionMutex` 안에서 판정·발행하고, 재인증 상태면 저장소 변경을 무시한다. 토큰을 저장한 직후 그 발행이 처리되기 전에 재인증이 끼면, 옛 자격 증명으로 `Authenticated`를 다시 내고 이어서 `SignedOut`이 될 수 있기 때문이다(PR #1017 리뷰).
 - AuthGate는 `Authenticated`와 `ReauthenticationRequired`를 같은 key로 그린다. 게스트로 바꾸면 key가 달라 앱 화면을 새로 만든다(게스트 홈).
 - 백스택 정책은 `ReauthenticationNavigator` 한 곳에서 정한다. 같은 계정으로 로그인하면 로그인만 빼고, 다른 계정이면 홈부터 다시 시작하고, 뒤로가기는 앱을 백그라운드로 보낸다. 화면별 `onReauthenticationRequired`도 세션이 재인증 상태면 이 정책으로 보낸다(로그인 화면이 두 번 쌓이지 않게).
 - ui-state-navigation의 원칙대로 LoginViewModel·화면 ViewModel은 목적지를 모른다. 복귀는 세션 상태 변화(`ReauthenticationRequired(u1)` → `Authenticated(u1)`)를 보고 NavHost가 한다.
