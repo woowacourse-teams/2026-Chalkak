@@ -30,11 +30,13 @@ class ScreenPushTargetTest {
 
     @Test
     fun `허용 목록과 정확히 같지 않은 URI는 이동 대상을 만들지 않는다`() {
-        // Given  모르는 화면, 다른 scheme·host, 추가 경로, 쿼리, 조각, 대소문자 변형, 빈 경로, URI가 아닌 값
+        // Given  모르는 화면, 다른 scheme·host, 사용자 정보·포트, 추가 경로, 쿼리, 조각, 대소문자 변형, 빈 경로, URI가 아닌 값
         val uris = listOf(
             "chalkak://screen/unknown",
             "https://screen/record",
             "chalkak://notification/record",
+            "chalkak://user@screen/record",
+            "chalkak://screen:123/record",
             "chalkak://screen/record/extra",
             "chalkak://screen/record?tab=1",
             "chalkak://screen/record#top",

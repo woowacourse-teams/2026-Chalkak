@@ -43,11 +43,11 @@ internal sealed interface NotificationTarget {
  * 화면 푸시의 URI로 열 곳을 정한다. 앱이 만든 알림(개발자 도구의 테스트 알림)이 쓴다.
  *
  * 예: `chalkak://screen/notification-settings` → [NotificationTarget.NotificationSettings].
- * scheme·host·경로가 허용 목록과 정확히 같아야 하고, 쿼리·조각이 붙거나 형식이 다르면 null이다.
+ * scheme·authority·경로가 허용 목록과 정확히 같아야 하고, 사용자 정보·포트·쿼리·조각이 붙거나 형식이 다르면 null이다.
  */
 internal fun screenPushTargetOf(uri: String): NotificationTarget? {
     val parsed = runCatching { URI(uri) }.getOrNull() ?: return null
-    if (parsed.scheme != SCREEN_PUSH_SCHEME || parsed.host != SCREEN_PUSH_HOST) return null
+    if (parsed.scheme != SCREEN_PUSH_SCHEME || parsed.rawAuthority != SCREEN_PUSH_HOST) return null
     if (parsed.rawQuery != null || parsed.rawFragment != null) return null
     return SCREEN_PUSH_TARGETS[parsed.rawPath]
 }
