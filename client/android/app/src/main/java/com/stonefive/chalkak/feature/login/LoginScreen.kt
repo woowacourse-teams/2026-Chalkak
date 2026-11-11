@@ -35,7 +35,7 @@ import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.feature.login.component.SocialLoginButton
 
 // 로그인이 만료돼 보던 화면 위에 로그인 화면을 띄웠을 때 보이는 안내.
-internal const val REAUTHENTICATION_NOTICE = "로그인이 만료됐어요. 다시 로그인하면 보던 화면으로 돌아가요"
+internal const val REAUTHENTICATION_NOTICE = "로그인이 만료됐어요.\n같은 계정으로 다시 로그인하면 보던 화면으로 돌아가요"
 
 @Composable
 fun LoginRoute(
