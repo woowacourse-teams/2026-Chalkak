@@ -123,10 +123,7 @@ private const val GRID_COLUMN_COUNT = 2
 private fun FilterScreenPreview() {
     ChalkakTheme {
         FilterScreen(
-            uiState = FilterUiState(
-                filters = FilterViewModel()
-                    .uiState.value.filters,
-            ),
+            uiState = FilterUiState(filters = SampleFilters),
             onFilterClick = {},
             onFavoriteToggle = {},
             onUseFilterClick = {},
