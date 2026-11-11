@@ -369,4 +369,6 @@ private class FakeSessionStore : SessionStore {
         mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
     }
+
+    override suspend fun requireReauthentication(userId: String): Unit = error("unused")
 }

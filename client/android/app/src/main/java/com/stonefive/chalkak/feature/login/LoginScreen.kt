@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -33,12 +34,16 @@ import com.stonefive.chalkak.core.ui.UiMessageEffect
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.feature.login.component.SocialLoginButton
 
+// 로그인이 만료돼 보던 화면 위에 로그인 화면을 띄웠을 때 보이는 안내.
+internal const val REAUTHENTICATION_NOTICE = "로그인이 만료됐어요. 다시 로그인하면 보던 화면으로 돌아가요"
+
 @Composable
 fun LoginRoute(
     onLoginSuccess: () -> Unit,
     onGuestAccessGranted: () -> Unit,
     onSignUpRequired: () -> Unit,
     modifier: Modifier = Modifier,
+    isReauthentication: Boolean = false,
     viewModel: LoginViewModel = viewModel(factory = LoginViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -88,6 +93,7 @@ fun LoginRoute(
         onContinueAsGuestClick = dropUnlessResumed(block = viewModel::continueAsGuest),
         modifier = modifier,
         enabled = uiState.canSubmit,
+        isReauthentication = isReauthentication,
     )
 }
 
@@ -97,6 +103,7 @@ fun LoginScreen(
     onContinueAsGuestClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    isReauthentication: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -109,6 +116,7 @@ fun LoginScreen(
             onSocialLoginClick = onSocialLoginClick,
             onContinueAsGuestClick = onContinueAsGuestClick,
             enabled = enabled,
+            isReauthentication = isReauthentication,
             modifier = Modifier.weight(1f),
         )
     }
@@ -148,6 +156,7 @@ private fun LoginActions(
     onSocialLoginClick: (SocialLoginProvider) -> Unit,
     onContinueAsGuestClick: () -> Unit,
     enabled: Boolean,
+    isReauthentication: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val providers = remember { SocialLoginProvider.entries }
@@ -162,6 +171,15 @@ private fun LoginActions(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
     ) {
+        if (isReauthentication) {
+            Text(
+                text = REAUTHENTICATION_NOTICE,
+                color = ChalkakTheme.colors.textSecondary,
+                style = ChalkakTheme.typography.subheadline,
+                textAlign = TextAlign.Center,
+            )
+        }
+
         providers.forEach { provider ->
             SocialLoginButton(
                 provider = provider,
@@ -190,6 +208,18 @@ private fun LoginScreenPreview() {
         LoginScreen(
             onSocialLoginClick = {},
             onContinueAsGuestClick = {},
+        )
+    }
+}
+
+@Preview(name = "재인증 로그인", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+private fun ReauthenticationLoginScreenPreview() {
+    ChalkakTheme {
+        LoginScreen(
+            onSocialLoginClick = {},
+            onContinueAsGuestClick = {},
+            isReauthentication = true,
         )
     }
 }

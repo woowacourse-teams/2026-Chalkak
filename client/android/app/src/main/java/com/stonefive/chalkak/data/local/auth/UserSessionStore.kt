@@ -60,6 +60,9 @@ class UserSessionStore(
 
                         preferences[isGuestKey] == true -> publish(LocalSession.Guest)
 
+                        // 재인증 필요 상태는 메모리에만 있다. 토큰을 지운 저장소 변경이 이 상태를 덮지 않게 한다.
+                        mutableSession.value is LocalSession.ReauthenticationRequired -> Unit
+
                         else -> {
                             publish(LocalSession.SignedOut)
                             if (preferences.containsStoredCredentials()) {
@@ -128,6 +131,17 @@ class UserSessionStore(
         sessionMutex.withLock {
             clearStoredCredentials()
             publish(LocalSession.SignedOut)
+        }
+    }
+
+    override suspend fun requireReauthentication(userId: String) {
+        sessionMutex.withLock {
+            val current = (mutableSession.value as? LocalSession.Authenticated)?.credentials ?: return
+            if (current.userId != userId) return
+            // 저장소를 비우기 전에 먼저 알린다. 비운 뒤 DataStore 구독이 SignedOut을 먼저 내면
+            // AuthGate가 앱 화면을 새로 만들어 보던 화면(백스택)이 사라진다.
+            publish(LocalSession.ReauthenticationRequired(userId))
+            clearStoredCredentials()
         }
     }
 

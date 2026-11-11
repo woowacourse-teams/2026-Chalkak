@@ -95,6 +95,9 @@ class HomeViewModel(
                             refreshUnreadNotifications()
                         }
 
+                        // 같은 계정으로 다시 로그인하면 원래 화면으로 돌아오므로, 그동안 보던 홈 내용은 그대로 둔다.
+                        session is UserSessionState.ReauthenticationRequired -> Unit
+
                         session == UserSessionState.SignedOut -> {
                             loadJob?.cancel()
                             bannerLoadMoreJob?.cancel()

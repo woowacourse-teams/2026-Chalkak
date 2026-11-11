@@ -255,6 +255,30 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `재인증이 필요해져도 홈 내용을 비우지 않는다`() = runTest {
+        // Given 게시물 3개로 불러온 홈("u1")
+        // When  세션 ReauthenticationRequired("u1")
+        // Then  홈 게시물 3개 그대로, 게스트용 다시 불러오기 요청 0회
+        val repository = FakeHomeRepository().apply {
+            todayPhotos = listOf(photo("p1"), photo("p2"), photo("p3"))
+        }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("u1"))
+        val viewModel = createViewModel(repository, session)
+        advanceUntilIdle()
+        val contentRequests = repository.contentQueries.size
+
+        session.value = UserSessionState.ReauthenticationRequired("u1")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("p1", "p2", "p3"),
+            viewModel.uiState.value.trending.photos
+                .map { it.id },
+        )
+        assertEquals(contentRequests, repository.contentQueries.size)
+    }
+
+    @Test
     fun `signed out session waits before preloading home APIs`() = runTest {
         val repository = FakeHomeRepository()
         val session = MutableStateFlow<UserSessionState>(UserSessionState.SignedOut)
@@ -865,6 +889,7 @@ private class FakeHomeRepository :
     val bannerQueries = mutableListOf<Pair<Int, Int>>()
     var bannerResult: HomeResult<BannerPage> = HomeResult.Success(BannerPage(1, 1, false, emptyList()))
     var bannerGate: CompletableDeferred<Unit>? = null
+    var todayPhotos = listOf(photo("rank-1"), photo("rank-2"))
     var statusCalls = 0
     var records = emptyList<PostCalendarItem>()
     var calendarFailure = false
@@ -893,7 +918,7 @@ private class FakeHomeRepository :
     override suspend fun getPostContent(query: HomeQuery): HomeResult<PostContent> {
         contentQueries += query
         todayFailure?.let { return HomeResult.Failure(it) }
-        return HomeResult.Success(PostContent(query.date, "하늘", listOf(photo("rank-1"), photo("rank-2")), emptySet()))
+        return HomeResult.Success(PostContent(query.date, "하늘", todayPhotos, emptySet()))
     }
 
     override suspend fun getPostPage(query: HomeQuery): HomeResult<PostPage> {

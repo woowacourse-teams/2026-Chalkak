@@ -37,6 +37,10 @@ fun DeveloperToolsRoute(
         uiState = uiState,
         onBackClick = onBackClick,
         onRefreshRemoteConfigClick = viewModel::refreshRemoteConfig,
+        onExpireAccessTokenClick = viewModel::expireAccessToken,
+        onRevokeRefreshTokenClick = viewModel::revokeRefreshToken,
+        onSendConcurrentRequestsClick = viewModel::sendConcurrentRequests,
+        onRefreshNetworkFailureChange = viewModel::setRefreshNetworkFailureEnabled,
         modifier = modifier,
     )
 }
@@ -46,6 +50,10 @@ fun DeveloperToolsScreen(
     uiState: DeveloperToolsUiState,
     onBackClick: () -> Unit,
     onRefreshRemoteConfigClick: () -> Unit,
+    onExpireAccessTokenClick: () -> Unit,
+    onRevokeRefreshTokenClick: () -> Unit,
+    onSendConcurrentRequestsClick: () -> Unit,
+    onRefreshNetworkFailureChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -111,6 +119,14 @@ fun DeveloperToolsScreen(
                 onRefreshClick = onRefreshRemoteConfigClick,
                 modifier = Modifier.fillMaxWidth(),
             )
+            DeveloperToolsAuthCard(
+                auth = uiState.auth,
+                onExpireAccessTokenClick = onExpireAccessTokenClick,
+                onRevokeRefreshTokenClick = onRevokeRefreshTokenClick,
+                onSendConcurrentRequestsClick = onSendConcurrentRequestsClick,
+                onRefreshNetworkFailureChange = onRefreshNetworkFailureChange,
+                modifier = Modifier.fillMaxWidth(),
+            )
             ChalkakOutlinedButton(
                 text = stringResource(R.string.developer_tools_back),
                 onClick = onBackClick,
@@ -136,24 +152,70 @@ private fun DeveloperToolsValue(
 private fun DeveloperToolsScreenPreview() {
     ChalkakTheme {
         DeveloperToolsScreen(
-            uiState = DeveloperToolsUiState(
-                versionName = "0.2.0",
-                versionCode = 24,
-                buildType = "debug",
-                applicationId = "com.stonefive.chalkak.debug",
-                serverEnvironment = "dev.example.com",
-                serverBaseUrl = "https://dev.example.com/",
-                remoteConfig = AppConfigDiagnostics(
-                    entries = listOf(
-                        AppConfigEntry("ai_review_enabled", "true", AppConfigSource.Default),
-                        AppConfigEntry("photo_edit_enabled", "false", AppConfigSource.Remote),
-                    ),
-                    lastFetchStatus = AppConfigFetchStatus.Success,
-                    lastFetchedAtMillis = 1_793_000_000_000L,
+            uiState = previewUiState,
+            onBackClick = {},
+            onRefreshRemoteConfigClick = {},
+            onExpireAccessTokenClick = {},
+            onRevokeRefreshTokenClick = {},
+            onSendConcurrentRequestsClick = {},
+            onRefreshNetworkFailureChange = {},
+        )
+    }
+}
+
+@Preview(name = "인증 카드 로그인됨", showBackground = true, widthDp = 390, heightDp = 1800)
+@Composable
+private fun DeveloperToolsAuthenticatedPreview() {
+    ChalkakTheme {
+        DeveloperToolsScreen(
+            uiState = previewUiState.copy(
+                auth = DeveloperAuthUiState(
+                    isSignedIn = true,
+                    accessTokenExpiresAt = "2026-11-11 15:30:00",
+                    refreshTokenExpiresAt = "2026-12-11 15:15:00",
+                    lastResult = "갱신 1회 · 성공 5/5",
                 ),
             ),
             onBackClick = {},
             onRefreshRemoteConfigClick = {},
+            onExpireAccessTokenClick = {},
+            onRevokeRefreshTokenClick = {},
+            onSendConcurrentRequestsClick = {},
+            onRefreshNetworkFailureChange = {},
         )
     }
 }
+
+@Preview(name = "인증 카드 로그인 안 됨", showBackground = true, widthDp = 390, heightDp = 1800)
+@Composable
+private fun DeveloperToolsSignedOutPreview() {
+    ChalkakTheme {
+        DeveloperToolsScreen(
+            uiState = previewUiState,
+            onBackClick = {},
+            onRefreshRemoteConfigClick = {},
+            onExpireAccessTokenClick = {},
+            onRevokeRefreshTokenClick = {},
+            onSendConcurrentRequestsClick = {},
+            onRefreshNetworkFailureChange = {},
+        )
+    }
+}
+
+private val previewUiState =
+    DeveloperToolsUiState(
+        versionName = "0.2.0",
+        versionCode = 24,
+        buildType = "debug",
+        applicationId = "com.stonefive.chalkak.debug",
+        serverEnvironment = "dev.example.com",
+        serverBaseUrl = "https://dev.example.com/",
+        remoteConfig = AppConfigDiagnostics(
+            entries = listOf(
+                AppConfigEntry("ai_review_enabled", "true", AppConfigSource.Default),
+                AppConfigEntry("photo_edit_enabled", "false", AppConfigSource.Remote),
+            ),
+            lastFetchStatus = AppConfigFetchStatus.Success,
+            lastFetchedAtMillis = 1_793_000_000_000L,
+        ),
+    )
