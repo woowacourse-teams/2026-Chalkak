@@ -18,9 +18,10 @@ Refresh 토큰이 만료·폐기되면 세션을 지워 `SignedOut`이 됐고, A
 | 권한 없음(정지 등) | 403 `FORBIDDEN` | 갱신하지 않음(OkHttp `Authenticator`는 401만 받음) |
 | 직접 로그아웃·탈퇴 | - | 지금처럼 `SignedOut`, 앱 화면을 새로 만듦 |
 
-- 일반 API는 로그인 세션이 살아 있는지 검사하지 않는다. 세션 검사는 `PUT /api/v1/push-devices/current`와 푸시 발송뿐이다. 그래서 Refresh 토큰을 폐기해도 Access 토큰이 살아 있는 동안(기본 15분)은 그대로 쓰이고, 다음 갱신에서 재인증으로 간다.
+- 일반 API는 로그인 세션이 살아 있는지 검사하지 않는다. 세션 검사는 `PUT /api/v1/push-devices/current`와 푸시 발송뿐이다. 그래서 Refresh 토큰을 폐기해도 Access 토큰이 살아 있는 동안은 그대로 쓰이고, 다음 갱신에서 재인증으로 간다.
+- 푸시 기기 등록도 재인증 경로다. Access 토큰에 `session_id`가 없으면 등록 전에 갱신하는데(`SessionRefreshCoordinator.ensurePushRegistrationSession`), 여기서 재인증이 나와도 `clear()`가 아니라 재인증 상태로 간다. `MainActivity.onResume`마다 등록을 확인하므로, 이 경로가 `clear()`를 부르면 화면에 돌아오는 순간 백스택이 사라진다(#1016 녹화에서 발견).
 - Refresh 토큰은 갱신마다 바뀐다. 이미 바뀐 토큰을 다시 내면 그 로그인 전체가 폐기된다. 그래서 갱신은 한 번만 보내야 한다.
-- 수명: 개발·운영 env 예시 모두 Access 15분, Refresh 비활동 30일(갱신마다 연장)·절대 90일(최초 로그인 고정). 실제 값은 서버 env 파일에 있다. debug 개발자 도구에서 만료 시각을 볼 수 있다.
+- 수명: 서버 env 예시(`deploy/examples/application.{dev,prod}.env.example`)는 Access 15분, Refresh 비활동 30일(갱신마다 연장)·절대 90일(최초 로그인 고정)이다. 실제 값은 서버 env 파일에 있고 예시와 다를 수 있다. 2026-11-11 개발 서버에서 debug 개발자 도구로 본 값은 Access 7일, Refresh 30일이었다. 그래서 개발 서버에서는 Access 토큰이 저절로 만료되기를 기다리지 말고 개발자 도구로 만료시킨다.
 
 ## 선택지
 - A: 재인증도 `SignedOut`으로 두고, 로그인 뒤 돌아갈 화면을 따로 저장해 다시 연다 — 상태 하나로 끝남 / 백스택·ViewModel·작성 중 글을 되살리려면 화면마다 저장·복원이 필요함
@@ -42,4 +43,5 @@ B를 골랐다.
 
 ## 근거
 이슈 #1016(스프린트 4 Android 요구사항 6번), 계획 댓글의 TC 1–18, 공통 규칙 `guides/push-device-registration.md` 5항(Refresh 토큰 인증 오류일 때만 다시 로그인, 네트워크·서버 오류로 로그인 해제 안 함).
-재현: debug 개발자 도구의 "인증 토큰" 카드(Access 토큰 강제 만료, Refresh 토큰 폐기 = 현재 RT로 `POST /api/v1/auth/logout` + Access 토큰 강제 만료, 동시 요청 5개와 갱신 횟수, 갱신 네트워크 실패 스위치).
+재현: debug 개발자 도구의 "인증 토큰" 카드(Access 토큰 강제 만료, Refresh 토큰 폐기 = 현재 RT로 `POST /api/v1/auth/logout` + Access 토큰 강제 만료, Refresh 토큰 폐기(30초 뒤 만료) = 폐기는 바로 하고 Access 토큰은 30초 뒤 무효, 동시 요청 5개와 갱신 횟수, 갱신 네트워크 실패 스위치).
+- 개발자 도구는 설정에서만 열려서, 다른 화면(예: 글 쓰던 사진 올리기)에서 재인증을 보려면 30초 뒤 만료 버튼을 누르고 그 화면으로 가서 30초 뒤 요청을 보낸다.
