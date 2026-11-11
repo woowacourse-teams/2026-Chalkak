@@ -110,6 +110,22 @@ public class User {
         return user;
     }
 
+    public boolean isRegularUser() {
+        return role == UserRole.USER;
+    }
+
+    public void acceptOriginalWorkPledge() {
+        if (hasArtistConsent()) {
+            return;
+        }
+        this.role = UserRole.ARTIST;
+        this.artistAgreedAt = Instant.now();
+    }
+
+    public boolean hasArtistConsent() {
+        return artistAgreedAt != null;
+    }
+
     public void withdraw() {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");

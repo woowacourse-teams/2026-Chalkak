@@ -4,6 +4,7 @@ import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.exception.ErrorResponse;
 import com.chalkak.backend.post.api.v1.dto.request.AuthorPostListRequest;
 import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
+import com.chalkak.backend.user.api.v1.dto.request.ArtistApplicationRequest;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.ArtistEligibilityResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserProfileResponse;
@@ -46,6 +47,21 @@ public interface UserApiDocs {
     })
     ResponseEntity<ArtistEligibilityResponse> getArtistEligibility(
             @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
+    @Operation(summary = "작가 신청과 원작 확약 동의", description = """
+            원작 확약 동의가 필요합니다. 일반 회원은 신청 시점의 공개 게시물 좋아요 기준을 충족하면 작가가 됩니다.
+            이미 작가인 회원은 최초 동의만 기록하며, 같은 요청을 다시 보내면 기존 동의 시각을 유지합니다.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "작가 신청 또는 동의 완료", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "원작 확약 동의 누락·거부 또는 좋아요 기준 미충족", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "정지 회원 또는 일반 사용자 API에 접근할 수 없는 토큰", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<UserProfileResponse> applyForArtist(
+            @Parameter(hidden = true) AuthenticatedUser loginUser,
+            ArtistApplicationRequest request
     );
 
     @Operation(summary = "작성자의 최근 공개 사진 조회", description = """

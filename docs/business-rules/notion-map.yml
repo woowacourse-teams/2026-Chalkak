@@ -10,6 +10,7 @@ rule_pages:
       가입과 로그인: [USER-001, USER-002]
       회원 탈퇴: [USER-003, USER-004, USER-006]
       탈퇴 후 재가입: [USER-005]
+      작가 신청과 원작 확약 동의: [USER-007]
   docs/business-rules/rules/post.md:
     domain: 게시물
     pages:

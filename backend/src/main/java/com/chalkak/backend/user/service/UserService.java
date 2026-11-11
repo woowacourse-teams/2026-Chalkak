@@ -12,7 +12,6 @@ import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
-import com.chalkak.backend.user.domain.UserRole;
 import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
@@ -44,21 +43,36 @@ public class UserService {
     private final SignatureProcessingPolicy signatureProcessingPolicy;
 
     public UserProfileResult getProfile(UUID userId) {
-        User user = getActiveUser(userId);
-        return new UserProfileResult(user.getRole(), user.getArtistAgreedAt() != null);
+        return toProfileResult(getActiveUser(userId));
     }
 
     public ArtistEligibilityResult getArtistEligibility(UUID userId) {
         User user = getActiveUser(userId);
         long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
-        boolean canApply = user.getStatus() == UserStatus.ACTIVE
-                && user.getRole() == UserRole.USER
-                && receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
+        boolean canApply = user.isActive()
+                && user.isRegularUser()
+                && hasRequiredArtistLikes(receivedLikeCount);
         return new ArtistEligibilityResult(
                 receivedLikeCount,
                 REQUIRED_ARTIST_LIKE_COUNT,
                 canApply
         );
+    }
+
+    @Transactional
+    public UserProfileResult applyForArtist(UUID userId) {
+        User user = getActiveUserForUpdate(userId);
+        user.validateAccessible();
+
+        if (user.isRegularUser()
+                && !hasRequiredArtistLikes(postRepository.sumVisibleLikeCountByAuthorId(userId))) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "작가 신청에 필요한 좋아요 수를 충족하지 않았습니다.");
+        }
+
+        user.acceptOriginalWorkPledge();
+        return toProfileResult(user);
     }
 
     public SignatureImageUpload createSignatureUpload(UUID userId) {
@@ -90,10 +104,7 @@ public class UserService {
     public String updateSignature(UUID userId, UUID uploadId) {
         SignatureStorageKeys storageKeys = signatureImageStorage.toStorageKeys(uploadId);
 
-        User user = userRepository.findActiveByIdForUpdate(userId)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."));
+        User user = getActiveUserForUpdate(userId);
 
         if (user.hasSignature(storageKeys.originalStorageKey())) {
             user.cancelSignatureProcessing();
@@ -183,10 +194,7 @@ public class UserService {
             UUID userId,
             List<SocialConnectionRevocationSnapshot> revokedConnections
     ) {
-        User user = userRepository.findActiveByIdForUpdate(userId)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."));
+        User user = getActiveUserForUpdate(userId);
 
         socialAccountRepository.findByUserId(userId).ifPresent(socialAccount -> {
             socialConnectionRevocationStore.deleteAllIfUnchanged(
@@ -211,6 +219,21 @@ public class UserService {
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
                         "유효하지 않은 인증 정보입니다."));
+    }
+
+    private User getActiveUserForUpdate(UUID userId) {
+        return userRepository.findActiveByIdForUpdate(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
+    }
+
+    private boolean hasRequiredArtistLikes(long receivedLikeCount) {
+        return receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
+    }
+
+    private UserProfileResult toProfileResult(User user) {
+        return new UserProfileResult(user.getRole(), user.hasArtistConsent());
     }
 
     private boolean isSignatureProcessingTimedOut(
