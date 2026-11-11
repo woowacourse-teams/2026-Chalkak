@@ -97,6 +97,9 @@ data object Record
 @Serializable
 data object Settings
 
+@Serializable
+data object Filter
+
 /** 문의 작성 화면. */
 @Serializable
 data object Feedback

@@ -96,6 +96,7 @@ fun HomeScreen(
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onRetry: () -> Unit,
     onNotificationClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
     onStartFeedback: () -> Unit,
     modifier: Modifier = Modifier,
@@ -169,6 +170,7 @@ fun HomeScreen(
                         onInteraction(HomeInteraction.Notification)
                         onNotificationClick()
                     },
+                    onSettingsClick = onSettingsClick,
                     hasUnreadNotifications = uiState.hasUnreadNotifications,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -706,6 +708,7 @@ private fun HomeScreenPreview() {
             onNavigateToBottomBar = {},
             onRetry = {},
             onNotificationClick = {},
+            onSettingsClick = {},
             onIssueClick = { _, _ -> },
             onStartFeedback = {},
         )

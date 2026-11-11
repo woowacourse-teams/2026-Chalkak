@@ -110,7 +110,7 @@ class ChalkakNavHostTest {
         try {
             val navigateToTabs = listOf(
                 { navController.navigate(Display(date = LocalDate.now().toString())) },
-                { navController.navigate(Settings) },
+                { navController.navigate(Filter) },
             )
             navigateToTabs.forEach { navigate ->
                 composeRule.runOnIdle { navigate() }
@@ -521,7 +521,7 @@ class ChalkakNavHostTest {
         }
 
         val settingsClick = composeRule
-            .onNode(hasText("설정") and hasClickAction())
+            .onNode(hasText("필터") and hasClickAction())
             .fetchSemanticsNode()
             .config[SemanticsActions.OnClick]
             .action!!
@@ -538,7 +538,7 @@ class ChalkakNavHostTest {
         }
         composeRule.waitForIdle()
         composeRule.runOnIdle {
-            assertTrue(navController.currentDestination?.hasRoute<Settings>() == true)
+            assertTrue(navController.currentDestination?.hasRoute<Filter>() == true)
         }
 
         composeRule.onNodeWithText("전시").performClick()
@@ -637,9 +637,9 @@ class ChalkakNavHostTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             navController.currentDestination?.hasRoute<Home>() == true
         }
-        composeRule.onNodeWithText("설정").performClick()
+        composeRule.onNodeWithText("필터").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Settings>() == true
+            navController.currentDestination?.hasRoute<Filter>() == true
         }
         composeRule.onNodeWithText("홈").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -699,9 +699,9 @@ class ChalkakNavHostTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             navController.currentDestination?.hasRoute<Display>() == true
         }
-        composeRule.onNodeWithText("설정").performClick()
+        composeRule.onNodeWithText("필터").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Settings>() == true
+            navController.currentDestination?.hasRoute<Filter>() == true
         }
         composeRule.runOnIdle {
             assertTrue(
@@ -817,9 +817,9 @@ class ChalkakNavHostTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("설정").performClick()
+        composeRule.onNodeWithText("필터").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Settings>() == true
+            navController.currentDestination?.hasRoute<Filter>() == true
         }
 
         composeRule.runOnIdle {
