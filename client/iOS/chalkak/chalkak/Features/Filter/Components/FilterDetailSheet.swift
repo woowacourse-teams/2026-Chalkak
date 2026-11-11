@@ -24,7 +24,8 @@ struct FilterDetailSheet: View {
     // 근거: 이슈 #939, #1021
     @State private var summaryHeight = Metrics.summaryFallbackHeight
     @State private var useButtonAreaHeight = Metrics.useButtonAreaFallbackHeight
-    @State private var bottomSafeAreaHeight: CGFloat = 0
+    // 지금 시트 높이(홈 인디케이터 영역 제외). 작게 칸보다 얼마나 키웠는지로 아래 사진 영역을 서서히 보인다.
+    @State private var sheetHeight: CGFloat = 0
 
     /// - Parameter startsExpanded: 크게 연 채로 시작한다. Preview에서 크게 모양을 볼 때 쓴다.
     init(
@@ -47,8 +48,12 @@ struct FilterDetailSheet: View {
                 summary
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { summaryHeight = $0 }
 
+                // 안드로이드와 같이 작게 열린 동안에는 투명했다가 키울수록 나타난다.
+                // 투명할 때도 자리는 차지해 버튼 뒤로 비치지 않고, 읽어 주기에서도 빠진다.
                 photoSections
                     .padding(.top, theme.spacing.xxl)
+                    .opacity(expandProgress)
+                    .accessibilityHidden(expandProgress == 0)
             }
             .padding(.horizontal, theme.spacing.lg)
             .padding(.top, Metrics.topPadding)
@@ -58,8 +63,7 @@ struct FilterDetailSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         // 버튼을 내용의 아래 safe area로 넣어, 시트 높이와 상관없이 시트 바닥에 붙고 스크롤 끝의 사진이 버튼 위에서 멈추게 한다.
         .safeAreaInset(edge: .bottom, spacing: 0) { useButton }
-        // 시트 바닥의 홈 인디케이터 영역. 작게 칸 높이에 더한다.
-        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { bottomSafeAreaHeight = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { sheetHeight = $0 }
         .presentationDetents([collapsedDetent, .large], selection: detentSelection)
         .presentationDragIndicator(.visible)
 
@@ -73,10 +77,22 @@ struct FilterDetailSheet: View {
         }
     }
 
-    /// 작게 칸: 손잡이 아래 여백 + 대표 사진·이름·설명 + 사용 버튼 영역 + 홈 인디케이터 영역.
+    /// 작게 칸: 손잡이 아래 여백 + 대표 사진·이름·설명 + 사용 버튼 영역. 설명 바로 아래에 버튼이 온다(안드로이드와 같은 배치).
     /// 예: 설명이 한 줄이면 낮고, 여러 줄이면 그만큼 높아진다.
+    /// 함정: `.height` 값에는 홈 인디케이터 영역이 들어가지 않고 시스템이 그 아래에 따로 붙인다.
+    /// 여기에 safe area를 더하면 설명과 버튼 사이가 그만큼(34pt) 벌어지고 아래 사진이 비친다(#1021에서 확인).
+    private var collapsedSheetHeight: CGFloat {
+        Metrics.topPadding + summaryHeight + useButtonAreaHeight
+    }
+
     private var collapsedDetent: PresentationDetent {
-        .height(Metrics.topPadding + summaryHeight + useButtonAreaHeight + bottomSafeAreaHeight)
+        .height(collapsedSheetHeight)
+    }
+
+    /// 작게 칸이면 0, 거기서 `Metrics.photoSectionsFadeDistance`만큼 키우면 1.
+    private var expandProgress: CGFloat {
+        guard sheetHeight > 0 else { return isExpanded ? 1 : 0 }
+        return min(max((sheetHeight - collapsedSheetHeight) / Metrics.photoSectionsFadeDistance, 0), 1)
     }
 
     /// 칸 높이 값이 재는 동안 바뀌어도 "작게/크게" 중 어느 쪽인지만 기억해 선택이 칸 목록에서 벗어나지 않게 한다.
@@ -164,9 +180,11 @@ private enum Metrics {
     static let coverAspectRatio: CGFloat = 2.2
     static let creatorPhotoAspectRatio: CGFloat = 2.2
     static let usedPhotoAspectRatio: CGFloat = 1
-    // 재기 전 첫 그림의 대략값(대표 사진 약 160 + 이름·설명 한 줄, 버튼 56 + 위아래 여백).
-    static let summaryFallbackHeight: CGFloat = 240
-    static let useButtonAreaFallbackHeight: CGFloat = 96
+    // 재기 전 첫 그림의 대략값. iPhone 17 Pro에서 샘플(설명 한 줄)을 잰 값이다(대표 사진 약 168 + 이름·설명, 버튼 53 + 위아래 여백 40).
+    static let summaryFallbackHeight: CGFloat = 228
+    static let useButtonAreaFallbackHeight: CGFloat = 93
+    // 작게 칸에서 이만큼 키우면 아래 사진 영역이 다 보인다. 대표 사진 높이쯤이라 끌어올리는 동안 자연스럽게 나타난다.
+    static let photoSectionsFadeDistance: CGFloat = 160
 }
 
 // MARK: - Preview
