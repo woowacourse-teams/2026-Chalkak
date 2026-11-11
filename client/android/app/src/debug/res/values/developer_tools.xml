@@ -18,4 +18,13 @@
     <string name="developer_tools_remote_config_status_success">성공</string>
     <string name="developer_tools_remote_config_status_failure">실패</string>
     <string name="developer_tools_remote_config_status_throttled">요청 제한됨</string>
+    <string name="developer_tools_test_notification">테스트 알림</string>
+    <string name="developer_tools_test_notification_description">알림을 띄운 뒤 앱을 그대로 두거나, 홈으로 나가거나, 최근 앱에서 지우고 알림을 눌러 보세요.</string>
+    <string name="developer_tools_test_notification_title">테스트 알림: %1$s</string>
+    <string name="developer_tools_test_notification_notifications">알림함</string>
+    <string name="developer_tools_test_notification_notification_settings">알림 설정</string>
+    <string name="developer_tools_test_notification_record">기록 탭</string>
+    <string name="developer_tools_test_notification_settings">설정 탭</string>
+    <string name="developer_tools_test_notification_invalid">잘못된 화면 URI</string>
+    <string name="developer_tools_test_notification_disabled">알림이 꺼져 있어요. 설정에서 알림을 허용해 주세요.</string>
 </resources>
