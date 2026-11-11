@@ -1,5 +1,7 @@
 package com.stonefive.chalkak.feature.developertools
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,10 +41,17 @@ fun DeveloperToolsRoute(
         uiState = uiState,
         onBackClick = onBackClick,
         onRefreshRemoteConfigClick = viewModel::refreshRemoteConfig,
-        onSendTestNotificationClick = context::sendTestNotification,
+        onSendTestNotificationClick = { notification ->
+            if (!viewModel.sendTestNotification(notification, context.testNotificationTitle(notification))) {
+                Toast.makeText(context, R.string.developer_tools_test_notification_disabled, Toast.LENGTH_SHORT).show()
+            }
+        },
         modifier = modifier,
     )
 }
+
+private fun Context.testNotificationTitle(notification: DeveloperToolsTestNotification): String =
+    getString(R.string.developer_tools_test_notification_title, getString(notification.labelRes))
 
 @Composable
 fun DeveloperToolsScreen(

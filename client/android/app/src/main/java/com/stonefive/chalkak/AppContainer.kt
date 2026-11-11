@@ -12,10 +12,12 @@ import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
 import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.core.network.AndroidConnectivityObserver
 import com.stonefive.chalkak.core.network.ConnectivityObserver
+import com.stonefive.chalkak.core.notification.LocalNotificationPublisher
 import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
 import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.local.notification.LikePushMigrationStore
+import com.stonefive.chalkak.data.local.notification.LocalNotificationPublisherImpl
 import com.stonefive.chalkak.data.local.notification.PushNotificationManager
 import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
@@ -153,6 +155,10 @@ class AppContainer(context: Context) {
     }
 
     val pendingNotificationNavigation = PendingNotificationNavigationStore()
+
+    val localNotificationPublisher: LocalNotificationPublisher by lazy {
+        LocalNotificationPublisherImpl(applicationContext)
+    }
 
     val googleIdTokenClient = GoogleIdTokenClient(
         credentialManager = CredentialManager.create(context),
