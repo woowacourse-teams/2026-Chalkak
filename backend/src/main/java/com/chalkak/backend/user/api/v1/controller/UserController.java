@@ -10,6 +10,7 @@ import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
+import com.chalkak.backend.user.api.v1.dto.response.UserProfileResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
@@ -38,6 +39,15 @@ public class UserController implements UserApiDocs {
     private final UserService userService;
     private final UserWithdrawalService userWithdrawalService;
     private final PostQueryService postQueryService;
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping("/me")
+    public ResponseEntity<UserProfileResponse> getMyProfile(
+            @LoginUser AuthenticatedUser loginUser) {
+        return ResponseEntity
+                .ok(UserProfileResponse.from(userService.getProfile(loginUser.userId())));
+    }
 
     @Override
     @RequiresExistingUser

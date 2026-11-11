@@ -45,6 +45,14 @@ public class User {
     @Column(name = "status", nullable = false)
     private UserStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'USER'")
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role = UserRole.USER;
+
+    @Column(name = "artist_agreed_at")
+    private Instant artistAgreedAt;
+
     @Column(name = "signature_original_storage_key", nullable = false, length = 1024)
     private String signatureOriginalStorageKey;
 

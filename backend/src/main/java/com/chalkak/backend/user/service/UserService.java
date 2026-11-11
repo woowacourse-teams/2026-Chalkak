@@ -40,6 +40,11 @@ public class UserService {
     private final SignatureImagePolicy signatureImagePolicy;
     private final SignatureProcessingPolicy signatureProcessingPolicy;
 
+    public UserProfileResult getProfile(UUID userId) {
+        User user = getActiveUser(userId);
+        return new UserProfileResult(user.getRole(), user.getArtistAgreedAt() != null);
+    }
+
     public SignatureImageUpload createSignatureUpload(UUID userId) {
         getActiveUser(userId);
 
