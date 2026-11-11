@@ -134,6 +134,25 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
     );
 
     @Query("""
+            SELECT COALESCE(SUM(counter.likeCount), 0)
+            FROM Post post
+            JOIN post.topic topic
+            JOIN post.photo photo
+            JOIN post.author author
+            JOIN PostLikeCounter counter ON counter.postId = post.id
+            WHERE author.id = :authorId
+              AND post.moderationStatus = :moderationStatus
+              AND post.deletedAt IS NULL
+              AND topic.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+              AND author.deletedAt IS NULL
+            """)
+    long sumVisibleLikeCountByAuthorId(
+            @Param("authorId") UUID authorId,
+            @Param("moderationStatus") ModerationStatus moderationStatus
+    );
+
+    @Query("""
             SELECT post
             FROM Post post
             JOIN FETCH post.topic topic

@@ -12,6 +12,7 @@ import com.chalkak.backend.user.domain.SignatureProcessingStatus;
 import com.chalkak.backend.user.domain.SignatureStorageKeys;
 import com.chalkak.backend.user.domain.StoredImageMetadata;
 import com.chalkak.backend.user.domain.User;
+import com.chalkak.backend.user.domain.UserRole;
 import com.chalkak.backend.user.domain.UserStatus;
 import com.chalkak.backend.user.repository.SignatureImageStorage;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
@@ -30,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class UserService {
 
+    private static final long REQUIRED_ARTIST_LIKE_COUNT = 100;
+
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final PostRepository postRepository;
@@ -43,6 +46,19 @@ public class UserService {
     public UserProfileResult getProfile(UUID userId) {
         User user = getActiveUser(userId);
         return new UserProfileResult(user.getRole(), user.getArtistAgreedAt() != null);
+    }
+
+    public ArtistEligibilityResult getArtistEligibility(UUID userId) {
+        User user = getActiveUser(userId);
+        long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
+        boolean canApply = user.getStatus() == UserStatus.ACTIVE
+                && user.getRole() == UserRole.USER
+                && receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
+        return new ArtistEligibilityResult(
+                receivedLikeCount,
+                REQUIRED_ARTIST_LIKE_COUNT,
+                canApply
+        );
     }
 
     public SignatureImageUpload createSignatureUpload(UUID userId) {

@@ -10,11 +10,13 @@ import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
+import com.chalkak.backend.user.api.v1.dto.response.ArtistEligibilityResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserProfileResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
 import com.chalkak.backend.user.repository.SignatureImageUpload;
+import com.chalkak.backend.user.service.ArtistEligibilityResult;
 import com.chalkak.backend.user.service.UserSignatureResult;
 import com.chalkak.backend.user.service.UserService;
 import com.chalkak.backend.user.service.UserWithdrawalService;
@@ -47,6 +49,17 @@ public class UserController implements UserApiDocs {
             @LoginUser AuthenticatedUser loginUser) {
         return ResponseEntity
                 .ok(UserProfileResponse.from(userService.getProfile(loginUser.userId())));
+    }
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping("/me/artist-eligibility")
+    public ResponseEntity<ArtistEligibilityResponse> getArtistEligibility(
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        ArtistEligibilityResult result = userService.getArtistEligibility(loginUser.userId());
+
+        return ResponseEntity.ok(ArtistEligibilityResponse.from(result));
     }
 
     @Override
