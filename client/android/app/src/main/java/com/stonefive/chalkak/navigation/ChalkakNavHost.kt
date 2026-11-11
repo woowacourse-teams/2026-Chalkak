@@ -212,7 +212,6 @@ fun ChalkakNavHost(
         currentBackStackEntry?.destination,
     ) {
         val push = pendingNotificationPush ?: return@LaunchedEffect
-        if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
         if (currentBackStackEntry == null) return@LaunchedEffect
         val destination = currentBackStackEntry?.destination
         if (destination?.hasRoute<Login>() == true ||
@@ -220,6 +219,23 @@ fun ChalkakNavHost(
             destination?.hasRoute<OnboardingSignature>() == true ||
             destination?.hasRoute<OnboardingSignaturePreview>() == true
         ) {
+            return@LaunchedEffect
+        }
+        // 둘러보기 중이면 로그인 화면으로 보낸다. 푸시는 남겨 두고 로그인하면 이어서 연다.
+        if (sessionState == UserSessionState.Guest) {
+            showToast(PUSH_LOGIN_REQUIRED_MESSAGE)
+            navigateToLogin()
+            return@LaunchedEffect
+        }
+        if (sessionState !is UserSessionState.Authenticated) return@LaunchedEffect
+
+        val screen = push.screen
+        if (screen != null) {
+            application.appContainer.pendingNotificationNavigation
+                .consume(push)
+            val target = screenPushTargetOf(screen)
+            if (target == null) showToast(INVALID_SCREEN_PUSH_MESSAGE)
+            navController.openPushNotificationTarget(target ?: NotificationTarget.NotificationList)
             return@LaunchedEffect
         }
 
@@ -1060,6 +1076,29 @@ private fun NavHostController.openNotificationTarget(target: NotificationTarget)
         }
 
         NotificationTarget.NotificationList -> navigate(Notifications) { launchSingleTop = true }
+
+        NotificationTarget.RecordTab -> navigateToPushTab(Record)
+
+        NotificationTarget.SettingsTab -> navigateToPushTab(Settings)
+
+        NotificationTarget.NotificationSettings -> navigate(NotificationSettings) { launchSingleTop = true }
+    }
+}
+
+/**
+ * 푸시로 탭([tab])을 연다. 하단 탭을 누를 때처럼 홈 위에 탭 하나만 두어 뒤로 가면 홈이다.
+ * 탭을 누를 때와 달리 탭에 저장해 둔 하위 화면은 되살리지 않고 탭 첫 화면을 연다.
+ * 그 탭의 이전 하위 화면은 버려서, 나중에 하단 탭으로 돌아와도 되살아나지 않는다. 다른 탭의 저장 상태는 그대로 둔다.
+ */
+private fun NavHostController.navigateToPushTab(tab: Any) {
+    val isTabInBackStack = runCatching { getBackStackEntry(tab) }.isSuccess
+    clearBackStack(tab)
+    navigate(tab) {
+        launchSingleTop = true
+        popUpTo(Home) {
+            // 같은 탭을 보던 중이면 그 하위 화면을 저장하지 않는다. 저장하면 하단 탭을 다시 누를 때 되살아난다.
+            saveState = !isTabInBackStack
+        }
     }
 }
 
@@ -1200,6 +1239,8 @@ private const val POST_DELETED_MESSAGE = "게시물을 삭제했어요"
 private const val DISPLAY_FEED_LOGIN_REQUIRED_MESSAGE = "게시물 피드를 보려면 로그인이 필요해요"
 private const val RECORD_LOGIN_REQUIRED_MESSAGE = "기록을 보려면 로그인이 필요해요"
 private const val FEEDBACK_LOGIN_REQUIRED_MESSAGE = "피드백을 보내려면 로그인이 필요해요"
+private const val PUSH_LOGIN_REQUIRED_MESSAGE = "로그인하면 알림을 이어서 열어요"
+private const val INVALID_SCREEN_PUSH_MESSAGE = "열 수 없는 알림이에요"
 private const val FEEDBACK_SUBMITTED_MESSAGE = "피드백을 보내주셔서 감사해요."
 private const val FEEDBACK_LIST_REFRESH_KEY = "feedback_list_refresh"
 private const val PUSH_PERMISSION_PROMPT_PREFS = "push_notification_permission_prompt"

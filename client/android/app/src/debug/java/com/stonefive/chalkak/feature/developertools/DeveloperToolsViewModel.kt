@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.notification.LocalNotificationPublisher
+import com.stonefive.chalkak.core.notification.NotificationPushData
 import com.stonefive.chalkak.domain.model.AppConfigDiagnostics
 import com.stonefive.chalkak.domain.repository.AppConfigRepository
 import java.net.URI
@@ -28,7 +30,10 @@ data class DeveloperToolsUiState(
     val isRefreshingRemoteConfig: Boolean = false,
 )
 
-class DeveloperToolsViewModel(private val appConfigRepository: AppConfigRepository) : ViewModel() {
+class DeveloperToolsViewModel(
+    private val appConfigRepository: AppConfigRepository,
+    private val localNotificationPublisher: LocalNotificationPublisher,
+) : ViewModel() {
     private val buildInfo = DeveloperToolsUiState(
         versionName = BuildConfig.VERSION_NAME,
         versionCode = BuildConfig.VERSION_CODE,
@@ -60,13 +65,33 @@ class DeveloperToolsViewModel(private val appConfigRepository: AppConfigReposito
         }
     }
 
+    /** [notification]을 [title] 제목의 로컬 알림으로 띄운다. 알림이 꺼져 있어 띄우지 못하면 false다. */
+    fun sendTestNotification(
+        notification: DeveloperToolsTestNotification,
+        title: String,
+    ): Boolean = localNotificationPublisher.publish(
+        payload = NotificationPushData(
+            eventId = "developer-tools-${System.currentTimeMillis()}",
+            notificationId = null,
+            type = null,
+            sourceType = null,
+            sourceId = null,
+            screen = notification.uri,
+        ),
+        title = title,
+        body = notification.uri,
+    )
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
-                DeveloperToolsViewModel(application.appContainer.appConfigRepository)
+                DeveloperToolsViewModel(
+                    appConfigRepository = application.appContainer.appConfigRepository,
+                    localNotificationPublisher = application.appContainer.localNotificationPublisher,
+                )
             }
         }
     }

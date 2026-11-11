@@ -1,5 +1,7 @@
 package com.stonefive.chalkak.feature.developertools
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,19 +36,29 @@ fun DeveloperToolsRoute(
     viewModel: DeveloperToolsViewModel = viewModel(factory = DeveloperToolsViewModel.Factory),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     DeveloperToolsScreen(
         uiState = uiState,
         onBackClick = onBackClick,
         onRefreshRemoteConfigClick = viewModel::refreshRemoteConfig,
+        onSendTestNotificationClick = { notification ->
+            if (!viewModel.sendTestNotification(notification, context.testNotificationTitle(notification))) {
+                Toast.makeText(context, R.string.developer_tools_test_notification_disabled, Toast.LENGTH_SHORT).show()
+            }
+        },
         modifier = modifier,
     )
 }
+
+private fun Context.testNotificationTitle(notification: DeveloperToolsTestNotification): String =
+    getString(R.string.developer_tools_test_notification_title, getString(notification.labelRes))
 
 @Composable
 fun DeveloperToolsScreen(
     uiState: DeveloperToolsUiState,
     onBackClick: () -> Unit,
     onRefreshRemoteConfigClick: () -> Unit,
+    onSendTestNotificationClick: (DeveloperToolsTestNotification) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -111,6 +124,10 @@ fun DeveloperToolsScreen(
                 onRefreshClick = onRefreshRemoteConfigClick,
                 modifier = Modifier.fillMaxWidth(),
             )
+            DeveloperToolsTestNotificationCard(
+                onSendClick = onSendTestNotificationClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
             ChalkakOutlinedButton(
                 text = stringResource(R.string.developer_tools_back),
                 onClick = onBackClick,
@@ -154,6 +171,7 @@ private fun DeveloperToolsScreenPreview() {
             ),
             onBackClick = {},
             onRefreshRemoteConfigClick = {},
+            onSendTestNotificationClick = {},
         )
     }
 }

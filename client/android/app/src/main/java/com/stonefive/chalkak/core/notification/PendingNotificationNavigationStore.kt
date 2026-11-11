@@ -15,6 +15,16 @@ class PendingNotificationNavigationStore {
         mutablePending.value = data
     }
 
+    // 화면을 새로 시작할 때 부른다. 프로세스가 살아 있으면 앞서 끝난 화면이 처리하지 못한 푸시가 남아 있을 수 있다.
+    fun startWith(data: NotificationPushData?) {
+        hasCurrentState = true
+        mutablePending.value = data
+    }
+
+    fun discard() {
+        startWith(null)
+    }
+
     // A surviving process may have consumed or replaced the saved push since state was saved.
     fun restore(data: NotificationPushData?) {
         if (hasCurrentState) return
