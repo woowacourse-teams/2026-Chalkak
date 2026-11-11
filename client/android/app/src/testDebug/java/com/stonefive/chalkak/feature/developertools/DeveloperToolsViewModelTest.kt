@@ -1,6 +1,8 @@
 package com.stonefive.chalkak.feature.developertools
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.notification.LocalNotificationPublisher
+import com.stonefive.chalkak.core.notification.NotificationPushData
 import com.stonefive.chalkak.domain.developer.AuthTokenExpiry
 import com.stonefive.chalkak.domain.developer.ConcurrentRequestReport
 import com.stonefive.chalkak.domain.developer.DeveloperAuthRepository
@@ -22,6 +24,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -31,6 +36,44 @@ class DeveloperToolsViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val authRepository = FakeDeveloperAuthRepository()
+
+    @Test
+    fun `테스트 알림을 보내면 화면 URI를 실은 화면 푸시를 띄운다`() {
+        // Given  알림을 띄울 수 있다
+        val publisher = FakeLocalNotificationPublisher(enabled = true)
+        val viewModel = DeveloperToolsViewModel(FakeAppConfigRepository(), publisher, authRepository)
+
+        // When   "알림 설정" 테스트 알림을 보낸다
+        val sent = viewModel.sendTestNotification(DeveloperToolsTestNotification.NOTIFICATION_SETTINGS, "제목")
+
+        // Then   chalkak://screen/notification-settings를 실은, notificationId 없는 알림 하나
+        val published = publisher.published.single()
+        assertTrue(sent)
+        assertEquals("chalkak://screen/notification-settings", published.payload.screen)
+        assertNull(published.payload.notificationId)
+        assertTrue(
+            published.payload.eventId!!
+                .startsWith("developer-tools-"),
+        )
+        assertEquals("제목", published.title)
+        assertEquals("chalkak://screen/notification-settings", published.body)
+    }
+
+    @Test
+    fun `알림이 꺼져 있으면 보내지 못했다고 알린다`() {
+        // Given  앱 알림이나 알림 채널이 꺼져 있다
+        val viewModel = DeveloperToolsViewModel(
+            FakeAppConfigRepository(),
+            FakeLocalNotificationPublisher(enabled = false),
+            authRepository,
+        )
+
+        // When   테스트 알림을 보낸다
+        val sent = viewModel.sendTestNotification(DeveloperToolsTestNotification.RECORD, "제목")
+
+        // Then   false(화면이 안내를 띄운다)
+        assertFalse(sent)
+    }
 
     @Test
     fun `개발자 도구가 Access·Refresh 토큰 만료 시각을 한국 시간으로 보여 준다`() = runTest {
@@ -137,7 +180,11 @@ class DeveloperToolsViewModelTest {
     }
 
     private fun TestScope.openDeveloperTools(): DeveloperToolsViewModel {
-        val viewModel = DeveloperToolsViewModel(FakeAppConfigRepository(), authRepository)
+        val viewModel = DeveloperToolsViewModel(
+            FakeAppConfigRepository(),
+            FakeLocalNotificationPublisher(enabled = true),
+            authRepository,
+        )
         backgroundScope.launch { viewModel.uiState.collect {} }
         advanceUntilIdle()
         return viewModel
@@ -192,4 +239,24 @@ private class FakeAppConfigRepository : AppConfigRepository {
     override suspend fun refresh() = Unit
 
     override suspend fun homeIssueExperiment(): HomeIssueExperiment = HomeIssueExperiment()
+}
+
+private data class Published(
+    val payload: NotificationPushData,
+    val title: String,
+    val body: String,
+)
+
+private class FakeLocalNotificationPublisher(private val enabled: Boolean) : LocalNotificationPublisher {
+    val published = mutableListOf<Published>()
+
+    override fun publish(
+        payload: NotificationPushData,
+        title: String,
+        body: String,
+    ): Boolean {
+        if (!enabled) return false
+        published += Published(payload, title, body)
+        return true
+    }
 }

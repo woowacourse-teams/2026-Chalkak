@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,12 +22,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.buildvariant.BuildVariantSettingsEntry
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
-import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
+import com.stonefive.chalkak.feature.notification.component.NotificationTopBar
 import com.stonefive.chalkak.feature.settings.component.SettingsAccountCard
 import com.stonefive.chalkak.feature.settings.component.SettingsAppCard
 import com.stonefive.chalkak.feature.settings.component.SettingsFeedbackCard
@@ -42,8 +42,7 @@ fun SettingsRoute(
     onOpenTerms: () -> Unit,
     onOpenFeedback: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
-    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
-    onOpenPhotoUpload: () -> Unit,
+    onBackClick: () -> Unit,
     signatureUpdateUrl: String? = null,
     onSignatureUpdateConsumed: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
@@ -73,8 +72,7 @@ fun SettingsRoute(
         onWithdrawClick = viewModel::showWithdrawDialog,
         onAccountDialogConfirm = viewModel::confirmAccountAction,
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
-        onNavigateToBottomBar = onNavigateToBottomBar,
-        onAddClick = onOpenPhotoUpload,
+        onBackClick = onBackClick,
         onNotificationSettingsClick = onOpenNotificationSettings,
         buildVariantContent = { BuildVariantSettingsEntry(modifier = Modifier.fillMaxWidth()) },
     )
@@ -92,8 +90,7 @@ fun SettingsScreen(
     onWithdrawClick: () -> Unit,
     onAccountDialogConfirm: () -> Unit,
     onAccountDialogDismiss: () -> Unit,
-    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
-    onAddClick: () -> Unit,
+    onBackClick: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     buildVariantContent: @Composable () -> Unit = {},
@@ -113,12 +110,13 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakTheme.colors.background,
-        bottomBar = {
-            ChalkakScreenBottomBar(
-                selectedItem = ChalkakBottomBarItem.SETTINGS,
-                onItemSelected = onNavigateToBottomBar,
-                onAddClick = onAddClick,
-                modifier = Modifier.fillMaxWidth(),
+        topBar = {
+            NotificationTopBar(
+                onBackClick = onBackClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
+                title = "설정",
             )
         },
     ) { innerPadding ->
@@ -129,7 +127,7 @@ fun SettingsScreen(
                 .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
 
             if (uiState.isLoggedIn) {
                 SettingsSectionLabel(text = "앱 설정")
@@ -243,8 +241,7 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onWithdrawClick = {},
         onAccountDialogConfirm = {},
         onAccountDialogDismiss = {},
-        onNavigateToBottomBar = {},
-        onAddClick = {},
+        onBackClick = {},
         onNotificationSettingsClick = {},
     )
 }

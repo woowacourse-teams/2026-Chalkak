@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.notification.LocalNotificationPublisher
+import com.stonefive.chalkak.core.notification.NotificationPushData
 import com.stonefive.chalkak.domain.developer.DeveloperAuthRepository
 import com.stonefive.chalkak.domain.developer.RefreshTokenRevokeResult
 import com.stonefive.chalkak.domain.model.AppConfigDiagnostics
@@ -58,6 +60,7 @@ private fun formatKstTime(epochSeconds: Long): String = kstTimeFormatter.format(
 
 class DeveloperToolsViewModel(
     private val appConfigRepository: AppConfigRepository,
+    private val localNotificationPublisher: LocalNotificationPublisher,
     private val developerAuthRepository: DeveloperAuthRepository,
 ) : ViewModel() {
     private val buildInfo = DeveloperToolsUiState(
@@ -114,6 +117,23 @@ class DeveloperToolsViewModel(
             }
         }
     }
+
+    /** [notification]을 [title] 제목의 로컬 알림으로 띄운다. 알림이 꺼져 있어 띄우지 못하면 false다. */
+    fun sendTestNotification(
+        notification: DeveloperToolsTestNotification,
+        title: String,
+    ): Boolean = localNotificationPublisher.publish(
+        payload = NotificationPushData(
+            eventId = "developer-tools-${System.currentTimeMillis()}",
+            notificationId = null,
+            type = null,
+            sourceType = null,
+            sourceId = null,
+            screen = notification.uri,
+        ),
+        title = title,
+        body = notification.uri,
+    )
 
     fun expireAccessToken() = runAuthAction {
         if (developerAuthRepository.expireAccessToken()) ACCESS_TOKEN_EXPIRED else NOT_SIGNED_IN
@@ -190,6 +210,7 @@ class DeveloperToolsViewModel(
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 DeveloperToolsViewModel(
                     appConfigRepository = application.appContainer.appConfigRepository,
+                    localNotificationPublisher = application.appContainer.localNotificationPublisher,
                     developerAuthRepository = application.appContainer.buildVariantServices.developerAuthRepository,
                 )
             }

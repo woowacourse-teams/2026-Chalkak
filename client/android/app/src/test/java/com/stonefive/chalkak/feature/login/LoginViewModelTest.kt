@@ -1,6 +1,8 @@
 package com.stonefive.chalkak.feature.login
 
 import com.stonefive.chalkak.MainDispatcherRule
+import com.stonefive.chalkak.core.notification.NotificationPushData
+import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -21,8 +24,10 @@ class LoginViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val repository = FakeLoginRepository()
+    private val pendingNotificationNavigation = PendingNotificationNavigationStore()
     private val viewModel = LoginViewModel(
         authRepository = repository,
+        pendingNotificationNavigation = pendingNotificationNavigation,
     )
 
     @Test
@@ -136,6 +141,20 @@ class LoginViewModelTest {
 
         assertEquals(UserSessionState.Guest, repository.sessionState.value)
         assertEquals(LoginStatus.GuestAccessGranted, viewModel.uiState.value.status)
+    }
+
+    @Test
+    fun `알림을 열려고 로그인 화면에 왔다가 비회원으로 계속하면 기다리던 알림을 버린다`() = runTest {
+        // Given  로그인해야 열 수 있는 알림이 기다리고 있다
+        pendingNotificationNavigation.enqueue(
+            NotificationPushData("event", null, null, null, null, screen = "chalkak://screen/record"),
+        )
+
+        // When   비회원으로 계속한다
+        viewModel.continueAsGuest()
+
+        // Then   기다리던 알림이 없다(둘러보기 화면에서 다시 로그인 화면으로 보내지 않는다)
+        assertNull(pendingNotificationNavigation.pending.value)
     }
 }
 

@@ -44,7 +44,7 @@ class MainBottomBarLayoutTest {
         val bar = composeRule.onNodeWithTag("main_bottom_bar")
         val restingBounds = bar.getUnclippedBoundsInRoot()
         val homeState = hostState.stateFor(ChalkakBottomBarItem.HOME)
-        val settingsState = hostState.stateFor(ChalkakBottomBarItem.SETTINGS)
+        val settingsState = hostState.stateFor(ChalkakBottomBarItem.FILTER)
         assertTrue(homeState.height > 0)
 
         composeRule.runOnIdle {
@@ -60,7 +60,7 @@ class MainBottomBarLayoutTest {
             0.5f,
         )
 
-        composeRule.runOnIdle { selectedItem.value = ChalkakBottomBarItem.SETTINGS }
+        composeRule.runOnIdle { selectedItem.value = ChalkakBottomBarItem.FILTER }
         composeRule.waitForIdle()
         assertEquals(
             restingBounds.top.value + restingBounds.height.value / 10f,
@@ -125,14 +125,14 @@ class MainBottomBarLayoutTest {
             ChalkakTheme {
                 MainBottomBarLayout(
                     hostState = hostState,
-                    selectedItem = ChalkakBottomBarItem.SETTINGS,
+                    selectedItem = ChalkakBottomBarItem.FILTER,
                     onItemSelected = {},
                     onAddClick = {},
                 ) {
                     Column(Modifier.fillMaxSize()) {
                         Spacer(Modifier.weight(1f))
                         ChalkakScreenBottomBar(
-                            selectedItem = ChalkakBottomBarItem.SETTINGS,
+                            selectedItem = ChalkakBottomBarItem.FILTER,
                             onItemSelected = {},
                             onAddClick = {},
                             modifier = Modifier.fillMaxWidth().testTag("screen_bottom_bar_spacer"),
@@ -155,7 +155,7 @@ class MainBottomBarLayoutTest {
                 .height.value,
             0.5f,
         )
-        val measuredHeight = hostState.stateFor(ChalkakBottomBarItem.SETTINGS).height
+        val measuredHeight = hostState.stateFor(ChalkakBottomBarItem.FILTER).height
         ChalkakBottomBarItem.entries.forEach { item ->
             assertEquals(measuredHeight, hostState.stateFor(item).height)
         }
