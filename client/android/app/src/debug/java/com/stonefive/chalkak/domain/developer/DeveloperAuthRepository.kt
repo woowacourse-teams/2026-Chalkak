@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.domain.developer
 
+import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -22,6 +23,12 @@ interface DeveloperAuthRepository {
 
     /** 현재 Refresh 토큰으로 로그아웃 요청을 보내 서버에서 폐기하고, 로컬 세션은 둔 채 Access 토큰만 무효로 바꾼다. */
     suspend fun revokeRefreshToken(): RefreshTokenRevokeResult
+
+    /**
+     * Refresh 토큰은 지금 폐기하고, Access 토큰은 [delay] 뒤에 무효로 바꾼다. 개발자 도구를 닫고 원래 화면(예: 사진 올리기)으로
+     * 돌아갈 시간을 주려고 쓴다. 타이머는 개발자 도구 화면을 닫아도 돈다. 그 사이 다른 계정으로 바뀌면 바꾸지 않는다.
+     */
+    suspend fun revokeRefreshTokenAndExpireAccessTokenAfter(delay: Duration): RefreshTokenRevokeResult
 
     /** 로그인이 필요한 요청을 [count]개 동시에 보내고, 그동안 일어난 토큰 갱신 요청 수와 성공 수를 돌려준다. */
     suspend fun sendConcurrentRequests(count: Int): ConcurrentRequestReport

@@ -39,6 +39,7 @@ fun DeveloperToolsRoute(
         onRefreshRemoteConfigClick = viewModel::refreshRemoteConfig,
         onExpireAccessTokenClick = viewModel::expireAccessToken,
         onRevokeRefreshTokenClick = viewModel::revokeRefreshToken,
+        onRevokeRefreshTokenWithDelayedExpiryClick = viewModel::revokeRefreshTokenWithDelayedExpiry,
         onSendConcurrentRequestsClick = viewModel::sendConcurrentRequests,
         onRefreshNetworkFailureChange = viewModel::setRefreshNetworkFailureEnabled,
         modifier = modifier,
@@ -52,6 +53,7 @@ fun DeveloperToolsScreen(
     onRefreshRemoteConfigClick: () -> Unit,
     onExpireAccessTokenClick: () -> Unit,
     onRevokeRefreshTokenClick: () -> Unit,
+    onRevokeRefreshTokenWithDelayedExpiryClick: () -> Unit,
     onSendConcurrentRequestsClick: () -> Unit,
     onRefreshNetworkFailureChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -123,6 +125,7 @@ fun DeveloperToolsScreen(
                 auth = uiState.auth,
                 onExpireAccessTokenClick = onExpireAccessTokenClick,
                 onRevokeRefreshTokenClick = onRevokeRefreshTokenClick,
+                onRevokeRefreshTokenWithDelayedExpiryClick = onRevokeRefreshTokenWithDelayedExpiryClick,
                 onSendConcurrentRequestsClick = onSendConcurrentRequestsClick,
                 onRefreshNetworkFailureChange = onRefreshNetworkFailureChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -157,6 +160,7 @@ private fun DeveloperToolsScreenPreview() {
             onRefreshRemoteConfigClick = {},
             onExpireAccessTokenClick = {},
             onRevokeRefreshTokenClick = {},
+            onRevokeRefreshTokenWithDelayedExpiryClick = {},
             onSendConcurrentRequestsClick = {},
             onRefreshNetworkFailureChange = {},
         )
@@ -180,6 +184,7 @@ private fun DeveloperToolsAuthenticatedPreview() {
             onRefreshRemoteConfigClick = {},
             onExpireAccessTokenClick = {},
             onRevokeRefreshTokenClick = {},
+            onRevokeRefreshTokenWithDelayedExpiryClick = {},
             onSendConcurrentRequestsClick = {},
             onRefreshNetworkFailureChange = {},
         )
@@ -196,6 +201,7 @@ private fun DeveloperToolsSignedOutPreview() {
             onRefreshRemoteConfigClick = {},
             onExpireAccessTokenClick = {},
             onRevokeRefreshTokenClick = {},
+            onRevokeRefreshTokenWithDelayedExpiryClick = {},
             onSendConcurrentRequestsClick = {},
             onRefreshNetworkFailureChange = {},
         )

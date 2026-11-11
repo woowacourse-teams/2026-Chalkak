@@ -18,7 +18,7 @@ import com.stonefive.chalkak.core.designsystem.component.toggle.ChalkakSwitch
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 
 /**
- * 개발자 도구의 인증 카드. 토큰 만료 시각을 보여 주고, 만료 상황(AT 강제 만료, RT 폐기, 동시 요청, 갱신 네트워크 실패)을 만든다.
+ * 개발자 도구의 인증 카드. 토큰 만료 시각을 보여 주고, 만료 상황(AT 강제 만료, RT 폐기, RT 폐기 후 30초 뒤 AT 만료, 동시 요청, 갱신 네트워크 실패)을 만든다.
  * 로그인하지 않았으면 버튼과 스위치를 끈다.
  */
 @Composable
@@ -26,6 +26,7 @@ fun DeveloperToolsAuthCard(
     auth: DeveloperAuthUiState,
     onExpireAccessTokenClick: () -> Unit,
     onRevokeRefreshTokenClick: () -> Unit,
+    onRevokeRefreshTokenWithDelayedExpiryClick: () -> Unit,
     onSendConcurrentRequestsClick: () -> Unit,
     onRefreshNetworkFailureChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -63,6 +64,12 @@ fun DeveloperToolsAuthCard(
             ChalkakOutlinedButton(
                 text = stringResource(R.string.developer_tools_auth_revoke_refresh_token),
                 onClick = onRevokeRefreshTokenClick,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = actionsEnabled,
+            )
+            ChalkakOutlinedButton(
+                text = stringResource(R.string.developer_tools_auth_revoke_refresh_token_delayed),
+                onClick = onRevokeRefreshTokenWithDelayedExpiryClick,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = actionsEnabled,
             )
@@ -121,6 +128,7 @@ private fun DeveloperToolsAuthCardPreview() {
             ),
             onExpireAccessTokenClick = {},
             onRevokeRefreshTokenClick = {},
+            onRevokeRefreshTokenWithDelayedExpiryClick = {},
             onSendConcurrentRequestsClick = {},
             onRefreshNetworkFailureChange = {},
         )

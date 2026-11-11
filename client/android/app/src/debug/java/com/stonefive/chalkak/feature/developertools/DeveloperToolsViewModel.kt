@@ -15,6 +15,7 @@ import java.net.URI
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -109,8 +110,18 @@ class DeveloperToolsViewModel(
     fun revokeRefreshToken() = runAuthAction {
         when (val result = developerAuthRepository.revokeRefreshToken()) {
             RefreshTokenRevokeResult.Success -> REFRESH_TOKEN_REVOKED
-            RefreshTokenRevokeResult.NoSession -> NOT_SIGNED_IN
-            is RefreshTokenRevokeResult.Failure -> "폐기 요청 실패 (${result.httpCode ?: "네트워크"})"
+            else -> result.failureMessage()
+        }
+    }
+
+    fun revokeRefreshTokenWithDelayedExpiry() = runAuthAction {
+        when (
+            val result = developerAuthRepository.revokeRefreshTokenAndExpireAccessTokenAfter(DELAYED_EXPIRY)
+        ) {
+            RefreshTokenRevokeResult.Success ->
+                "Refresh 토큰을 폐기했어요. ${DELAYED_EXPIRY.inWholeSeconds}초 뒤 Access 토큰이 만료돼요"
+
+            else -> result.failureMessage()
         }
     }
 
@@ -121,6 +132,12 @@ class DeveloperToolsViewModel(
 
     fun setRefreshNetworkFailureEnabled(enabled: Boolean) {
         developerAuthRepository.setRefreshNetworkFailureEnabled(enabled)
+    }
+
+    private fun RefreshTokenRevokeResult.failureMessage(): String = when (this) {
+        RefreshTokenRevokeResult.Success -> REFRESH_TOKEN_REVOKED
+        RefreshTokenRevokeResult.NoSession -> NOT_SIGNED_IN
+        is RefreshTokenRevokeResult.Failure -> "폐기 요청 실패 (${httpCode ?: "네트워크"})"
     }
 
     // 버튼 작업은 한 번에 하나만 하고, 끝나면 결과 한 줄을 남긴다.
@@ -147,6 +164,9 @@ class DeveloperToolsViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val CONCURRENT_REQUEST_COUNT = 5
+
+        // 개발자 도구를 닫고 원래 화면으로 돌아갈 시간. 시연에서 사진 올리기로 돌아간 뒤 만료가 일어나게 한다.
+        private val DELAYED_EXPIRY = 30.seconds
         private const val ACCESS_TOKEN_EXPIRED = "Access 토큰을 무효 값으로 바꿨어요"
         private const val REFRESH_TOKEN_REVOKED = "Refresh 토큰을 폐기하고 Access 토큰을 무효로 바꿨어요"
         private const val NOT_SIGNED_IN = "로그인한 세션이 없어요"

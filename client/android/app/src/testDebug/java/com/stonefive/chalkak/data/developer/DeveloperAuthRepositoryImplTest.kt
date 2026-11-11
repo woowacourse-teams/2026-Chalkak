@@ -13,9 +13,14 @@ import com.stonefive.chalkak.domain.developer.RefreshTokenRevokeResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -119,6 +124,53 @@ class DeveloperAuthRepositoryImplTest {
     }
 
     @Test
+    fun `Refresh 토큰 폐기(30초 뒤 만료)를 누르면 지금은 로그아웃 요청만 보내고 AT는 30초 뒤 무효로 바뀐다`() = runTest {
+        // Given "u1", AT "at-1", RT "rt-1"
+        // When  Refresh 토큰 폐기(30초 뒤 만료)
+        // Then  logout 요청 1회(본문 refreshToken "rt-1"), 바로는 AT "at-1" 그대로, 30초 뒤 AT 무효 값
+        //       (결과 문구는 DeveloperToolsViewModelTest에서 본다)
+        val delayedRepository = repositoryScheduledIn(backgroundScope)
+
+        val result = delayedRepository.revokeRefreshTokenAndExpireAccessTokenAfter(30.seconds)
+
+        assertEquals(RefreshTokenRevokeResult.Success, result)
+        assertEquals(listOf("rt-1"), fakeServer.logoutBodies.map(::refreshTokenOf))
+        assertEquals("at-1", store.credentials()?.accessToken)
+        advanceTimeBy(29.seconds)
+        runCurrent()
+        assertEquals("at-1", store.credentials()?.accessToken)
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertNotEquals("at-1", store.credentials()?.accessToken)
+        assertTrue(
+            store
+                .credentials()
+                ?.accessToken
+                .orEmpty()
+                .isNotBlank(),
+        )
+        assertEquals("rt-1", store.credentials()?.refreshToken)
+        assertEquals(UserSessionState.Authenticated("u1"), store.sessionState.value)
+    }
+
+    @Test
+    fun `30초가 되기 전에 다른 계정으로 바뀌면 AT를 바꾸지 않는다`() = runTest {
+        // Given "u1"로 폐기(30초 뒤 만료)를 누른 뒤 10초에 "u2"로 로그인(AT "at-2")
+        // When  30초가 지난다
+        // Then  AT "at-2" 그대로, 세션 상태 Authenticated("u2")
+        val delayedRepository = repositoryScheduledIn(backgroundScope)
+        delayedRepository.revokeRefreshTokenAndExpireAccessTokenAfter(30.seconds)
+        advanceTimeBy(10.seconds)
+        store.saveSession(credentials(accessToken = "at-2", refreshToken = "rt-2", userId = "u2"))
+
+        advanceTimeBy(21.seconds)
+        runCurrent()
+
+        assertEquals("at-2", store.credentials()?.accessToken)
+        assertEquals(UserSessionState.Authenticated("u2"), store.sessionState.value)
+    }
+
+    @Test
     fun `동시 요청 5개를 보내면 갱신 횟수와 성공 수를 보여 준다`() = runBlocking {
         // Given AT 무효, 서버는 무효 AT에 401·갱신 요청에 새 토큰
         // When  동시 요청 5개
@@ -154,6 +206,21 @@ class DeveloperAuthRepositoryImplTest {
         assertTrue("IOException이어야 함: $outcome", outcome.exceptionOrNull() is IOException)
         assertEquals(UserSessionState.Authenticated("u1"), store.sessionState.value)
     }
+
+    // 30초 타이머를 가상 시간으로 돌리려고 예약 범위만 테스트 범위로 바꾼다.
+    private fun repositoryScheduledIn(scope: CoroutineScope) = DeveloperAuthRepositoryImpl(
+        sessionStore = store,
+        authenticatedClient = authenticatedClient,
+        baseUrl = server.url("/api/v1/"),
+        refreshRequestProbe = probe,
+        scheduleScope = scope,
+    )
+
+    private fun refreshTokenOf(body: String): String? = json
+        .parseToJsonElement(body)
+        .jsonObject["refreshToken"]
+        ?.jsonPrimitive
+        ?.content
 
     // NetworkModule과 같은 순서로 붙인다. 실제 AuthorizationHeaderInterceptor는 https가 아니면 토큰을 빼므로
     // MockWebServer(http)에서는 같은 일을 하는 테스트용 인터셉터를 쓴다.

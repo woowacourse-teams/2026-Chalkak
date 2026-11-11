@@ -24,6 +24,7 @@
     <string name="developer_tools_auth_not_signed_in">로그인 안 됨</string>
     <string name="developer_tools_auth_expire_access_token">Access 토큰 강제 만료</string>
     <string name="developer_tools_auth_revoke_refresh_token">Refresh 토큰 폐기</string>
+    <string name="developer_tools_auth_revoke_refresh_token_delayed">Refresh 토큰 폐기 (30초 뒤 만료)</string>
     <string name="developer_tools_auth_concurrent_requests">동시 요청 5개 보내기</string>
     <string name="developer_tools_auth_refresh_network_failure">갱신 요청을 네트워크 실패로 만들기</string>
     <string name="developer_tools_auth_last_result">마지막 결과</string>

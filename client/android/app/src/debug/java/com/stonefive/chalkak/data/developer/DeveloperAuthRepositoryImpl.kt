@@ -9,15 +9,20 @@ import com.stonefive.chalkak.domain.developer.ConcurrentRequestReport
 import com.stonefive.chalkak.domain.developer.DeveloperAuthRepository
 import com.stonefive.chalkak.domain.developer.RefreshTokenRevokeResult
 import java.io.IOException
+import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -42,6 +47,7 @@ class DeveloperAuthRepositoryImpl(
     private val refreshRequestProbe: RefreshRequestProbe,
     private val plainClient: OkHttpClient = OkHttpClient(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val scheduleScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : DeveloperAuthRepository {
     override val tokenExpiry: Flow<AuthTokenExpiry?> = sessionStore.session
         .map { session ->
@@ -64,7 +70,23 @@ class DeveloperAuthRepositoryImpl(
         return sessionStore.updateTokens(credentials.withInvalidAccessToken())
     }
 
-    override suspend fun revokeRefreshToken(): RefreshTokenRevokeResult {
+    override suspend fun revokeRefreshToken(): RefreshTokenRevokeResult = revokeThen { revoked ->
+        // 다음 요청에서 바로 갱신 → 재인증 필요가 일어나게 지금 Access 토큰을 무효로 바꾼다.
+        expireAccessTokenIfStillSignedIn(revoked)
+    }
+
+    override suspend fun revokeRefreshTokenAndExpireAccessTokenAfter(delay: Duration): RefreshTokenRevokeResult =
+        revokeThen { revoked ->
+            // 개발자 도구를 닫아도 돌도록 앱 범위에서 기다린다.
+            scheduleScope.launch {
+                delay(delay)
+                expireAccessTokenIfStillSignedIn(revoked)
+            }
+        }
+
+    // 현재 Refresh 토큰으로 로그아웃 요청을 보내 서버에서 폐기한다. 성공하면 [afterRevoked]를 부른다.
+    // 로컬 Refresh 토큰은 그대로 둔다(그 토큰으로 갱신해야 서버가 REAUTHENTICATION_REQUIRED를 준다).
+    private suspend fun revokeThen(afterRevoked: suspend (SessionCredentials) -> Unit): RefreshTokenRevokeResult {
         val credentials = currentCredentials() ?: return RefreshTokenRevokeResult.NoSession
         val request = Request
             .Builder()
@@ -82,12 +104,16 @@ class DeveloperAuthRepositoryImpl(
             return RefreshTokenRevokeResult.Failure(null)
         }
         if (code !in HTTP_SUCCESS) return RefreshTokenRevokeResult.Failure(code)
-        // 서버의 Refresh 토큰은 폐기됐다. Access 토큰을 무효로 바꿔 다음 요청에서 갱신 → 재인증 필요가 바로 일어나게 한다.
-        // 로컬 Refresh 토큰은 그대로 둔다(그 토큰으로 갱신해야 서버가 REAUTHENTICATION_REQUIRED를 준다).
-        currentCredentials()
-            ?.takeIf { it.userId == credentials.userId }
-            ?.let { sessionStore.updateTokens(it.withInvalidAccessToken()) }
+        afterRevoked(credentials)
         return RefreshTokenRevokeResult.Success
+    }
+
+    // 폐기한 그 로그인(같은 계정·같은 Refresh 토큰)이 아직 남아 있을 때만 Access 토큰을 무효로 바꾼다.
+    // 예: 30초 사이 "u2"로 로그인했으면 "u2"의 토큰은 건드리지 않는다.
+    private suspend fun expireAccessTokenIfStillSignedIn(revoked: SessionCredentials) {
+        currentCredentials()
+            ?.takeIf { it.userId == revoked.userId && it.refreshToken == revoked.refreshToken }
+            ?.let { sessionStore.updateTokens(it.withInvalidAccessToken()) }
     }
 
     override suspend fun sendConcurrentRequests(count: Int): ConcurrentRequestReport {

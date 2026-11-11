@@ -11,6 +11,8 @@ import com.stonefive.chalkak.domain.model.HomeIssueExperiment
 import com.stonefive.chalkak.domain.repository.AppConfigRepository
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,6 +62,21 @@ class DeveloperToolsViewModelTest {
     }
 
     @Test
+    fun `Refresh 토큰 폐기(30초 뒤 만료)를 누르면 지금은 로그아웃 요청만 보내고 AT는 30초 뒤 무효로 바뀐다`() = runTest {
+        // Given "u1", AT "at-1", RT "rt-1"
+        // When  Refresh 토큰 폐기(30초 뒤 만료)
+        // Then  결과 문구 "Refresh 토큰을 폐기했어요. 30초 뒤 Access 토큰이 만료돼요"
+        //       (logout 요청·AT 바뀌는 시점은 DeveloperAuthRepositoryImplTest에서 본다)
+        val viewModel = openDeveloperTools()
+
+        viewModel.revokeRefreshTokenWithDelayedExpiry()
+        advanceUntilIdle()
+
+        assertEquals(listOf(30.seconds), authRepository.delayedExpiryRequests)
+        assertEquals("Refresh 토큰을 폐기했어요. 30초 뒤 Access 토큰이 만료돼요", viewModel.uiState.value.auth.lastResult)
+    }
+
+    @Test
     fun `동시 요청 5개를 보내면 갱신 횟수와 성공 수를 보여 준다`() = runTest {
         // Given AT 무효, 서버는 무효 AT에 401·갱신 요청에 새 토큰 (저장소가 갱신 1회, 성공 5를 돌려줌)
         // When  동시 요청 5개
@@ -105,6 +122,13 @@ private class FakeDeveloperAuthRepository : DeveloperAuthRepository {
     override suspend fun expireAccessToken(): Boolean = true
 
     override suspend fun revokeRefreshToken(): RefreshTokenRevokeResult = revokeResult
+
+    val delayedExpiryRequests = mutableListOf<Duration>()
+
+    override suspend fun revokeRefreshTokenAndExpireAccessTokenAfter(delay: Duration): RefreshTokenRevokeResult {
+        delayedExpiryRequests += delay
+        return revokeResult
+    }
 
     override suspend fun sendConcurrentRequests(count: Int): ConcurrentRequestReport {
         concurrentRequestCounts += count
