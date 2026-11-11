@@ -1,8 +1,12 @@
 package com.stonefive.chalkak
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.stonefive.chalkak.buildvariant.BuildVariantAppOverlay
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.feature.authgate.AuthGateRoute
 import com.stonefive.chalkak.feature.home.HomeViewModel
@@ -30,23 +34,27 @@ fun ChalkakApp(
         LaunchedEffect(homeViewModel) {
             homeViewModel.startPreloading()
         }
-        AuthGateRoute(
-            loginRequiredContent = { contentModifier ->
-                ChalkakNavHost(
-                    analyticsTracker = analyticsTracker,
-                    homeViewModel = homeViewModel,
-                    modifier = contentModifier,
-                    startDestination = Login,
-                )
-            },
-            appAccessibleContent = { contentModifier ->
-                ChalkakNavHost(
-                    analyticsTracker = analyticsTracker,
-                    homeViewModel = homeViewModel,
-                    modifier = contentModifier,
-                    startDestination = Home,
-                )
-            },
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            AuthGateRoute(
+                loginRequiredContent = { contentModifier ->
+                    ChalkakNavHost(
+                        analyticsTracker = analyticsTracker,
+                        homeViewModel = homeViewModel,
+                        modifier = contentModifier,
+                        startDestination = Login,
+                    )
+                },
+                appAccessibleContent = { contentModifier ->
+                    ChalkakNavHost(
+                        analyticsTracker = analyticsTracker,
+                        homeViewModel = homeViewModel,
+                        modifier = contentModifier,
+                        startDestination = Home,
+                    )
+                },
+            )
+            // debug 빌드에서만 토큰 갱신 순간 위쪽에 작은 표시를 띄운다. release는 빈 함수다.
+            BuildVariantAppOverlay(modifier = Modifier.align(Alignment.TopCenter))
+        }
     }
 }

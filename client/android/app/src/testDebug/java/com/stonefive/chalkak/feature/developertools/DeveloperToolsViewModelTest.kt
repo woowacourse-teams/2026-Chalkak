@@ -5,6 +5,7 @@ import com.stonefive.chalkak.domain.developer.AuthTokenExpiry
 import com.stonefive.chalkak.domain.developer.ConcurrentRequestReport
 import com.stonefive.chalkak.domain.developer.DeveloperAuthRepository
 import com.stonefive.chalkak.domain.developer.RefreshTokenRevokeResult
+import com.stonefive.chalkak.domain.developer.TokenRefreshHistory
 import com.stonefive.chalkak.domain.model.AppConfig
 import com.stonefive.chalkak.domain.model.AppConfigDiagnostics
 import com.stonefive.chalkak.domain.model.HomeIssueExperiment
@@ -91,6 +92,50 @@ class DeveloperToolsViewModelTest {
         assertEquals("갱신 1회 · 성공 5/5", viewModel.uiState.value.auth.lastResult)
     }
 
+    @Test
+    fun `Access 토큰 강제 만료 뒤 개발자 도구의 토큰 상태가 "무효(강제 만료됨)"로 보인다`() = runTest {
+        // Given "u1" 로그인, AT 정상
+        // When  Access 토큰 강제 만료
+        // Then  상태 문구 "무효(강제 만료됨)" (저장된 AT가 무효 값인지는 DeveloperAuthRepositoryImplTest에서 본다)
+        authRepository.tokenExpiry.value = AuthTokenExpiry(
+            accessTokenExpiresAtEpochSeconds = kst(2026, 11, 11, 15, 30),
+            refreshTokenExpiresAtEpochSeconds = kst(2026, 12, 11, 15, 15),
+        )
+        val viewModel = openDeveloperTools()
+
+        viewModel.expireAccessToken()
+        advanceUntilIdle()
+
+        assertEquals("무효(강제 만료됨)", viewModel.uiState.value.auth.accessTokenStatus)
+    }
+
+    @Test
+    fun `토큰이 갱신되면 상태가 정상으로 바뀌고 마지막 갱신 시각과 누적 횟수가 보인다`() = runTest {
+        // Given 강제 만료 상태, 지금 18:04:10 KST
+        // When  일반 API가 401을 받고 갱신 성공 (저장소가 새 만료 시각·갱신 기록을 내보냄)
+        // Then  상태 "정상", 마지막 갱신 "18:04:10 갱신됨 (누적 1회)", AT 만료 시각이 새 값으로 바뀜
+        authRepository.tokenExpiry.value = AuthTokenExpiry(
+            accessTokenExpiresAtEpochSeconds = kst(2026, 11, 11, 15, 30),
+            refreshTokenExpiresAtEpochSeconds = kst(2026, 12, 11, 15, 15),
+            isAccessTokenInvalidated = true,
+        )
+        val viewModel = openDeveloperTools()
+
+        authRepository.tokenExpiry.value = AuthTokenExpiry(
+            accessTokenExpiresAtEpochSeconds = kst(2026, 11, 11, 18, 19) + 10,
+            refreshTokenExpiresAtEpochSeconds = kst(2026, 12, 11, 18, 4) + 10,
+        )
+        authRepository.refreshHistory.value = TokenRefreshHistory(
+            count = 1,
+            lastRefreshedAtEpochSeconds = kst(2026, 11, 11, 18, 4) + 10,
+        )
+        advanceUntilIdle()
+
+        assertEquals("정상", viewModel.uiState.value.auth.accessTokenStatus)
+        assertEquals("18:04:10 갱신됨 (누적 1회)", viewModel.uiState.value.auth.lastRefresh)
+        assertEquals("2026-11-11 18:19:10", viewModel.uiState.value.auth.accessTokenExpiresAt)
+    }
+
     private fun TestScope.openDeveloperTools(): DeveloperToolsViewModel {
         val viewModel = DeveloperToolsViewModel(FakeAppConfigRepository(), authRepository)
         backgroundScope.launch { viewModel.uiState.collect {} }
@@ -111,6 +156,7 @@ private class FakeDeveloperAuthRepository : DeveloperAuthRepository {
     override val tokenExpiry = MutableStateFlow<AuthTokenExpiry?>(null)
     private val failureSwitch = MutableStateFlow(false)
     override val isRefreshNetworkFailureEnabled: StateFlow<Boolean> = failureSwitch
+    override val refreshHistory = MutableStateFlow(TokenRefreshHistory())
     var revokeResult: RefreshTokenRevokeResult = RefreshTokenRevokeResult.Success
     var concurrentReport = ConcurrentRequestReport(0, 0, 0)
     val concurrentRequestCounts = mutableListOf<Int>()
@@ -119,7 +165,10 @@ private class FakeDeveloperAuthRepository : DeveloperAuthRepository {
         failureSwitch.value = enabled
     }
 
-    override suspend fun expireAccessToken(): Boolean = true
+    override suspend fun expireAccessToken(): Boolean {
+        tokenExpiry.value = tokenExpiry.value?.copy(isAccessTokenInvalidated = true)
+        return true
+    }
 
     override suspend fun revokeRefreshToken(): RefreshTokenRevokeResult = revokeResult
 

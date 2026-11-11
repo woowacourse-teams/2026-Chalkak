@@ -52,8 +52,16 @@ fun DeveloperToolsAuthCard(
                 value = auth.accessTokenExpiresAt ?: notSignedIn,
             )
             AuthValue(
+                label = stringResource(R.string.developer_tools_auth_access_status),
+                value = auth.accessTokenStatus ?: notSignedIn,
+            )
+            AuthValue(
                 label = stringResource(R.string.developer_tools_auth_refresh_expires_at),
                 value = auth.refreshTokenExpiresAt ?: notSignedIn,
+            )
+            AuthValue(
+                label = stringResource(R.string.developer_tools_auth_last_refresh),
+                value = auth.lastRefresh ?: stringResource(R.string.developer_tools_auth_no_result),
             )
             ChalkakOutlinedButton(
                 text = stringResource(R.string.developer_tools_auth_expire_access_token),
@@ -115,7 +123,7 @@ private fun AuthValue(
     }
 }
 
-@Preview(name = "로그인됨", showBackground = true)
+@Preview(name = "로그인됨", showBackground = true) // 정상 상태
 @Composable
 private fun DeveloperToolsAuthCardPreview() {
     ChalkakTheme {
@@ -124,8 +132,46 @@ private fun DeveloperToolsAuthCardPreview() {
                 isSignedIn = true,
                 accessTokenExpiresAt = "2026-11-11 15:30:00",
                 refreshTokenExpiresAt = "2026-12-11 15:15:00",
+                accessTokenStatus = "정상",
+                lastRefresh = "18:04:10 갱신됨 (누적 1회)",
                 lastResult = "갱신 1회 · 성공 5/5",
             ),
+            onExpireAccessTokenClick = {},
+            onRevokeRefreshTokenClick = {},
+            onRevokeRefreshTokenWithDelayedExpiryClick = {},
+            onSendConcurrentRequestsClick = {},
+            onRefreshNetworkFailureChange = {},
+        )
+    }
+}
+
+@Preview(name = "강제 만료", showBackground = true)
+@Composable
+private fun DeveloperToolsAuthCardExpiredPreview() {
+    ChalkakTheme {
+        DeveloperToolsAuthCard(
+            auth = DeveloperAuthUiState(
+                isSignedIn = true,
+                accessTokenExpiresAt = "2026-11-11 15:30:00",
+                refreshTokenExpiresAt = "2026-12-11 15:15:00",
+                accessTokenStatus = "무효(강제 만료됨)",
+                lastResult = "Access 토큰을 무효 값으로 바꿨어요",
+            ),
+            onExpireAccessTokenClick = {},
+            onRevokeRefreshTokenClick = {},
+            onRevokeRefreshTokenWithDelayedExpiryClick = {},
+            onSendConcurrentRequestsClick = {},
+            onRefreshNetworkFailureChange = {},
+        )
+    }
+}
+
+@Preview(name = "로그인 안 됨", showBackground = true)
+@Composable
+private fun DeveloperToolsAuthCardSignedOutPreview() {
+    ChalkakTheme {
+        DeveloperToolsAuthCard(
+            auth = DeveloperAuthUiState(),
             onExpireAccessTokenClick = {},
             onRevokeRefreshTokenClick = {},
             onRevokeRefreshTokenWithDelayedExpiryClick = {},

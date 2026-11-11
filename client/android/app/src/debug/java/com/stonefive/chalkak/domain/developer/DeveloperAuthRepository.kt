@@ -16,6 +16,9 @@ interface DeveloperAuthRepository {
     /** 켜져 있으면 토큰 갱신 요청을 서버로 보내지 않고 네트워크 오류(IOException)로 끝낸다. */
     val isRefreshNetworkFailureEnabled: StateFlow<Boolean>
 
+    /** 앱 프로세스가 켜진 뒤 성공한 토큰 갱신 횟수와 마지막 시각. 갱신 표시와 개발자 도구의 "마지막 갱신"에 쓴다. */
+    val refreshHistory: StateFlow<TokenRefreshHistory>
+
     fun setRefreshNetworkFailureEnabled(enabled: Boolean)
 
     /** 저장된 Access 토큰만 서버가 거절할 무효 값으로 바꾼다. 로그인하지 않았으면 false. */
@@ -34,10 +37,20 @@ interface DeveloperAuthRepository {
     suspend fun sendConcurrentRequests(count: Int): ConcurrentRequestReport
 }
 
-/** 만료 시각(epoch 초). 예: Access 2026-11-11 15:30:00 KST → 1_794_378_600. */
+/**
+ * 만료 시각(epoch 초). 예: Access 2026-11-11 15:30:00 KST → 1_794_378_600.
+ * [isAccessTokenInvalidated]: 저장된 Access 토큰이 개발자 도구가 넣은 무효 값이면 true(강제 만료됨).
+ */
 data class AuthTokenExpiry(
     val accessTokenExpiresAtEpochSeconds: Long,
     val refreshTokenExpiresAtEpochSeconds: Long,
+    val isAccessTokenInvalidated: Boolean = false,
+)
+
+/** 성공한 토큰 갱신 [count]회, 마지막 갱신 시각 [lastRefreshedAtEpochSeconds](없으면 null). */
+data class TokenRefreshHistory(
+    val count: Int = 0,
+    val lastRefreshedAtEpochSeconds: Long? = null,
 )
 
 sealed interface RefreshTokenRevokeResult {

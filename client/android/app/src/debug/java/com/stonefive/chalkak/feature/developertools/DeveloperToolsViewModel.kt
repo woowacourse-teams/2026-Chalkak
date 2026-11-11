@@ -41,6 +41,8 @@ data class DeveloperAuthUiState(
     val isSignedIn: Boolean = false,
     val accessTokenExpiresAt: String? = null,
     val refreshTokenExpiresAt: String? = null,
+    val accessTokenStatus: String? = null,
+    val lastRefresh: String? = null,
     val isRefreshNetworkFailureEnabled: Boolean = false,
     val isRunning: Boolean = false,
     val lastResult: String? = null,
@@ -49,6 +51,10 @@ data class DeveloperAuthUiState(
 private val kstFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
 
 private fun formatKst(epochSeconds: Long): String = kstFormatter.format(Instant.ofEpochSecond(epochSeconds))
+
+private val kstTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
+
+private fun formatKstTime(epochSeconds: Long): String = kstTimeFormatter.format(Instant.ofEpochSecond(epochSeconds))
 
 class DeveloperToolsViewModel(
     private val appConfigRepository: AppConfigRepository,
@@ -69,10 +75,10 @@ class DeveloperToolsViewModel(
         combine(
             appConfigRepository.diagnostics,
             isRefreshing,
-            developerAuthRepository.tokenExpiry,
+            combine(developerAuthRepository.tokenExpiry, developerAuthRepository.refreshHistory, ::Pair),
             developerAuthRepository.isRefreshNetworkFailureEnabled,
             authAction,
-        ) { diagnostics, refreshing, expiry, networkFailure, action ->
+        ) { diagnostics, refreshing, (expiry, refreshHistory), networkFailure, action ->
             buildInfo.copy(
                 remoteConfig = diagnostics,
                 isRefreshingRemoteConfig = refreshing,
@@ -80,6 +86,12 @@ class DeveloperToolsViewModel(
                     isSignedIn = expiry != null,
                     accessTokenExpiresAt = expiry?.accessTokenExpiresAtEpochSeconds?.let(::formatKst),
                     refreshTokenExpiresAt = expiry?.refreshTokenExpiresAtEpochSeconds?.let(::formatKst),
+                    accessTokenStatus = expiry?.let {
+                        if (it.isAccessTokenInvalidated) ACCESS_TOKEN_INVALIDATED else ACCESS_TOKEN_VALID
+                    },
+                    lastRefresh = refreshHistory.lastRefreshedAtEpochSeconds?.let { refreshedAt ->
+                        "${formatKstTime(refreshedAt)} 갱신됨 (누적 ${refreshHistory.count}회)"
+                    },
                     isRefreshNetworkFailureEnabled = networkFailure,
                     isRunning = action.isRunning,
                     lastResult = action.lastResult,
@@ -164,6 +176,8 @@ class DeveloperToolsViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val CONCURRENT_REQUEST_COUNT = 5
+        private const val ACCESS_TOKEN_VALID = "정상"
+        private const val ACCESS_TOKEN_INVALIDATED = "무효(강제 만료됨)"
 
         // 개발자 도구를 닫고 원래 화면으로 돌아갈 시간. 시연에서 사진 올리기로 돌아간 뒤 만료가 일어나게 한다.
         private val DELAYED_EXPIRY = 30.seconds

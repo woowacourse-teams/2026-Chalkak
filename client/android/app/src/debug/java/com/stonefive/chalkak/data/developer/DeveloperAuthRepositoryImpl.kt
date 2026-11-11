@@ -8,6 +8,7 @@ import com.stonefive.chalkak.domain.developer.AuthTokenExpiry
 import com.stonefive.chalkak.domain.developer.ConcurrentRequestReport
 import com.stonefive.chalkak.domain.developer.DeveloperAuthRepository
 import com.stonefive.chalkak.domain.developer.RefreshTokenRevokeResult
+import com.stonefive.chalkak.domain.developer.TokenRefreshHistory
 import java.io.IOException
 import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineDispatcher
@@ -55,11 +56,14 @@ class DeveloperAuthRepositoryImpl(
                 AuthTokenExpiry(
                     accessTokenExpiresAtEpochSeconds = credentials.expiresAtEpochSeconds,
                     refreshTokenExpiresAtEpochSeconds = credentials.refreshTokenExpiresAtEpochSeconds,
+                    isAccessTokenInvalidated = credentials.accessToken == INVALID_ACCESS_TOKEN,
                 )
             }
         }.distinctUntilChanged()
 
     override val isRefreshNetworkFailureEnabled: StateFlow<Boolean> = refreshRequestProbe.isNetworkFailureEnabled
+
+    override val refreshHistory: StateFlow<TokenRefreshHistory> = refreshRequestProbe.refreshHistory
 
     override fun setRefreshNetworkFailureEnabled(enabled: Boolean) {
         refreshRequestProbe.setNetworkFailureEnabled(enabled)

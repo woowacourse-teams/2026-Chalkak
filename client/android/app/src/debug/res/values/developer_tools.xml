@@ -21,6 +21,9 @@
     <string name="developer_tools_auth">인증 토큰</string>
     <string name="developer_tools_auth_access_expires_at">Access 토큰 만료 시각 (KST)</string>
     <string name="developer_tools_auth_refresh_expires_at">Refresh 토큰 만료 시각 (KST)</string>
+    <string name="developer_tools_auth_access_status">Access 토큰 상태</string>
+    <string name="developer_tools_auth_last_refresh">마지막 갱신</string>
+    <string name="developer_tools_token_refreshed">토큰 갱신됨 · 401 → 갱신 → 재시도</string>
     <string name="developer_tools_auth_not_signed_in">로그인 안 됨</string>
     <string name="developer_tools_auth_expire_access_token">Access 토큰 강제 만료</string>
     <string name="developer_tools_auth_revoke_refresh_token">Refresh 토큰 폐기</string>

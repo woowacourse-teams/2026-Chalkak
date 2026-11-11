@@ -10,6 +10,7 @@ import com.stonefive.chalkak.data.remote.TokenAuthenticator
 import com.stonefive.chalkak.data.remote.auth.RefreshApi
 import com.stonefive.chalkak.domain.developer.ConcurrentRequestReport
 import com.stonefive.chalkak.domain.developer.RefreshTokenRevokeResult
+import com.stonefive.chalkak.domain.developer.TokenRefreshHistory
 import com.stonefive.chalkak.domain.model.UserSessionState
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
@@ -17,7 +18,10 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -44,7 +48,7 @@ class DeveloperAuthRepositoryImplTest {
     private lateinit var server: MockWebServer
     private val json = Json { ignoreUnknownKeys = true }
     private val store = FakeSessionStore(credentials(accessToken = "at-1", refreshToken = "rt-1"))
-    private val probe = RefreshRequestProbe()
+    private val probe = RefreshRequestProbe(currentEpochSeconds = { REFRESHED_AT })
     private val fakeServer = FakeAuthServer()
     private lateinit var authenticatedClient: OkHttpClient
     private lateinit var repository: DeveloperAuthRepositoryImpl
@@ -207,6 +211,93 @@ class DeveloperAuthRepositoryImplTest {
         assertEquals(UserSessionState.Authenticated("u1"), store.sessionState.value)
     }
 
+    @Test
+    fun `Access 토큰 강제 만료 뒤 개발자 도구의 토큰 상태가 "무효(강제 만료됨)"로 보인다`() = runTest {
+        // Given "u1" 로그인, AT 정상
+        // When  Access 토큰 강제 만료
+        // Then  토큰 정보가 강제 만료됨(무효 값)으로 나옴 (문구 "무효(강제 만료됨)"는 DeveloperToolsViewModelTest에서 본다)
+        assertEquals(
+            false,
+            repository.tokenExpiry
+                .first()
+                ?.isAccessTokenInvalidated,
+        )
+
+        repository.expireAccessToken()
+
+        assertEquals(
+            true,
+            repository.tokenExpiry
+                .first()
+                ?.isAccessTokenInvalidated,
+        )
+    }
+
+    @Test
+    fun `토큰이 갱신되면 상태가 정상으로 바뀌고 마지막 갱신 시각과 누적 횟수가 보인다`() = runTest {
+        // Given 강제 만료 상태, 지금 18:04:10 KST (RefreshRequestProbe 시계)
+        // When  일반 API가 401을 받고 갱신 성공
+        // Then  상태 정상(무효 아님), 갱신 기록 1회·18:04:10, AT 만료 시각이 새 값으로 바뀜
+        repository.expireAccessToken()
+
+        val code = authenticatedGet()
+
+        assertEquals(200, code)
+        assertEquals(
+            TokenRefreshHistory(count = 1, lastRefreshedAtEpochSeconds = REFRESHED_AT),
+            repository.refreshHistory.value,
+        )
+        val expiry = repository.tokenExpiry.first()
+        assertEquals(false, expiry?.isAccessTokenInvalidated)
+        assertNotEquals(Long.MAX_VALUE, expiry?.accessTokenExpiresAtEpochSeconds)
+    }
+
+    @Test
+    fun `여러 요청이 동시에 갱신을 기다려도 갱신 표시는 한 번만 나간다`() = runTest {
+        // Given 강제 만료 상태
+        // When  동시 요청 5개 → 갱신 1회
+        // Then  갱신 표시 1번 (갱신 기록이 0 → 1로 한 번만 바뀜)
+        val observedCounts = mutableListOf<Int>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.refreshHistory.collect { observedCounts += it.count }
+        }
+        repository.expireAccessToken()
+
+        val report = repository.sendConcurrentRequests(5)
+
+        assertEquals(1, report.refreshCount)
+        assertEquals(listOf(0, 1), observedCounts)
+    }
+
+    @Test
+    fun `갱신이 실패하면 갱신 표시를 띄우지 않고 상태도 그대로다`() = runTest {
+        // Given 강제 만료 상태, 네트워크 실패 스위치 켬
+        // When  일반 API 요청
+        // Then  갱신 표시 0번, 상태 "무효(강제 만료됨)" 그대로
+        repository.expireAccessToken()
+        repository.setRefreshNetworkFailureEnabled(true)
+
+        val outcome = runCatching { authenticatedGet() }
+
+        assertTrue("IOException이어야 함: $outcome", outcome.exceptionOrNull() is IOException)
+        assertEquals(TokenRefreshHistory(), repository.refreshHistory.value)
+        assertEquals(
+            true,
+            repository.tokenExpiry
+                .first()
+                ?.isAccessTokenInvalidated,
+        )
+    }
+
+    private fun authenticatedGet(): Int = authenticatedClient
+        .newCall(
+            Request
+                .Builder()
+                .url(server.url("/api/v1/users/me/signature"))
+                .build(),
+        ).execute()
+        .use { it.code }
+
     // 30초 타이머를 가상 시간으로 돌리려고 예약 범위만 테스트 범위로 바꾼다.
     private fun repositoryScheduledIn(scope: CoroutineScope) = DeveloperAuthRepositoryImpl(
         sessionStore = store,
@@ -341,3 +432,6 @@ private class FakeSessionStore(initial: SessionCredentials) : SessionStore {
         mutableSessionState.value = UserSessionState.ReauthenticationRequired(userId)
     }
 }
+
+// 18:04:10 KST (2026-11-11)
+private const val REFRESHED_AT = 1_794_387_850L

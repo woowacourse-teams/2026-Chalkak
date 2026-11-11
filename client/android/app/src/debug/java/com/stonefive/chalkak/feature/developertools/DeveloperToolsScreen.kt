@@ -177,6 +177,8 @@ private fun DeveloperToolsAuthenticatedPreview() {
                     isSignedIn = true,
                     accessTokenExpiresAt = "2026-11-11 15:30:00",
                     refreshTokenExpiresAt = "2026-12-11 15:15:00",
+                    accessTokenStatus = "정상",
+                    lastRefresh = "18:04:10 갱신됨 (누적 1회)",
                     lastResult = "갱신 1회 · 성공 5/5",
                 ),
             ),
