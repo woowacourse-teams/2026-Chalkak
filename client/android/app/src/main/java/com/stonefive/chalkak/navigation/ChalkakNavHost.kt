@@ -1075,12 +1075,16 @@ private fun NavHostController.openNotificationTarget(target: NotificationTarget)
 /**
  * 푸시로 탭([tab])을 연다. 하단 탭을 누를 때처럼 홈 위에 탭 하나만 두어 뒤로 가면 홈이다.
  * 탭을 누를 때와 달리 탭에 저장해 둔 하위 화면은 되살리지 않고 탭 첫 화면을 연다.
+ * 그 탭의 이전 하위 화면은 버려서, 나중에 하단 탭으로 돌아와도 되살아나지 않는다. 다른 탭의 저장 상태는 그대로 둔다.
  */
 private fun NavHostController.navigateToPushTab(tab: Any) {
+    val isTabInBackStack = runCatching { getBackStackEntry(tab) }.isSuccess
+    clearBackStack(tab)
     navigate(tab) {
         launchSingleTop = true
         popUpTo(Home) {
-            saveState = true
+            // 같은 탭을 보던 중이면 그 하위 화면을 저장하지 않는다. 저장하면 하단 탭을 다시 누를 때 되살아난다.
+            saveState = !isTabInBackStack
         }
     }
 }
