@@ -4,7 +4,7 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
     case home
     case display
     case record
-    case settings
+    case filter
 
     var id: Self { self }
 
@@ -16,8 +16,8 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
             "전시"
         case .record:
             "기록"
-        case .settings:
-            "설정"
+        case .filter:
+            "필터"
         }
     }
 
@@ -30,7 +30,7 @@ enum ChalkakBottomBarItem: String, CaseIterable, Identifiable {
             name = "ic_bottom_display"
         case .record:
             name = "ic_bottom_record"
-        case .settings:
+        case .filter:
             name = "ic_bottom_setting"
         }
         return Image(isSelected ? "\(name)_selected" : name)
@@ -103,7 +103,7 @@ private struct LiquidGlassBottomBar: View {
             itemButton(.display)
             addButton
             itemButton(.record)
-            itemButton(.settings)
+            itemButton(.filter)
         }
         .padding(barPadding)
         // 선택 아이콘은 렌즈에 걸친 부분에만 보인다. 렌즈 밖은 현재 탭이라도 기본 아이콘으로 보인다.
@@ -247,7 +247,7 @@ private struct LiquidGlassBottomBar: View {
             itemIcon(.display, isSelected: true)
             addIcon
             itemIcon(.record, isSelected: true)
-            itemIcon(.settings, isSelected: true)
+            itemIcon(.filter, isSelected: true)
         }
         .padding(barPadding)
         .allowsHitTesting(false)
@@ -338,7 +338,7 @@ private struct LiquidGlassBottomBar: View {
         case .home: 0
         case .display: 1
         case .record: 3
-        case .settings: 4
+        case .filter: 4
         }
     }
 
@@ -361,7 +361,7 @@ private struct LiquidGlassBottomBar: View {
         case 0: return .home
         case 1: return .display
         case 3: return .record
-        case 4: return .settings
+        case 4: return .filter
         default: return nil
         }
     }
@@ -434,7 +434,7 @@ private struct FlatBottomBar: View {
             itemButton(.display)
             addButton
             itemButton(.record)
-            itemButton(.settings)
+            itemButton(.filter)
         }
         .padding(.top, FlatBottomBarMetrics.topPadding)
         .padding(.bottom, FlatBottomBarMetrics.bottomPadding)
