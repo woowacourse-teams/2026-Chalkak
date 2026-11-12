@@ -12,7 +12,7 @@ const XMP_EXTENSION_HEADER = Buffer.from('http://ns.adobe.com/xmp/extension/\0',
 const EXTENSION_GUID_LENGTH = 32;
 const MAX_EXTENDED_XMP_BYTES = 16 * 1024 * 1024;
 
-const MASK_WARNING = '마스크와 부분 보정은 필터에 담기지 않아요.';
+const MASK_MESSAGE = '마스크와 부분 보정은 필터로 옮길 수 없어요. 마스크·부분 보정을 끄고 다시 내보내 주세요.';
 const DEHAZE_CLARITY_WARNING = '디헤이즈·명료도는 사진에 따라 다르게 보일 수 있어요.';
 
 function parseValue(raw) {
@@ -186,6 +186,7 @@ function number(values, key) {
  * summary는 판정에 쓴 값의 요약으로, 운영 분석용으로 저장한다.
  */
 export function planFromXmp({ values, hasMasks }) {
+  if (hasMasks) throw ExtractionFailure.invalidProbe(MASK_MESSAGE);
   const vignette = number(values, 'PostCropVignetteAmount');
   const highlights = number(values, 'Highlights2012');
   const clarity = number(values, 'Clarity2012');
@@ -203,7 +204,6 @@ export function planFromXmp({ values, hasMasks }) {
   });
 
   const warnings = [];
-  if (hasMasks) warnings.push(MASK_WARNING);
   if (dehaze !== 0 || clarity !== 0) warnings.push(DEHAZE_CLARITY_WARNING);
 
   const summary = {

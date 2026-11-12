@@ -264,9 +264,12 @@ describe('planFromXmp 경고와 요약', () => {
     assert.deepEqual(planOf({ Highlights2012: '-30', Texture: '10' }).warnings, []);
   });
 
-  test('마스크가 있으면 경고', () => {
+  test('마스크가 있으면 디코드 전에 INVALID_PROBE', () => {
     const buffer = jpegWithXmp('<rdf:Description xmlns:crs="x" crs:Exposure2012="0"><crs:MaskGroupBasedCorrections><rdf:Seq><rdf:li crs:What="Correction"/></rdf:Seq></crs:MaskGroupBasedCorrections></rdf:Description>');
-    assert.deepEqual(planFromXmp(readXmp(buffer)).warnings, ['마스크와 부분 보정은 필터에 담기지 않아요.']);
+    assert.throws(() => planFromXmp(readXmp(buffer)), {
+      type: 'INVALID_PROBE',
+      message: '마스크와 부분 보정은 필터로 옮길 수 없어요. 마스크·부분 보정을 끄고 다시 내보내 주세요.',
+    });
   });
 
   test('디헤이즈가 0이 아니면 경고', () => {
