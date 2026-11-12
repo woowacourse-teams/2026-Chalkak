@@ -20,10 +20,11 @@ function assertInvalidProbe(message) {
 }
 
 describe('probe-input', () => {
-  let validJpeg;
+  let validJpeg, validSmall;
 
   before(async () => {
     validJpeg = await solidJpeg(PROBE_WIDTH, PROBE_HEIGHT);
+    validSmall = await solidJpeg(16, 16);
   });
 
   test('JPG가 아닌 바이트는 INVALID_PROBE', async () => {
@@ -102,6 +103,32 @@ describe('probe-input', () => {
   test('크기가 다르면 INVALID_PROBE', async () => {
     const wrongSize = await solidJpeg(3000, 4000);
     await assert.rejects(decodeProbe(wrongSize), assertInvalidProbe(/자르기·크기 조정/));
+  });
+
+  // 작은 JPG의 SOF 헤더에 큰 크기를 적어, 실제로 큰 이미지를 만들지 않고 "큰 크기로 보이는" 파일을 얻는다
+  function jpegClaimingSize(width, height) {
+    const bytes = Buffer.from(validSmall);
+    const sof = bytes.findIndex((b, i) => b === 0xff && b !== bytes[i + 1] && (bytes[i + 1] === 0xc0 || bytes[i + 1] === 0xc2));
+    bytes.writeUInt16BE(height, sof + 5);
+    bytes.writeUInt16BE(width, sof + 7);
+    return bytes;
+  }
+
+  test('한도를 넘는 큰 크기는 픽셀을 디코딩하기 전에 크기 안내로 빠르게 거절한다', async () => {
+    const huge = jpegClaimingSize(16000, 16000);
+    const rssBefore = process.memoryUsage().rss;
+    const started = performance.now();
+    await assert.rejects(decodeProbe(huge), assertInvalidProbe(/자르기·크기 조정/));
+    assert.ok(performance.now() - started < 1000, '1초 안에 거절해야 한다');
+    assert.ok(process.memoryUsage().rss - rssBefore < 100 * 1024 * 1024, 'RSS가 크게 늘면 안 된다');
+  });
+
+  test('실제로 큰 JPG(4096x4096)도 크기 안내로 거절한다', async () => {
+    await assert.rejects(decodeProbe(await solidJpeg(4096, 4096)), assertInvalidProbe(/자르기·크기 조정/));
+  });
+
+  test('가로·세로가 맞아도 방향이 없어 뒤집히면(3072x4096 아닌 4096x3072) 거절한다', async () => {
+    await assert.rejects(decodeProbe(await solidJpeg(PROBE_HEIGHT, PROBE_WIDTH)), assertInvalidProbe(/자르기·크기 조정/));
   });
 
   test('FF D8 FF로 시작하지만 깨진 JPG는 INVALID_PROBE', async () => {
