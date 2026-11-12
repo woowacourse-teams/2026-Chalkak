@@ -187,6 +187,147 @@ POST /internal/v1/filter-probes/{probeId}/failed
 - 위 고정 서명 벡터 두 개를 백엔드 시험에도 넣으면 양쪽이 같은 형식인지 확인됩니다.
 - 모의 백엔드로 워커를 먼저 확인할 수 있습니다: `IMAGE_PROCESSING_API_SECRET=<시험용 시크릿> node test/support/mock-backend.js --environment dev --port 8787 [--start 503|skip] [--complete 400] [--failed 500]`. 서명·시각을 백엔드와 같은 규칙으로 검증하고, 요청마다 `{ action, probeId, signatureValid, body }` JSON 한 줄을 표준 출력에 씁니다.
 
+## 실행
+
+프로세스 하나가 공용 큐 `chalkak-filter-extraction`을 한 건씩 처리하고, 견본 키의 `dev`/`prod`로 콜백할 백엔드를 고릅니다. 한 건은 start → 내려받기 → 자식 프로세스 추출 → 레시피 쓰기 → complete 순서이고, 작업이 도는 동안 60초마다 숨김 시간을 180초로 늘립니다.
+
+```
+npm run worker      # node src/worker/main.js
+```
+
+설정은 환경 변수로만 읽습니다. 전체 목록과 설명은 `deploy/filter-worker.env.example`입니다.
+
+| 변수 | 기본 | 비고 |
+| --- | --- | --- |
+| `FILTER_EXTRACTION_QUEUE_URL` | 필수 | `https://sqs.`로 시작 |
+| `AWS_REGION` | 필수 | `ap-northeast-2` |
+| `S3_BUCKET`, `S3_PREFIX` | `techcourse-project-2026`, `chalkak` | |
+| `DEV_BACKEND_INTERNAL_API_BASE_URL`, `PROD_BACKEND_INTERNAL_API_BASE_URL` | 필수 | 경로 정확히 `/internal/v1`, https(루프백 주소만 http) |
+| `IMAGE_PROCESSING_API_SECRET` | 필수 | 백엔드 `IMAGE_PROCESSOR_CALLBACK_SECRET`과 같은 값, 32자 이상 |
+| `CALLBACK_TIMEOUT_SECONDS` | 5 | |
+| `SQS_MAX_RECEIVE_COUNT` | 5 | 이 횟수 이상 받은 메시지는 추출하지 않고 failed로 포기 |
+| `EXTRACTION_TIMEOUT_SECONDS` | 480 | 초과하면 재시도 없이 failed |
+| `HEARTBEAT_INTERVAL_SECONDS`, `VISIBILITY_EXTENSION_SECONDS` | 60, 180 | 주기는 연장 값의 절반보다 작아야 함 |
+| `FILTER_WORKER_WORK_DIR` | `os.tmpdir()` | 기동 때 쓰기 가능 확인, 남은 `job-*` 삭제 |
+
+AWS 자격 증명은 환경 변수로 받지 않고 기본 체인(EC2 인스턴스 역할)을 씁니다. 설정이 잘못되면 `config_invalid` 로그 한 줄(변수 이름만, 값은 없음)을 남기고 종료 코드 78로 끝납니다.
+
+로그는 표준 출력의 JSON 줄입니다(`time`, `level`, `event`와 작업 필드 `messageId`, `receiveCount`, `env`, `probeId`). 시크릿·서명·요청 헤더는 찍지 않습니다. 종료 코드는 0(종료 신호), 78(설정 오류, 재시작하지 않음), 1(예상 밖 오류, 10초 뒤 재시작)입니다.
+
+종료 신호(SIGTERM·SIGINT)를 받으면 수신을 끊고, 진행 중인 추출 자식을 SIGKILL하고, 메시지를 숨김 0초로 반납한 뒤 종료 코드 0으로 끝납니다. 현재 작업이 끝나기를 기다리지 않으므로 배포·재시작이 최장 8분을 기다리지 않고, 반납된 메시지는 재시작 뒤 처음부터 다시 처리됩니다.
+
+## 운영
+
+> 이 절은 임시 위치입니다. 인프라 운영 문서(`filter-worker-setup.md`, PR #1019)가 병합되면 #1026에서 그쪽으로 옮기거나 링크합니다. 그 문서의 `dnf install docker`·`systemctl enable --now docker` 줄과 "컨테이너 안 역할 획득" 설명은 Docker를 쓰지 않으므로 지금은 따르지 않고, #1026에서 정리합니다.
+
+배포 파일은 `deploy/`에 있습니다.
+
+| 파일 | 설치 위치 |
+| --- | --- |
+| `chalkak-filter-worker.service` | `/etc/systemd/system/` |
+| `filter-worker.env.example` | `/etc/chalkak/filter-worker.env` (root:root 600, 자리표시 값) |
+| `logrotate.conf` | `/etc/logrotate.d/chalkak-filter-worker` |
+| `amazon-cloudwatch-agent.json` | `/opt/aws/amazon-cloudwatch-agent/etc/chalkak-filter-worker.json` |
+
+유닛 요점: 서비스 계정 `chalkak-filter`, 로그 파일 `/var/log/chalkak-filter-worker/worker.log`(CloudWatch Agent는 파일만 수집), 작업 폴더 `CacheDirectory`(디스크, `/tmp`는 tmpfs일 수 있어 견본이 RAM을 차지하므로 쓰지 않음), `KillMode=mixed`와 `TimeoutStopSec=60`(부모가 자식을 끊고 반납할 시간), `OOMPolicy=continue`와 `OOMScoreAdjust=500`(메모리가 모자라면 SSM·CloudWatch Agent보다 워커가 먼저 죽고, 자식 하나가 죽어도 유닛은 멈추지 않음), `RestartPreventExitStatus=78`. 정상 작업이 RSS 약 560~590MB와 swap 약 530MB를 쓰므로 `MemoryMax`는 걸지 않습니다.
+
+### 설치 (EC2, Session Manager, `sudo bash`, 서비스는 켜지 않음)
+
+Node 22가 `/usr/local/bin/node`에 있고 저장소가 `/opt/chalkak/repo`에 있어야 합니다.
+
+```bash
+# 0. 코드와 의존성
+/usr/local/bin/node --version        # v22.x
+cd /opt/chalkak/repo && git fetch origin && git checkout <브랜치> && git pull --ff-only
+cd backend/filter-worker && npm ci --omit=dev
+
+# 1. 서비스 계정과 폴더
+id chalkak-filter || useradd --system --no-create-home --shell /sbin/nologin chalkak-filter
+namei -l /opt/chalkak/repo/backend/filter-worker/src/worker/main.js   # 모든 단계가 다른 사용자도 읽고 실행할 수 있어야 함
+install -d -o root -g root -m 0755 /var/log/chalkak-filter-worker /etc/chalkak
+
+# 2. 환경 파일(자리표시 그대로 둔다. 실제 값은 #1026)
+[ -f /etc/chalkak/filter-worker.env ] || install -o root -g root -m 0600 deploy/filter-worker.env.example /etc/chalkak/filter-worker.env
+
+# 3. 유닛, logrotate, CloudWatch Agent 설정
+install -o root -g root -m 0644 deploy/chalkak-filter-worker.service /etc/systemd/system/
+install -o root -g root -m 0644 deploy/logrotate.conf /etc/logrotate.d/chalkak-filter-worker
+install -o root -g root -m 0644 deploy/amazon-cloudwatch-agent.json /opt/aws/amazon-cloudwatch-agent/etc/chalkak-filter-worker.json
+systemctl daemon-reload
+systemd-analyze verify /etc/systemd/system/chalkak-filter-worker.service
+logrotate --debug /etc/logrotate.d/chalkak-filter-worker
+
+# 4. 로그 그룹 /chalkak/filter-worker의 보존 기간을 콘솔에서 30일로 먼저 정한다(Agent가 그룹을 만들면 무기한이다).
+#    dev·prod 공용 그룹이라 환경별로 나눌 수 없다.
+#    fetch-config는 기존 설정을 바꿔치우므로 먼저 확인하고, 이미 설정이 있으면 -a append-config로 더한다
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status
+ls /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.d/ 2>/dev/null
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/chalkak-filter-worker.json
+systemctl enable amazon-cloudwatch-agent
+
+systemctl is-enabled chalkak-filter-worker    # disabled 여야 한다
+```
+
+- 이 절차는 서비스를 켜지 않습니다. `systemctl enable`·`start`는 #1026(실제 환경 파일, dev 연동, 기능 플래그)에서 합니다. 자리표시 값으로 실수로 시작해도 설정 검증에서 78로 끝나고 재시작하지 않습니다.
+- 갱신(#1026 이후): `git pull --ff-only` → `npm ci --omit=dev` → `systemctl restart chalkak-filter-worker`. 진행 중이던 메시지는 반납돼 다시 처리됩니다. 새 버전은 dev·prod에 동시에 적용되므로 먼저 로컬 `npm test`와 아래 수동 확인을 거칩니다.
+- `systemd-analyze verify`로 `OOMPolicy`(systemd 243~), `append:`(240~) 지원을 확인합니다(Amazon Linux 2023은 systemd 252).
+
+### 수동 확인 (실제 큐·S3, 콜백은 EC2 위 모의 백엔드)
+
+백엔드(#1010)가 없어도 실제 SQS·S3와 프로세스 동작을 확인합니다. 모의 백엔드는 `127.0.0.1`에만 뜨고 서명·시각을 백엔드와 같은 규칙으로 검증합니다. 시작 전에 큐가 비어 있는지 확인합니다(0이 아니면 실제 메시지이므로 멈추고 확인).
+
+```bash
+cd /opt/chalkak/repo/backend/filter-worker   # 브랜치 체크아웃, npm ci --omit=dev 끝난 상태
+Q=<큐 URL>; B=techcourse-project-2026
+aws sqs get-queue-attributes --region ap-northeast-2 --queue-url $Q \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+export SECRET=$(openssl rand -hex 32)        # 시험 전용. 실제 시크릿을 쓰지 않는다
+mock() { IMAGE_PROCESSING_API_SECRET=$SECRET /usr/local/bin/node test/support/mock-backend.js "$@"; }
+mock --environment dev --port 8787 >> ~/mock-dev.log &
+mock --environment prod --port 8788 >> ~/mock-prod.log &
+mkdir -p ~/worker-work
+cat > ~/worker-test.env <<ENV
+FILTER_EXTRACTION_QUEUE_URL=$Q
+AWS_REGION=ap-northeast-2
+DEV_BACKEND_INTERNAL_API_BASE_URL=http://127.0.0.1:8787/internal/v1
+PROD_BACKEND_INTERNAL_API_BASE_URL=http://127.0.0.1:8788/internal/v1
+IMAGE_PROCESSING_API_SECRET=$SECRET
+FILTER_WORKER_WORK_DIR=$HOME/worker-work
+ENV
+run() { env $(cat ~/worker-test.env | xargs) "$@" /usr/local/bin/node src/worker/main.js; }
+new_key() { echo "chalkak/filter-probes/dev/$(uuidgen | tr A-Z a-z).jpg" | tee -a ~/test-keys.txt; }
+```
+
+| 경우 | 방법 | 기대 |
+| --- | --- | --- |
+| 정상 | `run` 실행 뒤 견본을 `aws s3 cp <견본>.jpg s3://$B/$(new_key)` | `extraction_finished` → `recipe_written` → `job_finished outcome=delete`. 모의 로그에 start·complete가 `signatureValid: true`. 레시피 객체의 `ContentType`·`CacheControl` 확인 |
+| 숨김 연장 | 정상 진행 중 1분마다 `get-queue-attributes` | 180초가 지나도 `NotVisible` 1, `Messages` 0 |
+| 잘못된 견본 | 텍스트 파일을 `.jpg` 키로 올림 | failed `INVALID_PROBE`, 삭제, 레시피 없음 |
+| 무시할 키 | `chalkak/filter-probes/dev/not-a-uuid.jpg` 업로드 | `message_ignored reason=unexpected_key`, 콜백 없음, 삭제 |
+| 재시도·포기 | 개발 모의 백엔드를 `--start 503`으로 다시 띄우고 `SQS_MAX_RECEIVE_COUNT=2 run` | 1회는 남김, 약 180초 뒤 2회에 `job_abandoned`와 failed(PROCESSING_FAILED), 삭제 |
+| 추출 시간 초과 | `EXTRACTION_TIMEOUT_SECONDS=30 run` | `extraction_failed kind=timeout`, failed 후 삭제, `pgrep -f extract-child` 없음 |
+| 종료 신호 | 정상 진행 30초 뒤 `kill -TERM <워커 pid>` | 자식 사라짐, `job_finished outcome=release`, `worker_stopped`, 종료 코드 0, 바로 `Messages` 1 |
+| 자식 강제 종료 | 진행 중 `kill -KILL $(pgrep -f extract-child)` | `extraction_failed kind=crash`, 남김, 약 180초 뒤 다시 처리 |
+| systemd | 환경 파일 설치(작업 폴더 줄 제외), `systemctl start`, 잘못된 견본 업로드, `time systemctl stop` | 서비스 계정으로 동작, 로그 파일과 CloudWatch `/chalkak/filter-worker` 유입, 정지 60초 안·`ExecMainStatus=0` |
+
+prod 경로(`chalkak/filter-probes/prod/`)의 S3 권한 확인은 #1026에서 합니다.
+
+### 정리
+
+```bash
+pkill -f test/support/mock-backend.js        # 다시 띄운 것 포함
+while read k; do aws s3 rm s3://$B/$k; done < ~/test-keys.txt
+aws s3 rm s3://$B/chalkak/filters/dev/recipes/<recipeId>.json   # 모의 로그의 recipeId 전부
+aws sqs get-queue-attributes --region ap-northeast-2 --queue-url $Q \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible   # 0, 0
+rm -rf ~/worker-test.env ~/worker-work ~/test-keys.txt ~/mock-*.log; unset SECRET
+```
+
+- 공용 큐(dev·prod)이므로 `PurgeQueue`는 쓰지 않습니다. 메시지가 남았으면 `aws sqs receive-message`로 받아 그 `ReceiptHandle`로 하나씩 지웁니다.
+- 버킷은 버전 관리가 켜져 있어 `s3 rm`은 삭제 표시만 남기고 이전 판은 남습니다. 시험 키는 무작위 UUID라 그대로 둡니다.
+- 확인을 마치면 EC2 저장소를 `be/develop`으로 되돌리고 `systemctl is-enabled chalkak-filter-worker`가 `disabled`인지 확인합니다.
+
 ## 테스트
 
 Node 22 이상이 필요합니다.
@@ -195,4 +336,4 @@ Node 22 이상이 필요합니다.
 npm ci && npm test
 ```
 
-`test/m1-*.test.js`는 알려진 연산을 합성 견본에 걸고 읽은 값이 복원되는지 보는 시험입니다. 견본 한 장에 RGBA·평면 수백 MB를 쓰므로 메모리가 일정하도록 파일을 하나씩 순서대로 돌립니다(`--test-concurrency=1`, 전체 약 125초). 적용 쪽 연산(`test/support/`)은 시험용입니다.
+`test/m1-*.test.js`는 알려진 연산을 합성 견본에 걸고 읽은 값이 복원되는지 보는 시험입니다. 견본 한 장에 RGBA·평면 수백 MB를 쓰므로 메모리가 일정하도록 파일을 하나씩 순서대로 돌립니다(`--test-concurrency=1`, 전체 약 150초). 적용 쪽 연산(`test/support/`)은 시험용입니다.
