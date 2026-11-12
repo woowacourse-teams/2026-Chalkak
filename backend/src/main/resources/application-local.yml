@@ -12,6 +12,7 @@ spring:
 
 chalkak:
   admin:
+    user-role-change-enabled: true
     authentication:
       development-bypass-enabled: ${ADMIN_DEVELOPMENT_BYPASS_ENABLED:true}
     account:

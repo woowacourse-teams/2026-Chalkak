@@ -108,6 +108,11 @@ public class PostRepositoryImpl implements PostRepository {
     }
 
     @Override
+    public long sumVisibleLikeCountByAuthorId(UUID authorId) {
+        return postJpaRepository.sumVisibleLikeCountByAuthorId(authorId, ModerationStatus.APPROVED);
+    }
+
+    @Override
     public PostSlice findVisibleRecentByAuthorId(
             UUID authorId,
             int page,

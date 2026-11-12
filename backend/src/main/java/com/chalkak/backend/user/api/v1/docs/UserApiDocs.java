@@ -5,6 +5,8 @@ import com.chalkak.backend.exception.ErrorResponse;
 import com.chalkak.backend.post.api.v1.dto.request.AuthorPostListRequest;
 import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
+import com.chalkak.backend.user.api.v1.dto.response.ArtistEligibilityResponse;
+import com.chalkak.backend.user.api.v1.dto.response.UserProfileResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureDetailResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserSignatureUploadResponse;
@@ -23,6 +25,42 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Users", description = "사용자 API")
 @SecurityRequirement(name = "accessToken")
 public interface UserApiDocs {
+
+    @Operation(summary = "내 회원 역할 조회", description = "정지 회원도 조회할 수 있습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "회원 정보 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "일반 사용자 API에 접근할 수 없는 토큰", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<UserProfileResponse> getMyProfile(
+            @Parameter(hidden = true) AuthenticatedUser loginUser);
+
+    @Operation(summary = "작가 신청 자격 조회", description = """
+            현재 공개 중인 본인 게시물의 좋아요 합계와 신청에 필요한 수를 반환합니다.
+            정지 회원과 이미 작가인 회원도 조회할 수 있으며 신청 가능 여부는 false입니다.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "작가 신청 자격 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "일반 사용자 API에 접근할 수 없는 토큰", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<ArtistEligibilityResponse> getArtistEligibility(
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
+    @Operation(summary = "작가 신청", description = """
+            이용 가능한 일반 회원은 신청 시점의 공개 게시물 좋아요 기준을 충족하면 작가가 됩니다.
+            작가 권한을 회수당한 회원도 같은 조건으로 다시 신청할 수 있습니다.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "작가 신청 완료", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "이미 작가이거나 좋아요 기준 미충족", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "정지 회원 또는 일반 사용자 API에 접근할 수 없는 토큰", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<UserProfileResponse> applyForArtist(
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
 
     @Operation(summary = "작성자의 최근 공개 사진 조회", description = """
             작성자의 공개 사진을 주제 날짜 최신순으로 반환합니다. 기본 20개이며 1~100개를 지정할 수 있습니다.

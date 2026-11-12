@@ -17,6 +17,7 @@ import com.chalkak.backend.admin.service.user.AdminUserDetail;
 import com.chalkak.backend.admin.service.user.AdminUserListResult;
 import com.chalkak.backend.admin.service.user.AdminUserPostCounts;
 import com.chalkak.backend.admin.service.user.AdminUserQueryService;
+import com.chalkak.backend.admin.service.user.AdminUserRoleService;
 import com.chalkak.backend.admin.service.user.AdminUserStatusResult;
 import com.chalkak.backend.admin.service.user.AdminUserStatusService;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
@@ -24,6 +25,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.user.domain.UserRole;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -63,6 +65,9 @@ class AdminUserControllerTest {
 
     @MockitoBean
     private AdminUserStatusService adminUserStatusService;
+
+    @MockitoBean
+    private AdminUserRoleService adminUserRoleService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;
@@ -192,6 +197,7 @@ class AdminUserControllerTest {
                 USER_ID,
                 "withdrawn+" + USER_ID + "@chalkak.invalid",
                 AdminUserStatus.WITHDRAWN,
+                UserRole.USER,
                 null,
                 SocialProvider.KAKAO,
                 new AdminUserDetail.Signature(null, null),

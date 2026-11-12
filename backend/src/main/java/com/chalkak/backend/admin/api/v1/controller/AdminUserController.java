@@ -4,13 +4,17 @@ import com.chalkak.backend.admin.api.support.AuthenticatedAdmin;
 import com.chalkak.backend.admin.api.support.CurrentAdmin;
 import com.chalkak.backend.admin.api.v1.docs.AdminUserApiDocs;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminUserListRequest;
+import com.chalkak.backend.admin.api.v1.dto.request.AdminUserRoleUpdateRequest;
 import com.chalkak.backend.admin.api.v1.dto.request.AdminUserStatusUpdateRequest;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminUserDetailResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminUserListResponse;
+import com.chalkak.backend.admin.api.v1.dto.response.AdminUserRoleResponse;
 import com.chalkak.backend.admin.api.v1.dto.response.AdminUserStatusResponse;
 import com.chalkak.backend.admin.service.user.AdminUserDetail;
 import com.chalkak.backend.admin.service.user.AdminUserListResult;
 import com.chalkak.backend.admin.service.user.AdminUserQueryService;
+import com.chalkak.backend.admin.service.user.AdminUserRoleResult;
+import com.chalkak.backend.admin.service.user.AdminUserRoleService;
 import com.chalkak.backend.admin.service.user.AdminUserStatusResult;
 import com.chalkak.backend.admin.service.user.AdminUserStatusService;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +37,7 @@ public class AdminUserController implements AdminUserApiDocs {
 
     private final AdminUserQueryService adminUserQueryService;
     private final AdminUserStatusService adminUserStatusService;
+    private final AdminUserRoleService adminUserRoleService;
 
     @Override
     @GetMapping
@@ -74,5 +80,21 @@ public class AdminUserController implements AdminUserApiDocs {
                 request.reason()
         );
         return ResponseEntity.ok(AdminUserStatusResponse.from(result));
+    }
+
+    @Override
+    @PutMapping("/{userId}/role")
+    public ResponseEntity<AdminUserRoleResponse> updateRole(
+            @CurrentAdmin AuthenticatedAdmin authenticatedAdmin,
+            @PathVariable String userId,
+            @Valid @RequestBody AdminUserRoleUpdateRequest request
+    ) {
+        AdminUserRoleResult result = adminUserRoleService.updateRole(
+                CanonicalUuidParser.parse(userId),
+                authenticatedAdmin.adminId(),
+                request.role(),
+                request.reason()
+        );
+        return ResponseEntity.ok(AdminUserRoleResponse.from(result));
     }
 }

@@ -219,6 +219,16 @@ Pull Request CI는 `scripts/check_flyway_migrations.sh`로 다음 계약을 검�
 
 대상 branch에 더 높은 버전이 먼저 병합되면, `be/develop`의 up to date 규칙에 따라 Update branch 후 재검사에서 실패한다. 아직 공유 DB에 적용되지 않은 PR의 새 migration 파일명만 현재 시각 기준으로 변경하고 다시 push한다.
 
+### 관리자 작가 권한 변경 활성화와 롤백
+
+`USER_ROLE_CHANGED`를 기록하면 이전 앱은 이 값을 `AdminAction`으로 읽을 수 없어 감사 목록 조회에 실패한다. 역할 변경 설정을 꺼도 이미 기록한 감사 로그는 DB에 남는다.
+
+1. 개발과 운영에서 `ADMIN_USER_ROLE_CHANGE_ENABLED=false`로 첫 배포를 진행한다. 이 버전은 새 감사 타입을 읽고, 관리자 역할 변경 요청에는 403을 반환한다.
+2. CodeDeploy 성공과 이전 앱 종료를 확인한 뒤 첫 배포의 revision을 롤백 기준으로 기록한다. 이 상태에서 관리자 감사 목록을 확인한다.
+3. `ADMIN_USER_ROLE_CHANGE_ENABLED=true`로 변경하고 같은 호환 revision 또는 이를 포함한 후속 revision을 CodeDeploy로 배포한다. 부여·회수 후 감사 목록에서 변경 전후 역할을 확인한다.
+
+활성화 후에는 `USER_ROLE_CHANGED`를 읽을 수 있는 revision으로 롤백한다. 역할 변경을 중단해야 하면 설정을 `false`로 되돌리고 호환 revision을 재배포한다.
+
 ### 고객센터 도입 전 피드백 전환
 
 `V202611031610__soft_delete_existing_feedbacks.sql`은 기존 `feedbacks`를 보존하면서 사용자 고객센터 조회 범위를 전환한다.
