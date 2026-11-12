@@ -17,6 +17,7 @@ import com.chalkak.backend.admin.service.user.AdminUserDetail;
 import com.chalkak.backend.admin.service.user.AdminUserListResult;
 import com.chalkak.backend.admin.service.user.AdminUserPostCounts;
 import com.chalkak.backend.admin.service.user.AdminUserQueryService;
+import com.chalkak.backend.admin.service.user.AdminUserRoleService;
 import com.chalkak.backend.admin.service.user.AdminUserStatusResult;
 import com.chalkak.backend.admin.service.user.AdminUserStatusService;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
@@ -63,6 +64,9 @@ class AdminUserControllerTest {
 
     @MockitoBean
     private AdminUserStatusService adminUserStatusService;
+
+    @MockitoBean
+    private AdminUserRoleService adminUserRoleService;
 
     @MockitoBean
     private AdminActorResolver adminActorResolver;

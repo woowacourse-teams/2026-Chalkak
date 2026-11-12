@@ -126,6 +126,14 @@ public class User {
         return artistAgreedAt != null;
     }
 
+    public void grantArtistRole() {
+        rejectWithdrawn();
+        if (!isRegularUser()) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED, "이미 작가인 회원입니다.");
+        }
+        this.role = UserRole.ARTIST;
+    }
+
     public void withdraw() {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");
@@ -135,7 +143,7 @@ public class User {
     }
 
     public void ban() {
-        validateStatusChangeAllowed();
+        rejectWithdrawn();
         if (status == UserStatus.BANNED) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
@@ -145,7 +153,7 @@ public class User {
     }
 
     public void unban() {
-        validateStatusChangeAllowed();
+        rejectWithdrawn();
         if (status == UserStatus.ACTIVE) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
@@ -256,7 +264,7 @@ public class User {
         return value == null || value.isBlank();
     }
 
-    private void validateStatusChangeAllowed() {
+    private void rejectWithdrawn() {
         if (isDeleted()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,

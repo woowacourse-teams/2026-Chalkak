@@ -7,6 +7,7 @@ import com.chalkak.backend.notification.domain.Reminder;
 import com.chalkak.backend.notification.domain.ReminderRepeat;
 import com.chalkak.backend.notification.domain.ReminderTarget;
 import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.user.domain.UserRole;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -39,6 +40,7 @@ final class AdminAuditTransitionRules {
             "moderationStatus",
             "deletedAt");
     private static final Set<String> USER_STATUS_FIELDS = Set.of("status");
+    private static final Set<String> USER_ROLE_FIELDS = Set.of("role");
     private static final Set<String> FEEDBACK_DELETION_FIELDS = Set.of("deletedAt");
     private static final Set<String> TOPIC_PUSH_SCHEDULE_FIELDS = Set.of("sendTime");
     private static final Set<String> NOTICE_STATE_FIELDS = Set.of(
@@ -205,6 +207,25 @@ final class AdminAuditTransitionRules {
                 UserStatus.BANNED,
                 UserStatus.ACTIVE
         );
+    }
+
+    static boolean isUserRoleChanged(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(USER_ROLE_FIELDS)
+                && afterState.hasExactlyFields(USER_ROLE_FIELDS)
+                && hasValue(
+                        beforeState,
+                        "role",
+                        UserRole.USER.name()
+                )
+                && hasValue(
+                        afterState,
+                        "role",
+                        UserRole.ARTIST.name()
+                );
     }
 
     static boolean isTopicCreated(
