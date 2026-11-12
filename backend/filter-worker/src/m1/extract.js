@@ -12,6 +12,7 @@ import { clearVignetteCaches, extractSamples, invertVignette, readShape } from '
 import { grainFromFlats, measureFlats } from './grain.js';
 
 const VIG_PASSES = 2; // 비네팅 ↔ LUT 번갈아 읽기 횟수 (합성 시험에서 2번째 이후 LUT 변화가 0.05 ΔE 아래)
+const MARKER_WARNING = '견본 위치가 조금 어긋나 있어요. 받은 견본을 자르거나 크기를 바꾸지 않고 내보냈는지 확인해 주세요.';
 const JOINT_ITERS = 4; // C와 k_b 번갈아 맞춤 횟수
 
 // 비네팅 ↔ LUT 번갈아 읽기. 반환: { lut, V, corr(비네팅을 되돌린 견본), buf(재사용할 RGBA 버퍼) }
@@ -67,14 +68,15 @@ function fitJoint(smp, Cs0, pre, ins, outs) {
  * 견본 이미지에서 M1 레시피를 읽는다.
  * @param {{ rgba: Uint8ClampedArray, width: number, height: number }} probe 디코드한 견본 (3072x4096 sRGB RGBA)
  * @param {{ on: { V: boolean, C: boolean, K: boolean, grain: boolean } }} plan planFromXmp의 결과
- * @returns {{ lut: Uint8Array, V: object|null, C: object|null, K: object|null, grain: object|null }}
+ * @returns {{ lut: Uint8Array, V: object|null, C: object|null, K: object|null, grain: object|null, warnings: string[] }}
  *   lut: 33³ × RGB 8비트(r이 가장 빨리 변하는 순서), 꺼진 연산자는 null.
  * @throws {ExtractionFailure} 크기가 다르거나 마커가 어긋나면 INVALID_PROBE
  */
 export function extractM1({ rgba, width, height }, plan) {
   const on = plan.on;
   try {
-    registerMarkers(rgba, width, height);
+    // 마커 정합의 기술 경고(어느 마커가 몇 px)는 작가에게 보이지 않게 하고, 있으면 한 문장으로만 알린다
+    const warnings = registerMarkers(rgba, width, height).warnings.length ? [MARKER_WARNING] : [];
 
     let lut, V = null, corr = rgba, buf = null;
     if (on.V) ({ lut, V, corr, buf } = readVignetteAndLut(rgba));
@@ -94,7 +96,7 @@ export function extractM1({ rgba, width, height }, plan) {
     }
 
     const grain = on.grain ? grainFromFlats(measureFlats(rgba, width)) : null;
-    return { lut, V, C, K, grain };
+    return { lut, V, C, K, grain, warnings };
   } finally {
     clearProbeCaches();
     clearVignetteCaches();

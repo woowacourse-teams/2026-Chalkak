@@ -59,6 +59,18 @@ describe('견본 배치·정합·LUT', () => {
     assert.throws(() => registerMarkers(far, W, H), assertInvalidProbe);
   });
 
+  test('마커가 1 px 어긋나면 작가용 경고 한 문장을 돌려주고 읽은 값은 그대로다', () => {
+    const shifted = new Uint8ClampedArray(probe.length);
+    shifted.set(probe.subarray(4));
+    const m1 = extractM1({ rgba: shifted, width: W, height: H }, planOf({}));
+    assert.deepEqual(m1.warnings, ['견본 위치가 조금 어긋나 있어요. 받은 견본을 자르거나 크기를 바꾸지 않고 내보냈는지 확인해 주세요.']);
+    assert.ok(m1.warnings.every((w) => !/마커|px/.test(w)));
+  });
+
+  test('어긋남이 없으면 경고도 없다', () => {
+    assert.deepEqual(extractM1({ rgba: probe, width: W, height: H }, planOf({})).warnings, []);
+  });
+
   test('크기가 다르면 INVALID_PROBE(한국어 안내)', () => {
     assert.equal(INVALID_PROBE_MESSAGE, '받은 견본 이미지를 그대로 사용해 주세요.');
     assert.throws(() => registerMarkers(new Uint8ClampedArray(1536 * 2048 * 4), 1536, 2048), assertInvalidProbe);

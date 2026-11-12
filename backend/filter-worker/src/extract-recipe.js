@@ -28,7 +28,7 @@ async function extract(buffer, opts) {
 
   return {
     recipe: encodeRecipe({ branch, m1, grid }),
-    meta: { branch, holdout: scored.holdout, warnings: [...plan.warnings], xmpSummary: plan.summary, extractorVersion: EXTRACTOR_VERSION, probeVersion: PROBE_VERSION },
+    meta: { branch, holdout: scored.holdout, warnings: [...new Set([...plan.warnings, ...m1.warnings])], xmpSummary: plan.summary, extractorVersion: EXTRACTOR_VERSION, probeVersion: PROBE_VERSION },
   };
 }
 
