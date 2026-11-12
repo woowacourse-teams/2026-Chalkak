@@ -19,6 +19,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -59,6 +60,17 @@ public class FilterController implements FilterApiDocs {
                 request.description(),
                 request.parseUploadIds()
         );
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    @RequiresUsableUser
+    @DeleteMapping("/filters/{filterId}")
+    public ResponseEntity<Void> deleteDraft(
+            @PathVariable String filterId,
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        filterService.deleteDraft(CanonicalUuidParser.parse(filterId), loginUser.userId());
         return ResponseEntity.noContent().build();
     }
 

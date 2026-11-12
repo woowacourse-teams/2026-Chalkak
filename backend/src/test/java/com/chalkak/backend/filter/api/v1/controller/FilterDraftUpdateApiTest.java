@@ -222,7 +222,8 @@ class FilterDraftUpdateApiTest extends IntegrationTestSupport {
                 createArtist(),
                 filterId,
                 UPDATE_NAME
-        ).andExpect(status().isForbidden());
+        ).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("본인의 필터가 아닙니다."));
 
         jdbcTemplate.update("UPDATE users SET role = 'USER' WHERE id = ?", artistId);
         updateDraft(

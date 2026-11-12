@@ -50,6 +50,22 @@ public interface FilterApiDocs {
             @Parameter(hidden = true) AuthenticatedUser loginUser
     );
 
+    @Operation(summary = "필터 초안 삭제", description = """
+            이용 가능한 작가가 본인 초안을 삭제합니다. 삭제한 초안은 목록과 상세에서 제외됩니다.
+            같은 작성자가 삭제를 다시 요청해도 204를 반환합니다.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "필터 초안 삭제 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 필터 ID 또는 초안 상태가 아닌 필터", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "작가 권한 없음, 이용 정지 또는 다른 회원의 필터", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "필터를 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteDraft(
+            @Parameter(description = "필터 ID", schema = @Schema(type = "string", format = "uuid")) String filterId,
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
     @Operation(summary = "작성자의 필터 목록 조회", description = """
             공개 필터를 생성 최신순으로 반환합니다. 본인 목록에는 초안과 비공개 필터도 포함됩니다.
             정지 회원도 조회할 수 있으며, 표시할 필터가 없으면 빈 목록을 반환합니다.

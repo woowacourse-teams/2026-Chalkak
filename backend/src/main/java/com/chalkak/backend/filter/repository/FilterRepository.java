@@ -21,6 +21,8 @@ public interface FilterRepository {
 
     Optional<Filter> findActiveByIdForUpdate(UUID filterId);
 
+    Optional<Filter> findByIdForUpdate(UUID filterId);
+
     List<PostImageUpload> findPhotoUploads(UUID filterId);
 
     void replacePhotoUploads(UUID filterId, List<UUID> uploadIds);

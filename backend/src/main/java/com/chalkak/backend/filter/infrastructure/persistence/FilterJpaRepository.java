@@ -42,6 +42,10 @@ public interface FilterJpaRepository extends JpaRepository<Filter, UUID> {
     @Query("SELECT f FROM Filter f WHERE f.id = :filterId AND f.deletedAt IS NULL")
     Optional<Filter> findActiveByIdForUpdate(@Param("filterId") UUID filterId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT f FROM Filter f WHERE f.id = :filterId")
+    Optional<Filter> findByIdForUpdate(@Param("filterId") UUID filterId);
+
     @Query(value = """
             SELECT u.* FROM filter_photos p
             JOIN post_image_uploads u ON u.id = p.upload_id

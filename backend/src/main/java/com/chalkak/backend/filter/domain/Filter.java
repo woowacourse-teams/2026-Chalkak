@@ -72,9 +72,7 @@ public class Filter {
             String description,
             Instant now
     ) {
-        if (status != FilterStatus.DRAFT) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "초안 상태의 필터만 수정할 수 있습니다.");
-        }
+        validateDraft("초안 상태의 필터만 수정할 수 있습니다.");
         if (name != null) {
             this.name = normalizeText(
                     name,
@@ -92,8 +90,22 @@ public class Filter {
         updatedAt = now;
     }
 
+    public void deleteDraft(Instant now) {
+        validateDraft("초안 상태의 필터만 삭제할 수 있습니다.");
+        if (deletedAt == null) {
+            deletedAt = now;
+            updatedAt = now;
+        }
+    }
+
     public boolean isOwnedBy(UUID userId) {
         return artist.getId().equals(userId);
+    }
+
+    private void validateDraft(String message) {
+        if (status != FilterStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, message);
+        }
     }
 
     private static String normalizeText(

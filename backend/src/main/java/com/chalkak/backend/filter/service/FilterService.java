@@ -49,11 +49,8 @@ public class FilterService {
     ) {
         getActiveArtist(userId, "작가만 필터 초안을 수정할 수 있습니다.");
         Filter filter = filterRepository.findActiveByIdForUpdate(filterId)
-                .orElseThrow(
-                        () -> new NotFoundException(ErrorCode.BUSINESS_ERROR, "필터를 찾을 수 없습니다."));
-        if (!filter.isOwnedBy(userId)) {
-            throw new ForbiddenException(ErrorCode.FORBIDDEN, "본인의 필터만 수정할 수 있습니다.");
-        }
+                .orElseThrow(this::filterNotFound);
+        validateFilterOwner(filter, userId);
         filter.updateDraft(
                 name,
                 description,
@@ -66,6 +63,15 @@ public class FilterService {
                     uploadIds
             );
         }
+    }
+
+    @Transactional
+    public void deleteDraft(UUID filterId, UUID userId) {
+        getActiveArtist(userId, "작가만 필터 초안을 삭제할 수 있습니다.");
+        Filter filter = filterRepository.findByIdForUpdate(filterId)
+                .orElseThrow(this::filterNotFound);
+        validateFilterOwner(filter, userId);
+        filter.deleteDraft(Instant.now());
     }
 
     @Transactional(readOnly = true)
@@ -91,8 +97,7 @@ public class FilterService {
     @Transactional(readOnly = true)
     public FilterDetailResult getFilter(UUID filterId, UUID viewerId) {
         Filter filter = filterRepository.findVisibleById(filterId, viewerId)
-                .orElseThrow(
-                        () -> new NotFoundException(ErrorCode.BUSINESS_ERROR, "필터를 찾을 수 없습니다."));
+                .orElseThrow(this::filterNotFound);
         boolean owner = filter.isOwnedBy(viewerId);
         List<FilterDetailResult.Photo> photos = filterRepository.findPhotoUploads(filterId).stream()
                 .filter(upload -> owner || upload.isProcessed())
@@ -100,6 +105,16 @@ public class FilterService {
                 .toList();
 
         return FilterDetailResult.fromFilter(filter, photos);
+    }
+
+    private NotFoundException filterNotFound() {
+        return new NotFoundException(ErrorCode.BUSINESS_ERROR, "필터를 찾을 수 없습니다.");
+    }
+
+    private void validateFilterOwner(Filter filter, UUID userId) {
+        if (!filter.isOwnedBy(userId)) {
+            throw new ForbiddenException(ErrorCode.FORBIDDEN, "본인의 필터가 아닙니다.");
+        }
     }
 
     private User getActiveArtist(UUID userId, String notArtistMessage) {
