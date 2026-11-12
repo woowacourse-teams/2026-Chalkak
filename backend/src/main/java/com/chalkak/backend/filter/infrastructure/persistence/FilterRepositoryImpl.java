@@ -44,7 +44,24 @@ public class FilterRepositoryImpl implements FilterRepository {
     }
 
     @Override
+    public Optional<Filter> findActiveByIdForUpdate(UUID filterId) {
+        return filterJpaRepository.findActiveByIdForUpdate(filterId);
+    }
+
+    @Override
     public List<PostImageUpload> findPhotoUploads(UUID filterId) {
         return filterJpaRepository.findPhotoUploads(filterId);
+    }
+
+    @Override
+    public void replacePhotoUploads(UUID filterId, List<UUID> uploadIds) {
+        filterJpaRepository.deletePhotoUploads(filterId);
+        for (int index = 0; index < uploadIds.size(); index++) {
+            filterJpaRepository.insertPhotoUpload(
+                    filterId,
+                    uploadIds.get(index),
+                    index + 1
+            );
+        }
     }
 }

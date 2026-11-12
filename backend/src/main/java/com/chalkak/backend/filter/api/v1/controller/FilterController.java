@@ -7,6 +7,7 @@ import com.chalkak.backend.auth.api.support.RequiresUsableUser;
 import com.chalkak.backend.common.util.CanonicalUuidParser;
 import com.chalkak.backend.filter.api.v1.docs.FilterApiDocs;
 import com.chalkak.backend.filter.api.v1.dto.request.AuthorFilterListRequest;
+import com.chalkak.backend.filter.api.v1.dto.request.FilterDraftUpdateRequest;
 import com.chalkak.backend.filter.api.v1.dto.response.AuthorFilterListResponse;
 import com.chalkak.backend.filter.api.v1.dto.response.FilterDetailResponse;
 import com.chalkak.backend.filter.api.v1.dto.response.FilterDraftResponse;
@@ -20,8 +21,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,6 +42,24 @@ public class FilterController implements FilterApiDocs {
         UUID filterId = filterService.createDraft(loginUser.userId());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new FilterDraftResponse(filterId));
+    }
+
+    @Override
+    @RequiresUsableUser
+    @PatchMapping("/filters/{filterId}")
+    public ResponseEntity<Void> updateDraft(
+            @PathVariable String filterId,
+            @Valid @RequestBody FilterDraftUpdateRequest request,
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        filterService.updateDraft(
+                CanonicalUuidParser.parse(filterId),
+                loginUser.userId(),
+                request.name(),
+                request.description(),
+                request.parseUploadIds()
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.chalkak.backend.filter.api.v1.docs;
 import com.chalkak.backend.auth.api.support.AuthenticatedUser;
 import com.chalkak.backend.exception.ErrorResponse;
 import com.chalkak.backend.filter.api.v1.dto.request.AuthorFilterListRequest;
+import com.chalkak.backend.filter.api.v1.dto.request.FilterDraftUpdateRequest;
 import com.chalkak.backend.filter.api.v1.dto.response.AuthorFilterListResponse;
 import com.chalkak.backend.filter.api.v1.dto.response.FilterDetailResponse;
 import com.chalkak.backend.filter.api.v1.dto.response.FilterDraftResponse;
@@ -30,6 +31,24 @@ public interface FilterApiDocs {
     })
     ResponseEntity<FilterDraftResponse> createDraft(
             @Parameter(hidden = true) AuthenticatedUser loginUser);
+
+    @Operation(summary = "필터 초안 수정", description = """
+            작가가 본인 초안의 이름, 설명, 소개 사진을 수정합니다. 입력된 항목만 반영합니다.
+            소개 사진을 보내면 게시물 사진 업로드 API로 발급받은 본인 사진을 1~5장 연결하며, 요청 순서대로 목록을 교체합니다.
+            처리 중인 사진도 연결할 수 있고 새로 연결할 사진은 유효 기간이 남아 있는 미사용 업로드여야 합니다.
+            """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "필터 초안 수정 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 입력, 초안 상태가 아닌 필터 또는 연결할 수 없는 업로드", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "작가 권한 없음, 이용 정지 또는 다른 회원의 필터", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "필터 또는 본인 소유의 업로드를 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> updateDraft(
+            @Parameter(description = "필터 ID", schema = @Schema(type = "string", format = "uuid")) String filterId,
+            FilterDraftUpdateRequest request,
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
 
     @Operation(summary = "작성자의 필터 목록 조회", description = """
             공개 필터를 생성 최신순으로 반환합니다. 본인 목록에는 초안과 비공개 필터도 포함됩니다.
