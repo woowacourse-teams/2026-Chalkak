@@ -4,6 +4,7 @@ import com.chalkak.backend.admin.repository.user.AdminUserDetailProjection;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.user.domain.UserRole;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -11,6 +12,7 @@ public record AdminUserDetail(
         UUID userId,
         String email,
         AdminUserStatus status,
+        UserRole role,
         String appVersion,
         SocialProvider socialProvider,
         Signature signature,
@@ -31,6 +33,7 @@ public record AdminUserDetail(
                 user.userId(),
                 user.email(),
                 status,
+                user.role(),
                 user.appVersion(),
                 user.socialProvider(),
                 Signature.from(

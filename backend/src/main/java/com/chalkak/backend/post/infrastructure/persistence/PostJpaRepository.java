@@ -70,7 +70,7 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
 
     /**
      * 조건을 바꾸면 관리자 AI 리뷰 조회의 visibleToAuthor(AdminAiReviewJpql)와 상세 조회용
-     * findVisibleByIdForViewer도 함께 고친다.
+     * findVisibleByIdForViewer, 작가 신청용 sumVisibleLikeCountByAuthorId도 함께 고친다.
      */
     @Query("""
             SELECT post
@@ -130,6 +130,25 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             """)
     Optional<Post> findVisibleByIdForShare(
             @Param("postId") UUID postId,
+            @Param("moderationStatus") ModerationStatus moderationStatus
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(counter.likeCount), 0)
+            FROM Post post
+            JOIN post.topic topic
+            JOIN post.photo photo
+            JOIN post.author author
+            JOIN PostLikeCounter counter ON counter.postId = post.id
+            WHERE author.id = :authorId
+              AND post.moderationStatus = :moderationStatus
+              AND post.deletedAt IS NULL
+              AND topic.deletedAt IS NULL
+              AND photo.deletedAt IS NULL
+              AND author.deletedAt IS NULL
+            """)
+    long sumVisibleLikeCountByAuthorId(
+            @Param("authorId") UUID authorId,
             @Param("moderationStatus") ModerationStatus moderationStatus
     );
 

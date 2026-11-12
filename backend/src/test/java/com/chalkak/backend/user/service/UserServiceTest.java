@@ -8,6 +8,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chalkak.backend.auth.repository.SocialAccountRepository;
 import com.chalkak.backend.auth.service.token.UserRefreshTokenService;
+import com.chalkak.backend.exception.BusinessException;
+import com.chalkak.backend.exception.ErrorCode;
+import com.chalkak.backend.exception.ForbiddenException;
 import com.chalkak.backend.exception.UnauthorizedException;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.domain.User;
@@ -45,6 +48,37 @@ class UserServiceTest {
     private SignatureImageUploadIssuer issuer;
     @Mock
     private SignatureImageStorage storage;
+
+    @Test
+    @DisplayName("정지된 작가의 신청은 좋아요 집계 전에 정지 오류로 거절한다")
+    void applyForArtist_bannedArtist_rejectsBeforeCountingLikes() {
+        // Given
+        User user = UserFixture.create(USER_ID);
+        user.grantArtistRole();
+        user.ban();
+        given(users.findActiveByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        // When & Then
+        assertThatThrownBy(() -> service.applyForArtist(USER_ID))
+                .isInstanceOf(ForbiddenException.class);
+        verifyNoInteractions(posts);
+    }
+
+    @Test
+    @DisplayName("이미 작가인 회원의 신청은 좋아요 집계 전에 거절한다")
+    void applyForArtist_existingArtist_rejectsBeforeCountingLikes() {
+        // Given
+        User user = UserFixture.create(USER_ID);
+        user.grantArtistRole();
+        given(users.findActiveByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
+
+        // When & Then
+        assertThatThrownBy(() -> service.applyForArtist(USER_ID))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED));
+        verifyNoInteractions(posts);
+    }
 
     @Test
     @DisplayName("활성 회원의 사인 업로드는 새 ID로 발급한 URL과 유효 시간을 반환한다")

@@ -33,6 +33,12 @@ public enum AdminAction {
             AdminAuditTransitionRules::isUserUnbanned
     ),
 
+    USER_ROLE_CHANGED(
+            AdminTargetType.USER,
+            true,
+            AdminAuditTransitionRules::isUserRoleChanged
+    ),
+
     TOPIC_CREATED(
             AdminTargetType.TOPIC,
             false,

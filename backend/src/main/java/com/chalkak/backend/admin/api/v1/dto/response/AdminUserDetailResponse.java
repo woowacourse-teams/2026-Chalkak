@@ -3,6 +3,7 @@ package com.chalkak.backend.admin.api.v1.dto.response;
 import com.chalkak.backend.admin.repository.user.AdminUserStatus;
 import com.chalkak.backend.admin.service.user.AdminUserDetail;
 import com.chalkak.backend.auth.domain.identity.SocialProvider;
+import com.chalkak.backend.user.domain.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.UUID;
@@ -12,6 +13,7 @@ public record AdminUserDetailResponse(
         @Schema(nullable = true)
         String email,
         AdminUserStatus status,
+        UserRole role,
         @Schema(nullable = true)
         String appVersion,
         @Schema(nullable = true)
@@ -29,6 +31,7 @@ public record AdminUserDetailResponse(
                 user.userId(),
                 user.email(),
                 user.status(),
+                user.role(),
                 user.appVersion(),
                 user.socialProvider(),
                 SignatureResponse.from(user.signature()),
