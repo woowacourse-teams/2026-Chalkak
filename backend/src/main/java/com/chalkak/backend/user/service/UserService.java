@@ -59,10 +59,11 @@ public class UserService {
     @Transactional
     public UserProfileResult applyForArtist(UUID userId) {
         User user = getActiveUserForUpdate(userId);
+        user.validateAccessible();
+        user.validateArtistRoleGrant();
+
         long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
-        if (!canApplyForArtist(user, receivedLikeCount)) {
-            user.validateAccessible();
-            user.validateArtistRoleGrant();
+        if (!hasRequiredArtistLikes(receivedLikeCount)) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "작가 신청에 필요한 좋아요 수를 충족하지 않았습니다.");
@@ -227,7 +228,11 @@ public class UserService {
     private boolean canApplyForArtist(User user, long receivedLikeCount) {
         return user.isActive()
                 && user.isRegularUser()
-                && receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
+                && hasRequiredArtistLikes(receivedLikeCount);
+    }
+
+    private boolean hasRequiredArtistLikes(long receivedLikeCount) {
+        return receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
     }
 
     private UserProfileResult toProfileResult(User user) {
