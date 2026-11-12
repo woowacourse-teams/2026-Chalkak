@@ -1,0 +1,44 @@
+name: Filter Worker CI
+
+on:
+  pull_request:
+    paths:
+      - backend/filter-worker/**
+      - .github/workflows/filter-worker-ci.yml
+  push:
+    paths:
+      - backend/filter-worker/**
+      - .github/workflows/filter-worker-ci.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend/filter-worker
+
+jobs:
+  test:
+    name: Test filter worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/filter-worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
