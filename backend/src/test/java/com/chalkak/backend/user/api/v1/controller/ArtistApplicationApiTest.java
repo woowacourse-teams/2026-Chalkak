@@ -17,7 +17,6 @@ import com.chalkak.backend.user.domain.UserRole;
 import com.chalkak.backend.user.service.UserProfileResult;
 import com.chalkak.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -35,7 +34,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -46,9 +44,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ArtistApplicationApiTest extends IntegrationTestSupport {
 
     private static final String PATH = "/api/v1/users/me/artist";
-    private static final String AGREED = """
-            {"artistTermsAgreed":true}
-            """;
 
     @Autowired
     private MockMvc mockMvc;
@@ -82,35 +77,32 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("좋아요 100개를 받은 일반 회원이 동의하면 작가 역할과 동의 시각을 저장한다")
-    void applyForArtist_exactLikeThreshold_savesRoleAndAgreement() throws Exception {
+    @DisplayName("좋아요 100개를 받은 일반 회원은 본문 없이 신청해 작가가 된다")
+    void applyForArtist_exactLikeThreshold_savesArtistRole() throws Exception {
         // Given
         UUID userId = createUser(jdbcTemplate);
         createApprovedPostWithLikes(userId, 100);
 
         // When & Then
-        apply(userId, AGREED)
+        apply(userId)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("ARTIST"))
-                .andExpect(jsonPath("$.artistTermsAgreed").value(true));
+                .andExpect(jsonPath("$.role").value("ARTIST"));
         assertThat(findRole(userId)).isEqualTo("ARTIST");
-        assertThat(findAgreedAt(userId)).isNotNull();
     }
 
     @Test
-    @DisplayName("좋아요 99개를 받은 일반 회원은 역할과 동의 상태가 바뀌지 않는다")
+    @DisplayName("좋아요 99개를 받은 일반 회원의 신청은 거절되고 역할은 유지된다")
     void applyForArtist_belowLikeThreshold_rejectsWithoutSaving() throws Exception {
         // Given
         UUID userId = createUser(jdbcTemplate);
         createApprovedPostWithLikes(userId, 99);
 
         // When & Then
-        apply(userId, AGREED)
+        apply(userId)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
                 .andExpect(jsonPath("$.message").value("작가 신청에 필요한 좋아요 수를 충족하지 않았습니다."));
         assertThat(findRole(userId)).isEqualTo("USER");
-        assertThat(findAgreedAt(userId)).isNull();
     }
 
     @Test
@@ -126,65 +118,27 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
         jdbcTemplate.update("UPDATE posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", postId);
 
         // When & Then
-        apply(userId, AGREED).andExpect(status().isBadRequest());
+        apply(userId).andExpect(status().isBadRequest());
         assertThat(findRole(userId)).isEqualTo("USER");
-        assertThat(findAgreedAt(userId)).isNull();
     }
 
     @Test
-    @DisplayName("이미 작가인 미동의 회원은 좋아요가 없어도 동의 시각을 저장할 수 있다")
-    void applyForArtist_artistWithoutAgreement_recordsFirstAgreement() throws Exception {
+    @DisplayName("이미 작가인 회원은 작가 신청을 다시 할 수 없다")
+    void applyForArtist_alreadyArtist_returnsStateChanged() throws Exception {
         // Given
         UUID userId = createUser(jdbcTemplate);
         jdbcTemplate.update("UPDATE users SET role = 'ARTIST' WHERE id = ?", userId);
 
         // When & Then
-        apply(userId, AGREED)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("ARTIST"))
-                .andExpect(jsonPath("$.artistTermsAgreed").value(true));
-        assertThat(findAgreedAt(userId)).isNotNull();
-    }
-
-    @Test
-    @DisplayName("이미 동의한 작가의 반복 요청은 최초 동의 시각을 유지한다")
-    void applyForArtist_alreadyAgreed_preservesFirstAgreement() throws Exception {
-        // Given
-        UUID userId = createUser(jdbcTemplate);
-        jdbcTemplate.update("""
-                UPDATE users SET role = 'ARTIST', artist_agreed_at = '2026-05-01T00:00:00Z'
-                WHERE id = ?
-                """, userId);
-        Timestamp firstAgreement = findAgreedAt(userId);
-
-        // When & Then
-        apply(userId, AGREED)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.artistTermsAgreed").value(true));
-        assertThat(findAgreedAt(userId)).isEqualTo(firstAgreement);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", "{}", "{\"artistTermsAgreed\":null}",
-            "{\"artistTermsAgreed\":false}"})
-    @DisplayName("원작 확약 동의가 없으면 좋아요 기준을 충족해도 신청을 거절한다")
-    void applyForArtist_missingOrRejectedAgreement_rejectsWithoutSaving(String body)
-            throws Exception {
-        // Given
-        UUID userId = createUser(jdbcTemplate);
-        createApprovedPostWithLikes(userId, 100);
-
-        // When & Then
-        apply(userId, body)
+        apply(userId)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
-        assertThat(findRole(userId)).isEqualTo("USER");
-        assertThat(findAgreedAt(userId)).isNull();
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_STATE_CHANGED"));
+        assertThat(findRole(userId)).isEqualTo("ARTIST");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"USER", "ARTIST"})
-    @DisplayName("정지 회원은 일반 회원과 작가 모두 원작 확약을 기록할 수 없다")
+    @DisplayName("정지 회원은 역할과 관계없이 작가 신청을 할 수 없다")
     void applyForArtist_suspendedUser_returnsForbidden(String role) throws Exception {
         // Given
         UUID userId = createUser(jdbcTemplate);
@@ -196,11 +150,10 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
         createApprovedPostWithLikes(userId, 100);
 
         // When & Then
-        apply(userId, AGREED)
+        apply(userId)
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
         assertThat(findRole(userId)).isEqualTo(role);
-        assertThat(findAgreedAt(userId)).isNull();
     }
 
     @Test
@@ -211,7 +164,7 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
         jdbcTemplate.update("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", userId);
 
         // When & Then
-        apply(userId, AGREED)
+        apply(userId)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
@@ -220,13 +173,13 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
     @DisplayName("미인증 회원은 작가 신청을 할 수 없다")
     void applyForArtist_unauthenticated_returnsUnauthorized() throws Exception {
         // When & Then
-        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(AGREED))
+        mockMvc.perform(post(PATH))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("겹친 작가 신청은 첫 요청이 저장한 역할과 최초 동의 시각을 공유한다")
-    void applyForArtist_concurrentRequests_preservesFirstAgreement() throws Exception {
+    @DisplayName("겹친 작가 신청은 먼저 처리된 요청만 역할을 바꾼다")
+    void applyForArtist_concurrentRequests_changesRoleOnce() throws Exception {
         // Given
         UUID userId = createUser(jdbcTemplate);
         createApprovedPostWithLikes(userId, 100);
@@ -237,20 +190,19 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
 
         // When
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<Timestamp> first = executor.submit(() -> transaction.execute(status -> {
-                userService.applyForArtist(userId);
+            Future<UserProfileResult> first = executor.submit(() -> transaction.execute(status -> {
+                UserProfileResult result = userService.applyForArtist(userId);
                 entityManager.flush();
-                Timestamp agreedAt = findAgreedAt(userId);
                 firstSaved.countDown();
                 await(firstCanCommit);
-                return agreedAt;
+                return result;
             }));
-            Future<UserProfileResult> second;
+            Future<ResultActions> second;
             try {
                 await(firstSaved);
                 second = executor.submit(() -> {
                     secondStarted.countDown();
-                    return userService.applyForArtist(userId);
+                    return apply(userId);
                 });
                 await(secondStarted);
                 assertThrows(TimeoutException.class, () -> second.get(250, TimeUnit.MILLISECONDS));
@@ -259,31 +211,26 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
             }
 
             // Then
-            Timestamp firstAgreement = first.get(5, TimeUnit.SECONDS);
-            assertThat(firstAgreement).isNotNull();
-            assertThat(second.get(5, TimeUnit.SECONDS))
-                    .isEqualTo(new UserProfileResult(UserRole.ARTIST, true));
-            assertThat(findAgreedAt(userId)).isEqualTo(firstAgreement);
+            assertThat(first.get(5, TimeUnit.SECONDS))
+                    .isEqualTo(new UserProfileResult(UserRole.ARTIST));
+            second.get(5, TimeUnit.SECONDS)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("RESOURCE_STATE_CHANGED"));
+            assertThat(findRole(userId)).isEqualTo("ARTIST");
         }
     }
 
     @Test
-    @DisplayName("OpenAPI에서 작가 신청의 인증, 필수 동의 필드와 응답을 확인할 수 있다")
+    @DisplayName("OpenAPI에서 본문 없는 작가 신청의 인증과 응답을 확인할 수 있다")
     void userApiDocs_applyForArtist_exposesContract() throws Exception {
         // Given
         String operation = "$.paths['" + PATH + "'].post";
-        String requestSchema = "$.components.schemas.ArtistApplicationRequest";
 
         // When & Then
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(operation + ".security[0].accessToken").exists())
-                .andExpect(jsonPath(
-                        operation + ".requestBody.content['application/json'].schema['$ref']")
-                        .value("#/components/schemas/ArtistApplicationRequest"))
-                .andExpect(jsonPath(requestSchema + ".required[0]").value("artistTermsAgreed"))
-                .andExpect(jsonPath(requestSchema + ".properties.artistTermsAgreed.type")
-                        .value("boolean"))
+                .andExpect(jsonPath(operation + ".requestBody").doesNotExist())
                 .andExpect(jsonPath(operation + ".responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/UserProfileResponse"))
                 .andExpect(jsonPath(operation + ".responses['400']").exists())
@@ -291,11 +238,9 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(operation + ".responses['403']").exists());
     }
 
-    private ResultActions apply(UUID userId, String body) throws Exception {
+    private ResultActions apply(UUID userId) throws Exception {
         return mockMvc.perform(post(PATH)
-                .header(HttpHeaders.AUTHORIZATION, bearerToken(userId))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body));
+                .header(HttpHeaders.AUTHORIZATION, bearerToken(userId)));
     }
 
     private String bearerToken(UUID userId) {
@@ -325,14 +270,6 @@ class ArtistApplicationApiTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForObject(
                 "SELECT role FROM users WHERE id = ?",
                 String.class,
-                userId
-        );
-    }
-
-    private Timestamp findAgreedAt(UUID userId) {
-        return jdbcTemplate.queryForObject(
-                "SELECT artist_agreed_at FROM users WHERE id = ?",
-                Timestamp.class,
                 userId
         );
     }

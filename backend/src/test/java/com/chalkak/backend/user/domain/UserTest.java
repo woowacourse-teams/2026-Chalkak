@@ -126,6 +126,93 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("일반 회원에게 작가 권한을 부여하면 ARTIST 역할이 된다")
+    void grantArtistRole_regularUser_changesRoleToArtist() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When
+        user.grantArtistRole();
+
+        // Then
+        assertThat(user.getRole()).isEqualTo(UserRole.ARTIST);
+    }
+
+    @Test
+    @DisplayName("이미 작가인 회원에게 작가 권한을 다시 부여할 수 없다")
+    void grantArtistRole_alreadyArtist_rejectsWithoutChange() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.grantArtistRole();
+
+        // When & Then
+        assertThatThrownBy(user::grantArtistRole)
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED));
+        assertThat(user.getRole()).isEqualTo(UserRole.ARTIST);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 일반 회원에게 작가 권한을 부여할 수 없다")
+    void grantArtistRole_withdrawnUser_rejectsWithoutChange() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.withdraw();
+
+        // When & Then
+        assertThatThrownBy(user::grantArtistRole)
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.BUSINESS_ERROR));
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    @DisplayName("작가 권한을 회수하면 일반 회원 역할로 돌아간다")
+    void revokeArtistRole_artist_changesRoleToUser() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.grantArtistRole();
+
+        // When
+        user.revokeArtistRole();
+
+        // Then
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    @DisplayName("이미 일반 회원이면 작가 권한을 회수할 수 없다")
+    void revokeArtistRole_regularUser_rejectsWithoutChange() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+
+        // When & Then
+        assertThatThrownBy(user::revokeArtistRole)
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_STATE_CHANGED));
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 작가의 권한을 회수할 수 없다")
+    void revokeArtistRole_withdrawnArtist_rejectsWithoutChange() {
+        // Given
+        User user = UserFixture.create(UUID.randomUUID());
+        user.grantArtistRole();
+        user.withdraw();
+
+        // When & Then
+        assertThatThrownBy(user::revokeArtistRole)
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.BUSINESS_ERROR));
+        assertThat(user.getRole()).isEqualTo(UserRole.ARTIST);
+    }
+
+    @Test
     @DisplayName("활성 회원을 차단하면 BANNED 상태가 된다")
     void ban_activeUser_changesStatusToBanned() {
         // Given
@@ -161,7 +248,7 @@ class UserTest {
         // When & Then
         assertThatThrownBy(user::ban)
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("탈퇴한 회원의 상태를 변경할 수 없습니다.");
+                .hasMessage("탈퇴한 회원의 정보를 변경할 수 없습니다.");
     }
 
     @Test

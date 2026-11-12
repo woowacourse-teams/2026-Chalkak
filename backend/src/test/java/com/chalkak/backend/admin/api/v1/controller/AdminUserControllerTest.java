@@ -25,6 +25,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.GlobalExceptionHandler;
 import com.chalkak.backend.exception.NotFoundException;
+import com.chalkak.backend.user.domain.UserRole;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -196,6 +197,7 @@ class AdminUserControllerTest {
                 USER_ID,
                 "withdrawn+" + USER_ID + "@chalkak.invalid",
                 AdminUserStatus.WITHDRAWN,
+                UserRole.USER,
                 null,
                 SocialProvider.KAKAO,
                 new AdminUserDetail.Signature(null, null),

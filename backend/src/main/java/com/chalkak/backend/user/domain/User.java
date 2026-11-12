@@ -50,9 +50,6 @@ public class User {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role = UserRole.USER;
 
-    @Column(name = "artist_agreed_at")
-    private Instant artistAgreedAt;
-
     @Column(name = "signature_original_storage_key", nullable = false, length = 1024)
     private String signatureOriginalStorageKey;
 
@@ -114,24 +111,24 @@ public class User {
         return role == UserRole.USER;
     }
 
-    public void acceptOriginalWorkPledge() {
-        if (hasArtistConsent()) {
-            return;
-        }
-        this.role = UserRole.ARTIST;
-        this.artistAgreedAt = Instant.now();
-    }
-
-    public boolean hasArtistConsent() {
-        return artistAgreedAt != null;
-    }
-
     public void grantArtistRole() {
+        validateArtistRoleGrant();
+        this.role = UserRole.ARTIST;
+    }
+
+    public void validateArtistRoleGrant() {
         rejectWithdrawn();
         if (!isRegularUser()) {
             throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED, "이미 작가인 회원입니다.");
         }
-        this.role = UserRole.ARTIST;
+    }
+
+    public void revokeArtistRole() {
+        rejectWithdrawn();
+        if (isRegularUser()) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED, "이미 일반 회원입니다.");
+        }
+        this.role = UserRole.USER;
     }
 
     public void withdraw() {
@@ -268,7 +265,7 @@ public class User {
         if (isDeleted()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "탈퇴한 회원의 상태를 변경할 수 없습니다.");
+                    "탈퇴한 회원의 정보를 변경할 수 없습니다.");
         }
     }
 

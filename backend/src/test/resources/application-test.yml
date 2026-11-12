@@ -35,6 +35,7 @@ chalkak:
     notice:
       distribution-enabled: false
   admin:
+    user-role-change-enabled: true
     authentication:
       development-bypass-enabled: true
     notification:

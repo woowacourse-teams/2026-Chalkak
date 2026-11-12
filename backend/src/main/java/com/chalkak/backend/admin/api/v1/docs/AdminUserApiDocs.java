@@ -33,7 +33,7 @@ public interface AdminUserApiDocs {
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @ParameterObject AdminUserListRequest request);
 
-    @Operation(summary = "관리자 사용자 상세 조회", description = "탈퇴 여부와 관계없이 사용자 상태·소셜 제공자와 "
+    @Operation(summary = "관리자 사용자 상세 조회", description = "탈퇴 여부와 관계없이 사용자 상태·역할·소셜 제공자와 "
             + "승인 대기·승인·거절 게시물 개수를 조회합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "관리자 사용자 상세 조회 성공", useReturnTypeSchema = true),
@@ -58,12 +58,12 @@ public interface AdminUserApiDocs {
             AdminUserStatusUpdateRequest request
     );
 
-    @Operation(summary = "관리자 작가 권한 부여", description = "일반 회원에게 사유와 함께 ARTIST 역할을 부여합니다. 원작 확약 동의는 회원이 직접 기록합니다.")
+    @Operation(summary = "관리자 작가 권한 변경", description = "변경 사유와 함께 ARTIST로 부여하거나 USER로 회수합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "작가 권한 부여 성공", useReturnTypeSchema = true),
-            @ApiResponse(responseCode = "400", description = "잘못된 요청, 이미 작가인 회원 또는 탈퇴 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "200", description = "작가 권한 변경 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청, 현재와 같은 역할 또는 탈퇴 회원", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가 또는 역할 변경 기능 비활성화", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminUserRoleResponse> updateRole(

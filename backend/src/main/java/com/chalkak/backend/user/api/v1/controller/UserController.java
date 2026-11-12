@@ -9,7 +9,6 @@ import com.chalkak.backend.post.api.v1.dto.request.AuthorPostListRequest;
 import com.chalkak.backend.post.api.v1.dto.response.AuthorPostListResponse;
 import com.chalkak.backend.post.service.PostQueryService;
 import com.chalkak.backend.user.api.v1.docs.UserApiDocs;
-import com.chalkak.backend.user.api.v1.dto.request.ArtistApplicationRequest;
 import com.chalkak.backend.user.api.v1.dto.request.UserSignatureUpdateRequest;
 import com.chalkak.backend.user.api.v1.dto.response.ArtistEligibilityResponse;
 import com.chalkak.backend.user.api.v1.dto.response.UserProfileResponse;
@@ -68,8 +67,7 @@ public class UserController implements UserApiDocs {
     @RequiresUsableUser
     @PostMapping("/me/artist")
     public ResponseEntity<UserProfileResponse> applyForArtist(
-            @LoginUser AuthenticatedUser loginUser,
-            @Valid @RequestBody ArtistApplicationRequest request
+            @LoginUser AuthenticatedUser loginUser
     ) {
         UserProfileResult result = userService.applyForArtist(loginUser.userId());
 

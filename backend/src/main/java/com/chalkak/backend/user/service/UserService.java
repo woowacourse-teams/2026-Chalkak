@@ -49,29 +49,25 @@ public class UserService {
     public ArtistEligibilityResult getArtistEligibility(UUID userId) {
         User user = getActiveUser(userId);
         long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
-        boolean canApply = user.isActive()
-                && user.isRegularUser()
-                && hasRequiredArtistLikes(receivedLikeCount);
         return new ArtistEligibilityResult(
                 receivedLikeCount,
                 REQUIRED_ARTIST_LIKE_COUNT,
-                canApply
+                canApplyForArtist(user, receivedLikeCount)
         );
     }
 
     @Transactional
     public UserProfileResult applyForArtist(UUID userId) {
         User user = getActiveUserForUpdate(userId);
-        user.validateAccessible();
-
-        if (user.isRegularUser()
-                && !hasRequiredArtistLikes(postRepository.sumVisibleLikeCountByAuthorId(userId))) {
+        long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
+        if (!canApplyForArtist(user, receivedLikeCount)) {
+            user.validateAccessible();
+            user.validateArtistRoleGrant();
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "작가 신청에 필요한 좋아요 수를 충족하지 않았습니다.");
         }
-
-        user.acceptOriginalWorkPledge();
+        user.grantArtistRole();
         return toProfileResult(user);
     }
 
@@ -228,12 +224,14 @@ public class UserService {
                         "유효하지 않은 인증 정보입니다."));
     }
 
-    private boolean hasRequiredArtistLikes(long receivedLikeCount) {
-        return receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
+    private boolean canApplyForArtist(User user, long receivedLikeCount) {
+        return user.isActive()
+                && user.isRegularUser()
+                && receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
     }
 
     private UserProfileResult toProfileResult(User user) {
-        return new UserProfileResult(user.getRole(), user.hasArtistConsent());
+        return new UserProfileResult(user.getRole());
     }
 
     private boolean isSignatureProcessingTimedOut(

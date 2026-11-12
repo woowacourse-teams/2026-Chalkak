@@ -3,7 +3,7 @@ package com.chalkak.backend.admin.api.v1.controller;
 import static com.chalkak.backend.post.support.AuthorPostFixtures.createUser;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -13,9 +13,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chalkak.backend.admin.service.user.AdminUserRoleService;
 import com.chalkak.backend.auth.domain.token.AccessTokenScope;
 import com.chalkak.backend.auth.infrastructure.infra.token.access.JwtAccessTokenProvider;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.support.AuthorPostFixtures;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
 import com.chalkak.backend.user.domain.UserRole;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,9 +40,14 @@ import org.springframework.test.web.servlet.ResultActions;
 @TestPropertySource(properties = "chalkak.admin.authentication.development-bypass-enabled=false")
 class AdminUserRoleApiTest extends IntegrationTestSupport {
 
-    private static final String PATH = "/api/v1/admin/users/{userId}/role";
+    private static final String DETAIL_PATH = "/api/v1/admin/users/{userId}";
+    private static final String PATH = DETAIL_PATH + "/role";
     private static final String GRANT = """
             {"role":"ARTIST","reason":"  운영팀 추천  "}
+            """;
+
+    private static final String REVOKE = """
+            {"role":"USER","reason":"권한 회수 요청"}
             """;
 
     @Autowired
@@ -74,8 +82,8 @@ class AdminUserRoleApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("관리자는 일반 회원에게 작가 권한을 부여하고 감사 로그를 남기며 회원은 나중에 직접 동의한다")
-    void updateRole_regularUser_recordsGrantAndAllowsMemberConsent() throws Exception {
+    @DisplayName("관리자는 일반 회원에게 작가 권한을 부여하면 상세 응답과 감사 로그에 작가 역할이 반영된다")
+    void updateRole_regularUser_recordsGrantAndShowsArtistInDetail() throws Exception {
         // When
         String requestId = updateRole(userId, GRANT)
                 .andExpect(status().isOk())
@@ -97,16 +105,66 @@ class AdminUserRoleApiTest extends IntegrationTestSupport {
                 .containsEntry("request_id", UUID.fromString(requestId))
                 .containsEntry("started_as_user", true)
                 .containsEntry("became_artist", true);
-        mockMvc.perform(get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, memberToken()))
+        mockMvc.perform(get(DETAIL_PATH, userId).header(HttpHeaders.AUTHORIZATION, adminToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("ARTIST"))
-                .andExpect(jsonPath("$.artistTermsAgreed").value(false));
-        mockMvc.perform(post("/api/v1/users/me/artist")
-                .header(HttpHeaders.AUTHORIZATION, memberToken())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"artistTermsAgreed\":true}"))
+                .andExpect(jsonPath("$.role").value("ARTIST"));
+        mockMvc.perform(get("/api/v1/admin/audit-logs")
+                .header(HttpHeaders.AUTHORIZATION, adminToken())
+                .queryParam("action", "USER_ROLE_CHANGED"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.artistTermsAgreed").value(true));
+                .andExpect(jsonPath("$.auditLogs[0].action").value("USER_ROLE_CHANGED"))
+                .andExpect(jsonPath("$.auditLogs[0].targetId").value(userId.toString()));
+        assertThat(countAudits()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("관리자가 작가 권한을 회수하면 이력을 남기고 회원은 자격을 충족하면 다시 신청할 수 있다")
+    void updateRole_artist_recordsRevokeAndAllowsReapplication() throws Exception {
+        // Given
+        jdbcTemplate.update("UPDATE users SET role = 'ARTIST' WHERE id = ?", userId);
+        UUID postId = AuthorPostFixtures.createPost(
+                jdbcTemplate,
+                userId,
+                LocalDate.of(
+                        2026,
+                        5,
+                        1
+                ),
+                ModerationStatus.APPROVED
+        );
+        jdbcTemplate.update("UPDATE post_like_counts SET like_count = 100 WHERE post_id = ?",
+                postId);
+
+        // When
+        updateRole(userId, REVOKE)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("USER"));
+
+        // Then
+        mockMvc.perform(get(DETAIL_PATH, userId).header(HttpHeaders.AUTHORIZATION, adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("USER"));
+        assertThat(jdbcTemplate.queryForMap(
+                """
+                        SELECT reason, before_state ->> 'role' AS before_role, after_state ->> 'role' AS after_role
+                        FROM admin_audit_logs WHERE action = 'USER_ROLE_CHANGED' AND target_id = ?
+                        """,
+                userId))
+                .containsEntry("reason", "권한 회수 요청")
+                .containsEntry("before_role", "ARTIST")
+                .containsEntry("after_role", "USER");
+        updateRole(userId, REVOKE)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_STATE_CHANGED"));
+        mockMvc.perform(get("/api/v1/users/me/artist-eligibility")
+                .header(HttpHeaders.AUTHORIZATION, memberToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canApply").value(true));
+        mockMvc.perform(
+                post("/api/v1/users/me/artist").header(HttpHeaders.AUTHORIZATION, memberToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("ARTIST"));
+        assertThat(findRole()).isEqualTo("ARTIST");
         assertThat(countAudits()).isEqualTo(1);
     }
 
@@ -141,12 +199,42 @@ class AdminUserRoleApiTest extends IntegrationTestSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {"{\"role\":\"ARTIST\"}", "{\"role\":\"ARTIST\",\"reason\":\" \"}",
-            "{\"role\":\"USER\",\"reason\":\"운영팀 추천\"}", "{\"reason\":\"운영팀 추천\"}"})
-    @DisplayName("역할이 ARTIST가 아니거나 사유가 비어 있으면 권한을 부여하지 않는다")
+            "{\"role\":\"ADMIN\",\"reason\":\"운영팀 추천\"}", "{\"reason\":\"운영팀 추천\"}"})
+    @DisplayName("역할이 올바르지 않거나 사유가 비어 있으면 권한을 변경하지 않는다")
     void updateRole_invalidBody_rejectsWithoutChange(String body) throws Exception {
         // When & Then
         updateRole(userId, body).andExpect(status().isBadRequest());
         assertThat(findRole()).isEqualTo("USER");
+        assertThat(countAudits()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1", "\"1\"", "true", "null"})
+    @DisplayName("작가 역할 이름을 정확한 JSON 문자열로 보내지 않으면 부여할 수 없다")
+    void updateRole_invalidRoleValue_rejectsWithoutGrant(String roleJson) throws Exception {
+        // Given
+        String body = """
+                {"role":%s,"reason":"운영팀 추천"}
+                """.formatted(roleJson);
+
+        // When & Then
+        updateRole(userId, body).andExpect(status().isBadRequest());
+        assertThat(findRole()).isEqualTo("USER");
+        assertThat(countAudits()).isZero();
+    }
+
+    @Test
+    @DisplayName("숫자 0을 보내면 작가 권한을 회수할 수 없다")
+    void updateRole_numericUserRole_rejectsWithoutRevoke() throws Exception {
+        // Given
+        jdbcTemplate.update("UPDATE users SET role = 'ARTIST' WHERE id = ?", userId);
+        String body = """
+                {"role":0,"reason":"권한 회수 요청"}
+                """;
+
+        // When & Then
+        updateRole(userId, body).andExpect(status().isBadRequest());
+        assertThat(findRole()).isEqualTo("ARTIST");
         assertThat(countAudits()).isZero();
     }
 
@@ -209,7 +297,7 @@ class AdminUserRoleApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("OpenAPI에 작가 역할 부여 요청과 응답이 나온다")
+    @DisplayName("OpenAPI에 작가 역할 부여·회수 요청과 응답이 나온다")
     void userApiDocs_updateRole_exposesContract() throws Exception {
         // Given
         String operation = "$.paths['" + PATH + "'].put";
@@ -222,17 +310,21 @@ class AdminUserRoleApiTest extends IntegrationTestSupport {
                         operation + ".requestBody.content['application/json'].schema['$ref']")
                         .value("#/components/schemas/AdminUserRoleUpdateRequest"))
                 .andExpect(
-                        jsonPath(requestSchema + ".properties.role.enum").value(contains("ARTIST")))
+                        jsonPath(requestSchema + ".properties.role.enum")
+                                .value(containsInAnyOrder("USER", "ARTIST")))
                 .andExpect(jsonPath(operation + ".responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/AdminUserRoleResponse"));
     }
 
     private ResultActions updateRole(UUID targetId, String body) throws Exception {
-        String token = accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
         return mockMvc.perform(put(PATH, targetId)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.AUTHORIZATION, adminToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
+    }
+
+    private String adminToken() {
+        return "Bearer " + accessTokenProvider.issue(adminId, AccessTokenScope.ADMIN).value();
     }
 
     private String memberToken() {

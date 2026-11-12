@@ -10,8 +10,6 @@ import com.chalkak.backend.support.IntegrationTestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -33,8 +31,8 @@ class UserProfileApiTest extends IntegrationTestSupport {
     private JwtAccessTokenProvider accessTokenProvider;
 
     @Test
-    @DisplayName("역할과 작가 동의가 입력되지 않은 회원은 일반 회원과 미동의로 조회된다")
-    void getMyProfile_defaultRole_returnsUserWithoutAgreement() throws Exception {
+    @DisplayName("별도 역할을 지정하지 않은 회원은 일반 회원으로 조회된다")
+    void getMyProfile_defaultRole_returnsUser() throws Exception {
         // Given
         UUID userId = insertUser();
 
@@ -43,35 +41,25 @@ class UserProfileApiTest extends IntegrationTestSupport {
                 get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearerToken(userId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.artistTermsAgreed").value(false));
+                .andExpect(jsonPath("$.artistTermsAgreed").doesNotExist());
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    @DisplayName("작가의 동의 여부는 저장된 동의 시각을 반영한다")
-    void getMyProfile_artist_returnsStoredAgreement(boolean agreed) throws Exception {
+    @Test
+    @DisplayName("작가는 저장된 작가 역할로 조회된다")
+    void getMyProfile_artist_returnsArtist() throws Exception {
         // Given
         UUID userId = insertUser();
-        jdbcTemplate.update(
-                """
-                        UPDATE users
-                        SET role = 'ARTIST', artist_agreed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP END
-                        WHERE id = ?
-                        """,
-                agreed,
-                userId
-        );
+        jdbcTemplate.update("UPDATE users SET role = 'ARTIST' WHERE id = ?", userId);
 
         // When & Then
         mockMvc.perform(
                 get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearerToken(userId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("ARTIST"))
-                .andExpect(jsonPath("$.artistTermsAgreed").value(agreed));
+                .andExpect(jsonPath("$.role").value("ARTIST"));
     }
 
     @Test
-    @DisplayName("정지 회원은 본인의 역할과 동의 여부를 조회할 수 있다")
+    @DisplayName("정지 회원은 본인의 역할을 조회할 수 있다")
     void getMyProfile_suspendedUser_returnsProfile() throws Exception {
         // Given
         UUID userId = insertUser();
@@ -81,8 +69,7 @@ class UserProfileApiTest extends IntegrationTestSupport {
         mockMvc.perform(
                 get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearerToken(userId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.artistTermsAgreed").value(false));
+                .andExpect(jsonPath("$.role").value("USER"));
     }
 
     @Test
@@ -108,7 +95,7 @@ class UserProfileApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("사용자 OpenAPI 문서에 인증과 회원 역할 및 동의 응답이 나온다")
+    @DisplayName("사용자 OpenAPI 문서에 인증과 회원 역할 응답이 나온다")
     void userApiDocs_getMyProfile_exposesProfileContract() throws Exception {
         // Given
         String operation = "$.paths['/api/v1/users/me'].get";
@@ -122,7 +109,7 @@ class UserProfileApiTest extends IntegrationTestSupport {
                         .value("#/components/schemas/UserProfileResponse"))
                 .andExpect(jsonPath(properties + ".role.enum")
                         .value(containsInAnyOrder("USER", "ARTIST")))
-                .andExpect(jsonPath(properties + ".artistTermsAgreed.type").value("boolean"));
+                .andExpect(jsonPath(properties + ".artistTermsAgreed").doesNotExist());
     }
 
     private UUID insertUser() {

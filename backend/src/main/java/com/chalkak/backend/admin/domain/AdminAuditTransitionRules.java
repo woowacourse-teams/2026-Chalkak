@@ -214,18 +214,15 @@ final class AdminAuditTransitionRules {
             AdminAuditSnapshot beforeState,
             AdminAuditSnapshot afterState
     ) {
-        return beforeState.hasExactlyFields(USER_ROLE_FIELDS)
-                && afterState.hasExactlyFields(USER_ROLE_FIELDS)
-                && hasValue(
-                        beforeState,
-                        "role",
-                        UserRole.USER.name()
-                )
-                && hasValue(
-                        afterState,
-                        "role",
-                        UserRole.ARTIST.name()
-                );
+        if (!beforeState.hasExactlyFields(USER_ROLE_FIELDS)
+                || !afterState.hasExactlyFields(USER_ROLE_FIELDS)) {
+            return false;
+        }
+        Object beforeRole = beforeState.value("role");
+        Object afterRole = afterState.value("role");
+        return (UserRole.USER.name().equals(beforeRole) && UserRole.ARTIST.name().equals(afterRole))
+                || (UserRole.ARTIST.name().equals(beforeRole)
+                        && UserRole.USER.name().equals(afterRole));
     }
 
     static boolean isTopicCreated(
