@@ -4,9 +4,15 @@
 
 입력 단계(바이트 검사, 디코딩, XMP 읽기), M1 레시피 추출, 격자 보정(A2·G1), 분기 선택, 레시피 JSON이 있습니다. 추출 결과를 저장하고 앱에 내려주는 단계는 이어지는 작업에서 추가합니다.
 
+입력 검사 규칙:
+
+- 디코드 전에 `metadata()`로 방향(EXIF 5~8은 가로·세로 교환)을 반영한 크기를 확인하고, 3072x4096이 아니면 픽셀을 읽지 않고 `INVALID_PROBE`로 끝냅니다. 디코드는 `limitInputPixels`를 3072x4096 픽셀로 걸어 큰 사진이 메모리를 채우지 못하게 합니다.
+- XMP에 마스크·부분 보정이 있으면 디코드 전에 `INVALID_PROBE`('마스크와 부분 보정은 필터로 옮길 수 없어요…')로 거절합니다. 마스크 보정이 전역 LUT에 섞여 들어가기 때문입니다. 디헤이즈·명료도만 경고로 남깁니다.
+- 마커 정합에서 작은 어긋남(허용 범위 안)이나 낮은 상관이 있으면 `meta.warnings`에 '견본 위치가 조금 어긋나 있어요…' 한 문장을 넣습니다(읽은 값은 바뀌지 않습니다).
+
 ## M1 레시피 추출
 
-`src/m1/extract.js`의 `extractM1({ rgba, width, height }, plan)`이 디코드한 견본과 `planFromXmp`의 계획으로 `{ lut, V, C, K, grain }`을 읽습니다. 꺼진 연산자는 `null`이고 `toRecipeJson`이 JSON으로 쓸 수 있는 객체로 바꿉니다.
+`src/m1/extract.js`의 `extractM1({ rgba, width, height }, plan)`이 디코드한 견본과 `planFromXmp`의 계획으로 `{ lut, V, C, K, grain, warnings }`를 읽습니다. 꺼진 연산자는 `null`이고 `toRecipeJson`이 JSON으로 쓸 수 있는 객체로 바꿉니다.
 
 | 모듈 | 하는 일 |
 | --- | --- |
@@ -47,7 +53,7 @@
 
 ## 레시피와 추출
 
-`extractRecipe(buffer)`(`src/extract-recipe.js`)는 바이트 검사 → XMP 계획(디코드 전에 실패) → 디코드 → M1 읽기 → 분기 선택 → 레시피 순으로 돌고 `{ recipe, meta }`를 돌려줍니다. `meta`는 `branch`, `holdout: { M1, A2, G1 }`, `warnings`, `xmpSummary`, `extractorVersion`, `probeVersion`입니다. `ExtractionFailure`가 아닌 오류는 원인을 `cause`에 둔 `PROCESSING_FAILED`로 바꿉니다.
+`extractRecipe(buffer)`(`src/extract-recipe.js`)는 바이트 검사 → XMP 계획(디코드 전에 실패) → 디코드 → M1 읽기 → 분기 선택 → 레시피 순으로 돌고 `{ recipe, meta }`를 돌려줍니다. `meta`는 `branch`, `holdout: { M1, A2, G1 }`, `warnings`(XMP와 마커 경고, 중복 제거), `xmpSummary`, `extractorVersion`, `probeVersion`입니다. `ExtractionFailure`가 아닌 오류는 원인을 `cause`에 둔 `PROCESSING_FAILED`(고정 안내 문구)로 바꾸고, CLI도 같은 문구를 쓰며 원인은 stderr 둘째 줄 `cause:`에만 나옵니다.
 
 ```
 node src/cli.js <probe.jpg> [--out recipe.json] [--meta meta.json]   # npm run extract -- <probe.jpg>
