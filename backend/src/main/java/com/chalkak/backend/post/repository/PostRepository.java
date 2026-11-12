@@ -42,6 +42,8 @@ public interface PostRepository {
 
     Optional<Post> findVisibleByIdForShare(UUID postId);
 
+    long sumVisibleLikeCountByAuthorId(UUID authorId);
+
     PostSlice findVisibleRecentByAuthorId(
             UUID authorId,
             int page,

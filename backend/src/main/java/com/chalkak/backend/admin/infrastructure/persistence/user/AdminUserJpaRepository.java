@@ -58,6 +58,7 @@ public interface AdminUserJpaRepository extends JpaRepository<User, UUID> {
                 user.id,
                 user.email,
                 user.status,
+                user.role,
                 user.appVersion,
                 socialAccount.provider,
                 user.signatureOriginalStorageKey,

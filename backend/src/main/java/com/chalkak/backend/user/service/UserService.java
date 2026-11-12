@@ -30,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class UserService {
 
+    private static final long REQUIRED_ARTIST_LIKE_COUNT = 100;
+
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final PostRepository postRepository;
@@ -39,6 +41,36 @@ public class UserService {
     private final SignatureImageUploadIssuer signatureImageUploadIssuer;
     private final SignatureImagePolicy signatureImagePolicy;
     private final SignatureProcessingPolicy signatureProcessingPolicy;
+
+    public UserProfileResult getProfile(UUID userId) {
+        return toProfileResult(getActiveUser(userId));
+    }
+
+    public ArtistEligibilityResult getArtistEligibility(UUID userId) {
+        User user = getActiveUser(userId);
+        long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
+        return new ArtistEligibilityResult(
+                receivedLikeCount,
+                REQUIRED_ARTIST_LIKE_COUNT,
+                canApplyForArtist(user, receivedLikeCount)
+        );
+    }
+
+    @Transactional
+    public UserProfileResult applyForArtist(UUID userId) {
+        User user = getActiveUserForUpdate(userId);
+        user.validateAccessible();
+        user.validateArtistRoleGrant();
+
+        long receivedLikeCount = postRepository.sumVisibleLikeCountByAuthorId(user.getId());
+        if (!hasRequiredArtistLikes(receivedLikeCount)) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_ERROR,
+                    "작가 신청에 필요한 좋아요 수를 충족하지 않았습니다.");
+        }
+        user.grantArtistRole();
+        return toProfileResult(user);
+    }
 
     public SignatureImageUpload createSignatureUpload(UUID userId) {
         getActiveUser(userId);
@@ -69,10 +101,7 @@ public class UserService {
     public String updateSignature(UUID userId, UUID uploadId) {
         SignatureStorageKeys storageKeys = signatureImageStorage.toStorageKeys(uploadId);
 
-        User user = userRepository.findActiveByIdForUpdate(userId)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."));
+        User user = getActiveUserForUpdate(userId);
 
         if (user.hasSignature(storageKeys.originalStorageKey())) {
             user.cancelSignatureProcessing();
@@ -162,10 +191,7 @@ public class UserService {
             UUID userId,
             List<SocialConnectionRevocationSnapshot> revokedConnections
     ) {
-        User user = userRepository.findActiveByIdForUpdate(userId)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.UNAUTHORIZED,
-                        "유효하지 않은 인증 정보입니다."));
+        User user = getActiveUserForUpdate(userId);
 
         socialAccountRepository.findByUserId(userId).ifPresent(socialAccount -> {
             socialConnectionRevocationStore.deleteAllIfUnchanged(
@@ -190,6 +216,27 @@ public class UserService {
                 .orElseThrow(() -> new UnauthorizedException(
                         ErrorCode.UNAUTHORIZED,
                         "유효하지 않은 인증 정보입니다."));
+    }
+
+    private User getActiveUserForUpdate(UUID userId) {
+        return userRepository.findActiveByIdForUpdate(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
+    }
+
+    private boolean canApplyForArtist(User user, long receivedLikeCount) {
+        return user.isActive()
+                && user.isRegularUser()
+                && hasRequiredArtistLikes(receivedLikeCount);
+    }
+
+    private boolean hasRequiredArtistLikes(long receivedLikeCount) {
+        return receivedLikeCount >= REQUIRED_ARTIST_LIKE_COUNT;
+    }
+
+    private UserProfileResult toProfileResult(User user) {
+        return new UserProfileResult(user.getRole());
     }
 
     private boolean isSignatureProcessingTimedOut(

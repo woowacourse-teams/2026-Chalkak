@@ -35,6 +35,7 @@ required_keys=(
   ADMIN_PASSWORD_HASH
   ADMIN_CORS_ALLOWED_ORIGIN
   ADMIN_NOTIFICATION_DELIVERY_ENABLED
+  ADMIN_USER_ROLE_CHANGE_ENABLED
   ADMIN_SLACK_WEBHOOK_URL
   ADMIN_WEB_BASE_URL
   DB_HOST
@@ -88,6 +89,7 @@ admin_username="$(read_value ADMIN_USERNAME)"
 admin_password_hash="$(read_value ADMIN_PASSWORD_HASH)"
 admin_cors_allowed_origin="$(read_value ADMIN_CORS_ALLOWED_ORIGIN)"
 admin_notification_delivery_enabled="$(read_value ADMIN_NOTIFICATION_DELIVERY_ENABLED)"
+admin_user_role_change_enabled="$(read_value ADMIN_USER_ROLE_CHANGE_ENABLED)"
 admin_slack_webhook_url="$(read_value ADMIN_SLACK_WEBHOOK_URL)"
 admin_web_base_url="$(read_value ADMIN_WEB_BASE_URL)"
 
@@ -186,6 +188,11 @@ if [[ "${admin_notification_delivery_enabled}" == true ]]; then
     echo "ADMIN_SLACK_WEBHOOK_URL must be a Slack Incoming Webhook HTTPS URL." >&2
     exit 1
   fi
+fi
+
+if [[ "${admin_user_role_change_enabled}" != true && "${admin_user_role_change_enabled}" != false ]]; then
+  echo "ADMIN_USER_ROLE_CHANGE_ENABLED must be true or false." >&2
+  exit 1
 fi
 
 notification_relay_enabled="$(read_value NOTIFICATION_RELAY_ENABLED)"

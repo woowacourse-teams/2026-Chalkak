@@ -45,6 +45,11 @@ public class User {
     @Column(name = "status", nullable = false)
     private UserStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'USER'")
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role = UserRole.USER;
+
     @Column(name = "signature_original_storage_key", nullable = false, length = 1024)
     private String signatureOriginalStorageKey;
 
@@ -102,6 +107,30 @@ public class User {
         return user;
     }
 
+    public boolean isRegularUser() {
+        return role == UserRole.USER;
+    }
+
+    public void grantArtistRole() {
+        validateArtistRoleGrant();
+        this.role = UserRole.ARTIST;
+    }
+
+    public void validateArtistRoleGrant() {
+        rejectWithdrawn();
+        if (!isRegularUser()) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED, "이미 작가인 회원입니다.");
+        }
+    }
+
+    public void revokeArtistRole() {
+        rejectWithdrawn();
+        if (isRegularUser()) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED, "이미 일반 회원입니다.");
+        }
+        this.role = UserRole.USER;
+    }
+
     public void withdraw() {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "이미 탈퇴한 회원입니다.");
@@ -111,7 +140,7 @@ public class User {
     }
 
     public void ban() {
-        validateStatusChangeAllowed();
+        rejectWithdrawn();
         if (status == UserStatus.BANNED) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
@@ -121,7 +150,7 @@ public class User {
     }
 
     public void unban() {
-        validateStatusChangeAllowed();
+        rejectWithdrawn();
         if (status == UserStatus.ACTIVE) {
             throw new BusinessException(
                     ErrorCode.RESOURCE_STATE_CHANGED,
@@ -232,11 +261,11 @@ public class User {
         return value == null || value.isBlank();
     }
 
-    private void validateStatusChangeAllowed() {
+    private void rejectWithdrawn() {
         if (isDeleted()) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
-                    "탈퇴한 회원의 상태를 변경할 수 없습니다.");
+                    "탈퇴한 회원의 정보를 변경할 수 없습니다.");
         }
     }
 

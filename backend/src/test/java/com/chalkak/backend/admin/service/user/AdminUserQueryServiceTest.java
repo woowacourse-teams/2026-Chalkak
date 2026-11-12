@@ -16,6 +16,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.user.domain.UserRole;
 import com.chalkak.backend.user.domain.UserStatus;
 import java.time.Instant;
 import java.util.List;
@@ -171,6 +172,7 @@ class AdminUserQueryServiceTest {
                 id,
                 "author@example.com",
                 UserStatus.ACTIVE,
+                UserRole.USER,
                 "1.0.0",
                 null,
                 ORIGINAL_KEY,
