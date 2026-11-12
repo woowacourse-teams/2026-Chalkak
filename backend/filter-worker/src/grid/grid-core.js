@@ -16,6 +16,8 @@ export const FOLD_BLOCKS = { sel: 1024, ref: 256 }; // 홀드아웃 무리를 �
 export const nVertices = (spec) => spec.n.reduce((a, b) => a * b, 1);
 export const nParams = (spec) => 4 * nVertices(spec);
 export const gridDims = (spec) => [...spec.n, 4, 3];
+// 분기별 격자 틀: 레시피가 담는 dims와 맞는지 검사하는 데 쓴다
+export const GRID_KINDS = { A2: { dims: gridDims(A2_SPEC) }, G1: { dims: gridDims(G1_SPEC) } };
 
 export const gammaLum = (r, g, b) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 export const radius = (x, y, w, h) => {

@@ -17,3 +17,10 @@ export class ExtractionFailure extends Error {
     return new ExtractionFailure(PROCESSING_FAILED, message);
   }
 }
+
+// 운영자용 stderr 줄: 첫 줄은 작가에게 보이는 {type,message} JSON, cause가 있으면 그다음 줄에 원인(스택 또는 문자열)
+export function failureLines(failure) {
+  const lines = [JSON.stringify({ type: failure.type, message: failure.message })];
+  if (failure.cause !== undefined) lines.push(`cause: ${failure.cause?.stack ?? String(failure.cause)}`);
+  return lines;
+}

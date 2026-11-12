@@ -7,9 +7,13 @@
     "node": ">=22"
   },
   "scripts": {
+    "extract": "node src/cli.js",
     "test": "node --test --test-concurrency=1 \"test/*.test.js\""
   },
   "dependencies": {
     "sharp": "0.35.5"
+  },
+  "bin": {
+    "chalkak-extract": "src/cli.js"
   }
 }
