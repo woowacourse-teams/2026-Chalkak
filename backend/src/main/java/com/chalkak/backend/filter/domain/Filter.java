@@ -63,4 +63,8 @@ public class Filter {
         filter.status = FilterStatus.DRAFT;
         return filter;
     }
+
+    public boolean isOwnedBy(UUID userId) {
+        return artist.getId().equals(userId);
+    }
 }
