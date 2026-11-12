@@ -1,0 +1,40 @@
+[Unit]
+Description=찰칵 필터 추출 워커 (SQS chalkak-filter-extraction)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=chalkak-filter
+Group=chalkak-filter
+WorkingDirectory=/opt/chalkak/repo/backend/filter-worker
+# root 600 파일. systemd가 root로 읽으므로 서비스 계정에 시크릿 파일을 열 필요가 없다
+EnvironmentFile=/etc/chalkak/filter-worker.env
+Environment=NODE_ENV=production
+# 견본 파일이 RAM(tmpfs)을 차지하지 않도록 디스크에 있는 CacheDirectory를 쓴다
+Environment=FILTER_WORKER_WORK_DIR=/var/cache/chalkak-filter-worker
+# systemd는 PATH를 찾지 않으므로 절대 경로로 쓴다
+ExecStart=/usr/local/bin/node src/worker/main.js
+CacheDirectory=chalkak-filter-worker
+CacheDirectoryMode=0700
+# CloudWatch Agent가 파일을 수집한다(journald에는 남기지 않는다)
+StandardOutput=append:/var/log/chalkak-filter-worker/worker.log
+StandardError=append:/var/log/chalkak-filter-worker/worker.log
+Restart=on-failure
+RestartSec=10
+# 설정 오류(종료 코드 78)는 다시 시작해도 같으므로 재시작하지 않는다
+RestartPreventExitStatus=78
+# 정지 신호(SIGTERM)는 부모에게만 간다. 부모가 자식을 끊고 메시지를 반납한다. 제한 시간이 지나면 남은 프로세스를 모두 SIGKILL
+KillMode=mixed
+TimeoutStopSec=60
+# 커널 OOM 킬러가 추출 자식 하나를 죽여도 유닛 전체를 멈추지 않는다(부모가 crash로 판정해 메시지를 남긴다)
+OOMPolicy=continue
+# 메모리가 모자라면 SSM·CloudWatch Agent보다 워커(가장 큰 자식)가 먼저 죽게 한다
+OOMScoreAdjust=500
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

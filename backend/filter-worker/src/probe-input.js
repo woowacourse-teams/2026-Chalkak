@@ -5,11 +5,14 @@ export const PROBE_WIDTH = 3072;
 export const PROBE_HEIGHT = 4096;
 export const DEFAULT_MAX_BYTES = 30 * 1024 * 1024;
 
+// 크기 상한 초과 때 작가에게 보이는 문구(워커 job.js도 같은 문구를 쓴다)
+export const TOO_LARGE_MESSAGE = '파일이 너무 커요. 전체 크기 JPG로 다시 내보내 주세요.';
+
 const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
 
 export function checkProbeBytes(buffer, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
   if (buffer.length > maxBytes) {
-    throw ExtractionFailure.invalidProbe('파일이 너무 커요. 전체 크기 JPG로 다시 내보내 주세요.');
+    throw ExtractionFailure.invalidProbe(TOO_LARGE_MESSAGE);
   }
   if (buffer.length < JPEG_SIGNATURE.length || !JPEG_SIGNATURE.every((byte, i) => buffer[i] === byte)) {
     throw ExtractionFailure.invalidProbe('JPG 파일이 아니에요. Lightroom에서 JPG로 다시 내보내 주세요.');
