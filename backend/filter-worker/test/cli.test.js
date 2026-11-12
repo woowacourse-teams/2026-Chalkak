@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { extractRecipe } from '../src/extract-recipe.js';
 import { ExtractionFailure, failureLines } from '../src/failure.js';
+import { H, W, inputProbe } from '../src/m1/layout.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 const run = (...args) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
@@ -42,6 +43,19 @@ describe('추출 CLI', () => {
     const r = run(join(dir, 'missing.jpg'));
     assert.equal(r.status, 2);
     assert.equal(JSON.parse(r.stderr).type, 'INVALID_PROBE');
+  });
+
+  test('예상 밖 오류는 고정 안내 문구와 PROCESSING_FAILED, 원인은 둘째 줄', async () => {
+    // 편집 없는 견본 + 보정 값이 모두 0인 XMP: 추출은 끝까지 돌고, 쓰기 단계(없는 폴더)에서 실패한다
+    const raw = Buffer.from(inputProbe().buffer);
+    const xmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="0"/></rdf:RDF></x:xmpmeta>';
+    const jpeg = join(dir, 'probe.jpg');
+    await writeFile(jpeg, await sharp(raw, { raw: { width: W, height: H, channels: 4 } }).removeAlpha().withXmp(xmp).jpeg({ quality: 100 }).toBuffer());
+    const r = run(jpeg, '--out', join(dir, 'no-such-dir', 'recipe.json'));
+    assert.equal(r.status, 1);
+    const [first, second] = r.stderr.trim().split('\n');
+    assert.deepEqual(JSON.parse(first), { type: 'PROCESSING_FAILED', message: '필터를 만드는 중 문제가 생겼어요. 다시 올려 주세요.' });
+    assert.match(second, /^cause: /);
   });
 
   test('인자가 없으면 종료 코드 1', () => {

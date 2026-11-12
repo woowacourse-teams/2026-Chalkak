@@ -6,6 +6,8 @@ import { parseArgs } from 'node:util';
 import { ExtractionFailure, INVALID_PROBE, failureLines } from './failure.js';
 import { extractRecipe } from './extract-recipe.js';
 
+const PROCESSING_MESSAGE = '필터를 만드는 중 문제가 생겼어요. 다시 올려 주세요.';
+
 const fail = (failure) => {
   process.stderr.write(`${failureLines(failure).join('\n')}\n`);
   process.exit(failure.type === INVALID_PROBE ? 2 : 1);
@@ -30,7 +32,7 @@ try {
   if (!args.values.out) process.stdout.write(`${JSON.stringify(recipe)}\n`);
 } catch (error) {
   if (error instanceof ExtractionFailure) fail(error);
-  const failure = ExtractionFailure.processingFailed(error.message);
+  const failure = ExtractionFailure.processingFailed(PROCESSING_MESSAGE);
   failure.cause = error;
   fail(failure);
 }
