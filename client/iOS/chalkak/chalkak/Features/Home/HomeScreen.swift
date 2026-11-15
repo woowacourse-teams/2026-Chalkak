@@ -40,7 +40,8 @@ struct HomeScreen: View {
                 }
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                // 높이가 제각각인 섹션을 지연 스택에 두면 화면 밖 섹션의 높이 추정이 흔들려 스크롤이 맨 위로 튄다(#1025).
+                VStack(alignment: .leading, spacing: 0) {
                     HomeTopicHeader(
                         date: viewModel.viewState.date,
                         topic: viewModel.viewState.topic,
@@ -143,7 +144,9 @@ struct HomeScreen: View {
                     .padding(.top, theme.spacing.xxl)
 
                     if !viewModel.viewState.isIssueOnTop {
-                        issueList
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            issueList
+                        }
                     }
                 }
                 .padding(.bottom, theme.spacing.xxl)

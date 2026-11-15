@@ -172,6 +172,44 @@ final class HomeScreenUITests: XCTestCase {
     }
 
     @MainActor
+    func testSwipingTopIssueCarouselKeepsScrollPosition() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview", "-test-home-issue-top", "-test-home-banner-state", "pagination"]
+        app.launch()
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+
+        // 주제 헤더가 화면 밖으로 나가고 히어로 카드가 걸친 위치들에서 캐러셀을 넘겨도 세로 위치가 유지돼야 한다.
+        let scrollStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+        let scrollEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        func scrollDown() {
+            scrollStart.press(forDuration: 0.1, thenDragTo: scrollEnd, withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
+        let first = app.buttons["이슈 1"]
+        for _ in 0..<8 where !first.exists || first.frame.minY > app.frame.height * 0.6 { scrollDown() }
+
+        for index in 1...4 {
+            let card = app.buttons["이슈 \(index)"]
+            XCTAssertTrue(card.waitForExistence(timeout: 3))
+            let originalFrame = card.frame
+            card.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.2)).press(
+                forDuration: 0.1,
+                thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.25)),
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            let next = app.buttons["이슈 \(index + 1)"]
+            // 다음 카드는 넘기기 전에도 옆에 살짝 보이므로, 넘긴 카드 자리에 올 때까지 기다린다.
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in next.exists && abs(next.frame.minX - originalFrame.minX) <= 8 },
+                object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
+            XCTAssertEqual(next.frame.minY, originalFrame.minY, accuracy: 8)
+            scrollDown()
+        }
+    }
+
+    @MainActor
     func testFlatBackButtonRespondsAcrossTouchTarget() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview", "-use-flat-ios-design"]
