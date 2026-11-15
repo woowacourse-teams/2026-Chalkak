@@ -1148,6 +1148,7 @@ struct ContentView: View {
             var state = HomePreviewData.contentState
             var loader = HomePreviewData.loader
             let arguments = ProcessInfo.processInfo.arguments
+            state.isIssueOnTop = arguments.contains("-test-home-issue-top")
             if let index = arguments.firstIndex(of: "-test-home-banner-state"), arguments.indices.contains(index + 1) {
                 state.banners = []
                 switch arguments[index + 1] {

@@ -172,6 +172,39 @@ final class HomeScreenUITests: XCTestCase {
     }
 
     @MainActor
+    func testSwipingTopIssueCarouselKeepsScrollPosition() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-home-preview", "-test-home-issue-top", "-test-home-banner-state", "pagination"]
+        app.launch()
+        XCTAssertTrue(app.buttons["home.notifications"].waitForExistence(timeout: 5))
+
+        // 주제 헤더가 화면 밖으로 나가고 히어로 카드가 걸친 위치들에서 캐러셀을 넘겨도 세로 위치가 유지돼야 한다.
+        let scrollStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+        let scrollEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        func scrollDown() {
+            scrollStart.press(forDuration: 0.1, thenDragTo: scrollEnd, withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
+        let first = app.buttons["이슈 1"]
+        for _ in 0..<8 where !first.exists || first.frame.minY > app.frame.height * 0.6 { scrollDown() }
+
+        for index in 1...4 {
+            let card = app.buttons["이슈 \(index)"]
+            XCTAssertTrue(card.waitForExistence(timeout: 3))
+            let originalY = card.frame.minY
+            card.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.2)).press(
+                forDuration: 0.1,
+                thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.25)),
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            let next = app.buttons["이슈 \(index + 1)"]
+            XCTAssertTrue(next.waitForExistence(timeout: 3))
+            XCTAssertEqual(next.frame.minY, originalY, accuracy: 8)
+            scrollDown()
+        }
+    }
+
+    @MainActor
     func testFlatBackButtonRespondsAcrossTouchTarget() {
         let app = XCUIApplication()
         app.launchArguments = ["-test-home-preview", "-use-flat-ios-design"]
