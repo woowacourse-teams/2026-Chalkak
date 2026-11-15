@@ -22,6 +22,9 @@ management:
       show-details: never
 
 chalkak:
+  notification:
+    topic-monitor:
+      log-group: /chalkak/dev/notification
   monitoring:
     runtime-log:
       enabled: true
