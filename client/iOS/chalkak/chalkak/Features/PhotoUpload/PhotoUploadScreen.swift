@@ -153,6 +153,7 @@ struct PhotoUploadScreen: View {
                 fillsWidth: true
             )
             .accessibilityIdentifier("photoUpload.submit")
+            .background(theme.colors.background, in: RoundedRectangle(cornerRadius: theme.shapes.button))
             .padding(.horizontal, Metrics.buttonHorizontalPadding)
             .padding(.top, theme.spacing.sm)
             .padding(.bottom, Metrics.buttonBottomPadding)
