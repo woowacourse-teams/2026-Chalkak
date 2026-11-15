@@ -190,7 +190,7 @@ final class HomeScreenUITests: XCTestCase {
         for index in 1...4 {
             let card = app.buttons["이슈 \(index)"]
             XCTAssertTrue(card.waitForExistence(timeout: 3))
-            let originalY = card.frame.minY
+            let originalFrame = card.frame
             card.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.2)).press(
                 forDuration: 0.1,
                 thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.25)),
@@ -198,8 +198,13 @@ final class HomeScreenUITests: XCTestCase {
                 thenHoldForDuration: 0.2
             )
             let next = app.buttons["이슈 \(index + 1)"]
-            XCTAssertTrue(next.waitForExistence(timeout: 3))
-            XCTAssertEqual(next.frame.minY, originalY, accuracy: 8)
+            // 다음 카드는 넘기기 전에도 옆에 살짝 보이므로, 넘긴 카드 자리에 올 때까지 기다린다.
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in next.exists && abs(next.frame.minX - originalFrame.minX) <= 8 },
+                object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
+            XCTAssertEqual(next.frame.minY, originalFrame.minY, accuracy: 8)
             scrollDown()
         }
     }
