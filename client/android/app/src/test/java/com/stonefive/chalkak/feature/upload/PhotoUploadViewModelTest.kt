@@ -1152,7 +1152,7 @@ private fun PhotoUploadViewModel.selectPhoto(
     onEditConfirmed(image, edit)
 }
 
-private class FakePostCreationRepository : PostCreationRepository {
+internal class FakePostCreationRepository : PostCreationRepository {
     val defaultTopic = Topic(
         id = "topic-id",
         title = "바다",
