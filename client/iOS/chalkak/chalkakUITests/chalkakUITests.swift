@@ -10,6 +10,60 @@ import XCTest
 final class chalkakUITests: XCTestCase {
 
     @MainActor
+    func testEmptyPhotoUploadShowsConsentWithoutOverlappingActions() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+        let add = app.buttons["추가"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        let close = app.buttons["photoUpload.close"]
+        let gallery = app.buttons["앨범에서 사진 선택"]
+        let consent = app.switches["instagramConsent.toggle"]
+        let submit = app.buttons["photoUpload.submit"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(gallery.waitForExistence(timeout: 5))
+        XCTAssertTrue(consent.waitForExistence(timeout: 5))
+        XCTAssertTrue(submit.exists)
+        XCTAssertGreaterThanOrEqual(gallery.frame.minY, close.frame.maxY)
+        let camera = app.buttons["카메라로 촬영"]
+        if camera.exists {
+            XCTAssertGreaterThanOrEqual(camera.frame.minY, close.frame.maxY)
+            XCTAssertFalse(camera.frame.intersects(gallery.frame))
+        }
+        XCTAssertTrue(consent.isHittable)
+        XCTAssertLessThanOrEqual(consent.frame.maxY, submit.frame.minY)
+    }
+
+    @MainActor
+    func testPhotoUploadInstagramIDStaysAboveFloatingSubmitWithKeyboard() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-test-photo-upload-entry"]
+        app.launch()
+        let add = app.buttons["추가"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        let consent = app.switches["instagramConsent.toggle"]
+        XCTAssertTrue(consent.waitForExistence(timeout: 5))
+        consent.tap()
+        app.scrollViews.firstMatch.swipeUp()
+        let instagramID = app.textFields["인스타그램 ID"]
+        XCTAssertTrue(instagramID.waitForExistence(timeout: 5))
+        instagramID.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+
+        let submit = app.buttons["photoUpload.submit"]
+        let inputIsVisible = NSPredicate { _, _ in
+            instagramID.frame.maxY <= submit.frame.minY
+                && submit.frame.maxY <= app.keyboards.firstMatch.frame.minY
+        }
+        expectation(for: inputIsVisible, evaluatedWith: app)
+        waitForExpectations(timeout: 5)
+    }
+
+    @MainActor
     func testPhotoUploadClosesWithoutConfirmationWhenNothingIsSelected() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-test-photo-upload-entry"]
