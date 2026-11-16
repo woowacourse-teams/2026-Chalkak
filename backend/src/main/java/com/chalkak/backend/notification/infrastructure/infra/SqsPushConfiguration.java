@@ -1,11 +1,13 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import com.chalkak.backend.notification.service.PushMessagePublisher;
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import java.time.Duration;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -53,12 +55,14 @@ public class SqsPushConfiguration {
     public PushMessagePublisher pushMessagePublisher(
             @Qualifier("notificationSqsClient") SqsClient notificationSqsClient,
             SqsPushProperties properties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ObjectProvider<TopicPushTracing> tracing
     ) {
         return new SqsPushMessagePublisher(
                 notificationSqsClient,
                 properties.queueUrl(),
-                objectMapper
+                objectMapper,
+                tracing.getIfAvailable(TopicPushTracing::disabled)
         );
     }
 }

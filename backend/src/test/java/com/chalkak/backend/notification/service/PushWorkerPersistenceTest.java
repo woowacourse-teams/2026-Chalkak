@@ -1241,7 +1241,8 @@ class PushWorkerPersistenceTest extends IntegrationTestSupport {
                 JsonMapper.builder().build(),
                 worker(NOW),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                visibilityExecutor
+                visibilityExecutor,
+                TopicPushTracing.disabled()
         );
         String nextMessageId = "message-first";
         String nextReceiveCount = "2";

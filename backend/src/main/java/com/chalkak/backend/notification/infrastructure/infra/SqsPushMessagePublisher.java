@@ -1,10 +1,15 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.chalkak.backend.notification.service.PushMessagePublisher;
 import com.chalkak.backend.notification.service.PushPublicationResult;
+import com.chalkak.backend.notification.service.TopicPushTracing;
+import java.util.HashMap;
+import java.util.Map;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SqsException;
 import tools.jackson.core.JacksonException;
@@ -15,23 +20,45 @@ public class SqsPushMessagePublisher implements PushMessagePublisher {
     private final SqsClient sqsClient;
     private final String queueUrl;
     private final ObjectMapper objectMapper;
+    private final TopicPushTracing tracing;
 
     public SqsPushMessagePublisher(
             SqsClient sqsClient,
             String queueUrl,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TopicPushTracing tracing
     ) {
         this.sqsClient = sqsClient;
         this.queueUrl = queueUrl;
         this.objectMapper = objectMapper;
+        this.tracing = tracing;
     }
 
     @Override
     public PushPublicationResult publish(PushMessage message) {
+        if (message.type() != NotificationType.TOPIC) {
+            return send(message, Map.of());
+        }
+        try (var trace = tracing.startPublish()) {
+            trace.setEventId(message.eventId());
+            Map<String, String> headers = new HashMap<>();
+            trace.writeHeaders(headers);
+            Map<String, MessageAttributeValue> attributes = new HashMap<>();
+            headers.forEach((key, value) -> attributes.put(key, MessageAttributeValue.builder()
+                    .dataType("String").stringValue(value).build()));
+            PushPublicationResult result = send(message, attributes);
+            trace.recordOutcome(result.status().name(), !result.isAccepted());
+            return result;
+        }
+    }
+
+    private PushPublicationResult send(PushMessage message,
+            Map<String, MessageAttributeValue> attributes) {
         try {
             String messageId = sqsClient.sendMessage(SendMessageRequest.builder()
                     .queueUrl(queueUrl)
                     .messageBody(objectMapper.writeValueAsString(message))
+                    .messageAttributes(attributes)
                     .build()).messageId();
             if (messageId == null || messageId.isBlank()) {
                 return PushPublicationResult.unknown("SQS_ACCEPTANCE_UNKNOWN");

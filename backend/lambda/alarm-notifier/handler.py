@@ -34,7 +34,7 @@ INSIGHTS_5XX_QUERY = (
 
 TOPIC_MISSING_ALARM_SUFFIX = "-push-topic-occurrence-missing"
 INSIGHTS_TOPIC_MISSING_QUERY = (
-    'fields @timestamp, stage, scheduleId, occurredAt, eventId, targetCount, '
+    'fields @timestamp, stage, scheduleId, occurredAt, eventId, trace_id, targetCount, '
     'acceptedCount, failedCount, expiredCount, unknownCount, errorCode\n'
     '| filter stage in ["topic_monitor_missing", "topic_monitor_failed", '
     '"topic_publication_summary", "topic_execution_skipped", "topic_execution_failed", "topic_scheduler_failed"]\n'

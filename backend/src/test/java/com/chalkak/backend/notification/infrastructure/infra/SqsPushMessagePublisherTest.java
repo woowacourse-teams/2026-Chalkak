@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -102,7 +103,8 @@ class SqsPushMessagePublisherTest {
         publisher = new SqsPushMessagePublisher(
                 client,
                 endpoint + "/000000000000/chalkak-test-push",
-                objectMapper
+                objectMapper,
+                TopicPushTracing.disabled()
         );
     }
 
@@ -223,7 +225,8 @@ class SqsPushMessagePublisherTest {
         PushPublicationResult result = new SqsPushMessagePublisher(
                 unknownClient,
                 "test-queue",
-                objectMapper
+                objectMapper,
+                TopicPushTracing.disabled()
         ).publish(MESSAGE);
 
         // Then
@@ -245,7 +248,8 @@ class SqsPushMessagePublisherTest {
         PushPublicationResult result = new SqsPushMessagePublisher(
                 failingClient,
                 "test-queue",
-                objectMapper
+                objectMapper,
+                TopicPushTracing.disabled()
         ).publish(MESSAGE);
 
         // Then
@@ -266,7 +270,8 @@ class SqsPushMessagePublisherTest {
         PushPublicationResult result = new SqsPushMessagePublisher(
                 client,
                 "test-queue",
-                failingMapper
+                failingMapper,
+                TopicPushTracing.disabled()
         ).publish(MESSAGE);
 
         // Then

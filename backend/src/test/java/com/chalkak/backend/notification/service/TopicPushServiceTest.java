@@ -466,7 +466,8 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         publisher = new SqsPushMessagePublisher(
                 client,
                 "test-queue",
-                JsonMapper.builder().build()
+                JsonMapper.builder().build(),
+                TopicPushTracing.disabled()
         );
         service = newService();
 
@@ -541,7 +542,8 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 notifications,
                 new DirectPushPublisher(publisher, clock),
                 clock,
-                manager
+                manager,
+                TopicPushTracing.disabled()
         );
     }
 
