@@ -29,6 +29,7 @@ data class HomeUiState(
     val isRefreshing: Boolean = false,
     val isAuthenticated: Boolean = false,
     val feedbackPhase: HomeFeedbackPhase = HomeFeedbackPhase.Hidden,
+    val feedbackNotice: HomeFeedbackNotice? = null,
     val feedbackResult: AiReviewContent? = null,
     val feedbackMessage: String? = null,
     val feedbackCanRequestAgain: Boolean = false,
@@ -69,12 +70,41 @@ fun HomeUiState.shouldLoadMoreBanners(lastVisibleIssueIndex: Int?): Boolean = ba
 
 private const val ISSUE_PREFETCH_DISTANCE = 2
 
-// 피드백 카드는 오늘 올린 사진이 검수를 통과(승인)했을 때만 보인다. 검수 대기 사진과 사진이 없는 상태에서는 숨긴다.
+// 피드백 카드가 보이는 경우는 두 가지다.
+// 1) 승인 전 안내(feedbackNotice가 있음): 오늘 사진을 올리기 전이거나 검수 중·대기 중일 때. 누를 수 없다.
+// 2) 오늘 올린 사진이 검수를 통과(승인)했고 AI 리뷰 상태를 받아 왔을 때(feedbackPhase가 Hidden이 아님).
+// 그 밖(비로그인, 열린 주제 없음, 불러오기 실패, AI 리뷰 꺼짐)에는 숨긴다.
 val HomeUiState.showsFeedback: Boolean
-    get() = (hero as? HomeHeroState.Photo)?.isPending == false && feedbackPhase != HomeFeedbackPhase.Hidden
+    get() = feedbackNotice != null ||
+        ((hero as? HomeHeroState.Photo)?.isPending == false && feedbackPhase != HomeFeedbackPhase.Hidden)
 
 // 조회 전 상태는 카드를 숨긴다. FAILED는 실패 안내를 보여 주고, 다시 요청할 수 있으면(feedbackCanRequestAgain) 카드를 눌러 바로 다시 요청한다.
 typealias HomeFeedbackPhase = AiReviewPhase
+
+/**
+ * 오늘 사진이 아직 승인되지 않아 AI 피드백을 받을 수 없을 때, 피드백 카드 자리에 보여 줄 안내의 종류다.
+ * 안내 카드는 누를 수 없고, AI 리뷰 API도 부르지 않는다(승인된 사진만 AI 리뷰 대상).
+ * 피드와 같이 쓰는 [AiReviewPhase]에는 승인 전 상태가 없어서 홈에서만 따로 둔다.
+ */
+enum class HomeFeedbackNotice {
+    /** 오늘 사진을 아직 올리지 않았다(히어로 [HomeHeroState.Empty]). */
+    BeforeUpload,
+
+    /** 오늘 사진을 올렸지만 자동 검사 중([HomeHeroState.Processing])이거나 검수 대기(PENDING)다. */
+    AwaitingApproval,
+}
+
+/**
+ * 오늘 히어로 상태로 승인 전 안내의 종류를 정한다. 안내가 필요 없는 상태(승인됨, 비로그인, 열린 주제 없음, 오류, 로딩)는 null.
+ * 예: [HomeHeroState.Empty] → [HomeFeedbackNotice.BeforeUpload], 검수 대기 [HomeHeroState.Photo] → [HomeFeedbackNotice.AwaitingApproval].
+ * AI 리뷰 기능이 꺼져 있는지는 여기서 보지 않는다. 호출하는 쪽(HomeViewModel)이 먼저 확인한다.
+ */
+fun HomeHeroState.feedbackNotice(): HomeFeedbackNotice? = when (this) {
+    HomeHeroState.Empty -> HomeFeedbackNotice.BeforeUpload
+    HomeHeroState.Processing -> HomeFeedbackNotice.AwaitingApproval
+    is HomeHeroState.Photo -> if (isPending) HomeFeedbackNotice.AwaitingApproval else null
+    else -> null
+}
 
 enum class HomeSectionStatus {
     Loading,

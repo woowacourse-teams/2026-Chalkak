@@ -45,11 +45,18 @@ import com.stonefive.chalkak.domain.model.AiReviewCriterion
 import com.stonefive.chalkak.domain.model.AiReviewFeedback
 import com.stonefive.chalkak.feature.aireview.component.AiReviewAudioWaveIcon
 import com.stonefive.chalkak.feature.aireview.component.AiReviewResultContent
+import com.stonefive.chalkak.feature.home.HomeFeedbackNotice
 import com.stonefive.chalkak.feature.home.HomeFeedbackPhase
 
 /**
  * 홈의 오늘 사진 아래에 놓이는 AI 피드백 카드다. [phase]에 따라 한 줄 헤더의 제목과 동작이 바뀐다.
  *
+ * [notice]가 있으면(오늘 사진이 아직 승인 전) [phase]와 상관없이 안내 문구만 보여 주고 누를 수 없다.
+ * 오른쪽 음성 파형 아이콘은 그대로 두되 움직이지 않는다.
+ * - [HomeFeedbackNotice.BeforeUpload]: "사진을 올리고 AI 피드백을 받아보세요."
+ * - [HomeFeedbackNotice.AwaitingApproval]: "사진이 승인되면 AI 피드백을 받을 수 있어요."
+ *
+ * [notice]가 없을 때:
  * - [HomeFeedbackPhase.Ready]: 헤더를 누르면 [onStart]를 호출한다. 호출한 쪽이 시작 안내 시트를 연다.
  * - [HomeFeedbackPhase.Processing]: 헤더를 누를 수 없고, 오른쪽 음성 파형 아이콘만 움직인다.
  * - [HomeFeedbackPhase.Completed]: 헤더를 누르면 [onToggleExpanded]를 호출한다. [isExpanded]가 true면 결과를 펼친다.
@@ -66,10 +73,11 @@ fun HomeFeedbackCard(
     modifier: Modifier = Modifier,
     result: AiReviewContent? = null,
     canRequestAgain: Boolean = false,
+    notice: HomeFeedbackNotice? = null,
 ) {
-    if (phase == HomeFeedbackPhase.Hidden) return
+    if (notice == null && phase == HomeFeedbackPhase.Hidden) return
 
-    val showsDetail = phase == HomeFeedbackPhase.Completed && isExpanded
+    val showsDetail = notice == null && phase == HomeFeedbackPhase.Completed && isExpanded
 
     Box(
         modifier = modifier
@@ -86,6 +94,7 @@ fun HomeFeedbackCard(
         Column(modifier = Modifier.fillMaxWidth()) {
             FeedbackHeader(
                 phase = phase,
+                notice = notice,
                 isExpanded = isExpanded,
                 canRequestAgain = canRequestAgain,
                 onClick = if (phase == HomeFeedbackPhase.Completed) onToggleExpanded else onStart,
@@ -114,22 +123,32 @@ fun HomeFeedbackCard(
 @Composable
 private fun FeedbackHeader(
     phase: HomeFeedbackPhase,
+    notice: HomeFeedbackNotice?,
     isExpanded: Boolean,
     canRequestAgain: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val title = when (phase) {
-        HomeFeedbackPhase.Hidden -> ""
-        HomeFeedbackPhase.Ready -> "이 사진, AI에게 피드백 받아보기"
-        HomeFeedbackPhase.Processing -> "AI 피드백이 진행중이에요"
-        HomeFeedbackPhase.Completed -> "AI 피드백이 완료되었어요"
-        HomeFeedbackPhase.Failed -> "AI 피드백을 생성하지 못했어요"
+    val title = when (notice) {
+        HomeFeedbackNotice.BeforeUpload -> FEEDBACK_NOTICE_BEFORE_UPLOAD
+
+        HomeFeedbackNotice.AwaitingApproval -> FEEDBACK_NOTICE_AWAITING_APPROVAL
+
+        null -> when (phase) {
+            HomeFeedbackPhase.Hidden -> ""
+            HomeFeedbackPhase.Ready -> "이 사진, AI에게 피드백 받아보기"
+            HomeFeedbackPhase.Processing -> "AI 피드백이 진행중이에요"
+            HomeFeedbackPhase.Completed -> "AI 피드백이 완료되었어요"
+            HomeFeedbackPhase.Failed -> "AI 피드백을 생성하지 못했어요"
+        }
     }
-    val showsRequestAgain = phase == HomeFeedbackPhase.Failed && canRequestAgain
-    val enabled = when (phase) {
-        HomeFeedbackPhase.Processing -> false
-        HomeFeedbackPhase.Failed -> canRequestAgain
+    val showsRequestAgain = notice == null && phase == HomeFeedbackPhase.Failed && canRequestAgain
+    val showsChevron = notice == null && phase == HomeFeedbackPhase.Completed
+    // 승인 전 안내는 누를 곳이 없으므로 진행 중처럼 클릭을 막는다.
+    val enabled = when {
+        notice != null -> false
+        phase == HomeFeedbackPhase.Processing -> false
+        phase == HomeFeedbackPhase.Failed -> canRequestAgain
         else -> true
     }
     val interactionSource = remember { MutableInteractionSource() }
@@ -146,7 +165,7 @@ private fun FeedbackHeader(
                 onClick = onClick,
             ).semantics {
                 contentDescription = if (showsRequestAgain) "$title, 재요청" else title
-                if (phase == HomeFeedbackPhase.Completed) {
+                if (showsChevron) {
                     stateDescription = if (isExpanded) "펼쳐짐" else "접힘"
                 }
             }.alpha(if (isPressed) FEEDBACK_HEADER_PRESSED_ALPHA else 1f)
@@ -164,7 +183,7 @@ private fun FeedbackHeader(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
         )
-        if (phase == HomeFeedbackPhase.Completed) {
+        if (showsChevron) {
             if (!isExpanded) {
                 Text(
                     text = "자세히 보기",
@@ -204,7 +223,7 @@ private fun FeedbackHeader(
                 contentAlignment = Alignment.Center,
             ) {
                 AiReviewAudioWaveIcon(
-                    isAnimating = phase == HomeFeedbackPhase.Processing,
+                    isAnimating = notice == null && phase == HomeFeedbackPhase.Processing,
                     color = ChalkakTheme.colors.onActionPrimary,
                 )
             }
@@ -222,6 +241,8 @@ private fun FeedbackDetail(
     }
 }
 
+private const val FEEDBACK_NOTICE_BEFORE_UPLOAD = "사진을 올리고 AI 피드백을 받아보세요."
+private const val FEEDBACK_NOTICE_AWAITING_APPROVAL = "사진이 승인되면 AI 피드백을 받을 수 있어요."
 private const val FEEDBACK_CARD_SHADOW_ALPHA = 0.08f
 private const val FEEDBACK_HEADER_PRESSED_ALPHA = 0.8f
 private const val CHEVRON_EXPANDED_ROTATION = 180f
@@ -248,6 +269,29 @@ private fun HomeFeedbackCardPreview() {
                     onToggleExpanded = {},
                     modifier = Modifier.fillMaxWidth(),
                     result = previewFeedbackResult,
+                )
+            }
+        }
+    }
+}
+
+// 승인 전 안내 카드 두 가지. 작은 폭(320dp)에서도 문구가 잘리지 않는지 본다.
+@Preview(name = "승인 전 안내", showBackground = true, widthDp = 320)
+@Composable
+private fun HomeFeedbackCardNoticePreview() {
+    ChalkakTheme {
+        Column(
+            modifier = Modifier.padding(ChalkakTheme.spacing.screenHorizontal),
+            verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
+        ) {
+            HomeFeedbackNotice.entries.forEach { notice ->
+                HomeFeedbackCard(
+                    phase = HomeFeedbackPhase.Hidden,
+                    isExpanded = false,
+                    onStart = {},
+                    onToggleExpanded = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    notice = notice,
                 )
             }
         }

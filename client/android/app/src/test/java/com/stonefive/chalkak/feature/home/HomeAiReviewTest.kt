@@ -20,7 +20,9 @@ import com.stonefive.chalkak.domain.model.PostDetail
 import com.stonefive.chalkak.domain.model.PostPage
 import com.stonefive.chalkak.domain.model.PostStatus
 import com.stonefive.chalkak.domain.model.PostUpdate
+import com.stonefive.chalkak.domain.model.TodayPostModerationStatus
 import com.stonefive.chalkak.domain.model.TodayPostStatus
+import com.stonefive.chalkak.domain.model.TodayPostStatusFailure
 import com.stonefive.chalkak.domain.model.TodayPostStatusResult
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewFailure
@@ -437,21 +439,157 @@ class HomeAiReviewTest {
         assertNull(viewModel.uiState.value.feedbackMessage)
     }
 
+    @Test
+    fun `오늘 사진을 올리기 전이면 업로드 전 안내 카드를 보여 준다`() = runTest {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 올린 사진 없음
+        val ai = FakeAiReviewRepository()
+        val viewModel = createViewModel(ai, approved = false)
+        // When  홈을 불러온다
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        // Then  피드백 카드가 업로드 전 안내 상태이고 AI 리뷰 조회는 0번
+        assertEquals(HomeFeedbackNotice.BeforeUpload, viewModel.uiState.value.feedbackNotice)
+        assertTrue(viewModel.uiState.value.showsFeedback)
+        assertTrue(ai.getPostIds.isEmpty())
+    }
+
+    @Test
+    fun `오늘 사진이 승인 대기면 승인 대기 안내 카드를 보여 준다`() = runTest {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 사진이 PENDING
+        val ai = FakeAiReviewRepository()
+        val repository = FakeHomeRepository(approved = false).apply { pending = true }
+        val viewModel = createViewModel(ai, repository = repository)
+        // When  홈을 불러온다
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        // Then  피드백 카드가 승인 대기 안내 상태이고 AI 리뷰 조회는 0번
+        assertEquals(HomeFeedbackNotice.AwaitingApproval, viewModel.uiState.value.feedbackNotice)
+        assertTrue(viewModel.uiState.value.showsFeedback)
+        assertTrue(ai.getPostIds.isEmpty())
+    }
+
+    @Test
+    fun `업로드 직후 검사 중이어도 승인 대기 안내 카드를 보여 준다`() = runTest {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 사진이 VALIDATING
+        val ai = FakeAiReviewRepository()
+        val repository = FakeHomeRepository(approved = false).apply {
+            todayPostStatus = TodayPostStatusResult.Success(
+                TodayPostStatus(TODAY, true, POST_ID, TodayPostModerationStatus.VALIDATING),
+            )
+        }
+        val viewModel = createViewModel(ai, repository = repository)
+        // When  홈을 불러온다
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        // Then  피드백 카드가 승인 대기 안내 상태
+        assertEquals(HomeHeroState.Processing, viewModel.uiState.value.hero)
+        assertEquals(HomeFeedbackNotice.AwaitingApproval, viewModel.uiState.value.feedbackNotice)
+        assertTrue(viewModel.uiState.value.showsFeedback)
+    }
+
+    @Test
+    fun `안내 카드에서 피드백 시작을 보내도 AI 리뷰를 요청하지 않는다`() = runTest {
+        // Given 피드백 카드가 업로드 전 안내 상태
+        val ai = FakeAiReviewRepository()
+        val viewModel = createViewModel(ai, approved = false)
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        // When  피드백 시작을 보낸다
+        viewModel.startFeedback()
+        runCurrent()
+        // Then  AI 리뷰 요청(POST)은 0번이고 카드는 업로드 전 안내 상태 그대로
+        assertTrue(ai.requestPostIds.isEmpty())
+        assertEquals(HomeFeedbackNotice.BeforeUpload, viewModel.uiState.value.feedbackNotice)
+        assertTrue(viewModel.uiState.value.showsFeedback)
+    }
+
+    @Test
+    fun `승인되면 안내 대신 피드백 받기 카드로 바뀐다`() = runTest {
+        // Given 오늘 사진이 PENDING이라 승인 대기 안내가 보이는 상태
+        val ai = FakeAiReviewRepository().apply { getResults += success(AiReview.Status.NONE) }
+        val repository = FakeHomeRepository(approved = false).apply { pending = true }
+        val viewModel = createViewModel(ai, repository = repository)
+        advanceUntilIdle()
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(HomeFeedbackNotice.AwaitingApproval, viewModel.uiState.value.feedbackNotice)
+        // When  사진이 승인된 뒤 홈을 새로고침하고 AI 리뷰 조회가 NONE
+        repository.pending = false
+        repository.approved = true
+        viewModel.refresh()
+        advanceUntilIdle()
+        // Then  피드백 카드가 "AI에게 피드백 받아보기"(요청 가능) 상태
+        assertNull(viewModel.uiState.value.feedbackNotice)
+        assertEquals(HomeFeedbackPhase.Ready, viewModel.uiState.value.feedbackPhase)
+        assertTrue(viewModel.uiState.value.showsFeedback)
+        assertEquals(listOf(POST_ID), ai.getPostIds)
+    }
+
+    @Test
+    fun `비로그인이거나 AI 리뷰가 꺼져 있으면 사진 올리기 전에도 카드를 숨긴다`() = runTest {
+        // Given 오늘 올린 사진 없음, (a) 비로그인 / (b) AI 리뷰 꺼짐
+        val guest = createViewModel(
+            FakeAiReviewRepository(),
+            approved = false,
+            session = MutableStateFlow(UserSessionState.Guest),
+        )
+        val disabled = createViewModel(FakeAiReviewRepository(), approved = false, isAiReviewEnabled = { false })
+        // When  홈을 불러온다
+        advanceUntilIdle()
+        guest.onResume()
+        disabled.onResume()
+        runCurrent()
+        // Then  피드백 카드가 숨김
+        assertEquals(HomeHeroState.LoginRequired, guest.uiState.value.hero)
+        assertNull(guest.uiState.value.feedbackNotice)
+        assertFalse(guest.uiState.value.showsFeedback)
+        assertEquals(HomeHeroState.Empty, disabled.uiState.value.hero)
+        assertNull(disabled.uiState.value.feedbackNotice)
+        assertFalse(disabled.uiState.value.showsFeedback)
+    }
+
+    @Test
+    fun `반려·주제 없음·불러오기 실패에는 카드를 숨긴다`() = runTest {
+        // Given 오늘 히어로가 (b) 열린 주제 없음 / (c) 오늘 상태 조회 실패 — (a) 반려는 iOS만
+        val cases = mapOf(
+            TodayPostStatusFailure.NoOpenTopic to HomeHeroState.NoOpenTopic,
+            TodayPostStatusFailure.Network to HomeHeroState.Error,
+        )
+        for ((failure, expectedHero) in cases) {
+            val repository = FakeHomeRepository(approved = false).apply {
+                todayPostStatus = TodayPostStatusResult.Failure(failure)
+            }
+            val viewModel = createViewModel(FakeAiReviewRepository(), repository = repository)
+            // When  홈을 불러온다
+            advanceUntilIdle()
+            viewModel.onResume()
+            runCurrent()
+            // Then  피드백 카드가 숨김
+            assertEquals(expectedHero, viewModel.uiState.value.hero)
+            assertNull(viewModel.uiState.value.feedbackNotice)
+            assertFalse(viewModel.uiState.value.showsFeedback)
+        }
+    }
+
     private fun createViewModel(
         ai: FakeAiReviewRepository,
         approved: Boolean = true,
-    ): HomeViewModel {
-        val repository = FakeHomeRepository(approved)
-        val session = MutableStateFlow<UserSessionState>(UserSessionState.Authenticated("user"))
-        return HomeViewModel(
-            repository = repository,
-            uploadEntryRepository = repository,
-            sessionState = session,
-            bannerRepository = repository,
-            aiReviewRepository = ai,
-            dateProvider = { TODAY },
-        ).also { it.startPreloading() }
-    }
+        repository: FakeHomeRepository = FakeHomeRepository(approved),
+        session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user")),
+        isAiReviewEnabled: () -> Boolean = { true },
+    ): HomeViewModel = HomeViewModel(
+        repository = repository,
+        uploadEntryRepository = repository,
+        sessionState = session,
+        bannerRepository = repository,
+        aiReviewRepository = ai,
+        dateProvider = { TODAY },
+        isAiReviewEnabled = isAiReviewEnabled,
+    ).also { it.startPreloading() }
 
     private class FakeAiReviewRepository : AiReviewRepository {
         val getPostIds = mutableListOf<String>()
@@ -484,10 +622,20 @@ class HomeAiReviewTest {
 
         var postId = POST_ID
 
+        // approved가 false일 때 true면 오늘 사진을 검수 대기(PENDING)로 돌려준다.
+        var pending = false
+
+        var todayPostStatus: TodayPostStatusResult =
+            TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+
         override suspend fun getPostCalendar(month: YearMonth) = HomeResult.Success(
             PostCalendar(
                 month,
-                if (approved) listOf(PostCalendarItem(postId, TODAY, "thumb", PostStatus.APPROVED)) else emptyList(),
+                when {
+                    approved -> listOf(PostCalendarItem(postId, TODAY, "thumb", PostStatus.APPROVED))
+                    pending -> listOf(PostCalendarItem(postId, TODAY, "thumb", PostStatus.PENDING))
+                    else -> emptyList()
+                },
             ),
         )
 
@@ -513,8 +661,7 @@ class HomeAiReviewTest {
             isLiked: Boolean,
         ): HomeResult<HomeLike> = error("unused")
 
-        override suspend fun getTodayPostStatus() =
-            TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+        override suspend fun getTodayPostStatus() = todayPostStatus
 
         override suspend fun getBanners(
             page: Int,

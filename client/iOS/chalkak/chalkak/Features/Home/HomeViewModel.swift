@@ -31,6 +31,62 @@ final class HomeViewModel {
 
     var hasAIReviewRepository: Bool { aiReviewRepository != nil }
 
+    /// AI 리뷰를 조회할 오늘 게시물 ID. 홈 화면은 이 값이 있을 때만 `observeAIReview(postID:)`를 부른다.
+    /// 전제: AI 리뷰 기능이 켜져 있고(`aiReviewRepository` 있음), 로그인했고, 히어로가 승인된 사진(`.photo`, `isPending == false`)이다.
+    var feedbackPostID: String? {
+        guard hasAIReviewRepository,
+              viewState.isAuthenticated,
+              case let .photo(photo) = viewState.hero,
+              !photo.isPending else { return nil }
+        return photo.postID
+    }
+
+    /// 히어로 아래 피드백 카드가 지금 보여 줄 상태. `nil`이면 카드를 숨긴다.
+    /// - 승인 전에는 AI 리뷰를 조회하지 않고 안내만 보여 준다.
+    ///   오늘 사진 없음(`.empty`)은 `.beforeUpload`, 검사 중(`.processing`)·승인 대기(`isPending`)는 `.awaitingApproval`.
+    /// - 승인된 사진은 AI 리뷰 조회 결과(`viewState.aiReview`)로 정한다.
+    /// - AI 리뷰 꺼짐·비로그인·로딩·반려·열린 주제 없음·불러오기 실패에는 숨긴다.
+    var feedbackPhase: HomeFeedbackPhase? {
+        guard hasAIReviewRepository, viewState.isAuthenticated else { return nil }
+        switch viewState.hero {
+        case .empty:
+            return .beforeUpload
+        case .processing:
+            return .awaitingApproval
+        case let .photo(photo) where photo.isPending:
+            return .awaitingApproval
+        case .photo:
+            guard feedbackPostID != nil else { return nil }
+            return approvedFeedbackPhase
+        case .loading, .loginRequired, .noOpenTopic, .error, .rejected:
+            return nil
+        }
+    }
+
+    /// 승인된 오늘 사진의 피드백 카드 상태. AI 리뷰 조회 결과에서 정한다.
+    private var approvedFeedbackPhase: HomeFeedbackPhase {
+        let state = viewState.aiReview
+        if state.isUnavailable { return .unavailable }
+        if state.isLoading { return .loading }
+        guard let review = state.review else { return .loadError }
+        switch review.status {
+        case .none: return .ready
+        case .processing: return .processing
+        case .completed: return .completed
+        case .failed: return .failed(canRequestAgain: review.canRequestAgain)
+        }
+    }
+
+    /// 피드백 카드를 눌렀을 때 홈 화면이 할 일. 카드 상태(`feedbackPhase`)로만 정한다.
+    var feedbackTapAction: HomeFeedbackTapAction {
+        switch feedbackPhase {
+        case .loadError?: .retryStatus
+        case .ready?: .presentStartSheet
+        case .failed(canRequestAgain: true)?: .requestAgain
+        default: .none
+        }
+    }
+
     init(
         initialState: HomeViewState? = nil,
         loader: HomeDataLoader,

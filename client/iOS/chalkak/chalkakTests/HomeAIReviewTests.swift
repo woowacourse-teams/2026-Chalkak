@@ -341,6 +341,175 @@ struct HomeAIReviewTests {
         await current.value
     }
 
+    @Test("오늘 사진을 올리기 전이면 업로드 전 안내 카드를 보여 준다")
+    func beforeUploadShowsGuidanceCard() async {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 올린 사진 없음
+        // When  홈을 불러온다
+        // Then  피드백 카드가 업로드 전 안내 상태이고 AI 리뷰 조회는 0번
+        let repository = ReviewRepositoryProbe(fetches: [])
+        let hero = HeroLoaderProbe()
+        let model = Self.homeModel(hero, repository: repository)
+
+        await model.resume()
+
+        #expect(model.viewState.hero == .empty)
+        #expect(model.feedbackPhase == .beforeUpload)
+        #expect(model.feedbackPostID == nil)
+        #expect(await repository.fetchIDs.isEmpty)
+    }
+
+    @Test("오늘 사진이 승인 대기면 승인 대기 안내 카드를 보여 준다")
+    func pendingPhotoShowsAwaitingApprovalCard() async {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 사진이 PENDING
+        // When  홈을 불러온다
+        // Then  피드백 카드가 승인 대기 안내 상태이고 AI 리뷰 조회는 0번
+        let repository = ReviewRepositoryProbe(fetches: [])
+        let hero = HeroLoaderProbe()
+        hero.todayStatus = .pending
+        let model = Self.homeModel(hero, repository: repository)
+
+        await model.resume()
+
+        #expect(model.feedbackPhase == .awaitingApproval)
+        #expect(model.feedbackPostID == nil)
+        #expect(await repository.fetchIDs.isEmpty)
+    }
+
+    @Test("업로드 직후 검사 중이어도 승인 대기 안내 카드를 보여 준다")
+    func validatingPhotoShowsAwaitingApprovalCard() async {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 사진이 VALIDATING
+        // When  홈을 불러온다
+        // Then  피드백 카드가 승인 대기 안내 상태
+        let repository = ReviewRepositoryProbe(fetches: [])
+        let hero = HeroLoaderProbe()
+        hero.postStatus = .success(PhotoUploadTodayPostStatus(
+            topicDate: Self.heroDate, isPosted: true, postID: "post", moderationStatus: .validating
+        ))
+        let model = Self.homeModel(hero, repository: repository)
+
+        await model.resume()
+
+        #expect(model.viewState.hero == .processing)
+        #expect(model.feedbackPhase == .awaitingApproval)
+        #expect(model.feedbackPostID == nil)
+        #expect(await repository.fetchIDs.isEmpty)
+    }
+
+    @Test("안내 카드에서 피드백 시작을 보내도 AI 리뷰를 요청하지 않는다")
+    func guidanceCardDoesNotRequestReview() async {
+        // Given 피드백 카드가 업로드 전 안내 상태
+        // When  피드백 시작을 보낸다
+        // Then  AI 리뷰 요청(POST)은 0번이고 카드는 업로드 전 안내 상태 그대로
+        let repository = ReviewRepositoryProbe(fetches: [], requests: [.value(Self.review(.processing))])
+        let hero = HeroLoaderProbe()
+        let model = Self.homeModel(hero, repository: repository)
+        await model.resume()
+        #expect(model.feedbackPhase == .beforeUpload)
+
+        #expect(model.feedbackTapAction == .none)
+        await model.requestAIReview()
+
+        #expect(await repository.requestIDs.isEmpty)
+        #expect(model.feedbackPhase == .beforeUpload)
+    }
+
+    @Test("승인되면 안내 대신 피드백 받기 카드로 바뀐다")
+    func approvalSwitchesGuidanceToReadyCard() async {
+        // Given 오늘 사진이 PENDING이라 승인 대기 안내가 보이는 상태
+        // When  사진이 승인된 뒤 홈을 새로고침하고 AI 리뷰 조회가 NONE
+        // Then  피드백 카드가 "AI에게 피드백 받아보기"(요청 가능) 상태
+        let repository = ReviewRepositoryProbe(fetches: [.value(Self.review(.none))])
+        let sleep = ReviewSleepProbe()
+        let hero = HeroLoaderProbe()
+        hero.todayStatus = .pending
+        let model = Self.homeModel(hero, repository: repository, sleep: sleep)
+        await model.resume()
+        #expect(model.feedbackPhase == .awaitingApproval)
+
+        hero.todayStatus = .approved
+        await model.refresh()
+        #expect(model.feedbackPostID == HeroLoaderProbe.postID)
+        let observer = Task { await model.observeAIReview(postID: HeroLoaderProbe.postID) }
+        await sleep.waitForCalls(1)
+
+        #expect(model.feedbackPhase == .ready)
+        #expect(model.feedbackTapAction == .presentStartSheet)
+        #expect(await repository.fetchIDs == [HeroLoaderProbe.postID])
+        observer.cancel()
+        await observer.value
+    }
+
+    @Test("비로그인이거나 AI 리뷰가 꺼져 있으면 사진 올리기 전에도 카드를 숨긴다")
+    func guestOrDisabledReviewHidesCard() async {
+        // Given 오늘 올린 사진 없음, (a) 비로그인 / (b) AI 리뷰 꺼짐
+        // When  홈을 불러온다
+        // Then  피드백 카드가 숨김
+        let guest = Self.homeModel(HeroLoaderProbe(), repository: ReviewRepositoryProbe(fetches: []), isAuthenticated: false)
+        await guest.resume()
+        #expect(guest.viewState.hero == .loginRequired)
+        #expect(guest.feedbackPhase == nil)
+
+        let disabled = Self.homeModel(HeroLoaderProbe(), repository: nil)
+        await disabled.resume()
+        #expect(disabled.viewState.hero == .empty)
+        #expect(disabled.feedbackPhase == nil)
+    }
+
+    @Test("반려·주제 없음·불러오기 실패에는 카드를 숨긴다")
+    func rejectedNoTopicOrErrorHidesCard() async {
+        // Given 오늘 히어로가 (a) 반려(iOS만) / (b) 열린 주제 없음 / (c) 오늘 상태 조회 실패
+        // When  홈을 불러온다
+        // Then  피드백 카드가 숨김
+        var rejectedState = HomeViewState(date: Self.heroDate)
+        rejectedState.isAuthenticated = true
+        for canResubmit in [true, false] {
+            rejectedState.hero = .rejected(canResubmit: canResubmit)
+            // 반려 히어로는 홈 로딩이 만들지 않고 외부에서 정해 주므로, 그 상태 그대로 본다.
+            let rejected = HomeViewModel(
+                initialState: rejectedState,
+                loader: HeroLoaderProbe().loader,
+                isAuthenticated: { true },
+                aiReviewRepository: ReviewRepositoryProbe(fetches: [])
+            )
+            #expect(rejected.feedbackPhase == nil)
+        }
+
+        let noTopicLoader = HeroLoaderProbe()
+        noTopicLoader.postStatus = .failure(PhotoUploadAPIError.http(statusCode: 404, message: nil))
+        let noTopic = Self.homeModel(noTopicLoader, repository: ReviewRepositoryProbe(fetches: []))
+        await noTopic.resume()
+        #expect(noTopic.viewState.hero == .noOpenTopic)
+        #expect(noTopic.feedbackPhase == nil)
+
+        let errorLoader = HeroLoaderProbe()
+        errorLoader.postStatus = .failure(AIReviewError.network)
+        let failed = Self.homeModel(errorLoader, repository: ReviewRepositoryProbe(fetches: []))
+        await failed.resume()
+        #expect(failed.viewState.hero == .error)
+        #expect(failed.feedbackPhase == nil)
+    }
+
+    /// 안내 카드 TC의 오늘 날짜. 한 주(9/6–9/12)가 한 달 안에 있어 달력 조회가 한 번이다.
+    private static let heroDate = RecordMonth.calendar.date(from: DateComponents(year: 2026, month: 9, day: 9))!
+
+    /// `HeroLoaderProbe`로 오늘 히어로를 정해 홈을 불러오는 모델. `repository`가 nil이면 AI 리뷰 꺼짐이다.
+    private static func homeModel(
+        _ hero: HeroLoaderProbe,
+        repository: ReviewRepositoryProbe?,
+        isAuthenticated: Bool = true,
+        sleep: ReviewSleepProbe = ReviewSleepProbe()
+    ) -> HomeViewModel {
+        let today = heroDate
+        return HomeViewModel(
+            initialState: HomeViewState(date: today),
+            loader: hero.loader,
+            dateProvider: { today },
+            isAuthenticated: { isAuthenticated },
+            aiReviewRepository: repository,
+            aiReviewSleep: { _ in try await sleep.sleep() }
+        )
+    }
+
     private static func review(_ status: AIReviewStatus, canRequestAgain: Bool = false) -> AIReview {
         AIReview(status: status, requestedAt: nil, completedAt: nil, canRequestAgain: canRequestAgain,
                  result: status == .completed ? HomePreviewData.aiReviewResult : nil)
@@ -359,6 +528,42 @@ struct HomeAIReviewTests {
             aiReviewNow: now,
             aiReviewSleep: { _ in try await sleep.sleep() }
         )
+    }
+}
+
+/// 홈 로딩이 오늘 히어로를 어떤 상태로 만들지 정하는 가짜 로더.
+/// - `todayStatus`가 nil이면 달력에 오늘 기록이 없고, `postStatus`로 업로드 전(.empty)·검사 중(.processing)·주제 없음·실패를 정한다.
+/// - `todayStatus`가 있으면 달력에 그 상태의 오늘 기록(`postID`)이 있다. 상세 조회는 실패시켜 달력 썸네일로 표시한다.
+@MainActor
+private final class HeroLoaderProbe {
+    static let postID = "today-post"
+    var todayStatus: RecordPostStatus?
+    var postStatus: Result<PhotoUploadTodayPostStatus, Error> = .success(PhotoUploadTodayPostStatus(
+        topicDate: Date(timeIntervalSince1970: 0), isPosted: false, postID: nil, moderationStatus: nil
+    ))
+
+    nonisolated var loader: HomeDataLoader {
+        HomeDataLoader(
+            today: { date in
+                DisplayContent(topicDate: date, topic: "주제", page: DisplayPage(photos: [], currentPage: 1, hasNext: false, randomSeed: nil))
+            },
+            ranking: { _ in [] },
+            calendar: { month in await self.calendar(month) },
+            detail: { _ in throw AIReviewError.network },
+            banners: { page, pageSize in BannerPage(currentPage: page, pageSize: pageSize, hasNext: false, banners: []) },
+            postStatus: { try await self.postStatus.get() }
+        )
+    }
+
+    private func calendar(_ month: RecordMonth) -> RecordCalendar {
+        guard let todayStatus else { return RecordCalendar(month: month, posts: []) }
+        let date = RecordMonth.calendar.date(from: DateComponents(year: 2026, month: 9, day: 9))!
+        return RecordCalendar(month: month, posts: [RecordPost(
+            postId: Self.postID,
+            topicDate: date,
+            thumbnailImageSource: .remote(URL(string: "https://example.com/today-thumb.webp")!),
+            status: todayStatus
+        )])
     }
 }
 
