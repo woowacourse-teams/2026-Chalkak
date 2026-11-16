@@ -38,8 +38,8 @@ class TopicPushOccurrenceMonitor {
     private final CloudWatchTopicPushResults results;
     private final Clock clock;
 
-    // 주제 발행 전용 스레드가 멈춰도 공용 스케줄러에서 별도로 관측한다.
-    @Scheduled(fixedDelay = 60_000)
+    // 발행 및 공용 작업과 분리하고, 조회 시간을 매번 다음 실행 간격에 더하지 않는다.
+    @Scheduled(fixedRate = 60_000, scheduler = "notificationTopicMonitorTaskScheduler")
     public void logMissingOccurrences() {
         try {
             Instant now = clock.instant();

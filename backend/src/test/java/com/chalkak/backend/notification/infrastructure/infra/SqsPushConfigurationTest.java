@@ -1,16 +1,22 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
 
 import com.chalkak.backend.config.SchedulingConfig;
+import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.notification.service.NotificationRelayService;
 import com.chalkak.backend.notification.service.TopicPushService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
+import com.chalkak.backend.topic.repository.TopicRepository;
+import java.time.Clock;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +62,7 @@ class SqsPushConfigurationTest {
                     assertThat(context).doesNotHaveBean("notificationRelayTaskScheduler");
                     assertThat(context).doesNotHaveBean(TopicPushScheduler.class);
                     assertThat(context).doesNotHaveBean("notificationTopicTaskScheduler");
+                    assertThat(context).doesNotHaveBean("notificationTopicMonitorTaskScheduler");
                 });
     }
 
@@ -86,6 +93,50 @@ class SqsPushConfigurationTest {
                     assertThat(context).hasSingleBean(TopicPushScheduler.class);
                     assertThat(context).hasBean("notificationTopicTaskScheduler");
                     assertThat(context).doesNotHaveBean(NotificationRelayScheduler.class);
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    @DisplayName("주제 회차 감시는 시작 기준 매분 발행과 공용 작업에서 분리된 스레드로 실행된다")
+    void configuration_topicMonitorEnabled_runsOnDedicatedScheduler(String profile)
+            throws NoSuchMethodException {
+        // Given
+        CompletableFuture<String> monitorThread = new CompletableFuture<>();
+        TopicPushScheduleRepository schedules = mock(TopicPushScheduleRepository.class);
+        given(schedules.findAllByOrderBySendTimeAsc()).willAnswer(call -> {
+            monitorThread.complete(Thread.currentThread().getName());
+            return List.of();
+        });
+        Scheduled schedule = TopicPushOccurrenceMonitor.class.getMethod("logMissingOccurrences")
+                .getAnnotation(Scheduled.class);
+
+        // When & Then
+        contextRunner
+                .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
+                .withUserConfiguration(SchedulingConfig.class, TopicPushOccurrenceMonitor.class)
+                .withBean(TopicPushScheduleRepository.class, () -> schedules)
+                .withBean(TopicRepository.class, () -> mock(TopicRepository.class))
+                .withBean(CloudWatchTopicPushResults.class,
+                        () -> mock(CloudWatchTopicPushResults.class))
+                .withBean(Clock.class, Clock::systemUTC)
+                .withPropertyValues(
+                        "spring.profiles.active=" + profile,
+                        "chalkak.notification.sqs.topic-push-enabled=true",
+                        "chalkak.notification.sqs.queue-url=https://sqs.ap-northeast-2.amazonaws.com/000000000000/chalkak-push"
+                )
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(schedule.fixedRate()).isEqualTo(60_000);
+                    ThreadPoolTaskScheduler monitor = context.getBean(schedule.scheduler(),
+                            ThreadPoolTaskScheduler.class);
+                    assertThat(monitor.getScheduledExecutor())
+                            .isNotSameAs(context.getBean("taskScheduler",
+                                    ThreadPoolTaskScheduler.class).getScheduledExecutor())
+                            .isNotSameAs(context.getBean("notificationTopicTaskScheduler",
+                                    ThreadPoolTaskScheduler.class).getScheduledExecutor());
+                    assertThat(monitorThread.get(5, TimeUnit.SECONDS))
+                            .startsWith("notification-topic-monitor-");
                 });
     }
 
