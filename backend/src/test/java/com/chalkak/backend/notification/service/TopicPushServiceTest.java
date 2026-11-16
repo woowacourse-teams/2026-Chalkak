@@ -166,6 +166,36 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         assertThat(summary()).containsEntry("targetCount", 2).containsEntry("acceptedCount", 2);
         assertThat(logsAtStage("topic_publication_result")).isEmpty();
         assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
+        assertThat(logsAtStage("topic_schedule_lookup")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("failureCount", 0);
+            assertThat((long) log.get("durationMs")).isNotNegative();
+        });
+    }
+
+    @Test
+    @DisplayName("첫 예약 조회에 실패하면 소요 시간과 실패 1건을 기록하고 예외를 전달한다")
+    void publishDueTopics_scheduleLookupFailed_recordsMetrics() {
+        // Given
+        TopicPushScheduleRepository unavailableSchedules = mock(TopicPushScheduleRepository.class);
+        IllegalStateException failure = new IllegalStateException("schedule lookup failed");
+        given(unavailableSchedules.findAllByOrderBySendTimeAsc()).willThrow(failure);
+        TopicPushService failingService = new TopicPushService(
+                unavailableSchedules,
+                topics,
+                notifications,
+                new DirectPushPublisher(publisher, clock),
+                clock,
+                manager,
+                OpenTelemetryTopicPushTracing.disabled()
+        );
+
+        // When & Then
+        assertThatThrownBy(failingService::publishDueTopics).isSameAs(failure);
+        assertThat(logsAtStage("topic_schedule_lookup")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("failureCount", 1);
+            assertThat((long) log.get("durationMs")).isNotNegative();
+        });
+        verifyNoInteractions(publisher);
     }
 
     @Test

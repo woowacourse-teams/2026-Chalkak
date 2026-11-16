@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.service;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PushEventIdPolicy;
@@ -59,14 +60,30 @@ public class TopicPushService {
     }
 
     public void publishDueTopics() {
-        List<TopicPushSchedule> schedules = transactionTemplate
-                .execute(status -> scheduleRepository.findAllByOrderBySendTimeAsc());
+        List<TopicPushSchedule> schedules = findConfiguredSchedules();
         Set<UUID> configuredIds = new HashSet<>();
         for (TopicPushSchedule schedule : schedules) {
             configuredIds.add(schedule.getId());
             publishSchedule(schedule);
         }
         attemptedSchedules.keySet().retainAll(configuredIds);
+    }
+
+    private List<TopicPushSchedule> findConfiguredSchedules() {
+        Elapsed elapsed = Elapsed.start();
+        boolean failed = true;
+        try {
+            List<TopicPushSchedule> schedules = transactionTemplate
+                    .execute(status -> scheduleRepository.findAllByOrderBySendTimeAsc());
+            failed = false;
+            return schedules;
+        } finally {
+            log.atInfo().addKeyValue("type", "notification")
+                    .addKeyValue("stage", "topic_schedule_lookup")
+                    .addKeyValue("durationMs", elapsed.toMillis())
+                    .addKeyValue("failureCount", failed ? 1 : 0)
+                    .log("주제 푸시 예약 목록 조회");
+        }
     }
 
     private void publishSchedule(TopicPushSchedule schedule) {
@@ -98,8 +115,11 @@ public class TopicPushService {
             TopicPushTracing.Step trace
     ) {
         try {
-            PublicationTargets targets = transactionTemplate
-                    .execute(status -> findTargets(schedule.getId(), scheduledAt));
+            PublicationTargets targets = findTracedTargets(
+                    schedule.getId(),
+                    scheduledAt,
+                    eventId
+            );
             if (targets == null) {
                 trace.recordOutcome("SKIPPED", false);
                 log.atInfo().addKeyValue("type", "notification")
@@ -127,6 +147,25 @@ public class TopicPushService {
                     .addKeyValue("occurredAt", scheduledAt)
                     .addKeyValue("errorCode", exception.getClass().getSimpleName())
                     .log("주제 푸시 실행 실패");
+        }
+    }
+
+    private PublicationTargets findTracedTargets(
+            UUID scheduleId,
+            Instant scheduledAt,
+            UUID eventId
+    ) {
+        try (var lookup = tracing.startTargetLookup()) {
+            lookup.setEventId(eventId);
+            try {
+                PublicationTargets targets = transactionTemplate
+                        .execute(status -> findTargets(scheduleId, scheduledAt));
+                lookup.recordOutcome(targets == null ? "SKIPPED" : "FINISHED", false);
+                return targets;
+            } catch (RuntimeException exception) {
+                lookup.recordOutcome("FAILED", true);
+                throw exception;
+            }
         }
     }
 

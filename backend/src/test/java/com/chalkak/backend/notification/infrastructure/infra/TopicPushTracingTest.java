@@ -13,12 +13,20 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.domain.PushEventIdPolicy;
+import com.chalkak.backend.notification.domain.TopicPushSchedule;
+import com.chalkak.backend.notification.repository.NotificationRepository;
+import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushTiming;
+import com.chalkak.backend.notification.service.DirectPushPublisher;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.chalkak.backend.notification.service.PushProcessingResult;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.notification.service.TopicPushService;
 import com.chalkak.backend.notification.service.TopicPushTracing;
+import com.chalkak.backend.topic.domain.Topic;
+import com.chalkak.backend.topic.repository.TopicRepository;
 import com.google.firebase.messaging.FirebaseMessaging;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -27,10 +35,13 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -44,6 +55,9 @@ import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
@@ -55,6 +69,7 @@ import tools.jackson.databind.json.JsonMapper;
 class TopicPushTracingTest {
 
     private static final Instant NOW = Instant.parse("2026-11-16T10:00:00Z");
+    private static final UUID SCHEDULE_ID = UUID.randomUUID();
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final String QUEUE_URL = "https://sqs.ap-northeast-2.amazonaws.com/000000000000/dev";
 
@@ -63,7 +78,11 @@ class TopicPushTracingTest {
     private final PushWorkerService worker = mock(PushWorkerService.class);
     private final List<SpanData> spans = new ArrayList<>();
     private final PushMessage push = new PushMessage(
-            UUID.randomUUID(),
+            PushEventIdPolicy.createForOccurrence(
+                    NotificationType.TOPIC,
+                    SCHEDULE_ID,
+                    NOW
+            ),
             null,
             UUID.randomUUID(),
             NotificationType.TOPIC,
@@ -74,7 +93,7 @@ class TopicPushTracingTest {
     );
 
     @Test
-    @DisplayName("SQS에 실은 traceparent로 로그와 FCM을 이어 붙이고 재수신마다 새 스팬을 만든다")
+    @DisplayName("대상 조회부터 SQS 재수신 및 FCM 호출까지 같은 트레이스로 이어진다")
     void process_topicMessageFromPublisher_restoresTraceAcrossAttempts() throws Exception {
         // Given
         try (SdkTracerProvider provider = createProvider()) {
@@ -112,13 +131,13 @@ class TopicPushTracingTest {
                     SendMessageResponse.builder().messageId("sqs-id").build());
 
             // When
-            try (var occurrence = tracing.startOccurrence(push.eventId())) {
-                assertThat(publisher.publish(push).isAccepted()).isTrue();
-            }
+            createTopicService(publisher, tracing).publishDueTopics();
             ArgumentCaptor<SendMessageRequest> request = ArgumentCaptor
                     .forClass(SendMessageRequest.class);
             verify(sqs).sendMessage(request.capture());
-            Message message = createMessage(request.getValue().messageAttributes());
+            Message message = Message.builder().messageId("sqs-id").receiptHandle("receipt")
+                    .messageAttributes(request.getValue().messageAttributes())
+                    .body(request.getValue().messageBody()).build();
             SqsPushService receiver = createReceiver(tracing);
             receiver.process(message);
             receiver.process(message);
@@ -126,6 +145,9 @@ class TopicPushTracingTest {
             // Then
             SpanData occurrence = spans.stream()
                     .filter(span -> span.getName().equals("Run topic notification"))
+                    .findFirst().orElseThrow();
+            SpanData lookup = spans.stream()
+                    .filter(span -> span.getName().equals("Find topic notification targets"))
                     .findFirst().orElseThrow();
             SpanData publish = spans.stream()
                     .filter(span -> span.getName().equals("Publish topic notification to SQS"))
@@ -139,8 +161,10 @@ class TopicPushTracingTest {
             assertThat(request.getValue().messageAttributes().get("traceparent").stringValue())
                     .isEqualTo("00-" + publish.getTraceId() + "-" + publish.getSpanId() + "-"
                             + publish.getSpanContext().getTraceFlags().asHex());
-            assertThat(spans).hasSize(6).allSatisfy(
+            assertThat(spans).hasSize(7).allSatisfy(
                     span -> assertThat(span.getTraceId()).isEqualTo(occurrence.getTraceId()));
+            assertThat(lookup.getParentSpanId()).isEqualTo(occurrence.getSpanId());
+            assertThat(lookup.getEndEpochNanos()).isLessThanOrEqualTo(publish.getStartEpochNanos());
             assertThat(publish.getParentSpanId()).isEqualTo(occurrence.getSpanId());
             assertThat(attempts).hasSize(2)
                     .allSatisfy(span -> assertThat(span.getParentSpanId())
@@ -223,6 +247,39 @@ class TopicPushTracingTest {
             logger.detachAppender(appender);
             appender.stop();
         }
+    }
+
+    private TopicPushService createTopicService(
+            SqsPushMessagePublisher publisher,
+            TopicPushTracing tracing
+    ) {
+        TopicPushSchedule schedule = mock(TopicPushSchedule.class);
+        when(schedule.getId()).thenReturn(SCHEDULE_ID);
+        when(schedule.findDueOccurrence(NOW)).thenReturn(NOW);
+        TopicPushScheduleRepository schedules = mock(TopicPushScheduleRepository.class);
+        when(schedules.findAllByOrderBySendTimeAsc()).thenReturn(List.of(schedule));
+        when(schedules.findById(SCHEDULE_ID)).thenReturn(Optional.of(schedule));
+        Topic topic = mock(Topic.class);
+        when(topic.getId()).thenReturn(push.sourceId());
+        TopicRepository topics = mock(TopicRepository.class);
+        LocalDate topicDate = LocalDate.ofInstant(NOW, ZoneId.of("Asia/Seoul"));
+        when(topics.findActiveByTopicDate(topicDate))
+                .thenReturn(Optional.of(topic));
+        NotificationRepository notifications = mock(NotificationRepository.class);
+        when(notifications.findTopicPushEnabledNonParticipantIds(push.sourceId()))
+                .thenReturn(List.of(push.userId()));
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        when(transactions.getTransaction(any(TransactionDefinition.class)))
+                .thenAnswer(invocation -> new SimpleTransactionStatus());
+        return new TopicPushService(
+                schedules,
+                topics,
+                notifications,
+                new DirectPushPublisher(publisher, CLOCK),
+                CLOCK,
+                transactions,
+                tracing
+        );
     }
 
     private SdkTracerProvider createProvider() {

@@ -185,8 +185,21 @@ SNS 알림은 경보 상태 전환에 연결하고, 매 폴링/실패 로그에�
 
 ### 발행된 개발 회차 추적
 
+스케줄러의 첫 예약 목록 조회는 회차가 정해지기 전에 실행된다. 조회 트랜잭션의 경과 시간과
+실패 여부를 `topic_schedule_lookup` 로그의 `durationMs`, `failureCount`(성공 0, 실패 1)로
+남긴다. 예약 회차가 없는 검사도 기록하며, 조회 실패는 기존 스케줄러 오류 로그로 전달한다.
+`/chalkak/dev/notification`에 아래 필터를 추가한다. 네임스페이스는 `Chalkak/dev/Notification`이며
+두 필터 모두 기본값과 디멘션을 비워 둔다.
+
+| 지표 이름 | 필터 패턴 | 지표 값 | 단위 | 조회 통계 |
+| --- | --- | --- | --- | --- |
+| `TopicScheduleLookupDuration` | `{ $.type = "notification" && $.stage = "topic_schedule_lookup" }` | `$.durationMs` | Milliseconds | Average, Maximum |
+| `TopicScheduleLookupFailures` | `{ $.type = "notification" && $.stage = "topic_schedule_lookup" }` | `$.failureCount` | Count | Sum |
+
 실제 발행을 시작한 회차에서 OpenTelemetry 스팬을 만든다. SQS 발행 스팬의 W3C
 `traceparent`를 메시지 속성에 넣고, Worker는 이를 부모로 각 처리 시도의 스팬을 만든다.
+회차의 DB 대상 조회는 `Find topic notification targets` 자식 스팬에서 측정하고 SQS 발행 전에
+닫는다. 같은 `trace_id`에서 대상 조회와 SQS 발행 시간을 따로 확인할 수 있다.
 FCM 호출은 Worker 스팬 아래 기록한다. 이미 큐에 있는 메시지에 속성이 없거나 유효하지
 않아도 기존대로 처리한다. 비동기 재수신은 같은 발행 스팬을 부모로 새 처리 스팬을 만든다.
 

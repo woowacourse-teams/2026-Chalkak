@@ -7,6 +7,8 @@ public interface TopicPushTracing {
 
     Step startOccurrence(UUID eventId);
 
+    Step startTargetLookup();
+
     Step startPublish();
 
     Step startProcessing(Map<String, String> headers);

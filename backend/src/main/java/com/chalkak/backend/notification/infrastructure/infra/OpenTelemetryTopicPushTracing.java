@@ -53,6 +53,11 @@ public final class OpenTelemetryTopicPushTracing implements TopicPushTracing {
     }
 
     @Override
+    public Step startTargetLookup() {
+        return startChild("Find topic notification targets", SpanKind.INTERNAL);
+    }
+
+    @Override
     public Step startPublish() {
         return startChild("Publish topic notification to SQS", SpanKind.PRODUCER);
     }
