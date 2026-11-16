@@ -14,7 +14,7 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.FilteredLogEvent;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@Profile("dev")
+@Profile("dev | prod")
 @ConditionalOnProperty(prefix = "chalkak.notification.sqs", name = "topic-push-enabled", havingValue = "true")
 class CloudWatchTopicPushResults {
 

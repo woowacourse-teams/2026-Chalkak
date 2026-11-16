@@ -202,9 +202,10 @@ class TopicPushTracingTest {
         }
     }
 
-    @Test
-    @DisplayName("개발 설정에서 완료된 스팬을 별도 스레드가 추적용 로그로 내보낸다")
-    void trace_devConfiguration_exportsSpanWithTraceId() {
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    @DisplayName("개발과 운영에서 완료된 스팬을 별도 스레드가 추적용 로그로 내보낸다")
+    void trace_deploymentProfiles_exportSpanWithTraceId(String profile) {
         // Given
         Logger logger = (Logger) LoggerFactory.getLogger(TopicPushTracingConfiguration.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>() {
@@ -218,7 +219,7 @@ class TopicPushTracingTest {
         logger.addAppender(appender);
         try {
             new ApplicationContextRunner()
-                    .withInitializer(context -> context.getEnvironment().setActiveProfiles("dev"))
+                    .withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
                     .withUserConfiguration(TopicPushTracingConfiguration.class)
                     .run(context -> {
                         // When

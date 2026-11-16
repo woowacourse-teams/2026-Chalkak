@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Profile;
 class TopicPushTracingConfiguration {
 
     @Bean(destroyMethod = "close")
-    @Profile("dev & !prod")
+    @Profile("dev | prod")
     SdkTracerProvider topicPushTracerProvider() {
         return SdkTracerProvider.builder()
                 .addSpanProcessor(BatchSpanProcessor.builder(new NotificationSpanExporter())

@@ -23,7 +23,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("dev")
+@Profile("dev | prod")
 @ConditionalOnProperty(prefix = "chalkak.notification.sqs", name = "topic-push-enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
