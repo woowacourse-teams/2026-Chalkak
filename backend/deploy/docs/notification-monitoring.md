@@ -185,16 +185,32 @@ SNS 알림은 경보 상태 전환에 연결하고, 매 폴링/실패 로그에�
 
 ### 발행된 개발 회차 추적
 
-스케줄러의 첫 예약 목록 조회는 회차가 정해지기 전에 실행된다. 조회 트랜잭션의 경과 시간과
-실패 여부를 `topic_schedule_lookup` 로그의 `durationMs`, `failureCount`(성공 0, 실패 1)로
-남긴다. 예약 회차가 없는 검사도 기록하며, 조회 실패는 기존 스케줄러 오류 로그로 전달한다.
-`/chalkak/dev/notification`에 아래 필터를 추가한다. 네임스페이스는 `Chalkak/dev/Notification`이며
-두 필터 모두 기본값과 디멘션을 비워 둔다.
+스케줄러는 회차를 정하기 전에 매분 첫 예약 목록을 조회한다. 조회 시작을 기준으로
+정각에 맞춘 5분 구간에 성공과 실패의 소요 시간을 모두 집계한다. 다음 구간의 첫 조회를 시작할 때
+지난 구간의 조회 횟수, 실패 횟수, 평균과 최대 시간을 `topic_schedule_lookup_summary` 한 줄로 남긴다.
+실제 조회가 없었던 구간은 집계하지 않으며, 프로세스가 갑자기 종료되면 아직 출력하지 않은 집계는
+유실될 수 있다. 정상적으로 매분 실행하면 정기 로그는 하루 1,440줄에서 최대 288줄 수준으로 줄어든다.
 
-| 지표 이름 | 필터 패턴 | 지표 값 | 단위 | 조회 통계 |
-| --- | --- | --- | --- | --- |
-| `TopicScheduleLookupDuration` | `{ $.type = "notification" && $.stage = "topic_schedule_lookup" }` | `$.durationMs` | Milliseconds | Average, Maximum |
-| `TopicScheduleLookupFailures` | `{ $.type = "notification" && $.stage = "topic_schedule_lookup" }` | `$.failureCount` | Count | Sum |
+실패는 `topic_schedule_lookup_failed`에 소요 시간과 예외 타입을, 성공했지만 500ms 이상 걸린 조회는
+`topic_schedule_lookup_slow`에 소요 시간과 기준을 즉시 남긴다. 기존 `topic_scheduler_failed` 로그도
+남겨 공통 발행 경보의 입력을 유지한다. 500ms는 단건 운영 장애나 Slack 경보를 판정하는 기준이
+아니라, 단순한 예약 목록 조회에서 반 초 이상 사용한 사례를 조사하기 위한 초기값이다.
+개발에서 평상시 소요 시간 분포와 지연 로그 건수를 확인한 후 대표적인 정상 변동과 놓치면 안 될
+지연을 구분할 수 있도록 조정한다.
+
+`/chalkak/dev/notification`에 아래 필터를 적용한다. 모두 `Chalkak/dev/Notification`의 지표이며,
+패턴은 `{ $.type = "notification" && $.stage = "topic_schedule_lookup_summary" }`이다.
+기본값과 디멘션은 비워 두고, 기존 두 필터를 등록했다면 동일 필터의 패턴과 값을 갱신한다.
+
+| 지표 이름 | 지표 값 | 단위 | 조회 통계 |
+| --- | --- | --- | --- |
+| `TopicScheduleLookupCount` | `$.lookupCount` | Count | Sum |
+| `TopicScheduleLookupDuration` | `$.avgDurationMs` | Milliseconds | Average (5분 구간 평균의 추세) |
+| `TopicScheduleLookupMaxDuration` | `$.maxDurationMs` | Milliseconds | Maximum |
+| `TopicScheduleLookupFailures` | `$.failureCount` | Count | Sum |
+
+구간마다 조회 횟수가 다르면 전체 평균은 Logs Insights에서 `sum(totalDurationMs) / sum(lookupCount)`로
+계산한다. 스케줄러가 멈추면 요약도 끊기므로 관측값이 없는 시간을 실패 0건으로 해석하지 않는다.
 
 실제 발행을 시작한 회차에서 OpenTelemetry 스팬을 만든다. SQS 발행 스팬의 W3C
 `traceparent`를 메시지 속성에 넣고, Worker는 이를 부모로 각 처리 시도의 스팬을 만든다.

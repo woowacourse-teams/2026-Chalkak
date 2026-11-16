@@ -37,6 +37,7 @@ public class TopicPushService {
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
     private final TopicPushTracing tracing;
+    private final TopicScheduleLookupMetrics scheduleLookupMetrics = new TopicScheduleLookupMetrics();
     // 단일 주제 전용 스레드에서 사용한다. 재시작하면 사라져 중복 발행이 가능하다.
     private final Map<UUID, Instant> attemptedSchedules = new HashMap<>();
 
@@ -70,20 +71,18 @@ public class TopicPushService {
     }
 
     private List<TopicPushSchedule> findConfiguredSchedules() {
+        scheduleLookupMetrics.startWindow(clock.instant());
         Elapsed elapsed = Elapsed.start();
-        boolean failed = true;
+        List<TopicPushSchedule> schedules;
         try {
-            List<TopicPushSchedule> schedules = transactionTemplate
+            schedules = transactionTemplate
                     .execute(status -> scheduleRepository.findAllByOrderBySendTimeAsc());
-            failed = false;
-            return schedules;
-        } finally {
-            log.atInfo().addKeyValue("type", "notification")
-                    .addKeyValue("stage", "topic_schedule_lookup")
-                    .addKeyValue("durationMs", elapsed.toMillis())
-                    .addKeyValue("failureCount", failed ? 1 : 0)
-                    .log("주제 푸시 예약 목록 조회");
+        } catch (RuntimeException failure) {
+            scheduleLookupMetrics.record(elapsed.toMillis(), failure);
+            throw failure;
         }
+        scheduleLookupMetrics.record(elapsed.toMillis(), null);
+        return schedules;
     }
 
     private void publishSchedule(TopicPushSchedule schedule) {
