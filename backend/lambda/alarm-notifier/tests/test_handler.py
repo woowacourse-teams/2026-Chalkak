@@ -203,6 +203,29 @@ class LambdaHandlerTest(unittest.TestCase):
         self.assertIn("*2fchalkak*2fdev*2fapplication", url)
 
     @patch("handler.urllib.request.urlopen")
+    def test_topic_missing_alarm_adds_environment_specific_investigation_link(self, urlopen) -> None:
+        urlopen.return_value = ok_response()
+
+        for environment, topic, webhook in (("dev", DEV_TOPIC, DEV_URL), ("prod", PROD_TOPIC, PROD_URL)):
+            with self.subTest(environment=environment):
+                message = alarm_message(
+                    AlarmName=f"chalkak-{environment}-push-topic-occurrence-missing",
+                    AlarmDescription="가" * 10000,
+                )
+                handler.lambda_handler(sns_event(topic, json.dumps(message)), None)
+
+                destination, payload = posted(urlopen)
+                text = payload["blocks"][0]["text"]["text"]
+                url = insights_url(text)
+                self.assertEqual(webhook, destination)
+                self.assertLessEqual(len(text), 3000)
+                self.assertIn("주제 푸시 회차 조사 (Logs Insights)", text)
+                self.assertIn(f"*2fchalkak*2f{environment}*2fnotification", url)
+                self.assertIn("topic_monitor_missing", url)
+                self.assertIn("topic_publication_summary", url)
+                self.assertIn("topic_monitor_failed", url)
+
+    @patch("handler.urllib.request.urlopen")
     def test_non_5xx_alarm_has_no_logs_insights_link(self, urlopen) -> None:
         urlopen.return_value = ok_response()
 

@@ -1,12 +1,14 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import com.chalkak.backend.notification.service.PushMessagePublisher;
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -24,6 +26,16 @@ public class SqsPushConfiguration {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);
         scheduler.setThreadNamePrefix("notification-topic-");
+        return scheduler;
+    }
+
+    @Bean(defaultCandidate = false)
+    @Profile("dev | prod")
+    @ConditionalOnProperty(prefix = "chalkak.notification.sqs", name = "topic-push-enabled", havingValue = "true")
+    public ThreadPoolTaskScheduler notificationTopicMonitorTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("notification-topic-monitor-");
         return scheduler;
     }
 
@@ -53,12 +65,14 @@ public class SqsPushConfiguration {
     public PushMessagePublisher pushMessagePublisher(
             @Qualifier("notificationSqsClient") SqsClient notificationSqsClient,
             SqsPushProperties properties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TopicPushTracing tracing
     ) {
         return new SqsPushMessagePublisher(
                 notificationSqsClient,
                 properties.queueUrl(),
-                objectMapper
+                objectMapper,
+                tracing
         );
     }
 }

@@ -1,11 +1,13 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import com.chalkak.backend.common.logging.Elapsed;
+import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PushDeadlinePolicy;
 import com.chalkak.backend.notification.service.DevicePushRequest;
 import com.chalkak.backend.notification.service.DevicePushResult;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.DevicePushTiming;
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.ApnsConfig;
@@ -28,10 +30,16 @@ public class FcmDevicePushSender implements DevicePushSender {
 
     private final FirebaseMessaging messaging;
     private final Clock clock;
+    private final TopicPushTracing tracing;
 
-    public FcmDevicePushSender(FirebaseMessaging messaging, Clock clock) {
+    public FcmDevicePushSender(
+            FirebaseMessaging messaging,
+            Clock clock,
+            TopicPushTracing tracing
+    ) {
         this.messaging = messaging;
         this.clock = clock;
+        this.tracing = tracing;
     }
 
     @Override
@@ -39,8 +47,25 @@ public class FcmDevicePushSender implements DevicePushSender {
         if (PushDeadlinePolicy.isExpiredAt(request.expiresAt(), clock.instant())) {
             return DevicePushResult.skipped("EXPIRED");
         }
+        Message message = createMessage(request);
+        if (request.message().type() != NotificationType.TOPIC) {
+            return sendRequest(message, timing);
+        }
+        try (var trace = tracing.startFcmSend()) {
+            try {
+                DevicePushResult result = sendRequest(message, timing);
+                trace.recordOutcome(result.status().name(), !result.isAccepted());
+                return result;
+            } catch (RuntimeException exception) {
+                trace.recordOutcome("FAILED", true);
+                throw exception;
+            }
+        }
+    }
+
+    private DevicePushResult sendRequest(Message message, DevicePushTiming timing) {
         try {
-            sendToFcm(timing, createMessage(request));
+            sendToFcm(timing, message);
             return DevicePushResult.accepted();
         } catch (FirebaseMessagingException exception) {
             return toResult(exception);

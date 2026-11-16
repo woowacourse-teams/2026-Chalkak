@@ -102,7 +102,8 @@ class SqsPushMessagePublisherTest {
         publisher = new SqsPushMessagePublisher(
                 client,
                 endpoint + "/000000000000/chalkak-test-push",
-                objectMapper
+                objectMapper,
+                OpenTelemetryTopicPushTracing.disabled()
         );
     }
 
@@ -223,7 +224,8 @@ class SqsPushMessagePublisherTest {
         PushPublicationResult result = new SqsPushMessagePublisher(
                 unknownClient,
                 "test-queue",
-                objectMapper
+                objectMapper,
+                OpenTelemetryTopicPushTracing.disabled()
         ).publish(MESSAGE);
 
         // Then
@@ -245,7 +247,8 @@ class SqsPushMessagePublisherTest {
         PushPublicationResult result = new SqsPushMessagePublisher(
                 failingClient,
                 "test-queue",
-                objectMapper
+                objectMapper,
+                OpenTelemetryTopicPushTracing.disabled()
         ).publish(MESSAGE);
 
         // Then
@@ -266,7 +269,8 @@ class SqsPushMessagePublisherTest {
         PushPublicationResult result = new SqsPushMessagePublisher(
                 client,
                 "test-queue",
-                failingMapper
+                failingMapper,
+                OpenTelemetryTopicPushTracing.disabled()
         ).publish(MESSAGE);
 
         // Then

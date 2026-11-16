@@ -140,3 +140,112 @@ SNS 알림은 경보 상태 전환에 연결하고, 매 폴링/실패 로그에�
 사건별 로그 조회·DLQ 조사·개발 검증은 [알림 실패 조사](notification-investigation.md)를 따른다.
 현재 문서는 구성 정의이며 AWS 생성·패턴 테스트·실제 경보 전달 검증은 별도 실행 사항이다.
 전용 지표는 환경별 10개, 경보는 환경별 10개가 추가되며 AWS 사용량 과금 대상이다.
+
+## 주제 푸시 회차 결과 누락
+
+발송 스케줄러는 매분 실행한다. 감시 작업은 발행 스케줄러 및 공용 스케줄러와 분리된
+전용 스레드에서 시작 시각 기준 60초 간격으로 실행한다. 감시 자체가 오래 걸리거나
+로그 수집이 늦어지면 실제 관측은 지연될 수 있다. 발송 설정과 활성 주제를 기준으로
+예정 회차를 찾고, 예약 후 5분을 첫 판단 기준으로
+삼는다. 매분 실행되는 발송과 로그 수집에 여유를 주면서 기존 30분 발송 기한 안에
+대응할 시간을 남기기 위한 초기값이다. 정상 회차의 집계 도착 시각으로 조정한다.
+
+1분이면 더 빨리 확인할 수 있지만 정상 발송 및 로그 수집의 일시적인 지연에도 경보가
+울릴 수 있다. 10분이면 더 긴 지연을 기다릴 수 있지만 30분 기한 안에 조사할 시간이
+줄어든다. 5분의 비용은 실제 누락도 예약 후 최소 5분 동안 판단하지 않는 것이다.
+개발에서 예약 시각부터 CloudWatch에서 결과가 조회될 때까지의 시간과 실제 경보 시각을
+각각 기록해 기준을 재검토한다.
+
+발행 집계, 실행 생략, 실행 실패 중 하나라도 같은 회차 ID로 관측되면 회차 결과가
+있는 것으로 본다. 발행 대상이 0명이어도 집계는 유효하다. 예약 변경·삭제와 활성
+주제 부재는 현재 설정을 기준으로 판단한다. 자정을 넘겨 확인하는 회차도 직전 날짜의
+예약으로 계산한다. 이 감시는 발송 기한 안에 대처하기 위한 것이므로 30분이 지나면
+현재 누락 회차 수에서 빠진다. 따라서 OK만으로 발송이 회복됐다고 판단할 수 없으며,
+경보 시각의 조사 로그와 해당 회차의 발행·Worker 결과를 확인한다.
+
+감시 작업은 dev·prod에서 기존 주제 푸시 활성 조건(`NOTIFICATION_TOPIC_PUSH_ENABLED=true`)을
+따른다. 각 서버의 인스턴스 역할에 해당 환경 알림 로그 그룹의 `logs:FilterLogEvents` 읽기 권한이
+필요하다. Agent의 로그 쓰기·수집도 먼저 확인한다. 권한이 빠져 있다면 담당자에게 해당 그룹의
+권한을 요청한다. 감시 중 조회 예외는 `topic_monitor_failed`로 기록하며 정상 관측값을 발행하지 않는다.
+
+| 환경 | 로그 그룹 | 메트릭 네임스페이스 | 경보 이름 | SNS 토픽 |
+| --- | --- | --- | --- | --- |
+| 개발 | `/chalkak/dev/notification` | `Chalkak/dev/Notification` | `chalkak-dev-push-topic-occurrence-missing` | `chalkak-dev-alarms` |
+| 운영 | `/chalkak/prod/notification` | `Chalkak/prod/Notification` | `chalkak-prod-push-topic-occurrence-missing` | `chalkak-prod-alarms` |
+
+1. 각 환경 로그 그룹에 메트릭 필터를 만든다. 패턴은
+   `{ $.type = "notification" && $.stage = "topic_monitor_snapshot" }`이다. 표의 네임스페이스에
+   `TopicRunMissingCount` 지표를 만들고, 값은 `$.missingCount`, 단위는 Count로 지정한다.
+   기본값과 디멘션은 비워 둔다. 생성 이후에 수집되는 로그부터 지표에 반영된다.
+2. 표의 이름으로 경보를 만든다. 통계 Maximum, 1분 구간 1/1, 조건은 1 이상이다.
+   예약 후 5분은 감시 코드에서 적용한다. 누락 데이터는 `missing`으로 두고, ALARM·OK·
+   INSUFFICIENT_DATA 작업을 표의 SNS 토픽에 연결한다. 경보 설명에는 “주제 푸시 예정 회차와
+   발행 결과를 비교하세요. 데이터 부족이면 감시 작업과 로그 수집을 확인하세요.”를 입력한다.
+3. 공유 `chalkak-alarm-notifier` Lambda에 저장소의 `handler.py`를 반영한다. 각 SNS 토픽이
+   해당 Lambda의 트리거로 연결돼 있는지 확인한다. 운영 토픽은 기존 `PROD_SLACK_WEBHOOK_URL`로
+   운영 Slack 채널에 보내며, 새 경보에 환경별 알림 로그 그룹의 최근 1시간 조사 링크를 붙인다.
+   링크를 사용할 담당자는 해당 로그 그룹의 Logs Insights 조회 권한이 필요하다.
+4. 개발 테스트 회차에서 정상 집계와 누락 0을 확인한다. 테스트용 개발 배포에서 발송 스케줄러만
+   멈춰 예약 후 5분부터 누락을 기록하는지 확인한다. Slack의 ALARM 조사 링크에서
+   `topic_monitor_missing` 예약 시각과 회차 ID를 확인한다. 감시가 정상으로 돌아오면 OK와
+   실제 회차 결과를 각각 확인한다.
+5. 운영 배포 뒤 `topic_monitor_snapshot` 유입과 정상 회차 트레이스를 확인하고 경보 동작을 켠다.
+   운영 채널 전달은 예약 발송을 멈추지 않고 Lambda 테스트 이벤트의 운영 토픽과 운영 경보 이름으로
+   확인한다. 1분 평가 구간에서 데이터 부족 경보가 반복되면 감시 작업 실행과 로그 도착 간격부터 확인한다.
+
+### 발행된 회차 추적
+
+스케줄러는 회차를 정하기 전에 매분 첫 예약 목록을 조회한다. 조회 시작을 기준으로
+정각에 맞춘 5분 구간에 성공과 실패의 소요 시간을 모두 집계한다. 다음 구간의 첫 조회를 시작할 때
+지난 구간의 조회 횟수, 실패 횟수, 평균과 최대 시간을 `topic_schedule_lookup_summary` 한 줄로 남긴다.
+실제 조회가 없었던 구간은 집계하지 않으며, 프로세스가 갑자기 종료되면 아직 출력하지 않은 집계는
+유실될 수 있다. 정상적으로 매분 실행하면 정기 로그는 하루 1,440줄에서 최대 288줄 수준으로 줄어든다.
+
+실패는 `topic_schedule_lookup_failed`에 소요 시간과 예외 타입을, 성공했지만 500ms 이상 걸린 조회는
+`topic_schedule_lookup_slow`에 소요 시간과 기준을 즉시 남긴다. 기존 `topic_scheduler_failed` 로그도
+남겨 공통 발행 경보의 입력을 유지한다. 500ms는 단건 운영 장애나 Slack 경보를 판정하는 기준이
+아니라, 단순한 예약 목록 조회에서 반 초 이상 사용한 사례를 조사하기 위한 초기값이다.
+개발에서 평상시 소요 시간 분포와 지연 로그 건수를 확인한 후 대표적인 정상 변동과 놓치면 안 될
+지연을 구분할 수 있도록 조정한다.
+
+두 환경의 알림 로그 그룹에 아래 필터를 적용한다. 네임스페이스는 위 표와 같으며, 패턴은 `{ $.type = "notification" && $.stage = "topic_schedule_lookup_summary" }`이다.
+기본값과 디멘션은 비워 두고, 기존 두 필터를 등록했다면 동일 필터의 패턴과 값을 갱신한다.
+
+| 지표 이름 | 지표 값 | 단위 | 조회 통계 |
+| --- | --- | --- | --- |
+| `TopicScheduleLookupCount` | `$.lookupCount` | Count | Sum |
+| `TopicScheduleLookupDuration` | `$.avgDurationMs` | Milliseconds | Average (5분 구간 평균의 추세) |
+| `TopicScheduleLookupMaxDuration` | `$.maxDurationMs` | Milliseconds | Maximum |
+| `TopicScheduleLookupFailures` | `$.failureCount` | Count | Sum |
+
+구간마다 조회 횟수가 다르면 전체 평균은 Logs Insights에서 `sum(totalDurationMs) / sum(lookupCount)`로
+계산한다. 스케줄러가 멈추면 요약도 끊기므로 관측값이 없는 시간을 실패 0건으로 해석하지 않는다.
+
+실제 발행을 시작한 회차에서 OpenTelemetry 스팬을 만든다. SQS 발행 스팬의 W3C
+`traceparent`를 메시지 속성에 넣고, Worker는 이를 부모로 각 처리 시도의 스팬을 만든다.
+회차의 DB 대상 조회는 `Find topic notification targets` 자식 스팬에서 측정하고 SQS 발행 전에
+닫는다. 같은 `trace_id`에서 대상 조회와 SQS 발행 시간을 따로 확인할 수 있다.
+FCM 호출은 Worker 스팬 아래 기록한다. 이미 큐에 있는 메시지에 속성이 없거나 유효하지
+않아도 기존대로 처리한다. 비동기 재수신은 같은 발행 스팬을 부모로 새 처리 스팬을 만든다.
+
+dev·prod의 주제 푸시 스팬은 샘플링 없이 기록하므로 대상자·기기가 늘면 스팬 수가 증가한다.
+완료된 스팬은 2,048개 메모리 큐에 넣어 별도 스레드에서 기존 알림 JSON 로그로 내보낸다.
+큐가 가득 차면 추적 기록이 빠질 수 있다. 운영에서 회차당 스팬 수와 하루 로그 유입량,
+스팬 누락 여부를 확인해 샘플링을 검토한다. 스팬에는 조사에 필요한 회차 ID, 단계 및
+결과를 기록하며 FCM 토큰이나 알림 본문은 넣지 않는다.
+
+1. 경보의 로그 링크에서 `eventId`로 회차를 찾는다. 발행 집계·생략·실패 로그의
+   `trace_id`를 복사한다. 결과 로그가 없으면 같은 로그 그룹에서 `eventId`로 필터링해
+   먼저 끝난 발행·Worker 스팬이 남았는지 확인한다.
+2. 같은 로그 그룹의 Logs Insights에서 아래 쿼리로 단계 시간과 부모 관계를 확인한다.
+3. SQS 대기 시간은 같은 `trace_id`의 `worker_attempt_completed` 로그에서
+   `queueAgeMs`를 본다. 재수신도 최초 전송 시각 기준이므로 수신 간격과 구분한다.
+
+```text
+fields spanName, span_id, parent_span_id, startedAtEpochMs, durationMs, outcome, spanStatus
+| filter stage = "topic_trace_span" and trace_id = "복사한 ID"
+| sort startedAtEpochMs asc
+```
+
+발행 호출 자체가 없었던 회차는 발행 트레이스도 없다. 그 경우 `topic_monitor_missing`의
+`eventId`와 예약 시각을 확인한다. 회차 ID나 트레이스 ID를 메트릭 디멘션으로 사용하지 않는다.
