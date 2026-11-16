@@ -4,9 +4,11 @@ import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.service.PushMessage;
 import com.chalkak.backend.notification.service.PushProcessingResult;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,11 +18,13 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.MDC;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import tools.jackson.databind.ObjectMapper;
 
 public class SqsPushService {
     private static final Duration VISIBILITY_EXTENSION_INTERVAL = Duration.ofSeconds(40);
+    private static final List<String> TRACE_HEADERS = List.of("traceparent", "tracestate");
 
     private final SqsClient sqsClient;
     private final String queueUrl;
@@ -28,6 +32,7 @@ public class SqsPushService {
     private final PushWorkerService pushWorkerService;
     private final Clock clock;
     private final ScheduledExecutorService visibilityExtensionExecutor;
+    private final TopicPushTracing tracing;
 
     public SqsPushService(
             SqsClient sqsClient,
@@ -35,7 +40,8 @@ public class SqsPushService {
             ObjectMapper objectMapper,
             PushWorkerService pushWorkerService,
             Clock clock,
-            ScheduledExecutorService visibilityExtensionExecutor
+            ScheduledExecutorService visibilityExtensionExecutor,
+            TopicPushTracing tracing
     ) {
         this.sqsClient = sqsClient;
         this.queueUrl = queueUrl;
@@ -43,6 +49,7 @@ public class SqsPushService {
         this.pushWorkerService = pushWorkerService;
         this.clock = clock;
         this.visibilityExtensionExecutor = visibilityExtensionExecutor;
+        this.tracing = tracing;
     }
 
     public void poll() {
@@ -77,6 +84,20 @@ public class SqsPushService {
     }
 
     public void process(Message message, Long sqsReceiveDurationMs) {
+        try (var trace = tracing.startProcessing(readTraceHeaders(message))) {
+            processAttempt(
+                    message,
+                    sqsReceiveDurationMs,
+                    trace
+            );
+        }
+    }
+
+    private void processAttempt(
+            Message message,
+            Long sqsReceiveDurationMs,
+            TopicPushTracing.Step trace
+    ) {
         Elapsed elapsed = Elapsed.start();
         Instant receivedAt = clock.instant();
         String outcome = "FAILED";
@@ -87,6 +108,9 @@ public class SqsPushService {
                 MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT));
         try (VisibilityExtension visibility = new VisibilityExtension(message)) {
             PushMessage pushMessage = readPushMessage(message);
+            if (pushMessage != null) {
+                trace.setEventId(pushMessage.eventId());
+            }
             SqsPushLog.logReceived(pushMessage, sqsReceiveDurationMs);
             receivedLogged = true;
             outcome = processMessage(
@@ -104,6 +128,7 @@ public class SqsPushService {
             // 삭제하지 않는다. SQS가 다시 전달하거나 설정된 최대 수신 횟수 이후 DLQ로 이동한다.
         } finally {
             try {
+                trace.recordOutcome(outcome, !"DELETED".equals(outcome));
                 SqsPushLog.logAttemptCompleted(
                         message,
                         receivedAt,
@@ -117,6 +142,20 @@ public class SqsPushService {
                 }
             }
         }
+    }
+
+    private Map<String, String> readTraceHeaders(Message message) {
+        if (!message.hasMessageAttributes()) {
+            return Map.of();
+        }
+        Map<String, String> headers = new HashMap<>();
+        for (String name : TRACE_HEADERS) {
+            MessageAttributeValue attribute = message.messageAttributes().get(name);
+            if (attribute != null && attribute.stringValue() != null) {
+                headers.put(name, attribute.stringValue());
+            }
+        }
+        return headers;
     }
 
     private void waitAfterPollingFailure() {
@@ -133,6 +172,7 @@ public class SqsPushService {
                 .maxNumberOfMessages(1)
                 .waitTimeSeconds(20)
                 .visibilityTimeout(60)
+                .messageAttributeNames(TRACE_HEADERS)
                 .messageSystemAttributeNames(
                         MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT,
                         MessageSystemAttributeName.SENT_TIMESTAMP))

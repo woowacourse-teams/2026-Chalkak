@@ -19,6 +19,9 @@ management:
       show-details: never
 
 chalkak:
+  notification:
+    topic-monitor:
+      log-group: /chalkak/prod/notification
   analytics:
     aggregation:
       enabled: true

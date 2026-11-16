@@ -16,6 +16,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.infrastructure.infra.OpenTelemetryTopicPushTracing;
 import com.chalkak.backend.notification.infrastructure.infra.SqsPushMessagePublisher;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -99,12 +100,15 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         appender.list.clear();
         appender.start();
         ((Logger) LoggerFactory.getLogger(TopicPushService.class)).addAppender(appender);
+        ((Logger) LoggerFactory.getLogger(TopicScheduleLookupMetrics.class)).addAppender(appender);
         ((Logger) LoggerFactory.getLogger(DirectPushPublisher.class)).addAppender(appender);
     }
 
     @AfterEach
     void tearDown() {
         ((Logger) LoggerFactory.getLogger(TopicPushService.class)).detachAppender(appender);
+        ((Logger) LoggerFactory.getLogger(TopicScheduleLookupMetrics.class))
+                .detachAppender(appender);
         ((Logger) LoggerFactory.getLogger(DirectPushPublisher.class)).detachAppender(appender);
         appender.stop();
         new DatabaseCleaner(jdbc).clean();
@@ -165,6 +169,33 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         assertThat(summary()).containsEntry("targetCount", 2).containsEntry("acceptedCount", 2);
         assertThat(logsAtStage("topic_publication_result")).isEmpty();
         assertThat(logsAtStage("topic_publication_summary")).hasSize(1);
+        assertThat(logsAtStage("topic_schedule_lookup_summary")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("첫 예약 조회에 실패하면 소요 시간과 예외 타입을 즉시 기록하고 예외를 전달한다")
+    void publishDueTopics_scheduleLookupFailed_recordsMetrics() {
+        // Given
+        TopicPushScheduleRepository unavailableSchedules = mock(TopicPushScheduleRepository.class);
+        IllegalStateException failure = new IllegalStateException("schedule lookup failed");
+        given(unavailableSchedules.findAllByOrderBySendTimeAsc()).willThrow(failure);
+        TopicPushService failingService = new TopicPushService(
+                unavailableSchedules,
+                topics,
+                notifications,
+                new DirectPushPublisher(publisher, clock),
+                clock,
+                manager,
+                OpenTelemetryTopicPushTracing.disabled()
+        );
+
+        // When & Then
+        assertThatThrownBy(failingService::publishDueTopics).isSameAs(failure);
+        assertThat(logsAtStage("topic_schedule_lookup_failed")).singleElement().satisfies(log -> {
+            assertThat(log).containsEntry("errorCode", "IllegalStateException");
+            assertThat((long) log.get("durationMs")).isNotNegative();
+        });
+        verifyNoInteractions(publisher);
     }
 
     @Test
@@ -466,7 +497,8 @@ class TopicPushServiceTest extends IntegrationTestSupport {
         publisher = new SqsPushMessagePublisher(
                 client,
                 "test-queue",
-                JsonMapper.builder().build()
+                JsonMapper.builder().build(),
+                OpenTelemetryTopicPushTracing.disabled()
         );
         service = newService();
 
@@ -541,7 +573,8 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 notifications,
                 new DirectPushPublisher(publisher, clock),
                 clock,
-                manager
+                manager,
+                OpenTelemetryTopicPushTracing.disabled()
         );
     }
 

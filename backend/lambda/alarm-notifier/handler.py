@@ -32,6 +32,15 @@ INSIGHTS_5XX_QUERY = (
     "| sort n desc"
 )
 
+TOPIC_MISSING_ALARM_SUFFIX = "-push-topic-occurrence-missing"
+INSIGHTS_TOPIC_MISSING_QUERY = (
+    'fields @timestamp, stage, scheduleId, occurredAt, eventId, trace_id, targetCount, '
+    'acceptedCount, failedCount, expiredCount, unknownCount, errorCode\n'
+    '| filter stage in ["topic_monitor_missing", "topic_monitor_failed", '
+    '"topic_publication_summary", "topic_execution_skipped", "topic_execution_failed", "topic_scheduler_failed"]\n'
+    '| sort @timestamp desc'
+)
+
 # 토픽 이름(ARN의 마지막 조각) → (환경, webhook 환경변수 이름)
 TOPICS = {
     "chalkak-dev-alarms": ("dev", "DEV_SLACK_WEBHOOK_URL"),
@@ -139,14 +148,11 @@ def _alarm_payload(
         lines.append(f"*지표*: {_escape(metric)}")
     lines.append(f"*시각*: {changed_at}")
     links = f"\n<{link}|CloudWatch 콘솔에서 보기>"
-    body_limit = SECTION_BODY_MAX_LENGTH
-    if _is_server_5xx(alarm.get("Trigger")):
-        insights_url = _insights_5xx_link(_region_code(alarm, topic_arn), environment)
-        insights_line = f"\n<{insights_url}|API별 5xx 집계 보기 (Logs Insights)>"
-        links += insights_line
-        # 덧붙인 링크 길이만큼 본문을 더 줄여 전체가 3000자를 넘지 않게 한다.
-        body_limit -= len(insights_line)
-    section_text = _truncate("\n".join(lines), body_limit) + links
+    insights_line = _alarm_insights_line(
+        _region_code(alarm, topic_arn), environment, alarm
+    )
+    section_text = _truncate("\n".join(lines), SECTION_BODY_MAX_LENGTH - len(insights_line))
+    section_text += links + insights_line
 
     return {
         "text": f"{prefix} [{environment}] {_escape(alarm_name)}",
@@ -184,15 +190,23 @@ def _is_server_5xx(trigger: Any) -> bool:
     return isinstance(trigger, dict) and trigger.get("MetricName") == SERVER_5XX_METRIC_NAME
 
 
-def _insights_5xx_link(region: str, environment: str) -> str:
-    log_group = f"/chalkak/{environment}/application"
+def _alarm_insights_line(region: str, environment: str, alarm: dict[str, Any]) -> str:
+    if _is_server_5xx(alarm.get("Trigger")):
+        url = _insights_link(region, f"/chalkak/{environment}/application", INSIGHTS_5XX_QUERY)
+        return f"\n<{url}|API별 5xx 집계 보기 (Logs Insights)>"
+    if alarm["AlarmName"] == f"chalkak-{environment}{TOPIC_MISSING_ALARM_SUFFIX}":
+        url = _insights_link(region, f"/chalkak/{environment}/notification", INSIGHTS_TOPIC_MISSING_QUERY)
+        return f"\n<{url}|주제 푸시 회차 조사 (Logs Insights)>"
+    return ""
+
+
+def _insights_link(region: str, log_group: str, query: str) -> str:
     return (
         f"https://{region}.console.aws.amazon.com/cloudwatch/home?region={region}"
         "#logsV2:logs-insights$3FqueryDetail$3D~(end~0~start~-3600~timeType~'RELATIVE"
-        f"~unit~'seconds~editorString~'{_insights_encode(INSIGHTS_5XX_QUERY)}"
+        f"~unit~'seconds~editorString~'{_insights_encode(query)}"
         f"~source~(~'{_insights_encode(log_group)}))"
     )
-
 
 def _insights_encode(value: str) -> str:
     # 콘솔 딥링크는 URL 인코딩의 %XX를 *xx(소문자)로 바꾼 값을 쓴다. 콘솔이 만드는 링크와 같은 형식이고,

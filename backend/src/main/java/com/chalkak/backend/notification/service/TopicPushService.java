@@ -1,5 +1,6 @@
 package com.chalkak.backend.notification.service;
 
+import com.chalkak.backend.common.logging.Elapsed;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
 import com.chalkak.backend.notification.domain.PushEventIdPolicy;
@@ -35,6 +36,8 @@ public class TopicPushService {
     private final DirectPushPublisher directPushPublisher;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
+    private final TopicPushTracing tracing;
+    private final TopicScheduleLookupMetrics scheduleLookupMetrics = new TopicScheduleLookupMetrics();
     // 단일 주제 전용 스레드에서 사용한다. 재시작하면 사라져 중복 발행이 가능하다.
     private final Map<UUID, Instant> attemptedSchedules = new HashMap<>();
 
@@ -44,26 +47,42 @@ public class TopicPushService {
             NotificationRepository notificationRepository,
             DirectPushPublisher directPushPublisher,
             Clock clock,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            TopicPushTracing tracing
     ) {
         this.scheduleRepository = scheduleRepository;
         this.topicRepository = topicRepository;
         this.notificationRepository = notificationRepository;
         this.directPushPublisher = directPushPublisher;
         this.clock = clock;
+        this.tracing = tracing;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setReadOnly(true);
     }
 
     public void publishDueTopics() {
-        List<TopicPushSchedule> schedules = transactionTemplate
-                .execute(status -> scheduleRepository.findAllByOrderBySendTimeAsc());
+        List<TopicPushSchedule> schedules = findConfiguredSchedules();
         Set<UUID> configuredIds = new HashSet<>();
         for (TopicPushSchedule schedule : schedules) {
             configuredIds.add(schedule.getId());
             publishSchedule(schedule);
         }
         attemptedSchedules.keySet().retainAll(configuredIds);
+    }
+
+    private List<TopicPushSchedule> findConfiguredSchedules() {
+        scheduleLookupMetrics.startWindow(clock.instant());
+        Elapsed elapsed = Elapsed.start();
+        List<TopicPushSchedule> schedules;
+        try {
+            schedules = transactionTemplate
+                    .execute(status -> scheduleRepository.findAllByOrderBySendTimeAsc());
+        } catch (RuntimeException failure) {
+            scheduleLookupMetrics.record(elapsed.toMillis(), failure);
+            throw failure;
+        }
+        scheduleLookupMetrics.record(elapsed.toMillis(), null);
+        return schedules;
     }
 
     private void publishSchedule(TopicPushSchedule schedule) {
@@ -78,10 +97,30 @@ public class TopicPushService {
                 schedule.getId(),
                 scheduledAt
         );
+        try (var trace = tracing.startOccurrence(eventId)) {
+            executeOccurrence(
+                    schedule,
+                    scheduledAt,
+                    eventId,
+                    trace
+            );
+        }
+    }
+
+    private void executeOccurrence(
+            TopicPushSchedule schedule,
+            Instant scheduledAt,
+            UUID eventId,
+            TopicPushTracing.Step trace
+    ) {
         try {
-            PublicationTargets targets = transactionTemplate
-                    .execute(status -> findTargets(schedule.getId(), scheduledAt));
+            PublicationTargets targets = findTracedTargets(
+                    schedule.getId(),
+                    scheduledAt,
+                    eventId
+            );
             if (targets == null) {
+                trace.recordOutcome("SKIPPED", false);
                 log.atInfo().addKeyValue("type", "notification")
                         .addKeyValue("stage", "topic_execution_skipped")
                         .addKeyValue("eventId", eventId).addKeyValue("scheduleId", schedule.getId())
@@ -90,19 +129,42 @@ public class TopicPushService {
                         .log("주제 푸시 실행 생략");
                 return;
             }
-            publishTargets(
+            DirectPublicationSummary summary = publishTargets(
                     schedule.getId(),
                     eventId,
                     scheduledAt,
                     targets
             );
+            boolean publicationFailed = summary.failedCount() > 0 || summary.unknownCount() > 0;
+            trace.recordOutcome(publicationFailed ? "PUBLICATION_INCOMPLETE" : "FINISHED",
+                    publicationFailed);
         } catch (RuntimeException exception) {
+            trace.recordOutcome("FAILED", true);
             log.atError().addKeyValue("type", "notification")
                     .addKeyValue("stage", "topic_execution_failed")
                     .addKeyValue("eventId", eventId).addKeyValue("scheduleId", schedule.getId())
                     .addKeyValue("occurredAt", scheduledAt)
                     .addKeyValue("errorCode", exception.getClass().getSimpleName())
                     .log("주제 푸시 실행 실패");
+        }
+    }
+
+    private PublicationTargets findTracedTargets(
+            UUID scheduleId,
+            Instant scheduledAt,
+            UUID eventId
+    ) {
+        try (var lookup = tracing.startTargetLookup()) {
+            lookup.setEventId(eventId);
+            try {
+                PublicationTargets targets = transactionTemplate
+                        .execute(status -> findTargets(scheduleId, scheduledAt));
+                lookup.recordOutcome(targets == null ? "SKIPPED" : "FINISHED", false);
+                return targets;
+            } catch (RuntimeException exception) {
+                lookup.recordOutcome("FAILED", true);
+                throw exception;
+            }
         }
     }
 
@@ -120,7 +182,7 @@ public class TopicPushService {
                 notificationRepository.findTopicPushEnabledNonParticipantIds(topic.getId()));
     }
 
-    private void publishTargets(
+    private DirectPublicationSummary publishTargets(
             UUID scheduleId,
             UUID eventId,
             Instant scheduledAt,
@@ -148,6 +210,7 @@ public class TopicPushService {
                 .addKeyValue("unknownCount", summary.unknownCount())
                 .addKeyValue("expiredCount", summary.expiredCount())
                 .log("주제 푸시 SQS 발행 집계");
+        return summary;
     }
 
     private record PublicationTargets(UUID topicId, List<UUID> userIds) {
