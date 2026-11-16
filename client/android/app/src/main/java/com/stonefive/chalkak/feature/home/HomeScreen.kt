@@ -93,6 +93,7 @@ fun HomeScreen(
     onOpenRecord: () -> Unit,
     onOpenDisplay: (LocalDate) -> Unit,
     onOpenFeed: (Post) -> Unit,
+    onOpenOwnFeed: (HomeFeedTarget) -> Unit,
     onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
     onRetry: () -> Unit,
     onNotificationClick: () -> Unit,
@@ -189,6 +190,7 @@ fun HomeScreen(
                     onOpenRecordDate = onOpenRecordDate,
                     onOpenDisplay = onOpenDisplay,
                     onOpenFeed = onOpenFeed,
+                    onOpenOwnFeed = onOpenOwnFeed,
                     onRetry = onRetry,
                     onIssueClick = onIssueClick,
                     onInteraction = onInteraction,
@@ -317,6 +319,7 @@ private fun HomeContent(
     onOpenRecord: () -> Unit,
     onOpenDisplay: (LocalDate) -> Unit,
     onOpenFeed: (Post) -> Unit,
+    onOpenOwnFeed: (HomeFeedTarget) -> Unit,
     onRetry: () -> Unit,
     onIssueClick: (title: String, url: String) -> Unit,
     onInteraction: (HomeInteraction) -> Unit,
@@ -410,6 +413,10 @@ private fun HomeContent(
                     },
                     onRetry = onRetry,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = ChalkakTheme.spacing.screenHorizontal),
+                    onOpenPhoto = {
+                        uiState.hero.feedTarget
+                            ?.let(onOpenOwnFeed)
+                    },
                 )
             }
             if (uiState.showsFeedback) {
@@ -705,6 +712,7 @@ private fun HomeScreenPreview() {
             onOpenRecord = {},
             onOpenDisplay = {},
             onOpenFeed = {},
+            onOpenOwnFeed = {},
             onNavigateToBottomBar = {},
             onRetry = {},
             onNotificationClick = {},

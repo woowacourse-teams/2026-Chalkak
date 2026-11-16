@@ -7,6 +7,8 @@ struct HomeHeroCard: View {
     var onOpenPhotoUpload: () -> Void
     var onRetry: () -> Void
     var onLogin: () -> Void = {}
+    // 사진 카드를 눌렀을 때. 게시물 ID를 아는 사진 카드만 눌린다. 어느 화면을 열지는 호출부가 정한다.
+    var onOpenPhoto: () -> Void = {}
     // 내 사진은 피드처럼 원본 비율(height / width)로 보여 준다. 비율을 알기 전과 다른 상태는 기본 비율을 쓴다.
     @State private var photoRatio: CGFloat?
 
@@ -64,7 +66,7 @@ struct HomeHeroCard: View {
                     .accessibilityLabel("홈 다시 시도")
                 }
             case let .photo(photo):
-                PhotoHeroContent(photo: photo)
+                photoContent(photo)
                     .task(id: photo.imageSource) {
                         photoRatio = await ImageRatioLoader.ratio(for: photo.imageSource)
                     }
@@ -73,6 +75,27 @@ struct HomeHeroCard: View {
         .aspectRatio(aspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
         .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    // 게시물 ID를 알면 홈 랭킹 사진처럼 눌림 효과 없이 눌리고, 피드가 이 카드에서 확대되어 열린다.
+    @ViewBuilder
+    private func photoContent(_ photo: HomeHeroPhoto) -> some View {
+        if let postID = photo.postID {
+            Button(action: onOpenPhoto) {
+                PhotoHeroContent(photo: photo)
+                    .feedZoomSource(
+                        .homeHero(postID),
+                        cornerRadius: theme.shapes.photoCard,
+                        // 사인이 없는 카드는 피드 사인이 날아올 출발 위치가 없어 제자리에서 나타난다.
+                        signatureSize: photo.signatureSource == nil ? nil : Metrics.signatureSize
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
+            }
+            .buttonStyle(ChalkakUnhighlightedButtonStyle())
+            .accessibilityHint("피드에서 봅니다")
+        } else {
+            PhotoHeroContent(photo: photo)
+        }
     }
 
     private var aspectRatio: CGFloat {

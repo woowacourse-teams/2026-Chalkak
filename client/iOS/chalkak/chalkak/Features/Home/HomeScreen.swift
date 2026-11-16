@@ -10,6 +10,8 @@ struct HomeScreen: View {
     var onOpenRecordDate: (Date) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
+    // 맨 위 사진 카드를 눌렀을 때 열 피드.
+    var onOpenHeroFeed: (FeedTarget) -> Void = { _ in }
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
     var onOpenSettings: () -> Void = {}
@@ -62,6 +64,10 @@ struct HomeScreen: View {
                         onLogin: {
                             onInteraction(.login)
                             onLogin()
+                        },
+                        onOpenPhoto: {
+                            guard let target = viewModel.heroFeedTarget() else { return }
+                            onOpenHeroFeed(target)
                         }
                     )
                     .frame(maxWidth: .infinity)

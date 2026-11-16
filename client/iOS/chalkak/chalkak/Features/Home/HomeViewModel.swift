@@ -57,6 +57,22 @@ final class HomeViewModel {
         self.onIssueExperimentExposed = onIssueExperimentExposed
     }
 
+    /// 맨 위 사진 카드를 눌렀을 때 열 피드. 카드는 오늘 내가 올린 게시물이라 승인·검수 대기 모두 내 게시물로 연다.
+    /// 사진 상태가 아니거나 게시물 ID를 모르면 nil이고, 이때 카드는 눌리지 않는다.
+    /// 예: `.photo(postID: "post-1")` → 게시물 "post-1", 내 게시물, 카드 썸네일을 자리 표시로 한 피드.
+    func heroFeedTarget() -> FeedTarget? {
+        guard case let .photo(photo) = viewState.hero, let postID = photo.postID else { return nil }
+        return FeedTarget(
+            postID: postID,
+            isOwnedByCurrentUser: true,
+            zoomSource: .homeHero(postID),
+            placeholder: FeedPhotoPlaceholder(
+                imageSource: photo.thumbnailSource,
+                signatureImageSource: photo.signatureSource
+            )
+        )
+    }
+
     func resume() async {
         await resolveIssueExperiment()
         await load(showRefreshIndicator: false)

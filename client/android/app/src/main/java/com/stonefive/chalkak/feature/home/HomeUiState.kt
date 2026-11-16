@@ -105,6 +105,23 @@ sealed interface HomeHeroState {
     ) : HomeHeroState
 }
 
+// 맨 위 사진 카드를 눌렀을 때 열 피드. 홈 맨 위 카드는 늘 내가 올린 오늘 사진이라 내 게시물로 연다.
+// thumbnailImageUrl은 피드가 상세를 받기 전까지 보여 줄 자리 표시 이미지다.
+data class HomeFeedTarget(
+    val postId: String,
+    val isOwnedByCurrentUser: Boolean,
+    val thumbnailImageUrl: String?,
+)
+
+// 사진 카드의 게시물 ID를 알 때만 열 피드가 있다. 다른 카드 상태와 게시물 ID를 모르는 사진은 null이다.
+// 예: Photo(imageUrl = "thumb", postId = "post-1") → HomeFeedTarget("post-1", true, "thumb")
+val HomeHeroState.feedTarget: HomeFeedTarget?
+    get() {
+        val photo = this as? HomeHeroState.Photo ?: return null
+        val postId = photo.postId ?: return null
+        return HomeFeedTarget(postId = postId, isOwnedByCurrentUser = true, thumbnailImageUrl = photo.thumbnailUrl)
+    }
+
 data class HomeWeekDay(
     val date: LocalDate,
     val post: PostCalendarItem? = null,
