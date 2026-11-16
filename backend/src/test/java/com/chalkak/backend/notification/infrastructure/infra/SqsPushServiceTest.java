@@ -1,6 +1,5 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
-import com.chalkak.backend.notification.service.TopicPushTracing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -191,7 +190,7 @@ class SqsPushServiceTest {
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 visibilityExecutor,
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         push = new PushMessage(
                 UUID.randomUUID(),
@@ -296,7 +295,7 @@ class SqsPushServiceTest {
                 service,
                 advancingClock,
                 visibilityExecutor,
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         Message received = message.toBuilder().attributes(Map.of(
                 MessageSystemAttributeName.SENT_TIMESTAMP,
@@ -804,7 +803,7 @@ class SqsPushServiceTest {
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 mock(ScheduledExecutorService.class),
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         FutureTask<Boolean> polling = new FutureTask<>(() -> {
             interruptedWorker.poll();
@@ -859,7 +858,7 @@ class SqsPushServiceTest {
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 visibilityExecutor,
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         receiveOneMessage();
         long startedAt = System.nanoTime();

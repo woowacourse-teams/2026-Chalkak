@@ -34,6 +34,7 @@ class SqsPushConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(
                     SqsPushConfiguration.class,
+                    TopicPushTracingConfiguration.class,
                     NotificationRelayScheduler.class,
                     TopicPushScheduler.class
             )
@@ -169,6 +170,7 @@ class SqsPushConfigurationTest {
                 .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
                 .withUserConfiguration(
                         SqsPushConfiguration.class,
+                        TopicPushTracingConfiguration.class,
                         NotificationRelayScheduler.class,
                         TopicPushScheduler.class,
                         SchedulingConfig.class

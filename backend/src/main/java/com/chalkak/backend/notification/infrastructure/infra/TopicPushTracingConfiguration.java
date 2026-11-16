@@ -34,9 +34,9 @@ class TopicPushTracingConfiguration {
             @Qualifier("topicPushTracerProvider") ObjectProvider<SdkTracerProvider> providers) {
         SdkTracerProvider provider = providers.getIfAvailable();
         if (provider == null) {
-            return TopicPushTracing.disabled();
+            return OpenTelemetryTopicPushTracing.disabled();
         }
-        return new TopicPushTracing(provider.get("chalkak-topic-push"));
+        return new OpenTelemetryTopicPushTracing(provider.get("chalkak-topic-push"));
     }
 
     private static final class NotificationSpanExporter implements SpanExporter {

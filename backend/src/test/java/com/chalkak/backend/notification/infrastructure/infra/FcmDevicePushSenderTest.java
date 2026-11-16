@@ -1,6 +1,5 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
-import com.chalkak.backend.notification.service.TopicPushTracing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -142,7 +141,7 @@ class FcmDevicePushSenderTest {
         sender = new FcmDevicePushSender(
                 FirebaseMessaging.getInstance(app),
                 clock,
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         PushMessage message = new PushMessage(
                 UUID.randomUUID(),
@@ -213,7 +212,7 @@ class FcmDevicePushSenderTest {
         FcmDevicePushSender quickSdk = new FcmDevicePushSender(
                 messaging,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         long started = System.nanoTime();
         // When
@@ -235,7 +234,7 @@ class FcmDevicePushSenderTest {
         FcmDevicePushSender failingSender = new FcmDevicePushSender(
                 failingMessaging,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         // When & Then
         assertThatThrownBy(() -> failingSender.send(request, timing))

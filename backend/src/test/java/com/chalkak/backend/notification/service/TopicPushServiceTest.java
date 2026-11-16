@@ -16,6 +16,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.notification.domain.NotificationSourceType;
 import com.chalkak.backend.notification.domain.NotificationType;
+import com.chalkak.backend.notification.infrastructure.infra.OpenTelemetryTopicPushTracing;
 import com.chalkak.backend.notification.infrastructure.infra.SqsPushMessagePublisher;
 import com.chalkak.backend.notification.repository.TopicPushScheduleRepository;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -467,7 +468,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 client,
                 "test-queue",
                 JsonMapper.builder().build(),
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
         service = newService();
 
@@ -543,7 +544,7 @@ class TopicPushServiceTest extends IntegrationTestSupport {
                 new DirectPushPublisher(publisher, clock),
                 clock,
                 manager,
-                TopicPushTracing.disabled()
+                OpenTelemetryTopicPushTracing.disabled()
         );
     }
 

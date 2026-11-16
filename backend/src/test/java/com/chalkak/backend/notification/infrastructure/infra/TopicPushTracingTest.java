@@ -78,7 +78,8 @@ class TopicPushTracingTest {
     void process_topicMessageFromPublisher_restoresTraceAcrossAttempts() throws Exception {
         // Given
         try (SdkTracerProvider provider = createProvider()) {
-            TopicPushTracing tracing = new TopicPushTracing(provider.get("test"));
+            TopicPushTracing tracing = new OpenTelemetryTopicPushTracing(
+                    provider.get("test"));
             SqsPushMessagePublisher publisher = new SqsPushMessagePublisher(
                     sqs,
                     QUEUE_URL,
@@ -159,7 +160,8 @@ class TopicPushTracingTest {
     void process_messageWithoutValidTrace_preservesProcessing(String traceparent) {
         // Given
         try (SdkTracerProvider provider = createProvider()) {
-            TopicPushTracing tracing = new TopicPushTracing(provider.get("test"));
+            TopicPushTracing tracing = new OpenTelemetryTopicPushTracing(
+                    provider.get("test"));
             when(worker.process(push)).thenReturn(PushProcessingResult.completed());
             Map<String, MessageAttributeValue> attributes = traceparent == null
                     ? Map.of()
