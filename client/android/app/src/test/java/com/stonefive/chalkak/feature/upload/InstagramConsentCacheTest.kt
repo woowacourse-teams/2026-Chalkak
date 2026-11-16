@@ -51,6 +51,19 @@ class InstagramConsentCacheTest {
     }
 
     @Test
+    fun `재인증 중에 열려도 같은 계정으로 돌아오면 캐시를 적용한다`() = runTest {
+        val cache = FakeInstagramConsentPreferences().apply { value = InstagramConsent(true, "cached") }
+        val session = MutableStateFlow<UserSessionState>(UserSessionState.ReauthenticationRequired("user-a"))
+        val model = model(cache, session = session)
+        advanceUntilIdle()
+        assertEquals("", model.uiState.value.instagramConsent.instagramId)
+        session.value = UserSessionState.Authenticated("user-a")
+        advanceUntilIdle()
+        assertEquals("cached", model.uiState.value.instagramConsent.instagramId)
+        assertEquals(true, model.uiState.value.instagramConsent.agreed)
+    }
+
+    @Test
     fun `서버 성공 요청만 저장하고 OFF는 ID를 지우며 저장 실패에도 성공한다`() = runTest {
         val posts = FakePostCreationRepository()
         val cache = FakeInstagramConsentPreferences()
@@ -153,11 +166,12 @@ class InstagramConsentCacheTest {
     private fun model(
         cache: InstagramConsentPreferenceRepository,
         handle: SavedStateHandle = SavedStateHandle(),
+        session: MutableStateFlow<UserSessionState> = MutableStateFlow(UserSessionState.Authenticated("user-a")),
     ) = PhotoUploadViewModel(
         FakePostCreationRepository(),
         LocalDate.of(2026, 8, 29),
         savedStateHandle = handle,
-        sessionState = MutableStateFlow(UserSessionState.Authenticated("user-a")),
+        sessionState = session,
         instagramConsentPreferences = cache,
     )
 }

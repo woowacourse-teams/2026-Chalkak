@@ -224,9 +224,11 @@ class PhotoUploadViewModel(
         if (savedStateHandle.contains(KEY_INSTAGRAM_AGREED) || savedStateHandle.contains(KEY_INSTAGRAM_ID)) return
         val generation = consentGeneration
         viewModelScope.launch {
-            val userId =
-                (sessionState.firstOrNull { it != UserSessionState.Loading } as? UserSessionState.Authenticated)
-                    ?.userId ?: return@launch
+            // 재인증 중이면 같은 계정으로 돌아온 뒤 캐시를 조회한다.
+            val session = sessionState.firstOrNull {
+                it != UserSessionState.Loading && it !is UserSessionState.ReauthenticationRequired
+            }
+            val userId = (session as? UserSessionState.Authenticated)?.userId ?: return@launch
             val consent = try {
                 preferences.get(userId)
             } catch (cancellation: CancellationException) {

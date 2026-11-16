@@ -16,6 +16,8 @@ import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 class UserRepositoryImpl(
     private val userDataSource: UserDataSource,
@@ -94,7 +96,7 @@ class UserRepositoryImpl(
                     throw cancellation
                 } catch (_: Exception) {
                 } finally {
-                    sessionStore.clear()
+                    withContext(NonCancellable) { sessionStore.clear() }
                 }
             }
 
