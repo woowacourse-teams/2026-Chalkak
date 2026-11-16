@@ -12,6 +12,7 @@ import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.repository.PushDeviceRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import com.chalkak.backend.notification.service.PushDeliveryService;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.repository.TopicRepository;
@@ -301,7 +302,11 @@ class PushWorkerConfigurationTest {
     private ApplicationContextRunner createPollingContext(FakePollingProbe probe) {
         return new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
-                .withUserConfiguration(SchedulingTestConfiguration.class, SchedulingConfig.class)
+                .withUserConfiguration(
+                        SchedulingTestConfiguration.class,
+                        SchedulingConfig.class,
+                        TopicPushTracingConfiguration.class
+                )
                 .withPropertyValues(
                         "spring.task.scheduling.pool.size=4",
                         "chalkak.notification.fcm.worker-enabled=true",
@@ -350,7 +355,11 @@ class PushWorkerConfigurationTest {
 
         @Bean
         @Override
-        public DevicePushSender devicePushSender(FirebaseApp app, Clock clock) {
+        public DevicePushSender devicePushSender(
+                FirebaseApp app,
+                Clock clock,
+                TopicPushTracing tracing
+        ) {
             return mock(DevicePushSender.class);
         }
 

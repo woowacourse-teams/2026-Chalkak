@@ -189,7 +189,8 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                visibilityExecutor
+                visibilityExecutor,
+                OpenTelemetryTopicPushTracing.disabled()
         );
         push = new PushMessage(
                 UUID.randomUUID(),
@@ -293,7 +294,8 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 advancingClock,
-                visibilityExecutor
+                visibilityExecutor,
+                OpenTelemetryTopicPushTracing.disabled()
         );
         Message received = message.toBuilder().attributes(Map.of(
                 MessageSystemAttributeName.SENT_TIMESTAMP,
@@ -684,6 +686,9 @@ class SqsPushServiceTest {
         assertThat(bodies.getFirst().path("MessageSystemAttributeNames"))
                 .containsExactly(mapper.valueToTree("ApproximateReceiveCount"),
                         mapper.valueToTree("SentTimestamp"));
+        assertThat(bodies.getFirst().path("MessageAttributeNames"))
+                .containsExactly(mapper.valueToTree("traceparent"),
+                        mapper.valueToTree("tracestate"));
         assertThat(logsAtStage("worker_sqs_receive")).isEmpty();
         assertThat(logsAtStage("worker_attempt_completed")).isEmpty();
         verifyNoInteractions(service);
@@ -797,7 +802,8 @@ class SqsPushServiceTest {
                 mapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                mock(ScheduledExecutorService.class)
+                mock(ScheduledExecutorService.class),
+                OpenTelemetryTopicPushTracing.disabled()
         );
         FutureTask<Boolean> polling = new FutureTask<>(() -> {
             interruptedWorker.poll();
@@ -851,7 +857,8 @@ class SqsPushServiceTest {
                 slowMapper,
                 service,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                visibilityExecutor
+                visibilityExecutor,
+                OpenTelemetryTopicPushTracing.disabled()
         );
         receiveOneMessage();
         long startedAt = System.nanoTime();

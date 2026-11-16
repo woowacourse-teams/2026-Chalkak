@@ -25,6 +25,7 @@ import com.chalkak.backend.notification.domain.PushDelivery;
 import com.chalkak.backend.notification.domain.PushDeliveryStatus;
 import com.chalkak.backend.notification.domain.PushDevice;
 import com.chalkak.backend.notification.domain.PushDeviceDeliveryStatus;
+import com.chalkak.backend.notification.infrastructure.infra.OpenTelemetryTopicPushTracing;
 import com.chalkak.backend.notification.infrastructure.infra.SqsPushService;
 import com.chalkak.backend.notification.repository.NotificationRepository;
 import com.chalkak.backend.notification.repository.PushDeliveryRepository;
@@ -1241,7 +1242,8 @@ class PushWorkerPersistenceTest extends IntegrationTestSupport {
                 JsonMapper.builder().build(),
                 worker(NOW),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                visibilityExecutor
+                visibilityExecutor,
+                OpenTelemetryTopicPushTracing.disabled()
         );
         String nextMessageId = "message-first";
         String nextReceiveCount = "2";

@@ -7,6 +7,7 @@ import com.chalkak.backend.notification.repository.ReminderRepository;
 import com.chalkak.backend.notification.service.DevicePushSender;
 import com.chalkak.backend.notification.service.PushWorkerService;
 import com.chalkak.backend.notification.service.PushDeliveryService;
+import com.chalkak.backend.notification.service.TopicPushTracing;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.google.auth.oauth2.ServiceAccountCredentials;
@@ -66,10 +67,14 @@ public class PushWorkerConfiguration {
     @Bean
     public DevicePushSender devicePushSender(
             FirebaseApp notificationFirebaseApp,
-            Clock clock
+            Clock clock,
+            TopicPushTracing tracing
     ) {
-        return new FcmDevicePushSender(FirebaseMessaging.getInstance(notificationFirebaseApp),
-                clock);
+        return new FcmDevicePushSender(
+                FirebaseMessaging.getInstance(notificationFirebaseApp),
+                clock,
+                tracing
+        );
     }
 
     @Bean
@@ -146,7 +151,8 @@ public class PushWorkerConfiguration {
             ObjectMapper mapper,
             PushWorkerService service,
             Clock clock,
-            @Qualifier("notificationVisibilityExtensionExecutor") ScheduledExecutorService visibilityExtensionExecutor
+            @Qualifier("notificationVisibilityExtensionExecutor") ScheduledExecutorService visibilityExtensionExecutor,
+            TopicPushTracing tracing
     ) {
         return new SqsPushService(
                 sqsClient,
@@ -154,7 +160,8 @@ public class PushWorkerConfiguration {
                 mapper,
                 service,
                 clock,
-                visibilityExtensionExecutor
+                visibilityExtensionExecutor,
+                tracing
         );
     }
 }

@@ -138,7 +138,11 @@ class FcmDevicePushSenderTest {
                     }
                 })
                 .setHttpTransport(transport).build(), UUID.randomUUID().toString());
-        sender = new FcmDevicePushSender(FirebaseMessaging.getInstance(app), clock);
+        sender = new FcmDevicePushSender(
+                FirebaseMessaging.getInstance(app),
+                clock,
+                OpenTelemetryTopicPushTracing.disabled()
+        );
         PushMessage message = new PushMessage(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -205,8 +209,11 @@ class FcmDevicePushSenderTest {
         FirebaseMessaging messaging = mock(FirebaseMessaging.class);
         given(messaging.send(any(com.google.firebase.messaging.Message.class)))
                 .willReturn("accepted");
-        FcmDevicePushSender quickSdk = new FcmDevicePushSender(messaging,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        FcmDevicePushSender quickSdk = new FcmDevicePushSender(
+                messaging,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                OpenTelemetryTopicPushTracing.disabled()
+        );
         long started = System.nanoTime();
         // When
         DevicePushResult result = quickSdk.send(slowRequest, timing);
@@ -224,8 +231,11 @@ class FcmDevicePushSenderTest {
         FirebaseMessaging failingMessaging = mock(FirebaseMessaging.class);
         given(failingMessaging.send(any(com.google.firebase.messaging.Message.class)))
                 .willThrow(new IllegalStateException("private-sdk-error"));
-        FcmDevicePushSender failingSender = new FcmDevicePushSender(failingMessaging,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        FcmDevicePushSender failingSender = new FcmDevicePushSender(
+                failingMessaging,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                OpenTelemetryTopicPushTracing.disabled()
+        );
         // When & Then
         assertThatThrownBy(() -> failingSender.send(request, timing))
                 .isInstanceOf(IllegalStateException.class);
