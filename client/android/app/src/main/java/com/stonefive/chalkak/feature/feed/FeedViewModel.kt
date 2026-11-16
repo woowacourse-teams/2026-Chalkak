@@ -16,6 +16,7 @@ import com.stonefive.chalkak.domain.model.PostLikeUpdate
 import com.stonefive.chalkak.domain.model.PostSort
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
@@ -40,6 +41,7 @@ class FeedViewModel(
     private val signatureHintRepository: SignatureHintRepository? = null,
     private val dateProvider: () -> LocalDate = { LocalDate.now(KST) },
     private val isAiReviewEnabled: () -> Boolean = { true },
+    private val instagramConsentPreferences: InstagramConsentPreferenceRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         FeedUiState(
@@ -387,6 +389,8 @@ class FeedViewModel(
         }
 
         val instagramConsent = edit.instagramConsent.toConsent()
+        val consentChanged = instagramConsent != edit.initialInstagramConsent
+        val requestUserId = currentUserId()
         _uiState.update { it.copy(isSavingPostEdit = true) }
         viewModelScope.launch {
             val result = try {
@@ -399,6 +403,17 @@ class FeedViewModel(
 
             when (result) {
                 is HomeResult.Success -> {
+                    if (consentChanged && requestUserId != null) {
+                        try {
+                            instagramConsentPreferences?.save(
+                                requestUserId,
+                                result.value.instagramConsent ?: instagramConsent,
+                            )
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (_: Exception) {
+                        }
+                    }
                     _uiState.update { currentState ->
                         val currentContent = currentState.content ?: return@update currentState.copy(
                             isSavingPostEdit = false,
@@ -668,6 +683,7 @@ class FeedViewModel(
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 FeedViewModel(
                     repository = application.appContainer.postRepository,
+                    instagramConsentPreferences = application.appContainer.instagramConsentPreferences,
                     signatureHintRepository = application.appContainer.signatureHintRepository,
                     aiReviewRepository = application.appContainer.aiReviewRepository,
                     sessionState = application.appContainer.authRepository.sessionState,

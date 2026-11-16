@@ -52,6 +52,7 @@ import com.stonefive.chalkak.domain.repository.AppConfigRepository
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
@@ -190,8 +191,14 @@ class AppContainer(context: Context) {
         )
     }
 
+    val instagramConsentPreferences: InstagramConsentPreferenceRepository by lazy {
+        com.stonefive.chalkak.data.local.instagramconsent
+            .InstagramConsentPreferenceStore(applicationContext)
+    }
+
     val userRepository: UserRepository by lazy {
         UserRepositoryImpl(
+            instagramConsentPreferences = instagramConsentPreferences,
             userDataSource = userDataSource,
             signatureUploader = signatureUploader,
             sessionStore = sessionStore,

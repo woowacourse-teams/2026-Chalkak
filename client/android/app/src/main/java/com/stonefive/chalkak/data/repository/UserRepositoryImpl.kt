@@ -1,5 +1,6 @@
 package com.stonefive.chalkak.data.repository
 
+import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
@@ -12,12 +13,17 @@ import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 class UserRepositoryImpl(
     private val userDataSource: UserDataSource,
     private val signatureUploader: SignatureUploader,
     private val sessionStore: SessionStore,
+    private val instagramConsentPreferences: InstagramConsentPreferenceRepository? = null,
 ) : UserRepository {
     override suspend fun getMySignature(): UserProfile = when (
         val result = userDataSource.getMySignature()
@@ -77,8 +83,23 @@ class UserRepositoryImpl(
     }
 
     override suspend fun withdraw() {
+        val userId = when (val session = sessionStore.session.value) {
+            is LocalSession.Authenticated -> session.credentials.userId
+            is LocalSession.ReauthenticationRequired -> session.userId
+            else -> null
+        }
         when (val result = userDataSource.deleteMyAccount()) {
-            is ApiResult.Success -> sessionStore.clear()
+            is ApiResult.Success -> {
+                try {
+                    if (userId != null) instagramConsentPreferences?.clear(userId)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                } finally {
+                    withContext(NonCancellable) { sessionStore.clear() }
+                }
+            }
+
             is ApiResult.Failure -> throw AccountWithdrawalException()
         }
     }

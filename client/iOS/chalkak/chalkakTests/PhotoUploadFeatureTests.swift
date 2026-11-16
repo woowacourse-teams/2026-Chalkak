@@ -454,10 +454,34 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.instagramConsent.errorMessage == nil)
     }
 
+    @Test("성공한 작성만 다음 작성 기본값으로 저장한다", arguments: [true, false])
+    func cachesOnlySuccessfulSubmission(succeeds: Bool) async throws {
+        let name = "upload-consent-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = InstagramConsentPreferenceStore(userID: "a", defaults: defaults, currentUserID: { "a" })
+        let previous = InstagramConsent(isAgreed: true, instagramID: "previous")
+        store.save(previous)
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(
+            recorder: recorder,
+            result: succeeds ? nil : .failure(.invalidInstagramID),
+            consentPreferenceStore: store
+        )
+        viewModel.handle(.instagramUploadAgreedChanged(false))
+        #expect(store.load() == previous)
+        viewModel.handle(.submitClicked)
+        try await waitUntil {
+            viewModel.viewState.completedSubmission != nil || viewModel.viewState.imagePreparationStatus == .failed
+        }
+        #expect(store.load() == (succeeds ? .notAgreed : previous))
+    }
+
     /// 사진을 고르고 업로드 준비까지 끝나 바로 전시할 수 있는 작성 화면. 작성 요청 글은 `recorder`에 쌓인다.
     private static func readyToSubmitViewModel(
         recorder: PhotoUploadPostTextRecorder,
-        result: Result<PhotoUploadCreation, PhotoUploadFailure>? = nil
+        result: Result<PhotoUploadCreation, PhotoUploadFailure>? = nil,
+        consentPreferenceStore: InstagramConsentPreferenceStore? = nil
     ) async throws -> PhotoUploadViewModel {
         let topic = Self.topic()
         let preparation = Self.preparation()
@@ -472,7 +496,8 @@ struct PhotoUploadViewModelTests {
                         PhotoUploadCreation(postID: "post-id", topic: topic, moderationStatus: .validating)
                     )
                 }
-            )
+            ),
+            consentPreferenceStore: consentPreferenceStore
         )
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
         try await waitUntil {
