@@ -1198,6 +1198,7 @@ struct ContentView: View {
 #endif
         return HomeViewModel(
             loader: .live(baseURL: resolvedAPIBaseURL),
+            uploadedPhotoStore: .shared,
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
             ),
@@ -1394,7 +1395,7 @@ struct ContentView: View {
         )
         return PhotoUploadViewModel(
             topicDate: topicDate,
-            repository: .api(client: apiClient),
+            repository: .api(client: apiClient, uploadedPhotoStore: .shared),
             consentPreferenceStore: makeInstagramConsentPreferenceStore(),
             onCameraImageSaveFailure: onCameraImageSaveFailure
         )

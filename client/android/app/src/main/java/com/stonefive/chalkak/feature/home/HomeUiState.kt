@@ -91,7 +91,11 @@ sealed interface HomeHeroState {
 
     data object NoOpenTopic : HomeHeroState
 
+    // 처리 중인데 보여 줄 사진이 없을 때(다른 기기에서 올렸거나 앱을 다시 켠 뒤)
     data object Processing : HomeHeroState
+
+    // 처리 중이고 이 기기에서 방금 올린 사진이 있을 때. imageUrl은 보관 파일 경로(Preview는 앱 리소스 주소)
+    data class ProcessingPhoto(val imageUrl: String) : HomeHeroState
 
     data object Error : HomeHeroState
 

@@ -8,6 +8,7 @@ final class HomeViewModel {
     private(set) var scrollToTopRequestID = 0
     private(set) var scrollOffset: CGFloat = 0
     private let loader: HomeDataLoader
+    private let uploadedPhotoStore: UploadedPhotoStore?
     private let dateProvider: @MainActor () -> Date
     private let isAuthenticated: @MainActor () -> Bool
     private var generation = 0
@@ -34,6 +35,7 @@ final class HomeViewModel {
     init(
         initialState: HomeViewState? = nil,
         loader: HomeDataLoader,
+        uploadedPhotoStore: UploadedPhotoStore? = nil,
         dateProvider: @escaping @MainActor () -> Date = { Date() },
         isAuthenticated: @escaping @MainActor () -> Bool = { KeychainSessionStore.hasAuthenticatedSession() },
         aiReviewRepository: (any AIReviewRepository)? = nil,
@@ -48,6 +50,7 @@ final class HomeViewModel {
         }
         viewState = state
         self.loader = loader
+        self.uploadedPhotoStore = uploadedPhotoStore
         self.dateProvider = dateProvider
         self.isAuthenticated = isAuthenticated
         self.aiReviewRepository = aiReviewRepository
@@ -417,6 +420,8 @@ final class HomeViewModel {
         let record = posts.first { RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: date) }
         let hero: HomeHeroState
         if let record {
+            // 서버 처리가 끝나 캘린더에 오면 서버 이미지를 쓰므로 보관한 업로드 사진은 필요 없다.
+            uploadedPhotoStore?.removeAll()
             hero = await loadHero(record)
         } else if failed {
             hero = .error
@@ -442,8 +447,16 @@ final class HomeViewModel {
     private func loadMissingHero(_ date: Date) async -> HomeHeroState {
         do {
             let status = try await loader.postStatus()
-            guard RecordMonth.calendar.isDate(status.topicDate, inSameDayAs: date), status.isPosted else { return .empty }
-            return status.moderationStatus == .validating ? .processing : .error
+            guard RecordMonth.calendar.isDate(status.topicDate, inSameDayAs: date), status.isPosted else {
+                uploadedPhotoStore?.removeAll()
+                return .empty
+            }
+            guard status.moderationStatus == .validating else { return .error }
+            guard let postID = status.postID, let photoURL = uploadedPhotoStore?.url(for: postID) else { return .processing }
+            // 파일 주소를 `.remote`로 넘긴다. RemoteImageCache는 URLSession으로 받아 file URL도 읽고,
+            // 응답 상태는 HTTPURLResponse일 때만 검사하므로 기기 파일도 원격 사진과 같은 길로 줄여 그린다.
+            // 근거: 이슈 #1049
+            return .processingPhoto(.remote(photoURL))
         } catch let error as PhotoUploadAPIError {
             if case .http(404, _) = error { return .noOpenTopic }
             return .error

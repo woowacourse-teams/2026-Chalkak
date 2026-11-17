@@ -51,6 +51,17 @@ struct HomeHeroCard: View {
                 HeroStatusContent(text: "지금은 참여할 수 있는 주제가 없어요")
             case .processing:
                 HeroStatusContent(text: "사진을 처리하고 있어요")
+            case let .processingPhoto(imageSource):
+                // 서버 처리 중에는 상세를 열 수 없어 눌러도 아무 일이 없다.
+                PhotoHeroContent(
+                    imageSource: imageSource,
+                    thumbnailSource: imageSource,
+                    signatureSource: nil,
+                    badge: "처리 중"
+                )
+                .task(id: imageSource) {
+                    photoRatio = await ImageRatioLoader.ratio(for: imageSource)
+                }
             case .error:
                 HeroStatusContent(text: "사진 상태를 불러오지 못했어요") {
                     Button(action: onRetry) {
@@ -64,7 +75,12 @@ struct HomeHeroCard: View {
                     .accessibilityLabel("홈 다시 시도")
                 }
             case let .photo(photo):
-                PhotoHeroContent(photo: photo)
+                PhotoHeroContent(
+                    imageSource: photo.imageSource,
+                    thumbnailSource: photo.thumbnailSource,
+                    signatureSource: photo.signatureSource,
+                    badge: photo.isPending ? "검수 대기" : nil
+                )
                     .task(id: photo.imageSource) {
                         photoRatio = await ImageRatioLoader.ratio(for: photo.imageSource)
                     }
@@ -79,7 +95,7 @@ struct HomeHeroCard: View {
         switch hero {
         case .empty, .loginRequired, .rejected(canResubmit: true):
             return Metrics.emptyAspectRatio
-        case .photo:
+        case .photo, .processingPhoto:
             guard let photoRatio, photoRatio > 0 else { return Metrics.aspectRatio }
             return 1 / photoRatio
         default:
@@ -104,28 +120,32 @@ struct HomeHeroCard: View {
 
 private struct PhotoHeroContent: View {
     @Environment(\.chalkakTheme) private var theme
-    let photo: HomeHeroPhoto
+    let imageSource: ChalkakImageSource
+    let thumbnailSource: ChalkakImageSource
+    let signatureSource: ChalkakImageSource?
+    /// 오른쪽 위 배지 문구. 검수 대기, 처리 중처럼 아직 공개 전인 상태를 알린다.
+    let badge: String?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if let signatureSource = photo.signatureSource {
+            if let signatureSource {
                 ChalkakSignedImage(
-                    imageSource: photo.imageSource,
+                    imageSource: imageSource,
                     signatureSource: signatureSource,
                     contentDescription: nil,
                     signatureSize: Metrics.signatureSize,
-                    thumbnailImageSource: photo.thumbnailSource
+                    thumbnailImageSource: thumbnailSource
                 )
             } else {
                 ChalkakImage(
-                    source: photo.imageSource,
+                    source: imageSource,
                     contentDescription: nil,
-                    thumbnailSource: photo.thumbnailSource
+                    thumbnailSource: thumbnailSource
                 )
             }
 
-            if photo.isPending {
-                Text("검수 대기")
+            if let badge {
+                Text(badge)
                     .font(theme.typography.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.textOnImage)
@@ -139,7 +159,7 @@ private struct PhotoHeroContent: View {
         .background(theme.colors.surfaceElevated)
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isImage)
-        .accessibilityLabel(photo.isPending ? "오늘 제출한 사진, 검수 대기" : "오늘 제출한 사진")
+        .accessibilityLabel(badge.map { "오늘 제출한 사진, \($0)" } ?? "오늘 제출한 사진")
     }
 }
 
@@ -264,6 +284,30 @@ private enum Metrics {
 #Preview("Hero Photo", traits: .sizeThatFitsLayout) {
     HomeHeroCard(
         hero: .photo(HomePreviewData.heroPhoto),
+        topic: "하늘",
+        onOpenPhotoUpload: {},
+        onRetry: {}
+    )
+    .frame(width: 320)
+    .padding()
+    .chalkakTheme(.light)
+}
+
+#Preview("Hero Processing Photo", traits: .sizeThatFitsLayout) {
+    HomeHeroCard(
+        hero: .processingPhoto(.asset("preview_photo")),
+        topic: "하늘",
+        onOpenPhotoUpload: {},
+        onRetry: {}
+    )
+    .frame(width: 320)
+    .padding()
+    .chalkakTheme(.light)
+}
+
+#Preview("Hero Processing", traits: .sizeThatFitsLayout) {
+    HomeHeroCard(
+        hero: .processing,
         topic: "하늘",
         onOpenPhotoUpload: {},
         onRetry: {}

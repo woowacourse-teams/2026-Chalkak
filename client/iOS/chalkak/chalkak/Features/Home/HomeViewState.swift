@@ -16,6 +16,8 @@ enum HomeHeroState: Equatable, Sendable {
     case loading, empty, loginRequired, noOpenTopic, processing, error
     case rejected(canResubmit: Bool)
     case photo(HomeHeroPhoto)
+    /// 서버가 처리 중인 오늘 게시물을 이 기기에 보관한 업로드 사진으로 보여 준다.
+    case processingPhoto(ChalkakImageSource)
 }
 
 struct HomeWeekDay: Identifiable, Equatable, Sendable {

@@ -38,6 +38,7 @@ import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.UploadedPostPhotoRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
@@ -151,6 +152,83 @@ class HomeViewModelTest {
         val viewModel = createViewModel(repository)
         advanceUntilIdle()
         assertEquals(HomeHeroState.Processing, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `오늘 게시물이 처리 중이고 보관 사진이 그 게시물 것이면 홈 맨 위에 그 사진을 처리 중으로 보여 준다`() = runTest {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 VALIDATING·"p1"
+        // When  홈을 불러온다
+        // Then  맨 위 카드가 처리 중이고, 보여 줄 사진이 "p1"의 보관 사진
+        val photos = FakeUploadedPostPhotoRepository(postId = "p1")
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Success(
+                TodayPostStatus(TODAY, true, "p1", TodayPostModerationStatus.VALIDATING),
+            )
+        }
+        val viewModel = createViewModel(repository, uploadedPhotoRepository = photos)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.ProcessingPhoto("/cache/p1.webp"), viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `보관 사진이 다른 게시물 것이면 사진 없이 처리 중 문구를 보여 준다`() = runTest {
+        // Given 보관 사진 "p0", 오늘 게시물 상태 VALIDATING·"p1"
+        // When  홈을 불러온다
+        // Then  맨 위 카드가 처리 중이고, 보여 줄 사진이 없다
+        val photos = FakeUploadedPostPhotoRepository(postId = "p0")
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Success(
+                TodayPostStatus(TODAY, true, "p1", TodayPostModerationStatus.VALIDATING),
+            )
+        }
+        val viewModel = createViewModel(repository, uploadedPhotoRepository = photos)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Processing, viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `처리가 끝나 캘린더에 검수 대기로 오면 서버 썸네일을 쓰고 보관 사진을 버린다`() = runTest {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 "p1" PENDING
+        // When  홈을 불러온다
+        // Then  맨 위 카드가 서버 썸네일 + 검수 대기이고, "p1"의 보관 사진이 없다
+        val photos = FakeUploadedPostPhotoRepository(postId = "p1")
+        val repository = FakeHomeRepository().apply {
+            records = listOf(PostCalendarItem("p1", TODAY, "thumb-p1", PostStatus.PENDING))
+        }
+        val viewModel = createViewModel(repository, uploadedPhotoRepository = photos)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Photo("thumb-p1", isPending = true), viewModel.uiState.value.hero)
+        assertEquals(null, photos.photoPath("p1"))
+    }
+
+    @Test
+    fun `처리에 실패해 오늘 게시물이 없어지면 보관 사진을 버린다`() = runTest {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 isPosted=false(처리 실패로 REJECTED)
+        // When  홈을 불러온다
+        // Then  맨 위 카드에 사진이 없고(지금과 같은 상태), "p1"의 보관 사진이 없다
+        val photos = FakeUploadedPostPhotoRepository(postId = "p1")
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Success(TodayPostStatus(TODAY, false, null, null))
+        }
+        val viewModel = createViewModel(repository, uploadedPhotoRepository = photos)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Empty, viewModel.uiState.value.hero)
+        assertEquals(null, photos.photoPath("p1"))
+    }
+
+    @Test
+    fun `오늘 게시물 상태를 못 불러오면 보관 사진을 버리지 않는다`() = runTest {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 요청이 네트워크 오류
+        // When  홈을 불러온다
+        // Then  맨 위 카드는 지금처럼 오류이고, "p1"의 보관 사진은 남아 있다(다시 시도하면 보여 줄 수 있음)
+        val photos = FakeUploadedPostPhotoRepository(postId = "p1")
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Failure(TodayPostStatusFailure.Network)
+        }
+        val viewModel = createViewModel(repository, uploadedPhotoRepository = photos)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Error, viewModel.uiState.value.hero)
+        assertEquals("/cache/p1.webp", photos.photoPath("p1"))
     }
 
     @Test
@@ -823,6 +901,7 @@ class HomeViewModelTest {
         notificationRepository: NotificationRepository? = null,
         loadHomeIssueExperiment: suspend () -> HomeIssueExperiment = { HomeIssueExperiment() },
         onIssueExperimentExposed: (Boolean) -> Unit = {},
+        uploadedPhotoRepository: UploadedPostPhotoRepository? = null,
     ) = HomeViewModel(
         repository,
         repository,
@@ -833,6 +912,7 @@ class HomeViewModelTest {
         notificationRepository,
         loadHomeIssueExperiment = loadHomeIssueExperiment,
         onIssueExperimentExposed = onIssueExperimentExposed,
+        uploadedPhotoRepository = uploadedPhotoRepository,
     ).also {
         it.startPreloading()
     }
@@ -869,6 +949,14 @@ private class FakeUnreadNotificationRepository(var hasUnread: Boolean) : Notific
         error("Not used")
 
     override suspend fun registerCurrentPushDevice(fcmToken: String): NotificationResult<Unit> = error("Not used")
+}
+
+private class FakeUploadedPostPhotoRepository(var postId: String?) : UploadedPostPhotoRepository {
+    override fun photoPath(postId: String): String? = "/cache/$postId.webp".takeIf { postId == this.postId }
+
+    override fun clear() {
+        postId = null
+    }
 }
 
 private class FakeHomeRepository :
