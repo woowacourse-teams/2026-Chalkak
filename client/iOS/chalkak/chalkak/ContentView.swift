@@ -284,7 +284,7 @@ struct ContentView: View {
                 if let successSubmission {
                     PhotoUploadSuccessScreen(
                         submission: successSubmission,
-                        onConfirmClick: showDisplayAfterPhotoUpload
+                        onConfirmClick: showHomeAfterPhotoUpload
                     )
                 } else {
                     mainTab
@@ -1002,17 +1002,17 @@ struct ContentView: View {
         route = .photoUploadSuccess
     }
 
-    private func showDisplayAfterPhotoUpload() {
-        guard let submission = successSubmission else { return }
+    // 홈 맨 위 카드에서 방금 올린 사진을 바로 보여 주므로 전시 대신 홈으로 돌아간다(#1049).
+    private func showHomeAfterPhotoUpload() {
+        guard successSubmission != nil else { return }
 
-        displayViewModel = Self.makeDisplayViewModel(
-            initialDate: submission.content.date
-        )
         successSubmission = nil
         photoUploadViewModel = nil
         isPhotoUploadPresented = false
-        selectedTab = .display
+        selectedTab = .home
         route = .main
+        homeViewModel.scrollToTop()
+        Task { await homeViewModel.refresh() }
     }
 
     private func showPhotoUploadOrigin() {
