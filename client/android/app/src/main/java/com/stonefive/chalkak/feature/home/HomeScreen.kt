@@ -426,6 +426,7 @@ private fun HomeContent(
                         phase = uiState.feedbackPhase,
                         result = uiState.feedbackResult,
                         canRequestAgain = uiState.feedbackCanRequestAgain,
+                        notice = uiState.feedbackNotice,
                         isExpanded = isFeedbackExpanded,
                         onStart = onFeedbackStartClick,
                         onToggleExpanded = onFeedbackToggleExpanded,
@@ -673,6 +674,38 @@ private val HomeDividerWidth = 0.5.dp
 @Preview(showBackground = true, widthDp = 402, heightDp = 874)
 @Composable
 private fun HomeScreenPreview() {
+    HomeScreenPreviewContent(
+        hero = HomeHeroState.Photo(
+            imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+            thumbnailUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+            signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
+            signatureThumbnailUrl = drawableResourceUrl(R.drawable.preview_signature),
+        ),
+    )
+}
+
+// 오늘 사진을 올리기 전 홈. 작은 폭(360dp)에서도 히어로 아래 안내 문구가 잘리지 않는지 본다.
+@Preview(name = "업로드 전", showBackground = true, widthDp = 360, heightDp = 874)
+@Composable
+private fun HomeScreenBeforeUploadPreview() {
+    HomeScreenPreviewContent(hero = HomeHeroState.Empty)
+}
+
+// 오늘 사진을 올렸지만 아직 검수(승인) 대기 중인 홈.
+@Preview(name = "승인 대기", showBackground = true, widthDp = 402, heightDp = 874)
+@Composable
+private fun HomeScreenPendingPreview() {
+    HomeScreenPreviewContent(
+        hero = HomeHeroState.Photo(
+            imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
+            isPending = true,
+        ),
+    )
+}
+
+/** 홈 Preview 공통 화면. [hero]만 바꿔 오늘 사진 상태별 홈을 그린다(나머지 영역은 같은 가짜 데이터). */
+@Composable
+private fun HomeScreenPreviewContent(hero: HomeHeroState) {
     val date = LocalDate.of(2026, 8, 3)
     ChalkakTheme {
         HomeScreen(
@@ -680,12 +713,9 @@ private fun HomeScreenPreview() {
                 date = date,
                 topic = "하늘",
                 topicStatus = HomeSectionStatus.Ready,
-                hero = HomeHeroState.Photo(
-                    imageUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    thumbnailUrl = drawableResourceUrl(R.drawable.home_feed_photo),
-                    signatureUrl = drawableResourceUrl(R.drawable.preview_signature),
-                    signatureThumbnailUrl = drawableResourceUrl(R.drawable.preview_signature),
-                ),
+                hero = hero,
+                // 승인 전 안내는 HomeViewModel과 같은 함수로 히어로 상태에서 정한다(AI 리뷰 켜짐 가정).
+                feedbackNotice = hero.feedbackNotice(),
                 week = homeWeekDates(date).mapIndexed { index, day ->
                     HomeWeekDay(
                         date = day,
