@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PROJECT_DIR:-.}/.agents/skills/client-flow/scripts/hook_metrics.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
