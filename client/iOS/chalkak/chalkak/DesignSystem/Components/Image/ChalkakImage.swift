@@ -54,8 +54,11 @@ final class RemoteImageCache {
     private var inFlight: [String: Task<UIImage, Error>] = [:]
     // 같은 URL을 여러 폭으로 동시에 요청해도 네트워크로는 한 번만 받는다.
     private var inFlightData: [URL: Task<Data, Error>] = [:]
-    // URL마다 캐시에 넣은 키. 어떤 크기로든 받아 둔 이미지를 찾을 때 쓴다. 밀려난 키는 찾을 때 건너뛴다.
+    // URL마다 캐시에 넣은 키. 어떤 크기로든 받아 둔 이미지를 찾을 때 쓴다.
+    // 캐시가 이미지를 밀어내도 키는 남으므로, URL 수가 `keysPruneThreshold`를 넘으면 밀려난 키를 정리한다.
     private var keysByURL: [URL: Set<String>] = [:]
+    private var keysPruneThreshold = RemoteImageCache.minKeysPruneThreshold
+    private static let minKeysPruneThreshold = 256
     private let maxPixelWidth: CGFloat
 
     /// - Parameter maxPixelWidth: 이보다 넓은 이미지는 이 폭에 맞춰 줄여서 푼다.
@@ -78,9 +81,11 @@ final class RemoteImageCache {
 
     /// 이 URL을 어떤 크기로든 받아 둔 이미지 중 가장 큰 것을 꺼낸다. 없으면 nil.
     func largestImage(for url: URL) -> UIImage? {
-        (keysByURL[url] ?? [])
-            .compactMap { cache.object(forKey: $0 as NSString) }
-            .max { $0.memoryCost < $1.memoryCost }
+        let images = (keysByURL[url] ?? []).compactMap { key in
+            cache.object(forKey: key as NSString).map { (key: key, image: $0) }
+        }
+        keysByURL[url] = images.isEmpty ? nil : Set(images.map(\.key))
+        return images.map(\.image).max { $0.memoryCost < $1.memoryCost }
     }
 
     /// 이미지를 받아 `maxPixelWidth` 폭 이하로 디코딩하고 캐시한다.
@@ -119,7 +124,18 @@ final class RemoteImageCache {
         let image = try await task.value
         cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
         keysByURL[url, default: []].insert(key)
+        pruneEvictedKeysIfNeeded()
         return image
+    }
+
+    /// 캐시에서 밀려난 키를 `keysByURL`에서 지운다. 정리 후 남은 URL 수의 두 배를 다음 기준으로 잡아 매번 훑지 않는다.
+    private func pruneEvictedKeysIfNeeded() {
+        guard keysByURL.count > keysPruneThreshold else { return }
+        keysByURL = keysByURL.compactMapValues { keys in
+            let alive = keys.filter { cache.object(forKey: $0 as NSString) != nil }
+            return alive.isEmpty ? nil : alive
+        }
+        keysPruneThreshold = max(Self.minKeysPruneThreshold, keysByURL.count * 2)
     }
 
     private func data(for url: URL) async throws -> Data {
@@ -265,7 +281,8 @@ struct ChalkakImage: View {
     var fillPixelSize: CGSize?
     // `thumbnailSource`를 디코딩할 최대 폭. 다른 화면이 작은 폭으로 받아 둔 이미지를 썸네일로 재사용할 때 쓴다.
     var thumbnailMaxPixelWidth: CGFloat?
-    @State private var isPrimaryLoaded = false
+    // 로드를 마친 요청. 칸 크기가 바뀌어 새로 받는 동안에는 현재 요청과 달라 썸네일을 다시 보여준다.
+    @State private var loadedPrimaryRequest: PrimaryRequest?
 
     var body: some View {
         ZStack {
@@ -281,8 +298,8 @@ struct ChalkakImage: View {
                 for: source,
                 fillPixelSize: primaryFillPixelSize,
                 showsLoadingSkeleton: showsLoadingSkeleton && thumbnailSource == nil,
-                onLoad: {
-                    isPrimaryLoaded = true
+                onLoad: { [primaryRequest] in
+                    loadedPrimaryRequest = primaryRequest
                     onLoad()
                 }
             )
@@ -294,13 +311,17 @@ struct ChalkakImage: View {
 
     // 이미 받아 둔 이미지는 첫 프레임부터 그려지므로 썸네일을 겹쳐 그리지 않는다.
     private var isPrimaryShown: Bool {
-        guard !isPrimaryLoaded else { return true }
+        guard loadedPrimaryRequest != primaryRequest else { return true }
         guard case let .remote(url?) = source else { return source.cachedImage() != nil }
         return RemoteImageCache.shared.image(for: url, fillPixelSize: primaryFillPixelSize) != nil
     }
 
     private var primaryFillPixelSize: CGSize? {
         fillPixelSize ?? maxPixelWidth.map { CGSize(width: $0, height: 0) }
+    }
+
+    private var primaryRequest: PrimaryRequest {
+        PrimaryRequest(source: source, fillPixelSize: primaryFillPixelSize)
     }
 
     @ViewBuilder
@@ -400,6 +421,8 @@ private struct RemoteImage: View {
         phase = .loading
         do {
             let image = try await RemoteImageCache.shared.load(url, fillPixelSize: fillPixelSize)
+            // 캐시 안의 받기 작업은 취소되지 않고 끝날 수 있으므로, 칸 크기가 바뀌어 취소된 이전 요청이 결과를 덮어쓰지 않게 막는다.
+            guard !Task.isCancelled else { return }
             phase = .success(image)
             onLoad()
         } catch is CancellationError {
@@ -418,6 +441,11 @@ private struct RemoteImage: View {
                 .foregroundStyle(theme.colors.iconSecondary)
         }
     }
+}
+
+private struct PrimaryRequest: Equatable {
+    let source: ChalkakImageSource
+    let fillPixelSize: CGSize?
 }
 
 private struct LoadID: Equatable {
