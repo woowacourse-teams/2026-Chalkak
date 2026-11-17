@@ -101,7 +101,7 @@ class HomeViewModelTest {
                 .date,
         )
         assertEquals(2, state.week.count { it.post != null })
-        assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true), state.hero)
+        assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true, postId = "own-$date"), state.hero)
         assertTrue(repository.details.isEmpty())
     }
 
@@ -139,6 +139,79 @@ class HomeViewModelTest {
         val viewModel = createViewModel(repository)
         advanceUntilIdle()
         assertEquals(HomeHeroState.Photo("thumb-$TODAY", postId = "own-$TODAY"), viewModel.uiState.value.hero)
+    }
+
+    @Test
+    fun `승인된 사진 카드를 누르면 그 게시물을 내 게시물로 연다`() = runTest {
+        // Given 맨 위 카드가 승인된 사진(게시물 ID "post-1", 썸네일 "https://cdn.example.com/thumb.webp")
+        val repository = FakeHomeRepository().apply {
+            records =
+                listOf(PostCalendarItem("post-1", TODAY, "https://cdn.example.com/thumb.webp", PostStatus.APPROVED))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        // When  맨 위 사진 카드를 누른다
+        val target = viewModel.uiState.value.hero.feedTarget
+
+        // Then  피드 화면을 게시물 ID "post-1", 내 게시물, 자리 표시 이미지 "https://cdn.example.com/thumb.webp"로 연다
+        assertEquals(
+            HomeFeedTarget(
+                postId = "post-1",
+                isOwnedByCurrentUser = true,
+                thumbnailImageUrl = "https://cdn.example.com/thumb.webp",
+            ),
+            target,
+        )
+    }
+
+    @Test
+    fun `검수 대기 사진 카드를 누르면 그 게시물을 내 게시물로 연다`() = runTest {
+        // Given 맨 위 카드가 검수 대기 사진(게시물 ID "post-2")
+        val repository = FakeHomeRepository().apply {
+            records =
+                listOf(PostCalendarItem("post-2", TODAY, "https://cdn.example.com/pending.webp", PostStatus.PENDING))
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        // When  맨 위 사진 카드를 누른다
+        val target = viewModel.uiState.value.hero.feedTarget
+
+        // Then  피드 화면을 게시물 ID "post-2", 내 게시물로 연다
+        assertEquals("post-2", target?.postId)
+        assertEquals(true, target?.isOwnedByCurrentUser)
+    }
+
+    @Test
+    fun `상세 조회가 실패해 사인 없이 보이는 사진 카드도 그 게시물을 연다`() = runTest {
+        // Given 승인된 오늘 게시물 "post-3"의 상세 조회가 실패해 맨 위 카드가 사인 없이 썸네일만 보임
+        val repository = FakeHomeRepository().apply {
+            records =
+                listOf(PostCalendarItem("post-3", TODAY, "https://cdn.example.com/thumb-3.webp", PostStatus.APPROVED))
+            detailFailure = true
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        // When  맨 위 사진 카드를 누른다
+        val target = viewModel.uiState.value.hero.feedTarget
+
+        // Then  피드 화면을 게시물 ID "post-3", 내 게시물로 연다
+        assertEquals("post-3", target?.postId)
+        assertEquals(true, target?.isOwnedByCurrentUser)
+    }
+
+    @Test
+    fun `게시물 ID를 모르는 사진 카드는 눌러도 아무 화면도 열지 않는다`() {
+        // Given 맨 위 카드가 사진 상태지만 게시물 ID가 없음
+        val hero = HomeHeroState.Photo(imageUrl = "https://cdn.example.com/thumb.webp", postId = null)
+
+        // When  맨 위 사진 카드를 누른다
+        val target = hero.feedTarget
+
+        // Then  피드 화면을 열지 않는다(열 게시물 없음)
+        assertEquals(null, target)
     }
 
     @Test
@@ -378,7 +451,10 @@ class HomeViewModelTest {
                 .first()
                 .date,
         )
-        assertEquals(HomeHeroState.Photo("thumb-$date", isPending = true), viewModel.uiState.value.hero)
+        assertEquals(
+            HomeHeroState.Photo("thumb-$date", isPending = true, postId = "own-$date"),
+            viewModel.uiState.value.hero,
+        )
         assertEquals(listOf(date.minusDays(1), date), repository.contentQueries.map { it.date })
         assertEquals(listOf(date.minusDays(2), date.minusDays(1)), repository.pageQueries.map { it.date })
     }

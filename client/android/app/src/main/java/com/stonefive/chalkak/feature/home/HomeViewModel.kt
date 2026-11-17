@@ -387,7 +387,8 @@ class HomeViewModel(
 
     private suspend fun loadHero(record: PostCalendarItem): HomeHeroState {
         if (record.status == PostStatus.PENDING) {
-            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true)
+            // 작성자는 검수 대기 게시물도 상세로 열 수 있어(POST-007) 카드를 눌러 피드로 가도록 게시물 ID를 둔다.
+            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true, postId = record.postId)
         }
         return when (val detail = request { repository.getPostDetail(record.postId) }) {
             is HomeResult.Success -> HomeHeroState.Photo(

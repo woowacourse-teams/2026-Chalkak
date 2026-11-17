@@ -255,6 +255,92 @@ struct HomeViewModelTests {
         #expect(loader.detailRequests == ["approved-post"])
     }
 
+    @Test("승인된 사진 카드를 누르면 그 게시물을 내 게시물로 연다")
+    func approvedHeroOpensOwnFeed() async throws {
+        // Given 맨 위 카드가 승인된 사진(게시물 ID "post-1", 썸네일 "https://cdn.example.com/thumb.webp")
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 게시물 ID "post-1", 내 게시물, 자리 표시 이미지 썸네일로 연다
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let thumbnail = ChalkakImageSource.remote(URL(string: "https://cdn.example.com/thumb.webp")!)
+        let record = RecordPost(postId: "post-1", topicDate: today, thumbnailImageSource: thumbnail, status: .approved)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])],
+            detailResult: .success(Self.feedContent(postID: "post-1", date: today))
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+        await viewModel.resume()
+
+        let target = try #require(viewModel.heroFeedTarget())
+
+        #expect(target.id == "post-1")
+        #expect(target.isOwnedByCurrentUser)
+        #expect(target.placeholder?.imageSource == thumbnail)
+    }
+
+    @Test("검수 대기 사진 카드를 누르면 그 게시물을 내 게시물로 연다")
+    func pendingHeroOpensOwnFeed() async throws {
+        // Given 맨 위 카드가 검수 대기 사진(게시물 ID "post-2")
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 게시물 ID "post-2", 내 게시물로 연다
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let record = Self.record(id: "post-2", date: today, status: .pending)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])]
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+        await viewModel.resume()
+
+        let target = try #require(viewModel.heroFeedTarget())
+
+        #expect(target.id == "post-2")
+        #expect(target.isOwnedByCurrentUser)
+    }
+
+    @Test("상세 조회가 실패해 사인 없이 보이는 사진 카드도 그 게시물을 연다")
+    func detailFailureHeroOpensOwnFeed() async throws {
+        // Given 승인된 오늘 게시물 "post-3"의 상세 조회가 실패해 맨 위 카드가 사인 없이 썸네일만 보임
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 게시물 ID "post-3", 내 게시물로 연다
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let record = Self.record(id: "post-3", date: today, status: .approved)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])],
+            detailResult: .failure(TestError.expected)
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+        await viewModel.resume()
+        guard case let .photo(photo) = viewModel.viewState.hero, photo.signatureSource == nil else {
+            Issue.record("상세 조회 실패가 사인 없는 사진 카드로 표시되지 않았습니다")
+            return
+        }
+
+        let target = try #require(viewModel.heroFeedTarget())
+
+        #expect(target.id == "post-3")
+        #expect(target.isOwnedByCurrentUser)
+    }
+
+    @Test("게시물 ID를 모르는 사진 카드는 눌러도 아무 화면도 열지 않는다")
+    func heroWithoutPostIDOpensNothing() {
+        // Given 맨 위 카드가 사진 상태지만 게시물 ID가 없음
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 열지 않는다(열 게시물 없음)
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let thumbnail = ChalkakImageSource.remote(URL(string: "https://cdn.example.com/thumb.webp")!)
+        var state = HomeViewState(date: today)
+        state.hero = .photo(HomeHeroPhoto(imageSource: thumbnail, thumbnailSource: thumbnail, signatureSource: nil, isPending: false, postID: nil))
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: today)), rankingResult: .success([]))
+        let viewModel = Self.viewModel(date: today, initialState: state, loader: loader.loader)
+
+        #expect(viewModel.heroFeedTarget() == nil)
+    }
+
     @Test("달력에 없지만 오늘 업로드가 VALIDATING이면 처리 중으로 표시한다")
     func validatingTodayPostStatusShowsProcessing() async {
         let today = Self.date(year: 2026, month: 9, day: 7)
@@ -618,6 +704,23 @@ struct HomeViewModelTests {
             likeCount: 1,
             isLiked: false,
             isOwnedByCurrentUser: false
+        )
+    }
+
+    private static func feedContent(postID: String, date: Date) -> FeedContent {
+        FeedContent(
+            dateLabel: FeedDateLabel.make(from: date),
+            topicDate: date,
+            topic: "오늘의 주제",
+            post: FeedPost(
+                id: postID,
+                originalImageSource: .remote(URL(string: "https://cdn.example.com/original.webp")!),
+                signatureImageSource: .remote(URL(string: "https://cdn.example.com/signature.png")!),
+                contentDescription: "내 사진",
+                likeCount: 0,
+                isLiked: false,
+                isOwnedByCurrentUser: true
+            )
         )
     }
 

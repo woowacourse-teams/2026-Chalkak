@@ -7,6 +7,8 @@ enum FeedZoomSource: Hashable, Sendable {
     case displayGrid(FeedPost.ID)
     case homeYesterday(FeedPost.ID)
     case homeTrending(FeedPost.ID)
+    // 홈 맨 위의 오늘 내 사진 카드.
+    case homeHero(FeedPost.ID)
     case record(FeedPost.ID)
     // 작가 사진 목록의 그리드. 아래 탭의 전시 그리드에 같은 사진이 있어도 따로 등록한다.
     case authorGrid(FeedPost.ID)
@@ -14,7 +16,7 @@ enum FeedZoomSource: Hashable, Sendable {
     var viewport: FeedZoomViewport? {
         switch self {
         case .displayFeatured, .displayGrid: .display
-        case .homeYesterday, .homeTrending: .home
+        case .homeYesterday, .homeTrending, .homeHero: .home
         case .authorGrid: .authorPosts
         case .record: nil
         }
@@ -24,7 +26,7 @@ enum FeedZoomSource: Hashable, Sendable {
     // 작가 사진 목록은 탭 위에 덮인 층이라 하단바가 없다.
     var showsBottomBar: Bool {
         switch self {
-        case .displayFeatured, .displayGrid, .homeYesterday, .homeTrending, .record: true
+        case .displayFeatured, .displayGrid, .homeYesterday, .homeTrending, .homeHero, .record: true
         case .authorGrid: false
         }
     }

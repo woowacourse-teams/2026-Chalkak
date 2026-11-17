@@ -41,7 +41,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
+import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
 import com.stonefive.chalkak.core.designsystem.component.image.aspectRatioForSize
+import com.stonefive.chalkak.core.designsystem.component.image.rememberSharedPhotoSource
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.feature.home.HomeHeroState
 
@@ -55,6 +57,7 @@ fun HomeHeroCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onLogin: () -> Unit = {},
+    onOpenPhoto: () -> Unit = {},
 ) {
     // 내 사진은 피드처럼 원본 비율로 보여 준다. 비율을 알기 전과 다른 상태는 기본 비율을 쓴다.
     var photoAspectRatio by remember((hero as? HomeHeroState.Photo)?.imageUrl) { mutableStateOf<Float?>(null) }
@@ -114,6 +117,7 @@ fun HomeHeroCard(
             is HomeHeroState.Photo -> PhotoHeroContent(
                 hero = hero,
                 onImageAspectRatioAvailable = { photoAspectRatio = it },
+                onClick = onOpenPhoto,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -124,14 +128,38 @@ fun HomeHeroCard(
 private fun PhotoHeroContent(
     hero: HomeHeroState.Photo,
     onImageAspectRatioAvailable: (Float) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 누르면 홈의 랭킹 사진처럼 눌림 효과 없이 이 사진에서 피드 사진으로 이어지는 전환으로 연다.
+    // 게시물 ID를 모르면 열 피드가 없어 누를 수 없게 둔다.
+    val postId = hero.postId
+    val photoSource = rememberSharedPhotoSource(
+        key = PhotoTransitionKey(postId.orEmpty(), HOME_HERO_TRANSITION_SOURCE_ID),
+        imageModel = hero.imageUrl,
+        signatureModel = hero.signatureUrl,
+        contentScale = ContentScale.Crop,
+        sourceShape = ChalkakTheme.shapes.photoCard,
+    )
+    val clickModifier = if (postId == null) {
+        Modifier
+    } else {
+        Modifier.clickable(
+            interactionSource = null,
+            indication = null,
+            role = Role.Button,
+            onClick = {
+                photoSource.select()
+                onClick()
+            },
+        )
+    }
     Box(
         modifier = modifier
             .background(ChalkakTheme.colors.surfaceElevated)
             .semantics(mergeDescendants = true) {
                 contentDescription = if (hero.isPending) "오늘 제출한 사진, 검수 대기" else "오늘 제출한 사진"
-            },
+            }.then(clickModifier),
     ) {
         ChalkakSignedImage(
             imageModel = hero.imageUrl,
@@ -141,15 +169,23 @@ private fun PhotoHeroContent(
             thumbnailSignatureModel = hero.signatureThumbnailUrl,
             contentScale = ContentScale.Crop,
             onImageSuccess = { state ->
+                photoSource.onSuccess(state)
                 aspectRatioForSize(state.result.image.width, state.result.image.height)
                     ?.let(onImageAspectRatioAvailable)
             },
             onThumbnailImageSuccess = { state ->
+                photoSource.onSuccess(state)
                 aspectRatioForSize(state.result.image.width, state.result.image.height)
                     ?.let(onImageAspectRatioAvailable)
             },
+            onSignatureSuccess = photoSource.onSignatureSuccess,
+            onThumbnailSignatureSuccess = photoSource.onSignatureSuccess,
+            imageModifier = photoSource.modifier,
             modifier = Modifier.fillMaxSize(),
-            signatureModifier = Modifier.size(width = HeroSignatureWidth, height = HeroSignatureHeight),
+            signatureModifier = photoSource.signatureModifier.size(
+                width = HeroSignatureWidth,
+                height = HeroSignatureHeight,
+            ),
         )
         if (hero.isPending) {
             PendingBadge(
@@ -260,6 +296,7 @@ private fun PendingBadge(modifier: Modifier = Modifier) {
 }
 
 private const val HERO_ASPECT_RATIO = 5f / 6f
+private const val HOME_HERO_TRANSITION_SOURCE_ID = "home-hero"
 private const val HERO_EMPTY_ASPECT_RATIO = 19f / 10f
 private val HeroEmptyBorderWidth = 1.dp
 private val HeroAddIconSize = 20.dp
