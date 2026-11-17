@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonefive.chalkak.R
@@ -181,6 +182,10 @@ private fun FeedbackHeader(
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.callout,
             fontWeight = FontWeight.SemiBold,
+            // 글자를 크게 키워도 카드가 길어지지 않게 두 줄까지만 보이고 나머지는 "…"로 줄인다.
+            // 읽어 주기는 Row의 contentDescription(전체 문구)을 쓴다.
+            maxLines = FEEDBACK_TITLE_MAX_LINES,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (showsChevron) {
@@ -256,6 +261,7 @@ private fun String.keepWordsTogether(): String =
     split(' ').joinToString(" ") { word -> word.toList().joinToString(WORD_JOINER) }
 
 private const val WORD_JOINER = "\u2060"
+private const val FEEDBACK_TITLE_MAX_LINES = 2
 private const val FEEDBACK_NOTICE_BEFORE_UPLOAD = "사진을 올리고 AI 피드백을 받아보세요."
 private const val FEEDBACK_NOTICE_AWAITING_APPROVAL = "사진이 승인되면 AI 피드백을 받을 수 있어요."
 private const val FEEDBACK_CARD_SHADOW_ALPHA = 0.08f
@@ -345,6 +351,13 @@ private fun HomeFeedbackCardNarrowPreview() {
             }
         }
     }
+}
+
+// 시스템 글자 크기를 2배로 키운 좁은 폭. 제목이 두 줄을 넘으면 두 줄까지만 보이고 끝이 "…"로 줄어드는지 본다.
+@Preview(name = "큰 글자", showBackground = true, widthDp = 360, fontScale = 2f)
+@Composable
+private fun HomeFeedbackCardLargeFontPreview() {
+    HomeFeedbackCardNarrowPreview()
 }
 
 private val previewFeedbackResult = AiReviewContent(

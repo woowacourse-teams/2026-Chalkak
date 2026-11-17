@@ -34,6 +34,9 @@ struct HomeFeedbackCard: View {
                         .font(phase == .completed && isExpanded ? theme.typography.headline : theme.typography.callout)
                         .fontWeight(.semibold)
                         .foregroundStyle(theme.colors.textPrimary)
+                        // 글자를 크게 키워도 카드가 길어지지 않게 두 줄까지만 보이고 나머지는 "…"로 줄인다.
+                        // VoiceOver는 버튼의 accessibilityLabel(전체 문구)을 읽는다.
+                        .lineLimit(Metrics.titleMaxLines)
 
                     Spacer(minLength: 0)
 
@@ -263,6 +266,7 @@ private struct HomeFeedbackHeaderButtonStyle: ButtonStyle {
 private enum Metrics {
     static let borderWidth: CGFloat = 1
     static let rowHeight: CGFloat = 64
+    static let titleMaxLines = 2
     static let iconSize: CGFloat = 44
     static let audioIconSize: CGFloat = 32
     static let chevronSize: CGFloat = 15
