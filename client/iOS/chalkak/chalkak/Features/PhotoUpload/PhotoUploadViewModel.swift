@@ -42,6 +42,7 @@ final class PhotoUploadViewModel {
     private let onCameraImageSaveFailure: CameraImageSaveFailureHandler?
     private let topicDate: Date
     private let repository: PhotoUploadRepository
+    private let consentPreferenceStore: InstagramConsentPreferenceStore?
 
     private var creationTopic: PhotoUploadTopic?
     private var preparedImage: PhotoUploadPreparation?
@@ -58,6 +59,7 @@ final class PhotoUploadViewModel {
         topicDate: Date,
         initialState: PhotoUploadViewState? = nil,
         repository: PhotoUploadRepository? = nil,
+        consentPreferenceStore: InstagramConsentPreferenceStore? = nil,
         saveCameraImage: @escaping CameraImageSaver = { await PhotoLibraryImageSaver.save($0) },
         onCameraImageSaveFailure: CameraImageSaveFailureHandler? = nil,
         prepareEditImage: @escaping EditImagePreparer = { await PhotoImageDownsampler.downsampleInBackground(data: $0) }
@@ -67,7 +69,11 @@ final class PhotoUploadViewModel {
         self.onCameraImageSaveFailure = onCameraImageSaveFailure
         self.topicDate = PhotoUploadDate.startOfDay(topicDate)
         self.viewState = initialState ?? PhotoUploadViewState()
+        self.consentPreferenceStore = consentPreferenceStore
         self.repository = repository ?? PhotoUploadRepository()
+        if initialState == nil, let consent = consentPreferenceStore?.load() {
+            self.viewState.instagramConsent = InstagramConsentInput(consent: consent)
+        }
         loadCreationTopic()
     }
 
@@ -287,6 +293,7 @@ final class PhotoUploadViewModel {
 
             switch result {
             case let .success(creation):
+                self.consentPreferenceStore?.save(text.instagramConsent)
                 self.viewState.imagePreparationStatus = .idle
                 self.viewState.isSubmitting = false
                 self.viewState.completedSubmission = PhotoUploadSubmission(

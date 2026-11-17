@@ -109,7 +109,7 @@ struct FeedPhotoImageSwapTests {
         let original = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: thumbnail)
 
-        state.receiveOriginal(original, isSettled: false)
+        state.receiveOriginal(original)
         #expect(state.displayedImage === thumbnail)
         #expect(!state.hasOriginal)
 
@@ -126,7 +126,7 @@ struct FeedPhotoImageSwapTests {
         let signature = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: UIImage())
 
-        state.receiveOriginal(original, signature: signature, isSettled: false)
+        state.receiveOriginal(original, signature: signature)
         #expect(state.originalSignature == nil)
 
         state.finishTransition()
@@ -138,7 +138,8 @@ struct FeedPhotoImageSwapTests {
     func replacesAfterTransition() {
         let original = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: UIImage())
-        state.receiveOriginal(original, isSettled: true)
+        state.finishTransition()
+        state.receiveOriginal(original)
         #expect(state.displayedImage === original)
         #expect(state.hasOriginal)
     }
@@ -147,7 +148,7 @@ struct FeedPhotoImageSwapTests {
     func showsOriginalWithoutThumbnail() {
         let original = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: nil)
-        state.receiveOriginal(original, isSettled: false)
+        state.receiveOriginal(original)
         #expect(state.displayedImage === original)
     }
 }

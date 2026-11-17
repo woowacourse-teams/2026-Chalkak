@@ -706,7 +706,8 @@ struct ContentView: View {
             ),
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: baseURL)
-            )
+            ),
+            consentPreferenceStore: Self.makeInstagramConsentPreferenceStore()
         )
     }
 
@@ -1268,7 +1269,9 @@ struct ContentView: View {
             updateSignature: { try await apiClient.updateSignature(pngData: $0) },
             logout: { await authRepository.logout() },
             withdraw: {
+                let userID = KeychainSessionStore.userID()
                 try await apiClient.withdraw()
+                if let userID { InstagramConsentPreferenceStore.remove(userID: userID) }
                 KeychainSessionStore.delete()
             }
         )
@@ -1345,6 +1348,10 @@ struct ContentView: View {
         )
     }
 
+    private static func makeInstagramConsentPreferenceStore() -> InstagramConsentPreferenceStore? {
+        KeychainSessionStore.userID().map { InstagramConsentPreferenceStore(userID: $0) }
+    }
+
     private static func makePhotoUploadViewModel(
         topicDate: Date,
         onCameraImageSaveFailure: @escaping PhotoUploadViewModel.CameraImageSaveFailureHandler
@@ -1398,6 +1405,7 @@ struct ContentView: View {
         return PhotoUploadViewModel(
             topicDate: topicDate,
             repository: .api(client: apiClient),
+            consentPreferenceStore: makeInstagramConsentPreferenceStore(),
             onCameraImageSaveFailure: onCameraImageSaveFailure
         )
     }

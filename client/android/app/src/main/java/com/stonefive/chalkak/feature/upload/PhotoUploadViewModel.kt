@@ -17,9 +17,11 @@ import com.stonefive.chalkak.domain.model.PostImagePreparationResult
 import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.feature.instagramconsent.INVALID_INSTAGRAM_ID_MESSAGE
 import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
+import com.stonefive.chalkak.feature.instagramconsent.toInputState
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -43,7 +46,10 @@ class PhotoUploadViewModel(
     private val isPhotoEditEnabled: () -> Boolean = { true },
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     private val sessionState: Flow<UserSessionState> = emptyFlow(),
+    private val instagramConsentPreferences: InstagramConsentPreferenceRepository? = null,
 ) : ViewModel() {
+    private var consentGeneration = 0L
+    private var activeUserId: String? = null
     private var creationTopic: Topic? = null
     private var preparedImage: PostImagePreparation? = null
     private var imageGeneration = 0L
@@ -62,6 +68,7 @@ class PhotoUploadViewModel(
         _uiState.value.selectedImage
             ?.let { replaceSelectedImage(it, _uiState.value.selectedEdit) }
         reloadTopicAfterReauthentication()
+        loadConsentPreference()
     }
 
     fun onAction(action: PhotoUploadUiAction) {
@@ -93,11 +100,13 @@ class PhotoUploadViewModel(
             }
 
             is PhotoUploadUiAction.InstagramUploadAgreedChanged -> {
+                consentGeneration++
                 savedStateHandle[KEY_INSTAGRAM_AGREED] = action.agreed
                 _uiState.update { it.copy(instagramConsent = it.instagramConsent.withAgreed(action.agreed)) }
             }
 
             is PhotoUploadUiAction.InstagramIdChanged -> {
+                consentGeneration++
                 _uiState.update { state ->
                     val consent = state.instagramConsent.withInstagramId(action.instagramId)
                     savedStateHandle[KEY_INSTAGRAM_ID] = consent.instagramId
@@ -197,6 +206,7 @@ class PhotoUploadViewModel(
     }
 
     fun reset() {
+        consentGeneration++
         val topicTitle = _uiState.value.topicTitle
         clearImageWork()
         savedStateHandle.remove<String>(KEY_CAPTION)
@@ -206,6 +216,32 @@ class PhotoUploadViewModel(
         savedStateHandle.remove<String>(KEY_SELECTED_IMAGE)
         savedStateHandle.remove<HashMap<String, String>>(KEY_SELECTED_EDIT)
         _uiState.value = PhotoUploadUiState(topicTitle = topicTitle)
+        loadConsentPreference()
+    }
+
+    private fun loadConsentPreference() {
+        val preferences = instagramConsentPreferences ?: return
+        if (savedStateHandle.contains(KEY_INSTAGRAM_AGREED) || savedStateHandle.contains(KEY_INSTAGRAM_ID)) return
+        val generation = consentGeneration
+        viewModelScope.launch {
+            // 재인증 중이면 같은 계정으로 돌아온 뒤 캐시를 조회한다.
+            val session = sessionState.firstOrNull {
+                it != UserSessionState.Loading && it !is UserSessionState.ReauthenticationRequired
+            }
+            val userId = (session as? UserSessionState.Authenticated)?.userId ?: return@launch
+            val consent = try {
+                preferences.get(userId)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                null
+            }
+            if (consent != null && generation == consentGeneration && activeUserId == userId) {
+                savedStateHandle[KEY_INSTAGRAM_AGREED] = consent.agreed
+                savedStateHandle[KEY_INSTAGRAM_ID] = consent.instagramId.orEmpty()
+                _uiState.update { it.copy(instagramConsent = consent.toInputState()) }
+            }
+        }
     }
 
     override fun onCleared() {
@@ -245,6 +281,7 @@ class PhotoUploadViewModel(
         viewModelScope.launch {
             var reauthenticatingUserId: String? = null
             sessionState.collect { session ->
+                activeUserId = (session as? UserSessionState.Authenticated)?.userId
                 when (session) {
                     is UserSessionState.ReauthenticationRequired -> reauthenticatingUserId = session.userId
 
@@ -268,6 +305,7 @@ class PhotoUploadViewModel(
     private fun submit() {
         val state = _uiState.value
         if (!state.canSubmit) return
+        consentGeneration++
         val imageUri = state.selectedImage ?: return
         val topic = creationTopic
         if (topic == null) {
@@ -392,6 +430,7 @@ class PhotoUploadViewModel(
         val caption = state.caption
         val description = state.description
         val instagramConsent = state.instagramConsent.toConsent()
+        val requestUserId = activeUserId
         preparedImage = null
         submissionJob = viewModelScope.launch {
             try {
@@ -405,6 +444,14 @@ class PhotoUploadViewModel(
                     )
                 ) {
                     is PostCreationResult.Success -> {
+                        if (requestUserId != null) {
+                            try {
+                                instagramConsentPreferences?.save(requestUserId, instagramConsent)
+                            } catch (cancellation: CancellationException) {
+                                throw cancellation
+                            } catch (_: Exception) {
+                            }
+                        }
                         _uiState.update {
                             it.copy(
                                 imagePreparationStatus = ImagePreparationStatus.Idle,
@@ -570,6 +617,7 @@ class PhotoUploadViewModel(
                     topicDate = topicDate,
                     savedStateHandle = createSavedStateHandle(),
                     sessionState = application.appContainer.authRepository.sessionState,
+                    instagramConsentPreferences = application.appContainer.instagramConsentPreferences,
                     saveCaptureToGallery = { file -> saveCameraCaptureToGallery(application, file) },
                     isPhotoEditEnabled = {
                         application.appContainer.appConfigRepository.config.value.isPhotoEditEnabled

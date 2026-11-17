@@ -24,6 +24,8 @@ final class FeedViewModel {
     private let likeHandler: LikeHandler
     private let deleteHandler: DeleteHandler
     private let updatePostHandler: UpdatePostHandler
+    private let consentPreferenceStore: InstagramConsentPreferenceStore?
+    private var initialEditConsent: InstagramConsent?
     private var likeGeneration = 0
     // 상세를 받기 전에 다른 화면에서 도착한 좋아요. 상세가 도착하면 그 위에 덮어쓴다.
     private var pendingLikeUpdate: FeedLikeUpdate?
@@ -43,7 +45,8 @@ final class FeedViewModel {
         likeHandler: @escaping LikeHandler = { _, _ in .failure(.generic) },
         deleteHandler: @escaping DeleteHandler = { _ in .failure(.generic) },
         updatePostHandler: @escaping UpdatePostHandler = { _, _, _, _ in .failure(.generic) },
-        aiReviewRepository: (any AIReviewRepository)? = nil
+        aiReviewRepository: (any AIReviewRepository)? = nil,
+        consentPreferenceStore: InstagramConsentPreferenceStore? = nil
     ) {
         self.aiReview = aiReviewRepository.map {
             FeedAIReviewViewModel(
@@ -70,9 +73,15 @@ final class FeedViewModel {
         self.likeHandler = likeHandler
         self.deleteHandler = deleteHandler
         self.updatePostHandler = updatePostHandler
+        self.consentPreferenceStore = consentPreferenceStore
     }
 
-    convenience init(target: FeedTarget, apiClient: FeedAPIClient, aiReviewRepository: (any AIReviewRepository)? = nil) {
+    convenience init(
+        target: FeedTarget,
+        apiClient: FeedAPIClient,
+        aiReviewRepository: (any AIReviewRepository)? = nil,
+        consentPreferenceStore: InstagramConsentPreferenceStore? = nil
+    ) {
         self.init(
             postID: target.id,
             seed: target.seed,
@@ -98,7 +107,8 @@ final class FeedViewModel {
                     )
                 }
             },
-            aiReviewRepository: aiReviewRepository
+            aiReviewRepository: aiReviewRepository,
+            consentPreferenceStore: consentPreferenceStore
         )
     }
 
@@ -270,6 +280,7 @@ final class FeedViewModel {
             }
             return
         }
+        initialEditConsent = instagramConsent
         viewState.postEdit = FeedPostEditState(
             title: current.post.title ?? "",
             description: current.post.description ?? "",
@@ -312,12 +323,16 @@ final class FeedViewModel {
         let trimmedTitle = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedTitle: String? = trimmedTitle.isEmpty ? nil : trimmedTitle
         let instagramConsent = edit.instagramConsent.consent
+        let didChangeConsent = instagramConsent != initialEditConsent
         viewState.isSavingPostEdit = true
 
         Task { [weak self] in
             guard let self else { return }
             switch await self.updatePostHandler(self.postID, normalizedTitle, edit.description, instagramConsent) {
             case let .success(update):
+                if didChangeConsent {
+                    self.consentPreferenceStore?.save(update.instagramConsent ?? instagramConsent)
+                }
                 guard var latest = self.viewState.content else {
                     self.viewState.isSavingPostEdit = false
                     return
