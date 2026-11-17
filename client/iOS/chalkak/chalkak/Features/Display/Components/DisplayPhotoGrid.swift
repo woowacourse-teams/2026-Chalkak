@@ -97,6 +97,7 @@ private struct MasonryItem: Identifiable {
 
 private struct DisplayMasonryCell: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.displayScale) private var displayScale
     @Environment(\.feedZoomRegistry) private var zoomRegistry
     let photo: DisplayPhoto
     let ratio: CGFloat?
@@ -116,20 +117,24 @@ private struct DisplayMasonryCell: View {
         Color.black
             .aspectRatio(widthOverHeight, contentMode: .fit)
             .overlay {
-                if showsSignature {
-                    ChalkakSignedImage(
-                        imageSource: photo.thumbnailImageSource,
-                        signatureSource: photo.signatureThumbnailImageSource,
-                        contentDescription: photo.contentDescription,
-                        contentMode: .fill,
-                        signatureSize: Metrics.signatureSize
+                // 칸 높이는 사진 비율을 따르므로 칸 폭 × 화면 배율로만 줄여 받는다.
+                GeometryReader { proxy in
+                    let maxPixelWidth = ChalkakImage.pixelWidth(
+                        forPointWidth: proxy.size.width,
+                        displayScale: displayScale
                     )
-                } else {
-                    ChalkakImage(
-                        source: photo.thumbnailImageSource,
-                        contentDescription: photo.contentDescription,
-                        contentMode: .fill
-                    )
+                    thumbnail(maxPixelWidth: maxPixelWidth)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .task(id: photo.id) {
+                            // 비율도 같은 폭의 이미지로 재서, 비율을 재느라 큰 이미지를 따로 받지 않는다.
+                            guard ratio == nil,
+                                  let measured = await ImageRatioLoader.ratio(
+                                      for: photo.thumbnailImageSource,
+                                      maxPixelWidth: maxPixelWidth
+                                  )
+                            else { return }
+                            onMeasured(measured)
+                        }
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: theme.shapes.photoCard))
@@ -157,12 +162,27 @@ private struct DisplayMasonryCell: View {
                     .allowsHitTesting(zoomRegistry?.activeSource != zoomSource)
                 }
             }
-            .task(id: photo.id) {
-                guard ratio == nil,
-                      let measured = await ImageRatioLoader.ratio(for: photo.thumbnailImageSource)
-                else { return }
-                onMeasured(measured)
-            }
+    }
+
+    @ViewBuilder
+    private func thumbnail(maxPixelWidth: CGFloat?) -> some View {
+        if showsSignature {
+            ChalkakSignedImage(
+                imageSource: photo.thumbnailImageSource,
+                signatureSource: photo.signatureThumbnailImageSource,
+                contentDescription: photo.contentDescription,
+                contentMode: .fill,
+                signatureSize: Metrics.signatureSize,
+                maxPixelWidth: maxPixelWidth
+            )
+        } else {
+            ChalkakImage(
+                source: photo.thumbnailImageSource,
+                contentDescription: photo.contentDescription,
+                contentMode: .fill,
+                maxPixelWidth: maxPixelWidth
+            )
+        }
     }
 }
 
