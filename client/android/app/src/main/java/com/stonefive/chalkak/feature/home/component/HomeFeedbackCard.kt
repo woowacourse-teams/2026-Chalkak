@@ -177,7 +177,7 @@ private fun FeedbackHeader(
         horizontalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.sm),
     ) {
         Text(
-            text = title,
+            text = title.keepWordsTogether(),
             color = ChalkakTheme.colors.textPrimary,
             style = ChalkakTheme.typography.callout,
             fontWeight = FontWeight.SemiBold,
@@ -241,6 +241,21 @@ private fun FeedbackDetail(
     }
 }
 
+/**
+ * 화면에 그릴 제목이 띄어쓰기에서만 줄바꿈되게 한다. 읽어 주기(contentDescription)에는 원래 문자열을 쓴다.
+ *
+ * Compose는 한글을 글자 사이에서도 줄바꿈해 좁은 폭(갤럭시 S 기본 360dp)에서
+ * "AI 피드백이 완료되었어" / "요"처럼 단어 중간이 끊긴다. 띄어쓰기로 나뉜 단어마다 글자 사이에
+ * 폭 0인 WORD JOINER(U+2060)를 넣어 단어 안에서는 줄을 바꾸지 않게 한다.
+ * `LineBreak.WordBreak.Phrase`는 한국어에 효과가 없어(Preview SDK 36에서 확인) 쓰지 않았다.
+ * 단어 하나가 한 줄보다 길면 그 단어 안에서 끊긴다(잘리지 않음).
+ *
+ * 예: "받아보세요." → "받\u2060아\u2060보\u2060세\u2060요\u2060." (눈에는 그대로 "받아보세요.")
+ */
+private fun String.keepWordsTogether(): String =
+    split(' ').joinToString(" ") { word -> word.toList().joinToString(WORD_JOINER) }
+
+private const val WORD_JOINER = "\u2060"
 private const val FEEDBACK_NOTICE_BEFORE_UPLOAD = "사진을 올리고 AI 피드백을 받아보세요."
 private const val FEEDBACK_NOTICE_AWAITING_APPROVAL = "사진이 승인되면 AI 피드백을 받을 수 있어요."
 private const val FEEDBACK_CARD_SHADOW_ALPHA = 0.08f
@@ -292,6 +307,40 @@ private fun HomeFeedbackCardNoticePreview() {
                     onToggleExpanded = {},
                     modifier = Modifier.fillMaxWidth(),
                     notice = notice,
+                )
+            }
+        }
+    }
+}
+
+// 모든 상태를 갤럭시 S 기본 모델 폭(360dp 화면, 카드 안 폭은 좌우 여백을 뺀 값)에서 본다.
+// 두 줄이 될 때 단어 중간("받아보세" / "요.")에서 끊기지 않는지 확인한다. 실패는 "재요청"까지 보여 가장 좁다.
+@Preview(name = "좁은 폭", showBackground = true, widthDp = 360)
+@Composable
+private fun HomeFeedbackCardNarrowPreview() {
+    ChalkakTheme {
+        Column(
+            modifier = Modifier.padding(ChalkakTheme.spacing.screenHorizontal),
+            verticalArrangement = Arrangement.spacedBy(ChalkakTheme.spacing.lg),
+        ) {
+            HomeFeedbackNotice.entries.forEach { notice ->
+                HomeFeedbackCard(
+                    phase = HomeFeedbackPhase.Hidden,
+                    isExpanded = false,
+                    onStart = {},
+                    onToggleExpanded = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    notice = notice,
+                )
+            }
+            HomeFeedbackPhase.entries.forEach { phase ->
+                HomeFeedbackCard(
+                    phase = phase,
+                    isExpanded = false,
+                    onStart = {},
+                    onToggleExpanded = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    canRequestAgain = true,
                 )
             }
         }
