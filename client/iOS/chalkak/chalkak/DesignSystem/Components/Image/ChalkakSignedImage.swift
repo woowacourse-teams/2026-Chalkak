@@ -12,6 +12,8 @@ struct ChalkakSignedImage: View {
     // 사진·서명을 받는 동안 대신 보여줄 썸네일. Android ChalkakSignedImage와 같다.
     var thumbnailImageSource: ChalkakImageSource?
     var thumbnailSignatureSource: ChalkakImageSource?
+    // 사진을 이 폭(픽셀) 이하로 줄여 디코딩한다. nil이면 기본 폭(화면 폭).
+    var maxPixelWidth: CGFloat?
 
     var body: some View {
         GeometryReader { proxy in
@@ -22,7 +24,8 @@ struct ChalkakSignedImage: View {
                     contentMode: contentMode,
                     showsLoadingSkeleton: showsLoadingSkeleton,
                     onLoad: onImageLoad,
-                    thumbnailSource: thumbnailImageSource
+                    thumbnailSource: thumbnailImageSource,
+                    maxPixelWidth: maxPixelWidth
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .clipped()

@@ -134,11 +134,12 @@ struct FeedPhotoPlaceholder: Equatable, Sendable {
         signatureImageSource: ChalkakImageSource? = nil,
         heightToWidthRatio: CGFloat? = nil
     ) {
-        let preloadedImage = imageSource.cachedImage()
+        // 목록 칸은 썸네일을 칸 크기로 받아 두므로, 기본 폭이 아니어도 받아 둔 이미지 중 가장 큰 것을 쓴다.
+        let preloadedImage = imageSource.largestCachedImage()
         self.imageSource = imageSource
         self.signatureImageSource = signatureImageSource
         self.preloadedImage = preloadedImage
-        self.preloadedSignatureImage = signatureImageSource?.cachedImage()
+        self.preloadedSignatureImage = signatureImageSource?.largestCachedImage()
         // 카드의 크롭 비율보다 캐시된 이미지 자체의 비율을 우선한다.
         self.heightToWidthRatio = preloadedImage.flatMap { image in
             image.size.width > 0 ? image.size.height / image.size.width : nil

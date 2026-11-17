@@ -1,6 +1,10 @@
 import SwiftUI
 
 enum HomeFeedbackPhase: Hashable {
+    /// 업로드 전 안내: 오늘 사진을 아직 올리지 않았다(히어로 `.empty`). 눌리지 않는다.
+    case beforeUpload
+    /// 승인 대기 안내: 오늘 사진이 검사 중(`.processing`, VALIDATING)이거나 승인 대기(`isPending`)다. 눌리지 않는다.
+    case awaitingApproval
     case loading
     case unavailable
     case loadError
@@ -30,6 +34,9 @@ struct HomeFeedbackCard: View {
                         .font(phase == .completed && isExpanded ? theme.typography.headline : theme.typography.callout)
                         .fontWeight(.semibold)
                         .foregroundStyle(theme.colors.textPrimary)
+                        // 글자를 크게 키워도 카드가 길어지지 않게 두 줄까지만 보이고 나머지는 "…"로 줄인다.
+                        // VoiceOver는 버튼의 accessibilityLabel(전체 문구)을 읽는다.
+                        .lineLimit(Metrics.titleMaxLines)
 
                     Spacer(minLength: 0)
 
@@ -109,7 +116,7 @@ struct HomeFeedbackCard: View {
     private var isDisabled: Bool {
         if isSubmitting { return true }
         return switch phase {
-        case .loading, .processing, .unavailable, .failed(canRequestAgain: false): true
+        case .beforeUpload, .awaitingApproval, .loading, .processing, .unavailable, .failed(canRequestAgain: false): true
         default: false
         }
     }
@@ -117,6 +124,8 @@ struct HomeFeedbackCard: View {
     private var title: String {
         if isSubmitting { return "AI 피드백을 요청하고 있어요" }
         return switch phase {
+        case .beforeUpload: "사진을 올리고 AI 피드백을 받아보세요."
+        case .awaitingApproval: "사진이 승인되면 AI 피드백을 받을 수 있어요."
         case .loading: "AI 피드백 상태를 확인하고 있어요"
         case .unavailable: "AI 피드백을 확인할 수 없는 게시물이에요"
         case .loadError: "AI 피드백 상태 다시 확인"
@@ -257,6 +266,7 @@ private struct HomeFeedbackHeaderButtonStyle: ButtonStyle {
 private enum Metrics {
     static let borderWidth: CGFloat = 1
     static let rowHeight: CGFloat = 64
+    static let titleMaxLines = 2
     static let iconSize: CGFloat = 44
     static let audioIconSize: CGFloat = 32
     static let chevronSize: CGFloat = 15
@@ -271,6 +281,8 @@ private enum Metrics {
 
 #Preview("Feedback states") {
     VStack(spacing: ChalkakSpacing.lg) {
+        HomeFeedbackCard(phase: .beforeUpload, isExpanded: false, onStart: {}, onToggleExpanded: {})
+        HomeFeedbackCard(phase: .awaitingApproval, isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .failed(canRequestAgain: true), isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .failed(canRequestAgain: false), isExpanded: false, onStart: {}, onToggleExpanded: {})
         HomeFeedbackCard(phase: .ready, isExpanded: false, onStart: {}, onToggleExpanded: {})

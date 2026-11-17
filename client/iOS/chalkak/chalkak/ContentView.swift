@@ -617,6 +617,7 @@ struct ContentView: View {
                 onOpenRecordDate: openRecord(at:),
                 onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
                 onOpenFeed: openHomeFeed,
+                onOpenHeroFeed: openHomeHeroFeed,
                 onOpenNotifications: {
                     guard KeychainSessionStore.hasAuthenticatedSession() else {
                         showMessage("로그인 후 알림을 확인할 수 있어요")
@@ -684,6 +685,15 @@ struct ContentView: View {
                 signatureImageSource: nil
             )
         )
+    }
+
+    // 맨 위 카드는 로그인해야 사진 상태가 되지만, 홈 미리보기 실행에서는 랭킹 사진처럼 열지 않는다.
+    private func openHomeHeroFeed(_ target: FeedTarget) {
+        guard canOpenHomeFeed else {
+            showMessage("상세를 보려면 로그인이 필요해요")
+            return
+        }
+        selectedFeed = target
     }
 
     private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {

@@ -10,6 +10,8 @@ struct HomeScreen: View {
     var onOpenRecordDate: (Date) -> Void = { _ in }
     var onOpenDisplay: (Date) -> Void = { _ in }
     var onOpenFeed: (DisplayPhoto, FeedZoomSource) -> Void = { _, _ in }
+    // 맨 위 사진 카드를 눌렀을 때 열 피드.
+    var onOpenHeroFeed: (FeedTarget) -> Void = { _ in }
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
     var onOpenSettings: () -> Void = {}
@@ -62,13 +64,17 @@ struct HomeScreen: View {
                         onLogin: {
                             onInteraction(.login)
                             onLogin()
+                        },
+                        onOpenPhoto: {
+                            guard let target = viewModel.heroFeedTarget() else { return }
+                            onOpenHeroFeed(target)
                         }
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, theme.spacing.screenHorizontal)
                     .padding(.top, theme.spacing.xl)
 
-                    if showsFeedback {
+                    if let feedbackPhase = viewModel.feedbackPhase {
                         HomeFeedbackCard(
                             phase: feedbackPhase,
                             isExpanded: isFeedbackExpanded,
@@ -76,7 +82,7 @@ struct HomeScreen: View {
                             onToggleExpanded: { withAnimation(.easeInOut) { isFeedbackExpanded.toggle() } },
                             result: viewModel.viewState.aiReview.review?.result,
                             isSubmitting: viewModel.viewState.aiReview.isSubmitting,
-                            pollingTimedOut: viewModel.viewState.aiReview.pollingTimedOut
+                            pollingTimedOut: viewModel.showsFeedbackPollingTimeout
                         )
                         .padding(.horizontal, theme.spacing.screenHorizontal)
                         .padding(.top, theme.spacing.lg)
@@ -226,15 +232,11 @@ struct HomeScreen: View {
             ?? viewModel.viewState.date
     }
 
-    private var feedbackPostID: String? {
-        guard viewModel.hasAIReviewRepository,
-              viewModel.viewState.isAuthenticated,
-              case let .photo(photo) = viewModel.viewState.hero,
-              !photo.isPending else { return nil }
-        return photo.postID
-    }
+    /// 피드백 카드(안내 카드 포함)가 보이는지. 아래 주간 기록과의 간격도 이 값으로 맞춘다.
+    private var showsFeedback: Bool { viewModel.feedbackPhase != nil }
 
-    private var showsFeedback: Bool { feedbackPostID != nil }
+    /// AI 리뷰를 조회할 게시물. 승인된 오늘 사진일 때만 값이 있어서, 승인 전에는 AI 리뷰 API를 부르지 않는다.
+    private var feedbackPostID: String? { viewModel.feedbackPostID }
 
     /// 오늘 사진을 올리기 전에는 히어로 카드와 함께 주간 기록의 오늘 칸도 업로드 진입점이 된다.
     private var showsUploadEntry: Bool { viewModel.viewState.hero == .empty }
@@ -247,30 +249,17 @@ struct HomeScreen: View {
         return "\(postID):\(feedbackRetryID)"
     }
 
-    private var feedbackPhase: HomeFeedbackPhase {
-        let state = viewModel.viewState.aiReview
-        if state.isUnavailable { return .unavailable }
-        if state.isLoading { return .loading }
-        guard let review = state.review else { return .loadError }
-        switch review.status {
-        case .none: return .ready
-        case .processing: return .processing
-        case .completed: return .completed
-        case .failed: return .failed(canRequestAgain: review.canRequestAgain)
-        }
-    }
-
     private func handleFeedbackAction() {
-        switch feedbackPhase {
-        case .loadError:
+        switch viewModel.feedbackTapAction {
+        case .retryStatus:
             feedbackRetryID += 1
-        case .ready:
+        case .presentStartSheet:
             onInteraction(.feedback)
             isFeedbackSheetPresented = true
-        case .failed(canRequestAgain: true):
+        case .requestAgain:
             onInteraction(.feedback)
             Task { await viewModel.requestAIReview() }
-        default:
+        case .none:
             break
         }
     }
@@ -469,6 +458,20 @@ extension Date {
     state.week = HomeViewState.weekDates(HomePreviewData.previewDate).map { HomeWeekDay(date: $0) }
     state.yesterday = HomeRankingState(status: .ready)
     state.trending = HomeRankingState(status: .ready)
+    return HomeScreen(viewModel: HomePreviewData.viewModel(state: state))
+        .chalkakTheme(.light)
+}
+
+/// 오늘 사진이 승인 대기(PENDING)일 때. 히어로 아래에 승인 대기 안내 카드가 보인다.
+#Preview("Home Pending") {
+    var state = HomePreviewData.contentState
+    state.hero = .photo(HomeHeroPhoto(
+        imageSource: .asset("preview_photo"),
+        thumbnailSource: .asset("preview_photo"),
+        signatureSource: nil,
+        isPending: true,
+        postID: "preview-post"
+    ))
     return HomeScreen(viewModel: HomePreviewData.viewModel(state: state))
         .chalkakTheme(.light)
 }

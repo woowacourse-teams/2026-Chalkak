@@ -505,6 +505,17 @@ fun ChalkakNavHost(
                                 }
                             }
                         },
+                        onOpenOwnFeed = { target ->
+                            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                navController.navigate(
+                                    FeedById(
+                                        postId = target.postId,
+                                        isOwnedByCurrentUser = target.isOwnedByCurrentUser,
+                                        thumbnailImageUrl = target.thumbnailImageUrl,
+                                    ),
+                                )
+                            }
+                        },
                         onNotificationClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.navigate(Notifications) { launchSingleTop = true }
                         },

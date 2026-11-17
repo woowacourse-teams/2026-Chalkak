@@ -147,9 +147,15 @@ class HomeViewModel(
         } else if (!isFirstPresentation && loadJob?.isActive != true) {
             loadHome(reset = false)
         } else {
+            // 원격 설정으로 AI 리뷰가 켜지거나 꺼졌을 수 있으므로 승인 전 안내도 다시 정한다.
+            _uiState.update { it.copy(feedbackNotice = feedbackNoticeFor(it.hero)) }
             aiReviewSession.onResume()
         }
     }
+
+    // AI 리뷰 기능이 꺼져 있으면 승인 전 안내도 숨긴다(승인된 사진의 카드와 같은 조건).
+    private fun feedbackNoticeFor(hero: HomeHeroState): HomeFeedbackNotice? =
+        if (isAiReviewEnabled()) hero.feedbackNotice() else null
 
     fun onPause() {
         isResumed = false
@@ -350,7 +356,13 @@ class HomeViewModel(
         authenticated: Boolean,
     ) {
         if (!authenticated) {
-            _uiState.update { it.copy(hero = HomeHeroState.LoginRequired, recordsStatus = HomeSectionStatus.Ready) }
+            _uiState.update {
+                it.copy(
+                    hero = HomeHeroState.LoginRequired,
+                    recordsStatus = HomeSectionStatus.Ready,
+                    feedbackNotice = null,
+                )
+            }
             return
         }
         val dates = homeWeekDates(date)
@@ -383,15 +395,17 @@ class HomeViewModel(
         } else {
             loadMissingHero(date)
         }
+        // AI 리뷰는 승인된 사진만 대상이다. 승인 전에는 대상을 비우고(API 호출 없음) 안내만 보여 준다.
         val nextPostId = (hero as? HomeHeroState.Photo)?.takeUnless { it.isPending }?.postId
         aiReviewSession.setTarget(nextPostId)
-        _uiState.update { it.copy(hero = hero) }
+        _uiState.update { it.copy(hero = hero, feedbackNotice = feedbackNoticeFor(hero)) }
         if (isResumed) aiReviewSession.onResume()
     }
 
     private suspend fun loadHero(record: PostCalendarItem): HomeHeroState {
         if (record.status == PostStatus.PENDING) {
-            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true)
+            // 작성자는 검수 대기 게시물도 상세로 열 수 있어(POST-007) 카드를 눌러 피드로 가도록 게시물 ID를 둔다.
+            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true, postId = record.postId)
         }
         return when (val detail = request { repository.getPostDetail(record.postId) }) {
             is HomeResult.Success -> HomeHeroState.Photo(
