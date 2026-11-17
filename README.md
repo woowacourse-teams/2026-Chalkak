@@ -66,8 +66,20 @@
 
 <img src="docs/readme/architecture/monitoring.png" width="640" alt="찰캌 모니터링 아키텍처">
 
-### Android
+### 모바일 시스템
 
-Android 앱 아키텍처는 준비 중입니다.
+<img src="docs/readme/architecture/mobile-system.png" width="640" alt="찰캌 모바일 시스템 아키텍처">
 
-<!-- Android 아키텍처 완성 후 다이어그램과 주요 계층·데이터 흐름 설명을 추가합니다. -->
+Android · iOS 앱은 Spring Boot API와 통신하고, 사진은 Presigned URL로 S3에 올린 뒤 CloudFront로 받아 봅니다. 푸시는 FCM으로 받으며 iOS는 APNs를 거칩니다.
+
+### 모바일 CI · 출시
+
+<img src="docs/readme/architecture/mobile-ci.png" width="640" alt="찰캌 모바일 CI·출시 아키텍처">
+
+`client/develop` PR마다 바뀐 플랫폼만 검사하고, `main` 병합 후 릴리스 빌드를 Google Play와 App Store에 올립니다.
+
+### 모바일 앱 구조
+
+<img src="docs/readme/architecture/mobile-app.png" width="640" alt="찰캌 모바일 앱 내부 아키텍처">
+
+화면은 이벤트를 ViewModel로 보내고 상태를 받아 그립니다. 데이터 층은 원격(API)과 로컬(DataStore · Keychain) 저장소를 나눠 다룹니다.
