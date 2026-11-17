@@ -290,6 +290,23 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `캘린더에 아직 없어도 오늘 게시물 처리가 끝났으면 보관 사진을 버린다`() = runTest {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 PENDING·"p1"
+        // When  홈을 불러온다
+        // Then  맨 위 카드는 지금처럼 오류이고, "p1"의 보관 사진이 없다
+        val photos = FakeUploadedPostPhotoRepository(postId = "p1")
+        val repository = FakeHomeRepository().apply {
+            uploadStatus = TodayPostStatusResult.Success(
+                TodayPostStatus(TODAY, true, "p1", TodayPostModerationStatus.PENDING),
+            )
+        }
+        val viewModel = createViewModel(repository, uploadedPhotoRepository = photos)
+        advanceUntilIdle()
+        assertEquals(HomeHeroState.Error, viewModel.uiState.value.hero)
+        assertEquals(null, photos.photoPath("p1"))
+    }
+
+    @Test
     fun `오늘 게시물 상태를 못 불러오면 보관 사진을 버리지 않는다`() = runTest {
         // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 요청이 네트워크 오류
         // When  홈을 불러온다

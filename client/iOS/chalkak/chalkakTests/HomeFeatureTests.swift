@@ -441,6 +441,25 @@ struct HomeViewModelTests {
         #expect(store.url(for: "p1") == nil)
     }
 
+    @Test("캘린더에 아직 없어도 오늘 게시물 처리가 끝났으면 보관 사진을 버린다")
+    func finishedProcessingWithoutRecordDropsStoredPhoto() async {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 PENDING·"p1"
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p1")
+        let loader = Self.loaderWithoutTodayRecord(
+            today: today,
+            postStatusResult: .success(PhotoUploadTodayPostStatus(topicDate: today, isPosted: true, postID: "p1", moderationStatus: .pending))
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드는 지금처럼 오류이고, "p1"의 보관 사진이 없다
+        #expect(viewModel.viewState.hero == .error)
+        #expect(store.url(for: "p1") == nil)
+    }
+
     @Test("오늘 게시물 상태를 못 불러오면 보관 사진을 버리지 않는다")
     func postStatusFailureKeepsStoredPhoto() async {
         // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 요청이 네트워크 오류

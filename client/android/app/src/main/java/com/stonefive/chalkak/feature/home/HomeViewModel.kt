@@ -442,7 +442,11 @@ class HomeViewModel(
                 )
 
                 // A posted result without a calendar image is not an empty upload slot.
-                else -> HomeHeroState.Error
+                else -> {
+                    // 처리가 끝났으면(VALIDATING 종료) 캘린더에 아직 없어도 보관 사진은 더 필요 없다.
+                    uploadedPhotoRepository?.clear()
+                    HomeHeroState.Error
+                }
             }
 
             is TodayPostStatusResult.Failure -> if (result.reason == TodayPostStatusFailure.NoOpenTopic) {
