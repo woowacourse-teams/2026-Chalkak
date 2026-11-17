@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -335,21 +336,36 @@ fun PhotoUploadScreen(
                 }
             }
 
-            ChalkakButton(
-                text = if (uiState.isSubmitting) "전시 중..." else "전시하기",
-                onClick = { onAction(PhotoUploadUiAction.SubmitClicked) },
+            PhotoUploadSubmitButton(
+                uiState = uiState,
+                onSubmit = { onAction(PhotoUploadUiAction.SubmitClicked) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 26.dp)
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(bottom = 26.dp)
-                    .testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
-                enabled = uiState.canSubmit,
+                    .fillMaxWidth(),
             )
         }
     }
+}
+
+@Composable
+private fun PhotoUploadSubmitButton(
+    uiState: PhotoUploadUiState,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ChalkakButton(
+        text = if (uiState.isSubmitting) "전시 중..." else "전시하기",
+        onClick = onSubmit,
+        // 비활성 버튼은 반투명이므로 버튼과 하단 여백 뒤를 화면 배경으로 가린다. 근거: 이슈 #1047
+        modifier = modifier
+            .imePadding()
+            .background(ChalkakBackground)
+            .padding(horizontal = PhotoUploadSubmitButtonPadding)
+            .navigationBarsPadding()
+            .padding(bottom = PhotoUploadSubmitButtonPadding)
+            .testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
+        enabled = uiState.canSubmit,
+    )
 }
 
 @Composable
@@ -492,6 +508,7 @@ private const val DESCRIPTION_MIN_LINES = 3
 private const val DESCRIPTION_MAX_LINES = 8
 private val PhotoUploadContentHorizontalPadding = 22.dp
 private val PhotoUploadBottomButtonSpace = 104.dp
+private val PhotoUploadSubmitButtonPadding = 26.dp
 
 private fun drawableResourceUrl(@DrawableRes resourceId: Int): String =
     "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"
@@ -527,5 +544,43 @@ private fun PhotoUploadScreenSelectedPreview() {
             ),
             onAction = {},
         )
+    }
+}
+
+@Preview(name = "하단 겹침 비활성", widthDp = 402, heightDp = 160)
+@Composable
+private fun PhotoUploadSubmitDisabledOverlapPreview() {
+    PhotoUploadSubmitOverlapPreview(PhotoUploadUiState())
+}
+
+@Preview(name = "하단 겹침 활성", widthDp = 402, heightDp = 160)
+@Composable
+private fun PhotoUploadSubmitEnabledOverlapPreview() {
+    PhotoUploadSubmitOverlapPreview(PhotoUploadUiState(selectedImage = "preview"))
+}
+
+@Preview(name = "하단 겹침 전시 중", widthDp = 402, heightDp = 160)
+@Composable
+private fun PhotoUploadSubmitSubmittingOverlapPreview() {
+    PhotoUploadSubmitOverlapPreview(PhotoUploadUiState(selectedImage = "preview", isSubmitting = true))
+}
+
+@Composable
+private fun PhotoUploadSubmitOverlapPreview(uiState: PhotoUploadUiState) {
+    ChalkakTheme {
+        Box(modifier = Modifier.fillMaxSize().background(ChalkakBackground)) {
+            Text(
+                text = "버튼 뒤로 겹친 이야기 내용입니다.\n".repeat(8),
+                color = ChalkakTheme.colors.textPrimary,
+                style = ChalkakTheme.typography.body,
+            )
+            PhotoUploadSubmitButton(
+                uiState = uiState,
+                onSubmit = {},
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+            )
+        }
     }
 }
