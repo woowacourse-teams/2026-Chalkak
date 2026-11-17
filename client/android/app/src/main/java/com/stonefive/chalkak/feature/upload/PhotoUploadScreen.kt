@@ -356,13 +356,13 @@ private fun PhotoUploadSubmitButton(
     ChalkakButton(
         text = if (uiState.isSubmitting) "전시 중..." else "전시하기",
         onClick = onSubmit,
-        // 비활성 버튼은 반투명이므로 버튼과 하단 여백 뒤를 화면 배경으로 가린다. 근거: 이슈 #1047
+        // 반투명 비활성 버튼 안쪽만 가리고, 여백과 둥근 모서리 밖은 투명하게 둔다. 근거: 이슈 #1047
         modifier = modifier
             .imePadding()
-            .background(ChalkakBackground)
             .padding(horizontal = PhotoUploadSubmitButtonPadding)
             .navigationBarsPadding()
             .padding(bottom = PhotoUploadSubmitButtonPadding)
+            .background(ChalkakBackground, ChalkakTheme.shapes.button)
             .testTag(PHOTO_UPLOAD_SUBMIT_BUTTON_TAG),
         enabled = uiState.canSubmit,
     )
