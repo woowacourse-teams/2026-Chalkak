@@ -123,7 +123,9 @@ final class RemoteImageCache {
 
         let image = try await task.value
         cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
-        keysByURL[url, default: []].insert(key)
+        // 같은 URL을 여러 크기로 받을 때 그 URL의 밀려난 키도 함께 지워, URL 수가 적어도 키가 쌓이지 않게 한다.
+        let aliveKeys = (keysByURL[url] ?? []).filter { cache.object(forKey: $0 as NSString) != nil }
+        keysByURL[url] = aliveKeys.union([key])
         pruneEvictedKeysIfNeeded()
         return image
     }
