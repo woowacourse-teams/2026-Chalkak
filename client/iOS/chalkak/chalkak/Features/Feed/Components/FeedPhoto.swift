@@ -162,7 +162,10 @@ struct FeedPhoto: View {
                     var transaction = Transaction()
                     transaction.disablesAnimations = true
                     withTransaction(transaction) {
-                        imageSwap.receiveOriginal(image, signature: signatureImage, isSettled: zoom.isSettled)
+                        // task 안의 `zoom`은 task가 시작될 때 복사된 값이라 await 뒤에도 갱신되지 않는다.
+                        // 전환 상태는 @State인 imageSwap이 기억한 현재 값으로 판단한다.
+                        // 근거: 이슈 #1043 (전환이 끝난 뒤 온 원본이 대기에 갇혀 썸네일이 남음)
+                        imageSwap.receiveOriginal(image, signature: signatureImage)
                     }
                 }
                 // 목록에서 받은 썸네일도 원본 비율이다. 원본은 화질만 교체하고
@@ -177,8 +180,11 @@ struct FeedPhoto: View {
                     reportReadyIfMeasured()
                 }
             }
-            .onChange(of: zoom.isSettled) { _, isSettled in
-                guard isSettled else { return }
+            .onChange(of: zoom.isSettled, initial: true) { _, isSettled in
+                guard isSettled else {
+                    imageSwap.startTransition()
+                    return
+                }
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
                 withTransaction(transaction) { imageSwap.finishTransition() }
@@ -406,18 +412,30 @@ struct FeedPhotoImageSwap {
     private(set) var originalSignature: UIImage?
     private var pendingOriginal: UIImage?
     private var pendingSignature: UIImage?
+    // 사진이 멈춰 있는지. 멈춘 뒤 도착한 원본은 기다리지 않고 바로 보여주고,
+    // 열림·뒤로 스와이프·닫기로 움직이는 동안 도착한 원본은 다시 멈출 때까지 기다린다.
+    private var isSettled = false
 
     init(displayedImage: UIImage?) {
         self.displayedImage = displayedImage
     }
 
-    mutating func receiveOriginal(_ image: UIImage, signature: UIImage? = nil, isSettled: Bool) {
+    mutating func receiveOriginal(_ image: UIImage, signature: UIImage? = nil) {
         pendingOriginal = image
         pendingSignature = signature
-        if isSettled || displayedImage == nil { finishTransition() }
+        if isSettled || displayedImage == nil { revealOriginal() }
+    }
+
+    mutating func startTransition() {
+        isSettled = false
     }
 
     mutating func finishTransition() {
+        isSettled = true
+        revealOriginal()
+    }
+
+    private mutating func revealOriginal() {
         guard let pendingOriginal else { return }
         displayedImage = pendingOriginal
         originalSignature = pendingSignature
