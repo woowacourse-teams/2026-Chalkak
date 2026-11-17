@@ -76,7 +76,7 @@ struct HomeScreen: View {
                             onToggleExpanded: { withAnimation(.easeInOut) { isFeedbackExpanded.toggle() } },
                             result: viewModel.viewState.aiReview.review?.result,
                             isSubmitting: viewModel.viewState.aiReview.isSubmitting,
-                            pollingTimedOut: viewModel.viewState.aiReview.pollingTimedOut
+                            pollingTimedOut: viewModel.showsFeedbackPollingTimeout
                         )
                         .padding(.horizontal, theme.spacing.screenHorizontal)
                         .padding(.top, theme.spacing.lg)

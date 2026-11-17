@@ -77,6 +77,13 @@ final class HomeViewModel {
         }
     }
 
+    /// 피드백 카드 아래에 "처리가 오래 걸리고 있어요"를 보여 줄지. 카드가 진행 중(`.processing`)일 때만 보여 준다.
+    /// `pollingTimedOut`은 오늘 사진이 없어져 AI 리뷰 조회가 멈춰도 그대로 남는다.
+    /// 예: 어제 리뷰가 시간 초과된 채 날짜가 바뀌어 업로드 전 안내가 되면, 안내 카드에 이 문구가 붙지 않아야 한다.
+    var showsFeedbackPollingTimeout: Bool {
+        feedbackPhase == .processing && viewState.aiReview.pollingTimedOut
+    }
+
     /// 피드백 카드를 눌렀을 때 홈 화면이 할 일. 카드 상태(`feedbackPhase`)로만 정한다.
     var feedbackTapAction: HomeFeedbackTapAction {
         switch feedbackPhase {

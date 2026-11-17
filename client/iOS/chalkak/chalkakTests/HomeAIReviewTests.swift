@@ -489,6 +489,35 @@ struct HomeAIReviewTests {
         #expect(failed.feedbackPhase == nil)
     }
 
+    @Test("시간 초과 뒤 업로드 전 안내로 바뀌면 시간 초과 문구를 보여 주지 않는다")
+    func guidanceCardHidesStaleTimeout() async {
+        // Given 승인된 오늘 사진의 AI 리뷰가 5분 넘게 PROCESSING이라 시간 초과 문구가 보이는 상태
+        // When  홈을 새로고침했더니 오늘 올린 사진이 없다(날짜가 바뀜 등)
+        // Then  카드는 업로드 전 안내이고 시간 초과 문구는 보이지 않는다
+        let clock = ReviewClock()
+        let repository = ReviewRepositoryProbe(fetches: [.value(Self.review(.processing))])
+        let sleep = ReviewSleepProbe()
+        let hero = HeroLoaderProbe()
+        hero.todayStatus = .approved
+        let model = Self.homeModel(hero, repository: repository, sleep: sleep, now: { clock.now })
+        await model.resume()
+        let observer = Task { await model.observeAIReview(postID: HeroLoaderProbe.postID) }
+        await sleep.waitForCalls(1)
+        clock.now = clock.now.addingTimeInterval(300)
+        await sleep.advance()
+        await sleep.waitForCalls(2)
+        #expect(model.feedbackPhase == .processing)
+        #expect(model.showsFeedbackPollingTimeout)
+        observer.cancel()
+        await observer.value
+
+        hero.todayStatus = nil
+        await model.refresh()
+
+        #expect(model.feedbackPhase == .beforeUpload)
+        #expect(!model.showsFeedbackPollingTimeout)
+    }
+
     /// 안내 카드 TC의 오늘 날짜. 한 주(9/6–9/12)가 한 달 안에 있어 달력 조회가 한 번이다.
     private static let heroDate = RecordMonth.calendar.date(from: DateComponents(year: 2026, month: 9, day: 9))!
 
@@ -497,7 +526,8 @@ struct HomeAIReviewTests {
         _ hero: HeroLoaderProbe,
         repository: ReviewRepositoryProbe?,
         isAuthenticated: Bool = true,
-        sleep: ReviewSleepProbe = ReviewSleepProbe()
+        sleep: ReviewSleepProbe = ReviewSleepProbe(),
+        now: @escaping @MainActor () -> Date = { Date(timeIntervalSince1970: 1_000) }
     ) -> HomeViewModel {
         let today = heroDate
         return HomeViewModel(
@@ -506,6 +536,7 @@ struct HomeAIReviewTests {
             dateProvider: { today },
             isAuthenticated: { isAuthenticated },
             aiReviewRepository: repository,
+            aiReviewNow: now,
             aiReviewSleep: { _ in try await sleep.sleep() }
         )
     }
