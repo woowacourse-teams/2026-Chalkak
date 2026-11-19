@@ -20,6 +20,8 @@ public interface JevPromptVersionRepository {
 
     Optional<JevPromptVersion> findActiveByRole(JevPromptRole role);
 
+    long findLatestDisabledRevision();
+
     VersionPage findByRole(
             JevPromptRole role,
             int page,

@@ -24,5 +24,8 @@ public interface JevPromptVersionJpaRepository extends JpaRepository<JevPromptVe
 
     Optional<JevPromptVersion> findByRoleAndActiveTrue(JevPromptRole role);
 
+    @Query("SELECT COALESCE(MAX(prompt.disabledRevision), 0) FROM JevPromptVersion prompt")
+    long findLatestDisabledRevision();
+
     Slice<JevPromptVersion> findByRole(JevPromptRole role, Pageable pageable);
 }

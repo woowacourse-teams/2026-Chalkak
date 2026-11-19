@@ -2,8 +2,11 @@ package com.chalkak.backend.jev.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.chalkak.backend.post.domain.Post;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -39,7 +42,7 @@ public class JevModerationRun {
     @Column(name = "created_by_admin_id", updatable = false)
     private UUID createdByAdminId;
 
-    @Column(name = "classification_id", nullable = false, updatable = false)
+    @Column(name = "classification_id", updatable = false)
     private UUID classificationId;
 
     @Column(name = "classification_prompt_id", updatable = false)
@@ -62,6 +65,19 @@ public class JevModerationRun {
 
     @Column(name = "finished_at")
     private Instant finishedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private JevDisposition disposition;
+
+    @Column(name = "application_reason", length = 120)
+    private String applicationReason;
+
+    @Column(name = "applied_at")
+    private Instant appliedAt;
+
+    @Column(name = "control_revision", nullable = false, updatable = false)
+    private long controlRevision;
 
     @Column(name = "dispatch_at", nullable = false)
     private Instant dispatchAt;
@@ -101,16 +117,65 @@ public class JevModerationRun {
         return result;
     }
 
+    public static JevModerationRun production(
+            Post post,
+            JevPromptVersion classification,
+            JevPromptVersion photo,
+            JevTopicCategory category,
+            String manualReason,
+            long controlRevision,
+            Instant now
+    ) {
+        JevModerationRun result = new JevModerationRun();
+        result.id = UUID.randomUUID();
+        result.postId = post.getId();
+        result.topicId = post.getTopic().getId();
+        result.topicTitle = post.getTopic().getTitle();
+        result.storageKey = post.getPhoto().getOriginalStorageKey();
+        result.controlRevision = controlRevision;
+        result.classificationId = category == null ? null : category.getId();
+        result.classificationPromptId = classification == null ? null : classification.getId();
+        result.photoPromptId = photo == null ? null : photo.getId();
+        result.phase = JevPhase.ready(now);
+        result.dispatchAt = now;
+        result.createdAt = now;
+        if (manualReason != null) {
+            result.suspend(manualReason, now);
+        }
+        return result;
+    }
+
     public void updatePhase(JevPhase phase) {
         this.phase = phase;
     }
 
     public void complete(JevEvaluation evaluation, Instant now) {
-        if (finishedAt != null) {
+        this.evaluation = evaluation;
+        if (finishedAt == null) {
+            this.finishedAt = now;
+        }
+    }
+
+    public void suspend(String reason, Instant now) {
+        if (evaluation == null) {
+            evaluation = JevEvaluation.review(reason);
+        }
+        if (finishedAt == null) {
+            finishedAt = now;
+        }
+    }
+
+    public void apply(
+            JevDisposition disposition,
+            String reason,
+            Instant now
+    ) {
+        if (appliedAt != null) {
             return;
         }
-        this.evaluation = evaluation;
-        this.finishedAt = now;
+        this.disposition = disposition;
+        this.applicationReason = reason;
+        this.appliedAt = now;
     }
 
     public void postponeDispatch(Instant next) {

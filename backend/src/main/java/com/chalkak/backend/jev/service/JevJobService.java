@@ -5,23 +5,19 @@ import com.chalkak.backend.exception.ErrorCode;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.jev.domain.JevCallResult;
 import com.chalkak.backend.jev.domain.JevChoiceQuestion;
-import com.chalkak.backend.jev.domain.JevDecision;
 import com.chalkak.backend.jev.domain.JevEvaluation;
 import com.chalkak.backend.jev.domain.JevModerationRun;
 import com.chalkak.backend.jev.domain.JevPhase;
 import com.chalkak.backend.jev.domain.JevPromptDraft;
 import com.chalkak.backend.jev.domain.JevTopicCategory;
+import com.chalkak.backend.jev.domain.JevSourcePolicy;
 import com.chalkak.backend.jev.repository.JevJobRepository;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +26,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.SerializationFeature;
 
 @Service
 @RequiredArgsConstructor
@@ -42,8 +36,9 @@ public class JevJobService {
     private final PostRepository posts;
     private final TopicRepository topics;
     private final JevResponseParser parser;
-    private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final JevClassificationKeyFactory keys;
+    private final JevAutomationService automation;
 
     @Transactional
     public JevModerationRun createPreview(
@@ -122,11 +117,20 @@ public class JevJobService {
 
     @Transactional
     public JevJobClaim claim(UUID id) {
-        JevModerationRun run = lockRun(id);
+        Execution execution = lockExecution(id);
+        JevModerationRun run = execution.run();
         if (run.getFinishedAt() != null) {
             return JevJobClaim.idle("STOP", id);
         }
+        if (!run.isPreview()
+                && "IMAGE_NOT_READY".equals(JevSourcePolicy.findHoldReason(execution.post()))) {
+            return JevJobClaim.idle("WAIT", id);
+        }
         Instant now = clock.instant();
+        closeIfHeld(execution, now);
+        if (run.getFinishedAt() != null) {
+            return JevJobClaim.idle("STOP", id);
+        }
         JevTopicCategory category = lockCategory(run.getClassificationId());
         category.updatePhase(category.getPhase().refresh(now));
         if (!category.getPhase().completed()) {
@@ -139,7 +143,7 @@ public class JevJobService {
                     category,
                     category.getPhase(),
                     "CLASSIFY",
-                    run.getPreviewDraft().classification().questions()
+                    automation.resolve(run).classification().questions()
             );
         }
         if (category.getPhase().failure() != null || category.getCategory() == null) {
@@ -160,7 +164,7 @@ public class JevJobService {
                 category,
                 run.getPhase(),
                 "INSPECT",
-                createPhotoQuestions(run.getPreviewDraft(), category.getCategory())
+                createPhotoQuestions(automation.resolve(run), category.getCategory())
         );
     }
 
@@ -170,7 +174,8 @@ public class JevJobService {
             String stage,
             JevCallResult result
     ) {
-        JevModerationRun run = lockRun(id);
+        Execution execution = lockExecution(id);
+        JevModerationRun run = execution.run();
         Instant now = clock.instant();
         if ("CLASSIFICATION".equals(stage)) {
             JevTopicCategory category = lockCategory(run.getClassificationId());
@@ -189,11 +194,12 @@ public class JevJobService {
                     && category.getPhase().failure() == null) {
                 category.complete(parser.parse(
                         result.rawResponse(),
-                        run.getPreviewDraft().model(),
-                        run.getPreviewDraft().classification().questions()
+                        automation.resolve(run).model(),
+                        automation.resolve(run).classification().questions()
                 ));
             }
             run.postponeDispatch(now);
+            closeIfHeld(execution, now);
             return;
         }
         if (!"PHOTO".equals(stage)) {
@@ -210,25 +216,55 @@ public class JevJobService {
                 now,
                 ThreadLocalRandom.current().nextLong(1001)
         ));
-        if (run.getFinishedAt() == null && run.getPhase().completed()) {
+        if (run.getPhase().completed()) {
             if (result.errorCode() == null && result.callId().equals(previous.callId())
                     && run.getPhase().failure() == null) {
                 JevEvaluation evaluation = parser.parse(
                         result.rawResponse(),
-                        run.getPreviewDraft().model(),
-                        run.getPreviewDraft().photo().questions()
+                        automation.resolve(run).model(),
+                        automation.resolve(run).photo().questions()
                 );
                 run.complete(evaluation, now);
+                closeIfHeld(execution, now);
                 return;
             }
-            run.complete(failedEvaluation(run.getPhase().failure()), now);
+            if (run.getFinishedAt() == null) {
+                run.complete(failedEvaluation(run.getPhase().failure()), now);
+            }
         }
         run.postponeDispatch(now);
+        closeIfHeld(execution, now);
     }
 
     private JevModerationRun lockRun(UUID id) {
         return jobs.findRunForUpdate(id).orElseThrow(() -> new NotFoundException(
                 ErrorCode.BUSINESS_ERROR, "Jev 검수 작업을 찾을 수 없습니다."));
+    }
+
+    private Execution lockExecution(UUID id) {
+        var target = jobs.findTarget(id).orElseThrow(() -> new NotFoundException(
+                ErrorCode.BUSINESS_ERROR, "Jev 검수 작업을 찾을 수 없습니다."));
+        Post post = target.preview() ? null : posts.findByIdForUpdate(target.postId()).orElse(null);
+        return new Execution(lockRun(id), post);
+    }
+
+    private void closeIfHeld(Execution execution, Instant now) {
+        JevModerationRun run = execution.run();
+        if (run.isPreview()) {
+            return;
+        }
+        String sourceReason = JevSourcePolicy.findHoldReason(execution.post());
+        if ("IMAGE_NOT_READY".equals(sourceReason)) {
+            return;
+        }
+        if (sourceReason != null) {
+            run.suspend(sourceReason, now);
+            return;
+        }
+        String reason = automation.findHoldReason(run);
+        if (reason != null) {
+            run.suspend(reason, now);
+        }
     }
 
     private JevCallResult normalizeResult(
@@ -256,6 +292,9 @@ public class JevJobService {
     }
 
     private JevTopicCategory lockCategory(UUID id) {
+        if (id == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "분류 호출이 없는 검수 작업입니다.");
+        }
         return jobs.findCategoryForUpdate(id).orElseThrow(() -> new NotFoundException(
                 ErrorCode.BUSINESS_ERROR, "Jev 분류 작업을 찾을 수 없습니다."));
     }
@@ -272,7 +311,7 @@ public class JevJobService {
                 run.getId(),
                 phase.callId(),
                 phase.deadline(),
-                run.getPreviewDraft().model(),
+                automation.resolve(run).model(),
                 run.getTopicTitle(),
                 category.getCategory(),
                 questions,
@@ -299,39 +338,19 @@ public class JevJobService {
     }
 
     private String classificationKey(Topic topic, JevPromptDraft draft) {
-        return classificationKey(
+        return keys.create(
                 topic.getId(),
                 topic.getTitle(),
-                draft
+                draft.model(),
+                draft.classification(),
+                "preview"
         );
-    }
-
-    private String classificationKey(
-            UUID topicId,
-            String title,
-            JevPromptDraft draft
-    ) {
-        String configuration = objectMapper.writer()
-                .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
-                .writeValueAsString(draft.classification());
-        String content = topicId + "\n" + title + "\n" + draft.model() + "\n" + configuration;
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(content.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is required", exception);
-        }
     }
 
     private JevEvaluation failedEvaluation(String error) {
-        return new JevEvaluation(
-                Map.of(),
-                Map.of(),
-                JevDecision.HUMAN_REVIEW,
-                null,
-                null,
-                null,
-                error == null ? "INVALID_RESPONSE" : error
-        );
+        return JevEvaluation.review(error == null ? "INVALID_RESPONSE" : error);
+    }
+
+    private record Execution(JevModerationRun run, Post post) {
     }
 }

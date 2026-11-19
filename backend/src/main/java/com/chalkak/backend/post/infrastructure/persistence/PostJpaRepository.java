@@ -43,6 +43,9 @@ public interface PostJpaRepository extends JpaRepository<Post, UUID> {
             """)
     Optional<Post> findByIdForUpdate(@Param("postId") UUID postId);
 
+    @Query("SELECT post.author.id FROM Post post WHERE post.id = :postId")
+    Optional<UUID> findAuthorIdByPostId(@Param("postId") UUID postId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT post

@@ -3,6 +3,7 @@ package com.chalkak.backend.jev.infrastructure.persistence;
 import com.chalkak.backend.jev.domain.JevModerationRun;
 import com.chalkak.backend.jev.domain.JevTopicCategory;
 import com.chalkak.backend.jev.repository.JevJobRepository;
+import com.chalkak.backend.jev.repository.JevJobTarget;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +56,21 @@ public class JevJobRepositoryImpl implements JevJobRepository {
     @Override
     public Optional<JevModerationRun> findRunForUpdate(UUID id) {
         return runs.findForUpdate(id);
+    }
+
+    @Override
+    public Optional<JevJobTarget> findTarget(UUID id) {
+        return runs.findTarget(id);
+    }
+
+    @Override
+    public Optional<JevModerationRun> findProductionRunByPostId(UUID postId) {
+        return runs.findByPostIdAndPreviewFalse(postId);
+    }
+
+    @Override
+    public List<UUID> findUnappliedRunIds() {
+        return runs.findUnappliedIds();
     }
 
     @Override

@@ -1,0 +1,105 @@
+package com.chalkak.backend.jev.service;
+
+import com.chalkak.backend.jev.domain.JevDecision;
+import com.chalkak.backend.jev.domain.JevDisposition;
+import com.chalkak.backend.jev.domain.JevModerationRun;
+import com.chalkak.backend.jev.domain.JevSourcePolicy;
+import com.chalkak.backend.jev.repository.JevJobRepository;
+import com.chalkak.backend.notification.service.NotificationService;
+import com.chalkak.backend.post.domain.ModerationStatus;
+import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.repository.PostRepository;
+import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class JevResultApplicationService {
+
+    private final JevJobRepository jobs;
+    private final PostRepository posts;
+    private final UserRepository users;
+    private final JevAutomationService automation;
+    private final NotificationService notifications;
+    private final Clock clock;
+
+    public List<UUID> findUnappliedRunIds() {
+        return jobs.findUnappliedRunIds();
+    }
+
+    @Transactional
+    public void apply(UUID id) {
+        var target = jobs.findTarget(id).orElse(null);
+        if (target == null || target.preview()) {
+            return;
+        }
+        // 회원→게시물→운영 제어→작업 순서. 탈퇴/등록/삭제와 잠금 순서를 뒤집지 않는다.
+        posts.findAuthorIdByPostId(target.postId()).ifPresent(users::findByIdForUpdate);
+        Post post = posts.findByIdForUpdate(target.postId()).orElse(null);
+        automation.lockControl();
+        JevModerationRun run = jobs.findRunForUpdate(id).orElse(null);
+        if (run == null || run.getFinishedAt() == null || run.getAppliedAt() != null) {
+            return;
+        }
+        Instant now = clock.instant();
+        String sourceReason = JevSourcePolicy.findHoldReason(post);
+        if ("IMAGE_NOT_READY".equals(sourceReason)) {
+            return;
+        }
+        if (sourceReason != null) {
+            run.apply(
+                    JevDisposition.SKIPPED,
+                    sourceReason,
+                    now
+            );
+            return;
+        }
+        String controlReason = automation.findHoldReason(run);
+        if (controlReason != null) {
+            String reason = run.getClassificationPromptId() == null && run.getEvaluation() != null
+                    && run.getEvaluation().error() != null
+                            ? run.getEvaluation().error()
+                            : controlReason;
+            run.apply(
+                    JevDisposition.ADMIN_REVIEW,
+                    reason,
+                    now
+            );
+            return;
+        }
+        if (run.getEvaluation() == null || run.getEvaluation().error() != null
+                || run.getEvaluation().recommendation() != JevDecision.APPROVE) {
+            String reason = run.getEvaluation() != null && run.getEvaluation().error() == null
+                    ? "MODEL_RECOMMENDATION"
+                    : "TECHNICAL_REVIEW";
+            run.apply(
+                    JevDisposition.ADMIN_REVIEW,
+                    reason,
+                    now
+            );
+            return;
+        }
+        post.approve(now);
+        run.apply(
+                JevDisposition.AUTO_APPROVED,
+                "ALL_QUESTIONS_APPROVED",
+                now
+        );
+        // 실제 승인에만 기존 사용자 알림을 만든다. AI 실행에 가짜 관리자/감사 ID를 만들지 않는다.
+        notifications.createForModeration(
+                post,
+                run.getId(),
+                ModerationStatus.APPROVED,
+                null,
+                now
+        );
+    }
+
+}

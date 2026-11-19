@@ -46,6 +46,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class PostCommandServiceTest {
@@ -76,6 +77,8 @@ class PostCommandServiceTest {
     private PostLikeCounterRepository likeCounters;
     @Mock
     private PhotoRepository photos;
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @Test
     @DisplayName("발급할 업로드의 회원, 초기 상태, 만료와 저장 ID로 요청한 URL을 반환한다")

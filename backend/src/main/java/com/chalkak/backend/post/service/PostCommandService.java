@@ -148,6 +148,7 @@ public class PostCommandService {
         }
         Post savedPost = postRepository.save(post);
         postLikeCounterRepository.create(savedPost.getId());
+        applicationEventPublisher.publishEvent(new PostCreatedEvent(savedPost.getId()));
         if (savedPost.getModerationStatus() == ModerationStatus.PENDING) {
             publishPostModerationPending(savedPost.getId());
         }

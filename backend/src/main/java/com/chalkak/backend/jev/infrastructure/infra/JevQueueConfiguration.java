@@ -13,18 +13,19 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = "chalkak.jev", name = "worker-enabled", havingValue = "true")
 public class JevQueueConfiguration {
 
     @Bean(defaultCandidate = false)
     public ThreadPoolTaskScheduler jevTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
+        // SQS 전송 지연이 이미 받은 결과의 DB 반영을 막지 않도록 두 작업을 분리해 실행한다.
+        scheduler.setPoolSize(2);
         scheduler.setThreadNamePrefix("jev-dispatch-");
         return scheduler;
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "chalkak.jev", name = "worker-enabled", havingValue = "true")
     public JevJobPublisher jevJobPublisher(
             @Qualifier("notificationSqsClient") SqsClient client,
             @Value("${chalkak.jev.queue-url}") String queueUrl,

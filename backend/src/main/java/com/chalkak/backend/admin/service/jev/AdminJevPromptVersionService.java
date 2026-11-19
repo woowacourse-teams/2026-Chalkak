@@ -106,6 +106,9 @@ public class AdminJevPromptVersionService {
         AdminAuditSnapshot before = activationSnapshot(target.getRole(), current);
         if (current != null) {
             current.deactivate();
+            if (!active) {
+                current.disable(clock.instant(), repository.findLatestDisabledRevision() + 1);
+            }
             repository.flush();
         }
         if (active) {

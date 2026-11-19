@@ -25,5 +25,11 @@ public interface JevJobRepository {
 
     Optional<JevModerationRun> findRunForUpdate(UUID id);
 
+    Optional<JevJobTarget> findTarget(UUID id);
+
+    Optional<JevModerationRun> findProductionRunByPostId(UUID postId);
+
+    List<UUID> findUnappliedRunIds();
+
     List<UUID> findDueRunIds(Instant now);
 }

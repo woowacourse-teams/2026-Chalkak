@@ -11,4 +11,16 @@ public record JevEvaluation(
         Long outputTokens,
         String error
 ) {
+
+    public static JevEvaluation review(String error) {
+        return new JevEvaluation(
+                Map.of(),
+                Map.of(),
+                JevDecision.HUMAN_REVIEW,
+                null,
+                null,
+                null,
+                error
+        );
+    }
 }

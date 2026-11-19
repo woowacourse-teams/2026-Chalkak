@@ -47,6 +47,11 @@ public class JevPromptVersionRepositoryImpl implements JevPromptVersionRepositor
     }
 
     @Override
+    public long findLatestDisabledRevision() {
+        return jpaRepository.findLatestDisabledRevision();
+    }
+
+    @Override
     public VersionPage findByRole(
             JevPromptRole role,
             int page,
