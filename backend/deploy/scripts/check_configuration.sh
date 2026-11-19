@@ -52,6 +52,8 @@ required_keys=(
   NOTIFICATION_FCM_PROJECT_ID
   NOTIFICATION_FCM_CREDENTIALS_PATH
   NOTIFICATION_SQS_QUEUE_URL
+  JEV_WORKER_ENABLED
+  JEV_WORK_QUEUE_URL
   S3_BUCKET
   S3_PREFIX
   CLOUDFRONT_BASE_URL
@@ -79,6 +81,17 @@ profile="$(read_value SPRING_PROFILES_ACTIVE)"
 db_host="$(read_value DB_HOST)"
 server_port="$(read_value SERVER_PORT)"
 aws_region="$(read_value AWS_REGION)"
+jev_worker_enabled="$(read_value JEV_WORKER_ENABLED)"
+jev_work_queue_url="$(read_value JEV_WORK_QUEUE_URL)"
+if [[ "${jev_worker_enabled}" != true && "${jev_worker_enabled}" != false ]]; then
+  echo "JEV_WORKER_ENABLED must be true or false." >&2
+  exit 1
+fi
+if [[ "${jev_worker_enabled}" == true
+      && ! "${jev_work_queue_url}" =~ ^https://sqs\.ap-northeast-2\.amazonaws\.com/[0-9]{12}/[A-Za-z0-9_-]+$ ]]; then
+  echo "JEV_WORK_QUEUE_URL must be a Standard queue URL in ap-northeast-2." >&2
+  exit 1
+fi
 db_password="$(read_value DB_PASSWORD)"
 callback_secret="$(read_value IMAGE_PROCESSOR_CALLBACK_SECRET)"
 social_signup_token_secret="$(read_value SOCIAL_SIGNUP_TOKEN_SECRET)"

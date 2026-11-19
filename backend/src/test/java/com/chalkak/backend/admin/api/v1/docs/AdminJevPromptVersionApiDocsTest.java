@@ -24,6 +24,10 @@ class AdminJevPromptVersionApiDocsTest extends IntegrationTestSupport {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/jev-previews'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/jev-previews/{jobId}'].get")
+                        .exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/admin/jev-prompt-versions'].post.responses['201']")
                         .exists())
@@ -36,6 +40,15 @@ class AdminJevPromptVersionApiDocsTest extends IntegrationTestSupport {
                                 "JEV_PHOTO_MODERATION")));
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/jev-previews']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/jev-prompt-versions']").doesNotExist());
+        mockMvc.perform(get("/v3/api-docs/internal-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/internal/v1/jev-moderation-jobs/claims'].post.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/JevJobClaimRequest"))
+                .andExpect(jsonPath(
+                        "$.paths['/internal/v1/jev-moderation-jobs/{jobId}/results'].post.responses['204']")
+                        .exists());
     }
 }
