@@ -16,6 +16,13 @@ import com.chalkak.backend.jev.domain.JevPromptRole;
 import com.chalkak.backend.jev.domain.JevPromptVersion;
 import com.chalkak.backend.jev.repository.JevJobRepository;
 import com.chalkak.backend.notification.service.NotificationService;
+import com.chalkak.backend.notification.service.NotificationDeliveryResult;
+import com.chalkak.backend.jev.infrastructure.infra.JevSlackDispatcher;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import java.util.Objects;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.service.PostCommandService;
@@ -84,6 +91,11 @@ class JevProductionModerationTest extends IntegrationTestSupport {
     private JevJobPublisher publisher;
     @MockitoSpyBean
     private NotificationService notifications;
+
+    @Autowired
+    private JevSlackService slackService;
+    @Autowired
+    private JevSlackDispatcher slackDispatcher;
 
     private Instant now;
     private JevPromptVersion classification;
@@ -482,6 +494,115 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         // Then
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("자동 승인에는 Slack이 없고 반려 추천은 결과 후 DB 알림만 예약한다")
+    void slack_rejectRecommendation_isDurableAndDoesNotSendInitially() {
+        UUID id = job(createPost(insertUpload(true)));
+        finish(id, "reject");
+        application.apply(id);
+        assertThat(execution.getRun(id).getSlackDelivery().status()).isEqualTo("PENDING");
+        verifyNoInteractions(notificationSender);
+        given(notificationSender.deliver(any())).willAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return delivery(true, false);
+        });
+        slackDispatcher.deliver(id);
+        slackDispatcher.deliver(id);
+        assertThat(execution.getRun(id).getSlackDelivery().status()).isEqualTo("SENT");
+        assertThat(status(execution.getRun(id).getPostId())).isEqualTo("PENDING");
+        verify(notificationSender, times(1)).deliver(any());
+    }
+
+    @Test
+    @DisplayName("Slack 재시도는 DB를 다시 읽고 1분·5분 대기하며 최초 포함 세 번에 멈춘다")
+    void slack_transientFailure_retriesThreeTimesWithoutModelCall() {
+        UUID id = job(createPost(insertUpload(true)));
+        finish(id, "reject");
+        application.apply(id);
+        var first = slackService.claim(id);
+        assertThat(slackService.claim(id)).isNull();
+        slackService.finish(
+                id,
+                first.token(),
+                delivery(false, true)
+        );
+        assertThat(slackService.findDueIds()).doesNotContain(id);
+        given(clock.instant()).willReturn(now.plusSeconds(60));
+        var second = slackService.claim(id);
+        assertThat(second).isNotNull();
+        slackService.finish(
+                id,
+                second.token(),
+                delivery(false, true)
+        );
+        // 이전 시도의 성공 응답이 늦게 와도 새 시도를 성공으로 바꾸지 않는다.
+        slackService.finish(
+                id,
+                first.token(),
+                delivery(true, false)
+        );
+        given(clock.instant()).willReturn(now.plusSeconds(360));
+        var third = slackService.claim(id);
+        slackService.finish(
+                id,
+                third.token(),
+                delivery(false, true)
+        );
+        assertThat(execution.getRun(id).getSlackDelivery().status()).isEqualTo("FAILED");
+        assertThat(execution.getRun(id).getSlackDelivery().history()).hasSize(3);
+        assertThat(slackService.findDueIds()).doesNotContain(id);
+        assertThat(execution.getRun(id).getPhase().calls()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("삭제된 사진의 대기 Slack은 보내지 않고 이력만 남긴다")
+    void slack_deletedPost_skipsDelivery() {
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        finish(id, "reject");
+        application.apply(id);
+        posts.deletePost(USER, post);
+        slackDispatcher.deliver(id);
+        assertThat(execution.getRun(id).getSlackDelivery().status()).isEqualTo("SKIPPED");
+        verifyNoInteractions(notificationSender);
+    }
+
+    @Test
+    @DisplayName("동시 Slack 확보 요청은 실제 DB에서 전송권 하나만 발급한다")
+    void slack_concurrentClaims_reservesOnce() throws Exception {
+        UUID id = job(createPost(insertUpload(true)));
+        finish(id, "reject");
+        application.apply(id);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                start.await();
+                return slackService.claim(id);
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return slackService.claim(id);
+            });
+            start.countDown();
+            var claims = java.util.stream.Stream.of(
+                    first.get(10, TimeUnit.SECONDS),
+                    second.get(10, TimeUnit.SECONDS)
+            ).filter(Objects::nonNull).toList();
+            assertThat(claims).hasSize(1);
+        }
+        assertThat(execution.getRun(id).getSlackDelivery().attempts()).isEqualTo(1);
+    }
+
+    private NotificationDeliveryResult delivery(boolean sent, boolean retryable) {
+        return new NotificationDeliveryResult(
+                sent,
+                retryable,
+                sent ? null : "SLACK_NETWORK_ERROR",
+                sent ? 200 : null,
+                null
+        );
     }
 
     private JevPromptVersion createPrompt(JevPromptRole role) {

@@ -14,12 +14,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import com.chalkak.backend.jev.domain.JevSlackDelivery;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class JevResultApplicationService {
 
@@ -29,6 +29,26 @@ public class JevResultApplicationService {
     private final JevAutomationService automation;
     private final NotificationService notifications;
     private final Clock clock;
+
+    private final boolean slackDeliveryEnabled;
+
+    public JevResultApplicationService(
+            JevJobRepository jobs,
+            PostRepository posts,
+            UserRepository users,
+            JevAutomationService automation,
+            NotificationService notifications,
+            Clock clock,
+            @Value("${chalkak.admin.notification.delivery-enabled:false}") boolean slackDeliveryEnabled
+    ) {
+        this.jobs = jobs;
+        this.posts = posts;
+        this.users = users;
+        this.automation = automation;
+        this.notifications = notifications;
+        this.clock = clock;
+        this.slackDeliveryEnabled = slackDeliveryEnabled;
+    }
 
     public List<UUID> findUnappliedRunIds() {
         return jobs.findUnappliedRunIds();
@@ -67,8 +87,8 @@ public class JevResultApplicationService {
                     && run.getEvaluation().error() != null
                             ? run.getEvaluation().error()
                             : controlReason;
-            run.apply(
-                    JevDisposition.ADMIN_REVIEW,
+            markForAdmin(
+                    run,
                     reason,
                     now
             );
@@ -79,8 +99,8 @@ public class JevResultApplicationService {
             String reason = run.getEvaluation() != null && run.getEvaluation().error() == null
                     ? "MODEL_RECOMMENDATION"
                     : "TECHNICAL_REVIEW";
-            run.apply(
-                    JevDisposition.ADMIN_REVIEW,
+            markForAdmin(
+                    run,
                     reason,
                     now
             );
@@ -102,4 +122,16 @@ public class JevResultApplicationService {
         );
     }
 
+    private void markForAdmin(
+            JevModerationRun run,
+            String reason,
+            Instant now
+    ) {
+        run.apply(
+                JevDisposition.ADMIN_REVIEW,
+                reason,
+                now
+        );
+        run.updateSlackDelivery(JevSlackDelivery.ready(now, slackDeliveryEnabled));
+    }
 }

@@ -42,4 +42,11 @@ public interface JevModerationRunJpaRepository extends JpaRepository<JevModerati
             ORDER BY run.dispatch_at, run.id LIMIT 20
             """, nativeQuery = true)
     List<UUID> findDueIds(@Param("now") Instant now);
+
+    @Query(value = """
+            SELECT id FROM jev_moderation_runs
+            WHERE slack_due_at <= :now
+            ORDER BY slack_due_at, id LIMIT 20
+            """, nativeQuery = true)
+    List<UUID> findDueSlackIds(@Param("now") Instant now);
 }

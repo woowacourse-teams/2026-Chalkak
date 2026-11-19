@@ -2,6 +2,8 @@ package com.chalkak.backend.notification.service;
 
 import com.chalkak.backend.post.service.PostModerationPendingEvent;
 import java.net.URI;
+import java.util.UUID;
+import java.time.Instant;
 
 public class NotificationMessageFactory {
 
@@ -21,6 +23,20 @@ public class NotificationMessageFactory {
                 "관리자 웹에서 검수하기",
                 URI.create(adminWebBaseUrl + "/posts/" + event.postId()),
                 event.occurredAt()
+        );
+    }
+    public NotificationMessage createReview(
+            UUID postId,
+            String title,
+            String summary,
+            Instant occurredAt
+    ) {
+        return new NotificationMessage(
+                title,
+                summary,
+                "관리자에서 확인",
+                URI.create(adminWebBaseUrl + "/posts/" + postId),
+                occurredAt
         );
     }
 }

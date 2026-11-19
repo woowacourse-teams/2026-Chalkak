@@ -76,6 +76,13 @@ public class JevModerationRun {
     @Column(name = "applied_at")
     private Instant appliedAt;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "slack_delivery", columnDefinition = "jsonb")
+    private JevSlackDelivery slackDelivery;
+
+    @Column(name = "slack_due_at")
+    private Instant slackDueAt;
+
     @Column(name = "control_revision", nullable = false, updatable = false)
     private long controlRevision;
 
@@ -180,6 +187,11 @@ public class JevModerationRun {
 
     public void postponeDispatch(Instant next) {
         this.dispatchAt = next;
+    }
+
+    public void updateSlackDelivery(JevSlackDelivery delivery) {
+        this.slackDelivery = delivery;
+        this.slackDueAt = delivery.dueAt();
     }
 
     public int reserveDispatch(Instant now) {

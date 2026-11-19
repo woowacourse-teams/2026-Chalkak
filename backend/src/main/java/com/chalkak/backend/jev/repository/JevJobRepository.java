@@ -32,4 +32,6 @@ public interface JevJobRepository {
     List<UUID> findUnappliedRunIds();
 
     List<UUID> findDueRunIds(Instant now);
+
+    List<UUID> findDueSlackIds(Instant now);
 }

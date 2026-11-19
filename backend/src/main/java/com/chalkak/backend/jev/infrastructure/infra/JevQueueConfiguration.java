@@ -24,6 +24,14 @@ public class JevQueueConfiguration {
         return scheduler;
     }
 
+    @Bean(defaultCandidate = false)
+    public ThreadPoolTaskScheduler jevSlackTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("jev-slack-");
+        return scheduler;
+    }
+
     @Bean
     @ConditionalOnProperty(prefix = "chalkak.jev", name = "worker-enabled", havingValue = "true")
     public JevJobPublisher jevJobPublisher(

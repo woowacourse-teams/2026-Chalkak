@@ -77,4 +77,9 @@ public class JevJobRepositoryImpl implements JevJobRepository {
     public List<UUID> findDueRunIds(Instant now) {
         return runs.findDueIds(now);
     }
+
+    @Override
+    public List<UUID> findDueSlackIds(Instant now) {
+        return runs.findDueSlackIds(now);
+    }
 }

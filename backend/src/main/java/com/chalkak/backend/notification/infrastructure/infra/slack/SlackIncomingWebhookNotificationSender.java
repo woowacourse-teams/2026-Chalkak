@@ -3,6 +3,7 @@ package com.chalkak.backend.notification.infrastructure.infra.slack;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import com.chalkak.backend.notification.service.NotificationMessage;
+import com.chalkak.backend.notification.service.NotificationDeliveryResult;
 import com.chalkak.backend.notification.service.NotificationSender;
 import java.net.URI;
 import java.util.List;
@@ -25,6 +26,11 @@ public final class SlackIncomingWebhookNotificationSender implements Notificatio
 
     @Override
     public boolean send(NotificationMessage message) {
+        return deliver(message).sent();
+    }
+
+    @Override
+    public NotificationDeliveryResult deliver(NotificationMessage message) {
         SlackPayload payload = createPayload(message);
 
         try {
@@ -32,10 +38,37 @@ public final class SlackIncomingWebhookNotificationSender implements Notificatio
                     .uri(webhookUri)
                     .contentType(APPLICATION_JSON)
                     .body(payload)
-                    .exchange((request, response) ->
-                            response.getStatusCode().is2xxSuccessful());
+                    .exchange((request, response) -> {
+                        int status = response.getStatusCode().value();
+                        boolean sent = response.getStatusCode().is2xxSuccessful();
+                        return new NotificationDeliveryResult(
+                                sent,
+                                status == 429 || status >= 500,
+                                sent ? null : "SLACK_HTTP_ERROR",
+                                status,
+                                parseRetryAfter(response.getHeaders().getFirst("Retry-After"))
+                        );
+                    });
         } catch (RestClientException exception) {
-            return false;
+            return new NotificationDeliveryResult(
+                    false,
+                    true,
+                    "SLACK_NETWORK_ERROR",
+                    null,
+                    null
+            );
+        }
+    }
+
+    private Long parseRetryAfter(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            long seconds = Long.parseLong(value.trim());
+            return seconds >= 0 && seconds <= 86400 ? seconds : null;
+        } catch (NumberFormatException exception) {
+            return null;
         }
     }
 
