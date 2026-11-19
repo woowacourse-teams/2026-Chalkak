@@ -88,6 +88,9 @@ public class JevJobService {
     public JevTopicCategory getCategory(UUID id) {
         // 조회 상세도 분류와 사진 호출을 분리해 공유 토큰을 중복 합산하지 않는다.
         JevModerationRun run = getRun(id);
+        if (run.getClassificationId() == null) {
+            return null;
+        }
         return jobs.findCategory(run.getClassificationId()).orElseThrow(() -> new NotFoundException(
                 ErrorCode.BUSINESS_ERROR, "Jev 주제 분류를 찾을 수 없습니다."));
     }
@@ -279,6 +282,7 @@ public class JevJobService {
                     .orElseThrow(() -> new BusinessException(
                             ErrorCode.BUSINESS_ERROR, "발급된 Jev 호출 식별자가 아닙니다."));
         }
+        var usage = parser.readUsage(result.rawResponse());
         return new JevCallResult(
                 result.callId(),
                 startedAt,
@@ -287,7 +291,9 @@ public class JevJobService {
                 result.errorCode(),
                 result.httpStatus(),
                 result.latencyMs(),
-                result.retryAfterSeconds()
+                result.retryAfterSeconds(),
+                usage.inputTokens(),
+                usage.outputTokens()
         );
     }
 

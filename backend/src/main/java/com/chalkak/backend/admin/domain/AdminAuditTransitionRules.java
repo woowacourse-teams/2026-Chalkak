@@ -92,7 +92,59 @@ final class AdminAuditTransitionRules {
             "deletedAt"
     );
 
+    private static final Set<String> JEV_EVALUATION_FIELDS = Set.of(
+            "runId",
+            "decision",
+            "topicDecision",
+            "safetyDecision",
+            "expressionDecision",
+            "sampling",
+            "evaluatedBy",
+            "evaluatedAt",
+            "evaluationReason"
+    );
+
     private AdminAuditTransitionRules() {
+    }
+
+    static boolean isJevEvaluationUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return (beforeState.isEmpty() || (beforeState.hasExactlyFields(JEV_EVALUATION_FIELDS)
+                && Objects.equals(beforeState.value("runId"), afterState.value("runId"))))
+                && afterState.hasExactlyFields(JEV_EVALUATION_FIELDS)
+                && isJevDecision(afterState.value("decision"))
+                && isOptionalJevDecision(afterState.value("topicDecision"))
+                && isOptionalJevDecision(afterState.value("safetyDecision"))
+                && isOptionalJevDecision(afterState.value("expressionDecision"))
+                && afterState.value("sampling") instanceof String sampling
+                && Set.of(
+                        "RANDOM",
+                        "ERROR_ANALYSIS",
+                        "UNSPECIFIED"
+                ).contains(sampling)
+                && actorAdminId.toString().equals(afterState.value("evaluatedBy"))
+                && isInstant(afterState.value("evaluatedAt"));
+    }
+
+    static boolean isPostModerationCorrected(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(POST_MODERATION_BEFORE_FIELDS)
+                && afterState.hasExactlyFields(POST_MODERATION_AFTER_FIELDS)
+                && beforeState.value("moderationStatus") instanceof String previous
+                && Set.of("APPROVED", "REJECTED").contains(previous)
+                && afterState.value("moderationStatus") instanceof String next
+                && Set.of("APPROVED", "REJECTED").contains(next)
+                && !Objects.equals(beforeState.value("moderationStatus"),
+                        afterState.value("moderationStatus"))
+                && isInstant(beforeState.value("moderatedAt"))
+                && isInstant(afterState.value("moderatedAt"))
+                && actorAdminId.toString().equals(afterState.value("moderatedBy"));
     }
 
     static boolean isPostApproved(
@@ -531,6 +583,19 @@ final class AdminAuditTransitionRules {
             return false;
         }
         return sendTime.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]:00");
+    }
+
+    private static boolean isJevDecision(Object value) {
+        return value instanceof String text
+                && Set.of(
+                        "APPROVE",
+                        "HUMAN_REVIEW",
+                        "REJECT"
+                ).contains(text);
+    }
+
+    private static boolean isOptionalJevDecision(Object value) {
+        return value == null || isJevDecision(value);
     }
 
     private static boolean isPostModeration(

@@ -35,6 +35,8 @@ public interface PostRepository {
 
     Optional<Post> findByIdForUpdate(UUID postId);
 
+    Optional<Post> findById(UUID postId);
+
     Optional<UUID> findAuthorIdByPostId(UUID postId);
 
     /**

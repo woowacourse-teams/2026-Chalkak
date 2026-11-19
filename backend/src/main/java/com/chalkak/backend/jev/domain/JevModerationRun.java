@@ -63,6 +63,10 @@ public class JevModerationRun {
     @Column(columnDefinition = "jsonb")
     private JevEvaluation evaluation;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "gold_label", columnDefinition = "jsonb")
+    private JevGoldLabel goldLabel;
+
     @Column(name = "finished_at")
     private Instant finishedAt;
 
@@ -154,6 +158,13 @@ public class JevModerationRun {
 
     public void updatePhase(JevPhase phase) {
         this.phase = phase;
+    }
+
+    public void evaluate(JevGoldLabel label) {
+        if (finishedAt == null || label == null) {
+            throw new IllegalArgumentException("완료된 검수에만 정답을 등록할 수 있습니다.");
+        }
+        this.goldLabel = label;
     }
 
     public void complete(JevEvaluation evaluation, Instant now) {

@@ -4,6 +4,7 @@ import com.chalkak.backend.jev.domain.JevChoiceAnswer;
 import com.chalkak.backend.jev.domain.JevChoiceQuestion;
 import com.chalkak.backend.jev.domain.JevDecision;
 import com.chalkak.backend.jev.domain.JevEvaluation;
+import com.chalkak.backend.jev.domain.JevTokenUsage;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -17,6 +18,21 @@ import tools.jackson.databind.ObjectMapper;
 public class JevResponseParser {
 
     private final ObjectMapper objectMapper;
+
+    public JevTokenUsage readUsage(String rawResponse) {
+        if (rawResponse == null) {
+            return new JevTokenUsage(null, null);
+        }
+        try {
+            JsonNode usage = objectMapper.readTree(rawResponse).get("usage");
+            return new JevTokenUsage(
+                    usage == null ? null : readToken(usage.get("input_tokens")),
+                    usage == null ? null : readToken(usage.get("output_tokens"))
+            );
+        } catch (RuntimeException exception) {
+            return new JevTokenUsage(null, null);
+        }
+    }
 
     public JevEvaluation parse(
             String rawResponse,
@@ -103,7 +119,10 @@ public class JevResponseParser {
     }
 
     private Long readToken(Map<String, JsonNode> usage, String key) {
-        JsonNode value = usage == null ? null : usage.get(key);
+        return readToken(usage == null ? null : usage.get(key));
+    }
+
+    private Long readToken(JsonNode value) {
         if (value == null || !value.isIntegralNumber() || !value.canConvertToLong()
                 || value.longValue() < 0) {
             return null;

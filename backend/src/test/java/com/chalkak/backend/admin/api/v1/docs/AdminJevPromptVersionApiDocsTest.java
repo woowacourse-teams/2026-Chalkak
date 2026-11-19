@@ -24,6 +24,15 @@ class AdminJevPromptVersionApiDocsTest extends IntegrationTestSupport {
         // When & Then
         mockMvc.perform(get("/v3/api-docs/admin-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/jev-moderation-runs'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/jev-moderation-runs/metrics'].get")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/jev-moderation-runs/{jobId}/evaluation'].put.requestBody")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/admin/posts/{postId}/moderation-correction'].put.requestBody")
+                        .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/jev-previews'].post.responses['201']")
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/jev-previews/{jobId}'].get")
@@ -40,6 +49,7 @@ class AdminJevPromptVersionApiDocsTest extends IntegrationTestSupport {
                                 "JEV_PHOTO_MODERATION")));
         mockMvc.perform(get("/v3/api-docs/user-api"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/jev-moderation-runs']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/jev-previews']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/jev-prompt-versions']").doesNotExist());
         mockMvc.perform(get("/v3/api-docs/internal-api"))

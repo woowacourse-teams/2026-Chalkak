@@ -363,6 +363,12 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                 Arguments.of("POST", "/api/v1/admin/ai-prompt-versions"),
                 Arguments.of("GET", "/api/v1/admin/ai-prompt-versions"),
                 Arguments.of("GET", "/api/v1/admin/ai-prompt-versions/" + id),
+                Arguments.of("GET", "/api/v1/admin/jev-moderation-runs"),
+                Arguments.of("GET", "/api/v1/admin/jev-moderation-runs/" + id),
+                Arguments.of("GET",
+                        "/api/v1/admin/jev-moderation-runs/metrics?from=2026-11-20T00:00:00Z&to=2026-11-21T00:00:00Z"),
+                Arguments.of("PUT", "/api/v1/admin/jev-moderation-runs/" + id + "/evaluation"),
+                Arguments.of("PUT", "/api/v1/admin/posts/" + id + "/moderation-correction"),
                 Arguments.of("POST", "/api/v1/admin/jev-previews"),
                 Arguments.of("GET", "/api/v1/admin/jev-previews/" + id),
                 Arguments.of("POST", "/api/v1/admin/jev-prompt-versions"),
@@ -407,6 +413,7 @@ class AdminSecurityFilterChainTest extends IntegrationTestSupport {
                     || path.startsWith("/api/v1/admin/ai-prompt-previews")
                     || path.startsWith("/api/v1/admin/ai-prompt-versions")
                     || path.startsWith("/api/v1/admin/jev-previews")
+                    || path.startsWith("/api/v1/admin/jev-moderation-runs")
                     || path.startsWith("/api/v1/admin/jev-prompt-versions")
                     || path.startsWith("/api/v1/admin/ai-reviews")
                     || path.startsWith("/api/v1/admin/notices")

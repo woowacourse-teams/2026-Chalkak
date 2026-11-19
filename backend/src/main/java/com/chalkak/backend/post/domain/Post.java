@@ -172,6 +172,18 @@ public class Post {
         decideModeration(ModerationStatus.REJECTED, moderatedAt);
     }
 
+    public void correctModeration(ModerationStatus status, Instant now) {
+        if (moderatedAt == null || now == null
+                || (moderationStatus != ModerationStatus.APPROVED
+                        && moderationStatus != ModerationStatus.REJECTED)
+                || (status != ModerationStatus.APPROVED && status != ModerationStatus.REJECTED)) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED,
+                    "이미 검수가 확정된 게시물만 정정할 수 있습니다.");
+        }
+        this.moderationStatus = status;
+        this.moderatedAt = now;
+    }
+
     public void failImageProcessing() {
         validateModerationStatus(ModerationStatus.VALIDATING);
         this.moderationStatus = ModerationStatus.REJECTED;

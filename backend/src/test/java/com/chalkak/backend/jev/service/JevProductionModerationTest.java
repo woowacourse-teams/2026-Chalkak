@@ -7,6 +7,13 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.BDDMockito.given;
 
 import com.chalkak.backend.admin.service.jev.AdminJevPromptVersionService;
+import com.chalkak.backend.admin.service.jev.AdminJevEvaluationService;
+import com.chalkak.backend.admin.service.jev.AdminJevMetricsService;
+import com.chalkak.backend.admin.service.jev.AdminJevQueryService;
+import com.chalkak.backend.admin.service.post.AdminPostCorrectionService;
+import com.chalkak.backend.admin.service.audit.AdminAuditLogService;
+import com.chalkak.backend.jev.domain.JevGoldLabel;
+import com.chalkak.backend.jev.repository.JevRunFilter;
 import com.chalkak.backend.admin.service.post.AdminPostCommandService;
 import com.chalkak.backend.jev.domain.JevCallResult;
 import com.chalkak.backend.jev.domain.JevDecision;
@@ -96,6 +103,17 @@ class JevProductionModerationTest extends IntegrationTestSupport {
     private JevSlackService slackService;
     @Autowired
     private JevSlackDispatcher slackDispatcher;
+
+    @Autowired
+    private AdminJevEvaluationService evaluations;
+    @Autowired
+    private AdminJevMetricsService metrics;
+    @Autowired
+    private AdminJevQueryService history;
+    @Autowired
+    private AdminPostCorrectionService corrections;
+    @MockitoSpyBean
+    private AdminAuditLogService audits;
 
     private Instant now;
     private JevPromptVersion classification;
@@ -595,6 +613,213 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         assertThat(execution.getRun(id).getSlackDelivery().attempts()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("정답 등록과 수정은 감사를 남기고 AI 추천/게시물/사용자 알림을 바꾸지 않는다")
+    void evaluate_labelChanges_areIndependentOfPublication() {
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        finish(id, "reject");
+        evaluate(id, JevDecision.REJECT);
+        evaluate(id, JevDecision.APPROVE);
+        assertThat(execution.getRun(id).getGoldLabel().decision()).isEqualTo(JevDecision.APPROVE);
+        assertThat(execution.getRun(id).getEvaluation().recommendation())
+                .isEqualTo(JevDecision.REJECT);
+        assertThat(status(post)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM admin_audit_logs WHERE action = 'JEV_EVALUATION_UPDATED'",
+                Integer.class
+        )).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("평가 감사 저장이 실패하면 정답도 롤백한다")
+    void evaluate_auditFailure_rollsBackLabel() {
+        UUID id = job(createPost(insertUpload(true)));
+        finish(id, "reject");
+        AdminAuditLogService target = AopTestUtils.getUltimateTargetObject(audits);
+        doThrow(new IllegalStateException("audit failed")).when(target).createAuditLog(any());
+        assertThatThrownBy(() -> evaluate(id, JevDecision.APPROVE))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(execution.getRun(id).getGoldLabel()).isNull();
+    }
+
+    @Test
+    @DisplayName("실제 정정은 양방향 사유를 사용자에게 보내고 중복 요청은 새 알림을 만들지 않는다")
+    void correct_actualDecision_sendsReasonWithoutOverwritingRecommendation() {
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        finish(id, "approve");
+        application.apply(id);
+        corrections.correct(
+                post,
+                ADMIN,
+                ModerationStatus.REJECTED,
+                "촬영 기준 재확인"
+        );
+        corrections.correct(
+                post,
+                ADMIN,
+                ModerationStatus.REJECTED,
+                "촬영 기준 재확인"
+        );
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isEqualTo(2);
+        corrections.correct(
+                post,
+                ADMIN,
+                ModerationStatus.APPROVED,
+                "관리자 재확인으로 승인 정정"
+        );
+        assertThat(status(post)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isEqualTo(3);
+        assertThat(jdbc.queryForList("SELECT body FROM notifications WHERE body LIKE '정정 사유:%'",
+                String.class))
+                .containsExactlyInAnyOrder("정정 사유: 촬영 기준 재확인", "정정 사유: 관리자 재확인으로 승인 정정");
+        assertThat(execution.getRun(id).getEvaluation().recommendation())
+                .isEqualTo(JevDecision.APPROVE);
+        assertThat(execution.getRun(id).getGoldLabel()).isNull();
+    }
+
+    @Test
+    @DisplayName("정정 알림 저장 실패는 상태/감사를 함께 롤백한다")
+    void correct_notificationFailure_rollsBackEverything() {
+        UUID post = createPost(insertUpload(true));
+        finish(job(post), "approve");
+        application.apply(job(post));
+        NotificationService target = AopTestUtils.getUltimateTargetObject(notifications);
+        doThrow(new IllegalStateException("notification failed")).when(target).createForCorrection(
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+        );
+        assertThatThrownBy(() -> corrections.correct(
+                post,
+                ADMIN,
+                ModerationStatus.REJECTED,
+                "검수 정정"
+        )).isInstanceOf(IllegalStateException.class);
+        assertThat(status(post)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM admin_audit_logs WHERE action = 'POST_MODERATION_CORRECTED'",
+                Integer.class
+        )).isZero();
+    }
+
+    @Test
+    @DisplayName("반려 이후 새 활성 게시물이 있으면 이전 사진을 승인하지 않는다")
+    void correct_oldRejectedPhotoWithReplacement_rejects() {
+        UUID old = createPost(insertUpload(true));
+        adminPosts.moderate(
+                old,
+                ADMIN,
+                ModerationStatus.REJECTED,
+                "주제 불일치"
+        );
+        UUID replacement = createPost(insertUpload(true));
+        assertThatThrownBy(() -> corrections.correct(
+                old,
+                ADMIN,
+                ModerationStatus.APPROVED,
+                "재검토"
+        )).isInstanceOf(com.chalkak.backend.exception.BusinessException.class);
+        assertThat(status(old)).isEqualTo("REJECTED");
+        assertThat(status(replacement)).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("삭제된 사진을 정정으로 복구하지 않는다")
+    void correct_deletedPost_rejects() {
+        UUID post = createPost(insertUpload(true));
+        finish(job(post), "approve");
+        application.apply(job(post));
+        posts.deletePost(USER, post);
+        assertThatThrownBy(() -> corrections.correct(
+                post,
+                ADMIN,
+                ModerationStatus.REJECTED,
+                "재검토"
+        )).isInstanceOf(com.chalkak.backend.exception.BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("실제 DB 지표는 공유 분류를 한 번만 합산하고 평가 표본/질문 분모를 구분한다")
+    void metrics_sharedClassification_countsPhysicalCallsOnce() {
+        UUID first = createPost(insertUpload(true));
+        UUID firstRun = job(first);
+        finish(firstRun, "approve");
+        application.apply(firstRun);
+        evaluate(firstRun, JevDecision.REJECT);
+        posts.deletePost(USER, first);
+        UUID secondRun = job(createPost(insertUpload(true)));
+        result(
+                secondRun,
+                "PHOTO",
+                execution.claim(secondRun),
+                photoResponse("approve")
+        );
+        application.apply(secondRun);
+        var result = metrics.get(
+                now.minusSeconds(1),
+                now.plusSeconds(1),
+                false
+        );
+        assertThat(result.runs()).isEqualTo(2);
+        assertThat(result.usage().reservedAttempts()).isEqualTo(3);
+        assertThat(result.usage().knownInputTokens()).isEqualTo(30);
+        assertThat(result.usage().knownOutputTokens()).isEqualTo(9);
+        assertThat(result.usage().httpP99Ms()).isEqualTo(123);
+        assertThat(result.falseAutoApprovals()).isEqualTo(1);
+        assertThat(result.finalAgreement().rated()).isEqualTo(1);
+        assertThat(result.questions().get("topic_fit").rated()).isZero();
+        var list = history.list(
+                new JevRunFilter(
+                        false,
+                        first,
+                        TOPIC,
+                        JevDisposition.AUTO_APPROVED
+                ),
+                0,
+                20
+        );
+        assertThat(list.rows()).hasSize(1);
+        assertThat(list.rows().getFirst().postDeletedAt()).isNotNull();
+        assertThat(list.rows().getFirst().run().getGoldLabel().decision())
+                .isEqualTo(JevDecision.REJECT);
+    }
+
+    @Test
+    @DisplayName("분류 없이 수동 대기된 이력의 상세도 null 분류로 정상 조회한다")
+    void history_manualRunWithNoClassification_returnsDetail() {
+        prompts.updateActivation(
+                ADMIN,
+                classification.getId(),
+                false
+        );
+        UUID id = job(createPost(insertUpload(true)));
+        var detail = history.get(id);
+        assertThat(detail.category()).isNull();
+        assertThat(com.chalkak.backend.admin.api.v1.dto.response.JevModerationDetailResponse
+                .from(detail)
+                .result().classificationCalls()).isNull();
+        assertThat(execution.getCategory(id)).isNull();
+    }
+
+    private void evaluate(UUID id, JevDecision expected) {
+        evaluations.evaluate(
+                id,
+                ADMIN,
+                expected,
+                Map.of(),
+                "관리자가 사진을 직접 확인",
+                JevGoldLabel.Sampling.RANDOM
+        );
+    }
+
     private NotificationDeliveryResult delivery(boolean sent, boolean retryable) {
         return new NotificationDeliveryResult(
                 sent,
@@ -738,7 +963,14 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 "model",
                 "jev-1.14.0",
                 "answers",
-                answers
+                answers,
+                "usage",
+                Map.of(
+                        "input_tokens",
+                        10,
+                        "output_tokens",
+                        3
+                )
         ));
     }
 

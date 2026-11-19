@@ -14,7 +14,9 @@ public record JevCallResult(
         String errorCode,
         Integer httpStatus,
         Long latencyMs,
-        Integer retryAfterSeconds
+        Integer retryAfterSeconds,
+        Long inputTokens,
+        Long outputTokens
 ) {
 
     private static final Set<String> RETRYABLE = Set.of(
@@ -23,6 +25,30 @@ public record JevCallResult(
             "NETWORK_ERROR",
             "RESPONSE_LOST"
     );
+
+    public JevCallResult(
+            UUID callId,
+            Instant startedAt,
+            Instant receivedAt,
+            String rawResponse,
+            String errorCode,
+            Integer httpStatus,
+            Long latencyMs,
+            Integer retryAfterSeconds
+    ) {
+        this(
+                callId,
+                startedAt,
+                receivedAt,
+                rawResponse,
+                errorCode,
+                httpStatus,
+                latencyMs,
+                retryAfterSeconds,
+                null,
+                null
+        );
+    }
 
     @JsonIgnore
     public boolean isRetryable() {

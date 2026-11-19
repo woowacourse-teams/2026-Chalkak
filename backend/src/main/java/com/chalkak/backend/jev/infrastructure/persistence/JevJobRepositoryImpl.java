@@ -4,6 +4,8 @@ import com.chalkak.backend.jev.domain.JevModerationRun;
 import com.chalkak.backend.jev.domain.JevTopicCategory;
 import com.chalkak.backend.jev.repository.JevJobRepository;
 import com.chalkak.backend.jev.repository.JevJobTarget;
+import com.chalkak.backend.jev.repository.JevRunFilter;
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +19,7 @@ public class JevJobRepositoryImpl implements JevJobRepository {
 
     private final JevModerationRunJpaRepository runs;
     private final JevTopicCategoryJpaRepository categories;
+    private final EntityManager entityManager;
 
     @Override
     public void lockClassificationKey(String key) {
@@ -81,5 +84,26 @@ public class JevJobRepositoryImpl implements JevJobRepository {
     @Override
     public List<UUID> findDueSlackIds(Instant now) {
         return runs.findDueSlackIds(now);
+    }
+
+    @Override
+    public List<JevModerationRun> findRuns(
+            JevRunFilter filter,
+            int offset,
+            int limit
+    ) {
+        return entityManager.createQuery("""
+                SELECT run FROM JevModerationRun run
+                WHERE (:preview IS NULL OR run.preview = :preview)
+                  AND (:postId IS NULL OR run.postId = :postId)
+                  AND (:topicId IS NULL OR run.topicId = :topicId)
+                  AND (:disposition IS NULL OR run.disposition = :disposition)
+                ORDER BY run.createdAt DESC, run.id DESC
+                """, JevModerationRun.class)
+                .setParameter("preview", filter.preview())
+                .setParameter("postId", filter.postId())
+                .setParameter("topicId", filter.topicId())
+                .setParameter("disposition", filter.disposition())
+                .setFirstResult(offset).setMaxResults(limit).getResultList();
     }
 }

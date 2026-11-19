@@ -47,6 +47,7 @@
 | 작업 | 문서 |
 | --- | --- |
 | 사진 등록·삭제 전 일일 잔여 횟수, KST 초기화와 한도 오류 안내 | [게시물 하루 등록 한도 연동 안내](guides/post-registration-limit.md) |
+| 관리자 Jev 이력·정답 평가·실제 정정·지표와 Android 상태/알림 연동 | [Jev 운영 연동 안내](guides/jev-moderation.md) |
 | 관리자 Jev 프롬프트 직접 입력·저장·조회·명시적 운영 적용 | [관리자 Jev 프롬프트 관리 연동 안내](guides/admin-jev-prompts.md) |
 | 고객센터 진입·문의 접수·본인 목록/상세 조회·삭제·답변 알림·접수 제한과 오류 처리 | [고객센터 앱 연동 안내](guides/customer-support.md) |
 | 관리자 앱 버전 조회·저장·충돌 복구·운영 확인 | [관리자 앱 버전 관리 연동 안내](guides/admin-app-versions.md) |

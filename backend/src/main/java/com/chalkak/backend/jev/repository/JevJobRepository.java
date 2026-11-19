@@ -34,4 +34,10 @@ public interface JevJobRepository {
     List<UUID> findDueRunIds(Instant now);
 
     List<UUID> findDueSlackIds(Instant now);
+
+    List<JevModerationRun> findRuns(
+            JevRunFilter filter,
+            int offset,
+            int limit
+    );
 }

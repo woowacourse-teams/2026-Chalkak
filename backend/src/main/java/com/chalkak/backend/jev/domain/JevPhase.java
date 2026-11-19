@@ -158,7 +158,9 @@ public record JevPhase(
                         "LATE_RESULT_IGNORED",
                         result.httpStatus(),
                         result.latencyMs(),
-                        null
+                        null,
+                        result.inputTokens(),
+                        result.outputTokens()
                 ));
                 return new JevPhase(
                         deadline,

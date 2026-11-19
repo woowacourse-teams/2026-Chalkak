@@ -123,6 +123,18 @@ public enum AdminAction {
             AdminAuditTransitionRules::isJevPromptActivationUpdated
     ),
 
+    JEV_EVALUATION_UPDATED(
+            AdminTargetType.POST,
+            true,
+            AdminAuditTransitionRules::isJevEvaluationUpdated
+    ),
+
+    POST_MODERATION_CORRECTED(
+            AdminTargetType.POST,
+            true,
+            AdminAuditTransitionRules::isPostModerationCorrected
+    ),
+
     REMINDER_CREATED(
             AdminTargetType.REMINDER,
             false,
