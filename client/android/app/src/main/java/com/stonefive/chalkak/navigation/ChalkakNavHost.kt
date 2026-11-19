@@ -71,7 +71,6 @@ import com.stonefive.chalkak.feature.feed.FeedRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackDetailRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackListRoute
 import com.stonefive.chalkak.feature.feedback.FeedbackRoute
-import com.stonefive.chalkak.feature.filter.FilterRoute
 import com.stonefive.chalkak.feature.home.HomeRoute
 import com.stonefive.chalkak.feature.home.HomeViewModel
 import com.stonefive.chalkak.feature.login.LoginRoute
@@ -519,9 +518,6 @@ fun ChalkakNavHost(
                         onNotificationClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                             navController.navigate(Notifications) { launchSingleTop = true }
                         },
-                        onSettingsClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
-                            navController.navigate(Settings) { launchSingleTop = true }
-                        },
                         onIssueClick = { title, url ->
                             if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
                                 navController.navigate(WebPage(title = title, url = url)) {
@@ -866,17 +862,8 @@ fun ChalkakNavHost(
                     onOpenNotificationSettings = dropUnlessResumed(lifecycleOwner = backStackEntry) {
                         navController.navigate(NotificationSettings) { launchSingleTop = true }
                     },
-                    onBackClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
-                        navController.popBackStack()
-                    },
-                )
-            }
-
-            composable<Filter> { backStackEntry ->
-                FilterRoute(
                     onNavigateToBottomBar = { item -> navigateToBottomBar(backStackEntry, item) },
                     onOpenPhotoUpload = dropUnlessResumed(lifecycleOwner = backStackEntry, block = openPhotoUpload),
-                    onUseFilterClick = { showToast(FILTER_USE_PENDING_MESSAGE) },
                 )
             }
 
@@ -1189,7 +1176,7 @@ private fun NavHostController.navigateToBottomBar(
         ChalkakBottomBarItem.HOME -> Home
         ChalkakBottomBarItem.DISPLAY -> Display(date = "")
         ChalkakBottomBarItem.RECORD -> Record
-        ChalkakBottomBarItem.FILTER -> Filter
+        ChalkakBottomBarItem.SETTINGS -> Settings
     }
 
     navigate(destination) {
@@ -1207,7 +1194,7 @@ private val ChalkakBottomBarItem.analyticsName: String
         ChalkakBottomBarItem.HOME -> "home"
         ChalkakBottomBarItem.DISPLAY -> "display"
         ChalkakBottomBarItem.RECORD -> "record"
-        ChalkakBottomBarItem.FILTER -> "filter"
+        ChalkakBottomBarItem.SETTINGS -> "settings"
     }
 
 private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
@@ -1225,7 +1212,6 @@ private fun NavDestination.analyticsScreen(): AnalyticsScreen? = when {
     hasRoute<Display>() -> AnalyticsScreen(name = "display", screenClass = "Display")
     hasRoute<Feed>() || hasRoute<FeedById>() -> AnalyticsScreen(name = "feed", screenClass = "Feed")
     hasRoute<Settings>() -> AnalyticsScreen(name = "settings", screenClass = "Settings")
-    hasRoute<Filter>() -> AnalyticsScreen(name = "filter", screenClass = "Filter")
     hasRoute<NotificationSettings>() -> NotificationSettingsAnalyticsScreen
     hasRoute<Feedback>() -> AnalyticsScreen(name = "feedback", screenClass = "Feedback")
     hasRoute<FeedbackList>() -> AnalyticsScreen(name = "customer_support", screenClass = "FeedbackList")
@@ -1263,7 +1249,6 @@ private val NotificationSettingsAnalyticsScreen = AnalyticsScreen(
     screenClass = "NotificationSettings",
 )
 
-private const val FILTER_USE_PENDING_MESSAGE = "필터 적용은 곧 만나볼 수 있어요"
 private const val SETTINGS_SIGNATURE_UPDATED_KEY = "settings_signature_updated"
 private const val DISPLAY_SCROLL_TO_TOP_KEY = "display_scroll_to_top"
 private const val RECORD_SELECTED_DATE_KEY = "record_selected_date"
@@ -1351,7 +1336,7 @@ private fun NavDestination.bottomBarItem(): ChalkakBottomBarItem? = when {
     hasRoute<Home>() -> ChalkakBottomBarItem.HOME
     hasRoute<Display>() -> ChalkakBottomBarItem.DISPLAY
     hasRoute<Record>() -> ChalkakBottomBarItem.RECORD
-    hasRoute<Filter>() -> ChalkakBottomBarItem.FILTER
+    hasRoute<Settings>() -> ChalkakBottomBarItem.SETTINGS
     else -> null
 }
 

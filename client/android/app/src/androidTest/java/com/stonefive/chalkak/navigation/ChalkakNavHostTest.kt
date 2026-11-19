@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -110,7 +111,7 @@ class ChalkakNavHostTest {
         try {
             val navigateToTabs = listOf(
                 { navController.navigate(Display(date = LocalDate.now().toString())) },
-                { navController.navigate(Filter) },
+                { navController.navigate(Settings) },
             )
             navigateToTabs.forEach { navigate ->
                 composeRule.runOnIdle { navigate() }
@@ -521,7 +522,7 @@ class ChalkakNavHostTest {
         }
 
         val settingsClick = composeRule
-            .onNode(hasText("필터") and hasClickAction())
+            .onNode(hasText("설정") and hasClickAction())
             .fetchSemanticsNode()
             .config[SemanticsActions.OnClick]
             .action!!
@@ -538,8 +539,9 @@ class ChalkakNavHostTest {
         }
         composeRule.waitForIdle()
         composeRule.runOnIdle {
-            assertTrue(navController.currentDestination?.hasRoute<Filter>() == true)
+            assertTrue(navController.currentDestination?.hasRoute<Settings>() == true)
         }
+        composeRule.onNode(hasText("설정") and hasClickAction()).assertIsSelected()
 
         composeRule.onNodeWithText("전시").performClick()
         composeRule.waitForIdle()
@@ -637,9 +639,9 @@ class ChalkakNavHostTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             navController.currentDestination?.hasRoute<Home>() == true
         }
-        composeRule.onNodeWithText("필터").performClick()
+        composeRule.onNodeWithText("설정").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Filter>() == true
+            navController.currentDestination?.hasRoute<Settings>() == true
         }
         composeRule.onNodeWithText("홈").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -699,9 +701,9 @@ class ChalkakNavHostTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             navController.currentDestination?.hasRoute<Display>() == true
         }
-        composeRule.onNodeWithText("필터").performClick()
+        composeRule.onNodeWithText("설정").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Filter>() == true
+            navController.currentDestination?.hasRoute<Settings>() == true
         }
         composeRule.runOnIdle {
             assertTrue(
@@ -817,9 +819,9 @@ class ChalkakNavHostTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("필터").performClick()
+        composeRule.onNodeWithText("설정").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Filter>() == true
+            navController.currentDestination?.hasRoute<Settings>() == true
         }
 
         composeRule.runOnIdle {

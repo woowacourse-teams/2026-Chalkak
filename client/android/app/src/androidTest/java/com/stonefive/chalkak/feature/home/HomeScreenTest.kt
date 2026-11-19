@@ -432,7 +432,6 @@ class HomeScreenTest {
                     onNavigateToBottomBar = onTab,
                     onRetry = {},
                     onNotificationClick = {},
-                    onSettingsClick = {},
                     onIssueClick = onIssue,
                     onStartFeedback = onStartFeedback,
                     onLoadMoreBanners = onLoadMoreBanners,
