@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.domain;
 
 import com.chalkak.backend.aireview.domain.AiPromptType;
+import com.chalkak.backend.jev.domain.JevPromptRole;
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.domain.Reminder;
@@ -350,6 +351,34 @@ final class AdminAuditTransitionRules {
                 && version > 0;
     }
 
+    static boolean isJevPromptVersionCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty()
+                && afterState.hasExactlyFields(Set.of("role", "version"))
+                && isJevRole(afterState.value("role"))
+                && afterState.value("version") instanceof Integer version
+                && version > 0;
+    }
+
+    static boolean isJevPromptActivationUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        Set<String> fields = Set.of("role", "activeVersionId");
+        return beforeState.hasExactlyFields(fields)
+                && afterState.hasExactlyFields(fields)
+                && isJevRole(beforeState.value("role"))
+                && Objects.equals(beforeState.value("role"), afterState.value("role"))
+                && isNullableVersionId(beforeState.value("activeVersionId"))
+                && isNullableVersionId(afterState.value("activeVersionId"))
+                && !Objects.equals(beforeState.value("activeVersionId"),
+                        afterState.value("activeVersionId"));
+    }
+
     static boolean isReminderCreated(
             UUID actorAdminId,
             AdminAuditSnapshot beforeState,
@@ -447,6 +476,16 @@ final class AdminAuditTransitionRules {
     private static boolean isEnumName(Object value, Enum<?>[] constants) {
         return value instanceof String name
                 && Arrays.stream(constants).anyMatch(constant -> constant.name().equals(name));
+    }
+
+    private static boolean isJevRole(Object value) {
+        return value instanceof String name
+                && Arrays.stream(JevPromptRole.values()).anyMatch(role -> role.name().equals(name));
+    }
+
+    private static boolean isNullableVersionId(Object value) {
+        return value == null || value instanceof String id
+                && id.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     }
 
     private static boolean isAiPromptType(Object value) {
