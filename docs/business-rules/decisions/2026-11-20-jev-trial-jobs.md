@@ -8,7 +8,7 @@
 - 영향 범위: 관리자 전용 등록/조회와 HMAC 내부 확보/결과 API, Lambda PNG/HTTP/결과 재전달, DB→SQS 복구. 시험 초안만 해당 시험 행에 저장하고 운영 작업에 전체 프롬프트 스냅샷을 복제하는 기능을 추가하지 않는다. 실제 게시물 자동 반영·관리자 평가/정정은 후속 구현이다.
 - 관련 규칙: [ADMIN-010](../rules/admin.md#admin-010-ai-프롬프트-미리보기)
 - 관련 이슈: [#1056](https://github.com/woowacourse-teams/2026-Chalkak/issues/1056), PR 미등록
-- 상세 계약·배포 전 확인: [시험 실행 안내](../../../backend/docs/jev-trial-execution.md)
+- 상세 계약·배포 전 확인: [시험 실행 안내](https://github.com/woowacourse-teams/2026-Chalkak/blob/f4b6725653649b5175026a0198e3de3c75665d56/backend/docs/jev-trial-execution.md)
 
 분류/사진의 100초 예산과 최초 포함 최대3회는 DB 상태를 기준으로 하며 큐 재전달로 초기화하지 않는다. API 오류/질문 누락은 승인으로 처리하지 않는다. 이미지·HTTP·SQS·DB가 모두 포함된 완전한 exactly-once는 보장하지 않으며 응답 유실 시 원래 호출의 사용량을 알 수 없는 경우가 있다. 실제 공급자 호출 성능과 AWS 권한/제한은 별도로 확인해야 한다.
 
