@@ -6,6 +6,7 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -34,6 +35,19 @@ public class PostRepositoryImpl implements PostRepository {
             ModerationStatus.APPROVED);
 
     private final PostJpaRepository postJpaRepository;
+
+    @Override
+    public long countByAuthorIdAndCreatedAtBetween(
+            UUID authorId,
+            Instant start,
+            Instant end
+    ) {
+        return postJpaRepository.countRegistrations(
+                authorId,
+                start,
+                end
+        );
+    }
 
     @Override
     public Post save(Post post) {

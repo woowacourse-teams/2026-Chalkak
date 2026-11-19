@@ -169,15 +169,13 @@ class AdminPostQueryServiceTest {
     }
 
     @ParameterizedTest
-    @CsvSource(
-            delimiter = '|',
-            value = {
-                    "chalkak_user | chalkak_user",
-                    "ChalKak_User | chalkak_user",
-                    "@chalkak_user | chalkak_user",
-                    "'  @Chalkak_User  ' | chalkak_user",
-                    "@@chalkak | @chalkak"
-            })
+    @CsvSource(delimiter = '|', value = {
+            "chalkak_user | chalkak_user",
+            "ChalKak_User | chalkak_user",
+            "@chalkak_user | chalkak_user",
+            "'  @Chalkak_User  ' | chalkak_user",
+            "@@chalkak | @chalkak"
+    })
     @DisplayName("인스타그램 ID 검색어는 공백과 맨 앞 골뱅이 하나를 제거하고 소문자로 바꿔 조회한다")
     void getPosts_instagramId_normalizesKeyword(
             String rawKeyword,

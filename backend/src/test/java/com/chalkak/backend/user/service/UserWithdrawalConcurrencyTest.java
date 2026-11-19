@@ -94,7 +94,8 @@ class UserWithdrawalConcurrencyTest extends IntegrationTestSupport {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         Future<String> first = executor.submit(() -> runNamed(WITHDRAWAL_THREAD, this::withdraw));
         await(firstLocked, "첫 탈퇴가 회원 락을 획득하지 못했습니다.");
-        Future<String> second = executor.submit(() -> runNamed(SECOND_WITHDRAWAL_THREAD, this::withdraw));
+        Future<String> second = executor
+                .submit(() -> runNamed(SECOND_WITHDRAWAL_THREAD, this::withdraw));
 
         try {
             await(secondStarted, "두 번째 탈퇴가 회원 락 조회를 시작하지 못했습니다.");
@@ -138,7 +139,8 @@ class UserWithdrawalConcurrencyTest extends IntegrationTestSupport {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         Future<String> update = executor.submit(() -> runNamed(UPDATE_THREAD, this::agreeByUpdate));
         await(updateLocked, "수정이 회원 공유 락을 획득하지 못했습니다.");
-        Future<String> withdrawal = executor.submit(() -> runNamed(WITHDRAWAL_THREAD, this::withdraw));
+        Future<String> withdrawal = executor
+                .submit(() -> runNamed(WITHDRAWAL_THREAD, this::withdraw));
 
         try {
             await(withdrawalStarted, "탈퇴가 회원 락 조회를 시작하지 못했습니다.");
@@ -180,7 +182,8 @@ class UserWithdrawalConcurrencyTest extends IntegrationTestSupport {
         }).when(userRepositorySpy).findActiveByIdForShare(userId);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        Future<String> withdrawal = executor.submit(() -> runNamed(WITHDRAWAL_THREAD, this::withdraw));
+        Future<String> withdrawal = executor
+                .submit(() -> runNamed(WITHDRAWAL_THREAD, this::withdraw));
         await(withdrawalLocked, "탈퇴가 회원 락을 획득하지 못했습니다.");
         Future<String> update = executor.submit(() -> runNamed(UPDATE_THREAD, this::agreeByUpdate));
 

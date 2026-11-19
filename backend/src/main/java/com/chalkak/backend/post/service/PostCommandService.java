@@ -13,6 +13,7 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.domain.PostImageUpload;
 import com.chalkak.backend.post.domain.PostImageUploadStatus;
+import com.chalkak.backend.post.domain.PostRegistrationLimit;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.post.repository.PostImageUploadIssuer;
 import com.chalkak.backend.post.repository.PostImageUploadRepository;
@@ -24,6 +25,7 @@ import com.chalkak.backend.topic.domain.TopicPhase;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -57,6 +59,7 @@ public class PostCommandService {
     private final PostImageUploadIssuer postImageUploadIssuer;
     private final PostProcessingPolicy postProcessingPolicy;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final Clock clock;
 
     public PostImageUploadResult createPostImageUpload(UUID userId) {
         User uploader = getPostableUser(userId);
@@ -87,12 +90,19 @@ public class PostCommandService {
             boolean instagramUploadAgreed,
             String instagramId
     ) {
-        User author = getActiveUserForShare(userId);
+        // 회원 행을 처음부터 쓰기 잠금으로 잡아 한도 확인과 생성을 직렬화한다.
+        // 공유 잠금을 획득한 뒤 승격하면 동시 생성끼리 교착될 수 있다.
+        User author = userRepository.findActiveByIdForUpdate(userId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        ErrorCode.UNAUTHORIZED,
+                        "유효하지 않은 인증 정보입니다."));
+        Instant now = clock.instant();
         Topic topic = topicRepository.findActiveById(topicId)
                 .orElseThrow(() -> new NotFoundException(
                         ErrorCode.BUSINESS_ERROR,
                         "게시물을 작성할 주제를 찾을 수 없습니다."));
-        validateTopicOpen(topic);
+        validateTopicOpen(topic, now);
+        validateRegistrationLimit(userId, now);
 
         // S3 확인은 왕복이 길 수 있다. 업로드 행에 비관적 락을 잡은 채 기다리면 같은 업로드의 처리 콜백이
         // 그동안 락 대기에 묶이므로 락 밖에서 먼저 확인한다.
@@ -100,13 +110,13 @@ public class PostCommandService {
                 && postImageStorage.existsUploadedImage(photoUploadId);
 
         PostImageUpload upload = getClaimableUpload(userId, photoUploadId);
-        upload.claim(Instant.now());
+        upload.claim(clock.instant());
         // 이미지 처리 콜백도 업로드 다음 게시물 순서로 잠근다. 모든 경로의 순서를 통일해야 처리 시간 초과
         // 게시물 재작성과 콜백이 겹쳐도 순환 대기가 생기지 않는다.
         validatePostNotCreated(
                 userId,
                 topicId,
-                Instant.now()
+                clock.instant()
         );
         // 확인한 뒤에 처리가 끝나 staging이 지워졌을 수 있으므로 최종 판정은 락 안에서 읽은 상태로 한다.
         if (!upload.isProcessed() && !stagingImageExists) {
@@ -128,7 +138,7 @@ public class PostCommandService {
                 description,
                 instagramUploadAgreed,
                 instagramId,
-                Instant.now()
+                now
         );
         if (upload.isProcessed()) {
             photo.completeProcessing(
@@ -275,8 +285,9 @@ public class PostCommandService {
     }
 
     /**
-     * 인스타그램 동의를 바꾸는 작성·수정은 회원 행을 공유 잠금으로 먼저 잡는다. 탈퇴가 회원 행을 잠근 뒤 동의 게시물을 철회하므로, 겹친
-     * 요청은 탈퇴 전에 끝나 철회 대상이 되거나 탈퇴 커밋 뒤 탈퇴 회원으로 판정되어 401이 된다. 순서는 회원 다음 게시물·업로드로 탈퇴와 같다.
+     * 인스타그램 동의를 바꾸는 수정은 회원 행을 공유 잠금으로 먼저 잡는다. 생성은 일일 한도 직렬화를 위해 쓰기 잠금을 사용한다. 탈퇴가 회원
+     * 행을 잠근 뒤 동의 게시물을 철회하므로, 겹친 요청은 탈퇴 전에 끝나 철회 대상이 되거나 탈퇴 커밋 뒤 탈퇴 회원으로 판정되어 401이
+     * 된다. 순서는 회원 다음 게시물·업로드로 탈퇴와 같다.
      */
     private User getActiveUserForShare(UUID userId) {
         return userRepository.findActiveByIdForShare(userId)
@@ -285,8 +296,17 @@ public class PostCommandService {
                         "유효하지 않은 인증 정보입니다."));
     }
 
-    private void validateTopicOpen(Topic topic) {
-        if (topic.getParticipationPeriod().phaseAt(Instant.now()) != TopicPhase.OPEN) {
+    private void validateRegistrationLimit(UUID userId, Instant now) {
+        long usedCount = postRepository.countByAuthorIdAndCreatedAtBetween(
+                userId,
+                PostRegistrationLimit.getDayStart(now),
+                PostRegistrationLimit.getNextDayStart(now)
+        );
+        PostRegistrationLimit.from(usedCount, now).validateCanRegister();
+    }
+
+    private void validateTopicOpen(Topic topic, Instant now) {
+        if (topic.getParticipationPeriod().phaseAt(now) != TopicPhase.OPEN) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "현재 게시물을 작성할 수 없는 주제입니다.");

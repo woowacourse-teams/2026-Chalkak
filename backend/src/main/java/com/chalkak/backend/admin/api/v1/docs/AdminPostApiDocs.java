@@ -23,173 +23,57 @@ import org.springframework.web.bind.annotation.RequestBody;
 @Tag(name = "Admin Posts", description = "관리자 게시물 검수 조회 API")
 public interface AdminPostApiDocs {
 
-    @Operation(
-            summary = "관리자 게시물 목록 조회",
-            description = "승인 대기·승인·거절 게시물과 삭제된 게시물을 필터링해 조회합니다. "
-                    + "내부 검증 중 게시물은 노출하지 않습니다. "
-                    + "sort=likeCountDesc(인기순)는 topicId를 함께 지정해야 합니다. "
-                    + "인기순은 요청마다 현재 좋아요 수로 다시 정렬하므로, 페이지를 넘기는 사이 좋아요 수가 바뀌면 "
-                    + "게시물이 앞뒤 페이지에 중복되거나 빠질 수 있습니다. 새로고침은 1페이지부터 다시 조회합니다. "
-                    + "제거된 날짜 필터(topicDate, createdAtFrom, createdAtTo)를 보내면 400을 반환합니다."
-    )
+    @Operation(summary = "관리자 게시물 목록 조회", description = "승인 대기·승인·거절 게시물과 삭제된 게시물을 필터링해 조회합니다. "
+            + "내부 검증 중 게시물은 노출하지 않습니다. "
+            + "sort=likeCountDesc(인기순)는 topicId를 함께 지정해야 합니다. "
+            + "인기순은 요청마다 현재 좋아요 수로 다시 정렬하므로, 페이지를 넘기는 사이 좋아요 수가 바뀌면 "
+            + "게시물이 앞뒤 페이지에 중복되거나 빠질 수 있습니다. 새로고침은 1페이지부터 다시 조회합니다. "
+            + "제거된 날짜 필터(topicDate, createdAtFrom, createdAtTo)를 보내면 400을 반환합니다.")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "관리자 게시물 목록 조회 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 필터·정렬·페이지 조건, topicId 없는 인기순 정렬 또는 제거된 날짜 필터",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "관리자 게시물 목록 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 필터·정렬·페이지 조건, topicId 없는 인기순 정렬 또는 제거된 날짜 필터", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminPostListResponse> getPosts(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
             @ParameterObject AdminPostListRequest request
     );
 
-    @Operation(
-            summary = "관리자 게시물 상세 조회",
-            description = "내부 검증 중 게시물을 제외하고 게시물과 작성자·주제·사진·이미지 처리 정보를 조회합니다."
-    )
+    @Operation(summary = "관리자 게시물 상세 조회", description = "내부 검증 중 게시물을 제외하고 게시물과 작성자·주제·사진·이미지 처리 정보를 조회합니다.")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "관리자 게시물 상세 조회 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 게시물 ID",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "게시물을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "관리자 게시물 상세 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 게시물 ID", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminPostDetailResponse> getPost(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
-            @Parameter(
-                    description = "게시물 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
-                    schema = @Schema(type = "string", format = "uuid")
-            )
-            String postId
+            @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4", schema = @Schema(type = "string", format = "uuid")) String postId
     );
 
-    @Operation(
-            summary = "관리자 게시물 승인·거절",
-            description = "PENDING 게시물을 한 번만 승인하거나 사유와 함께 거절합니다."
-    )
+    @Operation(summary = "관리자 게시물 승인·거절", description = "PENDING 게시물을 한 번만 승인하거나 사유와 함께 거절합니다.")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "게시물 검수 확정 성공",
-                    useReturnTypeSchema = true
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 요청 또는 현재 상태가 변경되어 검수할 수 없는 게시물",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "게시물을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "200", description = "게시물 검수 확정 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 또는 현재 상태가 변경되어 검수할 수 없는 게시물", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<AdminPostModerationResponse> moderatePost(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
-            @Parameter(
-                    description = "게시물 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
-                    schema = @Schema(type = "string", format = "uuid")
-            )
-            String postId,
+            @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4", schema = @Schema(type = "string", format = "uuid")) String postId,
             @RequestBody AdminPostModerationRequest request
     );
 
-    @Operation(
-            summary = "관리자 게시물 삭제",
-            description = "게시물과 사진을 Soft Delete하고 감사 로그를 기록합니다. S3 미디어는 보관합니다."
-    )
+    @Operation(summary = "관리자 게시물 삭제", description = "게시물과 사진을 Soft Delete하고 감사 로그를 기록합니다. S3 미디어는 보관합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "게시물 삭제 요청 성공"),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "잘못된 요청 또는 이미지 처리 중인 게시물",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "관리자 API 접근 불가",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "게시물을 찾을 수 없음",
-                    content = @Content(
-                            mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 또는 이미지 처리 중인 게시물", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "관리자 API 접근 불가", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "게시물을 찾을 수 없음", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<Void> deletePost(
             @Parameter(hidden = true) AuthenticatedAdmin authenticatedAdmin,
-            @Parameter(
-                    description = "게시물 ID",
-                    example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4",
-                    schema = @Schema(type = "string", format = "uuid")
-            )
-            String postId,
+            @Parameter(description = "게시물 ID", example = "0198f6c1-62ba-7d30-8b12-0f733b6570d4", schema = @Schema(type = "string", format = "uuid")) String postId,
             @RequestBody AdminPostDeletionRequest request
     );
 }

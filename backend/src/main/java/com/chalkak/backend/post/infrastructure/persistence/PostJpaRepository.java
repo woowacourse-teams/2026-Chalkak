@@ -3,6 +3,7 @@ package com.chalkak.backend.post.infrastructure.persistence;
 import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PostJpaRepository extends JpaRepository<Post, UUID> {
+
+    @Query("""
+            SELECT COUNT(post)
+            FROM Post post
+            WHERE post.author.id = :authorId
+              AND post.createdAt >= :start
+              AND post.createdAt < :end
+            """)
+    long countRegistrations(
+            @Param("authorId") UUID authorId,
+            @Param("start") Instant start,
+            @Param("end") Instant end
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Post> findByIdAndDeletedAtIsNull(UUID postId);

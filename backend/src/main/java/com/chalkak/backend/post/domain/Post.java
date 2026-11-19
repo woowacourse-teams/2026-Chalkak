@@ -25,7 +25,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -84,7 +83,6 @@ public class Post {
     @Column(name = "moderated_at")
     private Instant moderatedAt;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -130,12 +128,12 @@ public class Post {
                 topic,
                 photo
         );
-        if (postImageUploadId == null) {
+        if (postImageUploadId == null || now == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "게시물 생성 정보가 올바르지 않습니다.");
         }
-        return new Post(
+        Post post = new Post(
                 author,
                 topic,
                 photo,
@@ -148,6 +146,9 @@ public class Post {
                         now
                 )
         );
+        // 일일 한도를 판단한 시각과 저장 시각을 맞춰 자정 경계의 중복 집계를 막는다.
+        post.createdAt = now;
+        return post;
     }
 
     public void requestModeration() {
