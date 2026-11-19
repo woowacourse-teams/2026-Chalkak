@@ -55,7 +55,7 @@
 | Backend | Java, Spring Boot, Spring Data JPA, Spring Security, Flyway |
 | Database | PostgreSQL, Amazon RDS |
 | 이미지 처리 | Amazon S3, CloudFront, SQS, AWS Lambda |
-| 외부 연동 | OpenAI, Firebase Cloud Messaging, Kakao · Apple · Google OIDC |
+| 외부 연동 | OpenAI GPT, Jev API, Firebase Cloud Messaging, Kakao · Apple · Google OIDC |
 | 배포 | GitHub Actions, CodePipeline, CodeBuild, CodeDeploy, Amazon EC2 |
 | 모니터링 | CloudWatch, Amazon SNS, AWS Lambda, Slack |
 
