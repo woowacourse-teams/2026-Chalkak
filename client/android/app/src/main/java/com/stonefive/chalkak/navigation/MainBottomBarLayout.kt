@@ -47,13 +47,17 @@ internal fun MainBottomBarLayout(
     modifier: Modifier = Modifier,
     content: @Composable SharedTransitionScope.() -> Unit,
 ) {
+    // 마지막으로 머문 탭. 사라지는 동안 떠나기 직전 탭의 하단바를 그리고, 홈으로 어디서 왔는지 가린다.
+    var lastSelectedItem by remember { mutableStateOf(selectedItem) }
+    // 다른 탭에서 홈으로 올 때만 숨겨 둔 하단바를 되살린다. 피드처럼 탭이 아닌 화면에서 홈으로 돌아올 때는
+    // 스크롤로 숨긴 상태를 그대로 둔다(#1061). 이 값은 SideEffect가 lastSelectedItem을 바꾸기 전에 읽는다.
+    val isEnteringHomeFromOtherTab =
+        selectedItem == ChalkakBottomBarItem.HOME && lastSelectedItem != ChalkakBottomBarItem.HOME
     LaunchedEffect(hostState, selectedItem) {
-        if (selectedItem == ChalkakBottomBarItem.HOME) {
+        if (isEnteringHomeFromOtherTab) {
             hostState.stateFor(ChalkakBottomBarItem.HOME).reset()
         }
     }
-    // 사라지는 동안에도 떠나기 직전 탭의 하단바를 그대로 그리기 위해 마지막 탭을 기억한다.
-    var lastSelectedItem by remember { mutableStateOf(selectedItem) }
     SideEffect {
         if (selectedItem != null) lastSelectedItem = selectedItem
     }

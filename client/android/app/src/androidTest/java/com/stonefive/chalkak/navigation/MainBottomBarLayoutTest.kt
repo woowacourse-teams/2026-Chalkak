@@ -183,6 +183,38 @@ class MainBottomBarLayoutTest {
     }
 
     @Test
+    fun returningToHomeFromAPhotoKeepsTheBarHiddenByScroll() {
+        // Given  홈에서 스크롤해 하단바를 숨겼다
+        val hostState = ChalkakBottomBarHostState()
+        val selectedItem = mutableStateOf<ChalkakBottomBarItem?>(ChalkakBottomBarItem.HOME)
+        composeRule.setContent {
+            ChalkakTheme {
+                MainBottomBarLayout(
+                    hostState = hostState,
+                    selectedItem = selectedItem.value,
+                    onItemSelected = {},
+                    onAddClick = {},
+                ) {}
+            }
+        }
+        composeRule.waitForIdle()
+        val homeState = hostState.stateFor(ChalkakBottomBarItem.HOME)
+        composeRule.runOnIdle {
+            homeState.restoreState(homeState.height.toFloat(), homeState.height, isTargetHidden = true)
+        }
+
+        // When   사진을 눌러 피드로 갔다가 뒤로 돌아온다
+        composeRule.runOnIdle { selectedItem.value = null }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { selectedItem.value = ChalkakBottomBarItem.HOME }
+        composeRule.waitForIdle()
+
+        // Then   하단바는 숨긴 그대로다
+        assertEquals(homeState.height.toFloat(), homeState.offset)
+        assertEquals(true, homeState.isTargetHidden)
+    }
+
+    @Test
     fun leavingTabsSlidesTheBarDownWithTheScreenInsteadOfRemovingItAtOnce() {
         // Given  홈 탭에서 하단바가 보인다
         val selectedItem = mutableStateOf<ChalkakBottomBarItem?>(ChalkakBottomBarItem.HOME)
