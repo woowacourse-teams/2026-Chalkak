@@ -5,8 +5,8 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +27,6 @@ import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottom
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarHostState
 import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
 import com.stonefive.chalkak.core.designsystem.component.bottombar.LocalBottomBarHostState
-import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_CONTENT_FADE_DURATION_MILLIS
 import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_TRANSITION_DURATION_MILLIS
 
 /**
@@ -35,7 +34,7 @@ import com.stonefive.chalkak.core.designsystem.component.image.PHOTO_TRANSITION_
  *
  * - [selectedItem]이 탭이면 하단바를 보이고, 탭이 아닌 화면(피드 등)이면 `null`이 들어와 하단바를 숨긴다.
  * - 탭끼리 이동할 때는 하단바를 그대로 두고 선택 항목만 바꾼다(#751, 화면마다 하단바를 그리면 전환 중 깜빡였다).
- * - 탭이 아닌 화면으로 갈 때는 화면 전환과 함께 서서히 사라지고, 돌아올 때 서서히 나타난다.
+ * - 탭이 아닌 화면으로 갈 때는 화면 전환과 함께 아래로 내려가 사라지고, 돌아올 때 아래에서 올라온다.
  *   첫 프레임에 바로 없애면 화면은 아직 넘어가는 중인데 하단바만 툭 사라져 보였다(#1061).
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -67,8 +66,8 @@ internal fun MainBottomBarLayout(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
-                enter = fadeIn(tween(BOTTOM_BAR_ENTER_DURATION_MILLIS)),
-                exit = fadeOut(tween(BOTTOM_BAR_EXIT_DURATION_MILLIS)),
+                enter = slideInVertically(tween(BOTTOM_BAR_SLIDE_DURATION_MILLIS)) { height -> height },
+                exit = slideOutVertically(tween(BOTTOM_BAR_SLIDE_DURATION_MILLIS)) { height -> height },
             ) {
                 val shownItem = selectedItem ?: lastSelectedItem ?: return@AnimatedVisibility
                 val scrollState = hostState.stateFor(shownItem)
@@ -89,8 +88,5 @@ internal fun MainBottomBarLayout(
     }
 }
 
-// 탭이 아닌 화면은 기본 전환(서서히 나타나기)으로 들어오므로 떠나는 탭 화면과 같은 시간에 맞춘다.
-private const val BOTTOM_BAR_EXIT_DURATION_MILLIS = PHOTO_CONTENT_FADE_DURATION_MILLIS
-
-// 피드에서 돌아올 때 탭 화면이 나타나는 시간(popEnterTransition)에 맞춘다.
-private const val BOTTOM_BAR_ENTER_DURATION_MILLIS = PHOTO_TRANSITION_DURATION_MILLIS
+// 사진이 커지며 피드로 넘어가는 시간(공유 요소 전환)과 맞춘다. 돌아올 때도 같은 시간에 올라온다.
+private const val BOTTOM_BAR_SLIDE_DURATION_MILLIS = PHOTO_TRANSITION_DURATION_MILLIS

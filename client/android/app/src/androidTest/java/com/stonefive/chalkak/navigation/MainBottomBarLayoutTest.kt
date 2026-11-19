@@ -183,7 +183,7 @@ class MainBottomBarLayoutTest {
     }
 
     @Test
-    fun leavingTabsFadesTheBarOutWithTheScreenInsteadOfRemovingItAtOnce() {
+    fun leavingTabsSlidesTheBarDownWithTheScreenInsteadOfRemovingItAtOnce() {
         // Given  홈 탭에서 하단바가 보인다
         val selectedItem = mutableStateOf<ChalkakBottomBarItem?>(ChalkakBottomBarItem.HOME)
         setBarContent(selectedItem)
@@ -193,7 +193,7 @@ class MainBottomBarLayoutTest {
         composeRule.runOnIdle { selectedItem.value = null }
         composeRule.mainClock.advanceTimeBy(BAR_TRANSITION_PROBE_MILLIS)
 
-        // Then   전환 도중에는 하단바가 남아 있고, 전환이 끝나면 사라진다
+        // Then   전환 도중에는 하단바가 내려가는 중이라 남아 있고, 전환이 끝나면 사라진다
         composeRule.onNodeWithTag("main_bottom_bar").assertExists()
         composeRule.mainClock.advanceTimeBy(BAR_TRANSITION_END_MILLIS)
         composeRule.onNodeWithTag("main_bottom_bar").assertDoesNotExist()
