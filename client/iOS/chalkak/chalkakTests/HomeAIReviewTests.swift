@@ -395,6 +395,32 @@ struct HomeAIReviewTests {
         #expect(await repository.fetchIDs.isEmpty)
     }
 
+    @Test("검사 중에 올린 사진을 보여 줄 때도 승인 대기 안내 카드를 보여 준다")
+    func validatingUploadedPhotoShowsAwaitingApprovalCard() async throws {
+        // Given 로그인, AI 리뷰 켜짐, 오늘 사진이 VALIDATING이고 그 게시물의 업로드 사진을 보관함
+        // When  홈을 불러온다
+        // Then  맨 위 카드는 처리 중 사진이고, 피드백 카드는 승인 대기 안내 상태
+        let repository = ReviewRepositoryProbe(fetches: [])
+        let hero = HeroLoaderProbe()
+        hero.postStatus = .success(PhotoUploadTodayPostStatus(
+            topicDate: Self.heroDate, isPosted: true, postID: "post", moderationStatus: .validating
+        ))
+        let store = UploadedPhotoStore(
+            directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        )
+        defer { store.removeAll() }
+        store.save(Data([0x52, 0x49, 0x46, 0x46]), postID: "post")
+        let photoURL = try #require(store.url(for: "post"))
+        let model = Self.homeModel(hero, repository: repository, uploadedPhotoStore: store)
+
+        await model.resume()
+
+        #expect(model.viewState.hero == .processingPhoto(.remote(photoURL)))
+        #expect(model.feedbackPhase == .awaitingApproval)
+        #expect(model.feedbackPostID == nil)
+        #expect(await repository.fetchIDs.isEmpty)
+    }
+
     @Test("안내 카드에서 피드백 시작을 보내도 AI 리뷰를 요청하지 않는다")
     func guidanceCardDoesNotRequestReview() async {
         // Given 피드백 카드가 업로드 전 안내 상태
@@ -526,6 +552,7 @@ struct HomeAIReviewTests {
         _ hero: HeroLoaderProbe,
         repository: ReviewRepositoryProbe?,
         isAuthenticated: Bool = true,
+        uploadedPhotoStore: UploadedPhotoStore? = nil,
         sleep: ReviewSleepProbe = ReviewSleepProbe(),
         now: @escaping @MainActor () -> Date = { Date(timeIntervalSince1970: 1_000) }
     ) -> HomeViewModel {
@@ -533,6 +560,7 @@ struct HomeAIReviewTests {
         return HomeViewModel(
             initialState: HomeViewState(date: today),
             loader: hero.loader,
+            uploadedPhotoStore: uploadedPhotoStore,
             dateProvider: { today },
             isAuthenticated: { isAuthenticated },
             aiReviewRepository: repository,

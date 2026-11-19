@@ -491,6 +491,16 @@ class HomeAiReviewTest {
     }
 
     @Test
+    fun `검사 중에 올린 사진을 보여 줄 때도 승인 대기 안내 카드를 보여 준다`() {
+        // Given 오늘 사진이 VALIDATING이고 맨 위 카드가 보관한 업로드 사진을 보여 준다
+        val hero = HomeHeroState.ProcessingPhoto("/cache/$POST_ID.webp")
+        // When  승인 전 안내 종류를 정한다
+        val notice = hero.feedbackNotice()
+        // Then  검사 중 문구 카드와 같은 승인 대기 안내
+        assertEquals(HomeFeedbackNotice.AwaitingApproval, notice)
+    }
+
+    @Test
     fun `안내 카드에서 피드백 시작을 보내도 AI 리뷰를 요청하지 않는다`() = runTest {
         // Given 피드백 카드가 업로드 전 안내 상태
         val ai = FakeAiReviewRepository()

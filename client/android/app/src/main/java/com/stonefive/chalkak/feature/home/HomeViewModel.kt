@@ -23,6 +23,7 @@ import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.UploadedPostPhotoRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
 import com.stonefive.chalkak.feature.aireview.AiReviewUiState
 import java.time.LocalDate
@@ -55,6 +56,7 @@ class HomeViewModel(
     private val isAiReviewEnabled: () -> Boolean = { true },
     private val loadHomeIssueExperiment: suspend () -> HomeIssueExperiment = { HomeIssueExperiment() },
     private val onIssueExperimentExposed: (isIssueOnTop: Boolean) -> Unit = {},
+    private val uploadedPhotoRepository: UploadedPostPhotoRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider(), isIssueLayoutResolved = false))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -385,6 +387,8 @@ class HomeViewModel(
         }
         val todayRecord = records.firstOrNull { it.topicDate == date }
         val hero = if (todayRecord != null) {
+            // 처리가 끝나 캘린더에 오면 서버 이미지를 쓰므로 보관 사진은 더 필요 없다.
+            uploadedPhotoRepository?.clear()
             loadHero(todayRecord)
         } else if (hasFailure) {
             HomeHeroState.Error
@@ -427,12 +431,22 @@ class HomeViewModel(
         }
         return when (result) {
             is TodayPostStatusResult.Success -> when {
-                result.value.topicDate != date || !result.value.isPosted -> HomeHeroState.Empty
+                result.value.topicDate != date || !result.value.isPosted -> {
+                    // 처리에 실패해 게시물이 없어졌으면 보관 사진도 버린다.
+                    uploadedPhotoRepository?.clear()
+                    HomeHeroState.Empty
+                }
 
-                result.value.moderationStatus == TodayPostModerationStatus.VALIDATING -> HomeHeroState.Processing
+                result.value.moderationStatus == TodayPostModerationStatus.VALIDATING -> processingHero(
+                    result.value.postId,
+                )
 
                 // A posted result without a calendar image is not an empty upload slot.
-                else -> HomeHeroState.Error
+                else -> {
+                    // 처리가 끝났으면(VALIDATING 종료) 캘린더에 아직 없어도 보관 사진은 더 필요 없다.
+                    uploadedPhotoRepository?.clear()
+                    HomeHeroState.Error
+                }
             }
 
             is TodayPostStatusResult.Failure -> if (result.reason == TodayPostStatusFailure.NoOpenTopic) {
@@ -441,6 +455,11 @@ class HomeViewModel(
                 HomeHeroState.Error
             }
         }
+    }
+
+    private fun processingHero(postId: String?): HomeHeroState {
+        val photoPath = postId?.let { uploadedPhotoRepository?.photoPath(it) }
+        return if (photoPath != null) HomeHeroState.ProcessingPhoto(photoPath) else HomeHeroState.Processing
     }
 
     private suspend fun <T> request(block: suspend () -> HomeResult<T>): HomeResult<T> = try {
@@ -472,6 +491,7 @@ class HomeViewModel(
                     isAiReviewEnabled = { appConfigRepository.config.value.isAiReviewEnabled },
                     loadHomeIssueExperiment = appConfigRepository::homeIssueExperiment,
                     onIssueExperimentExposed = analyticsTracker::trackHomeIssueLayoutExposed,
+                    uploadedPhotoRepository = application.appContainer.uploadedPostPhotoRepository,
                 )
             }
         }

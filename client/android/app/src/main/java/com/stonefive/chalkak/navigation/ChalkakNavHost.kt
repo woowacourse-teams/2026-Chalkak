@@ -993,8 +993,9 @@ fun ChalkakNavHost(
                         topic = success.topic,
                         moderationStatus = success.moderationStatus,
                     ),
+                    // 홈 맨 위 카드에서 방금 올린 사진을 바로 보여 주므로 전시 대신 홈으로 돌아간다(#1049).
                     onConfirmClick = dropUnlessResumed(lifecycleOwner = backStackEntry) {
-                        navController.navigate(Display(date = success.date)) {
+                        navController.navigate(Home) {
                             popUpTo<Home> { inclusive = false }
                             launchSingleTop = true
                         }

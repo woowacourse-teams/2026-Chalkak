@@ -23,6 +23,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -39,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.stonefive.chalkak.BuildConfig
+import com.stonefive.chalkak.R
 import com.stonefive.chalkak.core.designsystem.component.button.ChalkakFilledIconButton
 import com.stonefive.chalkak.core.designsystem.component.image.ChalkakSignedImage
 import com.stonefive.chalkak.core.designsystem.component.image.PhotoTransitionKey
@@ -60,10 +64,11 @@ fun HomeHeroCard(
     onOpenPhoto: () -> Unit = {},
 ) {
     // 내 사진은 피드처럼 원본 비율로 보여 준다. 비율을 알기 전과 다른 상태는 기본 비율을 쓴다.
-    var photoAspectRatio by remember((hero as? HomeHeroState.Photo)?.imageUrl) { mutableStateOf<Float?>(null) }
+    val photoKey = (hero as? HomeHeroState.Photo)?.imageUrl ?: (hero as? HomeHeroState.ProcessingPhoto)?.imageUrl
+    var photoAspectRatio by remember(photoKey) { mutableStateOf<Float?>(null) }
     val aspectRatio = when (hero) {
         HomeHeroState.Empty, HomeHeroState.LoginRequired -> HERO_EMPTY_ASPECT_RATIO
-        is HomeHeroState.Photo -> photoAspectRatio ?: HERO_ASPECT_RATIO
+        is HomeHeroState.Photo, is HomeHeroState.ProcessingPhoto -> photoAspectRatio ?: HERO_ASPECT_RATIO
         else -> HERO_ASPECT_RATIO
     }
     Box(
@@ -104,6 +109,18 @@ fun HomeHeroCard(
 
             HomeHeroState.Processing -> HeroStatusContent("사진을 처리하고 있어요")
 
+            // 서버가 처리를 끝내기 전에는 방금 올린 파일을 검수 대기 사진과 같은 모양으로 보여 준다.
+            is HomeHeroState.ProcessingPhoto -> PhotoHeroContent(
+                imageModel = hero.imageUrl,
+                thumbnailModel = hero.imageUrl,
+                badgeText = "처리 중",
+                description = "오늘 제출한 사진, 처리 중",
+                onImageAspectRatioAvailable = { photoAspectRatio = it },
+                // 처리 중인 게시물은 작성자도 상세를 열 수 없어 게시물 ID 없이 누를 수 없게 둔다.
+                onClick = {},
+                modifier = Modifier.fillMaxSize(),
+            )
+
             HomeHeroState.Error -> HeroStatusContent("사진 상태를 불러오지 못했어요") {
                 Spacer(modifier = Modifier.height(ChalkakTheme.spacing.md))
                 ChalkakFilledIconButton(onClick = onRetry) {
@@ -115,10 +132,16 @@ fun HomeHeroCard(
             }
 
             is HomeHeroState.Photo -> PhotoHeroContent(
-                hero = hero,
+                imageModel = hero.imageUrl,
+                thumbnailModel = hero.thumbnailUrl,
+                signatureModel = hero.signatureUrl,
+                thumbnailSignatureModel = hero.signatureThumbnailUrl,
+                badgeText = if (hero.isPending) "검수 대기" else null,
+                description = if (hero.isPending) "오늘 제출한 사진, 검수 대기" else "오늘 제출한 사진",
                 onImageAspectRatioAvailable = { photoAspectRatio = it },
                 onClick = onOpenPhoto,
                 modifier = Modifier.fillMaxSize(),
+                postId = hero.postId,
             )
         }
     }
@@ -126,18 +149,23 @@ fun HomeHeroCard(
 
 @Composable
 private fun PhotoHeroContent(
-    hero: HomeHeroState.Photo,
+    imageModel: Any,
+    badgeText: String?,
+    description: String,
     onImageAspectRatioAvailable: (Float) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    postId: String? = null,
+    thumbnailModel: Any? = null,
+    signatureModel: Any? = null,
+    thumbnailSignatureModel: Any? = null,
 ) {
     // 누르면 홈의 랭킹 사진처럼 눌림 효과 없이 이 사진에서 피드 사진으로 이어지는 전환으로 연다.
     // 게시물 ID를 모르면 열 피드가 없어 누를 수 없게 둔다.
-    val postId = hero.postId
     val photoSource = rememberSharedPhotoSource(
         key = PhotoTransitionKey(postId.orEmpty(), HOME_HERO_TRANSITION_SOURCE_ID),
-        imageModel = hero.imageUrl,
-        signatureModel = hero.signatureUrl,
+        imageModel = imageModel,
+        signatureModel = signatureModel,
         contentScale = ContentScale.Crop,
         sourceShape = ChalkakTheme.shapes.photoCard,
     )
@@ -158,15 +186,15 @@ private fun PhotoHeroContent(
         modifier = modifier
             .background(ChalkakTheme.colors.surfaceElevated)
             .semantics(mergeDescendants = true) {
-                contentDescription = if (hero.isPending) "오늘 제출한 사진, 검수 대기" else "오늘 제출한 사진"
+                contentDescription = description
             }.then(clickModifier),
     ) {
         ChalkakSignedImage(
-            imageModel = hero.imageUrl,
-            signatureModel = hero.signatureUrl,
+            imageModel = imageModel,
+            signatureModel = signatureModel,
             contentDescription = null,
-            thumbnailImageModel = hero.thumbnailUrl,
-            thumbnailSignatureModel = hero.signatureThumbnailUrl,
+            thumbnailImageModel = thumbnailModel,
+            thumbnailSignatureModel = thumbnailSignatureModel,
             contentScale = ContentScale.Crop,
             onImageSuccess = { state ->
                 photoSource.onSuccess(state)
@@ -187,8 +215,9 @@ private fun PhotoHeroContent(
                 height = HeroSignatureHeight,
             ),
         )
-        if (hero.isPending) {
-            PendingBadge(
+        if (badgeText != null) {
+            PhotoBadge(
+                text = badgeText,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(ChalkakTheme.spacing.md),
@@ -278,7 +307,10 @@ private fun HeroStatusContent(
 }
 
 @Composable
-private fun PendingBadge(modifier: Modifier = Modifier) {
+private fun PhotoBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .clip(ChalkakTheme.shapes.pill)
@@ -287,7 +319,7 @@ private fun PendingBadge(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "검수 대기",
+            text = text,
             color = ChalkakTheme.colors.textOnImage,
             style = ChalkakTheme.typography.caption,
             fontWeight = FontWeight.SemiBold,
@@ -331,3 +363,37 @@ private fun HomeHeroCardLoginRequiredPreview() {
         )
     }
 }
+
+@Preview(name = "처리 중_사진 있음", showBackground = true, widthDp = 402)
+@Composable
+private fun HomeHeroCardProcessingPhotoPreview() {
+    // 스냅샷 테스트에서도 Coil이 사진을 첫 화면부터 그리도록 Preview 모드를 켠다.
+    CompositionLocalProvider(LocalInspectionMode provides true) {
+        ChalkakTheme {
+            HomeHeroCard(
+                hero = HomeHeroState.ProcessingPhoto(drawableResourceUrl(R.drawable.preview_photo)),
+                topic = "하늘",
+                onOpenPhotoUpload = {},
+                onRetry = {},
+                modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
+            )
+        }
+    }
+}
+
+@Preview(name = "처리 중_사진 없음", showBackground = true, widthDp = 402)
+@Composable
+private fun HomeHeroCardProcessingPreview() {
+    ChalkakTheme {
+        HomeHeroCard(
+            hero = HomeHeroState.Processing,
+            topic = "하늘",
+            onOpenPhotoUpload = {},
+            onRetry = {},
+            modifier = Modifier.fillMaxWidth().padding(ChalkakTheme.spacing.screenHorizontal),
+        )
+    }
+}
+
+private fun drawableResourceUrl(resourceId: Int): String =
+    "android.resource://${BuildConfig.APPLICATION_ID}/$resourceId"

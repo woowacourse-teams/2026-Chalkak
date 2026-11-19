@@ -69,6 +69,7 @@ private fun DebugHomeBeforeUpload() {
         onOpenRecord = {},
         onOpenDisplay = {},
         onOpenFeed = {},
+        onOpenOwnFeed = {},
         onNavigateToBottomBar = {},
         onRetry = {},
         onNotificationClick = {},

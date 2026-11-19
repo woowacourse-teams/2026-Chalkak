@@ -1148,6 +1148,68 @@ struct PhotoUploadAPIRepositoryTests {
         }
     }
 
+    @Test("업로드한 게시물이 처리 중이면 올린 사진을 그 게시물 ID로 보관한다")
+    func storesUploadedPhotoWhileValidating() async throws {
+        // Given 사진 업로드와 게시물 만들기가 성공하고, 응답이 게시물 "p1", 상태 VALIDATING
+        let store = Self.makeUploadedPhotoStore()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                return Self.response(
+                    for: request,
+                    statusCode: 201,
+                    body: #"{"postId":"p1","moderationStatus":"VALIDATING"}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+        let preparation = Self.preparation()
+
+        // When  게시물을 만든다
+        _ = await PhotoUploadAPIRepository(apiClient: client, uploadedPhotoStore: store).createPost(
+            preparation,
+            text: PhotoUploadPostText(title: "", description: ""),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        // Then  "p1"의 보관 사진이 있고, 그 파일 내용이 올린 파일과 같다
+        let url = try #require(store.url(for: "p1"))
+        #expect(try Data(contentsOf: url) == preparation.encodedData)
+    }
+
+    @Test("게시물 만들기에 실패하면 사진을 보관하지 않는다")
+    func doesNotStorePhotoWhenPostCreationFails() async {
+        // Given 사진 업로드는 성공하고 게시물 만들기 요청이 실패한다
+        let store = Self.makeUploadedPhotoStore()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                return Self.response(
+                    for: request,
+                    statusCode: 500,
+                    body: #"{"errorCode":"SERVER_ERROR","message":"일시적인 오류입니다."}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+
+        // When  게시물을 만든다
+        _ = await PhotoUploadAPIRepository(apiClient: client, uploadedPhotoStore: store).createPost(
+            Self.preparation(),
+            text: PhotoUploadPostText(title: "", description: ""),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        // Then  보관 사진이 없다
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: store.directory.path)) ?? []
+        #expect(files.isEmpty)
+    }
+
+    private static func makeUploadedPhotoStore() -> UploadedPhotoStore {
+        UploadedPhotoStore(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("UploadedPhotoStoreTests-\(UUID().uuidString)", isDirectory: true)
+        )
+    }
+
     private static func preparation() -> PhotoUploadPreparation {
         PhotoUploadPreparation(
             id: UUID(),

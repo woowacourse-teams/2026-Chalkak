@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.post.PostImageEncodeResult
 import com.stonefive.chalkak.data.post.PostImageEncoder
+import com.stonefive.chalkak.data.post.UploadedPostPhotoStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.INVALID_INSTAGRAM_ID_MESSAGE
@@ -34,6 +35,7 @@ class PostCreationRepositoryImpl(
     private val imageEncoder: PostImageEncoder,
     private val imageUploader: PostImageUploader,
     private val nanoTime: () -> Long = System::nanoTime,
+    private val uploadedPhotoStore: UploadedPostPhotoStore? = null,
 ) : PostCreationRepository {
     private val preparedImages = mutableMapOf<String, PreparedImage>()
     private val preparedImagesLock = Any()
@@ -192,6 +194,10 @@ class PostCreationRepositoryImpl(
                 ?: return PostCreationResult.Failure(PostCreationFailure.InvalidResponse)
             if (post.postId.isBlank()) {
                 return PostCreationResult.Failure(PostCreationFailure.InvalidResponse)
+            }
+            // 서버가 처리를 끝낼 때까지 홈에서 올린 사진을 보여 주도록 지우기 전에 보관한다.
+            if (moderationStatus == PostModerationStatus.VALIDATING) {
+                uploadedPhotoStore?.keep(post.postId, uploadFile)
             }
 
             PostCreationResult.Success(

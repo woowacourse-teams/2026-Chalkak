@@ -23,6 +23,7 @@ import com.stonefive.chalkak.data.local.notification.LocalNotificationPublisherI
 import com.stonefive.chalkak.data.local.notification.PushNotificationManager
 import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
+import com.stonefive.chalkak.data.post.UploadedPostPhotoStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.aireview.AiReviewDataSourceImpl
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
@@ -58,7 +59,9 @@ import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.UploadedPostPhotoRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
+import java.io.File
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -246,6 +249,12 @@ class AppContainer(context: Context) {
         AndroidPhotoEditImageRepository(contentResolver = context.contentResolver)
     }
 
+    private val uploadedPostPhotoStore: UploadedPostPhotoStore by lazy {
+        UploadedPostPhotoStore(directory = File(context.cacheDir, UPLOADED_POST_PHOTO_DIRECTORY))
+    }
+
+    val uploadedPostPhotoRepository: UploadedPostPhotoRepository get() = uploadedPostPhotoStore
+
     val postCreationRepository: PostCreationRepository by lazy {
         PostCreationRepositoryImpl(
             remoteDataSource = PostCreationRemoteDataSourceImpl(
@@ -258,6 +267,7 @@ class AppContainer(context: Context) {
                 cacheDir = context.cacheDir,
             ),
             imageUploader = postImageUploader,
+            uploadedPhotoStore = uploadedPostPhotoStore,
         )
     }
 
@@ -344,6 +354,9 @@ class AppContainer(context: Context) {
 
 // 운영 앱이 원격 설정을 다시 받는 최소 간격. 근거는 docs/architecture/remote-config.md 참고.
 private const val REMOTE_CONFIG_FETCH_INTERVAL_SECONDS = 60L * 60L
+
+// 서버 처리 전 홈에 보여 줄 업로드 사진을 두는 캐시 하위 폴더
+private const val UPLOADED_POST_PHOTO_DIRECTORY = "uploaded-post-photo"
 
 private suspend fun com.google.android.gms.tasks.Task<String>.awaitResult(): String? =
     suspendCancellableCoroutine { continuation ->
