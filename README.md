@@ -1,32 +1,39 @@
 # 찰캌
 
-**매일 같은 주제로 사진을 공유하며, 나만의 사인으로 개성을 남기는 익명 사진 서비스.**
+**매일 하나의 주제로 사진을 익명으로 공유하며, 촬영 감각을 키우는 서비스.**
 
 [App Store](https://apps.apple.com/kr/app/%EC%B0%B0%EC%BA%8C-%EB%A7%A4%EC%9D%BC-%ED%95%98%EB%82%98%EC%9D%98-%EC%A3%BC%EC%A0%9C-%EA%B0%81%EC%9E%90%EC%9D%98-%ED%95%9C-%EC%9E%A5/id6809104229) · [Google Play](https://play.google.com/store/apps/details?id=com.stonefive.chalkak)
 
 ## 만든 이유
 
-사진 촬영이 익숙하지 않은 사람도 꾸준히 사진을 찍을 수 있도록 매일 하나의 주제를 제공합니다. 같은 주제를 다른 사람들은 어떻게 표현했는지 감상하며, 사진을 보는 시각과 촬영 실력을 키울 수 있도록 기획했습니다.
+사진을 잘 찍고 싶어도 어떤 장면을 어떤 구도로 담아야 할지 알기 어렵고, 이론으로만 배우면 금방 지루해집니다. 같은 주제를 다른 사람들은 어떤 구도로 찍었는지 보다 보면, 사진이 익숙하지 않은 사람도 자연스럽게 구도를 익히고 촬영 감각을 키울 수 있다고 생각해 만들었습니다.
+
+## 사용 방법
+
+1. 오늘의 주제를 확인합니다.
+2. 다른 사람들이 이 주제를 어떻게 찍었는지 구경합니다.
+3. 주제에 맞는 내 사진을 공유합니다.
 
 ## 주요 기능
 
 <p>
   <img src="docs/readme/screenshots/home.jpeg" width="135" alt="오늘의 주제">
   &nbsp;
-  <img src="docs/readme/screenshots/signature.jpeg" width="135" alt="나만의 사인">
+  <img src="docs/readme/screenshots/gallery.jpeg" width="135" alt="사진 감상">
   &nbsp;
   <img src="docs/readme/screenshots/upload.jpeg" width="135" alt="사진 전시">
   &nbsp;
-  <img src="docs/readme/screenshots/gallery.jpeg" width="135" alt="사진 감상">
+  <img src="docs/readme/screenshots/signature.jpeg" width="135" alt="나만의 사인">
   &nbsp;
   <img src="docs/readme/screenshots/calendar.jpeg" width="135" alt="사진 기록">
 </p>
 
-<sub>왼쪽부터 오늘의 주제 · 나만의 사인 · 사진 전시 · 사진 감상 · 사진 기록. iOS 앱 화면입니다.</sub>
+<sub>왼쪽부터 오늘의 주제 · 사진 감상 · 사진 전시 · 나만의 사인 · 사진 기록. iOS 앱 화면입니다.</sub>
 
 - **오늘의 주제** — 매일 하나의 주제로 사진에 담을 새로운 순간을 찾습니다.
+- **사진 감상** — 같은 주제를 다른 사람들은 어떤 구도로 담았는지 보고 좋아요를 남깁니다.
+- **사진 전시** — 주제에 맞는 내 사진을 익명으로 공유합니다.
 - **나만의 사인** — 직접 그린 사인을 사진에 남겨 개성을 표현합니다.
-- **사진 전시·감상** — 주제에 맞는 사진을 공유하고, 다른 사람의 시선을 감상하며 좋아요를 남깁니다.
 - **사진 기록** — 달력에서 날짜별 사진을 돌아보며 일상을 기록합니다.
 - **AI 피드백** — 전시한 사진에 대한 피드백을 받아봅니다.
 
@@ -48,7 +55,7 @@
 | Backend | Java, Spring Boot, Spring Data JPA, Spring Security, Flyway |
 | Database | PostgreSQL, Amazon RDS |
 | 이미지 처리 | Amazon S3, CloudFront, SQS, AWS Lambda |
-| 외부 연동 | OpenAI, Firebase Cloud Messaging, Kakao · Apple · Google OIDC |
+| 외부 연동 | OpenAI GPT, Jev API, Firebase Cloud Messaging, Kakao · Apple · Google OIDC |
 | 배포 | GitHub Actions, CodePipeline, CodeBuild, CodeDeploy, Amazon EC2 |
 | 모니터링 | CloudWatch, Amazon SNS, AWS Lambda, Slack |
 
@@ -66,8 +73,14 @@
 
 <img src="docs/readme/architecture/monitoring.png" width="640" alt="찰캌 모니터링 아키텍처">
 
-### Android
+### 모바일 시스템
 
-Android 앱 아키텍처는 준비 중입니다.
+<img src="docs/readme/architecture/mobile-system.png" width="640" alt="찰캌 모바일 시스템 아키텍처">
 
-<!-- Android 아키텍처 완성 후 다이어그램과 주요 계층·데이터 흐름 설명을 추가합니다. -->
+### 모바일 CI · 출시
+
+<img src="docs/readme/architecture/mobile-ci.png" width="640" alt="찰캌 모바일 CI·출시 아키텍처">
+
+### 모바일 앱 구조
+
+<img src="docs/readme/architecture/mobile-app.png" width="640" alt="찰캌 모바일 앱 내부 아키텍처">
