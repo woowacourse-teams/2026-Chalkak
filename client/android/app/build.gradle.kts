@@ -43,8 +43,8 @@ android {
         applicationId = "com.stonefive.chalkak"
         minSdk = 26
         targetSdk = 37
-        versionCode = 29
-        versionName = "1.2.0"
+        versionCode = 30
+        versionName = "1.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "ENABLE_PLAY_APP_UPDATES", "true")
