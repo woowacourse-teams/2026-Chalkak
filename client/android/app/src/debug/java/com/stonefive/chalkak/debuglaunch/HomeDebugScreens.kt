@@ -73,7 +73,6 @@ private fun DebugHomeBeforeUpload() {
         onNavigateToBottomBar = {},
         onRetry = {},
         onNotificationClick = {},
-        onSettingsClick = {},
         onIssueClick = { _, _ -> },
         onStartFeedback = viewModel::startFeedback,
         onDismissFeedbackMessage = viewModel::dismissFeedbackMessage,
