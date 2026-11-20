@@ -1,5 +1,6 @@
 package com.chalkak.backend.jev.service;
 
+import com.chalkak.backend.common.logging.LogFields;
 import com.chalkak.backend.jev.domain.JevDecision;
 import com.chalkak.backend.jev.domain.JevDisposition;
 import com.chalkak.backend.jev.domain.JevModerationRun;
@@ -11,18 +12,25 @@ import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.user.repository.UserRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import com.chalkak.backend.jev.domain.JevSlackDelivery;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @Transactional(readOnly = true)
 public class JevResultApplicationService {
+
+    private static final Logger MODERATION_LOG = LoggerFactory.getLogger("chalkak.moderation");
 
     private final JevJobRepository jobs;
     private final PostRepository posts;
@@ -135,6 +143,24 @@ public class JevResultApplicationService {
                 null,
                 now
         );
+        logApprovedAfterCommit(post, now);
+    }
+
+    private void logApprovedAfterCommit(Post post, Instant approvedAt) {
+        // 커밋 뒤 지연 로딩 없이 기록하고, 롤백된 승인을 대시보드에 완료로 표시하지 않는다.
+        UUID postId = post.getId();
+        long waitSeconds = Duration.between(post.getCreatedAt(), approvedAt).getSeconds();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                MODERATION_LOG.atInfo()
+                        .addKeyValue(LogFields.TYPE, LogFields.TYPE_MODERATION)
+                        .addKeyValue(LogFields.EVENT, "approved")
+                        .addKeyValue(LogFields.POST_ID, postId)
+                        .addKeyValue(LogFields.WAIT_SECONDS, waitSeconds)
+                        .log("검수 결정");
+            }
+        });
     }
 
     private void markForAdmin(

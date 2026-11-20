@@ -6,6 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.BDDMockito.given;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.chalkak.backend.admin.service.jev.AdminJevPromptVersionService;
 import com.chalkak.backend.admin.service.jev.AdminJevEvaluationService;
 import com.chalkak.backend.admin.service.jev.AdminJevMetricsService;
@@ -40,7 +44,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -60,6 +66,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 @TestPropertySource(properties = {
@@ -117,6 +124,8 @@ class JevProductionModerationTest extends IntegrationTestSupport {
 
     private Instant now;
     private JevPromptVersion classification;
+    private final Logger moderationLogger = (Logger) LoggerFactory.getLogger("chalkak.moderation");
+    private final ListAppender<ILoggingEvent> moderationAppender = new ListAppender<>();
 
     @BeforeEach
     void setUp() {
@@ -155,10 +164,14 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 photo.getId(),
                 true
         );
+        moderationAppender.start();
+        moderationLogger.addAppender(moderationAppender);
     }
 
     @AfterEach
     void tearDown() {
+        moderationLogger.detachAppender(moderationAppender);
+        moderationAppender.stop();
         new DatabaseCleaner(jdbc).clean();
         cleanOwnRows();
     }
@@ -224,6 +237,13 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         int auditBefore = jdbc.queryForObject("SELECT count(*) FROM admin_audit_logs",
                 Integer.class);
         finish(id, "approve");
+        Instant approvedAt = now.plusSeconds(2).truncatedTo(ChronoUnit.MILLIS);
+        given(clock.instant()).willReturn(approvedAt);
+        jdbc.update(
+                "UPDATE posts SET created_at = ? WHERE id = ?",
+                Timestamp.from(approvedAt.minusSeconds(37)),
+                post
+        );
         // When
         application.apply(id);
         application.apply(id);
@@ -234,6 +254,37 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM admin_audit_logs", Integer.class))
                 .isEqualTo(auditBefore);
+        assertThat(approvedEvents()).hasSize(1);
+        ILoggingEvent event = approvedEvents().getFirst();
+        assertThat(event.getLevel()).isEqualTo(Level.INFO);
+        assertThat(keyValue(event, "type")).isEqualTo("moderation");
+        assertThat(keyValue(event, "postId")).isEqualTo(post);
+        assertThat(keyValue(event, "waitSeconds")).isEqualTo(37L);
+        assertThat(event.getKeyValuePairs()).hasSize(4);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("실제 승인 트랜잭션이 커밋될 때만 완료 로그를 남기고 롤백이면 남기지 않는다")
+    void apply_outerTransaction_logsOnlyAfterCommit(boolean commit) {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        finish(id, "approve");
+        // When
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            application.apply(id);
+            assertThat(approvedEvents()).isEmpty();
+            if (!commit) {
+                status.setRollbackOnly();
+            }
+        });
+        // Then
+        assertThat(approvedEvents()).hasSize(commit ? 1 : 0);
+        assertThat(status(post)).isEqualTo(commit ? "APPROVED" : "PENDING");
+        assertThat(execution.getRun(id).getAppliedAt() != null).isEqualTo(commit);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isEqualTo(commit ? 1 : 0);
     }
 
     @ParameterizedTest
@@ -443,6 +494,7 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 .isEqualTo(decision.equals("reject") ? "REJECT" : "HUMAN_REVIEW");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isZero();
+        assertThat(approvedEvents()).isEmpty();
     }
 
     @Test
@@ -492,6 +544,7 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 .isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isZero();
+        assertThat(approvedEvents()).isEmpty();
     }
 
     @Test
@@ -657,12 +710,14 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 ModerationStatus.APPROVED,
                 null
         );
+        moderationAppender.list.clear();
         // When
         application.apply(id);
         // Then
         assertThat(execution.getRun(id).getDisposition()).isEqualTo(JevDisposition.SKIPPED);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isEqualTo(1);
+        assertThat(approvedEvents()).isEmpty();
     }
 
     @Test
@@ -685,6 +740,7 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> application.apply(id)).isInstanceOf(IllegalStateException.class);
         assertThat(status(post)).isEqualTo("PENDING");
         assertThat(execution.getRun(id).getAppliedAt()).isNull();
+        assertThat(approvedEvents()).isEmpty();
     }
 
     @Test
@@ -714,6 +770,7 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         // Then
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isEqualTo(1);
+        assertThat(approvedEvents()).hasSize(1);
     }
 
     @Test
@@ -1009,6 +1066,21 @@ class JevProductionModerationTest extends IntegrationTestSupport {
                 .from(detail)
                 .result().classificationCalls()).isNull();
         assertThat(execution.getCategory(id)).isNull();
+    }
+
+    private List<ILoggingEvent> approvedEvents() {
+        return moderationAppender.list.stream()
+                .filter(event -> "approved".equals(keyValue(event, "event")))
+                .toList();
+    }
+
+    private Object keyValue(ILoggingEvent event, String key) {
+        if (event.getKeyValuePairs() == null) {
+            return null;
+        }
+        return event.getKeyValuePairs().stream()
+                .filter(pair -> pair.key.equals(key))
+                .findFirst().map(pair -> pair.value).orElse(null);
     }
 
     private void evaluate(UUID id, JevDecision expected) {
