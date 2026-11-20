@@ -14,7 +14,6 @@ struct HomeScreen: View {
     var onOpenHeroFeed: (FeedTarget) -> Void = { _ in }
     var onOpenNotifications: () -> Void = {}
     var hasUnreadNotifications = false
-    var onOpenSettings: () -> Void = {}
     var onIssueClick: (URL) -> Void = { _ in }
     var onInteraction: (HomeInteraction) -> Void = { _ in }
     var bottomBarCompact: Binding<Bool> = .constant(false)
@@ -31,8 +30,7 @@ struct HomeScreen: View {
         VStack(spacing: 0) {
             HomeTopBar(
                 onOpenNotifications: onOpenNotifications,
-                hasUnreadNotifications: hasUnreadNotifications,
-                onOpenSettings: onOpenSettings
+                hasUnreadNotifications: hasUnreadNotifications
             )
                 .padding(.horizontal, theme.spacing.screenHorizontal)
                 .background(theme.colors.background.opacity(Metrics.topBarOpacity))

@@ -636,9 +636,6 @@ struct ContentView: View {
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
-                onOpenSettings: {
-                    withAnimation { notificationPath = [.appSettings] }
-                },
                 onIssueClick: { selectedIssueURL = $0 },
                 onInteraction: trackHomeInteraction,
                 bottomBarCompact: $isBottomBarCompact,
