@@ -561,6 +561,9 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         // Then
         assertThat(execution.getCategory(id).getPhase().calls()).isEmpty();
         assertThat(execution.getRun(id).getDisposition()).isEqualTo(JevDisposition.SKIPPED);
+        assertThat(execution.getRun(id).getApplicationReason()).isEqualTo("USER_DELETED");
+        assertThat(execution.getRun(id).getEvaluation().error()).isEqualTo("USER_DELETED");
+        assertThat(execution.getRun(id).getSlackDelivery()).isNull();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isZero();
     }
@@ -587,6 +590,12 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         assertThat(run.getPhase().calls()).hasSize(1);
         assertThat(run.getEvaluation().recommendation()).isEqualTo(JevDecision.APPROVE);
         assertThat(run.getDisposition()).isEqualTo(JevDisposition.SKIPPED);
+        assertThat(run.getApplicationReason()).isEqualTo("USER_DELETED");
+        assertThat(run.getPhase().calls().getFirst().rawResponse())
+                .isEqualTo(photoResponse("approve"));
+        assertThat(run.getPhase().calls().getFirst().inputTokens()).isEqualTo(10);
+        assertThat(run.getPhase().calls().getFirst().outputTokens()).isEqualTo(3);
+        assertThat(run.getSlackDelivery()).isNull();
         assertThat(jdbc.queryForObject(
                 "SELECT deleted_at IS NOT NULL FROM posts WHERE id = ?",
                 Boolean.class,
@@ -596,6 +605,141 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isZero();
         assertThat(approvedEvents()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "PHOTO", "TOPIC", "WITHDRAWN", "LEGACY"})
+    @DisplayName("다른 삭제와 주체를 모르는 기존 삭제는 사용자 삭제로 추정하지 않는다")
+    void claim_otherSourceDeletion_preservesGenericReason(String source) {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        switch (source) {
+            case "ADMIN" -> adminPosts.deletePost(
+                    post,
+                    ADMIN,
+                    "관리자 삭제"
+            );
+            case "PHOTO" -> jdbc.update(
+                    "UPDATE photos SET deleted_at = ? WHERE id = (SELECT photo_id FROM posts WHERE id = ?)",
+                    Timestamp.from(now),
+                    post
+            );
+            case "TOPIC" -> jdbc.update(
+                    "UPDATE topics SET deleted_at = ? WHERE id = ?",
+                    Timestamp.from(now),
+                    TOPIC
+            );
+            case "WITHDRAWN" -> jdbc.update(
+                    "UPDATE users SET deleted_at = ? WHERE id = ?",
+                    Timestamp.from(now),
+                    USER
+            );
+            case "LEGACY" -> jdbc.update(
+                    "UPDATE posts SET deleted_at = ? WHERE id = ?",
+                    Timestamp.from(now),
+                    post
+            );
+            default -> throw new IllegalArgumentException(source);
+        }
+        // When
+        assertThat(execution.claim(id).action()).isEqualTo("STOP");
+        application.apply(id);
+        // Then
+        var run = execution.getRun(id);
+        assertThat(run.getApplicationReason()).isEqualTo("SOURCE_DELETED");
+        assertThat(run.getDisposition()).isEqualTo(JevDisposition.SKIPPED);
+        assertThat(run.getEvaluation().error()).isEqualTo("SOURCE_DELETED");
+        assertThat(run.getSlackDelivery()).isNull();
+        assertThat(execution.getCategory(id).getPhase().calls()).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT deleted_by_author FROM posts WHERE id = ?",
+                Boolean.class,
+                post
+        )).isEqualTo(source.equals("ADMIN") ? false : null);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isZero();
+        assertThat(approvedEvents()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사용자 삭제가 롤백되면 삭제 주체도 남지 않고 검수를 계속한다")
+    void claim_rolledBackDeletion_continuesModeration() {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        // When
+        new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            posts.deletePost(USER, post);
+            tx.setRollbackOnly();
+        });
+        // Then
+        assertThat(jdbc.queryForObject(
+                "SELECT deleted_at IS NULL AND deleted_by_author IS NULL FROM posts WHERE id = ?",
+                Boolean.class,
+                post
+        )).isTrue();
+        assertThat(execution.claim(id).action()).isEqualTo("CLASSIFY");
+    }
+
+    @Test
+    @DisplayName("이미 적용한 자동 승인은 이후 사용자 삭제와 중복 결과로 덮어쓰지 않는다")
+    void apply_deletedAfterApproval_preservesOriginalOutcome() {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        classify(id);
+        JevJobClaim claim = execution.claim(id);
+        String raw = photoResponse("approve");
+        result(
+                id,
+                "PHOTO",
+                claim,
+                raw
+        );
+        application.apply(id);
+        String originalReason = execution.getRun(id).getApplicationReason();
+        Integer originalNotifications = jdbc.queryForObject(
+                "SELECT count(*) FROM notifications", Integer.class);
+        posts.deletePost(USER, post);
+        // When
+        result(
+                id,
+                "PHOTO",
+                claim,
+                raw
+        );
+        application.apply(id);
+        // Then
+        var run = execution.getRun(id);
+        assertThat(run.getDisposition()).isEqualTo(JevDisposition.AUTO_APPROVED);
+        assertThat(run.getApplicationReason()).isEqualTo(originalReason);
+        assertThat(run.getPhase().calls()).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isEqualTo(originalNotifications);
+        assertThat(approvedEvents()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("삭제 후 재등록은 이전 검수의 삭제 사유와 분리하고 횟수는 복구하지 않는다")
+    void claim_replacementPost_keepsDeletionSeparate() {
+        // Given
+        UUID old = createPost(insertUpload(true));
+        posts.deletePost(USER, old);
+        UUID replacement = createPost(insertUpload(true));
+        // When
+        execution.claim(job(old));
+        application.apply(job(old));
+        // Then
+        assertThat(execution.getRun(job(old)).getApplicationReason()).isEqualTo("USER_DELETED");
+        assertThat(jdbc.queryForObject(
+                "SELECT deleted_by_author FROM posts WHERE id = ?",
+                Boolean.class,
+                replacement
+        )).isNull();
+        assertThat(execution.claim(job(replacement)).action()).isEqualTo("CLASSIFY");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM posts", Integer.class)).isEqualTo(2);
+        assertThat(status(replacement)).isEqualTo("PENDING");
     }
 
     @Test

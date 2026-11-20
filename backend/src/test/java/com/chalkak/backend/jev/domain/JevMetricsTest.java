@@ -11,6 +11,8 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class JevMetricsTest {
 
@@ -75,6 +77,39 @@ class JevMetricsTest {
         assertThat(metrics.usage().knownInputTokens()).isEqualTo(1000);
         assertThat(metrics.usage().unknownOutputUsageCalls()).isEqualTo(100);
         assertThat(metrics.finalAgreement().matchPercent()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"USER_DELETED", "SOURCE_DELETED"})
+    @DisplayName("모델 호출 전 삭제로 취소한 결과는 기술 오류나 정확도 표본으로 세지 않는다")
+    void calculate_sourceDeleted_excludesManualCancellation(String reason) {
+        // Given
+        Sample original = sample(
+                JevDecision.APPROVE,
+                JevDecision.APPROVE,
+                "deleted"
+        );
+        Sample cancelled = new Sample(
+                original.id(),
+                original.postId(),
+                original.topicId(),
+                false,
+                JevDisposition.SKIPPED,
+                JevEvaluation.review(reason),
+                original.gold(),
+                original.repeatKey()
+        );
+        // When
+        var metrics = JevMetrics.calculate(
+                List.of(cancelled),
+                List.of(),
+                false
+        );
+        // Then
+        assertThat(metrics.skipped()).isEqualTo(1);
+        assertThat(metrics.technicalErrors()).isZero();
+        assertThat(metrics.finalAgreement().rated()).isZero();
+        assertThat(metrics.consistencyPercent()).isNull();
     }
 
     private Sample sample(

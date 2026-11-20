@@ -93,6 +93,9 @@ public class Post {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "deleted_by_author")
+    private Boolean deletedByAuthor;
+
     private Post(
             User author,
             Topic topic,
@@ -242,7 +245,7 @@ public class Post {
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
         validateAuthor(authorId);
         validateAuthorDeletionStatus();
-        deleteIfNotDeleted(deletedAt);
+        deleteIfNotDeleted(deletedAt, true);
     }
 
     public void revokeInstagramConsent(Instant revokedAt) {
@@ -251,7 +254,7 @@ public class Post {
 
     public void deleteByAdmin(Instant deletedAt) {
         validateAdminDeletionStatus();
-        deleteIfNotDeleted(deletedAt);
+        deleteIfNotDeleted(deletedAt, false);
     }
 
     private void validateAdminDeletionStatus() {
@@ -317,7 +320,7 @@ public class Post {
                 "현재 상태의 게시물은 삭제할 수 없습니다.");
     }
 
-    private void deleteIfNotDeleted(Instant deletedAt) {
+    private void deleteIfNotDeleted(Instant deletedAt, boolean deletedByAuthor) {
         if (this.deletedAt != null) {
             return;
         }
@@ -328,6 +331,7 @@ public class Post {
         }
         photo.delete(deletedAt);
         this.deletedAt = deletedAt;
+        this.deletedByAuthor = deletedByAuthor;
         this.instagramConsent = instagramConsent.clearInstagramId();
     }
 

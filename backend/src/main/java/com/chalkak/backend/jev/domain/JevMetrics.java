@@ -83,6 +83,7 @@ public record JevMetrics(
                 "CONFIGURATION_MISSING",
                 "PREEXISTING_REGISTRATION",
                 "SOURCE_DELETED",
+                "USER_DELETED",
                 "ADMIN_ALREADY_DECIDED",
                 "IMAGE_PROCESSING_FAILED"
         ).contains(error);

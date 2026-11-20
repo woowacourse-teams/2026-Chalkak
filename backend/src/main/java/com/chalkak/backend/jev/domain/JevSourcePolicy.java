@@ -9,6 +9,10 @@ public final class JevSourcePolicy {
     }
 
     public static String findHoldReason(Post post) {
+        if (post != null && post.getDeletedAt() != null
+                && Boolean.TRUE.equals(post.getDeletedByAuthor())) {
+            return "USER_DELETED";
+        }
         if (post == null || post.getDeletedAt() != null || post.getPhoto().getDeletedAt() != null
                 || post.getTopic().getDeletedAt() != null || post.getAuthor().isDeleted()) {
             return "SOURCE_DELETED";
