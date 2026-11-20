@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Keep local mobile action bars unobstructed; runtime error overlays still work.
   devIndicators: false,
+  async redirects() {
+    return [
+      {
+        source: "/jev-moderation/:path*",
+        destination: "/posts/jev/:path*",
+        permanent: false,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

@@ -22,6 +22,11 @@ describe("admin return path", () => {
     expect(getSafeReturnTo(path)).toBe(path);
   });
 
+  it("keeps a Jev review link after login", () => {
+    const path = "/posts/jev/a61f6106-b7dc-45c6-b08f-c746d5dffb02";
+    expect(getLoginUrl(path)).toBe("/login?" + new URLSearchParams({ returnTo: path }));
+  });
+
   it("defaults to home for missing paths", () => {
     expect(getSafeReturnTo(null)).toBe("/");
     expect(getLoginUrl("/")).toBe("/login");

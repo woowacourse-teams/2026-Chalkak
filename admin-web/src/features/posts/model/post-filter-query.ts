@@ -29,7 +29,7 @@ function optional(value: string | null) {
 
 export function readAdminPostFilters(
   params: Pick<URLSearchParams, "get">,
-): AdminPostFilters {
+): AdminPostFilters & { status: ModerationStatus } {
   const rawStatus = params.get("status") as ModerationStatus | null;
   const rawSort = params.get("sort") as AdminPostSort | null;
   const rawConsent = params.get("instagramConsent") as AdminPostInstagramConsentFilter | null;

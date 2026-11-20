@@ -1,3 +1,4 @@
+import { jevHandlers, updateMockJevPost, resetJevMocks } from "./jev-handlers";
 import { createAiPromptHandlers, resetAiPromptMocks } from "./ai-prompt-handlers";
 import { aiReviewHandlers } from "./ai-review-handlers";
 import { createBannerHandlers, resetBannerMocks } from "./banner-handlers";
@@ -53,6 +54,7 @@ export function resetMockData() {
   resetBannerMocks();
   resetReminderMocks();
   resetAiPromptMocks();
+  resetJevMocks();
   mockAdminSignedIn = false;
   auditStore = [];
   feedbackChanges.clear();
@@ -358,6 +360,22 @@ export const handlers = [
     (postId) => { const post = postStore[postId]; return post?.moderationStatus === "APPROVED" && !post.deletedAt; },
   ),
   ...aiReviewHandlers,
+  ...jevHandlers,
+  http.put(adminApi + "/posts/:postId/moderation-correction", async ({ request, params }) => {
+    const postId = String(params.postId);
+    const { status, reason } = await request.json() as { status: "APPROVED" | "REJECTED"; reason: string };
+    const post = postStore[postId];
+    if (!post || post.deletedAt || !["APPROVED", "REJECTED"].includes(post.moderationStatus)) {
+      return HttpResponse.json({ errorCode: "BUSINESS_ERROR", message: "정정할 수 없는 게시물이에요." }, { status: 400 });
+    }
+    if (post.moderationStatus === status) {
+      return HttpResponse.json({ postId, moderationStatus: status, moderatedBy: null });
+    }
+    updateMockJevPost(postId, { postStatus: status });
+    postStore[postId] = { ...post, moderationStatus: status, rejectionReason: status === "REJECTED" ? reason : null };
+    return HttpResponse.json({ postId, moderationStatus: status, moderatedBy: "demo-admin" });
+  }),
+
   http.get(adminApi + "/topic-push-schedules", () => HttpResponse.json({ schedules: [...scheduleStore].sort((left, right) => left.sendTime.localeCompare(right.sendTime)) })),
   http.post(adminApi + "/topic-push-schedules", ({ request }) => saveSchedule(request)),
   http.put(adminApi + "/topic-push-schedules/:scheduleId", ({ request, params }) => saveSchedule(request, String(params.scheduleId))),
@@ -575,6 +593,7 @@ export const handlers = [
         updatedAt: moderatedAt,
       };
       updatePostCounts(post, postStore[postId]);
+      updateMockJevPost(postId, { postStatus: body.status });
       recordAudit(body.status === "APPROVED" ? "POST_APPROVED" : "POST_REJECTED", "POST", postId,
         body.status === "REJECTED" ? body.rejectionReason?.trim() ?? null : null,
         { moderationStatus: post.moderationStatus }, { moderationStatus: body.status });
@@ -607,6 +626,7 @@ export const handlers = [
         photo: post.photo ? { ...post.photo, deletedAt } : null,
       };
       updatePostCounts(post, postStore[postId]);
+      updateMockJevPost(postId, { postDeletedAt: deletedAt, originalImageUrl: null });
       recordAudit("POST_DELETED", "POST", postId, body.reason.trim(), { deletedAt: null }, { deletedAt });
     }
 
