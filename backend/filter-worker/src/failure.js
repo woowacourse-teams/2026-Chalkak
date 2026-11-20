@@ -2,6 +2,9 @@
 export const INVALID_PROBE = 'INVALID_PROBE';
 export const PROCESSING_FAILED = 'PROCESSING_FAILED';
 
+// 내부 오류·시간 초과·포기에서 작가에게 보이는 고정 문구
+export const PROCESSING_FAILED_MESSAGE = '필터를 만드는 중 문제가 생겼어요. 다시 올려 주세요.';
+
 export class ExtractionFailure extends Error {
   constructor(type, message) {
     super(message);

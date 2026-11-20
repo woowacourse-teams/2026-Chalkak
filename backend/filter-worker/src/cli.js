@@ -3,10 +3,8 @@
 // 실패하면 stderr에 {"type","message"} JSON을 쓰고 INVALID_PROBE는 종료 코드 2, 그 밖은 1로 끝낸다.
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { ExtractionFailure, INVALID_PROBE, failureLines } from './failure.js';
+import { ExtractionFailure, INVALID_PROBE, PROCESSING_FAILED_MESSAGE, failureLines } from './failure.js';
 import { extractRecipe } from './extract-recipe.js';
-
-const PROCESSING_MESSAGE = '필터를 만드는 중 문제가 생겼어요. 다시 올려 주세요.';
 
 const fail = (failure) => {
   process.stderr.write(`${failureLines(failure).join('\n')}\n`);
@@ -32,7 +30,7 @@ try {
   if (!args.values.out) process.stdout.write(`${JSON.stringify(recipe)}\n`);
 } catch (error) {
   if (error instanceof ExtractionFailure) fail(error);
-  const failure = ExtractionFailure.processingFailed(PROCESSING_MESSAGE);
+  const failure = ExtractionFailure.processingFailed(PROCESSING_FAILED_MESSAGE);
   failure.cause = error;
   fail(failure);
 }

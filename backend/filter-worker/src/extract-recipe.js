@@ -1,6 +1,6 @@
 // 견본 JPG 바이트 → 레시피 JSON. 순서:
 //   바이트 검사 → XMP 계획(디코드 전에 실패시킨다) → 디코드 → M1 읽기 → 홀드아웃(M1 · A2 · G1) → 분기 선택 → 고른 격자만 최종 맞춤 → 레시피
-import { ExtractionFailure } from './failure.js';
+import { ExtractionFailure, PROCESSING_FAILED_MESSAGE } from './failure.js';
 import { loadIdentityProbe } from './grid/identity-probe.js';
 import { fitSelected, scoreBranches, selectBranch } from './grid/select.js';
 import { pickRgb, probeBase } from './grid/samples.js';
@@ -8,8 +8,6 @@ import { extractM1 } from './m1/extract.js';
 import { EXTRACTOR_VERSION, PROBE_VERSION, encodeRecipe } from './recipe.js';
 import { checkProbeBytes, decodeProbe } from './probe-input.js';
 import { planFromXmp, readXmp } from './xmp.js';
-
-const PROCESSING_MESSAGE = '필터를 만드는 중 문제가 생겼어요. 다시 올려 주세요.';
 
 async function extract(buffer, opts) {
   checkProbeBytes(buffer, opts);
@@ -43,7 +41,7 @@ export async function extractRecipe(buffer, opts) {
     return await extract(buffer, opts);
   } catch (error) {
     if (error instanceof ExtractionFailure) throw error;
-    const failure = ExtractionFailure.processingFailed(PROCESSING_MESSAGE);
+    const failure = ExtractionFailure.processingFailed(PROCESSING_FAILED_MESSAGE);
     failure.cause = error;
     throw failure;
   }
