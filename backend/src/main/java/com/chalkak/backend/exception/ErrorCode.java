@@ -6,5 +6,7 @@ public enum ErrorCode {
     // 이 코드는 재발급까지 실패해 저장한 토큰을 버리고 로그인 화면으로 보내야 하는 경우를 가른다.
     REAUTHENTICATION_REQUIRED, FORBIDDEN, INTERNAL_ERROR,
     // 이미 도는 집계가 끝난 뒤 다시 요청하면 되므로 입력을 고쳐야 하는 BUSINESS_ERROR와 재시도 방식이 다르다.
-    USER_METRICS_AGGREGATION_IN_PROGRESS
+    USER_METRICS_AGGREGATION_IN_PROGRESS,
+    // 앱은 등록을 중단하고 잔여 횟수 조회의 다음 KST 초기화 시각을 안내한다.
+    POST_REGISTRATION_LIMIT_REACHED
 }

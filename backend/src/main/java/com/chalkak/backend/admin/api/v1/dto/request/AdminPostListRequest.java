@@ -84,9 +84,9 @@ public record AdminPostListRequest(
     }
 
     /**
-     * 날짜 필터({@code topicDate}, {@code createdAtFrom}, {@code createdAtTo})는 제거했다. 이를 보내는 구버전 관리자 웹이 필터가
-     * 빠진 목록을 적용된 결과로 오해하지 않도록 조용히 무시하지 않고 거절한다. 관리자 웹이 날짜 필터를 더 이상 보내지 않게
-     * 배포되면(#920) 세 필드와 함께 지운다.
+     * 날짜 필터({@code topicDate}, {@code createdAtFrom}, {@code createdAtTo})는 제거했다.
+     * 이를 보내는 구버전 관리자 웹이 필터가 빠진 목록을 적용된 결과로 오해하지 않도록 조용히 무시하지 않고 거절한다. 관리자 웹이 날짜 필터를
+     * 더 이상 보내지 않게 배포되면(#920) 세 필드와 함께 지운다.
      */
     @JsonIgnore
     @Schema(hidden = true)

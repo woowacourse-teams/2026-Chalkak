@@ -1,6 +1,7 @@
 package com.chalkak.backend.admin.domain;
 
 import com.chalkak.backend.aireview.domain.AiPromptType;
+import com.chalkak.backend.jev.domain.JevPromptRole;
 import com.chalkak.backend.appversion.domain.AppPlatform;
 import com.chalkak.backend.notification.domain.Notice;
 import com.chalkak.backend.notification.domain.Reminder;
@@ -91,7 +92,59 @@ final class AdminAuditTransitionRules {
             "deletedAt"
     );
 
+    private static final Set<String> JEV_EVALUATION_FIELDS = Set.of(
+            "runId",
+            "decision",
+            "topicDecision",
+            "safetyDecision",
+            "expressionDecision",
+            "sampling",
+            "evaluatedBy",
+            "evaluatedAt",
+            "evaluationReason"
+    );
+
     private AdminAuditTransitionRules() {
+    }
+
+    static boolean isJevEvaluationUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return (beforeState.isEmpty() || (beforeState.hasExactlyFields(JEV_EVALUATION_FIELDS)
+                && Objects.equals(beforeState.value("runId"), afterState.value("runId"))))
+                && afterState.hasExactlyFields(JEV_EVALUATION_FIELDS)
+                && isJevDecision(afterState.value("decision"))
+                && isOptionalJevDecision(afterState.value("topicDecision"))
+                && isOptionalJevDecision(afterState.value("safetyDecision"))
+                && isOptionalJevDecision(afterState.value("expressionDecision"))
+                && afterState.value("sampling") instanceof String sampling
+                && Set.of(
+                        "RANDOM",
+                        "ERROR_ANALYSIS",
+                        "UNSPECIFIED"
+                ).contains(sampling)
+                && actorAdminId.toString().equals(afterState.value("evaluatedBy"))
+                && isInstant(afterState.value("evaluatedAt"));
+    }
+
+    static boolean isPostModerationCorrected(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.hasExactlyFields(POST_MODERATION_BEFORE_FIELDS)
+                && afterState.hasExactlyFields(POST_MODERATION_AFTER_FIELDS)
+                && beforeState.value("moderationStatus") instanceof String previous
+                && Set.of("APPROVED", "REJECTED").contains(previous)
+                && afterState.value("moderationStatus") instanceof String next
+                && Set.of("APPROVED", "REJECTED").contains(next)
+                && !Objects.equals(beforeState.value("moderationStatus"),
+                        afterState.value("moderationStatus"))
+                && isInstant(beforeState.value("moderatedAt"))
+                && isInstant(afterState.value("moderatedAt"))
+                && actorAdminId.toString().equals(afterState.value("moderatedBy"));
     }
 
     static boolean isPostApproved(
@@ -350,6 +403,34 @@ final class AdminAuditTransitionRules {
                 && version > 0;
     }
 
+    static boolean isJevPromptVersionCreated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        return beforeState.isEmpty()
+                && afterState.hasExactlyFields(Set.of("role", "version"))
+                && isJevRole(afterState.value("role"))
+                && afterState.value("version") instanceof Integer version
+                && version > 0;
+    }
+
+    static boolean isJevPromptActivationUpdated(
+            UUID actorAdminId,
+            AdminAuditSnapshot beforeState,
+            AdminAuditSnapshot afterState
+    ) {
+        Set<String> fields = Set.of("role", "activeVersionId");
+        return beforeState.hasExactlyFields(fields)
+                && afterState.hasExactlyFields(fields)
+                && isJevRole(beforeState.value("role"))
+                && Objects.equals(beforeState.value("role"), afterState.value("role"))
+                && isNullableVersionId(beforeState.value("activeVersionId"))
+                && isNullableVersionId(afterState.value("activeVersionId"))
+                && !Objects.equals(beforeState.value("activeVersionId"),
+                        afterState.value("activeVersionId"));
+    }
+
     static boolean isReminderCreated(
             UUID actorAdminId,
             AdminAuditSnapshot beforeState,
@@ -449,6 +530,16 @@ final class AdminAuditTransitionRules {
                 && Arrays.stream(constants).anyMatch(constant -> constant.name().equals(name));
     }
 
+    private static boolean isJevRole(Object value) {
+        return value instanceof String name
+                && Arrays.stream(JevPromptRole.values()).anyMatch(role -> role.name().equals(name));
+    }
+
+    private static boolean isNullableVersionId(Object value) {
+        return value == null || value instanceof String id
+                && id.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    }
+
     private static boolean isAiPromptType(Object value) {
         return value instanceof String name
                 && Arrays.stream(AiPromptType.values()).anyMatch(type -> type.name().equals(name));
@@ -492,6 +583,19 @@ final class AdminAuditTransitionRules {
             return false;
         }
         return sendTime.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]:00");
+    }
+
+    private static boolean isJevDecision(Object value) {
+        return value instanceof String text
+                && Set.of(
+                        "APPROVE",
+                        "HUMAN_REVIEW",
+                        "REJECT"
+                ).contains(text);
+    }
+
+    private static boolean isOptionalJevDecision(Object value) {
+        return value == null || isJevDecision(value);
     }
 
     private static boolean isPostModeration(

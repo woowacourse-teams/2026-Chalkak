@@ -17,6 +17,7 @@ from image_processor.post import PostImageProcessor
 from image_processor.router import ImageProcessorRouter
 from image_processor.signature import SignatureImageProcessor
 from image_processor.upload import PresignedUploadClient
+from image_processor.jev import JevHttpClient, JevJobProcessor
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -25,6 +26,7 @@ DEFAULT_MAX_RECEIVE_COUNT = 5
 PRESIGNED_UPLOAD_TIMEOUT_SECONDS = 30.0
 
 _processor: ImageProcessorRouter | None = None
+_jev_processor: JevJobProcessor | None = None
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -68,6 +70,24 @@ def _process_message(
 ) -> tuple[int, int]:
     processed_count = 0
     rejected_count = 0
+    try:
+        message = json.loads(sqs_record.get("body", ""))
+    except (TypeError, ValueError):
+        message = None
+    if isinstance(message, dict) and message.get("type") in {"JEV_MODERATION", "JEV_RESULT"}:
+        try:
+            _get_jev_processor().process(message)
+            return 1, 0
+        except PermanentCallbackError:
+            LOGGER.error("Jev callback permanently refused messageId=%s", message_id)
+            return 0, 1
+        except Exception:
+            # 키/원응답/프롬프트가 포함된 메시지 또는 예외 문자열은 남기지 않는다.
+            LOGGER.error("Jev message processing failed messageId=%s", message_id)
+            if _receive_count(sqs_record) < _max_receive_count():
+                raise
+            LOGGER.error("Jev delivery abandoned messageId=%s", message_id)
+            return 0, 1
     try:
         s3_records = parse_s3_records(sqs_record.get("body", ""))
     except RejectedEventError as exception:
@@ -240,3 +260,25 @@ def _get_processor() -> ImageProcessorRouter:
             root_prefix=settings.root_prefix,
         )
     return _processor
+
+
+def _get_jev_processor() -> JevJobProcessor:
+    global _jev_processor
+    if _jev_processor is None:
+        settings = Settings.from_environment()
+        _jev_processor = JevJobProcessor(
+            settings=settings,
+            s3_client=boto3.client("s3"),
+            sqs_client=boto3.client("sqs"),
+            callback_client=ProcessingCallbackClient(
+                kind="jev-moderation-jobs",
+                base_urls={
+                    "dev": settings.dev_backend_image_processing_api_base_url,
+                    "prod": settings.prod_backend_image_processing_api_base_url,
+                },
+                secret=settings.image_processing_api_secret,
+                timeout_seconds=settings.image_processing_api_timeout_seconds,
+            ),
+            http_client=JevHttpClient(settings.typesafe_api_key),
+        )
+    return _jev_processor

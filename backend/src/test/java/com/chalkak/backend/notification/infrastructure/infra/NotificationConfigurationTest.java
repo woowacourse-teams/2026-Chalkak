@@ -1,6 +1,8 @@
 package com.chalkak.backend.notification.infrastructure.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import com.chalkak.backend.jev.repository.JevJobRepository;
 
 import com.chalkak.backend.notification.infrastructure.infra.slack.SlackNotificationProperties;
 import com.chalkak.backend.notification.service.NotificationMessageFactory;
@@ -14,6 +16,7 @@ class NotificationConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(NotificationConfiguration.class)
+            .withBean(JevJobRepository.class, () -> mock(JevJobRepository.class))
             .withBean(NotificationSender.class, () -> message -> true)
             .withPropertyValues(
                     "chalkak.admin.notification.admin-web-base-url=https://admin.example.com"

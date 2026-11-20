@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
 import com.chalkak.backend.post.service.PostModerationPendingEvent;
+import com.chalkak.backend.jev.repository.JevJobRepository;
 import java.net.URI;
 import java.time.Instant;
 import java.util.UUID;
@@ -41,7 +42,10 @@ class PostModerationPendingNotificationListenerTest {
         given(messageFactory.create(EVENT)).willReturn(MESSAGE);
         given(sender.send(MESSAGE)).willReturn(true);
         PostModerationPendingNotificationListener listener = new PostModerationPendingNotificationListener(
-                messageFactory, sender);
+                messageFactory,
+                sender,
+                mock(JevJobRepository.class)
+        );
 
         // When
         listener.sendPostModerationPending(EVENT);
@@ -59,7 +63,10 @@ class PostModerationPendingNotificationListenerTest {
         given(messageFactory.create(EVENT)).willReturn(MESSAGE);
         given(sender.send(MESSAGE)).willReturn(false);
         PostModerationPendingNotificationListener listener = new PostModerationPendingNotificationListener(
-                messageFactory, sender);
+                messageFactory,
+                sender,
+                mock(JevJobRepository.class)
+        );
 
         // When & Then
         assertThatCode(() -> listener.sendPostModerationPending(EVENT))
@@ -77,7 +84,10 @@ class PostModerationPendingNotificationListenerTest {
                 "https://hooks.slack.com/services/SECRET/SECRET/SECRET"
         ));
         PostModerationPendingNotificationListener listener = new PostModerationPendingNotificationListener(
-                messageFactory, sender);
+                messageFactory,
+                sender,
+                mock(JevJobRepository.class)
+        );
 
         // When & Then
         assertThatCode(() -> listener.sendPostModerationPending(EVENT))
