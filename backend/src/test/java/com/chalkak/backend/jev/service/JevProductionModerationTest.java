@@ -133,7 +133,8 @@ class JevProductionModerationTest extends IntegrationTestSupport {
     void setUp() {
         new DatabaseCleaner(jdbc).clean();
         cleanOwnRows();
-        now = Instant.now();
+        // PostgreSQL에 저장하고 다시 조회한 시각과 같은 정밀도로 전달 시각의 경계를 검증한다.
+        now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         given(clock.instant()).willReturn(now);
         jdbc.update(
                 "INSERT INTO admins(id, username, password) VALUES (?, 'jev-production-test', 'test')",
