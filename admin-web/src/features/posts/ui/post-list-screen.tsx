@@ -24,6 +24,7 @@ import {
   getPostErrorMessage,
 } from "../model/post-display";
 import { PostFilters, type FilterOption } from "./post-filters";
+import { PostStatusTabs } from "./post-status-tabs";
 import { PostThumbnail } from "./post-thumbnail";
 import styles from "./posts.module.css";
 
@@ -168,12 +169,7 @@ export function PostListScreen() {
     <div className={styles.postsPage}>
       <h2 className={styles.pageTitle}>게시물</h2>
       {sourceUrl ? <Link className={styles.backLink} href={sourceUrl}>← 사용자·주제로 돌아가기</Link> : null}
-      <nav aria-label="검수 상태" className={styles.statusTabs}>
-        {([ ["PENDING", "검수 대기"], ["APPROVED", "승인"], ["REJECTED", "거절"] ] as const).map(([status, label]) => (
-          <Link aria-current={filters.status === status ? "page" : undefined} href={pathname + withQueryPatch(searchParams, { status, page: 1 })} key={status}>{label}</Link>
-        ))}
-        <Link className={styles.auditHistoryLink} href="/audit-logs">전체 처리 이력 ↗</Link>
-      </nav>
+      <PostStatusTabs active={filters.status} searchParams={searchParams} />
       {filters.topicId || filters.userId ? <p className={styles.filterContext}>{filters.topicId ? (selectedTopic.data?.title ?? "선택한 주제") : null}{filters.topicId && filters.userId ? " · " : null}{filters.userId ? (selectedUser.data?.email ?? "선택한 사용자") : null}의 게시물</p> : null}
 
       <PostFilters

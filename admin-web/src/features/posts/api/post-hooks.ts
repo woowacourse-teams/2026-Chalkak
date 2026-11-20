@@ -63,6 +63,7 @@ export function useModerateAdminPost() {
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.topics.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.auditLogs }),
+        queryClient.invalidateQueries({ queryKey: ["jev"] }),
       ]);
     },
   });
@@ -80,6 +81,7 @@ export function useDeleteAdminPost() {
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.topics.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.auditLogs }),
+        queryClient.invalidateQueries({ queryKey: ["jev"] }),
       ]);
     },
   });
