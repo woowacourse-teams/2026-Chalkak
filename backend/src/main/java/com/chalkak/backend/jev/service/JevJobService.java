@@ -106,6 +106,15 @@ public class JevJobService {
         if (run.getFinishedAt() != null || run.getDispatchAt().isAfter(now)) {
             return 0;
         }
+        if (!run.hasDispatchCapacity()) {
+            // 공유 분류의 진행 중 호출도 기존 기한까지 기다린다. 새 전달이나 모델 호출은 늘리지 않는다.
+            JevPhase classification = lockCategory(run.getClassificationId()).getPhase();
+            if (!classification.completed() && classification.deadline() != null
+                    && now.isBefore(classification.deadline())) {
+                run.postponeDispatch(classification.deadline());
+                return 0;
+            }
+        }
         return run.reserveDispatch(now);
     }
 
@@ -134,6 +143,7 @@ public class JevJobService {
         if (run.getFinishedAt() != null) {
             return JevJobClaim.idle("STOP", id);
         }
+        run.acknowledgeDispatch();
         JevTopicCategory category = lockCategory(run.getClassificationId());
         category.updatePhase(category.getPhase().refresh(now));
         if (!category.getPhase().completed()) {

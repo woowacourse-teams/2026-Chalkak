@@ -225,6 +225,196 @@ class JevProductionModerationTest extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"QueueUnavailable", "ACCEPTED_WITHOUT_CLAIM"})
+    @DisplayName("작업 전달 실패와 큐 수락 후 무응답 모두 상한에 도달하면 관리자 대기로 한 번만 전환한다")
+    void reserveDispatch_noClaim_finishesForAdmin(String delivery) {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        for (int attempt = 1; attempt <= 4; attempt++) {
+            given(clock.instant()).willReturn(now.plusSeconds((attempt - 1) * 15L));
+            assertThat(execution.reserveDispatch(id)).isEqualTo(attempt);
+            execution.recordDispatch(
+                    id,
+                    attempt,
+                    delivery.equals("QueueUnavailable") ? delivery : null
+            );
+        }
+        // When
+        given(clock.instant()).willReturn(now.plusSeconds(60));
+        assertThat(execution.reserveDispatch(id)).isZero();
+        assertThat(application.findUnappliedRunIds()).contains(id);
+        application.apply(id);
+        var firstSlack = execution.getRun(id).getSlackDelivery();
+        application.apply(id);
+        // Then
+        var run = execution.getRun(id);
+        assertThat(run.getDispatchAttempts()).isEqualTo(4);
+        assertThat(run.getUnclaimedDispatchAttempts()).isEqualTo(4);
+        assertThat(run.getDispatchError())
+                .isEqualTo(delivery.equals("QueueUnavailable") ? delivery : null);
+        assertThat(run.getEvaluation().error()).isEqualTo("DISPATCH_LIMIT_EXCEEDED");
+        assertThat(run.getEvaluation().recommendation()).isEqualTo(JevDecision.HUMAN_REVIEW);
+        assertThat(run.getDisposition()).isEqualTo(JevDisposition.ADMIN_REVIEW);
+        assertThat(run.getSlackDelivery()).isEqualTo(firstSlack);
+        assertThat(jobs.findDueSlackIds(clock.instant())).containsExactly(id);
+        assertThat(run.getPhase().calls()).isEmpty();
+        assertThat(execution.getCategory(id).getPhase().calls()).isEmpty();
+        assertThat(execution.claim(id).action()).isEqualTo("STOP");
+        assertThat(execution.reserveDispatch(id)).isZero();
+        assertThat(execution.findDueRunIds()).doesNotContain(id);
+        assertThat(status(post)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("마지막 전달에서 시작한 주제 분류도 기존 100초 기한을 줄이지 않는다")
+    void reserveDispatch_classificationInFlight_waitsUntilPhaseDeadline() {
+        // Given
+        UUID id = job(createPost(insertUpload(true)));
+        JevJobClaim claim = execution.claim(id);
+        assertThat(claim.action()).isEqualTo("CLASSIFY");
+        for (int attempt = 1; attempt <= 4; attempt++) {
+            given(clock.instant()).willReturn(now.plusSeconds(attempt * 15L));
+            assertThat(execution.reserveDispatch(id)).isEqualTo(attempt);
+        }
+        // When
+        given(clock.instant()).willReturn(now.plusSeconds(75));
+        assertThat(execution.reserveDispatch(id)).isZero();
+        // Then
+        assertThat(execution.getRun(id).getFinishedAt()).isNull();
+        assertThat(execution.getRun(id).getDispatchAt()).isEqualTo(claim.deadline());
+        given(clock.instant()).willReturn(claim.deadline());
+        assertThat(execution.reserveDispatch(id)).isZero();
+        assertThat(execution.getRun(id).getEvaluation().error())
+                .isEqualTo("DISPATCH_LIMIT_EXCEEDED");
+    }
+
+    @Test
+    @DisplayName("이미지 준비를 오래 기다려도 전달 횟수는 소모하지 않고 준비된 뒤 첫 전달을 시작한다")
+    void reserveDispatch_imageNotReady_doesNotUseDeliveryBudget() {
+        // Given
+        UUID post = createPost(insertUpload(false));
+        UUID id = job(post);
+        given(clock.instant()).willReturn(now.plusSeconds(600));
+        assertThat(execution.findDueRunIds()).doesNotContain(id);
+        assertThat(execution.getRun(id).getDispatchAttempts()).isZero();
+        // When
+        jdbc.update("UPDATE posts SET moderation_status = 'PENDING' WHERE id = ?", post);
+        // Then
+        assertThat(execution.findDueRunIds()).contains(id);
+        assertThat(execution.reserveDispatch(id)).isEqualTo(1);
+        assertThat(execution.getRun(id).getFinishedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("전달 한도 직전의 동시 예약은 마지막 전달 한 건만 확보하고 한도를 넘기지 않는다")
+    void reserveDispatch_lastDeliveryConcurrent_reservesOne() throws Exception {
+        // Given
+        UUID id = job(createPost(insertUpload(true)));
+        jdbc.update("""
+                UPDATE jev_moderation_runs
+                SET dispatch_attempts = 19, unclaimed_dispatch_attempts = 3 WHERE id = ?
+                """, id);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                start.await();
+                return execution.reserveDispatch(id);
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return execution.reserveDispatch(id);
+            });
+            // When
+            start.countDown();
+            // Then
+            assertThat(java.util.List.of(
+                    first.get(10, TimeUnit.SECONDS),
+                    second.get(10, TimeUnit.SECONDS)
+            )).containsExactlyInAnyOrder(20, 0);
+        }
+        assertThat(execution.getRun(id).getDispatchAttempts()).isEqualTo(20);
+        assertThat(execution.getRun(id).getUnclaimedDispatchAttempts()).isEqualTo(4);
+        given(clock.instant()).willReturn(now.plusSeconds(15));
+        assertThat(execution.reserveDispatch(id)).isZero();
+        assertThat(execution.getRun(id).getEvaluation().error())
+                .isEqualTo("DISPATCH_LIMIT_EXCEEDED");
+    }
+
+    @Test
+    @DisplayName("전달 상한 종료 후 늦은 사진 응답은 증거로 남기고 관리자 검토를 자동 승인으로 바꾸지 않는다")
+    void receive_afterDispatchLimit_preservesEvidenceWithoutApproval() {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        classify(id);
+        JevJobClaim claim = execution.claim(id);
+        jdbc.update("UPDATE jev_moderation_runs SET unclaimed_dispatch_attempts = 4 WHERE id = ?",
+                id);
+        given(clock.instant()).willReturn(now.plusSeconds(100));
+        assertThat(execution.reserveDispatch(id)).isZero();
+        // When
+        result(
+                id,
+                "PHOTO",
+                claim,
+                photoResponse("approve")
+        );
+        application.apply(id);
+        // Then
+        var run = execution.getRun(id);
+        assertThat(run.getPhase().calls()).hasSize(1);
+        assertThat(run.getPhase().calls().getFirst().rawResponse()).contains("approve");
+        assertThat(run.getPhase().calls().getFirst().inputTokens()).isEqualTo(10);
+        assertThat(run.getEvaluation().error()).isEqualTo("DISPATCH_LIMIT_EXCEEDED");
+        assertThat(run.getDisposition()).isEqualTo(JevDisposition.ADMIN_REVIEW);
+        assertThat(status(post)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("정상 확보 응답이 있으면 누적 전달이 4회를 넘어도 모델 예산을 초기화하지 않고 검수를 마친다")
+    void reserveDispatch_claimAcknowledged_preservesModelBudget() {
+        // Given
+        UUID post = createPost(insertUpload(true));
+        UUID id = job(post);
+        classify(id);
+        JevJobClaim photo = execution.claim(id);
+        Instant deadline = photo.deadline();
+        // When
+        for (int attempt = 1; attempt <= 6; attempt++) {
+            given(clock.instant()).willReturn(now.plusSeconds(attempt * 15L));
+            assertThat(execution.reserveDispatch(id)).isEqualTo(attempt);
+            JevJobClaim next = execution.claim(id);
+            assertThat(next.action()).isIn("WAIT", "INSPECT");
+            if (next.action().equals("INSPECT")) {
+                photo = next;
+            }
+            var run = execution.getRun(id);
+            assertThat(run.getUnclaimedDispatchAttempts()).isZero();
+            assertThat(run.getPhase().deadline()).isEqualTo(deadline);
+            assertThat(run.getFinishedAt()).isNull();
+        }
+        result(
+                id,
+                "PHOTO",
+                photo,
+                photoResponse("approve")
+        );
+        application.apply(id);
+        // Then
+        var run = execution.getRun(id);
+        assertThat(run.getDispatchAttempts()).isEqualTo(6);
+        assertThat(run.getPhase().calls()).hasSize(2);
+        assertThat(run.getPhase().calls().getFirst().errorCode()).isEqualTo("RESPONSE_LOST");
+        assertThat(run.getDisposition()).isEqualTo(JevDisposition.AUTO_APPROVED);
+        assertThat(status(post)).isEqualTo("APPROVED");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"reject", "human_review"})
     @DisplayName("반려 추천과 검토는 관리자 대기로 남기고 사용자 반려 알림을 만들지 않는다")
     void apply_rejectOrReview_keepsPending(String decision) {

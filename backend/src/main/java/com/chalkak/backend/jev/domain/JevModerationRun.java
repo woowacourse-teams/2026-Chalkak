@@ -21,6 +21,8 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class JevModerationRun {
 
+    private static final int MAX_UNCLAIMED_DISPATCH_ATTEMPTS = 4;
+
     @Id
     private UUID id;
 
@@ -96,6 +98,9 @@ public class JevModerationRun {
     @Column(name = "dispatch_attempts", nullable = false)
     private int dispatchAttempts;
 
+    @Column(name = "unclaimed_dispatch_attempts", nullable = false)
+    private int unclaimedDispatchAttempts;
+
     @Column(name = "dispatch_error", length = 120)
     private String dispatchError;
 
@@ -168,6 +173,11 @@ public class JevModerationRun {
     }
 
     public void complete(JevEvaluation evaluation, Instant now) {
+        // 늦은 모델 응답의 원문/사용량은 phase에 남기되, 확정한 전달 실패를 승인으로 바꾸지 않는다.
+        if (this.evaluation != null
+                && "DISPATCH_LIMIT_EXCEEDED".equals(this.evaluation.error())) {
+            return;
+        }
         this.evaluation = evaluation;
         if (finishedAt == null) {
             this.finishedAt = now;
@@ -206,9 +216,31 @@ public class JevModerationRun {
     }
 
     public int reserveDispatch(Instant now) {
+        if (finishedAt != null) {
+            return 0;
+        }
+        if (!hasDispatchCapacity()) {
+            // 전달 상한 때문에 이미 발급된 사진 검사의 100초 예산을 줄이지 않는다.
+            if (phase.deadline() != null && now.isBefore(phase.deadline())) {
+                dispatchAt = phase.deadline();
+                return 0;
+            }
+            suspend("DISPATCH_LIMIT_EXCEEDED", now);
+            return 0;
+        }
         dispatchAttempts++;
+        unclaimedDispatchAttempts++;
         dispatchAt = now.plusSeconds(15);
         return dispatchAttempts;
+    }
+
+    public boolean hasDispatchCapacity() {
+        return unclaimedDispatchAttempts < MAX_UNCLAIMED_DISPATCH_ATTEMPTS;
+    }
+
+    public void acknowledgeDispatch() {
+        // 누적 전달 횟수/오류와 물리 호출 이력·100초 예산은 초기화하지 않는다.
+        unclaimedDispatchAttempts = 0;
     }
 
     public void recordDispatch(int attempt, String error) {
