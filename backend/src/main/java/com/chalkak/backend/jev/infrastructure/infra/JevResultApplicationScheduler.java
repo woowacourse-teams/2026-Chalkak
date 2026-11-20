@@ -13,7 +13,7 @@ public class JevResultApplicationScheduler {
 
     private final JevResultApplicationService service;
 
-    // 전송이 꺼져도 이미 받은 결과는 관리자 대기로 정리한다. 재시작 후 미적용 결과도 이 경로로 복구한다.
+    // 전송이 꺼지면 미완료 운영 작업도 닫는다. 이미지 준비 후 실제 반영/관리자 알림을 이어서 처리한다.
     @Scheduled(fixedDelay = 1000, scheduler = "jevTaskScheduler")
     public void apply() {
         for (var id : service.findUnappliedRunIds()) {

@@ -14,6 +14,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Value;
 import com.chalkak.backend.jev.domain.JevSlackDelivery;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,13 @@ public class JevResultApplicationService {
     }
 
     public List<UUID> findUnappliedRunIds() {
+        if (!automation.isWorkerEnabled()) {
+            // 미완료와 완료 대기는 별도 배치로 읽어 이미지 준비 중인 행이 다음 작업을 막지 않게 한다.
+            return Stream.concat(
+                    jobs.findUnfinishedProductionRunIds().stream(),
+                    jobs.findUnappliedRunIds().stream()
+            ).distinct().toList();
+        }
         return jobs.findUnappliedRunIds();
     }
 
@@ -65,10 +73,17 @@ public class JevResultApplicationService {
         Post post = posts.findByIdForUpdate(target.postId()).orElse(null);
         automation.lockControl();
         JevModerationRun run = jobs.findRunForUpdate(id).orElse(null);
-        if (run == null || run.getFinishedAt() == null || run.getAppliedAt() != null) {
+        if (run == null || run.getAppliedAt() != null) {
             return;
         }
         Instant now = clock.instant();
+        if (run.getFinishedAt() == null) {
+            if (automation.isWorkerEnabled()) {
+                return;
+            }
+            // VALIDATING이어도 먼저 중단을 보존하고 실제 적용/알림은 이미지 준비 후로 미룬다.
+            run.suspend("AUTOMATION_DISABLED", now);
+        }
         String sourceReason = JevSourcePolicy.findHoldReason(post);
         if ("IMAGE_NOT_READY".equals(sourceReason)) {
             return;

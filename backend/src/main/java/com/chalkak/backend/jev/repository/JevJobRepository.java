@@ -31,6 +31,8 @@ public interface JevJobRepository {
 
     List<UUID> findUnappliedRunIds();
 
+    List<UUID> findUnfinishedProductionRunIds();
+
     List<UUID> findDueRunIds(Instant now);
 
     List<UUID> findDueSlackIds(Instant now);

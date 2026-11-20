@@ -77,6 +77,11 @@ public class JevJobRepositoryImpl implements JevJobRepository {
     }
 
     @Override
+    public List<UUID> findUnfinishedProductionRunIds() {
+        return runs.findUnfinishedProductionIds();
+    }
+
+    @Override
     public List<UUID> findDueRunIds(Instant now) {
         return runs.findDueIds(now);
     }

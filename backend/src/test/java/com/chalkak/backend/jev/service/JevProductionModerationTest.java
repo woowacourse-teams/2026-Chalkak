@@ -204,6 +204,18 @@ class JevProductionModerationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("자동 검수가 켜져 있으면 미완료 작업은 관리자 정리 대상으로 가져오지 않는다")
+    void findUnapplied_workerEnabled_excludesUnfinished() {
+        // Given
+        UUID id = job(createPost(insertUpload(true)));
+        // When & Then
+        assertThat(application.findUnappliedRunIds()).doesNotContain(id);
+        application.apply(id);
+        assertThat(execution.getRun(id).getFinishedAt()).isNull();
+        assertThat(execution.getRun(id).getSlackDelivery()).isNull();
+    }
+
+    @Test
     @DisplayName("세 질문 승인 추천만 자동 승인하며 사용자 알림은 한 건이고 가짜 관리자 감사는 없다")
     void apply_allApproved_publishesOnce() {
         // Given

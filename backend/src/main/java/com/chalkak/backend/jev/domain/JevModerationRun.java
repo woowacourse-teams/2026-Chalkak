@@ -173,9 +173,10 @@ public class JevModerationRun {
     }
 
     public void complete(JevEvaluation evaluation, Instant now) {
-        // 늦은 모델 응답의 원문/사용량은 phase에 남기되, 확정한 전달 실패를 승인으로 바꾸지 않는다.
+        // 늦은 모델 응답의 원문/사용량은 phase에 남기되, 확정한 전달 실패/중단을 승인으로 바꾸지 않는다.
         if (this.evaluation != null
-                && "DISPATCH_LIMIT_EXCEEDED".equals(this.evaluation.error())) {
+                && ("DISPATCH_LIMIT_EXCEEDED".equals(this.evaluation.error())
+                        || "AUTOMATION_DISABLED".equals(this.evaluation.error()))) {
             return;
         }
         this.evaluation = evaluation;

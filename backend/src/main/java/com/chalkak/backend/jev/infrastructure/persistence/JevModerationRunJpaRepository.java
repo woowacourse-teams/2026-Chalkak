@@ -34,6 +34,13 @@ public interface JevModerationRunJpaRepository extends JpaRepository<JevModerati
     List<UUID> findUnappliedIds();
 
     @Query(value = """
+            SELECT id FROM jev_moderation_runs
+            WHERE NOT preview AND applied_at IS NULL AND finished_at IS NULL
+            ORDER BY dispatch_at, id LIMIT 20
+            """, nativeQuery = true)
+    List<UUID> findUnfinishedProductionIds();
+
+    @Query(value = """
             SELECT run.id FROM jev_moderation_runs run
             JOIN posts post ON post.id = run.post_id
             JOIN users author ON author.id = post.user_id

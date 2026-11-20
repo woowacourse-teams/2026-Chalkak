@@ -24,6 +24,10 @@ public class JevAutomationService {
         this.workerEnabled = workerEnabled;
     }
 
+    public boolean isWorkerEnabled() {
+        return workerEnabled;
+    }
+
     public void lockControl() {
         prompts.lockRole(JevPromptRole.JEV_TOPIC_CLASSIFICATION);
         prompts.lockRole(JevPromptRole.JEV_PHOTO_MODERATION);
@@ -57,6 +61,11 @@ public class JevAutomationService {
             return null;
         }
         if (!workerEnabled) {
+            return "AUTOMATION_DISABLED";
+        }
+        // 이미지 준비 중 중단한 기록도 재시작/재활성화 후 자동 공개로 되돌리지 않는다.
+        if (run.getEvaluation() != null
+                && "AUTOMATION_DISABLED".equals(run.getEvaluation().error())) {
             return "AUTOMATION_DISABLED";
         }
         if (run.getClassificationPromptId() == null || run.getPhotoPromptId() == null) {
