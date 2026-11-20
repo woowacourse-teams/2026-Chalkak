@@ -32,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class JevJobService {
 
+    private static final long RETRY_JITTER_BOUND_MILLIS = 1001;
+
     private final JevJobRepository jobs;
     private final PostRepository posts;
     private final TopicRepository topics;
@@ -159,8 +161,7 @@ public class JevJobService {
                     run,
                     category,
                     category.getPhase(),
-                    "CLASSIFY",
-                    automation.resolve(run).classification().questions()
+                    "CLASSIFY"
             );
         }
         if (category.getPhase().failure() != null || category.getCategory() == null) {
@@ -184,8 +185,7 @@ public class JevJobService {
                 run,
                 category,
                 run.getPhase(),
-                "INSPECT",
-                createPhotoQuestions(automation.resolve(run), category.getCategory())
+                "INSPECT"
         );
     }
 
@@ -199,66 +199,112 @@ public class JevJobService {
         JevModerationRun run = execution.run();
         Instant now = clock.instant();
         if ("CLASSIFICATION".equals(stage)) {
-            JevTopicCategory category = lockCategory(run.getClassificationId());
-            JevPhase previous = category.getPhase();
-            result = normalizeResult(
+            receiveClassificationResult(
+                    run,
                     result,
-                    previous,
                     now
             );
-            category.updatePhase(previous.receive(
-                    result,
-                    now,
-                    ThreadLocalRandom.current().nextLong(1001)
-            ));
-            if (result.errorCode() == null && result.callId().equals(previous.callId())
-                    && category.getPhase().failure() == null) {
-                category.complete(parser.parse(
-                        result.rawResponse(),
-                        automation.resolve(run).model(),
-                        automation.resolve(run).classification().questions()
-                ));
-            }
-            if (result.callId().equals(previous.callId())) {
-                run.postponeDispatch(category.getPhase().availableAt());
-            }
             closeIfHeld(execution, now);
             return;
         }
         if (!"PHOTO".equals(stage)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Jev 호출 단계가 올바르지 않습니다.");
         }
-        JevPhase previous = run.getPhase();
-        result = normalizeResult(
+        receivePhotoResult(
+                run,
                 result,
-                previous,
                 now
         );
-        run.updatePhase(previous.receive(
+        closeIfHeld(execution, now);
+    }
+
+    private void receiveClassificationResult(
+            JevModerationRun run,
+            JevCallResult result,
+            Instant now
+    ) {
+        JevTopicCategory category = lockCategory(run.getClassificationId());
+        JevPhase previous = category.getPhase();
+        JevPhase received = receivePhaseResult(
+                previous,
                 result,
-                now,
-                ThreadLocalRandom.current().nextLong(1001)
-        ));
-        if (run.getPhase().completed()) {
-            if (result.errorCode() == null && result.callId().equals(previous.callId())
-                    && run.getPhase().failure() == null) {
-                JevEvaluation evaluation = parser.parse(
-                        result.rawResponse(),
-                        automation.resolve(run).model(),
-                        automation.resolve(run).photo().questions()
-                );
-                run.complete(evaluation, now);
-                closeIfHeld(execution, now);
-                return;
-            }
-            if (run.getFinishedAt() == null) {
-                run.complete(failedEvaluation(run.getPhase().failure()), now);
-            }
+                now
+        );
+        category.updatePhase(received);
+        if (isSuccessfulCurrentResult(
+                result,
+                previous,
+                received
+        )) {
+            var draft = automation.resolve(run);
+            category.complete(parser.parse(
+                    result.rawResponse(),
+                    draft.model(),
+                    draft.classification().questions()
+            ));
         }
         if (result.callId().equals(previous.callId())) {
-            run.postponeDispatch(run.getPhase().availableAt());
+            run.postponeDispatch(category.getPhase().availableAt());
         }
-        closeIfHeld(execution, now);
+    }
+
+    private void receivePhotoResult(
+            JevModerationRun run,
+            JevCallResult result,
+            Instant now
+    ) {
+        JevPhase previous = run.getPhase();
+        JevPhase received = receivePhaseResult(
+                previous,
+                result,
+                now
+        );
+        run.updatePhase(received);
+        if (isSuccessfulCurrentResult(
+                result,
+                previous,
+                received
+        )) {
+            var draft = automation.resolve(run);
+            JevEvaluation evaluation = parser.parse(
+                    result.rawResponse(),
+                    draft.model(),
+                    draft.photo().questions()
+            );
+            run.complete(evaluation, now);
+            return;
+        }
+        if (received.completed() && run.getFinishedAt() == null) {
+            run.complete(failedEvaluation(received.failure()), now);
+        }
+        if (result.callId().equals(previous.callId())) {
+            run.postponeDispatch(received.availableAt());
+        }
+    }
+
+    private JevPhase receivePhaseResult(
+            JevPhase previous,
+            JevCallResult result,
+            Instant now
+    ) {
+        return previous.receive(
+                normalizeResult(
+                        result,
+                        previous,
+                        now
+                ),
+                now,
+                ThreadLocalRandom.current().nextLong(RETRY_JITTER_BOUND_MILLIS)
+        );
+    }
+
+    private boolean isSuccessfulCurrentResult(
+            JevCallResult result,
+            JevPhase previous,
+            JevPhase received
+    ) {
+        return received.completed() && received.failure() == null && result.errorCode() == null
+                && result.callId().equals(previous.callId());
     }
 
     private JevJobClaim waitForPhase(
@@ -343,19 +389,23 @@ public class JevJobService {
             JevModerationRun run,
             JevTopicCategory category,
             JevPhase phase,
-            String action,
-            Map<String, JevChoiceQuestion> questions
+            String action
     ) {
+        var draft = automation.resolve(run);
+        boolean inspectPhoto = "INSPECT".equals(action);
+        var questions = inspectPhoto
+                ? createPhotoQuestions(draft, category.getCategory())
+                : draft.classification().questions();
         return new JevJobClaim(
                 action,
                 run.getId(),
                 phase.callId(),
                 phase.deadline(),
-                automation.resolve(run).model(),
+                draft.model(),
                 run.getTopicTitle(),
                 category.getCategory(),
                 questions,
-                "INSPECT".equals(action) ? run.getStorageKey() : null
+                inspectPhoto ? run.getStorageKey() : null
         );
     }
 
