@@ -28,6 +28,7 @@
 | --- | --- | --- |
 | 회원 | [user.md](rules/user.md) | 활성 |
 | 게시물 | [post.md](rules/post.md) | 활성 |
+| 필터 | [filter.md](rules/filter.md) | 활성 |
 | 주제 | [topic.md](rules/topic.md) | 활성 |
 | 사인 | [sign.md](rules/sign.md) | 활성 |
 | 좋아요 | [like.md](rules/like.md) | 활성 |

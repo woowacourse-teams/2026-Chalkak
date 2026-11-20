@@ -18,6 +18,12 @@ rule_pages:
       사진 처리와 검수: [POST-006]
       공개와 조회: [POST-007, POST-008, POST-009, POST-012]
       삭제와 수정: [POST-010]
+  docs/business-rules/rules/filter.md:
+    domain: 필터
+    pages:
+      초안 작성과 삭제: [FILTER-001]
+      소개 사진: [FILTER-002]
+      목록과 상세 조회: [FILTER-003]
   docs/business-rules/rules/topic.md:
     domain: 주제
     pages:

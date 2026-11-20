@@ -111,6 +111,10 @@ public class User {
         return role == UserRole.USER;
     }
 
+    public boolean isArtist() {
+        return role == UserRole.ARTIST;
+    }
+
     public void grantArtistRole() {
         validateArtistRoleGrant();
         this.role = UserRole.ARTIST;
