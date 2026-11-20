@@ -12,6 +12,7 @@ import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
+import com.chalkak.backend.post.api.v1.dto.response.PostRegistrationLimitResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.TodayPostStatusResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,12 +32,27 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Posts", description = "게시물 API")
 public interface PostApiDocs {
 
+    @Operation(summary = "내 하루 등록 잔여 횟수 조회", description = """
+            KST 하루 기준 최초 포함 총 10회에서 남은 등록 횟수와 다음 초기화 시각을 조회합니다.
+            삭제·반려된 등록도 횟수에 포함합니다. 주제의 활성 게시물 한 건 여부와 참여 기간은 별도 조건입니다.
+            삭제 전 고지와 등록 전 안내에 사용하며 실제 한도는 게시물 생성 시 다시 확인합니다.
+            """)
+    @SecurityRequirement(name = "accessToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "등록 잔여 횟수 조회 성공", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 인증 정보", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PostRegistrationLimitResponse> getMyRegistrationLimit(
+            @Parameter(hidden = true) AuthenticatedUser loginUser
+    );
+
     @Operation(summary = "게시물 이미지 업로드 URL 발급", description = """
             S3에 직접 업로드할 presigned PUT URL을 발급합니다.
             PUT 요청의 Content-Type은 응답의 `contentType`과 정확히 같아야 합니다.
             `maxBytes`를 넘는 이미지와 WebP가 아닌 이미지는 업로드 후 이미지 처리
             단계에서 거절되며, 그 업로드 ID로는 게시물을 만들 수 없습니다.
             발급받은 `uploadId`는 게시물 생성 요청의 `photoUploadId`로 사용합니다.
+            URL 발급은 등록 횟수를 사용하지 않으며 실제 한도는 게시물 생성 시 확인합니다.
             """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
@@ -48,7 +64,12 @@ public interface PostApiDocs {
             @Parameter(hidden = true) Optional<AuthenticatedUser> loginUser
     );
 
-    @Operation(summary = "게시물 생성", description = "업로드된 사진과 선택 제목·설명을 주제에 연결합니다. 게시물별로 공식 인스타그램 게시 동의와 태그용 인스타그램 ID를 선택해 보낼 수 있습니다. 이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다.")
+    @Operation(summary = "게시물 생성", description = """
+            업로드된 사진과 선택 제목·설명을 주제에 연결합니다. 게시물별로 공식 인스타그램 게시 동의와 태그용 ID를 선택할 수 있습니다.
+            KST 하루에 최초 등록 포함 총 10회까지 성공할 수 있으며 삭제·반려돼도 횟수는 복구되지 않습니다.
+            한도에 도달하면 HTTP 400과 POST_REGISTRATION_LIMIT_REACHED를 반환합니다.
+            이미지 처리가 끝나면 관리자 검수 대기 상태가 됩니다.
+            """)
     @SecurityRequirement(name = "accessToken")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "게시물 생성 성공", useReturnTypeSchema = true),

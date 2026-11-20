@@ -8,6 +8,9 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
 
 import com.chalkak.backend.photo.service.ImageUrlProvider;
+import com.chalkak.backend.jev.service.JevResultApplicationService;
+import com.chalkak.backend.jev.infrastructure.infra.JevSlackDispatcher;
+import com.chalkak.backend.notification.service.NotificationDeliveryResult;
 import com.chalkak.backend.post.repository.PostImageStorage;
 import com.chalkak.backend.support.DatabaseCleaner;
 import com.chalkak.backend.support.IntegrationTestSupport;
@@ -46,6 +49,11 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
     @MockitoBean
     private RandomSeedGenerator randomSeedGenerator;
 
+    @Autowired
+    private JevResultApplicationService jevApplication;
+    @Autowired
+    private JevSlackDispatcher slack;
+
     private DatabaseCleaner databaseCleaner;
 
     @BeforeEach
@@ -75,7 +83,13 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 .willReturn("chalkak/posts/test/original/" + UPLOAD_ID + ".webp");
         given(postImageStorage.toThumbnailStorageKey(UPLOAD_ID))
                 .willReturn("chalkak/posts/test/thumbnail/" + UPLOAD_ID + ".webp");
-        given(notificationSender.send(any())).willReturn(true);
+        given(notificationSender.deliver(any())).willReturn(new NotificationDeliveryResult(
+                true,
+                false,
+                null,
+                200,
+                null
+        ));
     }
 
     @AfterEach
@@ -84,7 +98,7 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("READY 업로드로 만든 게시물이 커밋되면 관리자 알림을 한 번 보낸다")
+    @DisplayName("READY 수동 대상은 접수 시 보내지 않고 결과 적용 후 관리자 알림을 한 번 보낸다")
     void createPost_readyUpload_sendsAfterCommit() {
         // Given
         insertUpload("READY", "{\"width\": 4032, \"height\": 3024}");
@@ -106,13 +120,14 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 String.class,
                 result.postId()
         )).isEqualTo("PENDING");
-        then(notificationSender).should().send(argThat(
+        deliverReady(result.postId());
+        then(notificationSender).should().deliver(argThat(
                 message -> message.actionUri().toString().endsWith("/posts/" + result.postId())
         ));
     }
 
     @Test
-    @DisplayName("이미지 완료 콜백이 게시물을 PENDING으로 커밋하면 관리자 알림을 한 번 보낸다")
+    @DisplayName("이미지 완료 후 수동 검토 적용과 별도 발송에서 관리자 알림을 한 번 보낸다")
     void completePostImageProcessing_validatingPost_sendsAfterCommit() {
         // Given
         insertUpload("ISSUED", null);
@@ -144,8 +159,10 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 String.class,
                 postId
         )).isEqualTo("PENDING");
+        deliverReady(postId);
         then(notificationSender).should()
-                .send(argThat(message -> message.actionUri().toString().endsWith("/posts/" + postId)
+                .deliver(argThat(
+                        message -> message.actionUri().toString().endsWith("/posts/" + postId)
                 ));
     }
 
@@ -186,8 +203,16 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
         );
 
         // Then
+        deliverReady(postId);
+        UUID run = jdbcTemplate.queryForObject(
+                "SELECT id FROM jev_moderation_runs WHERE post_id = ?",
+                UUID.class,
+                postId
+        );
+        slack.deliver(run);
         then(notificationSender).should(times(1))
-                .send(argThat(message -> message.actionUri().toString().endsWith("/posts/" + postId)
+                .deliver(argThat(
+                        message -> message.actionUri().toString().endsWith("/posts/" + postId)
                 ));
     }
 
@@ -219,6 +244,17 @@ class PostModerationNotificationTransactionTest extends IntegrationTestSupport {
                 TOPIC_ID
         )).isZero();
         then(notificationSender).shouldHaveNoInteractions();
+    }
+
+    private void deliverReady(UUID postId) {
+        then(notificationSender).shouldHaveNoInteractions();
+        UUID run = jdbcTemplate.queryForObject(
+                "SELECT id FROM jev_moderation_runs WHERE post_id = ?",
+                UUID.class,
+                postId
+        );
+        jevApplication.apply(run);
+        slack.deliver(run);
     }
 
     private void insertUpload(String status, String imageMetadata) {

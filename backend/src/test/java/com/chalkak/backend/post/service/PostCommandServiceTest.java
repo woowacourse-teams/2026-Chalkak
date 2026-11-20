@@ -28,6 +28,7 @@ import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.domain.User;
 import com.chalkak.backend.user.domain.UserFixture;
 import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -42,8 +43,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class PostCommandServiceTest {
@@ -52,6 +55,9 @@ class PostCommandServiceTest {
     private static final UUID TOPIC_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570b4");
     private static final UUID UPLOAD_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570c4");
     private static final UUID POST_ID = UUID.fromString("0198f6c1-62ba-7d30-8b12-0f733b6570d4");
+
+    @Spy
+    private Clock clock = Clock.systemUTC();
 
     @InjectMocks
     private PostCommandService service;
@@ -71,6 +77,8 @@ class PostCommandServiceTest {
     private PostLikeCounterRepository likeCounters;
     @Mock
     private PhotoRepository photos;
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @Test
     @DisplayName("발급할 업로드의 회원, 초기 상태, 만료와 저장 ID로 요청한 URL을 반환한다")
@@ -133,7 +141,7 @@ class PostCommandServiceTest {
     @DisplayName("활성 조회에서 제외된 작성자는 게시물 생성 전에 거부한다")
     void createPost_unavailableUser_throwsUnauthorizedException() {
         // Given
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.empty());
+        given(users.findActiveByIdForUpdate(USER_ID)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> service.createPost(
@@ -158,7 +166,8 @@ class PostCommandServiceTest {
     @DisplayName("활성 주제가 없으면 업로드를 사용하거나 게시물을 저장하지 않는다")
     void createPost_unavailableTopic_throwsNotFoundException() {
         // Given
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForUpdate(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.empty());
 
         // When & Then
@@ -187,7 +196,8 @@ class PostCommandServiceTest {
                 new ParticipationPeriod(start, start.plusSeconds(3600)),
                 start.minusSeconds(3600)
         );
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForUpdate(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.of(topic));
 
         // When & Then
@@ -209,7 +219,7 @@ class PostCommandServiceTest {
         // Given
         User user = UserFixture.create(USER_ID);
         PostImageUpload upload = PostImageUpload.createPostImageUpload(user, Instant.now());
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(user));
+        given(users.findActiveByIdForUpdate(USER_ID)).willReturn(Optional.of(user));
         given(topics.findActiveById(TOPIC_ID)).willReturn(Optional.of(openTopic()));
         given(uploads.findStatusByIdAndUserId(UPLOAD_ID, USER_ID))
                 .willReturn(Optional.of(PostImageUploadStatus.ISSUED));
@@ -250,7 +260,8 @@ class PostCommandServiceTest {
     void updatePost_titleAndDescription_updatesPostAndReturnsBoth() {
         // Given
         Post post = pendingPostInOpenTopic("기존 설명");
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
 
         // When
@@ -276,7 +287,8 @@ class PostCommandServiceTest {
     void updatePost_nullDescription_clearsDescription() {
         // Given
         Post post = pendingPostInOpenTopic("기존 설명");
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.of(post));
 
         // When
@@ -298,7 +310,8 @@ class PostCommandServiceTest {
     @DisplayName("삭제되거나 없는 게시물은 제목을 수정할 수 없다")
     void updatePost_unavailablePost_throwsNotFoundException() {
         // Given
-        given(users.findActiveByIdForShare(USER_ID)).willReturn(Optional.of(UserFixture.create(USER_ID)));
+        given(users.findActiveByIdForShare(USER_ID))
+                .willReturn(Optional.of(UserFixture.create(USER_ID)));
         given(posts.findActiveByIdForUpdate(POST_ID)).willReturn(Optional.empty());
 
         // When & Then

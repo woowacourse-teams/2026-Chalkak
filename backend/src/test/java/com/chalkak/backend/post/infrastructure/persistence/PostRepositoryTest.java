@@ -27,6 +27,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -134,6 +135,81 @@ class PostRepositoryTest {
                 .isEqualTo("chalkak/dev/posts/original.jpg");
         assertThat(post.getAuthor().getSignatureOriginalStorageKey())
                 .isEqualTo("chalkak/dev/signatures/signature.png");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-11-18T14:59:59Z,0",
+            "2026-11-18T15:00:00Z,1",
+            "2026-11-19T14:59:59.999999Z,1",
+            "2026-11-19T15:00:00Z,0"
+    })
+    @DisplayName("일일 등록 집계는 시작을 포함하고 다음 날 시작은 제외한다")
+    void countByAuthorIdAndCreatedAtBetween_dayBoundary_countsHalfOpenRange(
+            Instant createdAt,
+            long expected
+    ) {
+        // Given
+        jdbcTemplate.update(
+                "UPDATE posts SET created_at = ? WHERE id = ?",
+                Timestamp.from(createdAt),
+                POST_ID
+        );
+
+        // When
+        long count = postRepository.countByAuthorIdAndCreatedAtBetween(
+                USER_ID,
+                Instant.parse("2026-11-18T15:00:00Z"),
+                Instant.parse("2026-11-19T15:00:00Z")
+        );
+
+        // Then
+        assertThat(count).isEqualTo(expected);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"VALIDATING,false", "PENDING,true", "APPROVED,true", "REJECTED,false",
+            "REJECTED,true"})
+    @DisplayName("일일 등록 집계는 검수 상태와 삭제 여부로 횟수를 돌려주지 않는다")
+    void countByAuthorIdAndCreatedAtBetween_deletedOrRejected_countsRegistration(
+            String status,
+            boolean deleted
+    ) {
+        // Given
+        jdbcTemplate.update(
+                """
+                        UPDATE posts SET moderation_status = ?::moderation_status,
+                        deleted_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END
+                        WHERE id = ?
+                        """,
+                status,
+                deleted,
+                POST_ID
+        );
+
+        // When
+        long count = postRepository.countByAuthorIdAndCreatedAtBetween(
+                USER_ID,
+                Instant.parse("2000-01-01T00:00:00Z"),
+                Instant.parse("2100-01-01T00:00:00Z")
+        );
+
+        // Then
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("다른 작성자의 등록을 내 일일 횟수에 포함하지 않는다")
+    void countByAuthorIdAndCreatedAtBetween_otherAuthor_excludesRegistration() {
+        // When
+        long count = postRepository.countByAuthorIdAndCreatedAtBetween(
+                SECOND_USER_ID,
+                Instant.parse("2000-01-01T00:00:00Z"),
+                Instant.parse("2100-01-01T00:00:00Z")
+        );
+
+        // Then
+        assertThat(count).isZero();
     }
 
     @Test

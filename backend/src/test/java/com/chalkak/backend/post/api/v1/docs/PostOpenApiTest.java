@@ -24,6 +24,25 @@ class PostOpenApiTest extends IntegrationTestSupport {
     private MockMvc mockMvc;
 
     @Test
+    @DisplayName("등록 한도 문서는 인증과 UTC 초기화 시각 및 잔여 횟수 응답을 제공한다")
+    void userApiDocs_registrationLimit_exposesAuthenticatedQuota() throws Exception {
+        // When & Then
+        mockMvc.perform(get("/v3/api-docs/user-api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/posts/registration-limit'].get.security[0].accessToken")
+                        .exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/posts/registration-limit'].get.responses['401']")
+                                .exists())
+                .andExpect(jsonPath("$.components.schemas.PostRegistrationLimitResponse.properties")
+                        .value(aMapWithSize(4)))
+                .andExpect(jsonPath(
+                        "$.components.schemas.PostRegistrationLimitResponse.properties.resetsAt.format")
+                        .value("date-time"));
+    }
+
+    @Test
     @DisplayName("피드·상세 문서는 실제 작성자의 UUID를 제공하고 회원의 다른 정보는 추가하지 않는다")
     void userApiDocs_postResponses_exposeAuthorIdOnly() throws Exception {
         // When & Then

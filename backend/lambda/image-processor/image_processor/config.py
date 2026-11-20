@@ -21,10 +21,14 @@ class Settings:
     # 이 객체를 담은 traceback 하나로 HMAC 시크릿이 CloudWatch에 평문으로 남지 않게 제외한다.
     image_processing_api_secret: str = field(default="", repr=False)
     image_processing_api_timeout_seconds: float = 3.0
+    typesafe_api_key: str = field(default="", repr=False)
+    jev_work_queue_url: str = ""
 
     @classmethod
     def from_environment(cls) -> "Settings":
         return cls(
+            typesafe_api_key=os.environ.get("TYPESAFE_API_KEY", "").strip(),
+            jev_work_queue_url=os.environ.get("JEV_WORK_QUEUE_URL", "").strip(),
             expected_bucket=os.environ.get(
                 "S3_BUCKET",
                 "techcourse-project-2026",

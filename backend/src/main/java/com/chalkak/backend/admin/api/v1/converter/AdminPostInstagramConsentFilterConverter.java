@@ -6,7 +6,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AdminPostInstagramConsentFilterConverter
-        implements Converter<String, AdminPostInstagramConsentFilter> {
+        implements
+            Converter<String, AdminPostInstagramConsentFilter> {
 
     @Override
     public AdminPostInstagramConsentFilter convert(String source) {

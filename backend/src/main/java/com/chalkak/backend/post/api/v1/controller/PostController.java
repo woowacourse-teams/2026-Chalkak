@@ -21,6 +21,7 @@ import com.chalkak.backend.post.api.v1.dto.response.PostCreateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostDetailResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostImageUploadResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostListResponse;
+import com.chalkak.backend.post.api.v1.dto.response.PostRegistrationLimitResponse;
 import com.chalkak.backend.post.api.v1.dto.response.PostUpdateResponse;
 import com.chalkak.backend.post.api.v1.dto.response.TodayPostStatusResponse;
 import com.chalkak.backend.post.service.PostCalendarResult;
@@ -56,6 +57,16 @@ public class PostController implements PostApiDocs {
 
     private final PostCommandService postCommandService;
     private final PostQueryService postQueryService;
+
+    @Override
+    @RequiresExistingUser
+    @GetMapping("/registration-limit")
+    public ResponseEntity<PostRegistrationLimitResponse> getMyRegistrationLimit(
+            @LoginUser AuthenticatedUser loginUser
+    ) {
+        return ResponseEntity.ok(PostRegistrationLimitResponse.from(
+                postQueryService.getMyRegistrationLimit(loginUser.userId())));
+    }
 
     @Override
     @RequiresUsableUser

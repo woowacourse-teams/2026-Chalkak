@@ -1,6 +1,7 @@
 package com.chalkak.backend.post.repository;
 
 import com.chalkak.backend.post.domain.Post;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -10,6 +11,13 @@ import java.util.UUID;
 public interface PostRepository {
 
     Post save(Post post);
+
+    /** 삭제·반려를 포함한 등록 횟수. 시작은 포함하고 끝은 제외한다. */
+    long countByAuthorIdAndCreatedAtBetween(
+            UUID authorId,
+            Instant start,
+            Instant end
+    );
 
     Optional<Post> findActiveByAuthorIdAndTopicIdForUpdate(UUID authorId, UUID topicId);
 
@@ -26,6 +34,10 @@ public interface PostRepository {
     List<Post> findInstagramAgreedByAuthorIdForUpdate(UUID authorId);
 
     Optional<Post> findByIdForUpdate(UUID postId);
+
+    Optional<Post> findById(UUID postId);
+
+    Optional<UUID> findAuthorIdByPostId(UUID postId);
 
     /**
      * 지금까지의 변경을 즉시 반영한다. 활성 게시물을 가리는 부분 유니크 인덱스가 있어, 새 게시물을 저장하기 전에 기존 게시물의 거절 처리가

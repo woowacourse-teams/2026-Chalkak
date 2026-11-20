@@ -6,4 +6,15 @@ package com.chalkak.backend.notification.service;
 public interface NotificationSender {
 
     boolean send(NotificationMessage message);
+
+    default NotificationDeliveryResult deliver(NotificationMessage message) {
+        boolean sent = send(message);
+        return new NotificationDeliveryResult(
+                sent,
+                !sent,
+                sent ? null : "DELIVERY_FAILED",
+                null,
+                null
+        );
+    }
 }
