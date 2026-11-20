@@ -1,0 +1,19 @@
+ALTER TABLE jev_moderation_runs ADD COLUMN gold_label JSONB;
+
+ALTER TABLE admin_audit_logs DROP CONSTRAINT ck_admin_audit_logs_action_target;
+ALTER TABLE admin_audit_logs ADD CONSTRAINT ck_admin_audit_logs_action_target CHECK (
+    (target_type = 'POST' AND action IN (
+        'POST_APPROVED', 'POST_REJECTED', 'POST_DELETED',
+        'JEV_EVALUATION_UPDATED', 'POST_MODERATION_CORRECTED'))
+    OR (target_type = 'USER' AND action IN ('USER_BANNED', 'USER_UNBANNED', 'USER_ROLE_CHANGED'))
+    OR (target_type = 'TOPIC' AND action IN ('TOPIC_CREATED', 'TOPIC_UPDATED', 'TOPIC_DELETED'))
+    OR (target_type = 'TOPIC_PUSH_SCHEDULE' AND action IN (
+        'TOPIC_PUSH_SCHEDULE_CREATED', 'TOPIC_PUSH_SCHEDULE_UPDATED', 'TOPIC_PUSH_SCHEDULE_DELETED'))
+    OR (target_type = 'NOTICE' AND action IN ('NOTICE_CREATED', 'NOTICE_UPDATED', 'NOTICE_DELETED'))
+    OR (target_type = 'BANNER' AND action IN ('BANNER_CREATED', 'BANNER_DELETED'))
+    OR (target_type = 'AI_PROMPT_VERSION' AND action IN (
+        'AI_PROMPT_VERSION_CREATED', 'JEV_PROMPT_VERSION_CREATED', 'JEV_PROMPT_ACTIVATION_UPDATED'))
+    OR (target_type = 'REMINDER' AND action IN ('REMINDER_CREATED', 'REMINDER_UPDATED', 'REMINDER_DELETED'))
+    OR (target_type = 'APP_VERSION' AND action IN ('APP_VERSION_CREATED', 'APP_VERSION_UPDATED'))
+    OR (target_type = 'FEEDBACK' AND action IN ('FEEDBACK_DELETED', 'FEEDBACK_ANSWERED', 'FEEDBACK_ANSWER_DELETED'))
+);

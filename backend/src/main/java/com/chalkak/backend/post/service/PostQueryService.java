@@ -10,11 +10,13 @@ import com.chalkak.backend.like.repository.PostLikeRepository;
 import com.chalkak.backend.like.repository.PostLikeCounterRepository;
 import com.chalkak.backend.photo.service.ImageUrlProvider;
 import com.chalkak.backend.post.domain.Post;
+import com.chalkak.backend.post.domain.PostRegistrationLimit;
 import com.chalkak.backend.post.repository.PostRepository;
 import com.chalkak.backend.post.repository.PostSlice;
 import com.chalkak.backend.topic.domain.Topic;
 import com.chalkak.backend.topic.repository.TopicRepository;
 import com.chalkak.backend.user.repository.UserRepository;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -50,6 +52,18 @@ public class PostQueryService {
     private final ImageUrlProvider imageUrlProvider;
     private final RandomSeedGenerator randomSeedGenerator;
     private final PostProcessingPolicy postProcessingPolicy;
+    private final Clock clock;
+
+    public PostRegistrationLimit getMyRegistrationLimit(UUID userId) {
+        validateUser(userId);
+        Instant now = clock.instant();
+        long usedCount = postRepository.countByAuthorIdAndCreatedAtBetween(
+                userId,
+                PostRegistrationLimit.getDayStart(now),
+                PostRegistrationLimit.getNextDayStart(now)
+        );
+        return PostRegistrationLimit.from(usedCount, now);
+    }
 
     public PostDetail getPost(UUID postId, UUID userId) {
         validateUser(userId);

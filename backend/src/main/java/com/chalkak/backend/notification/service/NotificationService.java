@@ -90,6 +90,25 @@ public class NotificationService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    public void createForCorrection(
+            Post post,
+            UUID eventKey,
+            ModerationStatus status,
+            String reason,
+            Instant now
+    ) {
+        notificationRepository.save(Notification.corrected(
+                post.getAuthor().getId(),
+                post.getId(),
+                eventKey,
+                status == ModerationStatus.APPROVED,
+                reason,
+                now,
+                !post.getAuthor().isDeleted() && post.getAuthor().isModerationPushEnabled()
+        ));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public void createForLikeMilestone(
             Post post,
             long milestoneCount,

@@ -125,11 +125,21 @@ class ProcessingCallbackClient:
         self._validate_upload_urls(upload_urls)
         return upload_urls
 
+    def claim_jev_job(self, environment: str, job_id: str) -> dict[str, Any]:
+        return json.loads(self._post(
+            environment, "claims", None, {"jobId": job_id},
+        ))
+
+    def complete_jev_call(
+        self, environment: str, job_id: str, result: Mapping[str, Any],
+    ) -> None:
+        self._post(environment, job_id, "results", result)
+
     def _post(
         self,
         environment: str,
         upload_id: str,
-        result: str,
+        result: str | None,
         body: Mapping[str, Any] | None,
         permanent_rejection: bool = True,
     ) -> bytes:
@@ -138,7 +148,8 @@ class ProcessingCallbackClient:
             raise ValueError(f"unsupported image environment: {environment}")
         timestamp = str(int(time.time()))
         # 서명하는 경로와 요청하는 URL이 같은 출처에서 나와야 둘이 어긋나지 않는다.
-        path = f"{urlsplit(base_url).path}/{upload_id}/{result}"
+        suffix = upload_id + (f"/{result}" if result else "")
+        path = f"{urlsplit(base_url).path}/{suffix}"
         encoded_body = _encode(body)
         body_hash = hashlib.sha256(encoded_body).hexdigest()
         # 서명 대상에 대상 환경을 넣는다. dev와 prod가 같은 비밀키를 쓰는 동안에는, 환경을 묶지 않으면
@@ -156,7 +167,7 @@ class ProcessingCallbackClient:
         if body is not None:
             headers["Content-Type"] = "application/json; charset=utf-8"
         callback_request = request.Request(
-            url=f"{base_url}/{upload_id}/{result}",
+            url=f"{base_url}/{suffix}",
             data=encoded_body,
             headers=headers,
             method="POST",
@@ -167,7 +178,10 @@ class ProcessingCallbackClient:
                 callback_request,
                 timeout=self._timeout_seconds,
             ) as response:
-                return response.read()
+                raw = response.read(1_048_577)
+                if len(raw) > 1_048_576:
+                    raise ValueError("backend callback response exceeds the limit")
+                return raw
         except HTTPError as error:
             if permanent_rejection and error.code in NON_RETRYABLE_STATUSES:
                 raise PermanentCallbackError(

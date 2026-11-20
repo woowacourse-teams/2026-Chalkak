@@ -25,7 +25,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -84,7 +83,6 @@ public class Post {
     @Column(name = "moderated_at")
     private Instant moderatedAt;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -94,6 +92,9 @@ public class Post {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    @Column(name = "deleted_by_author")
+    private Boolean deletedByAuthor;
 
     private Post(
             User author,
@@ -130,12 +131,12 @@ public class Post {
                 topic,
                 photo
         );
-        if (postImageUploadId == null) {
+        if (postImageUploadId == null || now == null) {
             throw new BusinessException(
                     ErrorCode.BUSINESS_ERROR,
                     "게시물 생성 정보가 올바르지 않습니다.");
         }
-        return new Post(
+        Post post = new Post(
                 author,
                 topic,
                 photo,
@@ -148,6 +149,9 @@ public class Post {
                         now
                 )
         );
+        // 일일 한도를 판단한 시각과 저장 시각을 맞춰 자정 경계의 중복 집계를 막는다.
+        post.createdAt = now;
+        return post;
     }
 
     public void requestModeration() {
@@ -169,6 +173,18 @@ public class Post {
 
     public void reject(Instant moderatedAt) {
         decideModeration(ModerationStatus.REJECTED, moderatedAt);
+    }
+
+    public void correctModeration(ModerationStatus status, Instant now) {
+        if (moderatedAt == null || now == null
+                || (moderationStatus != ModerationStatus.APPROVED
+                        && moderationStatus != ModerationStatus.REJECTED)
+                || (status != ModerationStatus.APPROVED && status != ModerationStatus.REJECTED)) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATE_CHANGED,
+                    "이미 검수가 확정된 게시물만 정정할 수 있습니다.");
+        }
+        this.moderationStatus = status;
+        this.moderatedAt = now;
     }
 
     public void failImageProcessing() {
@@ -229,7 +245,7 @@ public class Post {
     public void deleteByAuthor(UUID authorId, Instant deletedAt) {
         validateAuthor(authorId);
         validateAuthorDeletionStatus();
-        deleteIfNotDeleted(deletedAt);
+        deleteIfNotDeleted(deletedAt, true);
     }
 
     public void revokeInstagramConsent(Instant revokedAt) {
@@ -238,7 +254,7 @@ public class Post {
 
     public void deleteByAdmin(Instant deletedAt) {
         validateAdminDeletionStatus();
-        deleteIfNotDeleted(deletedAt);
+        deleteIfNotDeleted(deletedAt, false);
     }
 
     private void validateAdminDeletionStatus() {
@@ -304,7 +320,7 @@ public class Post {
                 "현재 상태의 게시물은 삭제할 수 없습니다.");
     }
 
-    private void deleteIfNotDeleted(Instant deletedAt) {
+    private void deleteIfNotDeleted(Instant deletedAt, boolean deletedByAuthor) {
         if (this.deletedAt != null) {
             return;
         }
@@ -315,6 +331,7 @@ public class Post {
         }
         photo.delete(deletedAt);
         this.deletedAt = deletedAt;
+        this.deletedByAuthor = deletedByAuthor;
         this.instagramConsent = instagramConsent.clearInstagramId();
     }
 

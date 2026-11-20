@@ -28,6 +28,9 @@ spring:
         size: 4
 
 chalkak:
+  jev:
+    worker-enabled: ${JEV_WORKER_ENABLED:false}
+    queue-url: ${JEV_WORK_QUEUE_URL:}
   notification:
     fcm:
       worker-enabled: ${NOTIFICATION_WORKER_ENABLED:false}

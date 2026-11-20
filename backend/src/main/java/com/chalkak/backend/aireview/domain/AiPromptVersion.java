@@ -18,6 +18,7 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.type.SqlTypes;
 
 /**
@@ -25,6 +26,7 @@ import org.hibernate.type.SqlTypes;
  */
 @Entity
 @Table(name = "ai_prompt_versions")
+@SQLRestriction("type = 'PHOTO_REVIEW'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AiPromptVersion {

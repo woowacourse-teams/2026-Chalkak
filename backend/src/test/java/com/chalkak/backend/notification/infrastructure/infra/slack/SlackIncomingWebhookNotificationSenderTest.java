@@ -97,6 +97,23 @@ class SlackIncomingWebhookNotificationSenderTest {
     }
 
     @Test
+    @DisplayName("429는 Retry-After를 보존하고 설정 오류 404는 재시도하지 않는다")
+    void deliver_retryAndPermanentErrors_areDistinguished() {
+        server.expect(requestTo(WEBHOOK_URI))
+                .andRespond(withStatus(HttpStatusCode.valueOf(429)).header("Retry-After", "120"));
+        var limited = sender.deliver(MESSAGE);
+        assertThat(limited.retryable()).isTrue();
+        assertThat(limited.retryAfterSeconds()).isEqualTo(120L);
+        server.reset();
+        server.expect(requestTo(WEBHOOK_URI))
+                .andRespond(withStatus(HttpStatusCode.valueOf(404)).body("SECRET_RESPONSE"));
+        var invalid = sender.deliver(MESSAGE);
+        assertThat(invalid.retryable()).isFalse();
+        assertThat(invalid.httpStatus()).isEqualTo(404);
+        assertThat(invalid.error()).doesNotContain("SECRET");
+    }
+
+    @Test
     @DisplayName("응답 시간 초과는 발송 실패로 반환한다")
     void send_timeout_returnsFalse() {
         // Given

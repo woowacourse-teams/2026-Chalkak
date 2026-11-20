@@ -111,6 +111,30 @@ public enum AdminAction {
             AdminAuditTransitionRules::isAiPromptVersionCreated
     ),
 
+    JEV_PROMPT_VERSION_CREATED(
+            AdminTargetType.AI_PROMPT_VERSION,
+            false,
+            AdminAuditTransitionRules::isJevPromptVersionCreated
+    ),
+
+    JEV_PROMPT_ACTIVATION_UPDATED(
+            AdminTargetType.AI_PROMPT_VERSION,
+            false,
+            AdminAuditTransitionRules::isJevPromptActivationUpdated
+    ),
+
+    JEV_EVALUATION_UPDATED(
+            AdminTargetType.POST,
+            true,
+            AdminAuditTransitionRules::isJevEvaluationUpdated
+    ),
+
+    POST_MODERATION_CORRECTED(
+            AdminTargetType.POST,
+            true,
+            AdminAuditTransitionRules::isPostModerationCorrected
+    ),
+
     REMINDER_CREATED(
             AdminTargetType.REMINDER,
             false,

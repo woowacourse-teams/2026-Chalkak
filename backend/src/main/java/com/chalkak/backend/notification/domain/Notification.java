@@ -153,6 +153,33 @@ public class Notification {
         return notification;
     }
 
+    public static Notification corrected(
+            UUID userId,
+            UUID postId,
+            UUID eventKey,
+            boolean approved,
+            String reason,
+            Instant createdAt,
+            boolean pushEnabled
+    ) {
+        // 양방향 사유 검증은 기존 반려 알림 검증을 재사용한다.
+        Notification result = rejected(
+                userId,
+                postId,
+                eventKey,
+                reason,
+                createdAt,
+                pushEnabled
+        );
+        result.type = approved ? NotificationType.POST_APPROVED : NotificationType.POST_REJECTED;
+        result.title = approved ? "게시물 검수 결과가 승인으로 정정되었습니다." : "게시물 검수 결과가 반려로 정정되었습니다.";
+        result.body = "정정 사유: " + reason;
+        if (approved) {
+            result.payload = null;
+        }
+        return result;
+    }
+
     /** AI 리뷰 결과 알림을 만든다. 같은 리뷰의 같은 회차는 같은 사건 키를 가진다. */
     public static Notification aiReview(
             UUID userId,

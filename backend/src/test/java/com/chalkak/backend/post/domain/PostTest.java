@@ -731,6 +731,7 @@ class PostTest {
 
         // Then
         assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getDeletedByAuthor()).isTrue();
     }
 
     @Test
@@ -756,6 +757,7 @@ class PostTest {
 
         // Then
         assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getDeletedByAuthor()).isTrue();
         assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
     }
 
@@ -809,6 +811,7 @@ class PostTest {
                                 .isEqualTo(ErrorCode.FORBIDDEN))
                 .hasMessage("본인의 게시물만 접근할 수 있습니다.");
         assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getDeletedByAuthor()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
     }
 
@@ -836,6 +839,7 @@ class PostTest {
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR))
                 .hasMessage("검수 거절된 게시물은 삭제할 수 없습니다.");
         assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getDeletedByAuthor()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
     }
 
@@ -862,6 +866,7 @@ class PostTest {
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR))
                 .hasMessage("이미지 처리 중인 게시물은 삭제할 수 없습니다.");
         assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getDeletedByAuthor()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
     }
 
@@ -877,6 +882,7 @@ class PostTest {
 
         // Then
         assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getDeletedByAuthor()).isFalse();
         assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
     }
 
@@ -902,6 +908,7 @@ class PostTest {
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.BUSINESS_ERROR));
         assertThat(post.getDeletedAt()).isNull();
+        assertThat(post.getDeletedByAuthor()).isNull();
         assertThat(post.getPhoto().getDeletedAt()).isNull();
     }
 
@@ -916,6 +923,31 @@ class PostTest {
         post.deleteByAdmin(DELETED_AT.plusSeconds(60));
 
         // Then
+        assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
+        assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("다른 주체가 삭제를 반복해도 최초 삭제 주체와 시각을 유지한다")
+    void delete_differentActor_keepsFirstDeletion(boolean authorFirst) {
+        // Given
+        Post post = createPostWithStatus(ModerationStatus.PENDING);
+        if (authorFirst) {
+            post.deleteByAuthor(AUTHOR_ID, DELETED_AT);
+        } else {
+            post.deleteByAdmin(DELETED_AT);
+        }
+
+        // When
+        if (authorFirst) {
+            post.deleteByAdmin(DELETED_AT.plusSeconds(60));
+        } else {
+            post.deleteByAuthor(AUTHOR_ID, DELETED_AT.plusSeconds(60));
+        }
+
+        // Then
+        assertThat(post.getDeletedByAuthor()).isEqualTo(authorFirst);
         assertThat(post.getDeletedAt()).isEqualTo(DELETED_AT);
         assertThat(post.getPhoto().getDeletedAt()).isEqualTo(DELETED_AT);
     }
