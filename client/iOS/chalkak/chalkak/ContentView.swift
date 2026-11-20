@@ -583,10 +583,19 @@ struct ContentView: View {
                 onSelectPhoto: { selectedFeed = $0 },
                 bottomBarCompact: $isBottomBarCompact
             )
-        case .filter:
-            FilterScreen(
-                viewModel: filterViewModel,
-                bottomBarCompact: $isBottomBarCompact
+        case .settings:
+            SettingsScreen(
+                viewModel: settingsViewModel,
+                showsBackButton: false,
+                onLogin: showLogin,
+                onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
+                onTerms: { selectedLegalDocument = .termsOfService },
+                onOpenFeedback: openCustomerSupport,
+                onOpenNotificationSettings: {
+                    withAnimation { notificationPath.append(.settings) }
+                },
+                onSignedOut: showLogin,
+                onSignatureScreenChange: { signatureAnalyticsScreen = $0 }
             )
         case .record:
             RecordScreen(
@@ -627,9 +636,6 @@ struct ContentView: View {
                     isNotificationInboxPresented = true
                 },
                 hasUnreadNotifications: notificationInboxViewModel.hasUnread,
-                onOpenSettings: {
-                    withAnimation { notificationPath = [.appSettings] }
-                },
                 onIssueClick: { selectedIssueURL = $0 },
                 onInteraction: trackHomeInteraction,
                 bottomBarCompact: $isBottomBarCompact,
@@ -724,7 +730,7 @@ struct ContentView: View {
     }
 
     private func select(_ item: ChalkakBottomBarItem) {
-        guard item == .home || item == .display || item == .record || item == .filter else { return }
+        guard item == .home || item == .display || item == .record || item == .settings else { return }
 
         if item == .record, !KeychainSessionStore.hasAuthenticatedSession() {
             showMessage("기록을 보려면 로그인이 필요해요")
@@ -1560,8 +1566,8 @@ private extension ChalkakBottomBarItem {
             AnalyticsScreen(name: "display", screenClass: "Display")
         case .record:
             AnalyticsScreen(name: "record", screenClass: "Record")
-        case .filter:
-            AnalyticsScreen(name: "filter", screenClass: "Filter")
+        case .settings:
+            AnalyticsScreen(name: "settings", screenClass: "Settings")
         }
     }
 }
