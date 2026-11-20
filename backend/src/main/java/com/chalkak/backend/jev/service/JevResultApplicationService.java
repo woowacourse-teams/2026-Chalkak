@@ -79,7 +79,7 @@ public class JevResultApplicationService {
         // 회원→게시물→운영 제어→작업 순서. 탈퇴/등록/삭제와 잠금 순서를 뒤집지 않는다.
         posts.findAuthorIdByPostId(target.postId()).ifPresent(users::findByIdForUpdate);
         Post post = posts.findByIdForUpdate(target.postId()).orElse(null);
-        automation.lockControl();
+        automation.lockControlForRead();
         JevModerationRun run = jobs.findRunForUpdate(id).orElse(null);
         if (run == null || run.getAppliedAt() != null) {
             return;

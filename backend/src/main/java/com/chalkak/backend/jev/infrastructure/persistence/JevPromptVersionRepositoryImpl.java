@@ -23,7 +23,12 @@ public class JevPromptVersionRepositoryImpl implements JevPromptVersionRepositor
 
     @Override
     public void lockRole(JevPromptRole role) {
-        jpaRepository.lockRole("ai_prompt_versions:" + role.name());
+        jpaRepository.lockRole(roleLockKey(role));
+    }
+
+    @Override
+    public void lockRoleForRead(JevPromptRole role) {
+        jpaRepository.lockRoleForRead(roleLockKey(role));
     }
 
     @Override
@@ -73,5 +78,9 @@ public class JevPromptVersionRepositoryImpl implements JevPromptVersionRepositor
     @Override
     public void flush() {
         jpaRepository.flush();
+    }
+
+    private String roleLockKey(JevPromptRole role) {
+        return "ai_prompt_versions:" + role.name();
     }
 }

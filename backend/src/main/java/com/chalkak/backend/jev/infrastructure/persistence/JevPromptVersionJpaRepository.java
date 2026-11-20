@@ -16,6 +16,9 @@ public interface JevPromptVersionJpaRepository extends JpaRepository<JevPromptVe
     @Query(value = "SELECT pg_advisory_xact_lock(2, hashtext(CAST(:key AS text)))", nativeQuery = true)
     void lockRole(@Param("key") String key);
 
+    @Query(value = "SELECT pg_advisory_xact_lock_shared(2, hashtext(CAST(:key AS text)))", nativeQuery = true)
+    void lockRoleForRead(@Param("key") String key);
+
     @Query("SELECT COALESCE(MAX(prompt.version), 0) FROM JevPromptVersion prompt WHERE prompt.role = :role")
     int findMaxVersion(@Param("role") JevPromptRole role);
 

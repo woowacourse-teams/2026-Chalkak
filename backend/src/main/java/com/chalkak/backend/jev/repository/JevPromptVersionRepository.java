@@ -12,6 +12,8 @@ public interface JevPromptVersionRepository {
 
     void lockRole(JevPromptRole role);
 
+    void lockRoleForRead(JevPromptRole role);
+
     int findMaxVersion(JevPromptRole role);
 
     Optional<JevPromptVersion> findById(UUID id);

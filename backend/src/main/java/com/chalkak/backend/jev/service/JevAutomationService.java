@@ -28,9 +28,9 @@ public class JevAutomationService {
         return workerEnabled;
     }
 
-    public void lockControl() {
-        prompts.lockRole(JevPromptRole.JEV_TOPIC_CLASSIFICATION);
-        prompts.lockRole(JevPromptRole.JEV_PHOTO_MODERATION);
+    public void lockControlForRead() {
+        prompts.lockRoleForRead(JevPromptRole.JEV_TOPIC_CLASSIFICATION);
+        prompts.lockRoleForRead(JevPromptRole.JEV_PHOTO_MODERATION);
     }
 
     public Selection selectActive() {
@@ -42,7 +42,7 @@ public class JevAutomationService {
                     0
             );
         }
-        lockControl();
+        lockControlForRead();
         JevPromptVersion classification = prompts
                 .findActiveByRole(JevPromptRole.JEV_TOPIC_CLASSIFICATION)
                 .orElse(null);

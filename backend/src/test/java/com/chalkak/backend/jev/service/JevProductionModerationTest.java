@@ -92,6 +92,8 @@ class JevProductionModerationTest extends IntegrationTestSupport {
     @Autowired
     private AdminJevPromptVersionService prompts;
     @Autowired
+    private JevAutomationService automation;
+    @Autowired
     private AdminPostCommandService adminPosts;
     @Autowired
     private ObjectMapper mapper;
@@ -198,6 +200,55 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM jev_moderation_runs WHERE NOT preview",
                 Integer.class))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("운영 설정을 동시에 읽을 수 있고 읽는 동안 두 역할의 변경은 대기한다")
+    void selectActive_concurrentReaders_preventsExclusiveRoleChange() throws Exception {
+        // Given
+        TransactionTemplate tx = new TransactionTemplate(transactions);
+        CountDownLatch reading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var first = executor.submit(() -> tx.executeWithoutResult(status -> {
+                automation.selectActive();
+                reading.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("읽기 트랜잭션 해제 대기 초과");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+            }));
+            try {
+                assertThat(reading.await(5, TimeUnit.SECONDS)).isTrue();
+                // When & Then
+                tx.executeWithoutResult(status -> {
+                    jdbc.execute("SET LOCAL lock_timeout = '1s'");
+                    assertThat(automation.selectActive().classification().getId())
+                            .isEqualTo(classification.getId());
+                    assertThat(tryLockPromptRole(JevPromptRole.JEV_TOPIC_CLASSIFICATION)).isFalse();
+                    assertThat(tryLockPromptRole(JevPromptRole.JEV_PHOTO_MODERATION)).isFalse();
+                });
+            } finally {
+                release.countDown();
+            }
+            first.get(5, TimeUnit.SECONDS);
+        }
+        tx.executeWithoutResult(status -> {
+            assertThat(tryLockPromptRole(JevPromptRole.JEV_TOPIC_CLASSIFICATION)).isTrue();
+            assertThat(tryLockPromptRole(JevPromptRole.JEV_PHOTO_MODERATION)).isTrue();
+        });
+    }
+
+    private Boolean tryLockPromptRole(JevPromptRole role) {
+        return jdbc.queryForObject(
+                "SELECT pg_try_advisory_xact_lock(2, hashtext(?))",
+                Boolean.class,
+                "ai_prompt_versions:" + role.name()
+        );
     }
 
     @Test
