@@ -7,16 +7,19 @@ import com.chalkak.backend.post.domain.ModerationStatus;
 import com.chalkak.backend.post.domain.Post;
 import com.chalkak.backend.post.repository.PostRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class JevRegistrationService {
+
+    private static final Duration CLASSIFICATION_RECOVERY_DELAY = Duration.ofMinutes(10);
 
     private final JevJobRepository jobs;
     private final PostRepository posts;
@@ -45,13 +48,11 @@ public class JevRegistrationService {
                     selected.classification().getConfiguration(),
                     "production:" + selected.classification().getId()
             );
-            jobs.lockClassificationKey(key);
-            category = jobs.findCategoryByKey(key)
-                    .orElseGet(() -> jobs.saveCategory(JevTopicCategory.create(
-                            post.getTopic().getId(),
-                            key,
-                            now
-                    )));
+            category = findOrCreateCategory(
+                    post.getTopic().getId(),
+                    key,
+                    now
+            );
         }
         jobs.saveRun(JevModerationRun.production(
                 post,
@@ -82,5 +83,54 @@ public class JevRegistrationService {
                 0,
                 clock.instant()
         ));
+    }
+
+    private JevTopicCategory findOrCreateCategory(
+            UUID topicId,
+            String key,
+            Instant now
+    ) {
+        // 원래 키의 잠금으로 최초 분류와 복구 분류 생성을 함께 직렬화한다.
+        jobs.lockClassificationKey(key);
+        JevTopicCategory original = jobs.findCategoryByKey(key).orElse(null);
+        if (original == null) {
+            return jobs.saveCategory(JevTopicCategory.create(
+                    topicId,
+                    key,
+                    now
+            ));
+        }
+        if (original.getPhase().failure() == null) {
+            return original;
+        }
+        String recoveryKey = keys.createRecoveryKey(key);
+        return jobs.findCategoryByKey(recoveryKey)
+                .orElseGet(() -> canRecoverClassification(original, now)
+                        ? jobs.saveCategory(JevTopicCategory.create(
+                                topicId,
+                                recoveryKey,
+                                now
+                        ))
+                        : original);
+    }
+
+    private boolean canRecoverClassification(JevTopicCategory category, Instant now) {
+        var phase = category.getPhase();
+        if (phase.calls().isEmpty()) {
+            return false;
+        }
+        var lastCall = phase.calls().getLast();
+        if (!lastCall.isRetryable()) {
+            return false;
+        }
+        Instant availableAt = lastCall.receivedAt().plus(CLASSIFICATION_RECOVERY_DELAY);
+        if (lastCall.retryAfterSeconds() != null) {
+            Instant providerAvailableAt = lastCall.receivedAt()
+                    .plusSeconds(lastCall.retryAfterSeconds());
+            if (providerAvailableAt.isAfter(availableAt)) {
+                availableAt = providerAvailableAt;
+            }
+        }
+        return !now.isBefore(availableAt);
     }
 }

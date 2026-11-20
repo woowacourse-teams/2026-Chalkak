@@ -28,6 +28,14 @@ public class JevClassificationKeyFactory {
                 .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
                 .writeValueAsString(configuration);
         String content = scope + "\n" + topicId + "\n" + topic + "\n" + model + "\n" + canonical;
+        return hash(content);
+    }
+
+    public String createRecoveryKey(String originalKey) {
+        return hash("production-recovery:\n" + originalKey);
+    }
+
+    private String hash(String content) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(content.getBytes(StandardCharsets.UTF_8)));

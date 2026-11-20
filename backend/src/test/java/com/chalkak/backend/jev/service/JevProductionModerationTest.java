@@ -695,6 +695,71 @@ class JevProductionModerationTest extends IntegrationTestSupport {
         assertThat(execution.getRun(id).getPhase().calls()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications", Integer.class))
                 .isZero();
+        posts.deletePost(USER, post);
+        given(clock.instant()).willReturn(now.plusSeconds(1800));
+        UUID next = job(createPost(insertUpload(true)));
+        assertThat(execution.getCategory(next).getId())
+                .isEqualTo(execution.getCategory(id).getId());
+        assertThat(execution.claim(next).action()).isEqualTo("STOP");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {105, 900})
+    @DisplayName("일시적 분류 실패는 대기 후 새 분류를 한 번만 만들고 이전 호출 이력을 보존한다")
+    void register_transientClassificationFailure_recoversOnceAfterCooldown(int retryAfterSeconds) {
+        // Given
+        UUID original = createPost(insertUpload(true));
+        UUID originalRun = job(original);
+        failClassificationWithRateLimit(originalRun, retryAfterSeconds);
+        application.apply(originalRun);
+        var originalCategory = execution.getCategory(originalRun);
+        posts.deletePost(USER, original);
+
+        // When & Then
+        long delay = Math.max(600, retryAfterSeconds);
+        given(clock.instant()).willReturn(now.plusSeconds(delay - 1));
+        UUID early = createPost(insertUpload(true));
+        assertThat(execution.getCategory(job(early)).getId()).isEqualTo(originalCategory.getId());
+        assertThat(execution.claim(job(early)).action()).isEqualTo("STOP");
+        posts.deletePost(USER, early);
+
+        given(clock.instant()).willReturn(now.plusSeconds(delay));
+        UUID replacement = createPost(insertUpload(true));
+        UUID replacementRun = job(replacement);
+        assertThat(execution.getCategory(replacementRun).getId())
+                .isNotEqualTo(originalCategory.getId());
+        failClassificationWithRateLimit(replacementRun, 600);
+        posts.deletePost(USER, replacement);
+
+        given(clock.instant()).willReturn(now.plusSeconds(1800));
+        UUID later = job(createPost(insertUpload(true)));
+        assertThat(execution.getCategory(later).getId())
+                .isEqualTo(execution.getCategory(replacementRun).getId());
+        assertThat(execution.claim(later).action()).isEqualTo("STOP");
+        assertThat(execution.getCategory(originalRun).getPhase().calls())
+                .containsExactlyElementsOf(originalCategory.getPhase().calls());
+        assertThat(execution.getRun(originalRun).getDisposition())
+                .isEqualTo(JevDisposition.ADMIN_REVIEW);
+    }
+
+    private void failClassificationWithRateLimit(UUID id, int retryAfterSeconds) {
+        JevJobClaim claim = execution.claim(id);
+        assertThat(claim.action()).isEqualTo("CLASSIFY");
+        execution.receiveResult(
+                id,
+                "CLASSIFICATION",
+                new JevCallResult(
+                        claim.callId(),
+                        null,
+                        null,
+                        "{}",
+                        "HTTP_ERROR",
+                        429,
+                        20L,
+                        retryAfterSeconds
+                )
+        );
+        assertThat(execution.claim(id).action()).isEqualTo("STOP");
     }
 
     @Test
