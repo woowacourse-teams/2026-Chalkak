@@ -30,6 +30,7 @@ Pull Request
 | [알림 SQS 준비](docs/notification-sqs-setup.md) | 승인·반려·주제 푸시 연동을 준비할 때 | 환경별 큐·DLQ, EC2 권한, Relay·Worker·주제 설정과 연동 검증 |
 | [알림 지표·경보](docs/notification-monitoring.md) | 알림 CloudWatch를 설정할 때 | 발행 대기 관측·필터·경보·기존 Slack 경로 |
 | [알림 실패 조사](docs/notification-investigation.md) | 푸시 누락·오류·DLQ를 조사할 때 | 단계별 로그 조회·오류 조치·개발 장애 검증·재드라이브 금지 |
+| [필터 워커 인프라](docs/filter-worker-setup.md) | 작가 필터 견본 추출 워커의 AWS 자원을 준비·점검할 때 | EC2, 공용 SQS, S3 이벤트 알림, 권한 시험, 로그 그룹 |
 | [이미지 처리 Lambda](../lambda/image-processor/README.md) | 이미지 처리 Lambda를 구축·배포할 때 | Lambda, SQS, 빌드와 배포 절차 |
 
 ## 환경별 구성
