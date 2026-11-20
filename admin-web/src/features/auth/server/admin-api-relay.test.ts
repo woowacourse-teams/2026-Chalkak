@@ -805,3 +805,34 @@ describe("customer support relay", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("Jev admin relay", () => {
+  it.each([
+    ["GET", "jev-moderation-runs?preview=false&page=0"],
+    ["GET", "jev-moderation-runs/metrics"],
+    ["GET", `jev-moderation-runs/${resourceId}`],
+    ["PUT", `jev-moderation-runs/${resourceId}/evaluation`],
+    ["GET", "jev-prompt-versions"],
+    ["POST", "jev-prompt-versions"],
+    ["GET", `jev-prompt-versions/${resourceId}`],
+    ["PUT", `jev-prompt-versions/${resourceId}/activation`],
+    ["POST", "jev-previews"],
+    ["GET", `jev-previews/${resourceId}`],
+    ["PUT", `posts/${resourceId}/moderation-correction`],
+  ])("forwards authenticated %s %s", async (method, path) => {
+    fetchMock.mockResolvedValue(Response.json({ ok: true }));
+    const response = await relay(path, { cookie: token, method, body: method === "GET" ? undefined : { reason: "관리자 확인" } });
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(upstream + "/" + path, expect.objectContaining({ method }));
+    const [, options] = fetchMock.mock.calls[0];
+    expect(new Headers(options?.headers).get("Authorization")).toBe("Bearer " + token);
+  });
+
+  it("does not forward an unauthenticated correction or an unsupported Jev write", async () => {
+    const unauthenticated = await relay(`posts/${resourceId}/moderation-correction`, { method: "PUT", body: {} });
+    const unsupported = await relay(`jev-moderation-runs/${resourceId}`, { method: "DELETE", cookie: token, body: {} });
+    expect(unauthenticated.status).toBe(401);
+    expect(unsupported.status).toBe(405);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
