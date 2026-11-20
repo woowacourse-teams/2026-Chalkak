@@ -56,6 +56,8 @@ Lambda의 정상 작업 확보 요청이 오지 않는 동안 전달 예약은 �
 
 배포 환경의 적용 여부는 해당 DB의 `flyway_schema_history`에서 버전과 성공 여부로 확인한다. 이미 적용된 스키마를 보완할 때는 다음 버전의 SQL을 추가한다.
 
+명시적으로 자동 검수를 끌 때는 `disabled_revision`을 기록한다. 서버는 등록 시점의 `control_revision`과 비교해 중단 이전 작업의 자동 공개를 막는다. `disabled_at`은 실행 판단에서 사용하지 않아 새 서버는 읽거나 갱신하지 않는다. 기존 마이그레이션과 이전 서버 버전의 호환성을 위해 nullable 컬럼과 과거 값은 DB에 보존한다.
+
 ## 수동 연결과 배포
 
 코드만으로 AWS 자원을 만들거나 운영을 활성화하지 않는다. 처음에는 `JEV_WORKER_ENABLED=false`다. 전용 Standard SQS 큐를 기존 image processor Lambda의 이벤트 소스로 연결하고 배치 크기 1, 부분 실패 응답 옵션과 코드의 SQS_PARTIAL_BATCH_RESPONSE 값을 맞춘다. Lambda 실행 제한은 분류/사진 예산 200초와 전달 여유를 고려해 최소 240초를 확보하고, 큐 visibility timeout은 실제 Lambda timeout의 AWS 권고값에 맞춰 운영자가 확인한다. 기존 이미지 처리 이벤트 소스의 제한을 임의 변경하지 않는다.

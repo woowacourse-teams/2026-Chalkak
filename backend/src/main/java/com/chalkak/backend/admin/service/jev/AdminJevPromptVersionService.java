@@ -107,7 +107,7 @@ public class AdminJevPromptVersionService {
         if (current != null) {
             current.deactivate();
             if (!active) {
-                current.disable(clock.instant(), repository.findLatestDisabledRevision() + 1);
+                current.disable(repository.findLatestDisabledRevision() + 1);
             }
             repository.flush();
         }

@@ -59,9 +59,6 @@ public class JevPromptVersion {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
-    @Column(name = "disabled_at")
-    private Instant disabledAt;
-
     @Column(name = "disabled_revision", nullable = false)
     private long disabledRevision;
 
@@ -117,9 +114,8 @@ public class JevPromptVersion {
     }
 
     /** 명시적인 중단은 단순한 버전 교체와 구분해 재활성화 후에도 옛 작업을 보류한다. */
-    public void disable(Instant now, long revision) {
+    public void disable(long revision) {
         active = false;
-        disabledAt = now;
         disabledRevision = revision;
     }
 }
