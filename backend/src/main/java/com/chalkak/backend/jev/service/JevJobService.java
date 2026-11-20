@@ -148,7 +148,11 @@ public class JevJobService {
         category.updatePhase(category.getPhase().refresh(now));
         if (!category.getPhase().completed()) {
             if (!category.getPhase().canClaim(now)) {
-                return JevJobClaim.idle("WAIT", id);
+                return waitForPhase(
+                        run,
+                        category.getPhase(),
+                        now
+                );
             }
             category.updatePhase(category.getPhase().claim(now));
             return claimResponse(
@@ -169,7 +173,11 @@ public class JevJobService {
             return JevJobClaim.idle("STOP", id);
         }
         if (!run.getPhase().canClaim(now)) {
-            return JevJobClaim.idle("WAIT", id);
+            return waitForPhase(
+                    run,
+                    run.getPhase(),
+                    now
+            );
         }
         run.updatePhase(run.getPhase().claim(now));
         return claimResponse(
@@ -211,7 +219,9 @@ public class JevJobService {
                         automation.resolve(run).classification().questions()
                 ));
             }
-            run.postponeDispatch(now);
+            if (result.callId().equals(previous.callId())) {
+                run.postponeDispatch(category.getPhase().availableAt());
+            }
             closeIfHeld(execution, now);
             return;
         }
@@ -245,8 +255,22 @@ public class JevJobService {
                 run.complete(failedEvaluation(run.getPhase().failure()), now);
             }
         }
-        run.postponeDispatch(now);
+        if (result.callId().equals(previous.callId())) {
+            run.postponeDispatch(run.getPhase().availableAt());
+        }
         closeIfHeld(execution, now);
+    }
+
+    private JevJobClaim waitForPhase(
+            JevModerationRun run,
+            JevPhase phase,
+            Instant now
+    ) {
+        // 일찍 도착한 큐 메시지나 응답 유실 확인도 실제 재시도 가능 시각으로 전달을 예약한다.
+        if (phase.callId() == null && phase.availableAt().isAfter(now)) {
+            run.postponeDispatch(phase.availableAt());
+        }
+        return JevJobClaim.idle("WAIT", run.getId());
     }
 
     private JevModerationRun lockRun(UUID id) {

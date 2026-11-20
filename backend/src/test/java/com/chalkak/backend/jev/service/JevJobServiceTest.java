@@ -11,6 +11,7 @@ import com.chalkak.backend.exception.BusinessException;
 import com.chalkak.backend.exception.NotFoundException;
 import com.chalkak.backend.jev.domain.JevCallResult;
 import com.chalkak.backend.jev.domain.JevDecision;
+import com.chalkak.backend.jev.domain.JevPhase;
 import com.chalkak.backend.jev.domain.JevPromptDraft;
 import com.chalkak.backend.jev.domain.JevPromptFixtures;
 import com.chalkak.backend.support.DatabaseCleaner;
@@ -34,6 +35,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -363,6 +366,164 @@ class JevJobServiceTest extends IntegrationTestSupport {
         assertThat(service.getRun(id).getEvaluation().recommendation())
                 .isEqualTo(JevDecision.HUMAN_REVIEW);
         assertThat(service.claim(id).action()).isEqualTo("STOP");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CLASSIFICATION", "PHOTO"})
+    @DisplayName("오류 재시도는 단계의 2초와 4초 대기 시각에 전달하고 즉시 WAIT도 예약을 보존한다")
+    void receive_retryableFailure_schedulesAtNextAvailableTime(String stage) {
+        // Given
+        UUID id = createAtStage(stage);
+        JevJobClaim claim = service.claim(id);
+        Instant deadline = claim.deadline();
+        Instant startedAt = NOW;
+        // When & Then
+        for (int failure = 1; failure <= 2; failure++) {
+            Instant receivedAt = startedAt.plusSeconds(30);
+            given(clock.instant()).willReturn(receivedAt);
+            service.receiveResult(
+                    id,
+                    stage,
+                    retryable(claim, null)
+            );
+            JevPhase phase = getPhase(id, stage);
+            Instant next = phase.availableAt();
+            int backoff = failure == 1 ? 2 : 4;
+            assertThat(next).isBetween(receivedAt.plusSeconds(backoff),
+                    receivedAt.plusSeconds(backoff + 1));
+            assertThat(service.getRun(id).getDispatchAt()).isEqualTo(next);
+            assertThat(service.claim(id).action()).isEqualTo("WAIT");
+            assertThat(service.getRun(id).getDispatchAt()).isEqualTo(next);
+            given(clock.instant()).willReturn(next.minusMillis(1));
+            assertThat(service.findDueRunIds()).doesNotContain(id);
+            assertThat(service.reserveDispatch(id)).isZero();
+            given(clock.instant()).willReturn(next);
+            assertThat(service.findDueRunIds()).contains(id);
+            assertThat(service.reserveDispatch(id)).isPositive();
+            claim = service.claim(id);
+            assertThat(claim.action()).isEqualTo(stage.equals("PHOTO") ? "INSPECT" : "CLASSIFY");
+            assertThat(claim.deadline()).isEqualTo(deadline);
+            assertThat(getPhase(id, stage).calls()).hasSize(failure);
+            startedAt = next;
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CLASSIFICATION", "PHOTO"})
+    @DisplayName("Retry-After 대기 중 동일 결과를 다시 받아도 예약을 앞당기거나 호출 이력을 늘리지 않는다")
+    void receive_duplicateDuringRetryAfter_preservesSchedule(String stage) {
+        // Given
+        UUID id = createAtStage(stage);
+        JevJobClaim claim = service.claim(id);
+        JevCallResult failure = retryable(claim, 10);
+        service.receiveResult(
+                id,
+                stage,
+                failure
+        );
+        Instant next = getPhase(id, stage).availableAt();
+        assertThat(next).isBetween(NOW.plusSeconds(10), NOW.plusSeconds(11));
+        // When
+        given(clock.instant()).willReturn(NOW.plusSeconds(1));
+        service.receiveResult(
+                id,
+                stage,
+                failure
+        );
+        // Then
+        assertThat(service.getRun(id).getDispatchAt()).isEqualTo(next);
+        assertThat(service.claim(id).action()).isEqualTo("WAIT");
+        assertThat(service.getRun(id).getDispatchAt()).isEqualTo(next);
+        assertThat(service.reserveDispatch(id)).isZero();
+        assertThat(getPhase(id, stage).calls()).hasSize(1);
+        assertThat(getPhase(id, stage).deadline()).isEqualTo(claim.deadline());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CLASSIFICATION", "PHOTO"})
+    @DisplayName("응답 유실의 WAIT도 재시도 시각에 예약하고 뒤늦은 이전 응답은 새 예약을 바꾸지 않는다")
+    void claim_responseLostAndLateResult_preservesNextDispatch(String stage) {
+        // Given
+        UUID id = createAtStage(stage);
+        JevJobClaim first = service.claim(id);
+        given(clock.instant()).willReturn(NOW.plusSeconds(45));
+        // When
+        assertThat(service.claim(id).action()).isEqualTo("WAIT");
+        // Then
+        assertThat(service.getRun(id).getDispatchAt()).isEqualTo(NOW.plusSeconds(47));
+        given(clock.instant()).willReturn(NOW.plusSeconds(47));
+        assertThat(service.reserveDispatch(id)).isPositive();
+        JevJobClaim second = service.claim(id);
+        Instant dispatchAt = service.getRun(id).getDispatchAt();
+        given(clock.instant()).willReturn(NOW.plusSeconds(48));
+        service.receiveResult(
+                id,
+                stage,
+                success(first,
+                        stage.equals("PHOTO") ? photoResponse(false) : classificationResponse())
+        );
+        assertThat(service.getRun(id).getDispatchAt()).isEqualTo(dispatchAt);
+        assertThat(getPhase(id, stage).callId()).isEqualTo(second.callId());
+        assertThat(getPhase(id, stage).deadline()).isEqualTo(first.deadline());
+        assertThat(getPhase(id, stage).calls()).hasSize(1);
+        assertThat(getPhase(id, stage).calls().getFirst().errorCode())
+                .isEqualTo("LATE_RESULT_IGNORED");
+        assertThat(getPhase(id, stage).calls().getFirst().inputTokens()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("같은 분류를 기다리는 다른 작업도 WAIT에서 공유 재시도 시각으로 전달을 예약한다")
+    void claim_sharedClassificationRetry_usesSharedAvailability() {
+        // Given
+        UUID first = create();
+        UUID second = create();
+        JevJobClaim claim = service.claim(first);
+        given(clock.instant()).willReturn(NOW.plusSeconds(30));
+        service.receiveResult(
+                first,
+                "CLASSIFICATION",
+                retryable(claim, null)
+        );
+        Instant next = service.getCategory(first).getPhase().availableAt();
+        assertThat(service.reserveDispatch(second)).isEqualTo(1);
+        // When
+        assertThat(service.claim(second).action()).isEqualTo("WAIT");
+        // Then
+        assertThat(service.getRun(second).getDispatchAt()).isEqualTo(next);
+        given(clock.instant()).willReturn(next);
+        assertThat(service.reserveDispatch(second)).isEqualTo(2);
+        JevJobClaim retry = service.claim(second);
+        assertThat(retry.action()).isEqualTo("CLASSIFY");
+        assertThat(retry.deadline()).isEqualTo(claim.deadline());
+        assertThat(service.claim(first).action()).isEqualTo("WAIT");
+        assertThat(service.getCategory(second).getPhase().calls()).hasSize(1);
+    }
+
+    private UUID createAtStage(String stage) {
+        UUID id = create();
+        if (stage.equals("PHOTO")) {
+            completeClassification(id);
+        }
+        return id;
+    }
+
+    private JevPhase getPhase(UUID id, String stage) {
+        return stage.equals("PHOTO")
+                ? service.getRun(id).getPhase()
+                : service.getCategory(id).getPhase();
+    }
+
+    private JevCallResult retryable(JevJobClaim claim, Integer retryAfterSeconds) {
+        return new JevCallResult(
+                claim.callId(),
+                null,
+                null,
+                null,
+                retryAfterSeconds == null ? "TIMEOUT" : "HTTP_ERROR",
+                retryAfterSeconds == null ? null : 429,
+                30000L,
+                retryAfterSeconds
+        );
     }
 
     private UUID create() {
