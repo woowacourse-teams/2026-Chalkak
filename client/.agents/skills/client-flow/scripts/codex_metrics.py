@@ -18,8 +18,13 @@ import tempfile
 
 from collect_metrics import fingerprint, put, run, stamp
 
-FLOW = re.compile(r"(?:^|\n)\s*/client-flow\s*#(\d+)\b")
-PR = re.compile(r"https://github\.com/woowacourse-teams/2026-Chalkak/pull/(\d+)\b")
+# 사람이 직접 쓴 호출. 예: "/client-flow #1054", "$client-flow 로 진행해",
+# 넘겨받기 글 "client-flow 스킬(경로)로 #1054를 이어 가 주세요". 문장 속 단순 언급은 제외한다.
+TYPED_FLOW = re.compile(
+    r"(?:^|\n)\s*(?:[/$]client-flow(?:\s*#(\d+)|(?=\s|$))|client-flow 스킬(?:\([^)\n]*\))?로\s+#(\d+))")
+# 문장 중간에서 $client-flow를 골라도 Codex가 스킬 본문을 이 모양의 별도 줄로 넣는다.
+SELECTED_FLOW = re.compile(r"\s*<skill>\s*<name>client-flow</name>")
+PR =re.compile(r"https://github\.com/woowacourse-teams/2026-Chalkak/pull/(\d+)\b")
 UUID = re.compile(r"[a-fA-F0-9-]{32,36}")
 COMMAND = re.compile(r"\bcmd[\"']?\s*:\s*([\"'])(.*?)(?<!\\)\1", re.S)
 CREATE_PR = re.compile(r"(?:^|[;&\n])\s*gh\s+pr\s+create\b")
@@ -33,6 +38,39 @@ def human_text(payload):
         return None
     return "\n".join(c.get("text", "") for c in payload.get("content", [])
                      if c.get("type") == "input_text")
+
+
+def flow_invocation(payload):
+    """사용자 줄 하나가 client-flow 호출인지 판별한다.
+
+    입력: Codex 기록의 response_item payload.
+    출력: (호출 여부, 글에 적힌 이슈 번호 또는 None). 번호가 없으면 parse_session이 브랜치 번호를 쓴다.
+    예: "$client-flow 로 진행해" → (True, None), "/client-flow #1054" → (True, 1054).
+    """
+    text = human_text(payload)
+    if text is not None:
+        match = TYPED_FLOW.search(text)
+        if not match:
+            return False, None
+        number = match.group(1) or match.group(2)
+        return True, int(number) if number else None
+    if payload.get("type") != "message" or payload.get("role") != "user":
+        return False, None
+    meta = payload.get("internal_chat_message_metadata_passthrough") or {}
+    if "skills.selected_skill_instructions" not in (meta.get("content_item_kinds") or []):
+        return False, None
+    selected = any(SELECTED_FLOW.match(c.get("text", "")) for c in payload.get("content", []))
+    return selected, None
+
+
+def is_child_session(path):
+    """서브에이전트 기록이면 True. 부모의 첫 메시지를 복사해 오므로 따로 세면 같은 작업이 중복된다."""
+    try:
+        with path.open(errors="ignore") as stream:
+            first = json.loads(stream.readline())
+    except (OSError, ValueError):
+        return False
+    return bool((first.get("payload") or {}).get("parent_thread_id"))
 
 
 def usage_weight(usage):
@@ -50,6 +88,15 @@ def creates_pr(payload):
     if not isinstance(command, str):
         return False
     return any(CREATE_PR.search(match.group(2)) for match in COMMAND.finditer(command))
+
+
+def output_text(output):
+    """도구 결과를 글로 바꾼다. exec 도구는 [{"type": "input_text", "text": ...}] 목록으로 남긴다."""
+    if isinstance(output, str):
+        return output
+    if isinstance(output, list):
+        return "\n".join(part.get("text", "") for part in output if isinstance(part, dict))
+    return ""
 
 
 def related_sessions(path):
@@ -93,6 +140,8 @@ def related_sessions(path):
 
 
 def parse_session(path, issue_hint=None):
+    if is_child_session(path):
+        return None
     records = []
     seen_responses = set()
     flow = None
@@ -118,20 +167,20 @@ def parse_session(path, issue_hint=None):
                 kind = row.get("type")
                 payload = row.get("payload") or {}
                 if kind == "response_item":
+                    if is_main and flow is None:
+                        invoked, number = flow_invocation(payload)
+                        if invoked:
+                            flow, issue = at, number or issue
                     text = human_text(payload)
                     if text is not None:
-                        if is_main and flow is None:
-                            match = FLOW.search(text)
-                            if match:
-                                flow, issue = at, int(match.group(1))
                         records.append((at, is_main, 0))
                     elif is_main and payload.get("type") in ("function_call", "custom_tool_call"):
                         if creates_pr(payload):
                             create_calls.add(payload.get("call_id"))
                         records.append((at, False, 0))
                     elif is_main and payload.get("type") in ("function_call_output", "custom_tool_call_output") and pr_time is None:
-                        output = payload.get("output") or ""
-                        match = PR.search(output if isinstance(output, str) and payload.get("call_id") in create_calls else "")
+                        output = output_text(payload.get("output"))
+                        match = PR.search(output if payload.get("call_id") in create_calls else "")
                         if match:
                             pr_time, pr_number = at, int(match.group(1))
                     else:
