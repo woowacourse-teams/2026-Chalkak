@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,11 +21,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stonefive.chalkak.BuildConfig
 import com.stonefive.chalkak.R
 import com.stonefive.chalkak.buildvariant.BuildVariantSettingsEntry
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakBottomBarItem
+import com.stonefive.chalkak.core.designsystem.component.bottombar.ChalkakScreenBottomBar
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialog
 import com.stonefive.chalkak.core.designsystem.component.dialog.ChalkakConfirmDialogStyle
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
 import com.stonefive.chalkak.core.ui.UiMessageEffect
-import com.stonefive.chalkak.feature.notification.component.NotificationTopBar
 import com.stonefive.chalkak.feature.settings.component.SettingsAccountCard
 import com.stonefive.chalkak.feature.settings.component.SettingsAppCard
 import com.stonefive.chalkak.feature.settings.component.SettingsFeedbackCard
@@ -42,7 +42,8 @@ fun SettingsRoute(
     onOpenTerms: () -> Unit,
     onOpenFeedback: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
-    onBackClick: () -> Unit,
+    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onOpenPhotoUpload: () -> Unit,
     signatureUpdateUrl: String? = null,
     onSignatureUpdateConsumed: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
@@ -72,7 +73,8 @@ fun SettingsRoute(
         onWithdrawClick = viewModel::showWithdrawDialog,
         onAccountDialogConfirm = viewModel::confirmAccountAction,
         onAccountDialogDismiss = viewModel::dismissAccountDialog,
-        onBackClick = onBackClick,
+        onNavigateToBottomBar = onNavigateToBottomBar,
+        onAddClick = onOpenPhotoUpload,
         onNotificationSettingsClick = onOpenNotificationSettings,
         buildVariantContent = { BuildVariantSettingsEntry(modifier = Modifier.fillMaxWidth()) },
     )
@@ -90,7 +92,8 @@ fun SettingsScreen(
     onWithdrawClick: () -> Unit,
     onAccountDialogConfirm: () -> Unit,
     onAccountDialogDismiss: () -> Unit,
-    onBackClick: () -> Unit,
+    onNavigateToBottomBar: (ChalkakBottomBarItem) -> Unit,
+    onAddClick: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     buildVariantContent: @Composable () -> Unit = {},
@@ -110,13 +113,12 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = ChalkakTheme.colors.background,
-        topBar = {
-            NotificationTopBar(
-                onBackClick = onBackClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding(),
-                title = "설정",
+        bottomBar = {
+            ChalkakScreenBottomBar(
+                selectedItem = ChalkakBottomBarItem.SETTINGS,
+                onItemSelected = onNavigateToBottomBar,
+                onAddClick = onAddClick,
+                modifier = Modifier.fillMaxWidth(),
             )
         },
     ) { innerPadding ->
@@ -127,7 +129,7 @@ fun SettingsScreen(
                 .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(modifier = Modifier.height(ChalkakTheme.spacing.lg))
+            Spacer(modifier = Modifier.height(SettingsTopSpacing))
 
             if (uiState.isLoggedIn) {
                 SettingsSectionLabel(text = "앱 설정")
@@ -241,7 +243,8 @@ private fun SettingsScreenPreview(uiState: SettingsUiState) {
         onWithdrawClick = {},
         onAccountDialogConfirm = {},
         onAccountDialogDismiss = {},
-        onBackClick = {},
+        onNavigateToBottomBar = {},
+        onAddClick = {},
         onNotificationSettingsClick = {},
     )
 }
@@ -268,3 +271,6 @@ private val SettingsAccountDialog.confirmStyle: ChalkakConfirmDialogStyle
     }
 
 private val AccountDialogWidth = 317.dp
+
+// 하단바 탭 화면의 맨 위 여백. 상단바가 없어 화면 맨 위부터 첫 섹션 이름까지의 간격이다.
+private val SettingsTopSpacing = 48.dp

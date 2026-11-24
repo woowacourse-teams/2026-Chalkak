@@ -1,10 +1,11 @@
 package com.stonefive.chalkak.navigation
 
-import androidx.activity.compose.setContent
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -24,7 +25,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.stonefive.chalkak.MainActivity
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.analytics.HomeInteraction
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
@@ -40,13 +40,18 @@ import org.junit.Rule
 import org.junit.Test
 
 class ChalkakNavHostTest {
+    // MainActivity로 띄우면 테스트가 시작하지 못하고 멈춘다. 테스트는 액티비티의 첫 그리기를 기다리는데,
+    // MainActivity 스플래시는 LaunchedEffect의 startPreloading()이 끝나야 걷히고, 그 LaunchedEffect는
+    // 테스트 시계로 돌아 테스트가 진행돼야 실행된다(서로 기다림). 테스트마다 setContent로 화면을 직접 그리므로
+    // 스플래시가 없는 빈 액티비티를 쓴다.
+    // 근거: 이슈 #1057
     @get:Rule
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun authorSignatureReturnsToExistingGalleryInsteadOfGrowingBackStack() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             navController = rememberNavController()
             NavHost(navController = navController, startDestination = Home) {
                 composable<Home> {}
@@ -88,7 +93,7 @@ class ChalkakNavHostTest {
     @Test
     fun bottomBarKeepsTheSameInstanceThroughoutMainTabTransitions() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -110,7 +115,7 @@ class ChalkakNavHostTest {
         try {
             val navigateToTabs = listOf(
                 { navController.navigate(Display(date = LocalDate.now().toString())) },
-                { navController.navigate(Filter) },
+                { navController.navigate(Settings) },
             )
             navigateToTabs.forEach { navigate ->
                 composeRule.runOnIdle { navigate() }
@@ -139,7 +144,7 @@ class ChalkakNavHostTest {
     @Test
     fun bottomBarIsHiddenInFeedAndReturnsWithDisplay() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -184,7 +189,7 @@ class ChalkakNavHostTest {
     @Test
     fun displayResumesAfterPhotoReturnsWithoutWaitingForOpeningFade() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -245,7 +250,7 @@ class ChalkakNavHostTest {
 
             override fun trackHomeInteraction(interaction: HomeInteraction) = Unit
         }
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -304,7 +309,7 @@ class ChalkakNavHostTest {
             override fun trackHomeInteraction(interaction: HomeInteraction) = Unit
         }
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -333,7 +338,7 @@ class ChalkakNavHostTest {
     @Test
     fun notificationsOpenFromHomeAndBackReturnsToHome() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -362,7 +367,7 @@ class ChalkakNavHostTest {
     @Test
     fun repeatedBackClicksPopOnlyOneEntryAndBackWorksAfterTransition() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -417,7 +422,7 @@ class ChalkakNavHostTest {
     @Test
     fun rapidHomeForwardClicksOnlyRunFirstRenderedCallback() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -467,7 +472,7 @@ class ChalkakNavHostTest {
     @Test
     fun selectingHomeWhileAlreadyHomeKeepsTheSameEntry() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -502,7 +507,7 @@ class ChalkakNavHostTest {
     @Test
     fun rapidBottomTabSelectionsOnlyRunFirstRenderedCallbackAndTabsWorkAfterTransition() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -521,7 +526,7 @@ class ChalkakNavHostTest {
         }
 
         val settingsClick = composeRule
-            .onNode(hasText("필터") and hasClickAction())
+            .onNode(hasText("설정") and hasClickAction())
             .fetchSemanticsNode()
             .config[SemanticsActions.OnClick]
             .action!!
@@ -538,8 +543,9 @@ class ChalkakNavHostTest {
         }
         composeRule.waitForIdle()
         composeRule.runOnIdle {
-            assertTrue(navController.currentDestination?.hasRoute<Filter>() == true)
+            assertTrue(navController.currentDestination?.hasRoute<Settings>() == true)
         }
+        composeRule.onNode(hasText("설정") and hasClickAction()).assertIsSelected()
 
         composeRule.onNodeWithText("전시").performClick()
         composeRule.waitForIdle()
@@ -551,7 +557,7 @@ class ChalkakNavHostTest {
     @Test
     fun rapidSignatureSubmissionsOpenOnlyOnePreview() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -592,7 +598,7 @@ class ChalkakNavHostTest {
     @Test
     fun homeRankingLinksOpenPopularDisplayForTheirDates() {
         lateinit var navController: NavHostController
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -637,9 +643,9 @@ class ChalkakNavHostTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             navController.currentDestination?.hasRoute<Home>() == true
         }
-        composeRule.onNodeWithText("필터").performClick()
+        composeRule.onNodeWithText("설정").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Filter>() == true
+            navController.currentDestination?.hasRoute<Settings>() == true
         }
         composeRule.onNodeWithText("홈").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -651,7 +657,7 @@ class ChalkakNavHostTest {
     fun displayOpenedFromRecordReturnsToRecordAndKeepsTabsNavigable() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -699,9 +705,9 @@ class ChalkakNavHostTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             navController.currentDestination?.hasRoute<Display>() == true
         }
-        composeRule.onNodeWithText("필터").performClick()
+        composeRule.onNodeWithText("설정").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Filter>() == true
+            navController.currentDestination?.hasRoute<Settings>() == true
         }
         composeRule.runOnIdle {
             assertTrue(
@@ -717,7 +723,7 @@ class ChalkakNavHostTest {
         lateinit var navController: NavHostController
         val uploadedDate = LocalDate.of(2026, 9, 22)
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -767,7 +773,7 @@ class ChalkakNavHostTest {
     fun noticeNotificationOpensDetailUsingMemberNotificationId() {
         lateinit var navController: NavHostController
         val notificationId = "019a0010-0000-7000-8000-000000000009"
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             navController = rememberNavController()
             ChalkakTheme {
@@ -803,7 +809,7 @@ class ChalkakNavHostTest {
     fun topicNotificationWithoutNotificationIdOpensHomeFromOtherTab() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -817,9 +823,9 @@ class ChalkakNavHostTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("필터").performClick()
+        composeRule.onNodeWithText("설정").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navController.currentDestination?.hasRoute<Filter>() == true
+            navController.currentDestination?.hasRoute<Settings>() == true
         }
 
         composeRule.runOnIdle {
@@ -844,7 +850,7 @@ class ChalkakNavHostTest {
     fun likeMilestoneNotificationWithInvalidPostIdOpensNotificationsInstead() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -880,7 +886,7 @@ class ChalkakNavHostTest {
     fun likeMilestoneNotificationOpensOwnedFeedWithoutResultIntent() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -922,7 +928,7 @@ class ChalkakNavHostTest {
     fun aiReviewCompletedNotificationOpensOwnedFeedWithResultIntent() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -978,7 +984,7 @@ class ChalkakNavHostTest {
     fun aiReviewNotificationReplacesSamePostFeedOnTop() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()
@@ -1046,7 +1052,7 @@ class ChalkakNavHostTest {
     fun topicNotificationFromHomeDoesNotAddDuplicateHome() {
         lateinit var navController: NavHostController
 
-        composeRule.activity.setContent {
+        composeRule.setContent {
             val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
             LaunchedEffect(homeViewModel) { homeViewModel.startPreloading() }
             navController = rememberNavController()

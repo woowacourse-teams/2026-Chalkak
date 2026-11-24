@@ -60,7 +60,10 @@ fun FilterScreen(
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.FILTER)
+    // 필터 화면은 목 데이터라 1.2.1부터 내비게이션에 연결하지 않고 코드만 남겨 둔다. 하단바에서 필터 탭이 빠져
+    // 컴파일되게 SETTINGS를 넣어 둔 것이니, 다시 연결할 때 이 화면이 들어갈 자리(탭인지 아닌지)부터 정한다.
+    // 근거: 이슈 #1057
+    val bottomBarState = rememberScreenBottomBarScrollState(ChalkakBottomBarItem.SETTINGS)
     val isSheetVisible = uiState.selectedFilter != null
     // 하단바는 화면 맨 위 레이어라 시트와 사용 버튼을 가리므로, 시트가 열려 있는 동안만 내려 둔다.
     DisposableEffect(isSheetVisible, bottomBarState) {
@@ -74,7 +77,7 @@ fun FilterScreen(
             containerColor = ChalkakTheme.colors.background,
             bottomBar = {
                 ChalkakScreenBottomBar(
-                    selectedItem = ChalkakBottomBarItem.FILTER,
+                    selectedItem = ChalkakBottomBarItem.SETTINGS,
                     onItemSelected = onNavigateToBottomBar,
                     onAddClick = onAddClick,
                     modifier = Modifier.fillMaxWidth(),
