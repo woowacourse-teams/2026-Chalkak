@@ -20,9 +20,11 @@ import com.stonefive.chalkak.domain.model.PostUpdate
 import com.stonefive.chalkak.domain.model.UserSessionState
 import com.stonefive.chalkak.domain.repository.AiReviewRepository
 import com.stonefive.chalkak.domain.repository.AiReviewResponseResult
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
 import com.stonefive.chalkak.domain.repository.SignatureHintRepository
 import com.stonefive.chalkak.feature.instagramconsent.InstagramConsentInputState
+import com.stonefive.chalkak.feature.upload.FakeInstagramConsentPreferences
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CompletableDeferred
@@ -994,6 +996,48 @@ class FeedViewModelTest {
         assertEquals("게시물을 불러오지 못해 수정할 수 없어요", (state.pendingMessage as UiMessage.Toast).text)
     }
 
+    @Test
+    fun `수정은 서버 값으로 열고 제목만 고치거나 취소하면 캐시를 바꾸지 않는다`() = runTest {
+        val cache = FakeInstagramConsentPreferences().apply { value = InstagramConsent(true, "cached") }
+        val model = ownedPostViewModel("제목", null, preferences = cache)
+        model.startPostEdit()
+        assertEquals(
+            false,
+            model.uiState.value.postEdit
+                ?.instagramConsent
+                ?.agreed,
+        )
+        model.updatePostEditTitle("새 제목")
+        model.savePostEdit()
+        advanceUntilIdle()
+        assertTrue(cache.saved.isEmpty())
+        model.startPostEdit()
+        model.updatePostEditInstagramUploadAgreed(true)
+        model.cancelPostEdit()
+        assertTrue(cache.saved.isEmpty())
+    }
+
+    @Test
+    fun `수정 동의를 바꾸어 성공했을 때만 서버 응답을 캐시하며 저장 실패는 수정 성공을 유지한다`() = runTest {
+        val cache = FakeInstagramConsentPreferences()
+        val model = ownedPostViewModel("제목", null, preferences = cache)
+        model.startPostEdit()
+        model.updatePostEditInstagramUploadAgreed(true)
+        model.updatePostEditInstagramId("INPUT")
+        repository.titleUpdateResult = HomeResult.Failure(HomeFailure.InvalidInstagramId)
+        model.savePostEdit()
+        advanceUntilIdle()
+        assertTrue(cache.saved.isEmpty())
+        val canonical = InstagramConsent(true, "input")
+        repository.titleUpdateResult = HomeResult.Success(PostUpdate(PHOTO_ID, "제목", null, canonical))
+        cache.failSave = true
+        model.savePostEdit()
+        advanceUntilIdle()
+        assertEquals(listOf("user-a" to canonical), cache.saved)
+        assertEquals(null, model.uiState.value.postEdit)
+        assertEquals(canonical, model.uiState.value.instagramConsent)
+    }
+
     /**
      * 오늘 주제에 올린 내 게시물 상세를 연 ViewModel. 수정 TC들이 같은 시작 상태를 쓴다.
      * 본인 동의 정보는 상세 조회로만 받으므로 상세 조회가 [instagramConsent]와 함께 성공한 상태로 만든다(#939).
@@ -1003,6 +1047,7 @@ class FeedViewModelTest {
         description: String?,
         postRepository: FakePostRepository = repository,
         instagramConsent: InstagramConsent = InstagramConsent.NotAgreed,
+        preferences: InstagramConsentPreferenceRepository? = null,
     ): FeedViewModel {
         val ownedPost = feedContent()
             .photos
@@ -1018,7 +1063,10 @@ class FeedViewModelTest {
         return FeedViewModel(
             repository = postRepository,
             aiReviewRepository = FakeAiReviewRepository(),
-            sessionState = MutableStateFlow(UserSessionState.SignedOut),
+            sessionState = MutableStateFlow(
+                if (preferences == null) UserSessionState.SignedOut else UserSessionState.Authenticated("user-a"),
+            ),
+            instagramConsentPreferences = preferences,
             initialContent = FeedContentState.Success(
                 dateLabel = "8월 28일의 주제",
                 topic = "하늘하늘하늘",

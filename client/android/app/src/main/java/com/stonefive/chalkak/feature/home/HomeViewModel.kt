@@ -23,6 +23,7 @@ import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.UploadedPostPhotoRepository
 import com.stonefive.chalkak.feature.aireview.AiReviewSession
 import com.stonefive.chalkak.feature.aireview.AiReviewUiState
 import java.time.LocalDate
@@ -55,6 +56,7 @@ class HomeViewModel(
     private val isAiReviewEnabled: () -> Boolean = { true },
     private val loadHomeIssueExperiment: suspend () -> HomeIssueExperiment = { HomeIssueExperiment() },
     private val onIssueExperimentExposed: (isIssueOnTop: Boolean) -> Unit = {},
+    private val uploadedPhotoRepository: UploadedPostPhotoRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(date = dateProvider(), isIssueLayoutResolved = false))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -94,6 +96,9 @@ class HomeViewModel(
                             loadHome(reset = true)
                             refreshUnreadNotifications()
                         }
+
+                        // 같은 계정으로 다시 로그인하면 원래 화면으로 돌아오므로, 그동안 보던 홈 내용은 그대로 둔다.
+                        session is UserSessionState.ReauthenticationRequired -> Unit
 
                         session == UserSessionState.SignedOut -> {
                             loadJob?.cancel()
@@ -142,9 +147,15 @@ class HomeViewModel(
         } else if (!isFirstPresentation && loadJob?.isActive != true) {
             loadHome(reset = false)
         } else {
+            // 원격 설정으로 AI 리뷰가 켜지거나 꺼졌을 수 있으므로 승인 전 안내도 다시 정한다.
+            _uiState.update { it.copy(feedbackNotice = feedbackNoticeFor(it.hero)) }
             aiReviewSession.onResume()
         }
     }
+
+    // AI 리뷰 기능이 꺼져 있으면 승인 전 안내도 숨긴다(승인된 사진의 카드와 같은 조건).
+    private fun feedbackNoticeFor(hero: HomeHeroState): HomeFeedbackNotice? =
+        if (isAiReviewEnabled()) hero.feedbackNotice() else null
 
     fun onPause() {
         isResumed = false
@@ -345,7 +356,13 @@ class HomeViewModel(
         authenticated: Boolean,
     ) {
         if (!authenticated) {
-            _uiState.update { it.copy(hero = HomeHeroState.LoginRequired, recordsStatus = HomeSectionStatus.Ready) }
+            _uiState.update {
+                it.copy(
+                    hero = HomeHeroState.LoginRequired,
+                    recordsStatus = HomeSectionStatus.Ready,
+                    feedbackNotice = null,
+                )
+            }
             return
         }
         val dates = homeWeekDates(date)
@@ -370,21 +387,25 @@ class HomeViewModel(
         }
         val todayRecord = records.firstOrNull { it.topicDate == date }
         val hero = if (todayRecord != null) {
+            // 처리가 끝나 캘린더에 오면 서버 이미지를 쓰므로 보관 사진은 더 필요 없다.
+            uploadedPhotoRepository?.clear()
             loadHero(todayRecord)
         } else if (hasFailure) {
             HomeHeroState.Error
         } else {
             loadMissingHero(date)
         }
+        // AI 리뷰는 승인된 사진만 대상이다. 승인 전에는 대상을 비우고(API 호출 없음) 안내만 보여 준다.
         val nextPostId = (hero as? HomeHeroState.Photo)?.takeUnless { it.isPending }?.postId
         aiReviewSession.setTarget(nextPostId)
-        _uiState.update { it.copy(hero = hero) }
+        _uiState.update { it.copy(hero = hero, feedbackNotice = feedbackNoticeFor(hero)) }
         if (isResumed) aiReviewSession.onResume()
     }
 
     private suspend fun loadHero(record: PostCalendarItem): HomeHeroState {
         if (record.status == PostStatus.PENDING) {
-            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true)
+            // 작성자는 검수 대기 게시물도 상세로 열 수 있어(POST-007) 카드를 눌러 피드로 가도록 게시물 ID를 둔다.
+            return HomeHeroState.Photo(imageUrl = record.thumbnailImageUrl, isPending = true, postId = record.postId)
         }
         return when (val detail = request { repository.getPostDetail(record.postId) }) {
             is HomeResult.Success -> HomeHeroState.Photo(
@@ -410,12 +431,22 @@ class HomeViewModel(
         }
         return when (result) {
             is TodayPostStatusResult.Success -> when {
-                result.value.topicDate != date || !result.value.isPosted -> HomeHeroState.Empty
+                result.value.topicDate != date || !result.value.isPosted -> {
+                    // 처리에 실패해 게시물이 없어졌으면 보관 사진도 버린다.
+                    uploadedPhotoRepository?.clear()
+                    HomeHeroState.Empty
+                }
 
-                result.value.moderationStatus == TodayPostModerationStatus.VALIDATING -> HomeHeroState.Processing
+                result.value.moderationStatus == TodayPostModerationStatus.VALIDATING -> processingHero(
+                    result.value.postId,
+                )
 
                 // A posted result without a calendar image is not an empty upload slot.
-                else -> HomeHeroState.Error
+                else -> {
+                    // 처리가 끝났으면(VALIDATING 종료) 캘린더에 아직 없어도 보관 사진은 더 필요 없다.
+                    uploadedPhotoRepository?.clear()
+                    HomeHeroState.Error
+                }
             }
 
             is TodayPostStatusResult.Failure -> if (result.reason == TodayPostStatusFailure.NoOpenTopic) {
@@ -424,6 +455,11 @@ class HomeViewModel(
                 HomeHeroState.Error
             }
         }
+    }
+
+    private fun processingHero(postId: String?): HomeHeroState {
+        val photoPath = postId?.let { uploadedPhotoRepository?.photoPath(it) }
+        return if (photoPath != null) HomeHeroState.ProcessingPhoto(photoPath) else HomeHeroState.Processing
     }
 
     private suspend fun <T> request(block: suspend () -> HomeResult<T>): HomeResult<T> = try {
@@ -455,6 +491,7 @@ class HomeViewModel(
                     isAiReviewEnabled = { appConfigRepository.config.value.isAiReviewEnabled },
                     loadHomeIssueExperiment = appConfigRepository::homeIssueExperiment,
                     onIssueExperimentExposed = analyticsTracker::trackHomeIssueLayoutExposed,
+                    uploadedPhotoRepository = application.appContainer.uploadedPostPhotoRepository,
                 )
             }
         }

@@ -8,4 +8,6 @@ sealed interface UserSessionState {
     data object Guest : UserSessionState
 
     data class Authenticated(val userId: String) : UserSessionState
+
+    data class ReauthenticationRequired(val userId: String) : UserSessionState
 }

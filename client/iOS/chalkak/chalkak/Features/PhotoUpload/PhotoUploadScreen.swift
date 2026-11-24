@@ -19,6 +19,7 @@ struct PhotoUploadScreen: View {
     @State private var descriptionFrame: CGRect = .zero
     @State private var scrollOffset: CGFloat = 0
     @State private var canDismissCurrentDrag: Bool?
+    @State private var submitAreaHeight: CGFloat = 0
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -111,9 +112,11 @@ struct PhotoUploadScreen: View {
                     .padding(.horizontal, Metrics.contentHorizontalPadding)
                     .padding(.top, theme.spacing.xl)
                 }
-                .padding(.vertical, theme.spacing.xl)
+                .padding(.top, viewState.selectedImage == nil ? theme.spacing.none : theme.spacing.xl)
+                .padding(.bottom, theme.spacing.xl)
                 .frame(maxWidth: .infinity)
             }
+            .contentMargins(.bottom, submitAreaHeight, for: .scrollContent)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
                 scrollToFocusedInput(scrollProxy)
             }
@@ -142,7 +145,7 @@ struct PhotoUploadScreen: View {
             }
             .chalkakNavigationBackground()
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .overlay(alignment: .bottom) {
             ChalkakButton(
                 title: viewState.isSubmitting ? "전시 중..." : "전시하기",
                 action: { onAction(.submitClicked) },
@@ -150,11 +153,15 @@ struct PhotoUploadScreen: View {
                 fillsWidth: true
             )
             .accessibilityIdentifier("photoUpload.submit")
+            .background(theme.colors.background, in: RoundedRectangle(cornerRadius: theme.shapes.button))
             .padding(.horizontal, Metrics.buttonHorizontalPadding)
             .padding(.top, theme.spacing.sm)
             .padding(.bottom, Metrics.buttonBottomPadding)
-            // 스크롤되는 입력칸이 버튼 주변으로 비치지 않게 가린다.
-            .background(theme.colors.background)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                submitAreaHeight = height
+            }
         }
         .contentShape(Rectangle())
         .coordinateSpace(name: "photoUpload.dismiss")

@@ -89,6 +89,94 @@ struct RemoteImageCacheTests {
         #expect(thumbnail.size == CGSize(width: 200, height: 300))
     }
 
+    @Test("홈 랭킹 칸은 썸네일을 칸 폭에 맞춰 줄여 디코딩한다")
+    func rankingCellDecodesThumbnailToCellWidth() async throws {
+        // Given 810×1080 썸네일, 칸 폭 82pt, 화면 배율 3
+        // When  홈 랭킹 칸이 썸네일을 받는다
+        // Then  캐시에 올라간 이미지가 246×328px
+        let url = try Self.writeTemporaryPNG(width: 810, height: 1_080)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let cache = RemoteImageCache()
+        let fillPixelSize = HomeRankingRow.thumbnailFillPixelSize(displayScale: 3)
+
+        let image = try await cache.load(url, fillPixelSize: fillPixelSize)
+
+        #expect(image.pixelSize == CGSize(width: 246, height: 328))
+    }
+
+    @Test("전시 그리드 칸은 썸네일을 칸 폭 × 화면 배율로 줄여 디코딩한다")
+    func displayGridCellDecodesThumbnailToCellWidthTimesScale() async throws {
+        // Given 810×1080 썸네일, 전시 그리드 칸 폭 189pt(iPhone 17 Pro Max: (440 - 25×2 - 12) / 2), 화면 배율 3
+        // When  전시 그리드 칸이 썸네일을 받는다
+        // Then  캐시에 올라간 이미지 폭이 567px (810px보다 작음)
+        let url = try Self.writeTemporaryPNG(width: 810, height: 1_080)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let cache = RemoteImageCache()
+        let maxPixelWidth = ChalkakImage.pixelWidth(forPointWidth: 189, displayScale: 3)
+
+        let image = try await cache.load(url, maxPixelWidth: maxPixelWidth)
+
+        #expect(image.pixelSize.width == 567)
+        #expect(cache.image(for: url, maxPixelWidth: maxPixelWidth) === image)
+    }
+
+    @Test("칸 크기로 받아 둔 썸네일로 피드가 첫 프레임부터 열린다")
+    func placeholderUsesThumbnailCachedAtCellWidth() async throws {
+        // Given 전시 그리드가 썸네일을 칸 폭으로 받아 캐시에 둠
+        // When  그 사진을 눌러 피드 자리표시(placeholder)를 만든다
+        // Then  미리 받은 이미지(preloadedImage)가 비어 있지 않고, 그 칸 크기 이미지다
+        let url = try Self.writeTemporaryPNG(width: 810, height: 1_080)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let cellImage = try await RemoteImageCache.shared.load(url, maxPixelWidth: 567)
+
+        let placeholder = FeedPhotoPlaceholder(imageSource: .remote(url), heightToWidthRatio: 1)
+
+        let preloaded = try #require(placeholder.preloadedImage)
+        #expect(preloaded === cellImage)
+        #expect(preloaded.pixelSize.width == 567)
+        let ratio = try #require(placeholder.heightToWidthRatio)
+        #expect(abs(ratio - 1_080.0 / 810.0) < 0.001)
+    }
+
+    @Test("썸네일이 칸보다 작으면 늘리지 않는다")
+    func rankingCellKeepsSmallerThumbnailSize() async throws {
+        // Given 200×300 썸네일, 칸 폭 82pt, 화면 배율 3 (246px)
+        // When  홈 랭킹 칸이 썸네일을 받는다
+        // Then  캐시에 올라간 이미지가 200×300px 그대로
+        let url = try Self.writeTemporaryPNG(width: 200, height: 300)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let cache = RemoteImageCache()
+        let fillPixelSize = HomeRankingRow.thumbnailFillPixelSize(displayScale: 3)
+
+        let image = try await cache.load(url, fillPixelSize: fillPixelSize)
+
+        #expect(image.pixelSize == CGSize(width: 200, height: 300))
+    }
+
+    @Test("칸 크기를 아직 모르면 기본 폭으로 디코딩한다")
+    func unknownCellWidthDecodesWithDefaultWidth() async throws {
+        // Given 칸 폭이 0으로 측정된 첫 그리기
+        // When  썸네일을 받는다
+        // Then  기본 폭(1320px 이하) 규칙으로 디코딩되고 실패하지 않는다
+        let url = try Self.writeTemporaryPNG(width: 1_500, height: 2_000)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let cache = RemoteImageCache()
+        let maxPixelWidth = ChalkakImage.pixelWidth(forPointWidth: 0, displayScale: 3)
+
+        let image = try await cache.load(url, maxPixelWidth: maxPixelWidth)
+
+        #expect(maxPixelWidth == nil)
+        #expect(image.pixelSize == CGSize(width: 1_320, height: 1_760))
+        #expect(cache.image(for: url) === image)
+    }
+
+    private static func writeTemporaryPNG(width: CGFloat, height: CGFloat) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remote-image-cell-\(UUID().uuidString).png")
+        try #require(pngData(width: width, height: height)).write(to: url)
+        return url
+    }
+
     private static func pngData(width: CGFloat, height: CGFloat) -> Data? {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -109,7 +197,7 @@ struct FeedPhotoImageSwapTests {
         let original = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: thumbnail)
 
-        state.receiveOriginal(original, isSettled: false)
+        state.receiveOriginal(original)
         #expect(state.displayedImage === thumbnail)
         #expect(!state.hasOriginal)
 
@@ -126,7 +214,7 @@ struct FeedPhotoImageSwapTests {
         let signature = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: UIImage())
 
-        state.receiveOriginal(original, signature: signature, isSettled: false)
+        state.receiveOriginal(original, signature: signature)
         #expect(state.originalSignature == nil)
 
         state.finishTransition()
@@ -138,7 +226,8 @@ struct FeedPhotoImageSwapTests {
     func replacesAfterTransition() {
         let original = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: UIImage())
-        state.receiveOriginal(original, isSettled: true)
+        state.finishTransition()
+        state.receiveOriginal(original)
         #expect(state.displayedImage === original)
         #expect(state.hasOriginal)
     }
@@ -147,7 +236,13 @@ struct FeedPhotoImageSwapTests {
     func showsOriginalWithoutThumbnail() {
         let original = UIImage()
         var state = FeedPhotoImageSwap(displayedImage: nil)
-        state.receiveOriginal(original, isSettled: false)
+        state.receiveOriginal(original)
         #expect(state.displayedImage === original)
+    }
+}
+
+private extension UIImage {
+    var pixelSize: CGSize {
+        CGSize(width: size.width * scale, height: size.height * scale)
     }
 }

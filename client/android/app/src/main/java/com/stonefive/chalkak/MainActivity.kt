@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) {
-            enqueueNotificationNavigation(intent)
+            appContainer.pendingNotificationNavigation.startWith(NotificationPushData.from(intent))
         } else {
             appContainer.pendingNotificationNavigation.restoreFrom(savedInstanceState)
         }

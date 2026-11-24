@@ -70,6 +70,7 @@ struct HomeWeeklyRecord: View {
 
 private struct WeeklyRecordCell: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.displayScale) private var displayScale
     let day: HomeWeekDay
 
     var body: some View {
@@ -81,7 +82,12 @@ private struct WeeklyRecordCell: View {
                     if let post = day.post {
                         ChalkakImage(
                             source: post.thumbnailImageSource,
-                            contentDescription: nil
+                            contentDescription: nil,
+                            // 정사각 칸을 꽉 채워 그리므로 칸 크기 × 화면 배율을 덮게 받는다.
+                            fillPixelSize: ChalkakImage.pixelSize(
+                                forPointSize: geometry.size,
+                                displayScale: displayScale
+                            )
                         )
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.stonefive.chalkak.ChalkakApplication
+import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
 import com.stonefive.chalkak.core.ui.UiMessage
 import com.stonefive.chalkak.domain.model.SocialAuthFailure
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
@@ -18,7 +19,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
+class LoginViewModel(
+    private val authRepository: AuthRepository,
+    private val pendingNotificationNavigation: PendingNotificationNavigationStore,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
     private var nextMessageId = 0L
@@ -101,6 +105,8 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
             _uiState.value = LoginUiState(status = LoginStatus.Loading)
             try {
                 authRepository.continueAsGuest()
+                // 알림을 열려고 로그인 화면에 왔다가 둘러보기를 고르면, 둘러보기 화면에서 다시 로그인으로 보내지 않게 버린다.
+                pendingNotificationNavigation.discard()
                 _uiState.value = LoginUiState(status = LoginStatus.GuestAccessGranted)
             } catch (error: CancellationException) {
                 throw error
@@ -141,6 +147,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : ViewModel() {
                 val application = this[APPLICATION_KEY] as ChalkakApplication
                 LoginViewModel(
                     authRepository = application.appContainer.authRepository,
+                    pendingNotificationNavigation = application.appContainer.pendingNotificationNavigation,
                 )
             }
         }

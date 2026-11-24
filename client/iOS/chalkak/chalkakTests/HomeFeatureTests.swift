@@ -255,6 +255,92 @@ struct HomeViewModelTests {
         #expect(loader.detailRequests == ["approved-post"])
     }
 
+    @Test("승인된 사진 카드를 누르면 그 게시물을 내 게시물로 연다")
+    func approvedHeroOpensOwnFeed() async throws {
+        // Given 맨 위 카드가 승인된 사진(게시물 ID "post-1", 썸네일 "https://cdn.example.com/thumb.webp")
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 게시물 ID "post-1", 내 게시물, 자리 표시 이미지 썸네일로 연다
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let thumbnail = ChalkakImageSource.remote(URL(string: "https://cdn.example.com/thumb.webp")!)
+        let record = RecordPost(postId: "post-1", topicDate: today, thumbnailImageSource: thumbnail, status: .approved)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])],
+            detailResult: .success(Self.feedContent(postID: "post-1", date: today))
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+        await viewModel.resume()
+
+        let target = try #require(viewModel.heroFeedTarget())
+
+        #expect(target.id == "post-1")
+        #expect(target.isOwnedByCurrentUser)
+        #expect(target.placeholder?.imageSource == thumbnail)
+    }
+
+    @Test("검수 대기 사진 카드를 누르면 그 게시물을 내 게시물로 연다")
+    func pendingHeroOpensOwnFeed() async throws {
+        // Given 맨 위 카드가 검수 대기 사진(게시물 ID "post-2")
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 게시물 ID "post-2", 내 게시물로 연다
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let record = Self.record(id: "post-2", date: today, status: .pending)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])]
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+        await viewModel.resume()
+
+        let target = try #require(viewModel.heroFeedTarget())
+
+        #expect(target.id == "post-2")
+        #expect(target.isOwnedByCurrentUser)
+    }
+
+    @Test("상세 조회가 실패해 사인 없이 보이는 사진 카드도 그 게시물을 연다")
+    func detailFailureHeroOpensOwnFeed() async throws {
+        // Given 승인된 오늘 게시물 "post-3"의 상세 조회가 실패해 맨 위 카드가 사인 없이 썸네일만 보임
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 게시물 ID "post-3", 내 게시물로 연다
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let record = Self.record(id: "post-3", date: today, status: .approved)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])],
+            detailResult: .failure(TestError.expected)
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader)
+        await viewModel.resume()
+        guard case let .photo(photo) = viewModel.viewState.hero, photo.signatureSource == nil else {
+            Issue.record("상세 조회 실패가 사인 없는 사진 카드로 표시되지 않았습니다")
+            return
+        }
+
+        let target = try #require(viewModel.heroFeedTarget())
+
+        #expect(target.id == "post-3")
+        #expect(target.isOwnedByCurrentUser)
+    }
+
+    @Test("게시물 ID를 모르는 사진 카드는 눌러도 아무 화면도 열지 않는다")
+    func heroWithoutPostIDOpensNothing() {
+        // Given 맨 위 카드가 사진 상태지만 게시물 ID가 없음
+        // When  맨 위 사진 카드를 누른다
+        // Then  피드 화면을 열지 않는다(열 게시물 없음)
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let thumbnail = ChalkakImageSource.remote(URL(string: "https://cdn.example.com/thumb.webp")!)
+        var state = HomeViewState(date: today)
+        state.hero = .photo(HomeHeroPhoto(imageSource: thumbnail, thumbnailSource: thumbnail, signatureSource: nil, isPending: false, postID: nil))
+        let loader = HomeLoaderProbe(todayResult: .success(Self.displayContent(date: today)), rankingResult: .success([]))
+        let viewModel = Self.viewModel(date: today, initialState: state, loader: loader.loader)
+
+        #expect(viewModel.heroFeedTarget() == nil)
+    }
+
     @Test("달력에 없지만 오늘 업로드가 VALIDATING이면 처리 중으로 표시한다")
     func validatingTodayPostStatusShowsProcessing() async {
         let today = Self.date(year: 2026, month: 9, day: 7)
@@ -277,6 +363,142 @@ struct HomeViewModelTests {
 
         #expect(viewModel.viewState.hero == .processing)
         #expect(loader.postStatusCallCount == 1)
+    }
+
+    @Test("오늘 게시물이 처리 중이고 보관 사진이 그 게시물 것이면 홈 맨 위에 그 사진을 처리 중으로 보여 준다")
+    func validatingPostShowsStoredUploadedPhoto() async throws {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 VALIDATING·"p1"
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p1")
+        let storedURL = try #require(store.url(for: "p1"))
+        let loader = Self.loaderWithoutTodayRecord(today: today, postStatusResult: .success(Self.validatingStatus(today: today, postID: "p1")))
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드가 처리 중이고, 보여 줄 사진이 "p1"의 보관 사진
+        #expect(viewModel.viewState.hero == .processingPhoto(.remote(storedURL)))
+    }
+
+    @Test("보관 사진이 다른 게시물 것이면 사진 없이 처리 중 문구를 보여 준다")
+    func validatingPostWithOtherStoredPhotoShowsProcessingText() async {
+        // Given 보관 사진 "p0", 오늘 게시물 상태 VALIDATING·"p1"
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p0")
+        let loader = Self.loaderWithoutTodayRecord(today: today, postStatusResult: .success(Self.validatingStatus(today: today, postID: "p1")))
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드가 처리 중이고, 보여 줄 사진이 없다
+        #expect(viewModel.viewState.hero == .processing)
+    }
+
+    @Test("처리가 끝나 캘린더에 검수 대기로 오면 서버 썸네일을 쓰고 보관 사진을 버린다")
+    func pendingRecordUsesServerThumbnailAndDropsStoredPhoto() async {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 "p1" PENDING
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p1")
+        let record = Self.record(id: "p1", date: today, status: .pending)
+        let loader = HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [record])]
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드가 서버 썸네일 + 검수 대기이고, "p1"의 보관 사진이 없다
+        guard case let .photo(photo) = viewModel.viewState.hero else {
+            Issue.record("PENDING 기록이 사진 히어로로 표시되지 않았습니다: \(viewModel.viewState.hero)")
+            return
+        }
+        #expect(photo.isPending)
+        #expect(photo.imageSource == .remote(URL(string: "https://example.com/p1-thumb.webp")!))
+        #expect(store.url(for: "p1") == nil)
+    }
+
+    @Test("처리에 실패해 오늘 게시물이 없어지면 보관 사진을 버린다")
+    func processingFailureDropsStoredPhoto() async {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 isPosted=false(처리 실패로 REJECTED)
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p1")
+        let loader = Self.loaderWithoutTodayRecord(
+            today: today,
+            postStatusResult: .success(PhotoUploadTodayPostStatus(topicDate: today, isPosted: false, postID: nil, moderationStatus: nil))
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드에 사진이 없고(지금과 같은 상태), "p1"의 보관 사진이 없다
+        #expect(viewModel.viewState.hero == .empty)
+        #expect(store.url(for: "p1") == nil)
+    }
+
+    @Test("캘린더에 아직 없어도 오늘 게시물 처리가 끝났으면 보관 사진을 버린다")
+    func finishedProcessingWithoutRecordDropsStoredPhoto() async {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 PENDING·"p1"
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p1")
+        let loader = Self.loaderWithoutTodayRecord(
+            today: today,
+            postStatusResult: .success(PhotoUploadTodayPostStatus(topicDate: today, isPosted: true, postID: "p1", moderationStatus: .pending))
+        )
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드는 지금처럼 오류이고, "p1"의 보관 사진이 없다
+        #expect(viewModel.viewState.hero == .error)
+        #expect(store.url(for: "p1") == nil)
+    }
+
+    @Test("오늘 게시물 상태를 못 불러오면 보관 사진을 버리지 않는다")
+    func postStatusFailureKeepsStoredPhoto() async {
+        // Given 보관 사진 "p1", 캘린더에 오늘 게시물 없음, 오늘 게시물 상태 요청이 네트워크 오류
+        let today = Self.date(year: 2026, month: 9, day: 7)
+        let store = Self.uploadedPhotoStore(storing: "p1")
+        let loader = Self.loaderWithoutTodayRecord(today: today, postStatusResult: .failure(PhotoUploadAPIError.network))
+        let viewModel = Self.viewModel(date: today, loader: loader.loader, uploadedPhotoStore: store)
+
+        // When  홈을 불러온다
+        await viewModel.resume()
+
+        // Then  맨 위 카드는 지금처럼 오류이고, "p1"의 보관 사진은 남아 있다
+        #expect(viewModel.viewState.hero == .error)
+        #expect(store.url(for: "p1") != nil)
+    }
+
+    private static func uploadedPhotoStore(storing postID: String) -> UploadedPhotoStore {
+        let store = UploadedPhotoStore(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("HomeUploadedPhotoTests-\(UUID().uuidString)", isDirectory: true)
+        )
+        store.save(Data([0x52, 0x49, 0x46, 0x46]), postID: postID)
+        return store
+    }
+
+    private static func loaderWithoutTodayRecord(
+        today: Date,
+        postStatusResult: Result<PhotoUploadTodayPostStatus, Error>
+    ) -> HomeLoaderProbe {
+        HomeLoaderProbe(
+            todayResult: .success(Self.displayContent(date: today)),
+            rankingResult: .success([]),
+            calendars: [RecordMonth.current(now: today): RecordCalendar(month: RecordMonth.current(now: today), posts: [])],
+            postStatusResult: postStatusResult
+        )
+    }
+
+    private static func validatingStatus(today: Date, postID: String) -> PhotoUploadTodayPostStatus {
+        PhotoUploadTodayPostStatus(topicDate: today, isPosted: true, postID: postID, moderationStatus: .validating)
     }
 
     @Test("오늘 주제가 없다는 404는 참여 불가 상태로 표시하고 일반 오류와 구분한다")
@@ -575,11 +797,13 @@ struct HomeViewModelTests {
         date: Date,
         initialState: HomeViewState? = nil,
         isAuthenticated: Bool = true,
-        loader: HomeDataLoader
+        loader: HomeDataLoader,
+        uploadedPhotoStore: UploadedPhotoStore? = nil
     ) -> HomeViewModel {
         HomeViewModel(
             initialState: initialState ?? HomeViewState(),
             loader: loader,
+            uploadedPhotoStore: uploadedPhotoStore,
             dateProvider: { date },
             isAuthenticated: { isAuthenticated }
         )
@@ -618,6 +842,23 @@ struct HomeViewModelTests {
             likeCount: 1,
             isLiked: false,
             isOwnedByCurrentUser: false
+        )
+    }
+
+    private static func feedContent(postID: String, date: Date) -> FeedContent {
+        FeedContent(
+            dateLabel: FeedDateLabel.make(from: date),
+            topicDate: date,
+            topic: "오늘의 주제",
+            post: FeedPost(
+                id: postID,
+                originalImageSource: .remote(URL(string: "https://cdn.example.com/original.webp")!),
+                signatureImageSource: .remote(URL(string: "https://cdn.example.com/signature.png")!),
+                contentDescription: "내 사진",
+                likeCount: 0,
+                isLiked: false,
+                isOwnedByCurrentUser: true
+            )
         )
     }
 

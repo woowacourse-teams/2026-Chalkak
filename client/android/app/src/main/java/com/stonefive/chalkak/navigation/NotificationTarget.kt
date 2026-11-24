@@ -1,6 +1,7 @@
 package com.stonefive.chalkak.navigation
 
 import com.stonefive.chalkak.domain.model.NotificationFailure
+import java.net.URI
 
 /**
  * 알림(알림함 항목·푸시)을 눌렀을 때 열 곳. 실제 라우트·백스택 처리는 `ChalkakNavHost`가 이 값을 보고 한다.
@@ -27,6 +28,28 @@ internal sealed interface NotificationTarget {
 
     /** 열 곳을 알 수 없으면 알림함으로 간다. */
     data object NotificationList : NotificationTarget
+
+    /** 기록 탭. 화면 푸시(`chalkak://screen/record`)로만 연다. */
+    data object RecordTab : NotificationTarget
+
+    /** 설정 탭. 화면 푸시로 열거나 알림 설정 아래에 둔다. */
+    data object SettingsTab : NotificationTarget
+
+    /** 알림 설정. 화면 푸시로 열 때 [SettingsTab] 위에 쌓는다. */
+    data object NotificationSettings : NotificationTarget
+}
+
+/**
+ * 화면 푸시의 URI로 열 곳을 정한다. 앱이 만든 알림(개발자 도구의 테스트 알림)이 쓴다.
+ *
+ * 예: `chalkak://screen/notification-settings` → [NotificationTarget.NotificationSettings].
+ * scheme·authority·경로가 허용 목록과 정확히 같아야 하고, 사용자 정보·포트·쿼리·조각이 붙거나 형식이 다르면 null이다.
+ */
+internal fun screenPushTargetOf(uri: String): NotificationTarget? {
+    val parsed = runCatching { URI(uri) }.getOrNull() ?: return null
+    if (parsed.scheme != SCREEN_PUSH_SCHEME || parsed.rawAuthority != SCREEN_PUSH_HOST) return null
+    if (parsed.rawQuery != null || parsed.rawFragment != null) return null
+    return SCREEN_PUSH_TARGETS[parsed.rawPath]
 }
 
 /**
@@ -65,12 +88,15 @@ internal fun notificationTargetOf(
  *
  * - 답변 알림: [NotificationTarget.FeedbackList] → [NotificationTarget.FeedbackInquiry].
  *   상세에서 뒤로 가면 고객센터 목록(첫 페이지부터 새로 불러와 "답변 완료"), 한 번 더 뒤로 가면 푸시 전 화면이다.
+ * - 알림 설정: [NotificationTarget.SettingsTab] → [NotificationTarget.NotificationSettings].
+ *   앱 안에서 설정 탭을 거쳐 들어갈 때와 같아서, 뒤로 가면 설정 탭, 한 번 더 뒤로 가면 홈이다.
  * - 그 밖: [target] 하나.
  *
  * 알림함 항목을 눌렀을 때는 이 함수를 쓰지 않고 [notificationTargetOf] 하나만 연다(뒤로 가면 알림함).
  */
 internal fun pushNotificationRouteOf(target: NotificationTarget): List<NotificationTarget> = when (target) {
     is NotificationTarget.FeedbackInquiry -> listOf(NotificationTarget.FeedbackList, target)
+    NotificationTarget.NotificationSettings -> listOf(NotificationTarget.SettingsTab, target)
     else -> listOf(target)
 }
 
@@ -111,6 +137,14 @@ internal fun pushReadFailureHandlingOf(
 internal fun isNotificationPostId(value: String): Boolean = NOTIFICATION_POST_ID_PATTERN.matches(value)
 
 private val NOTIFICATION_POST_ID_PATTERN = Regex("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
+private const val SCREEN_PUSH_SCHEME = "chalkak"
+private const val SCREEN_PUSH_HOST = "screen"
+private val SCREEN_PUSH_TARGETS = mapOf(
+    "/notifications" to NotificationTarget.NotificationList,
+    "/notification-settings" to NotificationTarget.NotificationSettings,
+    "/record" to NotificationTarget.RecordTab,
+    "/settings" to NotificationTarget.SettingsTab,
+)
 internal const val TOPIC = "TOPIC"
 private const val POST_APPROVED = "POST_APPROVED"
 private const val POST_LIKE_MILESTONE = "POST_LIKE_MILESTONE"

@@ -2,6 +2,7 @@ package com.stonefive.chalkak.data.repository
 
 import com.stonefive.chalkak.data.post.PostImageEncodeResult
 import com.stonefive.chalkak.data.post.PostImageEncoder
+import com.stonefive.chalkak.data.post.UploadedPostPhotoStore
 import com.stonefive.chalkak.data.remote.ApiError
 import com.stonefive.chalkak.data.remote.ApiResult
 import com.stonefive.chalkak.data.remote.post.PostCreationRemoteDataSource
@@ -23,6 +24,7 @@ import com.stonefive.chalkak.domain.model.Topic
 import com.stonefive.chalkak.domain.model.photoedit.PhotoEdit
 import com.stonefive.chalkak.domain.model.photoedit.PhotoFilter
 import java.io.File
+import java.nio.file.Files
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
@@ -87,6 +89,44 @@ class PostCreationRepositoryImplTest {
         )
         assertArrayEquals(byteArrayOf(1, 2, 3), uploader.uploadedBytes)
         assertFalse(encoder.lastFile?.exists() == true)
+    }
+
+    @Test
+    fun `업로드한 게시물이 처리 중이면 올린 사진을 그 게시물 ID로 보관한다`() = runTest {
+        // Given 사진 업로드와 게시물 만들기가 성공하고, 응답이 게시물 "p1", 상태 VALIDATING
+        // When  게시물을 만든다
+        // Then  "p1"의 보관 사진이 있고, 그 파일 내용이 올린 파일과 같다
+        val store = UploadedPostPhotoStore(Files.createTempDirectory("uploaded-photo").toFile())
+        val repository = repositoryKeepingPhotos(store)
+        remote.createResult = ApiResult.Success(PostCreateResponse("p1", "VALIDATING"))
+        encoder.fileBytes = byteArrayOf(7, 8, 9)
+
+        repository.createPost(prepare(repository), "제목", null, topic, InstagramConsent.NotAgreed)
+
+        val photoPath = store.photoPath("p1")
+        assertTrue(photoPath != null)
+        assertArrayEquals(uploader.uploadedBytes, File(photoPath!!).readBytes())
+    }
+
+    @Test
+    fun `게시물 만들기에 실패하면 사진을 보관하지 않는다`() = runTest {
+        // Given 사진 업로드는 성공하고 게시물 만들기 요청이 실패한다
+        // When  게시물을 만든다
+        // Then  보관 사진이 없다
+        val directory = Files.createTempDirectory("uploaded-photo").toFile()
+        val store = UploadedPostPhotoStore(directory)
+        val repository = repositoryKeepingPhotos(store)
+        remote.createResult = ApiResult.Failure(ApiError.Network)
+
+        repository.createPost(prepare(repository), "제목", null, topic, InstagramConsent.NotAgreed)
+
+        assertEquals(null, store.photoPath("post-id"))
+        assertTrue(
+            directory
+                .listFiles()
+                .orEmpty()
+                .isEmpty(),
+        )
     }
 
     @Test
@@ -386,11 +426,26 @@ class PostCreationRepositoryImplTest {
     private suspend fun prepare(
         imageUri: String = "content://photo/1",
         edit: PhotoEdit = PhotoEdit(),
+    ): PostImagePreparation = prepare(repository, imageUri, edit)
+
+    private suspend fun prepare(
+        repository: PostCreationRepositoryImpl,
+        imageUri: String = "content://photo/1",
+        edit: PhotoEdit = PhotoEdit(),
     ): PostImagePreparation {
         val result = repository.prepareImage(imageUri, edit)
         assertTrue(result is PostImagePreparationResult.Success)
         return (result as PostImagePreparationResult.Success).value
     }
+
+    private fun repositoryKeepingPhotos(store: UploadedPostPhotoStore) = PostCreationRepositoryImpl(
+        remoteDataSource = remote,
+        topicRemoteDataSource = topicRemote,
+        imageEncoder = encoder,
+        imageUploader = uploader,
+        nanoTime = { nowNanos },
+        uploadedPhotoStore = store,
+    )
 
     private fun uploadPolicy(
         uploadId: String = "upload-id",

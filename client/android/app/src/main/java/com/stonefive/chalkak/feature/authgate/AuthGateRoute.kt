@@ -52,7 +52,9 @@ private fun AuthGateContent(
             appAccessibleContent(modifier)
         }
 
-        AuthGateUiState.Authenticated -> key(AuthGateUiState.Authenticated) {
+        AuthGateUiState.Authenticated, is AuthGateUiState.ReauthenticationRequired -> key(
+            AuthGateUiState.Authenticated,
+        ) {
             appAccessibleContent(modifier)
         }
     }

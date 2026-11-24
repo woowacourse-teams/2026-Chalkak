@@ -428,6 +428,7 @@ class HomeScreenTest {
                     onOpenRecordDate = onRecordDate,
                     onOpenDisplay = onDisplay,
                     onOpenFeed = onFeed,
+                    onOpenOwnFeed = {},
                     onNavigateToBottomBar = onTab,
                     onRetry = {},
                     onNotificationClick = {},

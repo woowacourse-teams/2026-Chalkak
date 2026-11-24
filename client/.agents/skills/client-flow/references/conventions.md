@@ -50,7 +50,7 @@ push, 드래프트 PR은 묻지 않는다. 사람은 터미널보다 PR에서 �
 | `client/android/` | Android | `Android` | `android` |
 | `client/iOS/` | iOS | `iOS` | `ios` |
 | `client/web/` | Web | `Web` | `web` |
-| `client/.agents/`, `client/.claude/skills/`, `client/.codex/`, `client/android/AGENTS.md`·`CLAUDE.md`, `client/iOS/AGENTS.md`·`CLAUDE.md` | 하네스 | `Android` `iOS` | 뺌(예: `client/chore/#952-harness-verify-step`) |
+| `client/.agents/`, `client/.claude/skills/`, `client/.claude/settings.json`, `client/.codex/`, `client/android/AGENTS.md`·`CLAUDE.md`, `client/iOS/AGENTS.md`·`CLAUDE.md` | 하네스 | `Android` `iOS` | 뺌(예: `client/chore/#952-harness-verify-step`) |
 
 - Android와 iOS를 함께 바꾸면 라벨을 둘 다 달고, 제목은 `클라이언트`로 시작하고, 브랜치 이름에서 플랫폼 자리를 뺀다(예: `client/refactor/#907-like-logic-update`). 검증은 `client-tdd`대로 플랫폼별 서브에이전트가 동시에 한다.
 - Web은 이슈·계획·PR만 쓴다. TDD, Gradle·xcodebuild 검사, 기기 확인은 하지 않는다.
@@ -60,6 +60,8 @@ push, 드래프트 PR은 묻지 않는다. 사람은 터미널보다 PR에서 �
 - 서비스 정책은 `business-rules`를 읽기만 한다. 정책이 없거나 서버와 다르면 백엔드에 전달할 문구로 남긴다.
 
 ## 명령어
+
+하네스 측정에 참여하려면 각자 `git config --global chalkak.metrics on`을 설정한다. 끄려면 `git config --global --unset chalkak.metrics`를 실행한다. 수집을 켠 사람의 `/client-flow` 세션은 익명 ID·이슈/PR 번호·하네스 지문·시간·토큰·호출·개입 수만 `client/metrics`에 올린다. Codex의 프로젝트 Stop 훅은 Codex에서 `/hooks`로 신뢰해야 실행된다.
 
 하네스 문서 검사: `python3 client/.agents/skills/client-flow/scripts/check-harness.py` (레포 맨 위에서)
 
@@ -103,7 +105,7 @@ mkdir -p "$EVID/media"
 | `evidence-harness.md` | `client-tdd`(하네스) | 문서 검사 명령과 종료 코드 |
 | `trial.md` | `client-tdd`(하네스) | 시험 이슈, 시험 브랜치, 하네스 브랜치·커밋, 확인할 TC 번호 |
 | `metrics.md` | `client-tdd`(하네스) | 측정 표, TC마다 시험에서 확인됨/안 됨과 근거 |
-| `media/` | `client-tdd`의 Android 서브에이전트(화면 자동 확인), 화면 확인 스킬(사람이 요청할 때) | 자동 확인 캡처(`android-before-<n>.png`, `android-after-<n>.png`, `preview-before/`, `preview-after/`, `preview-diff/`), 사람이 요청한 캡처·녹화(예: `ios-repro.mp4`) |
+| `media/` | `client-tdd`의 Android 서브에이전트(화면 자동 확인), 화면 확인 스킬(사람이 요청할 때) | 자동 확인 캡처(`android-before-<n>.png`, `android-after-<n>.png`, `preview-before/`, `preview-after/`, `preview-diff/`), PR 그림(`sheet-android.json`, `android-sheet-<k>.jpg`, 그림에 쓴 원본 `originals/`), 사람이 요청한 캡처·녹화(예: `ios-repro.mp4`) |
 | `checks/` | `client-tdd`의 Android 서브에이전트 | 기기 항목의 확인 스크립트(`android-<n>.py`)와 판정 기록(`results.jsonl`) |
 | `route-<플랫폼>.md` | (지금 안 씀) | 자동 화면 확인을 다시 붙이면 수정 전 `route`를 남긴다 |
 
