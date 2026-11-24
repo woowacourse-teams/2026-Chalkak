@@ -53,17 +53,26 @@ class UserSessionStore(
                         throw error
                     }
                 }.collect { preferences ->
-                    val storedSession = preferences.toStoredSession()
+                    // 판정·발행을 sessionMutex 안에서 한다(근거: PR #1017 리뷰). 토큰 저장 직후의 저장소 변경을 처리하기 전에
+                    // requireReauthentication이 끼면, 잠그지 않은 수집기가 옛 자격 증명으로 Authenticated를 다시 내고
+                    // 이어서 빈 저장소에서 SignedOut을 내 재인증 상태를 덮을 수 있다.
+                    // 로그인·게스트·로그아웃은 각 함수가 직접 발행하므로 여기서 무시해도 상태가 빠지지 않는다.
+                    sessionMutex.withLock {
+                        // 재인증 필요 상태는 메모리에만 있다. 그 사이의 저장소 변경(토큰 삭제 포함)이 이 상태를 덮지 않게 맨 앞에서 거른다.
+                        if (mutableSession.value is LocalSession.ReauthenticationRequired) return@withLock
 
-                    when {
-                        storedSession != null -> publish(storedSession)
+                        val storedSession = preferences.toStoredSession()
+                        when {
+                            storedSession != null -> publish(storedSession)
 
-                        preferences[isGuestKey] == true -> publish(LocalSession.Guest)
+                            preferences[isGuestKey] == true -> publish(LocalSession.Guest)
 
-                        else -> {
-                            publish(LocalSession.SignedOut)
-                            if (preferences.containsStoredCredentials()) {
-                                scope.launch { clearInvalidStoredCredentials() }
+                            else -> {
+                                publish(LocalSession.SignedOut)
+                                if (preferences.containsStoredCredentials()) {
+                                    // 같은 sessionMutex를 쓰므로 잠근 채 기다리지 않고 따로 띄운다(교착 방지).
+                                    scope.launch { clearInvalidStoredCredentials() }
+                                }
                             }
                         }
                     }
@@ -128,6 +137,17 @@ class UserSessionStore(
         sessionMutex.withLock {
             clearStoredCredentials()
             publish(LocalSession.SignedOut)
+        }
+    }
+
+    override suspend fun requireReauthentication(userId: String) {
+        sessionMutex.withLock {
+            val current = (mutableSession.value as? LocalSession.Authenticated)?.credentials ?: return
+            if (current.userId != userId) return
+            // 저장소를 비우기 전에 먼저 알린다. 비운 뒤 DataStore 구독이 SignedOut을 먼저 내면
+            // AuthGate가 앱 화면을 새로 만들어 보던 화면(백스택)이 사라진다.
+            publish(LocalSession.ReauthenticationRequired(userId))
+            clearStoredCredentials()
         }
     }
 

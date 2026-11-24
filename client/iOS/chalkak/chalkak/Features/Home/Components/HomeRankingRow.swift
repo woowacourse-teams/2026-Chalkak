@@ -49,8 +49,19 @@ struct HomeRankingRow: View {
     }
 }
 
+extension HomeRankingRow {
+    /// 랭킹 칸 썸네일을 디코딩할 픽셀 크기. 정사각 칸을 꽉 채워 그리므로 칸 크기 × 화면 배율을 덮게 받는다.
+    static func thumbnailFillPixelSize(displayScale: CGFloat) -> CGSize? {
+        ChalkakImage.pixelSize(
+            forPointSize: CGSize(width: Metrics.itemWidth, height: Metrics.itemWidth),
+            displayScale: displayScale
+        )
+    }
+}
+
 private struct RankingPhotoCard: View {
     @Environment(\.chalkakTheme) private var theme
+    @Environment(\.displayScale) private var displayScale
     let photo: DisplayPhoto
     let zoomSource: FeedZoomSource
     var onClick: () -> Void
@@ -59,7 +70,8 @@ private struct RankingPhotoCard: View {
         Button(action: onClick) {
             ChalkakImage(
                 source: photo.thumbnailImageSource,
-                contentDescription: nil
+                contentDescription: nil,
+                fillPixelSize: HomeRankingRow.thumbnailFillPixelSize(displayScale: displayScale)
             )
             .frame(width: Metrics.itemWidth, height: Metrics.itemWidth)
             .background(theme.colors.calendarCell)

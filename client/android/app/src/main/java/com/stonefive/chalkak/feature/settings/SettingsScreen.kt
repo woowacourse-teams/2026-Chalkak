@@ -129,7 +129,7 @@ fun SettingsScreen(
                 .padding(horizontal = ChalkakTheme.spacing.screenHorizontal)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(SettingsTopSpacing))
 
             if (uiState.isLoggedIn) {
                 SettingsSectionLabel(text = "앱 설정")
@@ -271,3 +271,6 @@ private val SettingsAccountDialog.confirmStyle: ChalkakConfirmDialogStyle
     }
 
 private val AccountDialogWidth = 317.dp
+
+// 하단바 탭 화면의 맨 위 여백. 상단바가 없어 화면 맨 위부터 첫 섹션 이름까지의 간격이다.
+private val SettingsTopSpacing = 48.dp

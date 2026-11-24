@@ -110,6 +110,23 @@ struct ContentView: View {
                                 )
                                 .toolbar(.hidden, for: .navigationBar)
                                 .background(InteractivePopGestureEnabler())
+                            case .appSettings:
+                                SettingsScreen(
+                                    viewModel: settingsViewModel,
+                                    onBackClick: { closeNotificationDestination(destination) },
+                                    onLogin: showLogin,
+                                    onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
+                                    onTerms: { selectedLegalDocument = .termsOfService },
+                                    onOpenFeedback: openCustomerSupport,
+                                    // 설정 위에 쌓아 뒤로 가면 설정으로 돌아오게 한다.
+                                    onOpenNotificationSettings: {
+                                        withAnimation { notificationPath.append(.settings) }
+                                    },
+                                    onSignedOut: showLogin,
+                                    onSignatureScreenChange: { signatureAnalyticsScreen = $0 }
+                                )
+                                .toolbar(.hidden, for: .navigationBar)
+                                .background(InteractivePopGestureEnabler())
                             case .settings:
                                 NotificationSettingsScreen(
                                     viewModel: notificationSettingsViewModel,
@@ -265,7 +282,7 @@ struct ContentView: View {
                 if let successSubmission {
                     PhotoUploadSuccessScreen(
                         submission: successSubmission,
-                        onConfirmClick: showDisplayAfterPhotoUpload
+                        onConfirmClick: showHomeAfterPhotoUpload
                     )
                 } else {
                     mainTab
@@ -567,18 +584,16 @@ struct ContentView: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
+                showsBackButton: false,
                 onLogin: showLogin,
                 onPrivacyPolicy: { selectedLegalDocument = .privacyPolicy },
                 onTerms: { selectedLegalDocument = .termsOfService },
                 onOpenFeedback: openCustomerSupport,
                 onOpenNotificationSettings: {
-                    withAnimation { notificationPath = [.settings] }
+                    withAnimation { notificationPath.append(.settings) }
                 },
                 onSignedOut: showLogin,
-                onNavigateToBottomBar: select,
-                onOpenPhotoUpload: { openPhotoUpload(from: .settings) },
-                onSignatureScreenChange: { signatureAnalyticsScreen = $0 },
-                bottomBarCompact: $isBottomBarCompact
+                onSignatureScreenChange: { signatureAnalyticsScreen = $0 }
             )
         case .record:
             RecordScreen(
@@ -609,6 +624,7 @@ struct ContentView: View {
                 onOpenRecordDate: openRecord(at:),
                 onOpenDisplay: { date in openDisplay(at: date, sort: .popular) },
                 onOpenFeed: openHomeFeed,
+                onOpenHeroFeed: openHomeHeroFeed,
                 onOpenNotifications: {
                     guard KeychainSessionStore.hasAuthenticatedSession() else {
                         showMessage("로그인 후 알림을 확인할 수 있어요")
@@ -675,6 +691,15 @@ struct ContentView: View {
         )
     }
 
+    // 맨 위 카드는 로그인해야 사진 상태가 되지만, 홈 미리보기 실행에서는 랭킹 사진처럼 열지 않는다.
+    private func openHomeHeroFeed(_ target: FeedTarget) {
+        guard canOpenHomeFeed else {
+            showMessage("상세를 보려면 로그인이 필요해요")
+            return
+        }
+        selectedFeed = target
+    }
+
     private func makeFeedViewModel(_ target: FeedTarget) -> FeedViewModel {
         let baseURL = Self.resolvedAPIBaseURL
         return FeedViewModel(
@@ -685,7 +710,8 @@ struct ContentView: View {
             ),
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: baseURL)
-            )
+            ),
+            consentPreferenceStore: Self.makeInstagramConsentPreferenceStore()
         )
     }
 
@@ -990,17 +1016,17 @@ struct ContentView: View {
         route = .photoUploadSuccess
     }
 
-    private func showDisplayAfterPhotoUpload() {
-        guard let submission = successSubmission else { return }
+    // 홈 맨 위 카드에서 방금 올린 사진을 바로 보여 주므로 전시 대신 홈으로 돌아간다(#1049).
+    private func showHomeAfterPhotoUpload() {
+        guard successSubmission != nil else { return }
 
-        displayViewModel = Self.makeDisplayViewModel(
-            initialDate: submission.content.date
-        )
         successSubmission = nil
         photoUploadViewModel = nil
         isPhotoUploadPresented = false
-        selectedTab = .display
+        selectedTab = .home
         route = .main
+        homeViewModel.scrollToTop()
+        Task { await homeViewModel.refresh() }
     }
 
     private func showPhotoUploadOrigin() {
@@ -1015,8 +1041,9 @@ struct ContentView: View {
             return
         }
 
+        // 설정 위에 쌓아 뒤로 가면 설정으로 돌아오게 한다.
         withAnimation {
-            notificationPath = [.customerSupport]
+            notificationPath.append(.customerSupport)
         }
     }
 
@@ -1135,6 +1162,7 @@ struct ContentView: View {
             var state = HomePreviewData.contentState
             var loader = HomePreviewData.loader
             let arguments = ProcessInfo.processInfo.arguments
+            state.isIssueOnTop = arguments.contains("-test-home-issue-top")
             if let index = arguments.firstIndex(of: "-test-home-banner-state"), arguments.indices.contains(index + 1) {
                 state.banners = []
                 switch arguments[index + 1] {
@@ -1183,6 +1211,7 @@ struct ContentView: View {
 #endif
         return HomeViewModel(
             loader: .live(baseURL: resolvedAPIBaseURL),
+            uploadedPhotoStore: .shared,
             aiReviewRepository: APIAIReviewRepository(
                 client: AIReviewAPIClient(baseURL: resolvedAPIBaseURL)
             ),
@@ -1244,7 +1273,9 @@ struct ContentView: View {
             updateSignature: { try await apiClient.updateSignature(pngData: $0) },
             logout: { await authRepository.logout() },
             withdraw: {
+                let userID = KeychainSessionStore.userID()
                 try await apiClient.withdraw()
+                if let userID { InstagramConsentPreferenceStore.remove(userID: userID) }
                 KeychainSessionStore.delete()
             }
         )
@@ -1321,6 +1352,10 @@ struct ContentView: View {
         )
     }
 
+    private static func makeInstagramConsentPreferenceStore() -> InstagramConsentPreferenceStore? {
+        KeychainSessionStore.userID().map { InstagramConsentPreferenceStore(userID: $0) }
+    }
+
     private static func makePhotoUploadViewModel(
         topicDate: Date,
         onCameraImageSaveFailure: @escaping PhotoUploadViewModel.CameraImageSaveFailureHandler
@@ -1373,7 +1408,8 @@ struct ContentView: View {
         )
         return PhotoUploadViewModel(
             topicDate: topicDate,
-            repository: .api(client: apiClient),
+            repository: .api(client: apiClient, uploadedPhotoStore: .shared),
+            consentPreferenceStore: makeInstagramConsentPreferenceStore(),
             onCameraImageSaveFailure: onCameraImageSaveFailure
         )
     }
@@ -1478,6 +1514,8 @@ struct ContentView: View {
             switch notificationDestination {
             case .inbox:
                 return AnalyticsScreen(name: "notifications", screenClass: "Notifications")
+            case .appSettings:
+                return AnalyticsScreen(name: "settings", screenClass: "Settings")
             case .settings:
                 return AnalyticsScreen(name: "notification_settings", screenClass: "NotificationSettings")
             case .approved, .aiReview, .likeMilestone:

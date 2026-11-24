@@ -16,6 +16,8 @@ enum HomeHeroState: Equatable, Sendable {
     case loading, empty, loginRequired, noOpenTopic, processing, error
     case rejected(canResubmit: Bool)
     case photo(HomeHeroPhoto)
+    /// 서버가 처리 중인 오늘 게시물을 이 기기에 보관한 업로드 사진으로 보여 준다.
+    case processingPhoto(ChalkakImageSource)
 }
 
 struct HomeWeekDay: Identifiable, Equatable, Sendable {
@@ -36,6 +38,18 @@ struct HomeAIReviewState: Equatable, Sendable {
     var pollingTimedOut = false
     var message: String?
     var isUnavailable = false
+}
+
+/// 홈 피드백 카드를 눌렀을 때 화면이 할 일(`HomeViewModel.feedbackTapAction`).
+enum HomeFeedbackTapAction: Equatable, Sendable {
+    /// 아무것도 하지 않는다. 진행 중·완료·안내 상태처럼 누를 일이 없는 카드다.
+    case none
+    /// AI 리뷰 상태를 다시 조회한다(`loadError`).
+    case retryStatus
+    /// 피드백 시작 안내 시트를 연다(`ready`). 시트에서 시작해야 AI 리뷰를 요청한다.
+    case presentStartSheet
+    /// 실패한 AI 리뷰를 바로 다시 요청한다(`failed(canRequestAgain: true)`).
+    case requestAgain
 }
 
 struct HomeViewState: Equatable, Sendable {

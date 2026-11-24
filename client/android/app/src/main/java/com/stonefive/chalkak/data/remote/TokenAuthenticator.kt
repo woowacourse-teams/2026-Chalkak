@@ -3,6 +3,7 @@ package com.stonefive.chalkak.data.remote
 import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.SessionStore
 import com.stonefive.chalkak.data.remote.model.ErrorResponse
+import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
@@ -48,7 +49,7 @@ class TokenAuthenticator(
         }
 
         if (response.requiresReauthentication()) {
-            runBlocking { sessionStore.clear() }
+            runBlocking { sessionStore.requireReauthentication(latest.userId) }
             return null
         }
 
@@ -78,11 +79,15 @@ class TokenAuthenticator(
                 val currentUserId = (sessionStore.session.value as? LocalSession.Authenticated)
                     ?.credentials
                     ?.userId
-                if (currentUserId == latest.userId) runBlocking { sessionStore.clear() }
+                if (currentUserId == latest.userId) {
+                    runBlocking { sessionStore.requireReauthentication(latest.userId) }
+                }
                 null
             }
 
-            TokenRefreshResult.TransientFailure -> null
+            // 갱신 중 네트워크가 끊기면 401을 그대로 넘기지 않는다. 화면이 401을 "다시 로그인"으로 바꿔
+            // 살아 있는 로그인을 로그인 화면으로 보내지 않도록, 원요청을 네트워크 오류로 끝낸다.
+            TokenRefreshResult.TransientFailure -> throw IOException("토큰 갱신이 네트워크 오류로 실패함")
         }
     }
 

@@ -24,13 +24,29 @@ extension ChalkakImageSource {
             nil
         }
     }
+
+    /// 이 이미지를 어떤 크기로든 받아 둔 적이 있으면 그중 가장 큰 것을 꺼낸다.
+    /// 목록 칸이 칸 크기로 받아 둔 썸네일을 피드 전환 첫 프레임에 그대로 쓸 때 쓴다.
+    func largestCachedImage() -> UIImage? {
+        switch self {
+        case let .remote(url?):
+            RemoteImageCache.shared.largestImage(for: url)
+        default:
+            cachedImage()
+        }
+    }
 }
 
 /// 받아 둔 원격 이미지를 메모리에 보관한다.
 /// 같은 이미지를 다른 화면에서 다시 그릴 때 네트워크·디코딩을 기다리지 않고 첫 프레임부터 보여준다.
 ///
-/// 같은 URL이라도 디코딩한 최대 폭이 다르면 따로 보관한다.
+/// 같은 URL이라도 디코딩한 크기가 다르면 따로 보관한다.
 /// 예: 기록 달력 칸은 작은 폭으로, 그 아래 선택 사진은 기본 폭으로 받아 각각 캐시한다.
+///
+/// 디코딩 크기는 둘 중 하나로 정한다.
+/// - `maxPixelWidth`: 폭만 본다. 사진 비율대로 칸이 늘어나는 곳(전시 그리드, 기록 달력)에 쓴다.
+/// - `fillPixelSize`: 이미지가 그 크기를 덮을 만큼만 줄인다. 정사각 칸을 꽉 채워 잘라 그리는 곳에 쓴다.
+///   가로 사진도 높이가 칸보다 작아지지 않아 흐려지지 않는다.
 final class RemoteImageCache {
     static let shared = RemoteImageCache()
 
@@ -38,6 +54,11 @@ final class RemoteImageCache {
     private var inFlight: [String: Task<UIImage, Error>] = [:]
     // 같은 URL을 여러 폭으로 동시에 요청해도 네트워크로는 한 번만 받는다.
     private var inFlightData: [URL: Task<Data, Error>] = [:]
+    // URL마다 캐시에 넣은 키. 어떤 크기로든 받아 둔 이미지를 찾을 때 쓴다.
+    // 캐시가 이미지를 밀어내도 키는 남으므로, URL 수가 `keysPruneThreshold`를 넘으면 밀려난 키를 정리한다.
+    private var keysByURL: [URL: Set<String>] = [:]
+    private var keysPruneThreshold = RemoteImageCache.minKeysPruneThreshold
+    private static let minKeysPruneThreshold = 256
     private let maxPixelWidth: CGFloat
 
     /// - Parameter maxPixelWidth: 이보다 넓은 이미지는 이 폭에 맞춰 줄여서 푼다.
@@ -50,14 +71,34 @@ final class RemoteImageCache {
 
     /// - Parameter maxPixelWidth: `load(_:maxPixelWidth:)`에 넘긴 값과 같아야 찾는다. nil이면 기본 폭.
     func image(for url: URL, maxPixelWidth: CGFloat? = nil) -> UIImage? {
-        cache.object(forKey: cacheKey(for: url, maxPixelWidth: maxPixelWidth) as NSString)
+        image(for: url, fillPixelSize: Self.widthOnlySize(maxPixelWidth))
+    }
+
+    /// - Parameter fillPixelSize: `load(_:fillPixelSize:)`에 넘긴 값과 같아야 찾는다. nil이면 기본 폭.
+    func image(for url: URL, fillPixelSize: CGSize?) -> UIImage? {
+        cache.object(forKey: cacheKey(for: url, fillPixelSize: fillPixelSize) as NSString)
+    }
+
+    /// 이 URL을 어떤 크기로든 받아 둔 이미지 중 가장 큰 것을 꺼낸다. 없으면 nil.
+    func largestImage(for url: URL) -> UIImage? {
+        let images = (keysByURL[url] ?? []).compactMap { key in
+            cache.object(forKey: key as NSString).map { (key: key, image: $0) }
+        }
+        keysByURL[url] = images.isEmpty ? nil : Set(images.map(\.key))
+        return images.map(\.image).max { $0.memoryCost < $1.memoryCost }
     }
 
     /// 이미지를 받아 `maxPixelWidth` 폭 이하로 디코딩하고 캐시한다.
     /// - Parameter maxPixelWidth: 화면에 작게 그리는 이미지는 그 크기에 맞는 폭을 넘겨 캐시 용량을 아낀다.
     ///   nil이면 init에서 정한 기본 폭(화면 폭)을 쓴다.
     func load(_ url: URL, maxPixelWidth: CGFloat? = nil) async throws -> UIImage {
-        let key = cacheKey(for: url, maxPixelWidth: maxPixelWidth)
+        try await load(url, fillPixelSize: Self.widthOnlySize(maxPixelWidth))
+    }
+
+    /// 이미지를 받아 `fillPixelSize`를 덮을 만큼만 줄여 디코딩하고 캐시한다. 원래보다 키우지는 않는다.
+    /// - Parameter fillPixelSize: 높이가 0이면 폭만 본다. nil이면 init에서 정한 기본 폭(화면 폭)을 쓴다.
+    func load(_ url: URL, fillPixelSize: CGSize?) async throws -> UIImage {
+        let key = cacheKey(for: url, fillPixelSize: fillPixelSize)
         if let cached = cache.object(forKey: key as NSString) {
             return cached
         }
@@ -65,12 +106,12 @@ final class RemoteImageCache {
             return try await task.value
         }
 
-        let maxPixelWidth = maxPixelWidth ?? self.maxPixelWidth
+        let fillPixelSize = fillPixelSize ?? CGSize(width: maxPixelWidth, height: 0)
         let task = Task {
             let data = try await self.data(for: url)
             // 화면에 붙이는 순간 메인 스레드에서 디코딩하지 않도록 백그라운드에서 미리 풀어 둔다.
             let image = await Task.detached(priority: .userInitiated) {
-                Self.decodedImage(from: data, maxPixelWidth: maxPixelWidth)
+                Self.decodedImage(from: data, fillPixelSize: fillPixelSize)
             }.value
             guard let image else {
                 throw URLError(.cannotDecodeContentData)
@@ -82,7 +123,21 @@ final class RemoteImageCache {
 
         let image = try await task.value
         cache.setObject(image, forKey: key as NSString, cost: image.memoryCost)
+        // 같은 URL을 여러 크기로 받을 때 그 URL의 밀려난 키도 함께 지워, URL 수가 적어도 키가 쌓이지 않게 한다.
+        let aliveKeys = (keysByURL[url] ?? []).filter { cache.object(forKey: $0 as NSString) != nil }
+        keysByURL[url] = aliveKeys.union([key])
+        pruneEvictedKeysIfNeeded()
         return image
+    }
+
+    /// 캐시에서 밀려난 키를 `keysByURL`에서 지운다. 정리 후 남은 URL 수의 두 배를 다음 기준으로 잡아 매번 훑지 않는다.
+    private func pruneEvictedKeysIfNeeded() {
+        guard keysByURL.count > keysPruneThreshold else { return }
+        keysByURL = keysByURL.compactMapValues { keys in
+            let alive = keys.filter { cache.object(forKey: $0 as NSString) != nil }
+            return alive.isEmpty ? nil : alive
+        }
+        keysPruneThreshold = max(Self.minKeysPruneThreshold, keysByURL.count * 2)
     }
 
     private func data(for url: URL) async throws -> Data {
@@ -104,18 +159,33 @@ final class RemoteImageCache {
         return try await task.value
     }
 
-    /// 기본 폭은 URL만, 그 외에는 `폭|URL` 형태로 만들어 폭별로 따로 보관한다.
-    private func cacheKey(for url: URL, maxPixelWidth: CGFloat?) -> String {
-        guard let maxPixelWidth, maxPixelWidth != self.maxPixelWidth else {
+    /// 기본 폭은 URL만, 폭만 정하면 `폭|URL`, 덮을 크기를 정하면 `폭x높이|URL` 형태로 만들어 크기별로 따로 보관한다.
+    private func cacheKey(for url: URL, fillPixelSize: CGSize?) -> String {
+        guard let fillPixelSize,
+              fillPixelSize != CGSize(width: maxPixelWidth, height: 0)
+        else {
             return url.absoluteString
         }
-        return "\(Int(maxPixelWidth))|\(url.absoluteString)"
+        if fillPixelSize.height <= 0 {
+            return "\(Int(fillPixelSize.width))|\(url.absoluteString)"
+        }
+        return "\(Int(fillPixelSize.width))x\(Int(fillPixelSize.height))|\(url.absoluteString)"
+    }
+
+    private static func widthOnlySize(_ maxPixelWidth: CGFloat?) -> CGSize? {
+        maxPixelWidth.map { CGSize(width: $0, height: 0) }
     }
 }
 
 extension RemoteImageCache {
     /// EXIF 방향을 반영해, 폭이 `maxPixelWidth`를 넘으면 그 폭에 맞춰 줄인 비트맵으로 디코딩한다.
     nonisolated static func decodedImage(from data: Data, maxPixelWidth: CGFloat) -> UIImage? {
+        decodedImage(from: data, fillPixelSize: CGSize(width: maxPixelWidth, height: 0))
+    }
+
+    /// EXIF 방향을 반영해, 이미지가 `fillPixelSize`를 덮는 데까지만 줄인 비트맵으로 디코딩한다.
+    /// 높이(또는 폭)가 0이면 그 축은 보지 않는다. 원래 크기보다 키우지 않는다.
+    nonisolated static func decodedImage(from data: Data, fillPixelSize: CGSize) -> UIImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let pixelWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
@@ -128,8 +198,13 @@ extension RemoteImageCache {
         let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
         let isRotated = (5...8).contains(orientation)
         let displayWidth = isRotated ? pixelHeight : pixelWidth
-        let scale = min(1, Double(maxPixelWidth) / displayWidth)
-        let maxPixelSize = (max(pixelWidth, pixelHeight) * scale).rounded(.up)
+        let displayHeight = isRotated ? pixelWidth : pixelHeight
+        let widthScale = Double(fillPixelSize.width) / displayWidth
+        let heightScale = Double(fillPixelSize.height) / displayHeight
+        let fillScale = max(widthScale, heightScale)
+        let scale = fillScale > 0 ? min(1, fillScale) : 1
+        // 810×1080을 폭 246에 맞출 때처럼 나누어떨어지는 값이 부동소수 오차로 1px 커지지 않게 조금 내린다.
+        let maxPixelSize = (max(pixelWidth, pixelHeight) * scale - 0.001).rounded(.up)
 
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -152,7 +227,8 @@ private extension UIImage {
 
 /// 이미지의 EXIF 방향을 반영한 세로/가로 비율(height / width)을 구한다.
 enum ImageRatioLoader {
-    static func ratio(for source: ChalkakImageSource) async -> CGFloat? {
+    /// - Parameter maxPixelWidth: 같은 사진을 칸 폭으로 그리는 화면은 같은 폭을 넘겨, 비율을 재느라 큰 이미지를 따로 받지 않게 한다.
+    static func ratio(for source: ChalkakImageSource, maxPixelWidth: CGFloat? = nil) async -> CGFloat? {
         switch source {
         case let .asset(name):
             guard let image = UIImage(named: name), image.size.width > 0 else { return nil }
@@ -162,13 +238,29 @@ enum ImageRatioLoader {
         case let .remote(url?):
             // 화면에 그리는 요청과 같은 캐시·진행 중 요청을 써서 같은 이미지를 두 번 받지 않는다.
             // 캐시는 EXIF 방향을 반영해 비율을 유지한 채 줄이므로 비율이 그대로다.
-            guard let image = try? await RemoteImageCache.shared.load(url),
+            guard let image = try? await RemoteImageCache.shared.load(url, maxPixelWidth: maxPixelWidth),
                   image.size.width > 0
             else { return nil }
             return image.size.height / image.size.width
         case .remote(nil):
             return nil
         }
+    }
+}
+
+extension ChalkakImage {
+    /// 칸 폭(pt)을 화면 배율로 그리는 데 필요한 픽셀 폭. 칸 폭을 아직 모르면(0) nil이라 기본 폭으로 받는다.
+    static func pixelWidth(forPointWidth pointWidth: CGFloat, displayScale: CGFloat) -> CGFloat? {
+        guard pointWidth > 0, displayScale > 0 else { return nil }
+        return (pointWidth * displayScale).rounded(.up)
+    }
+
+    /// 칸 크기(pt)를 화면 배율로 그리는 데 필요한 픽셀 크기. 칸 크기를 아직 모르면 nil이다.
+    static func pixelSize(forPointSize pointSize: CGSize, displayScale: CGFloat) -> CGSize? {
+        guard let width = pixelWidth(forPointWidth: pointSize.width, displayScale: displayScale),
+              let height = pixelWidth(forPointWidth: pointSize.height, displayScale: displayScale)
+        else { return nil }
+        return CGSize(width: width, height: height)
     }
 }
 
@@ -186,26 +278,30 @@ struct ChalkakImage: View {
     // 원격 이미지를 이 폭(픽셀) 이하로 줄여 디코딩·캐시한다. 작은 칸에 그릴 때 메모리를 아낀다.
     // nil이면 기본 폭(화면 폭)을 쓴다.
     var maxPixelWidth: CGFloat?
+    // 원격 이미지를 이 크기(픽셀)를 덮을 만큼만 줄여 디코딩·캐시한다. 정사각 칸을 꽉 채워 그릴 때 쓴다.
+    // 넘기면 `maxPixelWidth`보다 우선한다.
+    var fillPixelSize: CGSize?
     // `thumbnailSource`를 디코딩할 최대 폭. 다른 화면이 작은 폭으로 받아 둔 이미지를 썸네일로 재사용할 때 쓴다.
     var thumbnailMaxPixelWidth: CGFloat?
-    @State private var isPrimaryLoaded = false
+    // 로드를 마친 요청. 칸 크기가 바뀌어 새로 받는 동안에는 현재 요청과 달라 썸네일을 다시 보여준다.
+    @State private var loadedPrimaryRequest: PrimaryRequest?
 
     var body: some View {
         ZStack {
             if let thumbnailSource, !isPrimaryShown {
                 image(
                     for: thumbnailSource,
-                    maxPixelWidth: thumbnailMaxPixelWidth,
+                    fillPixelSize: thumbnailMaxPixelWidth.map { CGSize(width: $0, height: 0) },
                     showsLoadingSkeleton: true,
                     onLoad: {}
                 )
             }
             image(
                 for: source,
-                maxPixelWidth: maxPixelWidth,
+                fillPixelSize: primaryFillPixelSize,
                 showsLoadingSkeleton: showsLoadingSkeleton && thumbnailSource == nil,
-                onLoad: {
-                    isPrimaryLoaded = true
+                onLoad: { [primaryRequest] in
+                    loadedPrimaryRequest = primaryRequest
                     onLoad()
                 }
             )
@@ -217,13 +313,23 @@ struct ChalkakImage: View {
 
     // 이미 받아 둔 이미지는 첫 프레임부터 그려지므로 썸네일을 겹쳐 그리지 않는다.
     private var isPrimaryShown: Bool {
-        isPrimaryLoaded || source.cachedImage(maxPixelWidth: maxPixelWidth) != nil
+        guard loadedPrimaryRequest != primaryRequest else { return true }
+        guard case let .remote(url?) = source else { return source.cachedImage() != nil }
+        return RemoteImageCache.shared.image(for: url, fillPixelSize: primaryFillPixelSize) != nil
+    }
+
+    private var primaryFillPixelSize: CGSize? {
+        fillPixelSize ?? maxPixelWidth.map { CGSize(width: $0, height: 0) }
+    }
+
+    private var primaryRequest: PrimaryRequest {
+        PrimaryRequest(source: source, fillPixelSize: primaryFillPixelSize)
     }
 
     @ViewBuilder
     private func image(
         for source: ChalkakImageSource,
-        maxPixelWidth: CGFloat?,
+        fillPixelSize: CGSize?,
         showsLoadingSkeleton: Bool,
         onLoad: @escaping () -> Void
     ) -> some View {
@@ -241,7 +347,7 @@ struct ChalkakImage: View {
         case let .remote(url):
             RemoteImage(
                 url: url,
-                maxPixelWidth: maxPixelWidth,
+                fillPixelSize: fillPixelSize,
                 contentMode: contentMode,
                 showsLoadingSkeleton: showsLoadingSkeleton,
                 onLoad: onLoad
@@ -255,7 +361,7 @@ struct ChalkakImage: View {
 private struct RemoteImage: View {
     @Environment(\.chalkakTheme) private var theme
     let url: URL?
-    let maxPixelWidth: CGFloat?
+    let fillPixelSize: CGSize?
     let contentMode: ContentMode
     let showsLoadingSkeleton: Bool
     let onLoad: () -> Void
@@ -263,19 +369,19 @@ private struct RemoteImage: View {
 
     init(
         url: URL?,
-        maxPixelWidth: CGFloat?,
+        fillPixelSize: CGSize?,
         contentMode: ContentMode,
         showsLoadingSkeleton: Bool,
         onLoad: @escaping () -> Void
     ) {
         self.url = url
-        self.maxPixelWidth = maxPixelWidth
+        self.fillPixelSize = fillPixelSize
         self.contentMode = contentMode
         self.showsLoadingSkeleton = showsLoadingSkeleton
         self.onLoad = onLoad
         _phase = State(
             initialValue: url
-                .flatMap { RemoteImageCache.shared.image(for: $0, maxPixelWidth: maxPixelWidth) }
+                .flatMap { RemoteImageCache.shared.image(for: $0, fillPixelSize: fillPixelSize) }
                 .map(RemoteImagePhase.success)
                 ?? .loading
         )
@@ -285,7 +391,8 @@ private struct RemoteImage: View {
         if let url {
             phaseContent
                 .loadingSkeleton(isLoading: phase.isLoading && showsLoadingSkeleton)
-                .task(id: url) { await load(url) }
+                // 칸 크기가 바뀌면 그 크기로 다시 받는다.
+                .task(id: LoadID(url: url, fillPixelSize: fillPixelSize)) { await load(url) }
         } else {
             // URL이 없으면 로드가 끝나지 않으므로 스켈레톤 대신 고정 플레이스홀더를 표시한다.
             imagePlaceholder(systemName: "photo")
@@ -307,7 +414,7 @@ private struct RemoteImage: View {
     }
 
     private func load(_ url: URL) async {
-        if let cached = RemoteImageCache.shared.image(for: url, maxPixelWidth: maxPixelWidth) {
+        if let cached = RemoteImageCache.shared.image(for: url, fillPixelSize: fillPixelSize) {
             phase = .success(cached)
             onLoad()
             return
@@ -315,7 +422,9 @@ private struct RemoteImage: View {
 
         phase = .loading
         do {
-            let image = try await RemoteImageCache.shared.load(url, maxPixelWidth: maxPixelWidth)
+            let image = try await RemoteImageCache.shared.load(url, fillPixelSize: fillPixelSize)
+            // 캐시 안의 받기 작업은 취소되지 않고 끝날 수 있으므로, 칸 크기가 바뀌어 취소된 이전 요청이 결과를 덮어쓰지 않게 막는다.
+            guard !Task.isCancelled else { return }
             phase = .success(image)
             onLoad()
         } catch is CancellationError {
@@ -334,6 +443,16 @@ private struct RemoteImage: View {
                 .foregroundStyle(theme.colors.iconSecondary)
         }
     }
+}
+
+private struct PrimaryRequest: Equatable {
+    let source: ChalkakImageSource
+    let fillPixelSize: CGSize?
+}
+
+private struct LoadID: Equatable {
+    let url: URL
+    let fillPixelSize: CGSize?
 }
 
 private enum RemoteImagePhase {

@@ -7,6 +7,7 @@
 쓰는 법: 확인 스크립트 맨 위에서
     sys.path.insert(0, "<이 폴더>"); import chalkak_ui as ui
     ui.open_screen("upload-error"); n = ui.wait_text("영문, 숫자"); ui.screencap(out / "android-after-1.png")
+    ui.record(results, name="android-1", ok=bool(n), checks=dict(message=bool(n)), marks={"오류 문구": ui.box(n)})
 좌표·크기는 모두 px(uiautomator bounds와 같음).
 """
 import json
@@ -97,6 +98,11 @@ def wait_still(pred, reads=3, interval=0.15, timeout=15.0):
     return None
 
 
+def box(n):
+    """노드의 자리 [왼, 위, 오른, 아래](px). record의 marks에 넣으면 PR 그림에서 그 자리에 올가미를 그린다."""
+    return [n["l"], n["t"], n["r"], n["b"]]
+
+
 def center(n):
     return (n["l"] + n["r"]) // 2, (n["t"] + n["b"]) // 2
 
@@ -162,16 +168,29 @@ class soft_keyboard:
         return False
 
 
+_last_shot = None
+
+
 def screencap(path):
     """지금 화면을 PNG로 저장한다. 로그인·계정 고르기 화면은 찍지 않는다(이메일이 보인다)."""
+    global _last_shot
     png = subprocess.run([ADB, "exec-out", "screencap", "-p"], capture_output=True).stdout
     with open(path, "wb") as fp:
         fp.write(png)
+    _last_shot = os.path.basename(str(path))
     return png
 
 
 def record(path, **result):
-    """판정 결과 한 줄을 JSONL에 덧붙이고 화면에도 한 줄 찍는다. ok(참/거짓)와 checks(항목별 참/거짓)를 넣는다."""
+    """판정 결과 한 줄을 JSONL에 덧붙이고 화면에도 한 줄 찍는다. ok(참/거짓)와 checks(항목별 참/거짓)를 넣는다.
+
+    marks: 캡처에서 판정에 쓴 요소의 자리 {"이름": box(노드)}. PR 그림(screen-sheet.py)이 이 자리에 올가미를 그린다.
+           캡처를 픽셀 비교해 자리를 찾지 않기 위해서다(스크롤 위치가 달라지면 픽셀 비교로는 못 찾는다, #953).
+           예: ui.record(out, name="android-1", ok=ok, checks=checks, marks={"날짜 헤더": ui.box(h)})
+    shot: 마지막 screencap 파일 이름이 자동으로 들어간다. 그림이 이 이름으로 캡처와 판정 줄을 잇는다.
+    """
+    if _last_shot and "shot" not in result:
+        result["shot"] = _last_shot
     with open(path, "a", encoding="utf-8") as fp:
         fp.write(json.dumps(result, ensure_ascii=False) + "\n")
     print(json.dumps({k: result.get(k) for k in ("name", "ok", "checks", "sec")}, ensure_ascii=False))

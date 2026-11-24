@@ -14,6 +14,7 @@ import com.stonefive.chalkak.data.remote.user.UserApi
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -22,6 +23,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 class NetworkModule(
     baseUrl: String,
     sessionStore: SessionStore,
+    refreshInterceptors: List<Interceptor> = emptyList(),
 ) {
     val json = Json {
         ignoreUnknownKeys = true
@@ -31,6 +33,7 @@ class NetworkModule(
 
     private val refreshClient = OkHttpClient
         .Builder()
+        .apply { refreshInterceptors.forEach(::addInterceptor) }
         .build()
     private val refreshApi: RefreshApi = Retrofit
         .Builder()
@@ -42,7 +45,8 @@ class NetworkModule(
     private val tokenRefresher = AuthTokenRefresher(refreshApi, json)
     val sessionRefreshCoordinator = SessionRefreshCoordinator(sessionStore, tokenRefresher)
 
-    private val backendClient = OkHttpClient
+    // 로그인 헤더를 붙이고 401이면 토큰을 갱신하는 클라이언트. debug 개발자 도구도 이 클라이언트로 요청을 보낸다.
+    internal val backendClient = OkHttpClient
         .Builder()
         .addInterceptor(AuthorizationHeaderInterceptor(sessionStore))
         .authenticator(TokenAuthenticator(sessionStore, sessionRefreshCoordinator, json))

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.stonefive.chalkak.core.designsystem.theme.ChalkakTheme
+import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
 import com.stonefive.chalkak.domain.model.SocialLoginProvider
 import com.stonefive.chalkak.domain.model.SocialLoginResult
 import com.stonefive.chalkak.domain.model.SocialSignUpResult
@@ -73,7 +74,7 @@ class LoginScreenTest {
     @Test
     fun successfulLoginInvokesLoginSuccessCallback() {
         var loginSuccessCount = 0
-        val viewModel = LoginViewModel(FakeLoginRepository())
+        val viewModel = LoginViewModel(FakeLoginRepository(), PendingNotificationNavigationStore())
         composeRule.setContent {
             ChalkakTheme {
                 LoginRoute(
@@ -95,7 +96,7 @@ class LoginScreenTest {
     @Test
     fun tappingGuestOptionInvokesGuestAccessCallback() {
         var guestAccessGranted = false
-        val viewModel = LoginViewModel(FakeLoginRepository())
+        val viewModel = LoginViewModel(FakeLoginRepository(), PendingNotificationNavigationStore())
 
         composeRule.setContent {
             ChalkakTheme {

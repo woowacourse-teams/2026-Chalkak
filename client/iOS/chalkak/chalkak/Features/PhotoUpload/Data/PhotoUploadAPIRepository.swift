@@ -2,6 +2,7 @@ import Foundation
 
 struct PhotoUploadAPIRepository: Sendable {
     let apiClient: PhotoUploadAPIClient
+    var uploadedPhotoStore: UploadedPhotoStore?
 
     func getCreationTopic(_ date: Date) async -> Result<PhotoUploadTopic, PhotoUploadFailure> {
         do {
@@ -101,6 +102,9 @@ struct PhotoUploadAPIRepository: Sendable {
                 rawValue: response.moderationStatus
             ), response.postID.isEmpty == false else {
                 return .failure(.invalidResponse)
+            }
+            if moderationStatus == .validating {
+                uploadedPhotoStore?.save(encodedData, postID: response.postID)
             }
 
             return .success(
@@ -221,8 +225,11 @@ struct PhotoUploadAPIRepository: Sendable {
 }
 
 extension PhotoUploadRepository {
-    static func api(client: PhotoUploadAPIClient) -> PhotoUploadRepository {
-        let repository = PhotoUploadAPIRepository(apiClient: client)
+    static func api(
+        client: PhotoUploadAPIClient,
+        uploadedPhotoStore: UploadedPhotoStore? = nil
+    ) -> PhotoUploadRepository {
+        let repository = PhotoUploadAPIRepository(apiClient: client, uploadedPhotoStore: uploadedPhotoStore)
         return PhotoUploadRepository(
             getCreationTopic: { date in
                 await repository.getCreationTopic(date)

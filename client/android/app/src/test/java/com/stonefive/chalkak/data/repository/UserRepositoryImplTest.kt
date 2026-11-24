@@ -12,12 +12,14 @@ import com.stonefive.chalkak.data.remote.user.model.SignatureUpdateResponse
 import com.stonefive.chalkak.data.remote.user.model.SignatureUploadResponse
 import com.stonefive.chalkak.data.remote.user.model.UserSignatureResponse
 import com.stonefive.chalkak.domain.model.AccountWithdrawalException
+import com.stonefive.chalkak.domain.model.InstagramConsent
 import com.stonefive.chalkak.domain.model.SignatureUpdateFailure
 import com.stonefive.chalkak.domain.model.SignatureUpdateResult
 import com.stonefive.chalkak.domain.model.UserProfile
 import com.stonefive.chalkak.domain.model.UserProfileLoadException
 import com.stonefive.chalkak.domain.model.UserProfileLoadFailure
 import com.stonefive.chalkak.domain.model.UserSessionState
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -29,6 +31,30 @@ class UserRepositoryImplTest {
     private val signatureUploader = FakeUserSignatureUploader()
     private val sessionStore = FakeUserSessionStore()
     private val repository = UserRepositoryImpl(userDataSource, signatureUploader, sessionStore)
+
+    @Test
+    fun `탈퇴 성공에만 요청 계정의 동의 캐시를 제거한다`() = runTest {
+        val cleared = mutableListOf<String>()
+        val cache = object : InstagramConsentPreferenceRepository {
+            override suspend fun get(userId: String): InstagramConsent? = null
+            override suspend fun save(
+                userId: String,
+                consent: InstagramConsent,
+            ) = Unit
+            override suspend fun clear(userId: String) {
+                cleared += userId
+            }
+        }
+        val repository = UserRepositoryImpl(userDataSource, signatureUploader, sessionStore, cache)
+        sessionStore.setAuthenticated()
+        userDataSource.deleteAccountResult = ApiResult.Failure(ApiError.Network)
+        runCatching { repository.withdraw() }
+        assertEquals(emptyList<String>(), cleared)
+        userDataSource.deleteAccountResult = ApiResult.Success(Unit)
+        repository.withdraw()
+        assertEquals(listOf("user-id"), cleared)
+        assertEquals(UserSessionState.SignedOut, sessionStore.sessionState.value)
+    }
 
     @Test
     fun `사인 응답을 사용자 프로필로 변환한다`() = runTest {
@@ -195,4 +221,6 @@ private class FakeUserSessionStore : SessionStore {
         mutableSession.value = LocalSession.SignedOut
         mutableSessionState.value = UserSessionState.SignedOut
     }
+
+    override suspend fun requireReauthentication(userId: String): Unit = error("unused")
 }

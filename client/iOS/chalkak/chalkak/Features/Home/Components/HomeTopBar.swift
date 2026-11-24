@@ -36,6 +36,7 @@ struct HomeTopBar: View {
             .accessibilityLabel("알림")
             .accessibilityValue(hasUnreadNotifications ? "읽지 않은 알림 있음" : "읽지 않은 알림 없음")
             .accessibilityIdentifier("home.notifications")
+
         }
         .frame(height: Metrics.height)
     }

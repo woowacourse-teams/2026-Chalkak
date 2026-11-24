@@ -20,6 +20,7 @@ import com.stonefive.chalkak.core.notification.EXTRA_IS_NOTIFICATION_PUSH
 import com.stonefive.chalkak.core.notification.NOTIFICATION_ID_KEY
 import com.stonefive.chalkak.core.notification.NOTIFICATION_TYPE_KEY
 import com.stonefive.chalkak.core.notification.NotificationPushData
+import com.stonefive.chalkak.core.notification.SERVER_PUSH_URI_PREFIX
 import com.stonefive.chalkak.core.notification.SOURCE_ID_KEY
 import com.stonefive.chalkak.core.notification.SOURCE_TYPE_KEY
 
@@ -56,7 +57,8 @@ object PushNotificationManager {
         val stableKey = payload.notificationId ?: payload.eventId ?: "notification"
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            data = Uri.parse("chalkak://notification/$stableKey")
+            // 화면 푸시는 열 화면의 URI, 그 밖은 알림마다 다른 URI라 PendingIntent가 서로 덮어쓰지 않는다.
+            data = Uri.parse(payload.screen ?: "$SERVER_PUSH_URI_PREFIX$stableKey")
             putExtra(EXTRA_IS_NOTIFICATION_PUSH, true)
             payload.eventId?.let { putExtra(EVENT_ID_KEY, it) }
             payload.notificationId?.let { putExtra(NOTIFICATION_ID_KEY, it) }

@@ -454,10 +454,34 @@ struct PhotoUploadViewModelTests {
         #expect(viewModel.viewState.instagramConsent.errorMessage == nil)
     }
 
+    @Test("성공한 작성만 다음 작성 기본값으로 저장한다", arguments: [true, false])
+    func cachesOnlySuccessfulSubmission(succeeds: Bool) async throws {
+        let name = "upload-consent-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = InstagramConsentPreferenceStore(userID: "a", defaults: defaults, currentUserID: { "a" })
+        let previous = InstagramConsent(isAgreed: true, instagramID: "previous")
+        store.save(previous)
+        let recorder = PhotoUploadPostTextRecorder()
+        let viewModel = try await Self.readyToSubmitViewModel(
+            recorder: recorder,
+            result: succeeds ? nil : .failure(.invalidInstagramID),
+            consentPreferenceStore: store
+        )
+        viewModel.handle(.instagramUploadAgreedChanged(false))
+        #expect(store.load() == previous)
+        viewModel.handle(.submitClicked)
+        try await waitUntil {
+            viewModel.viewState.completedSubmission != nil || viewModel.viewState.imagePreparationStatus == .failed
+        }
+        #expect(store.load() == (succeeds ? .notAgreed : previous))
+    }
+
     /// 사진을 고르고 업로드 준비까지 끝나 바로 전시할 수 있는 작성 화면. 작성 요청 글은 `recorder`에 쌓인다.
     private static func readyToSubmitViewModel(
         recorder: PhotoUploadPostTextRecorder,
-        result: Result<PhotoUploadCreation, PhotoUploadFailure>? = nil
+        result: Result<PhotoUploadCreation, PhotoUploadFailure>? = nil,
+        consentPreferenceStore: InstagramConsentPreferenceStore? = nil
     ) async throws -> PhotoUploadViewModel {
         let topic = Self.topic()
         let preparation = Self.preparation()
@@ -472,7 +496,8 @@ struct PhotoUploadViewModelTests {
                         PhotoUploadCreation(postID: "post-id", topic: topic, moderationStatus: .validating)
                     )
                 }
-            )
+            ),
+            consentPreferenceStore: consentPreferenceStore
         )
         viewModel.selectImage(data: Data([0x01]), preview: Self.image())
         try await waitUntil {
@@ -1121,6 +1146,68 @@ struct PhotoUploadAPIRepositoryTests {
         case let .failure(failure):
             #expect(failure == .invalidInstagramID)
         }
+    }
+
+    @Test("업로드한 게시물이 처리 중이면 올린 사진을 그 게시물 ID로 보관한다")
+    func storesUploadedPhotoWhileValidating() async throws {
+        // Given 사진 업로드와 게시물 만들기가 성공하고, 응답이 게시물 "p1", 상태 VALIDATING
+        let store = Self.makeUploadedPhotoStore()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                return Self.response(
+                    for: request,
+                    statusCode: 201,
+                    body: #"{"postId":"p1","moderationStatus":"VALIDATING"}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+        let preparation = Self.preparation()
+
+        // When  게시물을 만든다
+        _ = await PhotoUploadAPIRepository(apiClient: client, uploadedPhotoStore: store).createPost(
+            preparation,
+            text: PhotoUploadPostText(title: "", description: ""),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        // Then  "p1"의 보관 사진이 있고, 그 파일 내용이 올린 파일과 같다
+        let url = try #require(store.url(for: "p1"))
+        #expect(try Data(contentsOf: url) == preparation.encodedData)
+    }
+
+    @Test("게시물 만들기에 실패하면 사진을 보관하지 않는다")
+    func doesNotStorePhotoWhenPostCreationFails() async {
+        // Given 사진 업로드는 성공하고 게시물 만들기 요청이 실패한다
+        let store = Self.makeUploadedPhotoStore()
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                return Self.response(
+                    for: request,
+                    statusCode: 500,
+                    body: #"{"errorCode":"SERVER_ERROR","message":"일시적인 오류입니다."}"#
+                )
+            }
+            return Self.response(for: request, statusCode: 200, body: "")
+        }
+
+        // When  게시물을 만든다
+        _ = await PhotoUploadAPIRepository(apiClient: client, uploadedPhotoStore: store).createPost(
+            Self.preparation(),
+            text: PhotoUploadPostText(title: "", description: ""),
+            topic: PhotoUploadTopic(id: "topic-id", title: "틈", date: Self.date(2026, 9, 2))
+        )
+
+        // Then  보관 사진이 없다
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: store.directory.path)) ?? []
+        #expect(files.isEmpty)
+    }
+
+    private static func makeUploadedPhotoStore() -> UploadedPhotoStore {
+        UploadedPhotoStore(
+            directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("UploadedPhotoStoreTests-\(UUID().uuidString)", isDirectory: true)
+        )
     }
 
     private static func preparation() -> PhotoUploadPreparation {

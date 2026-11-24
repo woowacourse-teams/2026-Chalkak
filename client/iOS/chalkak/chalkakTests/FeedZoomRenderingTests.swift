@@ -134,6 +134,81 @@ final class FeedZoomRenderingTests: XCTestCase {
         XCTAssertEqual(readyCount, 1, "A resolved photo must release opening exactly once, including failures")
     }
 
+    func test_전환이_끝난_뒤_도착한_원본은_받자마자_사진에_그려진다() async throws {
+        // Given 썸네일(파랑)로 연 피드, 전환 중, 원본 요청은 응답 대기
+        // When  전환이 끝난 뒤 원본(빨강) 응답이 온다
+        // Then  3초 안에 사진 가운데 픽셀이 빨강
+        let feed = try await OriginalSwapFeed()
+        defer { feed.close() }
+        try await feed.settle()
+        feed.original.succeed(try OriginalSwapFeed.solidPNG(.red))
+        try await waitForCenter(of: feed, timeout: .seconds(3)) { $0 == .red }
+        XCTAssertEqual(try centerColor(of: feed), .red, "An original that arrives after the transition must replace the thumbnail")
+    }
+
+    func test_전환_중_도착한_원본은_전환이_끝날_때_그려진다() async throws {
+        // Given 썸네일(파랑)로 연 피드, 전환 중
+        // When  원본(빨강) 응답이 오고, 그다음 전환이 끝난다
+        // Then  전환이 끝나기 전에는 파랑, 끝난 뒤에는 빨강
+        let feed = try await OriginalSwapFeed()
+        defer { feed.close() }
+        feed.original.succeed(try OriginalSwapFeed.solidPNG(.red))
+        // 받은 원본이 그려질 기회를 준 뒤에도 썸네일이 남아 있는지 본다.
+        try await waitForCenter(of: feed, timeout: .milliseconds(500)) { $0 == .red }
+        XCTAssertEqual(try centerColor(of: feed), .blue, "Keep the thumbnail while the photo is still moving")
+        try await feed.settle()
+        try await waitForCenter(of: feed, timeout: .seconds(3)) { $0 == .red }
+        XCTAssertEqual(try centerColor(of: feed), .red, "Reveal the waiting original when the transition ends")
+    }
+
+    func test_원본을_받지_못하면_전환이_끝나도_썸네일을_유지한다() async throws {
+        // Given 썸네일(파랑)로 연 피드, 전환 중
+        // When  전환이 끝난 뒤 원본 요청이 실패한다
+        // Then  사진 가운데 픽셀이 파랑 (빈 사진이 되지 않음)
+        let feed = try await OriginalSwapFeed()
+        defer { feed.close() }
+        try await feed.settle()
+        feed.original.fail()
+        // 실패를 받은 뒤 사진이 바뀔 기회를 주고, 바뀌지 않았는지 본다.
+        try await waitForCenter(of: feed, timeout: .milliseconds(500)) { $0 != .blue }
+        XCTAssertEqual(try centerColor(of: feed), .blue, "A failed original must leave the thumbnail in place")
+    }
+
+    func test_뒤로_스와이프_중_도착한_원본은_사진이_멈춘_뒤_그려진다() async throws {
+        // Given 썸네일(파랑)로 열린 피드에서 뒤로 스와이프를 시작해 사진이 다시 움직이는 중
+        // When  원본(빨강) 응답이 오고, 그다음 스와이프를 취소해 사진이 제자리에 멈춘다
+        // Then  움직이는 동안에는 파랑, 멈춘 뒤에는 빨강
+        let feed = try await OriginalSwapFeed()
+        defer { feed.close() }
+        try await feed.settle()
+        feed.startMoving()
+        feed.original.succeed(try OriginalSwapFeed.solidPNG(.red))
+        // 받은 원본이 그려질 기회를 준 뒤에도 썸네일이 남아 있는지 본다.
+        try await waitForCenter(of: feed, timeout: .milliseconds(500)) { $0 == .red }
+        XCTAssertEqual(try centerColor(of: feed), .blue, "Keep the thumbnail while the photo moves for a back swipe")
+        try await feed.settle()
+        try await waitForCenter(of: feed, timeout: .seconds(3)) { $0 == .red }
+        XCTAssertEqual(try centerColor(of: feed), .red, "Reveal the waiting original when the photo stops again")
+    }
+
+    private func centerColor(of feed: OriginalSwapFeed) throws -> OriginalSwapFeed.Color {
+        let (image, point) = feed.snapshot()
+        let rgba = try pixel(image, x: Int(point.x * image.scale), y: Int(point.y * image.scale))
+        return OriginalSwapFeed.Color(rgba)
+    }
+
+    private func waitForCenter(
+        of feed: OriginalSwapFeed,
+        timeout: Duration,
+        until condition: (OriginalSwapFeed.Color) -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while try !condition(centerColor(of: feed)), clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     func testAspectRatioTransitionKeepsPhotoLayoutSizeFixed() async throws {
         let destination = CGRect(x: 0, y: 0, width: 400, height: 400)
         let source = FeedZoomRegistry.Source(frame: CGRect(x: 20, y: 100, width: 150, height: 250), cornerRadius: 12)
@@ -610,6 +685,129 @@ private struct HeldSwipePhoto: View {
         // Fixtures and measurements use the same container-relative coordinates.
         .coordinateSpace(name: coordinateSpaceName)
         .ignoresSafeArea()
+    }
+}
+
+/// 썸네일(파랑)로 연 전환 중 FeedPhoto. 원본 요청은 붙잡아 두어 테스트가 응답 시점을 정한다.
+@MainActor
+private final class OriginalSwapFeed {
+    enum Color: Equatable {
+        case red, blue, other
+
+        init(_ rgba: [UInt8]) {
+            switch (rgba[0], rgba[1], rgba[2]) {
+            case (200..., ..<60, ..<60): self = .red
+            case (..<60, ..<60, 200...): self = .blue
+            default: self = .other
+            }
+        }
+    }
+
+    private(set) var original: FeedOpeningImageProtocol!
+    private let originalURL: URL
+    private let placeholder: FeedPhotoPlaceholder
+    private let post: FeedPost
+    private let host: UIHostingController<AnyView>
+    private let window: UIWindow
+    private let previousKeyWindow: UIWindow?
+    private var photoFrame: CGRect = .zero
+
+    init() async throws {
+        XCTAssertTrue(URLProtocol.registerClass(FeedOpeningImageProtocol.self))
+        let thumbnailURL = try XCTUnwrap(URL(string: "https://feed-opening-test.invalid/\(UUID().uuidString)-thumb.png"))
+        originalURL = try XCTUnwrap(URL(string: "https://feed-opening-test.invalid/\(UUID().uuidString)-original.png"))
+        // 출발 화면이 썸네일을 이미 받아 둔 상태를 만든다.
+        let thumbnailLoad = Task { try await RemoteImageCache.shared.load(thumbnailURL) }
+        try await Self.waitForRequest(thumbnailURL)
+        try XCTUnwrap(FeedOpeningImageProtocol.pending.remove(thumbnailURL)).succeed(try Self.solidPNG(.blue))
+        _ = try await thumbnailLoad.value
+        placeholder = FeedPhotoPlaceholder(imageSource: .remote(thumbnailURL), heightToWidthRatio: 1)
+        XCTAssertNotNil(placeholder.preloadedImage)
+        // 서명은 네트워크 없이 끝나는 소스로 두어 원본 처리가 서명 때문에 막히지 않게 한다.
+        post = FeedPost(
+            id: UUID().uuidString,
+            originalImageSource: .remote(originalURL),
+            signatureImageSource: .system("signature"),
+            contentDescription: "",
+            likeCount: 0,
+            isLiked: false,
+            isOwnedByCurrentUser: false
+        )
+        host = UIHostingController(rootView: AnyView(EmptyView()))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        show(isSettled: false)
+        try await Self.waitForRequest(originalURL)
+        original = try XCTUnwrap(FeedOpeningImageProtocol.pending.remove(originalURL))
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while photoFrame.width == 0, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertGreaterThan(photoFrame.width, 0, "The photo must be laid out before reading its pixels")
+    }
+
+    /// 열림 전환이 끝난다.
+    func settle() async throws {
+        show(isSettled: true)
+        // 한 번 그려서 전환 종료 처리가 반영되게 한다.
+        _ = snapshot()
+    }
+
+    /// 뒤로 스와이프·닫기처럼 사진이 다시 움직이기 시작한다.
+    func startMoving() {
+        show(isSettled: false)
+        _ = snapshot()
+    }
+
+    func snapshot() -> (UIImage, CGPoint) {
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        return (image, CGPoint(x: photoFrame.midX, y: photoFrame.midY))
+    }
+
+    func close() {
+        window.isHidden = true
+        window.rootViewController = nil
+        previousKeyWindow?.makeKey()
+        FeedOpeningImageProtocol.pending.remove(originalURL)?.fail()
+        URLProtocol.unregisterClass(FeedOpeningImageProtocol.self)
+    }
+
+    static func solidPNG(_ color: UIColor) throws -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 30, height: 30))
+        return try XCTUnwrap(renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 30, height: 30))
+        }.pngData())
+    }
+
+    private func show(isSettled: Bool) {
+        host.rootView = AnyView(
+            FeedPhoto(
+                post: post,
+                placeholder: placeholder,
+                zoom: FeedPhotoZoom(isSettled: isSettled),
+                onPhotoFrameChanged: { [weak self] in self?.photoFrame = $0 },
+                onLike: {}
+            )
+            .chalkakTheme(.light)
+        )
+        host.view.layoutIfNeeded()
+    }
+
+    private static func waitForRequest(_ url: URL) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while !FeedOpeningImageProtocol.pending.contains(url), clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(FeedOpeningImageProtocol.pending.contains(url), "The image request must reach the test protocol")
     }
 }
 

@@ -755,12 +755,65 @@ struct FeedViewModelTests {
         #expect(viewModel.viewState.content?.post.instagramConsent == InstagramConsent(isAgreed: false, instagramID: nil))
     }
 
+    @Test("동의를 바꾼 성공한 수정만 캐시를 갱신한다", arguments: [true, false])
+    func cachesChangedConsentAfterSuccessfulEdit(changesConsent: Bool) async throws {
+        let name = "feed-consent-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = InstagramConsentPreferenceStore(userID: "a", defaults: defaults, currentUserID: { "a" })
+        let preference = InstagramConsent(isAgreed: true, instagramID: "newest")
+        store.save(preference)
+        let recorder = PostUpdateRecorder()
+        let viewModel = Self.ownedPostViewModel(
+            title: "원래 제목", description: "설명",
+            instagramConsent: InstagramConsent(isAgreed: true, instagramID: "older"),
+            updatePostHandler: recorder.handler,
+            consentPreferenceStore: store
+        )
+        viewModel.startPostEdit()
+        #expect(viewModel.viewState.postEdit?.instagramConsent.instagramID == "older")
+        viewModel.updatePostEditTitle("새 제목")
+        if changesConsent { viewModel.updatePostEditInstagramUploadAgreed(false) }
+        #expect(store.load() == preference)
+        viewModel.savePostEdit()
+        await recorder.waitForRequests(1)
+        try await waitUntil { !viewModel.viewState.isSavingPostEdit }
+        #expect(store.load() == (changesConsent ? .notAgreed : preference))
+    }
+
+    @Test("수정 취소와 실패는 캐시를 바꾸지 않는다")
+    func cancelledAndFailedEditsKeepPreference() async throws {
+        let name = "feed-consent-tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = InstagramConsentPreferenceStore(userID: "a", defaults: defaults, currentUserID: { "a" })
+        store.save(.notAgreed)
+        let recorder = PostUpdateRecorder()
+        recorder.result = .failure(.invalidInstagramID)
+        let viewModel = Self.ownedPostViewModel(
+            title: "제목", description: "설명", updatePostHandler: recorder.handler,
+            consentPreferenceStore: store
+        )
+        viewModel.startPostEdit()
+        viewModel.updatePostEditInstagramUploadAgreed(true)
+        viewModel.cancelPostEdit()
+        #expect(store.load() == .notAgreed)
+        viewModel.startPostEdit()
+        viewModel.updatePostEditInstagramUploadAgreed(true)
+        viewModel.updatePostEditInstagramID("bad-id")
+        viewModel.savePostEdit()
+        await recorder.waitForRequests(1)
+        try await waitUntil { !viewModel.viewState.isSavingPostEdit }
+        #expect(store.load() == .notAgreed)
+    }
+
     /// 오늘 주제에 올린 내 게시물 상세를 연 뷰모델. 수정 TC들이 같은 시작 상태를 쓴다.
     private static func ownedPostViewModel(
         title: String?,
         description: String?,
         instagramConsent: InstagramConsent? = .notAgreed,
-        updatePostHandler: @escaping FeedViewModel.UpdatePostHandler = { _, _, _, _ in .failure(.generic) }
+        updatePostHandler: @escaping FeedViewModel.UpdatePostHandler = { _, _, _, _ in .failure(.generic) },
+        consentPreferenceStore: InstagramConsentPreferenceStore? = nil
     ) -> FeedViewModel {
         var seed = content(isLiked: false, likeCount: 3, isOwnedByCurrentUser: true, instagramConsent: instagramConsent)
         seed.post.title = title
@@ -769,7 +822,8 @@ struct FeedViewModelTests {
             postID: "post-1",
             seed: seed,
             isLikeConfirmed: true,
-            updatePostHandler: updatePostHandler
+            updatePostHandler: updatePostHandler,
+            consentPreferenceStore: consentPreferenceStore
         )
     }
 

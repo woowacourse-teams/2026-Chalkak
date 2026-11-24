@@ -3,6 +3,8 @@ package com.stonefive.chalkak
 import android.content.Context
 import androidx.credentials.CredentialManager
 import com.google.firebase.messaging.FirebaseMessaging
+import com.stonefive.chalkak.buildvariant.BuildVariantServices
+import com.stonefive.chalkak.buildvariant.buildVariantRefreshInterceptors
 import com.stonefive.chalkak.core.analytics.AnalyticsTracker
 import com.stonefive.chalkak.core.analytics.FirebaseAnalyticsTracker
 import com.stonefive.chalkak.core.appupdate.AppUpdateGateway
@@ -12,13 +14,16 @@ import com.stonefive.chalkak.core.auth.GoogleIdTokenClient
 import com.stonefive.chalkak.core.auth.KakaoIdTokenClient
 import com.stonefive.chalkak.core.network.AndroidConnectivityObserver
 import com.stonefive.chalkak.core.network.ConnectivityObserver
+import com.stonefive.chalkak.core.notification.LocalNotificationPublisher
 import com.stonefive.chalkak.core.notification.PendingNotificationNavigationStore
 import com.stonefive.chalkak.data.local.auth.LocalSession
 import com.stonefive.chalkak.data.local.auth.UserSessionStore
 import com.stonefive.chalkak.data.local.notification.LikePushMigrationStore
+import com.stonefive.chalkak.data.local.notification.LocalNotificationPublisherImpl
 import com.stonefive.chalkak.data.local.notification.PushNotificationManager
 import com.stonefive.chalkak.data.post.AndroidPhotoEditImageRepository
 import com.stonefive.chalkak.data.post.AndroidPostImageEncoder
+import com.stonefive.chalkak.data.post.UploadedPostPhotoStore
 import com.stonefive.chalkak.data.remote.NetworkModule
 import com.stonefive.chalkak.data.remote.aireview.AiReviewDataSourceImpl
 import com.stonefive.chalkak.data.remote.auth.AuthDataSourceImpl
@@ -48,12 +53,15 @@ import com.stonefive.chalkak.domain.repository.AppConfigRepository
 import com.stonefive.chalkak.domain.repository.AuthRepository
 import com.stonefive.chalkak.domain.repository.BannerRepository
 import com.stonefive.chalkak.domain.repository.FeedbackRepository
+import com.stonefive.chalkak.domain.repository.InstagramConsentPreferenceRepository
 import com.stonefive.chalkak.domain.repository.NotificationRepository
 import com.stonefive.chalkak.domain.repository.PhotoEditImageRepository
 import com.stonefive.chalkak.domain.repository.PhotoUploadEntryRepository
 import com.stonefive.chalkak.domain.repository.PostCreationRepository
 import com.stonefive.chalkak.domain.repository.PostRepository
+import com.stonefive.chalkak.domain.repository.UploadedPostPhotoRepository
 import com.stonefive.chalkak.domain.repository.UserRepository
+import java.io.File
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -108,7 +116,17 @@ class AppContainer(context: Context) {
     private val networkModule = NetworkModule(
         baseUrl = BuildConfig.API_BASE_URL,
         sessionStore = sessionStore,
+        refreshInterceptors = buildVariantRefreshInterceptors(),
     )
+
+    // debug 빌드의 개발자 도구용. release에서는 빈 클래스다.
+    val buildVariantServices: BuildVariantServices by lazy {
+        BuildVariantServices(
+            sessionStore = sessionStore,
+            authenticatedClient = networkModule.backendClient,
+            baseUrl = BuildConfig.API_BASE_URL,
+        )
+    }
     private val signatureUploader = OkHttpSignatureUploader(
         networkModule.presignedUploadClient,
     )
@@ -154,6 +172,10 @@ class AppContainer(context: Context) {
 
     val pendingNotificationNavigation = PendingNotificationNavigationStore()
 
+    val localNotificationPublisher: LocalNotificationPublisher by lazy {
+        LocalNotificationPublisherImpl(applicationContext)
+    }
+
     val googleIdTokenClient = GoogleIdTokenClient(
         credentialManager = CredentialManager.create(context),
         serverClientId = BuildConfig.GOOGLE_SERVER_CLIENT_ID,
@@ -172,8 +194,14 @@ class AppContainer(context: Context) {
         )
     }
 
+    val instagramConsentPreferences: InstagramConsentPreferenceRepository by lazy {
+        com.stonefive.chalkak.data.local.instagramconsent
+            .InstagramConsentPreferenceStore(applicationContext)
+    }
+
     val userRepository: UserRepository by lazy {
         UserRepositoryImpl(
+            instagramConsentPreferences = instagramConsentPreferences,
             userDataSource = userDataSource,
             signatureUploader = signatureUploader,
             sessionStore = sessionStore,
@@ -221,6 +249,12 @@ class AppContainer(context: Context) {
         AndroidPhotoEditImageRepository(contentResolver = context.contentResolver)
     }
 
+    private val uploadedPostPhotoStore: UploadedPostPhotoStore by lazy {
+        UploadedPostPhotoStore(directory = File(context.cacheDir, UPLOADED_POST_PHOTO_DIRECTORY))
+    }
+
+    val uploadedPostPhotoRepository: UploadedPostPhotoRepository get() = uploadedPostPhotoStore
+
     val postCreationRepository: PostCreationRepository by lazy {
         PostCreationRepositoryImpl(
             remoteDataSource = PostCreationRemoteDataSourceImpl(
@@ -233,6 +267,7 @@ class AppContainer(context: Context) {
                 cacheDir = context.cacheDir,
             ),
             imageUploader = postImageUploader,
+            uploadedPhotoStore = uploadedPostPhotoStore,
         )
     }
 
@@ -319,6 +354,9 @@ class AppContainer(context: Context) {
 
 // 운영 앱이 원격 설정을 다시 받는 최소 간격. 근거는 docs/architecture/remote-config.md 참고.
 private const val REMOTE_CONFIG_FETCH_INTERVAL_SECONDS = 60L * 60L
+
+// 서버 처리 전 홈에 보여 줄 업로드 사진을 두는 캐시 하위 폴더
+private const val UPLOADED_POST_PHOTO_DIRECTORY = "uploaded-post-photo"
 
 private suspend fun com.google.android.gms.tasks.Task<String>.awaitResult(): String? =
     suspendCancellableCoroutine { continuation ->

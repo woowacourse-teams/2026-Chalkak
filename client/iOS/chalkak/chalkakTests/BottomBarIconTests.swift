@@ -20,4 +20,18 @@ struct BottomBarIconTests {
             #expect(UIImage(named: "\(name)_selected") != nil)
         }
     }
+
+    @Test("하단 탭 마지막 칸은 기존 아이콘을 쓰는 설정이다")
+    func lastTabIsSettingsWithSettingIcon() throws {
+        // Given 하단 탭 항목들
+        // When  항목 순서와 마지막 칸의 이름·아이콘을 본다
+        // Then  순서가 홈, 전시, 기록, 설정이고 설정의 이름은 "설정", 아이콘은 ic_bottom_setting(선택 시 ic_bottom_setting_selected)
+        let items = ChalkakBottomBarItem.allCases
+
+        #expect(items.map(\.rawValue) == ["home", "display", "record", "settings"])
+        #expect(items.map(\.label) == ["홈", "전시", "기록", "설정"])
+        let settings = try #require(items.last)
+        #expect(settings.icon(isSelected: false) == Image("ic_bottom_setting"))
+        #expect(settings.icon(isSelected: true) == Image("ic_bottom_setting_selected"))
+    }
 }

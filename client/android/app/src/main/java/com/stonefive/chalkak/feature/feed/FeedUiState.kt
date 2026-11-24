@@ -29,6 +29,7 @@ data class FeedPostEditState(
     val title: String,
     val description: String,
     val instagramConsent: InstagramConsentInputState = InstagramConsentInputState(),
+    val initialInstagramConsent: InstagramConsent = instagramConsent.toConsent(),
 )
 
 sealed interface FeedContentState {

@@ -8,6 +8,7 @@ final class HomeViewModel {
     private(set) var scrollToTopRequestID = 0
     private(set) var scrollOffset: CGFloat = 0
     private let loader: HomeDataLoader
+    private let uploadedPhotoStore: UploadedPhotoStore?
     private let dateProvider: @MainActor () -> Date
     private let isAuthenticated: @MainActor () -> Bool
     private var generation = 0
@@ -31,9 +32,73 @@ final class HomeViewModel {
 
     var hasAIReviewRepository: Bool { aiReviewRepository != nil }
 
+    /// AI 리뷰를 조회할 오늘 게시물 ID. 홈 화면은 이 값이 있을 때만 `observeAIReview(postID:)`를 부른다.
+    /// 전제: AI 리뷰 기능이 켜져 있고(`aiReviewRepository` 있음), 로그인했고, 히어로가 승인된 사진(`.photo`, `isPending == false`)이다.
+    var feedbackPostID: String? {
+        guard hasAIReviewRepository,
+              viewState.isAuthenticated,
+              case let .photo(photo) = viewState.hero,
+              !photo.isPending else { return nil }
+        return photo.postID
+    }
+
+    /// 히어로 아래 피드백 카드가 지금 보여 줄 상태. `nil`이면 카드를 숨긴다.
+    /// - 승인 전에는 AI 리뷰를 조회하지 않고 안내만 보여 준다.
+    ///   오늘 사진 없음(`.empty`)은 `.beforeUpload`, 검사 중(`.processing`)·승인 대기(`isPending`)는 `.awaitingApproval`.
+    /// - 승인된 사진은 AI 리뷰 조회 결과(`viewState.aiReview`)로 정한다.
+    /// - AI 리뷰 꺼짐·비로그인·로딩·반려·열린 주제 없음·불러오기 실패에는 숨긴다.
+    var feedbackPhase: HomeFeedbackPhase? {
+        guard hasAIReviewRepository, viewState.isAuthenticated else { return nil }
+        switch viewState.hero {
+        case .empty:
+            return .beforeUpload
+        case .processing, .processingPhoto:
+            return .awaitingApproval
+        case let .photo(photo) where photo.isPending:
+            return .awaitingApproval
+        case .photo:
+            guard feedbackPostID != nil else { return nil }
+            return approvedFeedbackPhase
+        case .loading, .loginRequired, .noOpenTopic, .error, .rejected:
+            return nil
+        }
+    }
+
+    /// 승인된 오늘 사진의 피드백 카드 상태. AI 리뷰 조회 결과에서 정한다.
+    private var approvedFeedbackPhase: HomeFeedbackPhase {
+        let state = viewState.aiReview
+        if state.isUnavailable { return .unavailable }
+        if state.isLoading { return .loading }
+        guard let review = state.review else { return .loadError }
+        switch review.status {
+        case .none: return .ready
+        case .processing: return .processing
+        case .completed: return .completed
+        case .failed: return .failed(canRequestAgain: review.canRequestAgain)
+        }
+    }
+
+    /// 피드백 카드 아래에 "처리가 오래 걸리고 있어요"를 보여 줄지. 카드가 진행 중(`.processing`)일 때만 보여 준다.
+    /// `pollingTimedOut`은 오늘 사진이 없어져 AI 리뷰 조회가 멈춰도 그대로 남는다.
+    /// 예: 어제 리뷰가 시간 초과된 채 날짜가 바뀌어 업로드 전 안내가 되면, 안내 카드에 이 문구가 붙지 않아야 한다.
+    var showsFeedbackPollingTimeout: Bool {
+        feedbackPhase == .processing && viewState.aiReview.pollingTimedOut
+    }
+
+    /// 피드백 카드를 눌렀을 때 홈 화면이 할 일. 카드 상태(`feedbackPhase`)로만 정한다.
+    var feedbackTapAction: HomeFeedbackTapAction {
+        switch feedbackPhase {
+        case .loadError?: .retryStatus
+        case .ready?: .presentStartSheet
+        case .failed(canRequestAgain: true)?: .requestAgain
+        default: .none
+        }
+    }
+
     init(
         initialState: HomeViewState? = nil,
         loader: HomeDataLoader,
+        uploadedPhotoStore: UploadedPhotoStore? = nil,
         dateProvider: @escaping @MainActor () -> Date = { Date() },
         isAuthenticated: @escaping @MainActor () -> Bool = { KeychainSessionStore.hasAuthenticatedSession() },
         aiReviewRepository: (any AIReviewRepository)? = nil,
@@ -48,6 +113,7 @@ final class HomeViewModel {
         }
         viewState = state
         self.loader = loader
+        self.uploadedPhotoStore = uploadedPhotoStore
         self.dateProvider = dateProvider
         self.isAuthenticated = isAuthenticated
         self.aiReviewRepository = aiReviewRepository
@@ -55,6 +121,22 @@ final class HomeViewModel {
         self.aiReviewSleep = aiReviewSleep
         self.loadIssueExperiment = loadIssueExperiment
         self.onIssueExperimentExposed = onIssueExperimentExposed
+    }
+
+    /// 맨 위 사진 카드를 눌렀을 때 열 피드. 카드는 오늘 내가 올린 게시물이라 승인·검수 대기 모두 내 게시물로 연다.
+    /// 사진 상태가 아니거나 게시물 ID를 모르면 nil이고, 이때 카드는 눌리지 않는다.
+    /// 예: `.photo(postID: "post-1")` → 게시물 "post-1", 내 게시물, 카드 썸네일을 자리 표시로 한 피드.
+    func heroFeedTarget() -> FeedTarget? {
+        guard case let .photo(photo) = viewState.hero, let postID = photo.postID else { return nil }
+        return FeedTarget(
+            postID: postID,
+            isOwnedByCurrentUser: true,
+            zoomSource: .homeHero(postID),
+            placeholder: FeedPhotoPlaceholder(
+                imageSource: photo.thumbnailSource,
+                signatureImageSource: photo.signatureSource
+            )
+        )
     }
 
     func resume() async {
@@ -417,11 +499,13 @@ final class HomeViewModel {
         let record = posts.first { RecordMonth.calendar.isDate($0.topicDate, inSameDayAs: date) }
         let hero: HomeHeroState
         if let record {
+            // 서버 처리가 끝나 캘린더에 오면 서버 이미지를 쓰므로 보관한 업로드 사진은 필요 없다.
+            uploadedPhotoStore?.removeAll()
             hero = await loadHero(record)
         } else if failed {
             hero = .error
         } else {
-            hero = await loadMissingHero(date)
+            hero = await loadMissingHero(date, request: request)
         }
         guard isCurrent(request) else { return }
         viewState.hero = hero
@@ -439,11 +523,25 @@ final class HomeViewModel {
         }
     }
 
-    private func loadMissingHero(_ date: Date) async -> HomeHeroState {
+    private func loadMissingHero(_ date: Date, request: Int) async -> HomeHeroState {
         do {
             let status = try await loader.postStatus()
-            guard RecordMonth.calendar.isDate(status.topicDate, inSameDayAs: date), status.isPosted else { return .empty }
-            return status.moderationStatus == .validating ? .processing : .error
+            // 취소된 요청이 그 뒤 새로 보관한 사진을 지우지 않도록 삭제 전에 세대를 확인한다.
+            guard isCurrent(request) else { return .empty }
+            guard RecordMonth.calendar.isDate(status.topicDate, inSameDayAs: date), status.isPosted else {
+                uploadedPhotoStore?.removeAll()
+                return .empty
+            }
+            guard status.moderationStatus == .validating else {
+                // 처리가 끝났으면(VALIDATING 종료) 캘린더에 아직 없어도 보관 사진은 더 필요 없다.
+                uploadedPhotoStore?.removeAll()
+                return .error
+            }
+            guard let postID = status.postID, let photoURL = uploadedPhotoStore?.url(for: postID) else { return .processing }
+            // 파일 주소를 `.remote`로 넘긴다. RemoteImageCache는 URLSession으로 받아 file URL도 읽고,
+            // 응답 상태는 HTTPURLResponse일 때만 검사하므로 기기 파일도 원격 사진과 같은 길로 줄여 그린다.
+            // 근거: 이슈 #1049
+            return .processingPhoto(.remote(photoURL))
         } catch let error as PhotoUploadAPIError {
             if case .http(404, _) = error { return .noOpenTopic }
             return .error
