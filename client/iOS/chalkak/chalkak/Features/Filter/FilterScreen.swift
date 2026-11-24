@@ -77,7 +77,7 @@ private enum Metrics {
 #Preview("필터 화면") {
     FilterScreen(viewModel: FilterViewModel())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ChalkakBottomBar(selectedItem: .filter, onSelect: { _ in }, onAdd: {})
+            ChalkakBottomBar(selectedItem: .settings, onSelect: { _ in }, onAdd: {})
                 .padding(.horizontal, ChalkakSpacing.lg)
         }
         .chalkakTheme(.light)

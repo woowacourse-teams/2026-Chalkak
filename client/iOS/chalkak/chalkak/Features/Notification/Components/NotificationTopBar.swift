@@ -4,6 +4,7 @@ struct NotificationTopBar: View {
     @Environment(\.chalkakTheme) private var theme
 
     var title = "알림"
+    var showsBackButton = true
     var isMarkAllReadEnabled = false
     let onBackClick: () -> Void
     /// 알림함에서만 전달하며, 없으면 모두 읽음 버튼을 표시하지 않는다.
@@ -18,8 +19,10 @@ struct NotificationTopBar: View {
                 .accessibilityIdentifier("notification.title")
 
             HStack(spacing: 0) {
-                ChalkakNavigationButton(kind: .back, action: onBackClick)
-                    .accessibilityIdentifier("notification.back")
+                if showsBackButton {
+                    ChalkakNavigationButton(kind: .back, action: onBackClick)
+                        .accessibilityIdentifier("notification.back")
+                }
 
                 Spacer(minLength: 0)
 

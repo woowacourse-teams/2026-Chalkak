@@ -20,13 +20,14 @@ enum SettingsAccountDialog: Equatable {
     }
 }
 
-/// 설정 화면. 홈 상단 설정 버튼으로 열리는 push 화면이라 하단바 없이 뒤로가기 상단바("설정")를 둔다(#1021).
+/// 설정 탭과 홈 상단 설정 버튼에서 공유하는 화면. push 화면에서만 뒤로가기를 표시한다.
 /// 알림 설정·고객센터는 이 화면 위에 쌓이고, 뒤로 가면 이 화면으로 돌아온다(쌓는 일은 `ContentView`가 한다).
 struct SettingsScreen: View {
     @Environment(\.chalkakTheme) private var theme
     @Environment(\.chalkakShowToast) private var showToast
 
     @Bindable var viewModel: SettingsViewModel
+    var showsBackButton = true
     var onBackClick: () -> Void = {}
     var onLogin: () -> Void = {}
     var onPrivacyPolicy: () -> Void = {}
@@ -40,7 +41,7 @@ struct SettingsScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NotificationTopBar(title: "설정", onBackClick: onBackClick)
+            NotificationTopBar(title: "설정", showsBackButton: showsBackButton, onBackClick: onBackClick)
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
